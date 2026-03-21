@@ -2,7 +2,7 @@ import { app, BrowserWindow, shell, globalShortcut, Menu, nativeImage } from 'el
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerIpcHandlers } from './ipc-handlers'
-import { killAllInstances, setOnInstanceListChanged } from './instance-manager'
+import { initDaemon, disconnectDaemon, setOnInstanceListChanged } from './instance-manager'
 import { createTray, updateTrayMenu } from './tray'
 import { initLogger } from './logger'
 import { getSetting } from './settings'
@@ -192,6 +192,13 @@ app.whenReady().then(() => {
     app.dock.setIcon(getIconPath())
   }
 
+  // Connect to PTY daemon (spawns it if not running)
+  initDaemon().then(() => {
+    console.log('[app] daemon connected')
+  }).catch((err) => {
+    console.error('[app] daemon init failed:', err)
+  })
+
   registerIpcHandlers()
   buildAppMenu()
   createWindow()
@@ -225,14 +232,16 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    killAllInstances()
+    // Disconnect from daemon but don't kill it — instances survive
+    disconnectDaemon()
     app.quit()
   }
 })
 
 app.on('before-quit', () => {
   app.isQuitting = true
-  killAllInstances()
+  // Just disconnect — daemon keeps instances alive for reconnection
+  disconnectDaemon()
 })
 
 app.on('will-quit', () => {

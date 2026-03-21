@@ -22,10 +22,10 @@ export function createTray(mainWindow: BrowserWindow | null): void {
   updateTrayMenu(mainWindow)
 }
 
-export function updateTrayMenu(mainWindow: BrowserWindow | null): void {
+export async function updateTrayMenu(mainWindow: BrowserWindow | null): Promise<void> {
   if (!tray) return
 
-  const instances = getAllInstances()
+  const instances = await getAllInstances()
   const running = instances.filter((i) => i.status === 'running')
 
   const instanceItems: Electron.MenuItemConstructorOptions[] = running.map((inst) => ({
