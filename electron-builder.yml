@@ -1,0 +1,23 @@
+appId: com.claude-colony.app
+productName: Claude Colony
+directories:
+  buildResources: resources
+  output: dist
+files:
+  - out/**/*
+  - "!node_modules/**/*"
+  - node_modules/node-pty/**/*
+  - node_modules/uuid/**/*
+mac:
+  target:
+    - dmg
+    - zip
+  category: public.app-category.developer-tools
+  icon: resources/icon.png
+  artifactName: "${productName}-${version}-${arch}.${ext}"
+dmg:
+  artifactName: "${productName}-${version}.${ext}"
+npmRebuild: true
+asar: true
+asarUnpack:
+  - "node_modules/node-pty/**"
