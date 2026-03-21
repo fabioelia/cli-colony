@@ -26,20 +26,30 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 ### Instance Management
 - Launch multiple Claude CLI instances with custom names, colors, and working directories
 - Kill, restart, remove, rename, recolor instances from the sidebar
-- Pin important instances to the top
-- Unread indicator (pulsing dot) when background instances have new output
-- Info popup showing command, directory, PID, MCP servers
+- Pin important instances to the top of the list
+- Activity detection — pulsing dot when an instance is actively streaming, solid dot when idle
+- Unread indicator on background instances with new output
+- Info popup showing launch command, directory, PID, MCP servers, token usage
 - Auto-cleanup of exited instances after configurable timeout
+
+### Split View
+- Side-by-side terminal panes for monitoring two agents simultaneously
+- Right-click any instance → "Open in Split View"
+- Click a pane to focus it; `Cmd+Option+Left/Right` to toggle focus
+- Draggable divider (min 30% per pane, double-click to reset 50/50)
+- L/R badges on sidebar instances showing which pane they occupy
+- `Cmd+\` to toggle split, `Cmd+Shift+W` to close split keeping both instances alive
 
 ### Terminal
 - Full xterm.js terminal with transparent PTY passthrough
-- Sync-block-aware proxy for smooth rendering during Claude's TUI redraws
-- Search within terminal output (Cmd+F)
-- Font size zoom (Cmd+= / Cmd+- / Cmd+0)
+- Sync-block-aware proxy (DEC 2026h/l) for smooth rendering during Claude's TUI redraws
+- Scroll position preservation — reading scroll history while output streams won't jump you around
+- Search within terminal output (`Cmd+F`)
+- Font size zoom (`Cmd+=` / `Cmd+-` / `Cmd+0`)
 - Drag & drop files onto terminal to paste their path
 - Colored header accent bar per instance
-- Scroll navigation buttons (hover bottom-right)
-- Links open in system browser (Cmd+click)
+- Scroll-to-bottom button (hover bottom-right)
+- Links open in system browser
 
 ### Sessions
 - Browse Claude CLI conversation history with search
@@ -49,38 +59,39 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 - Restore all sessions from last app run on launch
 
 ### Agents
-- Browse personal agents from `~/.claude/agents/`
+- Browse personal agents from `~/.claude/agents/` and project-level agents
 - Edit agents in a split view: markdown file editor + live Claude terminal
 - Launch instances pre-configured from agent definitions
-- Cmd+S to save agent files
+- `Cmd+S` to save agent files (scoped to editor focus)
 
 ### Settings
-- Default CLI arguments (e.g. `--permission-mode bypassPermissions`) applied to all new instances
-- Sound notification on instance exit (macOS Glass sound)
-- Font size persistence
-- Theme selection
-- Auto-cleanup timeout (default 5 minutes, 0 to disable)
-- Global hotkey (default `Ctrl+Shift+Space`)
-- Application logs viewer
+- Default CLI arguments applied to all new instances
+- Global hotkey to summon the app (default `Ctrl+Shift+Space`, requires restart)
+- Sound notification toggle on instance exit (macOS Glass sound)
+- Auto-cleanup timeout for exited instances (default 5 min, 0 to disable)
+- Application logs viewer with auto-refresh
 
 ### System Integration
 - Tray menu with running instance count and quick access
 - Global hotkey to bring app to front from anywhere
-- Keyboard shortcuts:
-  - `Cmd+T` — New instance
-  - `Cmd+W` — Kill/remove active instance
-  - `Cmd+K` — Clear terminal
-  - `Cmd+F` — Find in terminal
-  - `Cmd+1` through `Cmd+9` — Switch instance by position
-  - `Cmd+=` / `Cmd+-` / `Cmd+0` — Zoom in/out/reset
-- Native macOS notifications with app icon
+- Native macOS notifications with click-to-focus
 - Git branch detection per instance
 - Token/cost tracking parsed from CLI output
 - MCP server detection from CLI output
 - Drag & drop folders onto sidebar to create new instance
 
-### Status Bar
-Running instance count, git branch, model, aggregated cost, font size, working directory, PID.
+### Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd+T` | New instance |
+| `Cmd+W` | Kill/remove active instance |
+| `Cmd+\` | Toggle split view |
+| `Cmd+Shift+W` | Close split view (keep both instances) |
+| `Cmd+Option+Left/Right` | Switch focus between split panes |
+| `Cmd+F` | Find in terminal |
+| `Cmd+1` – `Cmd+9` | Switch instance by position |
+| `Cmd+=` / `Cmd+-` / `Cmd+0` | Zoom in / out / reset |
 
 ## Data Storage
 
@@ -88,7 +99,7 @@ All app data lives in `~/.claude-colony/`:
 
 ```
 ~/.claude-colony/
-├── settings.json          # App settings (default args, font size, theme, etc.)
+├── settings.json          # App settings
 └── recent-sessions.json   # Tracks recently opened sessions for restore
 ```
 
@@ -102,6 +113,7 @@ Agent definitions are read from `~/.claude/agents/` (personal) and `<project>/.c
 - **React 19** — UI
 - **xterm.js 5** — terminal rendering (with fit, search, web-links addons)
 - **node-pty** — PTY management for Claude CLI processes
+- **Lucide React** — icons
 - **TypeScript** — throughout
 
 ## Project Structure
@@ -110,7 +122,7 @@ Agent definitions are read from `~/.claude/agents/` (personal) and `<project>/.c
 src/
 ├── main/                    # Electron main process
 │   ├── index.ts             # App bootstrap, window, menu, tray, global hotkey
-│   ├── instance-manager.ts  # PTY lifecycle, git branch, token parsing, MCP detection
+│   ├── instance-manager.ts  # PTY lifecycle, activity detection, token parsing, MCP detection
 │   ├── ipc-handlers.ts      # IPC bridge between main and renderer
 │   ├── agent-scanner.ts     # Scans ~/.claude/agents/ for agent definitions
 │   ├── session-scanner.ts   # Reads ~/.claude/history.jsonl for session history
@@ -123,19 +135,18 @@ src/
 └── renderer/
     ├── index.html
     └── src/
-        ├── App.tsx           # Root component, state orchestration
+        ├── App.tsx           # Root component, state orchestration, split view
         ├── main.tsx          # React entry point
         ├── lib/
-        │   └── terminal-proxy.ts  # Sync-block buffering for smooth TUI rendering
+        │   ├── constants.ts       # Shared colors, utilities
+        │   └── terminal-proxy.ts  # Sync-block buffering, scroll preservation
         ├── components/
-        │   ├── Sidebar.tsx          # Instance list, sessions, tabs
-        │   ├── TerminalView.tsx     # xterm.js terminal with search, drag-drop
+        │   ├── Sidebar.tsx          # Instance list, sessions, tabs, context menu
+        │   ├── TerminalView.tsx     # xterm.js terminal with search, drag-drop, focus model
         │   ├── NewInstanceDialog.tsx # Create instance form
         │   ├── AgentsPanel.tsx      # Agent browser
         │   ├── AgentEditor.tsx      # Split view: file editor + terminal
-        │   ├── SettingsPanel.tsx     # Settings + logs viewer
-        │   ├── LogsViewer.tsx       # Standalone logs component
-        │   └── SessionsList.tsx     # Session browser (standalone, unused)
+        │   └── SettingsPanel.tsx    # Settings + logs viewer
         ├── styles/
         │   └── global.css           # All styles
         └── types/

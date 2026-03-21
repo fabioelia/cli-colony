@@ -1,5 +1,5 @@
 import * as pty from 'node-pty'
-import { execSync } from 'child_process'
+import { execSync, exec } from 'child_process'
 import { v4 as uuidv4 } from 'uuid'
 import { BrowserWindow, Notification, shell } from 'electron'
 import { getDefaultArgs, getSetting } from './settings'
@@ -9,7 +9,8 @@ export interface ClaudeInstance {
   id: string
   name: string
   color: string
-  status: 'running' | 'idle' | 'exited'
+  status: 'running' | 'exited'
+  activity: 'busy' | 'waiting'
   workingDirectory: string
   createdAt: string
   exitCode: number | null
@@ -25,6 +26,9 @@ interface InternalInstance extends ClaudeInstance {
   pty: pty.IPty | null
   outputBuffer: string[]
   cleanupTimer: ReturnType<typeof setTimeout> | null
+  lastOutputAt: number
+  idleTimer: ReturnType<typeof setTimeout> | null
+  _lastSnapshot: string
 }
 
 // MCP server detection patterns
@@ -101,6 +105,7 @@ function toSerializable(inst: InternalInstance): ClaudeInstance {
     name: inst.name,
     color: inst.color,
     status: inst.status,
+    activity: inst.activity,
     workingDirectory: inst.workingDirectory,
     createdAt: inst.createdAt,
     exitCode: inst.exitCode,
@@ -153,6 +158,7 @@ export function createInstance(opts: {
       name,
       color,
       status: 'exited',
+      activity: 'waiting',
       workingDirectory: cwd,
       createdAt: new Date().toISOString(),
       exitCode: -1,
@@ -165,6 +171,9 @@ export function createInstance(opts: {
       pty: null,
       outputBuffer: [`Failed to spawn claude: ${err}\r\n`],
       cleanupTimer: null,
+      lastOutputAt: 0,
+      idleTimer: null,
+      _lastSnapshot: '',
     }
     instances.set(id, instance)
     notifyListChanged()
@@ -176,6 +185,7 @@ export function createInstance(opts: {
     name,
     color,
     status: 'running',
+    activity: 'busy',
     workingDirectory: cwd,
     createdAt: new Date().toISOString(),
     exitCode: null,
@@ -188,6 +198,8 @@ export function createInstance(opts: {
     pty: ptyProcess,
     outputBuffer: [],
     cleanupTimer: null,
+    lastOutputAt: Date.now(),
+    idleTimer: null,
   }
 
   instances.set(id, instance)
@@ -206,12 +218,15 @@ export function createInstance(opts: {
   // Stream output to renderer + buffer for late-joining terminals
   // Also parse for token usage (strip ANSI first)
   const ansiRegex = /\x1B\[[0-9;]*[a-zA-Z]|\x1B\][\s\S]*?(\x07|\x1B\\)/g
+  const IDLE_THRESHOLD_MS = 3000
   ptyProcess.onData((data) => {
     instance.outputBuffer.push(data)
     if (instance.outputBuffer.length > 10000) {
       instance.outputBuffer.splice(0, instance.outputBuffer.length - 5000)
     }
     broadcast('instance:output', { id, data })
+
+    instance.lastOutputAt = Date.now()
 
     // Parse token usage from cleaned output
     const clean = data.replace(ansiRegex, '')
@@ -241,8 +256,27 @@ export function createInstance(opts: {
     }
   })
 
+  // Activity detection: every 2s, snapshot the last 200 lines and compare
+  const activityInterval = setInterval(() => {
+    if (instance.status !== 'running') {
+      clearInterval(activityInterval)
+      return
+    }
+    // Take a snapshot of the tail of the output buffer
+    const tail = instance.outputBuffer.slice(-200).join('')
+    const changed = tail !== instance._lastSnapshot
+    instance._lastSnapshot = tail
+
+    const newActivity = changed ? 'busy' : 'waiting'
+    if (newActivity !== instance.activity) {
+      instance.activity = newActivity
+      broadcast('instance:activity', { id, activity: newActivity })
+    }
+  }, 2000)
+
   // Handle exit
   ptyProcess.onExit(({ exitCode }) => {
+    clearInterval(activityInterval)
     console.log(`[instance-manager] instance ${id} (${name}) exited with code ${exitCode}`)
     instance.status = 'exited'
     instance.exitCode = exitCode
@@ -256,12 +290,13 @@ export function createInstance(opts: {
     const soundEnabled = getSetting('soundOnFinish') !== 'false'
     if (soundEnabled) {
       console.log(`[instance-manager] playing finish sound for ${name}`)
-      try {
-        // Use macOS afplay for a reliable, audible sound
-        execSync('afplay /System/Library/Sounds/Glass.aiff &', { timeout: 5000, stdio: 'ignore' })
-      } catch {
-        shell.beep() // fallback
-      }
+      // Use async exec so it doesn't block, and afplay runs independently
+      exec('afplay /System/Library/Sounds/Glass.aiff', (err) => {
+        if (err) {
+          console.error('[instance-manager] afplay failed, trying beep:', err)
+          shell.beep()
+        }
+      })
     }
 
     // Show native notification
@@ -404,11 +439,22 @@ export function restartInstance(id: string): ClaudeInstance | null {
     }
   }
 
-  // Remove the old one, create a new one with same name/color/dir
+  // Remove the old one, create a new one with same name/color/dir/args
+  // Filter out internal args (--add-dir, --name) that createInstance will re-add
+  const userArgs = instance.args.filter((arg, i, arr) => {
+    if (arg === '--add-dir' || arg === '--name') return false
+    if (i > 0 && (arr[i - 1] === '--add-dir' || arr[i - 1] === '--name')) return false
+    return true
+  })
+  // Also filter out default args (they'll be re-added by createInstance)
+  const defaultArgs = getDefaultArgs()
+  const filteredArgs = userArgs.filter((arg) => !defaultArgs.includes(arg))
+
   const opts = {
     name: instance.name,
     workingDirectory: instance.workingDirectory,
     color: instance.color,
+    args: filteredArgs.length > 0 ? filteredArgs : undefined,
   }
   instances.delete(id)
   return createInstance(opts)

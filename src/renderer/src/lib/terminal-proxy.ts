@@ -29,9 +29,18 @@ export class TerminalProxy {
   constructor(term: Terminal) {
     this.term = term
 
-    // Track user scroll state
+    // Track user scroll state — only consider "scrolled up" if more than 2 rows from the bottom
+    // This prevents the proxy from fighting with the user when they scroll down to the bottom
     term.onScroll(() => {
-      this.userScrolledUp = term.buffer.active.viewportY < term.buffer.active.baseY
+      const distanceFromBottom = term.buffer.active.baseY - term.buffer.active.viewportY
+      if (distanceFromBottom <= 1) {
+        // User reached the bottom — release scroll lock
+        this.userScrolledUp = false
+      } else if (distanceFromBottom > 3) {
+        // User is meaningfully scrolled up
+        this.userScrolledUp = true
+      }
+      // Between 1-3 rows: keep current state (hysteresis to avoid flickering)
     })
   }
 

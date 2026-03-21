@@ -4,7 +4,8 @@ export interface ClaudeInstance {
   id: string
   name: string
   color: string
-  status: 'running' | 'idle' | 'exited'
+  status: 'running' | 'exited'
+  activity: 'busy' | 'waiting'
   workingDirectory: string
   createdAt: string
   exitCode: number | null
@@ -32,9 +33,12 @@ export interface CliSession {
   sessionId: string
   name: string | null
   display: string
+  lastMessage: string | null
+  messageCount: number
   project: string
   timestamp: number
   projectName: string
+  recentlyOpened: boolean
 }
 
 export interface ClaudeManagerAPI {
@@ -66,6 +70,7 @@ export interface ClaudeManagerAPI {
     onExited: (callback: (data: { id: string; exitCode: number }) => void) => () => void
     onListUpdate: (callback: (instances: ClaudeInstance[]) => void) => () => void
     onFocus: (callback: (data: { id: string }) => void) => () => void
+    onActivity: (callback: (data: { id: string; activity: 'busy' | 'waiting' }) => void) => () => void
   }
   sessions: {
     list: (limit?: number) => Promise<CliSession[]>
@@ -93,6 +98,9 @@ export interface ClaudeManagerAPI {
     onZoomIn: (cb: () => void) => () => void
     onZoomOut: (cb: () => void) => () => void
     onZoomReset: (cb: () => void) => () => void
+    onToggleSplit: (cb: () => void) => () => void
+    onCloseSplit: (cb: () => void) => () => void
+    onFocusPane: (cb: (side: 'left' | 'right') => void) => () => void
   }
   getPathForFile: (file: File) => string
   dialog: {
@@ -140,6 +148,11 @@ const api: ClaudeManagerAPI = {
       ipcRenderer.on('instance:focus', listener)
       return () => ipcRenderer.removeListener('instance:focus', listener)
     },
+    onActivity: (callback) => {
+      const listener = (_e: any, data: { id: string; activity: 'busy' | 'waiting' }) => callback(data)
+      ipcRenderer.on('instance:activity', listener)
+      return () => ipcRenderer.removeListener('instance:activity', listener)
+    },
   },
   sessions: {
     list: (limit) => ipcRenderer.invoke('sessions:list', limit),
@@ -167,6 +180,9 @@ const api: ClaudeManagerAPI = {
     onZoomIn: (cb) => { const l = () => cb(); ipcRenderer.on('shortcut:zoom-in', l); return () => ipcRenderer.removeListener('shortcut:zoom-in', l) },
     onZoomOut: (cb) => { const l = () => cb(); ipcRenderer.on('shortcut:zoom-out', l); return () => ipcRenderer.removeListener('shortcut:zoom-out', l) },
     onZoomReset: (cb) => { const l = () => cb(); ipcRenderer.on('shortcut:zoom-reset', l); return () => ipcRenderer.removeListener('shortcut:zoom-reset', l) },
+    onToggleSplit: (cb) => { const l = () => cb(); ipcRenderer.on('shortcut:toggle-split', l); return () => ipcRenderer.removeListener('shortcut:toggle-split', l) },
+    onCloseSplit: (cb) => { const l = () => cb(); ipcRenderer.on('shortcut:close-split', l); return () => ipcRenderer.removeListener('shortcut:close-split', l) },
+    onFocusPane: (cb) => { const l = (_e: any, side: 'left' | 'right') => cb(side); ipcRenderer.on('shortcut:focus-pane', l); return () => ipcRenderer.removeListener('shortcut:focus-pane', l) },
   },
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   dialog: {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { AgentDef } from '../types'
+import { COLOR_MAP } from '../lib/constants'
 
 interface Props {
   onLaunchAgent: (agent: AgentDef) => void
@@ -36,7 +37,10 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
       <div key={agent.id} className="agent-item">
         <div
           className="agent-item-header"
+          role="button"
+          tabIndex={0}
           onClick={() => setExpandedId(isExpanded ? null : agent.id)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedId(isExpanded ? null : agent.id) } }}
         >
           <div
             className="agent-color-bar"
@@ -101,17 +105,5 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
 }
 
 function colorMap(name: string): string {
-  const map: Record<string, string> = {
-    red: '#ef4444',
-    green: '#10b981',
-    blue: '#3b82f6',
-    purple: '#8b5cf6',
-    orange: '#f97316',
-    yellow: '#f59e0b',
-    cyan: '#06b6d4',
-    pink: '#ec4899',
-    teal: '#14b8a6',
-    indigo: '#6366f1',
-  }
-  return map[name] || name
+  return COLOR_MAP[name] || name
 }

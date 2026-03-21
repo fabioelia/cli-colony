@@ -20,6 +20,7 @@ export default function AgentEditor({ agent, onBack, onSave, onInstanceCreated }
   const termContainerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<{ term: Terminal; fitAddon: FitAddon; unsub?: () => void } | null>(null)
   const [dividerX, setDividerX] = useState(50) // percentage
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Load file content
   useEffect(() => {
@@ -165,12 +166,15 @@ export default function AgentEditor({ agent, onBack, onSave, onInstanceCreated }
     document.addEventListener('mouseup', onUp)
   }, [dividerX, instance])
 
-  // Keyboard shortcut: Cmd+S to save
+  // Keyboard shortcut: Cmd+S to save (only when textarea is focused)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-        e.preventDefault()
-        if (isDirty) handleSave()
+        // Only save if the textarea has focus
+        if (textareaRef.current && document.activeElement === textareaRef.current) {
+          e.preventDefault()
+          if (isDirty) handleSave()
+        }
       }
     }
     window.addEventListener('keydown', handler)
@@ -199,6 +203,7 @@ export default function AgentEditor({ agent, onBack, onSave, onInstanceCreated }
       <div className="agent-editor-split">
         <div className="agent-editor-file" style={{ width: `${dividerX}%` }}>
           <textarea
+            ref={textareaRef}
             className="agent-editor-textarea"
             value={content}
             onChange={(e) => setContent(e.target.value)}

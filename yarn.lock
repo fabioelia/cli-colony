@@ -1688,6 +1688,7 @@ __metadata:
     electron: ^33.2.1
     electron-builder: ^25.1.8
     electron-vite: ^2.3.0
+    lucide-react: ^0.577.0
     node-pty: ^1.1.0
     react: ^19.0.0
     react-dom: ^19.0.0
@@ -3145,6 +3146,15 @@ __metadata:
   version: 7.18.3
   resolution: "lru-cache@npm:7.18.3"
   checksum: e550d772384709deea3f141af34b6d4fa392e2e418c1498c078de0ee63670f1f46f5eee746e8ef7e69e1c895af0d4224e62ee33e66a543a14763b0f2e74c1356
+  languageName: node
+  linkType: hard
+
+"lucide-react@npm:^0.577.0":
+  version: 0.577.0
+  resolution: "lucide-react@npm:0.577.0"
+  peerDependencies:
+    react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+  checksum: f39db5fb91e925480c9d697f4fc2474d692abcda8e069a5be3295ce9c370dbf7fb55a6b88f94ab5d8b2f834bb76407926b312e2f88992aad62e7567efeb87dcc
   languageName: node
   linkType: hard
 

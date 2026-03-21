@@ -19,9 +19,11 @@ export default function App() {
   const [restorableSessions, setRestorableSessions] = useState<RecentSession[]>([])
   const [searchOpen, setSearchOpen] = useState(false)
   const [splitId, setSplitId] = useState<string | null>(null)
+  const [focusedPane, setFocusedPane] = useState<'left' | 'right'>('left')
+  const [showSplitPicker, setShowSplitPicker] = useState(false)
+  const [splitRatio, setSplitRatio] = useState(0.5)
   const [unreadIds, setUnreadIds] = useState<Set<string>>(new Set())
   const [fontSize, setFontSize] = useState(13)
-  const [theme, setTheme] = useState<string>('midnight')
   const terminalsRef = useRef<Map<string, any>>(new Map())
   const agentToLaunchRef = useRef<AgentDef | null>(null)
   // Track activeId + view in a ref so the output listener always has fresh values
@@ -29,24 +31,18 @@ export default function App() {
   activeViewRef.current = { activeId, view }
   const instancesRef = useRef(instances)
   instancesRef.current = instances
+  const splitRef = useRef<{ splitId: string | null; focusedPane: 'left' | 'right' }>({ splitId: null, focusedPane: 'left' })
+  splitRef.current = { splitId, focusedPane }
 
   useEffect(() => {
     window.api.instance.list().then(setInstances)
     window.api.sessions.restorable().then(setRestorableSessions)
     window.api.settings.getAll().then((s) => {
-      if (s.theme) {
-        setTheme(s.theme)
-      }
       if (s.fontSize) {
         setFontSize(parseInt(s.fontSize, 10) || 13)
       }
     })
   }, [])
-
-  // Apply theme to document
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme
-  }, [theme])
 
   useEffect(() => {
     const unsub = window.api.instance.onListUpdate(setInstances)
@@ -84,18 +80,25 @@ export default function App() {
       window.api.shortcuts.onNewInstance(() => setShowNewDialog(true)),
       window.api.shortcuts.onCloseInstance(() => {
         const { activeId: aid } = activeViewRef.current
-        if (aid) {
-          const inst = instancesRef.current.find((i) => i.id === aid)
-          if (inst?.status === 'running') window.api.instance.kill(aid)
-          else window.api.instance.remove(aid)
+        const { splitId: sid, focusedPane: fp } = splitRef.current
+        // In split: kill the focused pane's instance
+        const targetId = sid ? (fp === 'left' ? aid : sid) : aid
+        if (targetId) {
+          const inst = instancesRef.current.find((i) => i.id === targetId)
+          if (inst?.status === 'running') window.api.instance.kill(targetId)
+          else window.api.instance.remove(targetId)
         }
       }),
-      window.api.shortcuts.onClearTerminal(() => {
-        const { activeId: aid } = activeViewRef.current
-        if (aid) {
-          const entry = terminalsRef.current.get(aid)
-          entry?.term?.clear()
-        }
+      window.api.shortcuts.onToggleSplit(() => {
+        // Trigger via state update — handleToggleSplit uses stale refs in the closure,
+        // so we dispatch an event the effect can pick up
+        window.dispatchEvent(new CustomEvent('colony:toggle-split'))
+      }),
+      window.api.shortcuts.onCloseSplit(() => {
+        window.dispatchEvent(new CustomEvent('colony:close-split'))
+      }),
+      window.api.shortcuts.onFocusPane((side) => {
+        setFocusedPane(side)
       }),
       window.api.shortcuts.onSearch(() => {
         const { activeId: aid, view: v } = activeViewRef.current
@@ -151,22 +154,51 @@ export default function App() {
   }, [])
 
   const handleSelect = useCallback((id: string) => {
-    setActiveId(id)
-    // Clear unread for this instance
+    // Clear unread
     setUnreadIds((prev) => {
       if (!prev.has(id)) return prev
       const next = new Set(prev)
       next.delete(id)
       return next
     })
-    setView((prev) => {
-      return id === editorInstanceId && editingAgent ? 'agent-editor' : 'instances'
-    })
-  }, [editorInstanceId, editingAgent])
+
+    // Editor instance check
+    if (id === editorInstanceId && editingAgent) {
+      setActiveId(id)
+      setView('agent-editor')
+      return
+    }
+
+    // In split mode: clicking replaces focused pane, or swaps if clicking unfocused pane's instance
+    if (splitId) {
+      if (id === splitId && focusedPane === 'left') {
+        // Clicking the right pane's instance — swap
+        setSplitId(activeId)
+        setActiveId(id)
+      } else if (id === activeId && focusedPane === 'right') {
+        // Clicking the left pane's instance — swap focus
+        setFocusedPane('left')
+      } else if (focusedPane === 'left') {
+        setActiveId(id)
+      } else {
+        setSplitId(id)
+      }
+    } else {
+      setActiveId(id)
+    }
+    setView('instances')
+  }, [editorInstanceId, editingAgent, splitId, activeId, focusedPane])
 
   const handleKill = useCallback(async (id: string) => {
     await window.api.instance.kill(id)
-  }, [])
+    // If we killed a split instance, collapse to the surviving one
+    if (splitId && (id === activeId || id === splitId)) {
+      const survivingId = id === activeId ? splitId : activeId
+      setActiveId(survivingId)
+      setSplitId(null)
+      setFocusedPane('left')
+    }
+  }, [splitId, activeId])
 
   const handleRemove = useCallback(async (id: string) => {
     await window.api.instance.remove(id)
@@ -272,9 +304,77 @@ export default function App() {
     }
   }, [])
 
+  const regularInstances = instances.filter((i) => i.id !== editorInstanceId)
+
+  // Open split with a specific instance
+  const handleSplitWith = useCallback((id: string) => {
+    if (id === activeId) return
+    setSplitId(id)
+    setFocusedPane('left')
+    setSplitRatio(0.5)
+    setView('instances')
+  }, [activeId])
+
+  // Toggle split on/off (Cmd+\)
+  const handleToggleSplit = useCallback(() => {
+    if (splitId) {
+      // Close split, keep focused pane's instance
+      const keepId = focusedPane === 'left' ? activeId : splitId
+      setActiveId(keepId)
+      setSplitId(null)
+      setFocusedPane('left')
+    } else {
+      // Open split — auto-pick if 2 instances, show picker if more
+      const others = regularInstances.filter((i) => i.id !== activeId)
+      if (others.length === 1) {
+        setSplitId(others[0].id)
+        setFocusedPane('left')
+        setSplitRatio(0.5)
+      } else if (others.length > 1) {
+        setShowSplitPicker(true)
+      }
+    }
+  }, [splitId, focusedPane, activeId, regularInstances])
+
+  // Close split, keep both instances alive (Cmd+Shift+W)
+  const handleCloseSplitView = useCallback(() => {
+    if (!splitId) return
+    const keepId = focusedPane === 'left' ? activeId : splitId
+    setActiveId(keepId)
+    setSplitId(null)
+    setFocusedPane('left')
+  }, [splitId, focusedPane, activeId])
+
+  const handlePickSplit = useCallback((id: string) => {
+    setSplitId(id)
+    setFocusedPane('left')
+    setSplitRatio(0.5)
+    setShowSplitPicker(false)
+  }, [])
+
+  // I5: Clear splitId if the split instance no longer exists
+  useEffect(() => {
+    if (splitId && !instances.some((i) => i.id === splitId)) {
+      setSplitId(null)
+      setFocusedPane('left')
+    }
+  }, [instances, splitId])
+
+  // Bridge custom events to handlers (so shortcuts can call stateful handlers)
+  useEffect(() => {
+    const onToggle = () => handleToggleSplit()
+    const onClose = () => handleCloseSplitView()
+    window.addEventListener('colony:toggle-split', onToggle)
+    window.addEventListener('colony:close-split', onClose)
+    return () => {
+      window.removeEventListener('colony:toggle-split', onToggle)
+      window.removeEventListener('colony:close-split', onClose)
+    }
+  }, [handleToggleSplit, handleCloseSplitView])
+
   const active = instances.find((i) => i.id === activeId) || null
   const showTerminal = view === 'instances' && active
-  const isSplit = splitId && showTerminal && instances.some((i) => i.id === splitId)
+  const isSplit = !!(splitId && showTerminal && instances.some((i) => i.id === splitId))
 
   // Refit on view transitions
   const prevShowTerminalRef = useRef(false)
@@ -300,7 +400,24 @@ export default function App() {
     }
   }, [showTerminal, activeId])
 
-  const regularInstances = instances.filter((i) => i.id !== editorInstanceId)
+  // Refit both terminals when split changes
+  useEffect(() => {
+    if (!showTerminal) return
+    const ids = [activeId, splitId].filter(Boolean) as string[]
+    requestAnimationFrame(() => {
+      for (const id of ids) {
+        const entry = terminalsRef.current.get(id)
+        if (entry) {
+          entry.fitAddon.fit()
+          const dims = entry.fitAddon.proposeDimensions?.()
+          if (dims && dims.cols > 0 && dims.rows > 0) {
+            window.api.instance.resize(id, dims.cols, dims.rows)
+          }
+        }
+      }
+    })
+  }, [isSplit, splitId])
+
   const sidebarView: SidebarView = view === 'agent-editor' ? 'agents' : view
 
   // Status bar data
@@ -318,6 +435,7 @@ export default function App() {
         onSelect={handleSelect}
         onNew={() => { agentToLaunchRef.current = null; setShowNewDialog(true) }}
         onKill={handleKill}
+        onRestart={handleRestart}
         onRemove={handleRemove}
         onRename={handleRename}
         onRecolor={handleRecolor}
@@ -327,17 +445,29 @@ export default function App() {
         onResumeSession={handleResumeSession}
         onRestoreAll={handleRestoreAll}
         restorableCount={restorableSessions.filter((s) => s.sessionId && s.exitType !== 'killed').length}
+        splitId={splitId}
+        focusedPane={focusedPane}
+        onSplitWith={handleSplitWith}
+        onCloseSplit={handleCloseSplitView}
         onDrop={handleSidebarDrop}
       />
       <div className={`main ${isSplit ? 'split' : ''}`}>
         {/* All terminals stay mounted */}
         {regularInstances.map((inst) => {
-          const isActive = showTerminal && inst.id === activeId
-          const isSplitTarget = isSplit && inst.id === splitId
+          const isLeft = showTerminal && inst.id === activeId
+          const isRight = isSplit && inst.id === splitId
+          const isVisible = isLeft || isRight
+          const isFocused = isVisible && (
+            !isSplit || (isLeft && focusedPane === 'left') || (isRight && focusedPane === 'right')
+          )
           return (
             <div
               key={inst.id}
-              className={`terminal-wrapper ${isActive || isSplitTarget ? 'visible' : 'hidden'}`}
+              className={`terminal-wrapper ${isVisible ? 'visible' : 'hidden'}`}
+              style={isSplit && isVisible ? {
+                flex: `0 0 calc(${isLeft ? splitRatio * 100 : (1 - splitRatio) * 100}% - 2px)`,
+                order: isLeft ? 0 : 2,
+              } : undefined}
             >
               <TerminalView
                 instance={inst}
@@ -345,13 +475,65 @@ export default function App() {
                 onRestart={handleRestart}
                 onRemove={handleRemove}
                 terminalsRef={terminalsRef}
-                searchOpen={isActive && searchOpen}
+                searchOpen={isFocused && searchOpen}
                 onSearchClose={() => setSearchOpen(false)}
                 fontSize={fontSize}
+                focused={isFocused}
+                onFocusPane={() => setFocusedPane(isLeft ? 'left' : 'right')}
               />
             </div>
           )
         })}
+
+        {/* Split divider */}
+        {isSplit && (
+          <div
+            className="split-divider"
+            style={{ order: 1 }}
+            onMouseDown={(e) => {
+              e.preventDefault()
+              const startX = e.clientX
+              const startRatio = splitRatio
+              const container = (e.target as HTMLElement).parentElement!
+              const containerWidth = container.getBoundingClientRect().width
+              let lastFit = 0
+
+              const refitTerminals = () => {
+                ;[activeId, splitId].filter(Boolean).forEach((id) => {
+                  const entry = terminalsRef.current.get(id!)
+                  if (entry) {
+                    entry.fitAddon.fit()
+                    const dims = entry.fitAddon.proposeDimensions?.()
+                    if (dims && dims.cols > 0 && dims.rows > 0) {
+                      window.api.instance.resize(id!, dims.cols, dims.rows)
+                    }
+                  }
+                })
+              }
+
+              const onMove = (ev: MouseEvent) => {
+                const delta = ev.clientX - startX
+                const newRatio = Math.max(0.3, Math.min(0.7, startRatio + delta / containerWidth))
+                setSplitRatio(newRatio)
+                // N8: Debounced refit during drag
+                const now = Date.now()
+                if (now - lastFit > 100) {
+                  lastFit = now
+                  requestAnimationFrame(refitTerminals)
+                }
+              }
+              const onUp = () => {
+                document.removeEventListener('mousemove', onMove)
+                document.removeEventListener('mouseup', onUp)
+                // Final refit
+                refitTerminals()
+              }
+              document.addEventListener('mousemove', onMove)
+              document.addEventListener('mouseup', onUp)
+            }}
+            onDoubleClick={() => setSplitRatio(0.5)}
+          />
+        )}
 
         {/* Agent editor */}
         {editingAgent && (
@@ -370,8 +552,6 @@ export default function App() {
         {view === 'settings' && (
           <SettingsPanel
             onBack={() => setView('instances')}
-            theme={theme}
-            onThemeChange={(t) => { setTheme(t); window.api.settings.set('theme', t) }}
           />
         )}
         {view === 'agents' && <AgentsPanel onLaunchAgent={handleLaunchAgent} onEditAgent={handleEditAgent} />}
@@ -396,7 +576,7 @@ export default function App() {
           {activeModel && (
             <span className="status-bar-item">{activeModel}</span>
           )}
-          {totalCost > 0 && (
+          {totalCost > 0.001 && (
             <span className="status-bar-item status-bar-cost">
               ${totalCost.toFixed(4)}
             </span>
@@ -419,6 +599,32 @@ export default function App() {
           onClose={() => { setShowNewDialog(false); agentToLaunchRef.current = null }}
           prefill={agentToLaunchRef.current || undefined}
         />
+      )}
+      {showSplitPicker && (
+        <div className="dialog-overlay" onClick={() => setShowSplitPicker(false)}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()}>
+            <h2>Split with...</h2>
+            <div className="split-picker-list">
+              {regularInstances
+                .filter((i) => i.id !== activeId)
+                .map((i) => (
+                  <div
+                    key={i.id}
+                    className="split-picker-item"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => handlePickSplit(i.id)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handlePickSplit(i.id) } }}
+                  >
+                    <div className="instance-dot" style={{ backgroundColor: i.color }} />
+                    <span>{i.name}</span>
+                    <span className="split-picker-dir">{i.workingDirectory.split('/').pop()}</span>
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
+import { ChevronUp, ChevronDown, X, RotateCcw, Trash2, XCircle, GitBranch } from 'lucide-react'
 import '@xterm/xterm/css/xterm.css'
 import type { ClaudeInstance } from '../types'
 
@@ -24,9 +25,11 @@ interface Props {
   searchOpen?: boolean
   onSearchClose?: () => void
   fontSize?: number
+  focused?: boolean
+  onFocusPane?: () => void
 }
 
-export default function TerminalView({ instance, onKill, onRestart, onRemove, terminalsRef, searchOpen, onSearchClose, fontSize = 13 }: Props) {
+export default function TerminalView({ instance, onKill, onRestart, onRemove, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const initializedRef = useRef(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -108,6 +111,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, te
         cursorBlink: true,
         scrollback: 10000,
         allowProposedApi: true,
+        altClickMovesCursor: false,
       })
 
       const fitAddon = new FitAddon()
@@ -237,22 +241,22 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, te
 
   return (
     <>
-      <div className="terminal-header">
-        <div className="terminal-header-accent" style={{ backgroundColor: instance.color }} />
+      <div className={`terminal-header ${focused ? 'focused' : 'unfocused'}`} onClick={onFocusPane}>
+        <div className="terminal-header-accent" style={{ backgroundColor: focused ? instance.color : 'transparent' }} />
         <div className="terminal-header-left">
           <span className="terminal-header-name" style={{ color: instance.color }}>{instance.name}</span>
           <span className="terminal-header-dir">{instance.workingDirectory}</span>
           {instance.gitBranch && (
-            <span className="terminal-header-branch">{instance.gitBranch}</span>
+            <span className="terminal-header-branch"><GitBranch size={12} /> {instance.gitBranch}</span>
           )}
         </div>
         <div className="terminal-header-actions">
           {instance.status === 'running' ? (
-            <button className="danger" onClick={() => onKill(instance.id)}>Kill</button>
+            <button className="danger" onClick={() => onKill(instance.id)} aria-label="Kill"><XCircle size={14} /> Kill</button>
           ) : (
             <>
-              <button onClick={() => onRestart(instance.id)}>Restart</button>
-              <button className="danger" onClick={() => onRemove(instance.id)}>Remove</button>
+              <button onClick={() => onRestart(instance.id)} aria-label="Restart"><RotateCcw size={14} /> Restart</button>
+              <button className="danger" onClick={() => onRemove(instance.id)} aria-label="Remove"><Trash2 size={14} /> Remove</button>
             </>
           )}
         </div>
@@ -260,6 +264,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, te
       <div
         className={`terminal-container ${dragOver ? 'drag-over' : ''}`}
         ref={containerRef}
+        onClick={onFocusPane}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -274,17 +279,17 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, te
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={handleSearchKeyDown}
             />
-            <button className="terminal-search-btn" onClick={handleSearchPrev}>&#9650;</button>
-            <button className="terminal-search-btn" onClick={handleSearchNext}>&#9660;</button>
-            <button className="terminal-search-btn" onClick={() => { setSearchQuery(''); onSearchClose?.() }}>&#10005;</button>
+            <button className="terminal-search-btn" onClick={handleSearchPrev} title="Previous match" aria-label="Previous match"><ChevronUp size={14} /></button>
+            <button className="terminal-search-btn" onClick={handleSearchNext} title="Next match" aria-label="Next match"><ChevronDown size={14} /></button>
+            <button className="terminal-search-btn" onClick={() => { setSearchQuery(''); onSearchClose?.() }} title="Close search" aria-label="Close search"><X size={14} /></button>
           </div>
         )}
         {dragOver && (
           <div className="terminal-drop-overlay">Drop to paste path</div>
         )}
         <div className="terminal-scroll-nav">
-          <button className="terminal-scroll-btn" onClick={scrollToTop} title="Scroll to top">&#9650;</button>
-          <button className="terminal-scroll-btn" onClick={scrollToBottom} title="Scroll to bottom">&#9660;</button>
+          <button className="terminal-scroll-btn" onClick={scrollToTop} title="Scroll to top" aria-label="Scroll to top"><ChevronUp size={14} /></button>
+          <button className="terminal-scroll-btn" onClick={scrollToBottom} title="Scroll to bottom" aria-label="Scroll to bottom"><ChevronDown size={14} /></button>
         </div>
       </div>
     </>

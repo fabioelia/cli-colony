@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { AgentDef } from '../types'
+import { COLORS, COLOR_MAP } from '../lib/constants'
 
 interface Props {
   onCreate: (opts: {
@@ -12,17 +13,6 @@ interface Props {
   prefill?: AgentDef
 }
 
-const COLORS = [
-  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-  '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#6366f1',
-]
-
-const COLOR_MAP: Record<string, string> = {
-  red: '#ef4444', green: '#10b981', blue: '#3b82f6', purple: '#8b5cf6',
-  orange: '#f97316', yellow: '#f59e0b', cyan: '#06b6d4', pink: '#ec4899',
-  teal: '#14b8a6', indigo: '#6366f1',
-}
-
 function resolveColor(c?: string): string {
   if (!c) return COLORS[0]
   return COLOR_MAP[c] || c
@@ -33,6 +23,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
   const [workingDirectory, setWorkingDirectory] = useState('')
   const [color, setColor] = useState(resolveColor(prefill?.color))
   const [extraArgs, setExtraArgs] = useState('')
+  const [creating, setCreating] = useState(false)
 
   const handlePickDir = async () => {
     const dir = await window.api.dialog.openDirectory()
@@ -40,6 +31,8 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
   }
 
   const handleCreate = () => {
+    if (creating) return
+    setCreating(true)
     const args = extraArgs.trim() ? extraArgs.trim().split(/\s+/) : undefined
     onCreate({
       name: name.trim() || undefined,
@@ -49,8 +42,13 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
     })
   }
 
+  const handleClose = () => {
+    setCreating(false)
+    onClose()
+  }
+
   return (
-    <div className="dialog-overlay" onClick={onClose}>
+    <div className="dialog-overlay" onClick={handleClose}>
       <form className="dialog" onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); handleCreate() }}>
         <h2>{prefill ? `Launch: ${prefill.name}` : 'New Claude Instance'}</h2>
 
@@ -113,8 +111,8 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
         </div>
 
         <div className="dialog-actions">
-          <button type="button" className="cancel" onClick={onClose}>Cancel</button>
-          <button type="submit" className="confirm">Create</button>
+          <button type="button" className="cancel" onClick={handleClose} disabled={creating}>Cancel</button>
+          <button type="submit" className="confirm" disabled={creating}>{creating ? 'Creating...' : 'Create'}</button>
         </div>
       </form>
     </div>

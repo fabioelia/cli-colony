@@ -7,6 +7,8 @@ export interface CliSession {
   sessionId: string
   name: string | null
   display: string
+  lastMessage: string | null
+  messageCount: number
   project: string
   timestamp: number
   projectName: string
@@ -23,8 +25,14 @@ export function scanSessions(limit = 50): CliSession[] {
     const content = readFileSync(historyPath, 'utf-8')
     const lines = content.trim().split('\n')
 
-    // First pass: collect first message and last /rename per session
-    const firstMessage = new Map<string, { display: string; project: string; timestamp: number }>()
+    // First pass: collect first message, last message, count, and last /rename per session
+    const sessionData = new Map<string, {
+      firstDisplay: string
+      lastDisplay: string
+      project: string
+      timestamp: number
+      messageCount: number
+    }>()
     const lastRename = new Map<string, string>()
 
     for (const line of lines) {
@@ -32,25 +40,27 @@ export function scanSessions(limit = 50): CliSession[] {
         const entry = JSON.parse(line)
         if (!entry.sessionId || !entry.display) continue
 
-        // Track the first non-command message as the display
-        if (!firstMessage.has(entry.sessionId)) {
-          firstMessage.set(entry.sessionId, {
-            display: entry.display,
+        const existing = sessionData.get(entry.sessionId)
+        if (!existing) {
+          sessionData.set(entry.sessionId, {
+            firstDisplay: entry.display,
+            lastDisplay: entry.display,
             project: entry.project || '',
             timestamp: entry.timestamp || 0,
+            messageCount: 1,
           })
+        } else {
+          existing.lastDisplay = entry.display
+          existing.messageCount++
+          if (entry.timestamp > existing.timestamp) {
+            existing.timestamp = entry.timestamp
+          }
         }
 
         // Track /rename commands — keep the last one
         const renameMatch = entry.display.match(/^\/rename\s+(.+)$/i)
         if (renameMatch) {
           lastRename.set(entry.sessionId, renameMatch[1].trim())
-        }
-
-        // Update timestamp to the latest
-        const existing = firstMessage.get(entry.sessionId)!
-        if (entry.timestamp > existing.timestamp) {
-          existing.timestamp = entry.timestamp
         }
       } catch {
         // skip bad lines
@@ -65,16 +75,18 @@ export function scanSessions(limit = 50): CliSession[] {
 
     // Build session list
     const sessions: CliSession[] = []
-    for (const [sessionId, data] of firstMessage) {
+    for (const [sessionId, data] of sessionData) {
       const projectPath = data.project
       const parts = projectPath.split('/')
       const name = lastRename.get(sessionId) || null
-      const display = data.display
+      const lastMsg = data.lastDisplay !== data.firstDisplay ? data.lastDisplay : null
 
       sessions.push({
         sessionId,
         name,
-        display,
+        display: data.firstDisplay,
+        lastMessage: lastMsg,
+        messageCount: data.messageCount,
         project: projectPath,
         timestamp: data.timestamp,
         projectName: parts[parts.length - 1] || projectPath,

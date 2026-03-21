@@ -90,9 +90,25 @@ function buildAppMenu(): void {
           click: () => sendToRenderer('shortcut:close-instance'),
         },
         {
-          label: 'Clear Terminal',
-          accelerator: 'CmdOrCtrl+K',
-          click: () => sendToRenderer('shortcut:clear-terminal'),
+          label: 'Close Split',
+          accelerator: 'CmdOrCtrl+Shift+W',
+          click: () => sendToRenderer('shortcut:close-split'),
+        },
+        { type: 'separator' },
+        {
+          label: 'Toggle Split View',
+          accelerator: 'CmdOrCtrl+\\',
+          click: () => sendToRenderer('shortcut:toggle-split'),
+        },
+        {
+          label: 'Focus Left Pane',
+          accelerator: 'CmdOrCtrl+Alt+Left',
+          click: () => sendToRenderer('shortcut:focus-pane', 'left'),
+        },
+        {
+          label: 'Focus Right Pane',
+          accelerator: 'CmdOrCtrl+Alt+Right',
+          click: () => sendToRenderer('shortcut:focus-pane', 'right'),
         },
         { type: 'separator' },
         {

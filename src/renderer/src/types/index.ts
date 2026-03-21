@@ -2,7 +2,8 @@ export interface ClaudeInstance {
   id: string
   name: string
   color: string
-  status: 'running' | 'idle' | 'exited'
+  status: 'running' | 'exited'
+  activity: 'busy' | 'waiting'
   workingDirectory: string
   createdAt: string
   exitCode: number | null
@@ -30,6 +31,8 @@ export interface CliSession {
   sessionId: string
   name: string | null
   display: string
+  lastMessage: string | null
+  messageCount: number
   project: string
   timestamp: number
   projectName: string

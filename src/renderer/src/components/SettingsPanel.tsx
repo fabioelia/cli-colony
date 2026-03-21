@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { ArrowLeft, Terminal, ScrollText } from 'lucide-react'
 
 interface Props {
   onBack: () => void
@@ -6,6 +7,9 @@ interface Props {
 
 export default function SettingsPanel({ onBack }: Props) {
   const [defaultArgs, setDefaultArgs] = useState('')
+  const [soundOnFinish, setSoundOnFinish] = useState(true)
+  const [autoCleanupMinutes, setAutoCleanupMinutes] = useState('5')
+  const [globalHotkey, setGlobalHotkey] = useState('CommandOrControl+Shift+Space')
   const [saved, setSaved] = useState(false)
   const [logs, setLogs] = useState('')
   const [showLogs, setShowLogs] = useState(false)
@@ -15,10 +19,12 @@ export default function SettingsPanel({ onBack }: Props) {
   useEffect(() => {
     window.api.settings.getAll().then((s) => {
       setDefaultArgs(s.defaultArgs || '')
+      setSoundOnFinish(s.soundOnFinish !== 'false')
+      setAutoCleanupMinutes(s.autoCleanupMinutes || '5')
+      setGlobalHotkey(s.globalHotkey || 'CommandOrControl+Shift+Space')
     })
   }, [])
 
-  // Auto-refresh logs when visible
   useEffect(() => {
     if (!showLogs) {
       if (intervalRef.current) clearInterval(intervalRef.current)
@@ -39,7 +45,12 @@ export default function SettingsPanel({ onBack }: Props) {
   }, [logs])
 
   const handleSave = async () => {
-    await window.api.settings.set('defaultArgs', defaultArgs)
+    await Promise.all([
+      window.api.settings.set('defaultArgs', defaultArgs),
+      window.api.settings.set('soundOnFinish', soundOnFinish ? 'true' : 'false'),
+      window.api.settings.set('autoCleanupMinutes', autoCleanupMinutes),
+      window.api.settings.set('globalHotkey', globalHotkey),
+    ])
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -47,15 +58,22 @@ export default function SettingsPanel({ onBack }: Props) {
   return (
     <div className="settings-panel">
       <div className="settings-header">
+        <button className="settings-back" onClick={onBack} aria-label="Back" title="Back">
+          <ArrowLeft size={16} />
+        </button>
         <h2>Settings</h2>
       </div>
 
+      {/* CLI Configuration */}
       <div className="settings-section">
+        <div className="settings-section-title">
+          <Terminal size={12} />
+          CLI Configuration
+        </div>
         <div className="settings-field">
-          <label>Default CLI Arguments</label>
+          <label>Default Arguments</label>
           <p className="settings-help">
-            These arguments are prepended to every new Claude instance.
-            For example: <code>--permission-mode bypassPermissions</code>
+            Prepended to every new Claude instance.
           </p>
           <input
             value={defaultArgs}
@@ -63,50 +81,88 @@ export default function SettingsPanel({ onBack }: Props) {
             placeholder="e.g. --permission-mode bypassPermissions --model sonnet"
           />
         </div>
+        <div className="settings-field">
+          <label>Global Hotkey</label>
+          <p className="settings-help">
+            Brings the app to front from anywhere.
+            <span className="settings-restart-note">Requires restart</span>
+          </p>
+          <input
+            value={globalHotkey}
+            onChange={(e) => setGlobalHotkey(e.target.value)}
+            placeholder="CommandOrControl+Shift+Space"
+          />
+        </div>
+      </div>
 
-        <div className="settings-actions">
-          <button className="settings-save" onClick={handleSave}>
-            {saved ? 'Saved!' : 'Save'}
+      {/* Behavior */}
+      <div className="settings-section">
+        <div className="settings-section-title">
+          Behavior
+        </div>
+        <div className="settings-row">
+          <span className="settings-row-label">Play sound on instance finish</span>
+          <button
+            className={`settings-toggle ${soundOnFinish ? 'active' : ''}`}
+            onClick={() => setSoundOnFinish(!soundOnFinish)}
+            role="switch"
+            aria-checked={soundOnFinish}
+          >
+            <span className="settings-toggle-knob" />
           </button>
         </div>
-      </div>
-
-      <div className="settings-section">
-        <div className="settings-field">
-          <label>Config Location</label>
-          <p className="settings-help">
-            Settings are stored at <code>~/.claude-colony/settings.json</code>
-          </p>
+        <div className="settings-row">
+          <span className="settings-row-label">Auto-cleanup exited instances after</span>
+          <div className="settings-row-control">
+            <input
+              type="number"
+              min="0"
+              max="60"
+              value={autoCleanupMinutes}
+              onChange={(e) => setAutoCleanupMinutes(e.target.value)}
+              className="settings-compact-number"
+            />
+            <span className="settings-unit">min</span>
+          </div>
         </div>
+        <p className="settings-help settings-help-bottom">Set to 0 to disable auto-cleanup.</p>
       </div>
 
-      <div className="settings-section">
-        <div className="settings-field">
-          <div className="settings-logs-header">
-            <label>Application Logs</label>
-            <div className="settings-logs-actions">
+      {/* Save */}
+      <div className="settings-save-row">
+        <button className="settings-save" onClick={handleSave}>
+          {saved ? 'Saved!' : 'Save Settings'}
+        </button>
+        <span className="settings-config-path">~/.claude-colony/settings.json</span>
+      </div>
+
+      {/* Logs */}
+      <div className={`settings-section settings-logs-section ${showLogs ? '' : 'collapsed'}`}>
+        <div className="settings-section-title">
+          <ScrollText size={12} />
+          Application Logs
+          <div className="settings-logs-actions">
+            <button
+              className="settings-logs-toggle"
+              onClick={() => setShowLogs(!showLogs)}
+            >
+              {showLogs ? 'Hide' : 'Show'}
+            </button>
+            {showLogs && (
               <button
                 className="settings-logs-toggle"
-                onClick={() => setShowLogs(!showLogs)}
+                onClick={() => { window.api.logs.clear(); setLogs('') }}
               >
-                {showLogs ? 'Hide' : 'Show'}
+                Clear
               </button>
-              {showLogs && (
-                <button
-                  className="settings-logs-toggle"
-                  onClick={() => { window.api.logs.clear(); setLogs('') }}
-                >
-                  Clear
-                </button>
-              )}
-            </div>
+            )}
           </div>
-          {showLogs && (
-            <pre className="settings-logs" ref={logsRef}>
-              {logs || 'No logs yet.'}
-            </pre>
-          )}
         </div>
+        {showLogs && (
+          <pre className="settings-logs" ref={logsRef}>
+            {logs || 'No logs yet.'}
+          </pre>
+        )}
       </div>
     </div>
   )

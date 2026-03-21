@@ -1,10 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
-
-const COLORS = [
-  '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-  '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#6366f1',
-]
+import { COLORS, formatTime } from '../lib/constants'
 
 export type SidebarView = 'instances' | 'agents' | 'sessions' | 'settings' | 'logs'
 
@@ -15,6 +12,7 @@ interface Props {
   onSelect: (id: string) => void
   onNew: () => void
   onKill: (id: string) => void
+  onRestart: (id: string) => void
   onRemove: (id: string) => void
   onRename: (id: string, name: string) => void
   onRecolor: (id: string, color: string) => void
@@ -25,16 +23,24 @@ interface Props {
   onRestoreAll: () => void
   restorableCount: number
   unreadIds: Set<string>
+  splitId: string | null
+  focusedPane: 'left' | 'right'
+  onSplitWith: (id: string) => void
+  onCloseSplit: () => void
   onDrop?: (e: React.DragEvent) => void
 }
 
-export default function Sidebar({ instances, activeId, view, onSelect, onNew, onKill, onRemove, onRename, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onRestoreAll, restorableCount, unreadIds, onDrop }: Props) {
+export default function Sidebar({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onRestoreAll, restorableCount, unreadIds, splitId, focusedPane, onSplitWith, onCloseSplit, onDrop }: Props) {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [popoverId, setPopoverId] = useState<string | null>(null)
   const [popoverType, setPopoverType] = useState<'color' | 'info' | null>(null)
   const [sessions, setSessions] = useState<CliSession[]>([])
   const [sessionSearch, setSessionSearch] = useState('')
+  const [hoveredSessionId, setHoveredSessionId] = useState<string | null>(null)
+  const [popoverPos, setPopoverPos] = useState<{ top: number } | null>(null)
+  const [instancePopoverPos, setInstancePopoverPos] = useState<{ top: number; left: number } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const renameRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -51,7 +57,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
   // Close popovers when clicking outside
   useEffect(() => {
     if (!popoverId) return
-    const handler = () => { setPopoverId(null); setPopoverType(null) }
+    const handler = () => { setPopoverId(null); setPopoverType(null); setInstancePopoverPos(null) }
     window.addEventListener('click', handler)
     return () => window.removeEventListener('click', handler)
   }, [popoverId])
@@ -68,28 +74,28 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
     setRenamingId(null)
   }
 
-  const togglePopover = (id: string, type: 'color' | 'info') => {
+  const togglePopover = (id: string, type: 'color' | 'info', e?: React.MouseEvent) => {
     if (popoverId === id && popoverType === type) {
       setPopoverId(null)
       setPopoverType(null)
+      setInstancePopoverPos(null)
     } else {
       setPopoverId(id)
       setPopoverType(type)
+      if (e) {
+        const rect = (e.currentTarget as HTMLElement).closest('.instance-item')?.getBoundingClientRect()
+        if (rect) {
+          const top = Math.min(rect.bottom + 4, window.innerHeight - 200)
+          const left = Math.max(8, rect.left)
+          setInstancePopoverPos({ top, left })
+        }
+      }
     }
   }
 
   const dirName = (path: string) => {
     const parts = path.split('/')
     return parts[parts.length - 1] || path
-  }
-
-  const formatTime = (ts: number) => {
-    const diff = Date.now() - ts
-    if (diff < 60000) return 'now'
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}m`
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`
-    if (diff < 604800000) return `${Math.floor(diff / 86400000)}d`
-    return new Date(ts).toLocaleDateString('en', { month: 'short', day: 'numeric' })
   }
 
   const filteredSessions = sessionSearch
@@ -105,21 +111,38 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
   const running = instances.filter((i) => i.status === 'running' && !i.pinned)
   const exited = instances.filter((i) => i.status !== 'running' && !i.pinned)
 
+  const handleKeyDown = (e: React.KeyboardEvent, action: () => void) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      action()
+    }
+  }
+
   const renderInstance = (inst: ClaudeInstance) => (
     <div
       key={inst.id}
       className={`instance-item ${inst.id === activeId ? 'active' : ''}`}
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect(inst.id)}
+      onKeyDown={(e) => handleKeyDown(e, () => onSelect(inst.id))}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        const x = Math.min(e.clientX, window.innerWidth - 200)
+        const y = Math.min(e.clientY, window.innerHeight - 150)
+        setContextMenu({ id: inst.id, x, y })
+      }}
     >
       <div
-        className="instance-dot clickable"
+        className={`instance-dot clickable ${inst.status === 'running' && inst.activity === 'busy' ? 'pulsing' : ''}`}
         style={{
           backgroundColor: inst.color,
+          color: inst.color,
           opacity: inst.status === 'exited' ? 0.4 : 1,
         }}
         onClick={(e) => {
           e.stopPropagation()
-          togglePopover(inst.id, 'color')
+          togglePopover(inst.id, 'color', e)
         }}
         title="Change color"
       />
@@ -139,9 +162,16 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
           />
         ) : (
           <div className="instance-name">
-            {inst.pinned && <span className="instance-pin-icon" title="Pinned">&#128204;</span>}
+            {inst.pinned && <span className="instance-pin-icon" title="Pinned"><Pin size={11} /></span>}
             {inst.name}
-            {unreadIds.has(inst.id) && <span className="instance-unread-dot" style={{ backgroundColor: inst.color }} />}
+            {splitId && inst.id === activeId && <span className={`split-badge ${focusedPane === 'left' ? 'focused' : ''}`} title="Left split pane">L</span>}
+            {splitId && inst.id === splitId && <span className={`split-badge ${focusedPane === 'right' ? 'focused' : ''}`} title="Right split pane">R</span>}
+            {inst.status === 'running' && inst.activity === 'waiting' && (
+              <span className="instance-attention-badge" title="Waiting for your input">your turn</span>
+            )}
+            {unreadIds.has(inst.id) && (
+              <span className="instance-unread-badge" title="New output you haven't seen">new</span>
+            )}
             {inst.mcpServers.length > 0 && (
               <span className="instance-mcp-badge" title={inst.mcpServers.join(', ')}>
                 MCP {inst.mcpServers.length}
@@ -156,54 +186,25 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
           {inst.status === 'running' ? 'live' : `exit ${inst.exitCode ?? '?'}`}
         </span>
         <div className="instance-item-actions">
-          <button title="Info" onClick={(e) => { e.stopPropagation(); togglePopover(inst.id, 'info') }}>i</button>
-          <button title="Rename" onClick={(e) => { e.stopPropagation(); startRename(inst) }}>&#9998;</button>
+          <button title="Info" aria-label="Info" onClick={(e) => { e.stopPropagation(); togglePopover(inst.id, 'info', e) }}><Info size={13} /></button>
+          <button title="Rename" aria-label="Rename" onClick={(e) => { e.stopPropagation(); startRename(inst) }}><Pencil size={13} /></button>
           <button
             title={inst.pinned ? 'Unpin' : 'Pin'}
+            aria-label={inst.pinned ? 'Unpin' : 'Pin'}
             onClick={(e) => { e.stopPropagation(); inst.pinned ? onUnpin(inst.id) : onPin(inst.id) }}
           >
-            {inst.pinned ? '&#9675;' : '&#9679;'}
+            {inst.pinned ? <PinOff size={13} /> : <Pin size={13} />}
           </button>
           {inst.status === 'running' ? (
-            <button className="danger" title="Kill" onClick={(e) => { e.stopPropagation(); onKill(inst.id) }}>&#9632;</button>
+            <button className="danger" title="Kill" aria-label="Kill" onClick={(e) => { e.stopPropagation(); onKill(inst.id) }}><Square size={13} /></button>
           ) : (
-            <button className="danger" title="Remove" onClick={(e) => { e.stopPropagation(); onRemove(inst.id) }}>&times;</button>
+            <>
+              <button title="Restart" aria-label="Restart" onClick={(e) => { e.stopPropagation(); onRestart(inst.id) }}><Play size={13} /></button>
+              <button className="danger" title="Remove" aria-label="Remove" onClick={(e) => { e.stopPropagation(); onRemove(inst.id) }}><Trash2 size={13} /></button>
+            </>
           )}
         </div>
       </div>
-
-      {popoverId === inst.id && popoverType === 'color' && (
-        <div className="instance-popover" onClick={(e) => e.stopPropagation()}>
-          <div className="inline-color-picker">
-            {COLORS.map((c) => (
-              <div
-                key={c}
-                className={`color-swatch small ${c === inst.color ? 'selected' : ''}`}
-                style={{ backgroundColor: c }}
-                onClick={() => { onRecolor(inst.id, c); setPopoverId(null) }}
-              />
-            ))}
-            <input
-              type="color"
-              className="color-input-native"
-              value={inst.color}
-              onChange={(e) => onRecolor(inst.id, e.target.value)}
-              title="Custom color"
-            />
-          </div>
-        </div>
-      )}
-      {popoverId === inst.id && popoverType === 'info' && (
-        <div className="instance-popover" onClick={(e) => e.stopPropagation()}>
-          <div className="instance-info-row"><span>cmd</span> claude {inst.args.join(' ') || '(interactive)'}</div>
-          <div className="instance-info-row"><span>dir</span> {inst.workingDirectory}</div>
-          <div className="instance-info-row"><span>pid</span> {inst.pid ?? '—'}</div>
-          <div className="instance-info-row"><span>started</span> {new Date(inst.createdAt).toLocaleTimeString()}</div>
-          {inst.mcpServers.length > 0 && (
-            <div className="instance-info-row"><span>mcp</span> {inst.mcpServers.join(', ')}</div>
-          )}
-        </div>
-      )}
     </div>
   )
 
@@ -222,7 +223,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
 
       {view === 'instances' && (
         <div className="sidebar-instance-actions">
-          <button className="sidebar-new-btn" onClick={onNew}>+ New Instance</button>
+          <button className="sidebar-new-btn" onClick={onNew}><Plus size={14} /> New Instance</button>
           {restorableCount > 0 && instances.length === 0 && (
             <button className="sidebar-restore-btn" onClick={onRestoreAll}>
               Restore {restorableCount} session{restorableCount > 1 ? 's' : ''} from last run
@@ -253,6 +254,48 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
         )}
       </div>
 
+      {/* Instance popovers rendered outside instance-list to avoid clipping (I2) */}
+      {popoverId && popoverType === 'color' && instancePopoverPos && (() => {
+        const inst = instances.find((i) => i.id === popoverId)
+        if (!inst) return null
+        return (
+          <div className="instance-popover" style={{ top: instancePopoverPos.top, left: instancePopoverPos.left }} onClick={(e) => e.stopPropagation()}>
+            <div className="inline-color-picker">
+              {COLORS.map((c) => (
+                <div
+                  key={c}
+                  className={`color-swatch small ${c === inst.color ? 'selected' : ''}`}
+                  style={{ backgroundColor: c }}
+                  onClick={() => { onRecolor(inst.id, c); setPopoverId(null); setInstancePopoverPos(null) }}
+                />
+              ))}
+              <input
+                type="color"
+                className="color-input-native"
+                value={inst.color}
+                onChange={(e) => onRecolor(inst.id, e.target.value)}
+                title="Custom color"
+              />
+            </div>
+          </div>
+        )
+      })()}
+      {popoverId && popoverType === 'info' && instancePopoverPos && (() => {
+        const inst = instances.find((i) => i.id === popoverId)
+        if (!inst) return null
+        return (
+          <div className="instance-popover" style={{ top: instancePopoverPos.top, left: instancePopoverPos.left }} onClick={(e) => e.stopPropagation()}>
+            <div className="instance-info-row"><span>cmd</span> claude {inst.args.join(' ') || '(interactive)'}</div>
+            <div className="instance-info-row"><span>dir</span> {inst.workingDirectory}</div>
+            <div className="instance-info-row"><span>pid</span> {inst.pid ?? '—'}</div>
+            <div className="instance-info-row"><span>started</span> {new Date(inst.createdAt).toLocaleTimeString()}</div>
+            {inst.mcpServers.length > 0 && (
+              <div className="instance-info-row"><span>mcp</span> {inst.mcpServers.join(', ')}</div>
+            )}
+          </div>
+        )
+      })()}
+
       <div className="sidebar-sessions">
         <div className="sidebar-sessions-header">
           <span className="sidebar-sessions-title">History</span>
@@ -261,8 +304,9 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
             className="sidebar-sessions-refresh"
             onClick={() => window.api.sessions.list(100).then(setSessions)}
             title="Refresh"
+            aria-label="Refresh"
           >
-            &#8635;
+            <RefreshCw size={13} />
           </button>
         </div>
         <input
@@ -273,7 +317,22 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
         />
         <div className="sidebar-sessions-list">
           {filteredSessions.map((s) => (
-            <div key={s.sessionId} className="sidebar-session-item" onClick={() => onResumeSession(s)}>
+            <div
+              key={s.sessionId}
+              className="sidebar-session-item"
+              role="button"
+              tabIndex={0}
+              onClick={() => onResumeSession(s)}
+              onKeyDown={(e) => handleKeyDown(e, () => onResumeSession(s))}
+              onMouseEnter={(e) => {
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                // Clamp so popover doesn't go off-screen bottom
+                const top = Math.min(rect.top, window.innerHeight - 280)
+                setPopoverPos({ top })
+                setHoveredSessionId(s.sessionId)
+              }}
+              onMouseLeave={() => setHoveredSessionId(null)}
+            >
               <div className="sidebar-session-display">
                 {s.name || s.display}
                 {s.recentlyOpened && <span className="sidebar-session-recent-badge">recent</span>}
@@ -281,8 +340,26 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
               {s.name && <div className="sidebar-session-command">{s.display}</div>}
               <div className="sidebar-session-meta">
                 <span className="sidebar-session-project">{s.projectName}</span>
+                <span>{s.messageCount} msg{s.messageCount !== 1 ? 's' : ''}</span>
                 <span>{formatTime(s.timestamp)}</span>
               </div>
+              {hoveredSessionId === s.sessionId && popoverPos && (
+                <div className="session-popover" style={{ top: popoverPos.top }}>
+                  <div className="session-popover-section">
+                    <div className="session-popover-label">First message</div>
+                    <div className="session-popover-text">{s.display}</div>
+                  </div>
+                  {s.lastMessage && (
+                    <div className="session-popover-section">
+                      <div className="session-popover-label">Last message</div>
+                      <div className="session-popover-text">{s.lastMessage}</div>
+                    </div>
+                  )}
+                  <div className="session-popover-footer">
+                    {s.projectName} &middot; {s.messageCount} messages &middot; {s.sessionId.slice(0, 8)}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
           {filteredSessions.length === 0 && (
@@ -293,12 +370,68 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
         </div>
       </div>
 
+      {contextMenu && (
+        <div
+          className="context-menu-overlay"
+          onClick={() => setContextMenu(null)}
+        >
+          <div
+            className="context-menu"
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {splitId && (contextMenu.id === activeId || contextMenu.id === splitId) ? (
+              <button
+                className="context-menu-item"
+                onClick={() => {
+                  onCloseSplit()
+                  setContextMenu(null)
+                }}
+              >
+                Close Split View
+              </button>
+            ) : contextMenu.id !== activeId ? (
+              <button
+                className="context-menu-item"
+                onClick={() => {
+                  onSplitWith(contextMenu.id)
+                  setContextMenu(null)
+                }}
+              >
+                Open in Split View
+              </button>
+            ) : null}
+            <button
+              className="context-menu-item"
+              onClick={() => {
+                startRename(instances.find((i) => i.id === contextMenu.id)!)
+                setContextMenu(null)
+              }}
+            >
+              Rename
+            </button>
+            <button
+              className="context-menu-item danger"
+              onClick={() => {
+                const inst = instances.find((i) => i.id === contextMenu.id)
+                if (inst?.status === 'running') onKill(contextMenu.id)
+                else onRemove(contextMenu.id)
+                setContextMenu(null)
+              }}
+            >
+              {instances.find((i) => i.id === contextMenu.id)?.status === 'running' ? 'Kill' : 'Remove'}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="sidebar-footer">
         <button
           className={`sidebar-footer-btn ${view === 'settings' ? 'active' : ''}`}
           onClick={() => onViewChange(view === 'settings' ? 'instances' : 'settings')}
+          aria-label="Settings"
         >
-          Settings
+          <Settings size={14} /> Settings
         </button>
       </div>
     </div>
