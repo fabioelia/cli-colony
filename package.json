@@ -1,5 +1,6 @@
 {
   "name": "claude-colony",
+  "productName": "Claude Colony",
   "version": "1.0.0",
   "description": "Claude Colony — manage multiple Claude CLI instances",
   "main": "./out/main/index.js",

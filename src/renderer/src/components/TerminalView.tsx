@@ -220,10 +220,18 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, te
     const files = e.dataTransfer.files
     if (files.length > 0) {
       const paths = Array.from(files).map((f) => {
-        const p = (f as any).path as string
+        const p = window.api.getPathForFile(f)
+        if (!p) return null
         return p.includes(' ') ? `"${p}"` : p
-      })
-      window.api.instance.write(instance.id, paths.join(' '))
+      }).filter(Boolean)
+      if (paths.length > 0) {
+        // Write each path character by character to the PTY input
+        // so the CLI's input handler picks it up naturally
+        const text = paths.join(' ') + ' '
+        for (const ch of text) {
+          window.api.instance.write(instance.id, ch)
+        }
+      }
     }
   }, [instance.id])
 

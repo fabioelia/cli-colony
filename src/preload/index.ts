@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 export interface ClaudeInstance {
   id: string
@@ -94,6 +94,7 @@ export interface ClaudeManagerAPI {
     onZoomOut: (cb: () => void) => () => void
     onZoomReset: (cb: () => void) => () => void
   }
+  getPathForFile: (file: File) => string
   dialog: {
     openDirectory: () => Promise<string | null>
   }
@@ -167,6 +168,7 @@ const api: ClaudeManagerAPI = {
     onZoomOut: (cb) => { const l = () => cb(); ipcRenderer.on('shortcut:zoom-out', l); return () => ipcRenderer.removeListener('shortcut:zoom-out', l) },
     onZoomReset: (cb) => { const l = () => cb(); ipcRenderer.on('shortcut:zoom-reset', l); return () => ipcRenderer.removeListener('shortcut:zoom-reset', l) },
   },
+  getPathForFile: (file: File) => webUtils.getPathForFile(file),
   dialog: {
     openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
   },

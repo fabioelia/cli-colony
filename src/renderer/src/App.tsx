@@ -263,7 +263,7 @@ export default function App() {
     e.preventDefault()
     const files = e.dataTransfer.files
     if (files.length > 0) {
-      const path = (files[0] as any).path as string
+      const path = window.api.getPathForFile(files[0])
       if (path) {
         const inst = await window.api.instance.create({ workingDirectory: path })
         setActiveId(inst.id)
