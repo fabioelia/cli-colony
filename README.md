@@ -59,15 +59,30 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 - `Cmd+\` to toggle split, `Cmd+Shift+W` to close split keeping both instances alive
 
 ### Terminal
-- Full xterm.js terminal with transparent PTY passthrough
+- Full xterm.js terminal with transparent PTY passthrough — xterm cursor hidden, Claude CLI renders its own
 - Sync-block-aware proxy (DEC 2026h/l) for smooth rendering during Claude's TUI redraws
 - Scroll position preservation — reading scroll history while output streams won't jump you around
+- Auto-redraw on instance switch — SIGWINCH resize bounce forces Claude CLI to repaint its TUI
 - Search within terminal output (`Cmd+F`)
 - Font size zoom (`Cmd+=` / `Cmd+-` / `Cmd+0`)
 - Drag & drop files onto terminal to paste their path
 - Colored header accent bar per instance
 - Scroll-to-bottom button (hover bottom-right)
 - Links open in system browser
+
+### File Explorer
+- **Files tab** per instance — split view with tree on left, file preview on right
+- Lazy-loading directory tree with expand/collapse all per folder
+- Root folder node for the working directory
+- **File name filter** — type to filter the tree by name, matching dirs auto-expand
+- **Content search** — grep-powered search across all files in the project
+  - Results grouped by directory in a tree view
+  - Click a match to preview the file with the search term highlighted
+  - Infinite scroll — auto-loads more results as you scroll
+  - Configurable ignore rules (gear icon) — add custom patterns, persisted to settings
+- **File preview** with line numbers
+- **Cmd+F in preview** — search within the previewed file with Enter/Shift+Enter navigation, active match highlighting
+- Click a file to paste its path into the terminal
 
 ### Sessions
 - Browse Claude CLI conversation history with search
@@ -88,10 +103,12 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 
 ### Settings
 - Default CLI arguments applied to all new instances
+- **Shell profile** — choose which shell to load environment from (reads `/etc/shells` dynamically)
 - Global hotkey to summon the app (default `Ctrl+Shift+Space`, requires restart)
 - Sound notification when Claude finishes processing (busy → waiting) and app is not focused
 - Native notification with click-to-focus when Claude is waiting for input
 - Auto-cleanup timeout for exited instances (default 5 min, 0 to disable)
+- Search ignore rules — configurable patterns for file tree and content search
 - Application logs viewer with auto-refresh
 
 ### System Integration
@@ -112,7 +129,7 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 | `Cmd+\` | Toggle split view |
 | `Cmd+Shift+W` | Close split view (keep both instances) |
 | `Cmd+Option+Left/Right` | Switch focus between split panes |
-| `Cmd+F` | Find in terminal |
+| `Cmd+F` | Find in terminal / file preview |
 | `Cmd+1` – `Cmd+9` | Switch instance by position (pinned → active → stopped) |
 | `Alt+Tab` / `Alt+Shift+Tab` | Cycle through instances forward / backward |
 | `Cmd+=` / `Cmd+-` / `Cmd+0` | Zoom in / out / reset |
@@ -123,11 +140,12 @@ All app data lives in `~/.claude-colony/`:
 
 ```
 ~/.claude-colony/
-├── settings.json          # App settings
+├── settings.json          # App settings (args, shell, hotkey, ignore rules)
 ├── recent-sessions.json   # Tracks recently opened sessions for restore
 ├── github.json            # GitHub repos and custom PR prompts
 ├── daemon.sock            # Unix socket for daemon communication
 ├── daemon.pid             # Daemon process ID
+├── screenshots/           # Pasted clipboard images
 └── pr-workspace/          # Dedicated workspace for PR-related instances
     ├── pr-context.md      # Synced PR data for CLI consumption
     └── pr-memory.md       # Persistent knowledge from PR conversations

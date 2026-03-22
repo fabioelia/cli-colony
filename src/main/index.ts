@@ -203,20 +203,22 @@ app.whenReady().then(() => {
     app.dock.setIcon(getIconPath())
   }
 
-  // Connect to PTY daemon (spawns it if not running)
-  initDaemon().then(() => {
-    console.log('[app] daemon connected')
-  }).catch((err) => {
-    console.error('[app] daemon init failed:', err)
-  })
-
   registerIpcHandlers()
   buildAppMenu()
   createWindow()
   createTray(mainWindow)
 
-  // Update tray when instance list changes
+  // Update tray when instance list changes — set before daemon connect so no events are missed
   setOnInstanceListChanged(() => updateTrayMenu(mainWindow))
+
+  // Connect to PTY daemon (spawns it if not running)
+  initDaemon().then(() => {
+    console.log('[app] daemon connected')
+    // Refresh tray now that daemon is connected
+    updateTrayMenu(mainWindow)
+  }).catch((err) => {
+    console.error('[app] daemon init failed:', err)
+  })
 
   // Register global hotkey to bring app to front
   const hotkey = getSetting('globalHotkey') || 'CommandOrControl+Shift+Space'

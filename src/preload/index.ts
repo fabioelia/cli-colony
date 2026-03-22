@@ -113,6 +113,7 @@ export interface ClaudeManagerAPI {
   settings: {
     getAll: () => Promise<Record<string, string>>
     set: (key: string, value: string) => Promise<boolean>
+    getShells: () => Promise<string[]>
   }
   logs: {
     get: () => Promise<string>
@@ -134,6 +135,13 @@ export interface ClaudeManagerAPI {
     onCloseSplit: (cb: () => void) => () => void
     onFocusPane: (cb: (side: 'left' | 'right') => void) => () => void
     onCycleInstance: (cb: (direction: number) => void) => () => void
+  }
+  fs: {
+    listDir: (dirPath: string, depth?: number) => Promise<any[]>
+    readFile: (filePath: string) => Promise<{ content?: string; error?: string }>
+    searchContent: (dirPath: string, query: string, ignoreDirs?: string[]) => Promise<Array<{ file: string; matches: Array<{ line: number; text: string }> }>>
+    saveClipboardImage: (base64Data: string) => Promise<string>
+    pasteClipboardImage: () => Promise<string | null>
   }
   getPathForFile: (file: File) => string
   dialog: {
@@ -213,6 +221,7 @@ const api: ClaudeManagerAPI = {
   settings: {
     getAll: () => ipcRenderer.invoke('settings:getAll'),
     set: (key, value) => ipcRenderer.invoke('settings:set', key, value),
+    getShells: () => ipcRenderer.invoke('settings:getShells'),
   },
   logs: {
     get: () => ipcRenderer.invoke('logs:get'),
@@ -234,6 +243,13 @@ const api: ClaudeManagerAPI = {
     onCloseSplit: (cb) => { const l = () => cb(); ipcRenderer.on('shortcut:close-split', l); return () => ipcRenderer.removeListener('shortcut:close-split', l) },
     onFocusPane: (cb) => { const l = (_e: any, side: 'left' | 'right') => cb(side); ipcRenderer.on('shortcut:focus-pane', l); return () => ipcRenderer.removeListener('shortcut:focus-pane', l) },
     onCycleInstance: (cb) => { const l = (_e: any, dir: number) => cb(dir); ipcRenderer.on('shortcut:cycle-instance', l); return () => ipcRenderer.removeListener('shortcut:cycle-instance', l) },
+  },
+  fs: {
+    listDir: (dirPath, depth) => ipcRenderer.invoke('fs:listDir', dirPath, depth),
+    readFile: (filePath) => ipcRenderer.invoke('fs:readFile', filePath),
+    searchContent: (dirPath, query, ignoreDirs) => ipcRenderer.invoke('fs:searchContent', dirPath, query, ignoreDirs),
+    saveClipboardImage: (base64Data) => ipcRenderer.invoke('fs:saveClipboardImage', base64Data),
+    pasteClipboardImage: () => ipcRenderer.invoke('fs:pasteClipboardImage'),
   },
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   dialog: {

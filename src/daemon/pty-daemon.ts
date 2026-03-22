@@ -27,15 +27,49 @@ const PID_PATH = path.join(COLONY_DIR, 'daemon.pid')
 
 // ---- Shell environment ----
 
-let shellEnv: Record<string, string> = { ...process.env } as Record<string, string>
-try {
-  const shellPath = execSync('/bin/zsh -lc "echo $PATH"', { encoding: 'utf-8', timeout: 5000 }).trim()
-  if (shellPath) {
-    shellEnv = { ...process.env, PATH: shellPath } as Record<string, string>
+function loadShellEnv(): Record<string, string> {
+  // Read shell profile setting
+  let shellProfile = ''
+  try {
+    const settingsPath = path.join(COLONY_DIR, 'settings.json')
+    if (fs.existsSync(settingsPath)) {
+      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
+      shellProfile = settings.shellProfile || ''
+    }
+  } catch { /* */ }
+
+  let cmd: string
+  if (shellProfile === 'login') {
+    cmd = '/bin/zsh -lc "env"'
+  } else if (shellProfile) {
+    cmd = `${shellProfile} -lc "env"`
+  } else {
+    cmd = '/bin/zsh -lc "env"'
   }
-} catch {
-  // keep process.env
+
+  try {
+    const envOutput = execSync(cmd, { encoding: 'utf-8', timeout: 5000 })
+    const env: Record<string, string> = { ...process.env }
+    for (const line of envOutput.split('\n')) {
+      const idx = line.indexOf('=')
+      if (idx > 0) {
+        env[line.substring(0, idx)] = line.substring(idx + 1)
+      }
+    }
+    log(`loaded shell env from: ${cmd} (${Object.keys(env).length} vars)`)
+    return env
+  } catch (err) {
+    log(`failed to load shell env: ${err}`)
+    // Fallback: just grab PATH
+    try {
+      const shellPath = execSync('/bin/zsh -lc "echo $PATH"', { encoding: 'utf-8', timeout: 5000 }).trim()
+      if (shellPath) return { ...process.env, PATH: shellPath } as Record<string, string>
+    } catch { /* */ }
+    return { ...process.env } as Record<string, string>
+  }
 }
+
+const shellEnv = loadShellEnv()
 
 // ---- Instance management ----
 

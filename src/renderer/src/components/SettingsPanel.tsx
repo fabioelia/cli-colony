@@ -7,9 +7,11 @@ interface Props {
 
 export default function SettingsPanel({ onBack }: Props) {
   const [defaultArgs, setDefaultArgs] = useState('')
+  const [shellProfile, setShellProfile] = useState('')
   const [soundOnFinish, setSoundOnFinish] = useState(true)
   const [autoCleanupMinutes, setAutoCleanupMinutes] = useState('5')
   const [globalHotkey, setGlobalHotkey] = useState('CommandOrControl+Shift+Space')
+  const [availableShells, setAvailableShells] = useState<string[]>([])
   const [saved, setSaved] = useState(false)
   const [logs, setLogs] = useState('')
   const [showLogs, setShowLogs] = useState(false)
@@ -19,10 +21,12 @@ export default function SettingsPanel({ onBack }: Props) {
   useEffect(() => {
     window.api.settings.getAll().then((s) => {
       setDefaultArgs(s.defaultArgs || '')
+      setShellProfile(s.shellProfile || '')
       setSoundOnFinish(s.soundOnFinish !== 'false')
       setAutoCleanupMinutes(s.autoCleanupMinutes || '5')
       setGlobalHotkey(s.globalHotkey || 'CommandOrControl+Shift+Space')
     })
+    window.api.settings.getShells().then(setAvailableShells)
   }, [])
 
   useEffect(() => {
@@ -47,6 +51,7 @@ export default function SettingsPanel({ onBack }: Props) {
   const handleSave = async () => {
     await Promise.all([
       window.api.settings.set('defaultArgs', defaultArgs),
+      window.api.settings.set('shellProfile', shellProfile),
       window.api.settings.set('soundOnFinish', soundOnFinish ? 'true' : 'false'),
       window.api.settings.set('autoCleanupMinutes', autoCleanupMinutes),
       window.api.settings.set('globalHotkey', globalHotkey),
@@ -80,6 +85,25 @@ export default function SettingsPanel({ onBack }: Props) {
             onChange={(e) => setDefaultArgs(e.target.value)}
             placeholder="e.g. --permission-mode bypassPermissions --model sonnet"
           />
+        </div>
+        <div className="settings-field">
+          <label>Shell Profile</label>
+          <p className="settings-help">
+            Shell used to resolve your environment (PATH, aliases, etc).
+            Leave blank for default.
+            <span className="settings-restart-note">Requires restart</span>
+          </p>
+          <select
+            value={shellProfile}
+            onChange={(e) => setShellProfile(e.target.value)}
+            className="settings-select"
+          >
+            <option value="">Default (inherit environment)</option>
+            {availableShells.map((shell) => (
+              <option key={shell} value={shell}>{shell}</option>
+            ))}
+            <option value="login">Login shell (loads profile)</option>
+          </select>
         </div>
         <div className="settings-field">
           <label>Global Hotkey</label>
