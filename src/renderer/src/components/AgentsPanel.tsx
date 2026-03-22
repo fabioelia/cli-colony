@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, RefreshCw, Download, Upload } from 'lucide-react'
+import { Plus, RefreshCw, Download, Upload, Pencil, Play, ChevronRight, Bot, FolderOpen } from 'lucide-react'
 import type { AgentDef } from '../types'
 import { COLOR_MAP } from '../lib/constants'
 import Tooltip from './Tooltip'
@@ -33,7 +33,6 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
       addingTo.projectPath,
     )
     if (agent) {
-      // Refresh list then open in editor
       const updated = await window.api.agents.list()
       setAgents(updated)
       setNewAgentName('')
@@ -41,6 +40,20 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
       onEditAgent(agent)
     }
   }
+
+  const handleExport = async (agentsToExport: AgentDef[]) => {
+    if (agentsToExport.length === 0) return
+    await window.api.agents.export(agentsToExport.map((a) => a.filePath))
+  }
+
+  const handleImport = async (scope: 'personal' | 'project', projectPath?: string) => {
+    const targetDir = scope === 'personal' ? '' : (projectPath ? `${projectPath}/.claude/agents` : null)
+    if (targetDir === null) return
+    const count = await window.api.agents.import(targetDir)
+    if (count > 0) refresh()
+  }
+
+  const refresh = () => window.api.agents.list().then(setAgents)
 
   const personal = agents.filter((a) => a.scope === 'personal')
   const byProject = agents
@@ -54,68 +67,58 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
 
   const renderAgent = (agent: AgentDef) => {
     const isExpanded = expandedId === agent.id
+    const accentColor = agent.color ? colorMap(agent.color) : '#6b6b80'
     return (
-      <div key={agent.id} className="agent-item">
+      <div key={agent.id} className={`agent-card ${isExpanded ? 'expanded' : ''}`}>
         <div
-          className="agent-item-header"
+          className="agent-card-header"
           role="button"
           tabIndex={0}
           onClick={() => setExpandedId(isExpanded ? null : agent.id)}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedId(isExpanded ? null : agent.id) } }}
         >
-          <div
-            className="agent-color-bar"
-            style={{ backgroundColor: agent.color ? colorMap(agent.color) : '#6b6b80' }}
-          />
-          <div className="agent-item-info">
-            <div className="agent-item-name">{agent.name}</div>
-            <div className="agent-item-desc">{agent.description.slice(0, 80)}{agent.description.length > 80 ? '...' : ''}</div>
+          <div className="agent-card-accent" style={{ backgroundColor: accentColor }} />
+          <div className="agent-card-info">
+            <div className="agent-card-top">
+              <span className="agent-card-name">{agent.name}</span>
+              {agent.model && (
+                <span
+                  className="agent-card-model"
+                  style={{ color: MODEL_COLORS[agent.model] || '#a0a0b0', borderColor: MODEL_COLORS[agent.model] || '#a0a0b0' }}
+                >
+                  {agent.model}
+                </span>
+              )}
+            </div>
+            <div className="agent-card-desc">{agent.description}</div>
           </div>
-          {agent.model && (
-            <span className="agent-model-badge" style={{ color: MODEL_COLORS[agent.model] || '#a0a0b0' }}>
-              {agent.model}
-            </span>
-          )}
+          <ChevronRight size={14} className={`agent-card-chevron ${isExpanded ? 'expanded' : ''}`} />
         </div>
         {isExpanded && (
-          <div className="agent-item-details">
-            <p className="agent-full-desc">{agent.description}</p>
+          <div className="agent-card-body">
+            <div className="agent-card-path">
+              <FolderOpen size={11} />
+              {agent.filePath}
+            </div>
             {agent.tools.length > 0 && (
-              <div className="agent-tools">
+              <div className="agent-card-tools">
                 {agent.tools.map((t) => (
-                  <span key={t} className="agent-tool-tag">{t}</span>
+                  <span key={t} className="agent-card-tool">{t}</span>
                 ))}
               </div>
             )}
-            <div className="agent-item-actions-row">
-              <Tooltip text="Edit Agent" detail="Open the agent definition in a split editor with Claude assistance" position="bottom">
-                <button className="agent-edit-btn" onClick={() => onEditAgent(agent)}>
-                  Edit
-                </button>
-              </Tooltip>
-              <Tooltip text="Launch Session" detail="Start a new Claude session using this agent's configuration" position="bottom">
-                <button className="agent-launch-btn" onClick={() => onLaunchAgent(agent)}>
-                  Launch
-                </button>
-              </Tooltip>
+            <div className="agent-card-actions">
+              <button className="agent-btn-edit" onClick={() => onEditAgent(agent)} title="Edit agent definition in split view">
+                <Pencil size={13} /> Edit
+              </button>
+              <button className="agent-btn-launch" onClick={() => onLaunchAgent(agent)} title="Launch a new session with this agent">
+                <Play size={13} /> Launch
+              </button>
             </div>
           </div>
         )}
       </div>
     )
-  }
-
-  const handleExport = async (agentsToExport: AgentDef[]) => {
-    if (agentsToExport.length === 0) return
-    await window.api.agents.export(agentsToExport.map((a) => a.filePath))
-  }
-
-  const handleImport = async (scope: 'personal' | 'project', projectPath?: string) => {
-    // For personal agents, pass empty string — the backend resolves the path
-    const targetDir = scope === 'personal' ? '' : (projectPath ? `${projectPath}/.claude/agents` : null)
-    if (targetDir === null) return
-    const count = await window.api.agents.import(targetDir)
-    if (count > 0) refresh()
   }
 
   const renderAddForm = (scope: 'personal' | 'project', projectPath?: string) => {
@@ -125,9 +128,9 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
         <button
           className="agent-add-btn"
           onClick={() => setAddingTo({ scope, projectPath })}
-          title="Add agent"
+          title="Create a new agent definition"
         >
-          <Plus size={13} /> Add Agent
+          <Plus size={13} /> New Agent
         </button>
       )
     }
@@ -143,57 +146,64 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
             if (e.key === 'Escape') { setAddingTo(null); setNewAgentName('') }
           }}
         />
-        <button onClick={handleCreateAgent} title="Create agent">Create</button>
+        <button className="agent-add-confirm" onClick={handleCreateAgent} title="Create agent">Create</button>
         <button onClick={() => { setAddingTo(null); setNewAgentName('') }} title="Cancel">Cancel</button>
       </div>
     )
   }
 
-  const refresh = () => window.api.agents.list().then(setAgents)
+  const renderSectionHeader = (
+    title: string,
+    agentsList: AgentDef[],
+    scope: 'personal' | 'project',
+    projectPath?: string,
+  ) => (
+    <div className="agents-section-header">
+      <span className="agents-section-label">{title}</span>
+      <span className="agents-section-count">{agentsList.length}</span>
+      <div className="agents-section-actions">
+        {agentsList.length > 0 && (
+          <Tooltip text="Export" detail={`Download ${title.toLowerCase()} as a zip file`}>
+            <button onClick={() => handleExport(agentsList)}><Download size={12} /></button>
+          </Tooltip>
+        )}
+        <Tooltip text="Import" detail="Import agent definitions from a zip file">
+          <button onClick={() => handleImport(scope, projectPath)}><Upload size={12} /></button>
+        </Tooltip>
+      </div>
+    </div>
+  )
 
   return (
     <div className="agents-panel">
-      <div className="agents-panel-header">
-        <button className="agents-refresh-btn" onClick={refresh} title="Refresh agents">
-          <RefreshCw size={13} />
-        </button>
+      <div className="agents-panel-toolbar">
+        <h2>Agents</h2>
+        <Tooltip text="Refresh" detail="Rescan agent directories for changes">
+          <button className="agents-toolbar-btn" onClick={refresh}>
+            <RefreshCw size={13} />
+          </button>
+        </Tooltip>
       </div>
-      <div className="agents-section">
-        <div className="agents-section-title">
-          Personal Agents
-          <div className="agents-section-actions">
-            {personal.length > 0 && (
-              <Tooltip text="Export Agents" detail="Download all personal agents as a zip file">
-                <button onClick={() => handleExport(personal)}><Download size={12} /></button>
-              </Tooltip>
-            )}
-            <Tooltip text="Import Agents" detail="Import agent definitions from a zip file">
-              <button onClick={() => handleImport('personal')}><Upload size={12} /></button>
-            </Tooltip>
-          </div>
+
+      {agents.length === 0 && (
+        <div className="agents-empty-state">
+          <Bot size={32} />
+          <p>No agents found</p>
+          <p className="agents-empty-hint">
+            Create agents in <code>~/.claude/agents/</code> or use the button below.
+          </p>
         </div>
-        {personal.length === 0 && (
-          <div className="agents-empty">No personal agents found in ~/.claude/agents/</div>
-        )}
+      )}
+
+      <div className="agents-section">
+        {renderSectionHeader('Personal', personal, 'personal')}
         {personal.map(renderAgent)}
         {renderAddForm('personal')}
       </div>
 
       {Object.entries(byProject).map(([projName, { agents: projAgents, path }]) => (
         <div key={projName} className="agents-section">
-          <div className="agents-section-title">
-            {projName}
-            <div className="agents-section-actions">
-              {projAgents.length > 0 && (
-                <Tooltip text="Export Agents" detail={`Download ${projName} agents as a zip file`}>
-                  <button onClick={() => handleExport(projAgents)}><Download size={12} /></button>
-                </Tooltip>
-              )}
-              <Tooltip text="Import Agents" detail={`Import agent definitions into ${projName}`}>
-                <button onClick={() => handleImport('project', path)}><Upload size={12} /></button>
-              </Tooltip>
-            </div>
-          </div>
+          {renderSectionHeader(projName, projAgents, 'project', path)}
           {projAgents.map(renderAgent)}
           {renderAddForm('project', path)}
         </div>

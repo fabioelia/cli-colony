@@ -241,9 +241,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
       </div>
 
       <div className="sidebar-instance-actions">
-        <Tooltip text="New Session" detail="Launch a new Claude CLI terminal" shortcut="Cmd+T" position="bottom">
-          <button className="sidebar-new-btn" onClick={onNew}><Plus size={14} /> New Session</button>
-        </Tooltip>
+        <button className="sidebar-new-btn" onClick={onNew} title="Launch a new Claude CLI terminal (Cmd+T)"><Plus size={14} /> New Session</button>
         {view === 'instances' && restorableCount > 0 && instances.length === 0 && (
           <button className="sidebar-restore-btn" onClick={onRestoreAll} title="Restore previous sessions">
             Restore {restorableCount} from last run
