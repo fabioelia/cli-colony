@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
-import { ArrowLeft, Plus, Trash2, RefreshCw, GitPullRequest, ExternalLink, Play, Pencil, ChevronDown, ChevronRight, MessageSquare, Send, User, Users, Eye, GitBranch, Clock, FileDiff, ShieldCheck, ShieldAlert, ShieldQuestion, Brain, Save, X, FileText, File, Filter, Search } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { ArrowLeft, Plus, Trash2, RefreshCw, GitPullRequest, ExternalLink, Play, Pencil, ChevronDown, ChevronRight, MessageSquare, Send, User, Users, Eye, GitBranch, Clock, FileDiff, ShieldCheck, ShieldAlert, ShieldQuestion, Brain, Save, X, FileText, File, Filter, Search, CheckCircle, XCircle, Loader, CircleDot, Wrench } from 'lucide-react'
 import { marked } from 'marked'
-import type { GitHubPR, GitHubRepo, QuickPrompt } from '../types'
+import type { GitHubPR, GitHubRepo, QuickPrompt, PRChecks } from '../types'
 import Tooltip from './Tooltip'
 
 function resolveRelativeUrl(href: string, repoSlug: string, branch: string): string {
@@ -77,6 +77,12 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const [commentsViewerPR, setCommentsViewerPR] = useState<GitHubPR | null>(null)
   const [commentsViewerSlug, setCommentsViewerSlug] = useState('')
   const [commentsViewerIndex, setCommentsViewerIndex] = useState(0)
+
+  // CI/CD check status per PR (keyed by "owner/name#number")
+  const [checksByPR, setChecksByPR] = useState<Record<string, PRChecks>>({})
+  const [checksLoading, setChecksLoading] = useState<Set<string>>(new Set())
+  const [checkLogContent, setCheckLogContent] = useState<string | null>(null)
+  const [checkLogName, setCheckLogName] = useState<string | null>(null)
 
   // Sync PR context file whenever prsByRepo changes
   const [contextPath, setContextPath] = useState<string | null>(null)
@@ -383,6 +389,35 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     setFilterReviewers([])
   }
 
+  const fetchChecksForPR = useCallback(async (repo: GitHubRepo, pr: GitHubPR) => {
+    const slug = `${repo.owner}/${repo.name}`
+    const key = `${slug}#${pr.number}`
+    setChecksLoading((prev) => new Set(prev).add(key))
+    try {
+      const checks = await window.api.github.fetchChecks(repo, pr.number)
+      setChecksByPR((prev) => ({ ...prev, [key]: checks }))
+    } catch { /* ignore */ }
+    setChecksLoading((prev) => {
+      const next = new Set(prev)
+      next.delete(key)
+      return next
+    })
+  }, [])
+
+  // Auto-fetch checks when PRs are loaded for an expanded repo
+  useEffect(() => {
+    if (!expandedRepo) return
+    const repo = repos.find((r) => `${r.owner}/${r.name}` === expandedRepo)
+    if (!repo) return
+    const prs = prsByRepo[expandedRepo] || []
+    for (const pr of prs) {
+      const key = `${expandedRepo}#${pr.number}`
+      if (!checksByPR[key] && !checksLoading.has(key)) {
+        fetchChecksForPR(repo, pr)
+      }
+    }
+  }, [expandedRepo, prsByRepo, repos, checksByPR, checksLoading, fetchChecksForPR])
+
   const timeSince = (dateStr: string) => {
     const secs = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
     if (secs < 3600) return `${Math.floor(secs / 60)}m ago`
@@ -657,6 +692,24 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                                   <MessageSquare size={11} /> {pr.comments.length}
                                 </span>
                               )}
+                              {/* CI/CD status badge */}
+                              {(() => {
+                                const checks = checksByPR[prKey]
+                                const loading = checksLoading.has(prKey)
+                                if (loading) return <span className="github-pr-ci loading" title="Loading checks..."><Loader size={11} /> CI</span>
+                                if (!checks || checks.overall === 'none') return null
+                                if (checks.overall === 'success') return <span className="github-pr-ci success" title="All checks passed"><CheckCircle size={11} /> CI</span>
+                                if (checks.overall === 'failure') return (
+                                  <span
+                                    className="github-pr-ci failure clickable"
+                                    title="Checks failed — click to see details"
+                                    onClick={(e) => { e.stopPropagation(); setExpandedPR(isOpen ? null : prKey) }}
+                                  >
+                                    <XCircle size={11} /> CI
+                                  </span>
+                                )
+                                return <span className="github-pr-ci pending" title="Checks in progress"><CircleDot size={11} /> CI</span>
+                              })()}
                             </div>
                           </div>
                           <button
@@ -695,6 +748,78 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                                 <MessageSquare size={12} /> View {pr.comments.length} comment{pr.comments.length !== 1 ? 's' : ''}
                               </button>
                             )}
+                            {/* CI/CD Check Details */}
+                            {checksByPR[prKey] && checksByPR[prKey].checks.length > 0 && (
+                              <div className="github-pr-checks">
+                                <div className="github-pr-checks-header">
+                                  CI/CD Checks
+                                  <button
+                                    className="github-pr-checks-refresh"
+                                    onClick={() => fetchChecksForPR(repo, pr)}
+                                    title="Refresh checks"
+                                  >
+                                    <RefreshCw size={11} />
+                                  </button>
+                                </div>
+                                {checksByPR[prKey].checks.map((check) => (
+                                  <div key={check.name} className={`github-pr-check-item ${check.conclusion || 'pending'}`}>
+                                    <span className="github-pr-check-icon">
+                                      {check.conclusion === 'success' && <CheckCircle size={12} />}
+                                      {check.conclusion === 'failure' && <XCircle size={12} />}
+                                      {check.conclusion === 'skipped' && <CircleDot size={12} />}
+                                      {!check.conclusion && <Loader size={12} />}
+                                      {check.conclusion && check.conclusion !== 'success' && check.conclusion !== 'failure' && check.conclusion !== 'skipped' && <CircleDot size={12} />}
+                                    </span>
+                                    <span className="github-pr-check-name">{check.name}</span>
+                                    <span className="github-pr-check-status">{check.conclusion || check.status}</span>
+                                    {check.url && (
+                                      <button
+                                        className="github-pr-check-link"
+                                        onClick={() => window.api.shell.openExternal(check.url)}
+                                        title="Open in browser"
+                                      >
+                                        <ExternalLink size={10} />
+                                      </button>
+                                    )}
+                                    {check.conclusion === 'failure' && (
+                                      <button
+                                        className="github-pr-check-logs"
+                                        onClick={async () => {
+                                          setCheckLogName(check.name)
+                                          setCheckLogContent('Loading...')
+                                          const logs = await window.api.github.fetchCheckLogs(repo, pr.number, check.name)
+                                          setCheckLogContent(logs)
+                                        }}
+                                        title="View failure details"
+                                      >
+                                        <FileText size={10} />
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                                {checksByPR[prKey].overall === 'failure' && (
+                                  <button
+                                    className="github-action-btn fix-ci-btn"
+                                    onClick={async () => {
+                                      const failedNames = checksByPR[prKey].checks
+                                        .filter((c) => c.conclusion === 'failure')
+                                        .map((c) => c.name)
+                                        .join(', ')
+                                      const prompt = `PR #${pr.number} on branch ${pr.branch} has failing CI checks: ${failedNames}. Investigate the failures, check out the branch, and fix the issues. Run the checks locally to verify your fix before committing.`
+                                      const id = await onLaunchInstance({
+                                        name: `Fix CI: ${repo.name}#${pr.number}`,
+                                        workingDirectory: repo.localPath || undefined,
+                                      })
+                                      sendPromptWhenReady(id, prompt, `Fix CI: ${repo.name}#${pr.number}`)
+                                    }}
+                                    title="Launch a Claude session to fix failing checks"
+                                  >
+                                    <Wrench size={12} /> Fix Failing Checks
+                                  </button>
+                                )}
+                              </div>
+                            )}
+
                             <div className="github-pr-quick-actions">
                               {prompts.filter((p) => !p.scope || p.scope === 'pr').map((prompt) => (
                                 <Tooltip key={prompt.id} text={prompt.label} detail={prompt.prompt.replace(/\{\{pr\.\w+\}\}/g, (m) => {
@@ -956,6 +1081,19 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                 <Plus size={13} /> Add
               </button>
               <button className="github-prompt-save" onClick={handleSavePrompts} title="Save prompts">Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Check log viewer */}
+      {checkLogContent && (
+        <div className="dialog-overlay" onClick={() => { setCheckLogContent(null); setCheckLogName(null) }}>
+          <div className="dialog" style={{ width: 560, maxHeight: '70vh' }} onClick={(e) => e.stopPropagation()}>
+            <h2>Check: {checkLogName || 'Logs'}</h2>
+            <pre className="github-check-log-content">{checkLogContent}</pre>
+            <div className="dialog-actions">
+              <button className="cancel" onClick={() => { setCheckLogContent(null); setCheckLogName(null) }}>Close</button>
             </div>
           </div>
         </div>

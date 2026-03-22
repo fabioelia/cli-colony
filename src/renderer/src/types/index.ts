@@ -50,6 +50,18 @@ export interface RecentSession {
   exitType: 'running' | 'exited' | 'killed'
 }
 
+export interface CheckRun {
+  name: string
+  status: string
+  conclusion: string | null
+  url: string
+}
+
+export interface PRChecks {
+  overall: 'success' | 'failure' | 'pending' | 'none'
+  checks: CheckRun[]
+}
+
 export interface PRComment {
   author: string
   body: string
@@ -89,6 +101,26 @@ export interface GitHubRepo {
   owner: string
   name: string
   localPath?: string
+}
+
+export interface SessionDependency {
+  /** The instance ID this session waits on */
+  dependsOn: string
+  /** What to do when the dependency completes */
+  action: 'auto-start' | 'notify'
+}
+
+export interface AgentChainStep {
+  name: string
+  prompt: string
+  directory?: string
+  dependsOnPrevious: boolean
+}
+
+export interface AgentChain {
+  id: string
+  name: string
+  steps: AgentChainStep[]
 }
 
 declare global {

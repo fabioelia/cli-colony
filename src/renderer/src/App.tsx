@@ -7,6 +7,9 @@ import AgentsPanel from './components/AgentsPanel'
 import AgentEditor from './components/AgentEditor'
 import SettingsPanel from './components/SettingsPanel'
 import GitHubPanel from './components/GitHubPanel'
+import CommandPalette from './components/CommandPalette'
+import TaskQueuePanel from './components/TaskQueuePanel'
+import SessionDepsPanel from './components/SessionDepsPanel'
 
 type View = SidebarView | 'agent-editor'
 
@@ -25,6 +28,12 @@ export default function App() {
   const [splitRatio, setSplitRatio] = useState(0.5)
   const [unreadIds, setUnreadIds] = useState<Set<string>>(new Set())
   const [fontSize, setFontSize] = useState(13)
+  const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
+  const [cmdPaletteSessions, setCmdPaletteSessions] = useState<import('./types').CliSession[]>([])
+  const [resourceUsage, setResourceUsage] = useState<{
+    perInstance: Record<string, { cpu: number; memory: number }>
+    total: { cpu: number; memory: number }
+  } | null>(null)
   const terminalsRef = useRef<Map<string, any>>(new Map())
   const agentToLaunchRef = useRef<AgentDef | null>(null)
   // Track activeId + view in a ref so the output listener always has fresh values
@@ -211,9 +220,24 @@ export default function App() {
         setFontSize(13)
         window.api.settings.set('fontSize', '13')
       }),
+      window.api.shortcuts.onCommandPalette(() => {
+        setCmdPaletteOpen((prev) => !prev)
+        // Refresh sessions list for the palette
+        window.api.sessions.list(50).then(setCmdPaletteSessions)
+      }),
     ]
     return () => unsubs.forEach((u) => u())
   }, []) // empty deps — runs once, uses refs for fresh values
+
+  // Resource monitor: poll every 5 seconds
+  useEffect(() => {
+    const poll = () => {
+      window.api.resources.getUsage().then(setResourceUsage).catch(() => {})
+    }
+    poll() // initial
+    const interval = setInterval(poll, 5000)
+    return () => clearInterval(interval)
+  }, [])
 
   const handleCreate = useCallback(async (opts: {
     name?: string
@@ -499,13 +523,14 @@ export default function App() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (cmdPaletteOpen) { setCmdPaletteOpen(false); e.stopPropagation(); return }
         if (showSplitPicker) { setShowSplitPicker(false); e.stopPropagation() }
         if (showNewDialog) { setShowNewDialog(false); e.stopPropagation() }
       }
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [showSplitPicker, showNewDialog])
+  }, [showSplitPicker, showNewDialog, cmdPaletteOpen])
 
   const active = instances.find((i) => i.id === activeId) || null
   const showTerminal = view === 'instances' && active
@@ -702,6 +727,22 @@ export default function App() {
           />
         )}
         {view === 'agents' && <AgentsPanel onLaunchAgent={handleLaunchAgent} onEditAgent={handleEditAgent} />}
+        {view === 'tasks' && (
+          <TaskQueuePanel
+            instances={instances}
+            onFocusInstance={(id) => { setActiveId(id); setView('instances') }}
+          />
+        )}
+        {view === 'orchestrate' && (
+          <SessionDepsPanel
+            instances={regularInstances}
+            onFocusInstance={(id) => { setActiveId(id); setView('instances') }}
+            onCreateInstance={async (opts) => {
+              const inst = await window.api.instance.create(opts)
+              return inst
+            }}
+          />
+        )}
         <div style={{ display: view === 'github' ? 'contents' : 'none' }}>
           <GitHubPanel
             onBack={() => setView('instances')}
@@ -747,6 +788,16 @@ export default function App() {
           <span className="status-bar-item">
             {fontSize}px
           </span>
+          {resourceUsage && resourceUsage.total.cpu > 0 && (
+            <span className="status-bar-item status-bar-resources" title={`Colony total: CPU ${resourceUsage.total.cpu}%, Memory ${resourceUsage.total.memory}MB`}>
+              CPU {resourceUsage.total.cpu}% | {resourceUsage.total.memory}MB
+            </span>
+          )}
+          {active && resourceUsage?.perInstance[active.id] && (
+            <span className="status-bar-item status-bar-session-resources" title={`This session: CPU ${resourceUsage.perInstance[active.id].cpu}%, Memory ${resourceUsage.perInstance[active.id].memory}MB`}>
+              [{resourceUsage.perInstance[active.id].cpu}% / {resourceUsage.perInstance[active.id].memory}MB]
+            </span>
+          )}
           <span className="status-bar-spacer" />
           {active && (
             <span className="status-bar-item status-bar-right">
@@ -789,6 +840,20 @@ export default function App() {
           </div>
         </div>
       )}
+      <CommandPalette
+        open={cmdPaletteOpen}
+        onClose={() => setCmdPaletteOpen(false)}
+        instances={regularInstances}
+        activeId={activeId}
+        onSelect={(id) => { handleSelect(id); setView('instances') }}
+        onNew={() => { agentToLaunchRef.current = null; setShowNewDialog(true) }}
+        onKill={handleKill}
+        onRestart={handleRestart}
+        onViewChange={(v) => setView(v as View)}
+        onToggleSplit={handleToggleSplit}
+        onResumeSession={handleResumeSession}
+        sessions={cmdPaletteSessions}
+      />
     </div>
   )
 }

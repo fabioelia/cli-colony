@@ -41,6 +41,18 @@ export interface CliSession {
   recentlyOpened: boolean
 }
 
+export interface CheckRun {
+  name: string
+  status: string
+  conclusion: string | null
+  url: string
+}
+
+export interface PRChecks {
+  overall: 'success' | 'failure' | 'pending' | 'none'
+  checks: CheckRun[]
+}
+
 export interface PRComment {
   author: string
   body: string
@@ -150,6 +162,7 @@ export interface ClaudeManagerAPI {
     onCloseSplit: (cb: () => void) => () => void
     onFocusPane: (cb: (side: 'left' | 'right') => void) => () => void
     onCycleInstance: (cb: (direction: number) => void) => () => void
+    onCommandPalette: (cb: () => void) => () => void
   }
   fs: {
     listDir: (dirPath: string, depth?: number) => Promise<any[]>
@@ -178,6 +191,19 @@ export interface ClaudeManagerAPI {
     getPrMemoryPath: () => Promise<string>
     getPrWorkspacePath: () => Promise<string>
     getCommentsFile: (repoSlug: string, prNumber: number) => Promise<string | null>
+    fetchChecks: (repo: GitHubRepo, prNumber: number) => Promise<PRChecks>
+    fetchCheckLogs: (repo: GitHubRepo, prNumber: number, checkName: string) => Promise<string>
+  }
+  taskQueue: {
+    list: () => Promise<Array<{ name: string; path: string; content: string }>>
+    save: (name: string, content: string) => Promise<string>
+    delete: (name: string) => Promise<boolean>
+  }
+  resources: {
+    getUsage: () => Promise<{
+      perInstance: Record<string, { cpu: number; memory: number }>
+      total: { cpu: number; memory: number }
+    }>
   }
 }
 
@@ -264,6 +290,7 @@ const api: ClaudeManagerAPI = {
     onCloseSplit: (cb) => { const l = () => cb(); ipcRenderer.on('shortcut:close-split', l); return () => ipcRenderer.removeListener('shortcut:close-split', l) },
     onFocusPane: (cb) => { const l = (_e: any, side: 'left' | 'right') => cb(side); ipcRenderer.on('shortcut:focus-pane', l); return () => ipcRenderer.removeListener('shortcut:focus-pane', l) },
     onCycleInstance: (cb) => { const l = (_e: any, dir: number) => cb(dir); ipcRenderer.on('shortcut:cycle-instance', l); return () => ipcRenderer.removeListener('shortcut:cycle-instance', l) },
+    onCommandPalette: (cb) => { const l = () => cb(); ipcRenderer.on('shortcut:command-palette', l); return () => ipcRenderer.removeListener('shortcut:command-palette', l) },
   },
   fs: {
     listDir: (dirPath, depth) => ipcRenderer.invoke('fs:listDir', dirPath, depth),
@@ -292,6 +319,16 @@ const api: ClaudeManagerAPI = {
     getPrMemoryPath: () => ipcRenderer.invoke('github:getPrMemoryPath'),
     getPrWorkspacePath: () => ipcRenderer.invoke('github:getPrWorkspacePath'),
     getCommentsFile: (repoSlug, prNumber) => ipcRenderer.invoke('github:getCommentsFile', repoSlug, prNumber),
+    fetchChecks: (repo, prNumber) => ipcRenderer.invoke('github:fetchChecks', repo, prNumber),
+    fetchCheckLogs: (repo, prNumber, checkName) => ipcRenderer.invoke('github:fetchCheckLogs', repo, prNumber, checkName),
+  },
+  taskQueue: {
+    list: () => ipcRenderer.invoke('taskQueue:list'),
+    save: (name, content) => ipcRenderer.invoke('taskQueue:save', name, content),
+    delete: (name) => ipcRenderer.invoke('taskQueue:delete', name),
+  },
+  resources: {
+    getUsage: () => ipcRenderer.invoke('resources:getUsage'),
   },
 }
 

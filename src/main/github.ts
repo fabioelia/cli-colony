@@ -224,6 +224,86 @@ export async function fetchPRs(repo: GitHubRepo): Promise<GitHubPR[]> {
   return prs
 }
 
+// ---- CI/CD Check Runs ----
+
+export interface CheckRun {
+  name: string
+  status: string       // 'completed' | 'in_progress' | 'queued'
+  conclusion: string | null  // 'success' | 'failure' | 'cancelled' | 'skipped' | 'neutral' | 'timed_out' | null
+  url: string
+}
+
+export interface PRChecks {
+  overall: 'success' | 'failure' | 'pending' | 'none'
+  checks: CheckRun[]
+}
+
+export async function fetchChecks(repo: GitHubRepo, prNumber: number): Promise<PRChecks> {
+  const repoSlug = `${repo.owner}/${repo.name}`
+  try {
+    const json = await gh([
+      'pr', 'checks', String(prNumber),
+      '--repo', repoSlug,
+      '--json', 'name,state,conclusion,link',
+    ])
+    const raw = JSON.parse(json) as Array<{
+      name: string
+      state: string
+      conclusion: string
+      link: string
+    }>
+    const checks: CheckRun[] = raw.map((c) => ({
+      name: c.name,
+      status: c.state === 'SUCCESS' || c.state === 'FAILURE' || c.state === 'SKIPPED' || c.state === 'CANCELLED' || c.state === 'NEUTRAL'
+        ? 'completed'
+        : c.state === 'PENDING' ? 'in_progress' : c.state.toLowerCase(),
+      conclusion: c.state === 'SUCCESS' ? 'success'
+        : c.state === 'FAILURE' ? 'failure'
+        : c.state === 'SKIPPED' ? 'skipped'
+        : c.state === 'CANCELLED' ? 'cancelled'
+        : c.state === 'NEUTRAL' ? 'neutral'
+        : null,
+      url: c.link || '',
+    }))
+    if (checks.length === 0) return { overall: 'none', checks: [] }
+    const hasFailed = checks.some((c) => c.conclusion === 'failure' || c.conclusion === 'timed_out')
+    const hasPending = checks.some((c) => c.status !== 'completed')
+    const overall = hasFailed ? 'failure' : hasPending ? 'pending' : 'success'
+    return { overall, checks }
+  } catch {
+    return { overall: 'none', checks: [] }
+  }
+}
+
+export async function fetchCheckLogs(repo: GitHubRepo, prNumber: number, checkName: string): Promise<string> {
+  const repoSlug = `${repo.owner}/${repo.name}`
+  try {
+    // Get the run ID for the failed check by looking at the PR's head SHA
+    const prJson = await gh(['pr', 'view', String(prNumber), '--repo', repoSlug, '--json', 'headRefOid'])
+    const { headRefOid } = JSON.parse(prJson) as { headRefOid: string }
+
+    // List runs for the commit
+    const runsJson = await gh([
+      'api', `repos/${repoSlug}/commits/${headRefOid}/check-runs`,
+      '--jq', `.check_runs[] | select(.name == "${checkName.replace(/"/g, '\\"')}") | {id: .id, details_url: .details_url}`,
+    ])
+    if (!runsJson.trim()) return `No logs found for check "${checkName}"`
+    const run = JSON.parse(runsJson.trim().split('\n')[0])
+
+    // Try to get the log via the Actions run -- this works for GitHub Actions specifically
+    const logJson = await gh([
+      'api', `repos/${repoSlug}/check-runs/${run.id}/annotations`,
+      '--jq', '.[].message',
+    ])
+    if (logJson.trim()) {
+      return `Check: ${checkName}\nAnnotations:\n${logJson.trim()}`
+    }
+    return `Check: ${checkName}\nStatus: Failed\nDetails: ${run.details_url || 'No details URL available'}\n\nNo annotation logs available. View full logs at the details URL above.`
+  } catch (err: any) {
+    return `Failed to fetch logs for "${checkName}": ${err.message}`
+  }
+}
+
 // ---- Config CRUD ----
 
 export function getRepos(): GitHubRepo[] {

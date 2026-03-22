@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2 } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, Workflow } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import Tooltip from './Tooltip'
 import { COLORS, formatTime } from '../lib/constants'
 
-export type SidebarView = 'instances' | 'agents' | 'github' | 'sessions' | 'settings' | 'logs'
+export type SidebarView = 'instances' | 'agents' | 'github' | 'sessions' | 'settings' | 'logs' | 'tasks' | 'orchestrate'
 
 interface Props {
   instances: ClaudeInstance[]
@@ -236,6 +236,12 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
           </button>
           <button className={`sidebar-tab ${view === 'github' ? 'active' : ''}`} onClick={() => onViewChange('github')} title="View pull requests">
             <GitPullRequest size={12} /> PRs
+          </button>
+          <button className={`sidebar-tab ${view === 'tasks' ? 'active' : ''}`} onClick={() => onViewChange('tasks')} title="Task queue / batch mode">
+            <ListChecks size={12} /> Tasks
+          </button>
+          <button className={`sidebar-tab ${view === 'orchestrate' ? 'active' : ''}`} onClick={() => onViewChange('orchestrate')} title="Search, chains, dependencies">
+            <Workflow size={12} /> Orch
           </button>
         </div>
       </div>

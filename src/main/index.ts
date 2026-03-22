@@ -112,6 +112,11 @@ function buildAppMenu(): void {
         },
         { type: 'separator' },
         {
+          label: 'Command Palette',
+          accelerator: 'CmdOrCtrl+K',
+          click: () => sendToRenderer('shortcut:command-palette'),
+        },
+        {
           label: 'Find in Terminal',
           accelerator: 'CmdOrCtrl+F',
           click: () => sendToRenderer('shortcut:search'),

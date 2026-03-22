@@ -1,4 +1,5 @@
 import { ipcMain, dialog, shell, app } from 'electron'
+import { join } from 'path'
 import {
   createInstance,
   writeToInstance,
@@ -24,6 +25,7 @@ import {
   checkGhAuth, fetchPRs, getRepos, addRepo, removeRepo,
   updateRepoPath, getPrompts, savePrompts, resolvePrompt, writePrContext,
   getPrMemory, savePrMemory, getPrMemoryPath, getPrWorkspacePath,
+  fetchChecks, fetchCheckLogs,
 } from './github'
 import type { GitHubRepo, QuickPrompt, GitHubPR } from './github'
 
@@ -334,5 +336,123 @@ export function registerIpcHandlers(): void {
     const filePath = join(commentsDir, `${safeSlug}-${prNumber}.md`)
     if (!existsSync(filePath)) return null
     return readFileSync(filePath, 'utf-8')
+  })
+  ipcMain.handle('github:fetchChecks', (_e, repo: GitHubRepo, prNumber: number) => fetchChecks(repo, prNumber))
+  ipcMain.handle('github:fetchCheckLogs', (_e, repo: GitHubRepo, prNumber: number, checkName: string) => fetchCheckLogs(repo, prNumber, checkName))
+
+  // Task queue file I/O
+  const QUEUE_DIR = join(app.getPath('home'), '.claude-colony', 'task-queues')
+  ipcMain.handle('taskQueue:list', () => {
+    const { readdirSync, readFileSync, existsSync, mkdirSync } = require('fs') as typeof import('fs')
+    if (!existsSync(QUEUE_DIR)) mkdirSync(QUEUE_DIR, { recursive: true })
+    try {
+      return readdirSync(QUEUE_DIR)
+        .filter((f: string) => f.endsWith('.yaml') || f.endsWith('.yml') || f.endsWith('.md'))
+        .map((f: string) => ({
+          name: f,
+          path: join(QUEUE_DIR, f),
+          content: readFileSync(join(QUEUE_DIR, f), 'utf-8'),
+        }))
+    } catch { return [] }
+  })
+  ipcMain.handle('taskQueue:save', (_e, name: string, content: string) => {
+    const { writeFileSync, existsSync, mkdirSync } = require('fs') as typeof import('fs')
+    if (!existsSync(QUEUE_DIR)) mkdirSync(QUEUE_DIR, { recursive: true })
+    const filePath = join(QUEUE_DIR, name)
+    writeFileSync(filePath, content, 'utf-8')
+    return filePath
+  })
+  ipcMain.handle('taskQueue:delete', (_e, name: string) => {
+    const { unlinkSync, existsSync } = require('fs') as typeof import('fs')
+    const filePath = join(QUEUE_DIR, name)
+    if (existsSync(filePath)) { unlinkSync(filePath); return true }
+    return false
+  })
+
+  // Resource monitor — get CPU/memory for all instance PIDs
+  ipcMain.handle('resources:getUsage', async () => {
+    const { execFile } = require('child_process') as typeof import('child_process')
+    const instances = await getAllInstances()
+    const pids = instances
+      .filter((i) => i.pid && i.status === 'running')
+      .map((i) => ({ id: i.id, pid: i.pid! }))
+
+    if (pids.length === 0) {
+      return { perInstance: {}, total: { cpu: 0, memory: 0 } }
+    }
+
+    // Use ps to get CPU and RSS for each PID and its children
+    return new Promise<{
+      perInstance: Record<string, { cpu: number; memory: number }>
+      total: { cpu: number; memory: number }
+    }>((resolve) => {
+      const pidList = pids.map((p) => p.pid).join(',')
+      // Get the process and all children via pgrep + ps
+      execFile('ps', ['-o', 'pid,ppid,%cpu,rss', '-p', pidList], { timeout: 5000 }, (err, stdout) => {
+        const perInstance: Record<string, { cpu: number; memory: number }> = {}
+        let totalCpu = 0
+        let totalMem = 0
+
+        if (!err && stdout) {
+          const lines = stdout.trim().split('\n').slice(1) // skip header
+          for (const line of lines) {
+            const parts = line.trim().split(/\s+/)
+            if (parts.length < 4) continue
+            const pid = parseInt(parts[0], 10)
+            const cpu = parseFloat(parts[2]) || 0
+            const rss = parseInt(parts[3], 10) || 0 // KB
+            const memMB = rss / 1024
+
+            // Find which instance owns this PID
+            const entry = pids.find((p) => p.pid === pid)
+            if (entry) {
+              perInstance[entry.id] = { cpu, memory: Math.round(memMB * 10) / 10 }
+              totalCpu += cpu
+              totalMem += memMB
+            }
+          }
+        }
+
+        // Also get child processes
+        execFile('ps', ['-eo', 'pid,ppid,%cpu,rss'], { timeout: 5000 }, (err2, stdout2) => {
+          if (!err2 && stdout2) {
+            const pidSet = new Set(pids.map((p) => p.pid))
+            const pidToInstance = new Map<number, string>()
+            for (const p of pids) pidToInstance.set(p.pid, p.id)
+
+            const lines = stdout2.trim().split('\n').slice(1)
+            for (const line of lines) {
+              const parts = line.trim().split(/\s+/)
+              if (parts.length < 4) continue
+              const pid = parseInt(parts[0], 10)
+              const ppid = parseInt(parts[1], 10)
+              const cpu = parseFloat(parts[2]) || 0
+              const rss = parseInt(parts[3], 10) || 0
+              const memMB = rss / 1024
+
+              // Is this a child of one of our instance PIDs?
+              if (pidSet.has(ppid) && !pidSet.has(pid)) {
+                const instId = pidToInstance.get(ppid)
+                if (instId) {
+                  if (!perInstance[instId]) perInstance[instId] = { cpu: 0, memory: 0 }
+                  perInstance[instId].cpu += cpu
+                  perInstance[instId].memory += Math.round(memMB * 10) / 10
+                  totalCpu += cpu
+                  totalMem += memMB
+                }
+              }
+            }
+          }
+
+          resolve({
+            perInstance,
+            total: {
+              cpu: Math.round(totalCpu * 10) / 10,
+              memory: Math.round(totalMem),
+            },
+          })
+        })
+      })
+    })
   })
 }
