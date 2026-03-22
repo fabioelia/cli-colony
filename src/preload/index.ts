@@ -41,11 +41,43 @@ export interface CliSession {
   recentlyOpened: boolean
 }
 
+export interface GitHubPR {
+  number: number
+  title: string
+  author: string
+  assignees: string[]
+  reviewers: string[]
+  branch: string
+  baseBranch: string
+  state: string
+  draft: boolean
+  url: string
+  createdAt: string
+  updatedAt: string
+  additions: number
+  deletions: number
+  reviewDecision: string
+  labels: string[]
+}
+
+export interface QuickPrompt {
+  id: string
+  label: string
+  prompt: string
+}
+
+export interface GitHubRepo {
+  owner: string
+  name: string
+  localPath?: string
+}
+
 export interface ClaudeManagerAPI {
   agents: {
     list: () => Promise<AgentDef[]>
     read: (filePath: string) => Promise<string | null>
     write: (filePath: string, content: string) => Promise<boolean>
+    create: (name: string, scope: string, projectPath?: string) => Promise<AgentDef | null>
   }
   instance: {
     create: (opts?: {
@@ -101,10 +133,27 @@ export interface ClaudeManagerAPI {
     onToggleSplit: (cb: () => void) => () => void
     onCloseSplit: (cb: () => void) => () => void
     onFocusPane: (cb: (side: 'left' | 'right') => void) => () => void
+    onCycleInstance: (cb: (direction: number) => void) => () => void
   }
   getPathForFile: (file: File) => string
   dialog: {
     openDirectory: () => Promise<string | null>
+  }
+  github: {
+    authStatus: () => Promise<boolean>
+    fetchPRs: (repo: GitHubRepo) => Promise<GitHubPR[]>
+    getRepos: () => Promise<GitHubRepo[]>
+    addRepo: (repo: GitHubRepo) => Promise<GitHubRepo[]>
+    removeRepo: (owner: string, name: string) => Promise<GitHubRepo[]>
+    updateRepoPath: (owner: string, name: string, localPath: string) => Promise<GitHubRepo[]>
+    getPrompts: () => Promise<QuickPrompt[]>
+    savePrompts: (prompts: QuickPrompt[]) => Promise<QuickPrompt[]>
+    resolvePrompt: (prompt: QuickPrompt, pr: GitHubPR, repo: GitHubRepo) => Promise<string>
+    writePrContext: (prsByRepo: Record<string, GitHubPR[]>) => Promise<string>
+    getPrMemory: () => Promise<string>
+    savePrMemory: (content: string) => Promise<boolean>
+    getPrMemoryPath: () => Promise<string>
+    getPrWorkspacePath: () => Promise<string>
   }
 }
 
@@ -113,6 +162,7 @@ const api: ClaudeManagerAPI = {
     list: () => ipcRenderer.invoke('agents:list'),
     read: (filePath) => ipcRenderer.invoke('agents:read', filePath),
     write: (filePath, content) => ipcRenderer.invoke('agents:write', filePath, content),
+    create: (name, scope, projectPath) => ipcRenderer.invoke('agents:create', name, scope, projectPath),
   },
   instance: {
     create: (opts) => ipcRenderer.invoke('instance:create', opts),
@@ -183,10 +233,27 @@ const api: ClaudeManagerAPI = {
     onToggleSplit: (cb) => { const l = () => cb(); ipcRenderer.on('shortcut:toggle-split', l); return () => ipcRenderer.removeListener('shortcut:toggle-split', l) },
     onCloseSplit: (cb) => { const l = () => cb(); ipcRenderer.on('shortcut:close-split', l); return () => ipcRenderer.removeListener('shortcut:close-split', l) },
     onFocusPane: (cb) => { const l = (_e: any, side: 'left' | 'right') => cb(side); ipcRenderer.on('shortcut:focus-pane', l); return () => ipcRenderer.removeListener('shortcut:focus-pane', l) },
+    onCycleInstance: (cb) => { const l = (_e: any, dir: number) => cb(dir); ipcRenderer.on('shortcut:cycle-instance', l); return () => ipcRenderer.removeListener('shortcut:cycle-instance', l) },
   },
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   dialog: {
     openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
+  },
+  github: {
+    authStatus: () => ipcRenderer.invoke('github:authStatus'),
+    fetchPRs: (repo) => ipcRenderer.invoke('github:fetchPRs', repo),
+    getRepos: () => ipcRenderer.invoke('github:getRepos'),
+    addRepo: (repo) => ipcRenderer.invoke('github:addRepo', repo),
+    removeRepo: (owner, name) => ipcRenderer.invoke('github:removeRepo', owner, name),
+    updateRepoPath: (owner, name, localPath) => ipcRenderer.invoke('github:updateRepoPath', owner, name, localPath),
+    getPrompts: () => ipcRenderer.invoke('github:getPrompts'),
+    savePrompts: (prompts) => ipcRenderer.invoke('github:savePrompts', prompts),
+    resolvePrompt: (prompt, pr, repo) => ipcRenderer.invoke('github:resolvePrompt', prompt, pr, repo),
+    writePrContext: (prsByRepo) => ipcRenderer.invoke('github:writePrContext', prsByRepo),
+    getPrMemory: () => ipcRenderer.invoke('github:getPrMemory'),
+    savePrMemory: (content) => ipcRenderer.invoke('github:savePrMemory', content),
+    getPrMemoryPath: () => ipcRenderer.invoke('github:getPrMemoryPath'),
+    getPrWorkspacePath: () => ipcRenderer.invoke('github:getPrWorkspacePath'),
   },
 }
 

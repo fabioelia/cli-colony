@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { COLORS, formatTime } from '../lib/constants'
 
-export type SidebarView = 'instances' | 'agents' | 'sessions' | 'settings' | 'logs'
+export type SidebarView = 'instances' | 'agents' | 'github' | 'sessions' | 'settings' | 'logs'
 
 interface Props {
   instances: ClaudeInstance[]
@@ -218,19 +218,20 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
           <button className={`sidebar-tab ${view === 'agents' ? 'active' : ''}`} onClick={() => onViewChange('agents')}>
             Agents
           </button>
+          <button className={`sidebar-tab ${view === 'github' ? 'active' : ''}`} onClick={() => onViewChange('github')}>
+            <GitPullRequest size={12} /> PRs
+          </button>
         </div>
       </div>
 
-      {view === 'instances' && (
-        <div className="sidebar-instance-actions">
-          <button className="sidebar-new-btn" onClick={onNew}><Plus size={14} /> New Instance</button>
-          {restorableCount > 0 && instances.length === 0 && (
-            <button className="sidebar-restore-btn" onClick={onRestoreAll}>
-              Restore {restorableCount} session{restorableCount > 1 ? 's' : ''} from last run
-            </button>
-          )}
-        </div>
-      )}
+      <div className="sidebar-instance-actions">
+        <button className="sidebar-new-btn" onClick={onNew}><Plus size={14} /> New Instance</button>
+        {view === 'instances' && restorableCount > 0 && instances.length === 0 && (
+          <button className="sidebar-restore-btn" onClick={onRestoreAll}>
+            Restore {restorableCount} session{restorableCount > 1 ? 's' : ''} from last run
+          </button>
+        )}
+      </div>
 
       <div className="instance-list">
         {pinned.length > 0 && (
@@ -241,7 +242,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
         )}
         {running.length > 0 && (
           <>
-            {pinned.length > 0 && <div className="instance-list-divider">Running</div>}
+            {pinned.length > 0 && <div className="instance-list-divider">Active</div>}
             {running.map(renderInstance)}
           </>
         )}

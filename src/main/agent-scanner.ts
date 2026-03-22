@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, existsSync } from 'fs'
+import { readdirSync, readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
 import { join, basename } from 'path'
 import { app } from 'electron'
 
@@ -100,4 +100,54 @@ export function scanAgents(projectPaths?: string[]): AgentDef[] {
   }
 
   return agents
+}
+
+const AGENT_TEMPLATE = `---
+name: {{name}}
+description: Describe what this agent does
+tools: Read, Edit, Bash, Glob, Grep
+model: sonnet
+---
+
+You are a helpful agent. Describe your role and capabilities here.
+`
+
+export function createAgent(name: string, scope: 'personal' | 'project', projectPath?: string): AgentDef | null {
+  const home = app.getPath('home')
+  let dir: string
+  let projectName: string | undefined
+
+  if (scope === 'personal') {
+    dir = join(home, '.claude', 'agents')
+  } else if (projectPath) {
+    dir = join(projectPath, '.claude', 'agents')
+    projectName = basename(projectPath)
+  } else {
+    return null
+  }
+
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true })
+  }
+
+  const fileName = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '.md'
+  const filePath = join(dir, fileName)
+
+  if (existsSync(filePath)) {
+    return null
+  }
+
+  const content = AGENT_TEMPLATE.replace('{{name}}', name)
+  writeFileSync(filePath, content, 'utf-8')
+
+  return {
+    id: `${scope}:${projectName || 'personal'}:${name}`,
+    name,
+    description: 'Describe what this agent does',
+    tools: ['Read', 'Edit', 'Bash', 'Glob', 'Grep'],
+    model: 'sonnet',
+    filePath,
+    scope,
+    projectName,
+  }
 }

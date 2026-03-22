@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { RefreshCw } from 'lucide-react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -49,6 +50,23 @@ export default function AgentEditor({ agent, onBack, onSave, onInstanceCreated }
       setInstance(inst)
       instanceIdRef.current = inst.id
       onInstanceCreated?.(inst.id)
+
+      // Prime the instance with context about the agent file
+      const prompt = `You are helping the user build and refine the Claude Code agent definition at ${agent.filePath}. Read that file now. Your job is to help them:\n- Write a clear, effective system prompt\n- Choose the right tools and model\n- Test and iterate on the agent's behavior\n\nThe agent file uses markdown frontmatter (name, description, tools, model, color) followed by the system prompt body. Start by reading the file and suggesting improvements or asking what the user wants this agent to do.`
+
+      // Wait for Claude to be ready, then send the prompt
+      let sent = false
+      const unsub = window.api.instance.onActivity(({ id, activity }) => {
+        if (id === inst.id && activity === 'waiting' && !sent) {
+          sent = true
+          unsub()
+          window.api.instance.write(inst.id, '\n')
+          setTimeout(() => {
+            window.api.instance.write(inst.id, prompt + '\n')
+          }, 500)
+        }
+      })
+      setTimeout(() => { if (!sent) unsub() }, 15000)
     })
 
     return () => {
@@ -125,6 +143,30 @@ export default function AgentEditor({ agent, onBack, onSave, onInstanceCreated }
     }
   }, [instance])
 
+  const reloadFile = useCallback(() => {
+    window.api.agents.read(agent.filePath).then((text) => {
+      if (text !== null) {
+        setContent(text)
+        setOriginalContent(text)
+      }
+    })
+  }, [agent.filePath])
+
+  // Auto-reload file when CLI finishes (busy → waiting)
+  useEffect(() => {
+    if (!instance) return
+    let wasBusy = false
+    const unsub = window.api.instance.onActivity(({ id, activity }) => {
+      if (id !== instance.id) return
+      if (activity === 'busy') wasBusy = true
+      if (activity === 'waiting' && wasBusy) {
+        wasBusy = false
+        reloadFile()
+      }
+    })
+    return unsub
+  }, [instance, reloadFile])
+
   const handleSave = useCallback(async () => {
     setSaving(true)
     const ok = await window.api.agents.write(agent.filePath, content)
@@ -190,6 +232,13 @@ export default function AgentEditor({ agent, onBack, onSave, onInstanceCreated }
           <span className="agent-editor-path">{agent.filePath}</span>
         </div>
         <div className="agent-editor-header-right">
+          <button
+            className="agent-editor-reload"
+            onClick={reloadFile}
+            title="Reload file from disk"
+          >
+            <RefreshCw size={13} />
+          </button>
           {isDirty && <span className="agent-editor-dirty">unsaved</span>}
           <button
             className="agent-editor-save"

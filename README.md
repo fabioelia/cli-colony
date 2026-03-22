@@ -6,8 +6,8 @@ Desktop app for managing multiple Claude CLI instances. Launch, track, and inter
 
 ```bash
 # Clone
-git clone git@github.com:fabioelia/cli-manager.git
-cd cli-manager
+git clone git@github.com:fabioelia/cli-colony.git
+cd cli-colony
 
 # Install dependencies (requires Node.js 20+ and Yarn 3.6+)
 yarn install
@@ -31,6 +31,24 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 - Unread indicator on background instances with new output
 - Info popup showing launch command, directory, PID, MCP servers, token usage
 - Auto-cleanup of exited instances after configurable timeout
+- Unique colors per instance — new instances automatically pick the least-used color
+- Color sync — instance colors sync to Claude CLI via `/color` command
+
+### Persistent PTY Daemon
+- Standalone Node.js daemon owns all PTY file descriptors independently of Electron
+- Instances survive app crashes and restarts — reconnect to running sessions
+- Unix domain socket communication with NDJSON protocol
+- Auto-spawns daemon on app start, auto-reconnects on disconnect
+
+### GitHub PR Integration
+- **PRs tab** in the sidebar — configure repositories you care about
+- Fetches open PRs via `gh` CLI with author, assignees, reviewers, branch, diff size, review status, labels
+- **Quick actions** per PR — configurable prompt templates that launch Claude instances (Review PR, Summarize, Checkout & Test)
+- **Ask bar** — ask natural language questions about your PRs ("which ones are assigned to me?", "what needs review?")
+- **PR Memory** — persistent knowledge base at `~/.claude-colony/pr-workspace/pr-memory.md` that CLI instances read from and write to across sessions
+- **Custom prompts** — fully editable prompt templates with variables (`{{pr.number}}`, `{{pr.branch}}`, `{{pr.author}}`, etc.)
+- PR context synced to `~/.claude-colony/pr-workspace/pr-context.md` for CLI consumption
+- All PR instances launch in a dedicated workspace directory to avoid repeated trust prompts
 
 ### Split View
 - Side-by-side terminal panes for monitoring two agents simultaneously
@@ -60,14 +78,19 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 
 ### Agents
 - Browse personal agents from `~/.claude/agents/` and project-level agents
+- **Create agents** directly from the UI — "Add Agent" button per section
 - Edit agents in a split view: markdown file editor + live Claude terminal
+- CLI instance is primed with context to help build/refine the agent definition
+- **Auto-reload** — editor refreshes from disk when the CLI finishes editing the file
+- Manual refresh button to reload from disk
 - Launch instances pre-configured from agent definitions
 - `Cmd+S` to save agent files (scoped to editor focus)
 
 ### Settings
 - Default CLI arguments applied to all new instances
 - Global hotkey to summon the app (default `Ctrl+Shift+Space`, requires restart)
-- Sound notification toggle on instance exit (macOS Glass sound)
+- Sound notification when Claude finishes processing (busy → waiting) and app is not focused
+- Native notification with click-to-focus when Claude is waiting for input
 - Auto-cleanup timeout for exited instances (default 5 min, 0 to disable)
 - Application logs viewer with auto-refresh
 
@@ -90,7 +113,8 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 | `Cmd+Shift+W` | Close split view (keep both instances) |
 | `Cmd+Option+Left/Right` | Switch focus between split panes |
 | `Cmd+F` | Find in terminal |
-| `Cmd+1` – `Cmd+9` | Switch instance by position |
+| `Cmd+1` – `Cmd+9` | Switch instance by position (pinned → active → stopped) |
+| `Alt+Tab` / `Alt+Shift+Tab` | Cycle through instances forward / backward |
 | `Cmd+=` / `Cmd+-` / `Cmd+0` | Zoom in / out / reset |
 
 ## Data Storage
@@ -100,7 +124,13 @@ All app data lives in `~/.claude-colony/`:
 ```
 ~/.claude-colony/
 ├── settings.json          # App settings
-└── recent-sessions.json   # Tracks recently opened sessions for restore
+├── recent-sessions.json   # Tracks recently opened sessions for restore
+├── github.json            # GitHub repos and custom PR prompts
+├── daemon.sock            # Unix socket for daemon communication
+├── daemon.pid             # Daemon process ID
+└── pr-workspace/          # Dedicated workspace for PR-related instances
+    ├── pr-context.md      # Synced PR data for CLI consumption
+    └── pr-memory.md       # Persistent knowledge from PR conversations
 ```
 
 Session history is read from Claude CLI's own data at `~/.claude/history.jsonl`.
@@ -116,15 +146,39 @@ Agent definitions are read from `~/.claude/agents/` (personal) and `<project>/.c
 - **Lucide React** — icons
 - **TypeScript** — throughout
 
+## Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│  Electron App (Renderer + Main)                 │
+│  ├── React UI (sidebar, terminals, panels)      │
+│  ├── IPC handlers (bridge to daemon)            │
+│  └── Notifications, tray, global hotkey         │
+└──────────────┬──────────────────────────────────┘
+               │ Unix domain socket (NDJSON)
+┌──────────────▼──────────────────────────────────┐
+│  PTY Daemon (standalone Node.js process)        │
+│  ├── Owns all PTY file descriptors              │
+│  ├── Survives app crashes / restarts            │
+│  ├── Activity detection, token parsing          │
+│  └── Color sync, MCP detection                  │
+└─────────────────────────────────────────────────┘
+```
+
 ## Project Structure
 
 ```
 src/
+├── daemon/                  # Standalone PTY daemon
+│   ├── protocol.ts          # Shared NDJSON message types
+│   └── pty-daemon.ts        # Daemon process: PTY lifecycle, activity detection
 ├── main/                    # Electron main process
 │   ├── index.ts             # App bootstrap, window, menu, tray, global hotkey
-│   ├── instance-manager.ts  # PTY lifecycle, activity detection, token parsing, MCP detection
+│   ├── instance-manager.ts  # Thin proxy over daemon client
+│   ├── daemon-client.ts     # Connects to PTY daemon, auto-spawn, auto-reconnect
 │   ├── ipc-handlers.ts      # IPC bridge between main and renderer
-│   ├── agent-scanner.ts     # Scans ~/.claude/agents/ for agent definitions
+│   ├── github.ts            # GitHub integration (gh CLI, PR data, memory, workspace)
+│   ├── agent-scanner.ts     # Scans for agent definitions, creates new agents
 │   ├── session-scanner.ts   # Reads ~/.claude/history.jsonl for session history
 │   ├── recent-sessions.ts   # Tracks sessions opened via the app
 │   ├── settings.ts          # Read/write ~/.claude-colony/settings.json
@@ -142,9 +196,10 @@ src/
         │   └── terminal-proxy.ts  # Sync-block buffering, scroll preservation
         ├── components/
         │   ├── Sidebar.tsx          # Instance list, sessions, tabs, context menu
-        │   ├── TerminalView.tsx     # xterm.js terminal with search, drag-drop, focus model
+        │   ├── TerminalView.tsx     # xterm.js terminal with search, drag-drop, focus
         │   ├── NewInstanceDialog.tsx # Create instance form
-        │   ├── AgentsPanel.tsx      # Agent browser
+        │   ├── GitHubPanel.tsx      # PR browser, ask bar, memory, quick actions
+        │   ├── AgentsPanel.tsx      # Agent browser with create
         │   ├── AgentEditor.tsx      # Split view: file editor + terminal
         │   └── SettingsPanel.tsx    # Settings + logs viewer
         ├── styles/

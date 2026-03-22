@@ -62,11 +62,36 @@ const COLORS = [
   '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
   '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#6366f1',
 ]
-let colorIndex = 0
+const HEX_TO_NAME: Record<string, string> = {
+  '#3b82f6': 'blue',
+  '#10b981': 'green',
+  '#f59e0b': 'yellow',
+  '#ef4444': 'red',
+  '#8b5cf6': 'purple',
+  '#ec4899': 'pink',
+  '#06b6d4': 'cyan',
+  '#f97316': 'orange',
+  '#14b8a6': 'teal',
+  '#6366f1': 'indigo',
+}
 function nextColor(): string {
-  const color = COLORS[colorIndex % COLORS.length]
-  colorIndex++
-  return color
+  // Pick the color used by the fewest existing instances
+  const usedCounts = new Map<string, number>()
+  for (const c of COLORS) usedCounts.set(c, 0)
+  for (const inst of instances.values()) {
+    const count = usedCounts.get(inst.color)
+    if (count !== undefined) usedCounts.set(inst.color, count + 1)
+  }
+  let best = COLORS[0]
+  let bestCount = Infinity
+  for (const c of COLORS) {
+    const count = usedCounts.get(c)!
+    if (count < bestCount) {
+      bestCount = count
+      best = c
+    }
+  }
+  return best
 }
 
 let instanceCounter = 0
@@ -213,6 +238,9 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
     }
   })
 
+  // Send /color command once Claude is ready
+  let colorSent = false
+
   // Activity detection
   instance._activityInterval = setInterval(() => {
     if (instance.status !== 'running') {
@@ -226,6 +254,15 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
     if (newActivity !== instance.activity) {
       instance.activity = newActivity
       broadcastEvent({ type: 'activity', instanceId: id, activity: newActivity })
+
+      // Send /color on first waiting state
+      if (newActivity === 'waiting' && !colorSent && instance.pty) {
+        colorSent = true
+        const colorName = HEX_TO_NAME[instance.color]
+        if (colorName) {
+          instance.pty.write(`/color ${colorName}\n`)
+        }
+      }
     }
   }, 2000)
 
@@ -302,6 +339,13 @@ function recolorInstance(id: string, color: string): boolean {
   const inst = instances.get(id)
   if (!inst) return false
   inst.color = color
+  // Sync color to Claude CLI if instance is running and waiting for input
+  if (inst.pty && inst.status === 'running' && inst.activity === 'waiting') {
+    const colorName = HEX_TO_NAME[color]
+    if (colorName) {
+      inst.pty.write(`/color ${colorName}\n`)
+    }
+  }
   notifyListChanged()
   return true
 }

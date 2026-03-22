@@ -117,6 +117,17 @@ function buildAppMenu(): void {
           click: () => sendToRenderer('shortcut:search'),
         },
         { type: 'separator' },
+        {
+          label: 'Next Instance',
+          accelerator: 'Alt+Tab',
+          click: () => sendToRenderer('shortcut:cycle-instance', 1),
+        },
+        {
+          label: 'Previous Instance',
+          accelerator: 'Alt+Shift+Tab',
+          click: () => sendToRenderer('shortcut:cycle-instance', -1),
+        },
+        { type: 'separator' },
         ...Array.from({ length: 9 }, (_, i) => ({
           label: `Switch to Instance ${i + 1}`,
           accelerator: `CmdOrCtrl+${i + 1}`,

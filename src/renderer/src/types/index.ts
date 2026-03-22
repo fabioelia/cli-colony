@@ -50,6 +50,37 @@ export interface RecentSession {
   exitType: 'running' | 'exited' | 'killed'
 }
 
+export interface GitHubPR {
+  number: number
+  title: string
+  author: string
+  assignees: string[]
+  reviewers: string[]
+  branch: string
+  baseBranch: string
+  state: string
+  draft: boolean
+  url: string
+  createdAt: string
+  updatedAt: string
+  additions: number
+  deletions: number
+  reviewDecision: string
+  labels: string[]
+}
+
+export interface QuickPrompt {
+  id: string
+  label: string
+  prompt: string
+}
+
+export interface GitHubRepo {
+  owner: string
+  name: string
+  localPath?: string
+}
+
 declare global {
   interface Window {
     api: import('../../../preload/index').ClaudeManagerAPI

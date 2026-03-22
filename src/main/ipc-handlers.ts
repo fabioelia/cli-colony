@@ -14,11 +14,17 @@ import {
   getInstance,
   getInstanceBuffer,
 } from './instance-manager'
-import { scanAgents } from './agent-scanner'
+import { scanAgents, createAgent } from './agent-scanner'
 import { scanSessions } from './session-scanner'
 import { getRestorableSessions, clearRestorable, getRecentSessions } from './recent-sessions'
 import { getSettings, setSetting } from './settings'
 import { getLogs, clearLogs } from './logger'
+import {
+  checkGhAuth, fetchPRs, getRepos, addRepo, removeRepo,
+  updateRepoPath, getPrompts, savePrompts, resolvePrompt, writePrContext,
+  getPrMemory, savePrMemory, getPrMemoryPath, getPrWorkspacePath,
+} from './github'
+import type { GitHubRepo, QuickPrompt, GitHubPR } from './github'
 
 export function registerIpcHandlers(): void {
   ipcMain.handle('instance:create', (_e, opts) => createInstance(opts || {}))
@@ -36,6 +42,9 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('instance:buffer', (_e, id: string) => getInstanceBuffer(id))
 
   ipcMain.handle('agents:list', () => scanAgents())
+  ipcMain.handle('agents:create', (_e, name: string, scope: string, projectPath?: string) =>
+    createAgent(name, scope as 'personal' | 'project', projectPath)
+  )
   ipcMain.handle('agents:read', (_e, filePath: string) => {
     const { readFileSync } = require('fs') as typeof import('fs')
     try {
@@ -74,4 +83,20 @@ export function registerIpcHandlers(): void {
     const result = await dialog.showOpenDialog({ properties: ['openDirectory'] })
     return result.canceled ? null : result.filePaths[0]
   })
+
+  // GitHub
+  ipcMain.handle('github:authStatus', () => checkGhAuth())
+  ipcMain.handle('github:fetchPRs', (_e, repo: GitHubRepo) => fetchPRs(repo))
+  ipcMain.handle('github:getRepos', () => getRepos())
+  ipcMain.handle('github:addRepo', (_e, repo: GitHubRepo) => addRepo(repo))
+  ipcMain.handle('github:removeRepo', (_e, owner: string, name: string) => removeRepo(owner, name))
+  ipcMain.handle('github:updateRepoPath', (_e, owner: string, name: string, localPath: string) => updateRepoPath(owner, name, localPath))
+  ipcMain.handle('github:getPrompts', () => getPrompts())
+  ipcMain.handle('github:savePrompts', (_e, prompts: QuickPrompt[]) => savePrompts(prompts))
+  ipcMain.handle('github:resolvePrompt', (_e, prompt: QuickPrompt, pr: GitHubPR, repo: GitHubRepo) => resolvePrompt(prompt, pr, repo))
+  ipcMain.handle('github:writePrContext', (_e, prsByRepo: Record<string, GitHubPR[]>) => writePrContext(prsByRepo))
+  ipcMain.handle('github:getPrMemory', () => getPrMemory())
+  ipcMain.handle('github:savePrMemory', (_e, content: string) => savePrMemory(content))
+  ipcMain.handle('github:getPrMemoryPath', () => getPrMemoryPath())
+  ipcMain.handle('github:getPrWorkspacePath', () => getPrWorkspacePath())
 }

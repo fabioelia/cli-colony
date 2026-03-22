@@ -6,6 +6,7 @@ import NewInstanceDialog from './components/NewInstanceDialog'
 import AgentsPanel from './components/AgentsPanel'
 import AgentEditor from './components/AgentEditor'
 import SettingsPanel from './components/SettingsPanel'
+import GitHubPanel from './components/GitHubPanel'
 
 type View = SidebarView | 'agent-editor'
 
@@ -105,7 +106,12 @@ export default function App() {
         if (v === 'instances' && aid) setSearchOpen(true)
       }),
       window.api.shortcuts.onSwitchInstance((idx: number) => {
-        const insts = instancesRef.current
+        // Match visual order: pinned, then running, then exited
+        const all = instancesRef.current
+        const pinned = all.filter((i) => i.pinned)
+        const running = all.filter((i) => i.status === 'running' && !i.pinned)
+        const exited = all.filter((i) => i.status !== 'running' && !i.pinned)
+        const insts = [...pinned, ...running, ...exited]
         if (idx < insts.length) {
           const id = insts[idx].id
           setActiveId(id)
@@ -117,6 +123,26 @@ export default function App() {
           })
           setView('instances')
         }
+      }),
+      window.api.shortcuts.onCycleInstance((direction: number) => {
+        const all = instancesRef.current
+        const pinned = all.filter((i) => i.pinned)
+        const running = all.filter((i) => i.status === 'running' && !i.pinned)
+        const exited = all.filter((i) => i.status !== 'running' && !i.pinned)
+        const ordered = [...pinned, ...running, ...exited]
+        if (ordered.length === 0) return
+        const { activeId: aid } = activeViewRef.current
+        const currentIdx = ordered.findIndex((i) => i.id === aid)
+        const nextIdx = currentIdx === -1 ? 0 : (currentIdx + direction + ordered.length) % ordered.length
+        const id = ordered[nextIdx].id
+        setActiveId(id)
+        setUnreadIds((prev) => {
+          if (!prev.has(id)) return prev
+          const next = new Set(prev)
+          next.delete(id)
+          return next
+        })
+        setView('instances')
       }),
       window.api.shortcuts.onZoomIn(() => {
         setFontSize((prev) => {
@@ -555,6 +581,22 @@ export default function App() {
           />
         )}
         {view === 'agents' && <AgentsPanel onLaunchAgent={handleLaunchAgent} onEditAgent={handleEditAgent} />}
+        <div style={{ display: view === 'github' ? 'contents' : 'none' }}>
+          <GitHubPanel
+            onBack={() => setView('instances')}
+            instances={instances}
+            onLaunchInstance={async (opts) => {
+              const inst = await window.api.instance.create(opts)
+              setActiveId(inst.id)
+              setView('instances')
+              return inst.id
+            }}
+            onFocusInstance={(id) => {
+              setActiveId(id)
+              setView('instances')
+            }}
+          />
+        </div>
         {view === 'instances' && !active && (
           <div className="empty-state">
             <h2>No instance selected</h2>
