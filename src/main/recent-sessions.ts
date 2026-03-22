@@ -8,6 +8,7 @@ export interface RecentSession {
   workingDirectory: string
   color: string
   args: string[]
+  pinned?: boolean
   openedAt: string
   closedAt: string | null
   exitType: 'running' | 'exited' | 'killed'
@@ -45,6 +46,7 @@ export function trackOpened(opts: {
   workingDirectory: string
   color: string
   args: string[]
+  pinned?: boolean
 }): void {
   const sessions = load()
   sessions.unshift({
@@ -53,6 +55,7 @@ export function trackOpened(opts: {
     workingDirectory: opts.workingDirectory,
     color: opts.color,
     args: opts.args,
+    pinned: opts.pinned || false,
     openedAt: new Date().toISOString(),
     closedAt: null,
     exitType: 'running',

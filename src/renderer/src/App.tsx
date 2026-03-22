@@ -305,12 +305,15 @@ export default function App() {
   const handleRestoreAll = useCallback(async () => {
     const toRestore = restorableSessions.filter((s) => s.sessionId && s.exitType !== 'killed')
     for (const s of toRestore) {
-      await window.api.instance.create({
+      const inst = await window.api.instance.create({
         name: s.instanceName,
         workingDirectory: s.workingDirectory,
         color: s.color,
         args: ['--resume', s.sessionId!],
       })
+      if (s.pinned) {
+        await window.api.instance.pin(inst.id)
+      }
     }
     await window.api.sessions.clearRestorable()
     setRestorableSessions([])

@@ -78,6 +78,8 @@ export interface ClaudeManagerAPI {
     read: (filePath: string) => Promise<string | null>
     write: (filePath: string, content: string) => Promise<boolean>
     create: (name: string, scope: string, projectPath?: string) => Promise<AgentDef | null>
+    export: (agentPaths: string[]) => Promise<boolean>
+    import: (targetDir: string) => Promise<number>
   }
   instance: {
     create: (opts?: {
@@ -109,6 +111,9 @@ export interface ClaudeManagerAPI {
     restorable: () => Promise<any[]>
     clearRestorable: () => Promise<boolean>
     recent: () => Promise<any[]>
+  }
+  daemon: {
+    restart: () => Promise<void>
   }
   settings: {
     getAll: () => Promise<Record<string, string>>
@@ -171,6 +176,8 @@ const api: ClaudeManagerAPI = {
     read: (filePath) => ipcRenderer.invoke('agents:read', filePath),
     write: (filePath, content) => ipcRenderer.invoke('agents:write', filePath, content),
     create: (name, scope, projectPath) => ipcRenderer.invoke('agents:create', name, scope, projectPath),
+    export: (agentPaths) => ipcRenderer.invoke('agents:export', agentPaths),
+    import: (targetDir) => ipcRenderer.invoke('agents:import', targetDir),
   },
   instance: {
     create: (opts) => ipcRenderer.invoke('instance:create', opts),
@@ -217,6 +224,9 @@ const api: ClaudeManagerAPI = {
     restorable: () => ipcRenderer.invoke('sessions:restorable'),
     clearRestorable: () => ipcRenderer.invoke('sessions:clearRestorable'),
     recent: () => ipcRenderer.invoke('sessions:recent'),
+  },
+  daemon: {
+    restart: () => ipcRenderer.invoke('daemon:restart'),
   },
   settings: {
     getAll: () => ipcRenderer.invoke('settings:getAll'),

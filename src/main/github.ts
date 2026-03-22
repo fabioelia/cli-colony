@@ -117,7 +117,7 @@ export async function fetchPRs(repo: GitHubRepo): Promise<GitHubPR[]> {
     '--repo', repoSlug,
     '--state', 'open',
     '--json', 'number,title,author,assignees,reviewRequests,headRefName,baseRefName,state,isDraft,url,createdAt,updatedAt,additions,deletions,reviewDecision,labels',
-    '--limit', '30',
+    '--limit', '200',
   ])
   const raw = JSON.parse(json) as Array<{
     number: number

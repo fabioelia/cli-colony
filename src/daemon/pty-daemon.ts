@@ -273,7 +273,9 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
   })
 
   // Send /color command once Claude is ready
+  // Wait for 2 waiting states — first may be trust prompt
   let colorSent = false
+  let waitingCount = 0
 
   // Activity detection
   instance._activityInterval = setInterval(() => {
@@ -289,12 +291,18 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
       instance.activity = newActivity
       broadcastEvent({ type: 'activity', instanceId: id, activity: newActivity })
 
-      // Send /color on first waiting state
+      // Send /color once Claude CLI is ready for input
       if (newActivity === 'waiting' && !colorSent && instance.pty) {
-        colorSent = true
-        const colorName = HEX_TO_NAME[instance.color]
-        if (colorName) {
-          instance.pty.write(`/color ${colorName}\n`)
+        waitingCount++
+        // Skip first waiting if it looks like a trust prompt (check output for "trust")
+        const recentOutput = instance.outputBuffer.slice(-50).join('')
+        const hasTrustPrompt = /trust|safety check/i.test(recentOutput)
+        if (!hasTrustPrompt || waitingCount > 1) {
+          colorSent = true
+          const colorName = HEX_TO_NAME[instance.color]
+          if (colorName) {
+            instance.pty.write(`/color ${colorName}\r`)
+          }
         }
       }
     }
@@ -373,11 +381,12 @@ function recolorInstance(id: string, color: string): boolean {
   const inst = instances.get(id)
   if (!inst) return false
   inst.color = color
-  // Sync color to Claude CLI if instance is running and waiting for input
-  if (inst.pty && inst.status === 'running' && inst.activity === 'waiting') {
-    const colorName = HEX_TO_NAME[color]
+  const colorName = HEX_TO_NAME[color]
+  log(`recolor ${id} to ${color} (name: ${colorName || 'unknown'}) status=${inst.status} activity=${inst.activity} hasPty=${!!inst.pty}`)
+  // Sync color to Claude CLI if instance is running
+  if (inst.pty && inst.status === 'running') {
     if (colorName) {
-      inst.pty.write(`/color ${colorName}\n`)
+      inst.pty.write(`/color ${colorName}\r`)
     }
   }
   notifyListChanged()
@@ -608,9 +617,12 @@ function shutdown(): void {
   process.exit(0)
 }
 
+const LOG_PATH = path.join(COLONY_DIR, 'daemon.log')
+
 function log(msg: string): void {
   const ts = new Date().toISOString().substring(11, 23)
-  process.stderr.write(`[daemon ${ts}] ${msg}\n`)
+  const line = `[daemon ${ts}] ${msg}\n`
+  try { fs.appendFileSync(LOG_PATH, line) } catch { /* */ }
 }
 
 function main(): void {

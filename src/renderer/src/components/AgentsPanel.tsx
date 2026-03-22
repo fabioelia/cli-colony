@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, RefreshCw } from 'lucide-react'
+import { Plus, RefreshCw, Download, Upload } from 'lucide-react'
 import type { AgentDef } from '../types'
 import { COLOR_MAP } from '../lib/constants'
 
@@ -100,6 +100,19 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
     )
   }
 
+  const handleExport = async (agentsToExport: AgentDef[]) => {
+    if (agentsToExport.length === 0) return
+    await window.api.agents.export(agentsToExport.map((a) => a.filePath))
+  }
+
+  const handleImport = async (scope: 'personal' | 'project', projectPath?: string) => {
+    // For personal agents, pass empty string — the backend resolves the path
+    const targetDir = scope === 'personal' ? '' : (projectPath ? `${projectPath}/.claude/agents` : null)
+    if (targetDir === null) return
+    const count = await window.api.agents.import(targetDir)
+    if (count > 0) refresh()
+  }
+
   const renderAddForm = (scope: 'personal' | 'project', projectPath?: string) => {
     const isActive = addingTo?.scope === scope && addingTo?.projectPath === projectPath
     if (!isActive) {
@@ -140,7 +153,15 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
         </button>
       </div>
       <div className="agents-section">
-        <div className="agents-section-title">Personal Agents</div>
+        <div className="agents-section-title">
+          Personal Agents
+          <div className="agents-section-actions">
+            {personal.length > 0 && (
+              <button title="Export agents" onClick={() => handleExport(personal)}><Download size={12} /></button>
+            )}
+            <button title="Import agents" onClick={() => handleImport('personal')}><Upload size={12} /></button>
+          </div>
+        </div>
         {personal.length === 0 && (
           <div className="agents-empty">No personal agents found in ~/.claude/agents/</div>
         )}
@@ -150,7 +171,15 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
 
       {Object.entries(byProject).map(([projName, { agents: projAgents, path }]) => (
         <div key={projName} className="agents-section">
-          <div className="agents-section-title">{projName}</div>
+          <div className="agents-section-title">
+            {projName}
+            <div className="agents-section-actions">
+              {projAgents.length > 0 && (
+                <button title="Export agents" onClick={() => handleExport(projAgents)}><Download size={12} /></button>
+              )}
+              <button title="Import agents" onClick={() => handleImport('project', path)}><Upload size={12} /></button>
+            </div>
+          </div>
           {projAgents.map(renderAgent)}
           {renderAddForm('project', path)}
         </div>

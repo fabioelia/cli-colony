@@ -13,6 +13,7 @@ import {
   getAllInstances,
   getInstance,
   getInstanceBuffer,
+  restartDaemon,
 } from './instance-manager'
 import { scanAgents, createAgent } from './agent-scanner'
 import { scanSessions } from './session-scanner'
@@ -40,11 +41,66 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('instance:list', () => getAllInstances())
   ipcMain.handle('instance:get', (_e, id: string) => getInstance(id))
   ipcMain.handle('instance:buffer', (_e, id: string) => getInstanceBuffer(id))
+  ipcMain.handle('daemon:restart', () => restartDaemon())
 
   ipcMain.handle('agents:list', () => scanAgents())
   ipcMain.handle('agents:create', (_e, name: string, scope: string, projectPath?: string) =>
     createAgent(name, scope as 'personal' | 'project', projectPath)
   )
+  ipcMain.handle('agents:export', async (_e, agentPaths: string[]) => {
+    const { createWriteStream, readFileSync, existsSync } = require('fs') as typeof import('fs')
+    const { basename } = require('path') as typeof import('path')
+    const archiver = require('archiver') as any
+    const result = await dialog.showSaveDialog({
+      defaultPath: 'agents.zip',
+      filters: [{ name: 'ZIP', extensions: ['zip'] }],
+    })
+    if (result.canceled || !result.filePath) return false
+    return new Promise<boolean>((resolve) => {
+      const output = createWriteStream(result.filePath!)
+      const archive = archiver('zip', { zlib: { level: 9 } })
+      archive.pipe(output)
+      for (const p of agentPaths) {
+        if (existsSync(p)) {
+          archive.file(p, { name: basename(p) })
+        }
+      }
+      output.on('close', () => resolve(true))
+      archive.on('error', () => resolve(false))
+      archive.finalize()
+    })
+  })
+
+  ipcMain.handle('agents:import', async (_e, targetDir: string) => {
+    const { mkdirSync, existsSync, createReadStream, createWriteStream } = require('fs') as typeof import('fs')
+    const { join, basename } = require('path') as typeof import('path')
+    const unzipper = require('unzipper') as any
+    const result = await dialog.showOpenDialog({
+      filters: [{ name: 'ZIP', extensions: ['zip'] }],
+      properties: ['openFile'],
+    })
+    if (result.canceled || result.filePaths.length === 0) return 0
+    // Resolve personal agents path if empty
+    const resolvedDir = targetDir || join(app.getPath('home'), '.claude', 'agents')
+    if (!existsSync(resolvedDir)) mkdirSync(resolvedDir, { recursive: true })
+    return new Promise<number>((resolve) => {
+      let count = 0
+      createReadStream(result.filePaths[0])
+        .pipe(unzipper.Parse())
+        .on('entry', (entry: any) => {
+          const name = basename(entry.path)
+          if (name.endsWith('.md') && !name.startsWith('.')) {
+            count++
+            entry.pipe(createWriteStream(join(resolvedDir, name)))
+          } else {
+            entry.autodrain()
+          }
+        })
+        .on('close', () => resolve(count))
+        .on('error', () => resolve(count))
+    })
+  })
+
   ipcMain.handle('agents:read', (_e, filePath: string) => {
     const { readFileSync } = require('fs') as typeof import('fs')
     try {
@@ -87,8 +143,30 @@ export function registerIpcHandlers(): void {
     return true
   })
 
-  ipcMain.handle('logs:get', () => getLogs())
-  ipcMain.handle('logs:clear', () => { clearLogs(); return true })
+  ipcMain.handle('logs:get', () => {
+    const appLogs = getLogs()
+    // Also include daemon logs
+    const { readFileSync, existsSync } = require('fs') as typeof import('fs')
+    const { join } = require('path') as typeof import('path')
+    const daemonLogPath = join(app.getPath('home'), '.claude-colony', 'daemon.log')
+    let daemonLogs = ''
+    try {
+      if (existsSync(daemonLogPath)) {
+        const full = readFileSync(daemonLogPath, 'utf-8')
+        // Last 200 lines
+        const lines = full.split('\n')
+        daemonLogs = lines.slice(-200).join('\n')
+      }
+    } catch { /* */ }
+    return daemonLogs ? `${appLogs}\n\n--- Daemon Logs ---\n${daemonLogs}` : appLogs
+  })
+  ipcMain.handle('logs:clear', () => {
+    clearLogs()
+    const { writeFileSync } = require('fs') as typeof import('fs')
+    const { join } = require('path') as typeof import('path')
+    try { writeFileSync(join(app.getPath('home'), '.claude-colony', 'daemon.log'), '', 'utf-8') } catch { /* */ }
+    return true
+  })
 
   ipcMain.handle('shell:openExternal', (_e, url: string) => shell.openExternal(url))
 

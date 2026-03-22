@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Terminal, ScrollText } from 'lucide-react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw } from 'lucide-react'
 
 interface Props {
   onBack: () => void
@@ -13,6 +13,8 @@ export default function SettingsPanel({ onBack }: Props) {
   const [globalHotkey, setGlobalHotkey] = useState('CommandOrControl+Shift+Space')
   const [availableShells, setAvailableShells] = useState<string[]>([])
   const [saved, setSaved] = useState(false)
+  const [restarting, setRestarting] = useState(false)
+  const [showRestartConfirm, setShowRestartConfirm] = useState(false)
   const [logs, setLogs] = useState('')
   const [showLogs, setShowLogs] = useState(false)
   const logsRef = useRef<HTMLPreElement>(null)
@@ -158,6 +160,58 @@ export default function SettingsPanel({ onBack }: Props) {
           {saved ? 'Saved!' : 'Save Settings'}
         </button>
         <span className="settings-config-path">~/.claude-colony/settings.json</span>
+      </div>
+
+      {/* Daemon */}
+      <div className="settings-section">
+        <div className="settings-section-title">
+          <RotateCcw size={12} />
+          PTY Daemon
+        </div>
+        <p className="settings-help">
+          The daemon is a background process that owns all terminal sessions.
+          Restarting it picks up changes to shell profile and environment, but
+          will terminate all running Claude instances.
+        </p>
+        {!showRestartConfirm ? (
+          <button
+            className="settings-daemon-restart"
+            onClick={() => setShowRestartConfirm(true)}
+          >
+            <RotateCcw size={13} /> Restart Daemon
+          </button>
+        ) : (
+          <div className="settings-daemon-confirm">
+            <div className="settings-daemon-warning">
+              <AlertTriangle size={14} />
+              <span>This will kill all active Claude instances. They cannot be recovered.</span>
+            </div>
+            <div className="settings-daemon-confirm-actions">
+              <button
+                className="settings-daemon-cancel"
+                onClick={() => setShowRestartConfirm(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="settings-daemon-confirm-btn"
+                disabled={restarting}
+                onClick={async () => {
+                  setRestarting(true)
+                  try {
+                    await window.api.daemon.restart()
+                  } catch (err) {
+                    console.error('daemon restart failed:', err)
+                  }
+                  setRestarting(false)
+                  setShowRestartConfirm(false)
+                }}
+              >
+                {restarting ? 'Restarting...' : 'Yes, Restart Daemon'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Logs */}

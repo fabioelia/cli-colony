@@ -88,6 +88,10 @@ input, select {
 
 .sidebar-header {
   padding: 44px 10px 0;
+  -webkit-app-region: drag;
+}
+
+.sidebar-header .sidebar-tabs {
   -webkit-app-region: no-drag;
 }
 
@@ -644,6 +648,19 @@ input, select {
   position: relative;
 }
 
+/* Draggable titlebar zone across the top of the main area */
+.main::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 44px;
+  -webkit-app-region: drag;
+  z-index: 10;
+  pointer-events: auto;
+}
+
 .terminal-header {
   padding: 48px 16px 8px;
   padding-right: 80px;
@@ -830,6 +847,7 @@ input, select {
   justify-content: center;
   gap: 16px;
   color: var(--text-muted);
+  -webkit-app-region: no-drag;
 }
 
 .empty-state h2 {
@@ -1044,6 +1062,9 @@ input, select {
   display: flex;
   justify-content: flex-end;
   margin-bottom: 8px;
+  -webkit-app-region: no-drag;
+  position: relative;
+  z-index: 11;
 }
 
 .agents-refresh-btn {
@@ -1067,6 +1088,8 @@ input, select {
 }
 
 .agents-section-title {
+  display: flex;
+  align-items: center;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
@@ -1075,6 +1098,28 @@ input, select {
   padding: 0 0 8px;
   border-bottom: 1px solid var(--border);
   margin-bottom: 8px;
+}
+
+.agents-section-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.agents-section-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  transition: all 0.15s;
+}
+
+.agents-section-actions button:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface);
 }
 
 .agents-empty {
@@ -1499,6 +1544,9 @@ input, select {
   display: flex;
   align-items: center;
   gap: 10px;
+  -webkit-app-region: no-drag;
+  position: relative;
+  z-index: 11;
 }
 
 .settings-back {
@@ -1751,6 +1799,88 @@ input, select {
   font-size: 11px;
   color: var(--text-muted);
   font-family: Menlo, Monaco, monospace;
+}
+
+/* Daemon section */
+.settings-daemon-restart {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+  transition: all 0.15s;
+  margin-top: 8px;
+}
+
+.settings-daemon-restart:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.settings-daemon-confirm {
+  margin-top: 8px;
+}
+
+.settings-daemon-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  font-size: 12px;
+  color: var(--danger);
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+
+.settings-daemon-warning svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.settings-daemon-confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.settings-daemon-cancel {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+  transition: all 0.15s;
+}
+
+.settings-daemon-cancel:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.settings-daemon-confirm-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: white;
+  background: var(--danger);
+  transition: opacity 0.15s;
+}
+
+.settings-daemon-confirm-btn:hover {
+  opacity: 0.85;
+}
+
+.settings-daemon-confirm-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 /* Logs section */

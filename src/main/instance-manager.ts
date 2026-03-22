@@ -219,6 +219,22 @@ export async function shutdownDaemon(): Promise<void> {
 }
 
 /**
+ * Restart the daemon — kills all instances, shuts down, then reconnects.
+ * The new daemon picks up fresh settings (shell profile, etc).
+ */
+export async function restartDaemon(): Promise<void> {
+  console.log('[instance-manager] restarting daemon...')
+  try {
+    await getDaemonClient().shutdownDaemon()
+  } catch { /* daemon may already be gone */ }
+  getDaemonClient().disconnect()
+  // Wait for socket cleanup
+  await new Promise((r) => setTimeout(r, 500))
+  await getDaemonClient().connect()
+  console.log('[instance-manager] daemon restarted')
+}
+
+/**
  * Connect to the daemon and wire up events.
  * Call this once during app startup.
  */
