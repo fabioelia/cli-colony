@@ -7,6 +7,7 @@ import { TerminalProxy } from '../lib/terminal-proxy'
 import { ChevronUp, ChevronDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink } from 'lucide-react'
 import '@xterm/xterm/css/xterm.css'
 import type { ClaudeInstance } from '../types'
+import Tooltip from './Tooltip'
 
 interface TerminalEntry {
   term: Terminal
@@ -662,12 +663,14 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
             <button
               className={`terminal-tab ${viewTab === 'terminal' ? 'active' : ''}`}
               onClick={(e) => { e.stopPropagation(); setViewTab('terminal') }}
+              title="View terminal"
             >
               <TerminalSquare size={12} /> Terminal
             </button>
             <button
               className={`terminal-tab ${viewTab === 'files' ? 'active' : ''}`}
               onClick={(e) => { e.stopPropagation(); setViewTab('files') }}
+              title="View files"
             >
               <FolderTree size={12} /> Files
             </button>
@@ -678,14 +681,18 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
         </div>
         <div className="terminal-header-actions">
           {!isSplit && onSplit && (
-            <button onClick={onSplit} aria-label="Split view" title="Split view">
-              <Columns2 size={14} /> Split
-            </button>
+            <Tooltip text="Split View" detail="Open a second session side-by-side" shortcut="Cmd+\">
+              <button onClick={onSplit} aria-label="Split view">
+                <Columns2 size={14} /> Split
+              </button>
+            </Tooltip>
           )}
           {isSplit && onCloseSplit && (
-            <button onClick={onCloseSplit} aria-label="Close split" title="Close split">
-              <X size={14} /> Close
-            </button>
+            <Tooltip text="Close Split" detail="Return to single session view" shortcut="Cmd+Shift+W">
+              <button onClick={onCloseSplit} aria-label="Close split">
+                <X size={14} /> Close
+              </button>
+            </Tooltip>
           )}
         </div>
       </div>
@@ -715,7 +722,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                     {ignoreRules.map((rule) => (
                       <span key={rule} className="filetree-ignore-tag">
                         {rule}
-                        <button onClick={() => {
+                        <button title="Remove rule" onClick={() => {
                           const updated = ignoreRules.filter((r) => r !== rule)
                           setIgnoreRules(updated)
                           window.api.settings.set('searchIgnore', updated.join(','))
@@ -772,7 +779,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                   />
                 )}
                 {(treeFilter || contentSearch) && (
-                  <button onClick={() => { setTreeFilter(''); setContentSearch(''); setContentResults(null) }}><X size={12} /></button>
+                  <button title="Clear filter" onClick={() => { setTreeFilter(''); setContentSearch(''); setContentResults(null) }}><X size={12} /></button>
                 )}
               </div>
               {searchMode === 'content' && contentResults && contentResults.length > 0 && (
@@ -920,7 +927,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                       )}
                       <button title="Previous (Shift+Enter)" onClick={() => fileMatchCount > 0 && setFileSearchIndex((prev) => (prev - 1 + fileMatchCount) % fileMatchCount)}><ChevronUp size={13} /></button>
                       <button title="Next (Enter)" onClick={() => fileMatchCount > 0 && setFileSearchIndex((prev) => (prev + 1) % fileMatchCount)}><ChevronDown size={13} /></button>
-                      <button onClick={() => { setFileSearchOpen(false); setFileSearchInput(''); setFileSearchQuery(''); setFileSearchIndex(0) }}><X size={12} /></button>
+                      <button title="Close search" onClick={() => { setFileSearchOpen(false); setFileSearchInput(''); setFileSearchQuery(''); setFileSearchIndex(0) }}><X size={12} /></button>
                     </div>
                   )}
                   <div className="filetree-preview-content" ref={previewContentRef}>

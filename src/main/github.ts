@@ -40,6 +40,7 @@ export interface QuickPrompt {
   id: string
   label: string
   prompt: string // {{pr.number}}, {{pr.branch}}, {{pr.title}}, {{pr.url}} are replaced
+  scope: 'pr' | 'global' // pr = per-PR action, global = prefills ask bar
 }
 
 export interface GitHubRepo {
@@ -58,16 +59,37 @@ const DEFAULT_PROMPTS: QuickPrompt[] = [
     id: 'review',
     label: 'Review PR',
     prompt: 'Review PR #{{pr.number}} on branch {{pr.branch}}. Check the diff for bugs, security issues, and code quality. Provide a concise summary of changes and any issues found.',
+    scope: 'pr',
   },
   {
     id: 'summarize',
     label: 'Summarize PR',
     prompt: 'Summarize the changes in PR #{{pr.number}} ({{pr.title}}) on branch {{pr.branch}}. Give me a brief overview of what this PR does and its impact.',
+    scope: 'pr',
   },
   {
     id: 'checkout',
     label: 'Checkout & Test',
     prompt: 'Checkout the branch {{pr.branch}} from PR #{{pr.number}} and run the test suite. Report any failures.',
+    scope: 'pr',
+  },
+  {
+    id: 'my-prs',
+    label: 'My open PRs',
+    prompt: 'Which PRs am I the author of? List them with their status and review state.',
+    scope: 'global',
+  },
+  {
+    id: 'needs-review',
+    label: 'Needs my review',
+    prompt: 'Which PRs need my review? Show ones where I am a requested reviewer.',
+    scope: 'global',
+  },
+  {
+    id: 'stale-prs',
+    label: 'Stale PRs',
+    prompt: 'Which PRs haven\'t been updated in over a week? List them sorted by last update.',
+    scope: 'global',
   },
 ]
 
@@ -271,20 +293,19 @@ export function writePrContext(prsByRepo: Record<string, GitHubPR[]>): string {
       lines.push(`- **Updated:** ${pr.updatedAt}`)
       lines.push(`- **URL:** ${pr.url}`)
       if (pr.body) {
-        // Strip HTML tags and trim
         const cleanBody = pr.body.replace(/<[^>]+>/g, '').trim()
         if (cleanBody) {
           lines.push('')
           lines.push('**Description:**')
-          lines.push(cleanBody.slice(0, 1000))
+          lines.push(cleanBody)
         }
       }
+      // Write comments to a separate file per PR
+      const commentsDir = join(PR_WORKSPACE, 'comments')
+      if (!existsSync(commentsDir)) mkdirSync(commentsDir, { recursive: true })
+      const safeSlug = slug.replace(/\//g, '-')
+      const commentFile = join(commentsDir, `${safeSlug}-${pr.number}.md`)
       if (pr.comments && pr.comments.length > 0) {
-        // Write comments to a separate file
-        const commentsDir = join(PR_WORKSPACE, 'comments')
-        if (!existsSync(commentsDir)) mkdirSync(commentsDir, { recursive: true })
-        const safeSlug = slug.replace(/\//g, '-')
-        const commentFile = join(commentsDir, `${safeSlug}-${pr.number}.md`)
         const commentLines = [
           `# Comments on ${slug}#${pr.number}: ${pr.title}`,
           '',
@@ -293,10 +314,13 @@ export function writePrContext(prsByRepo: Record<string, GitHubPR[]>): string {
         ]
         for (const c of pr.comments) {
           const cleanComment = c.body.replace(/<[^>]+>/g, '').trim()
-          commentLines.push(`## ${c.author} (${c.createdAt})`, '', cleanComment, '')
+          const fileTag = c.path ? ` (file: ${c.path})` : ' (general)'
+          commentLines.push(`## ${c.author}${fileTag} — ${c.createdAt}`, '', cleanComment, '')
         }
         writeFileSync(commentFile, commentLines.join('\n'), 'utf-8')
-        lines.push(`- **Comments:** ${pr.comments.length} — see ${commentFile}`)
+        lines.push(`- **Comments:** ${pr.comments.length} — to read full comments: \`cat ${commentFile}\``)
+      } else {
+        lines.push('- **Comments:** none')
       }
       lines.push('')
     }
@@ -355,6 +379,14 @@ export function resolvePrompt(prompt: QuickPrompt, pr: GitHubPR, repo: GitHubRep
     .replace(/\{\{pr\.title\}\}/g, pr.title)
     .replace(/\{\{pr\.url\}\}/g, pr.url)
     .replace(/\{\{pr\.author\}\}/g, pr.author)
+    .replace(/\{\{pr\.draft\}\}/g, String(pr.draft))
+    .replace(/\{\{pr\.status\}\}/g, pr.draft ? 'draft' : pr.state)
+    .replace(/\{\{pr\.reviewDecision\}\}/g, pr.reviewDecision || 'none')
+    .replace(/\{\{pr\.assignees\}\}/g, pr.assignees.join(', ') || 'none')
+    .replace(/\{\{pr\.reviewers\}\}/g, pr.reviewers.join(', ') || 'none')
+    .replace(/\{\{pr\.labels\}\}/g, pr.labels.join(', ') || 'none')
+    .replace(/\{\{pr\.additions\}\}/g, String(pr.additions))
+    .replace(/\{\{pr\.deletions\}\}/g, String(pr.deletions))
     .replace(/\{\{repo\.owner\}\}/g, repo.owner)
     .replace(/\{\{repo\.name\}\}/g, repo.name)
 }

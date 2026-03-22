@@ -54,18 +54,39 @@ export default function AgentEditor({ agent, onBack, onSave, onInstanceCreated }
       // Prime the instance with context about the agent file
       const prompt = `You are helping the user build and refine the Claude Code agent definition at ${agent.filePath}. Read that file now. Your job is to help them:\n- Write a clear, effective system prompt\n- Choose the right tools and model\n- Test and iterate on the agent's behavior\n\nThe agent file uses markdown frontmatter (name, description, tools, model, color) followed by the system prompt body. Start by reading the file and suggesting improvements or asking what the user wants this agent to do.`
 
-      // Wait for Claude to be ready, then send the prompt
+      // Wait for Claude to be ready, then set name and send the prompt
       let sent = false
+      let waitCount = 0
       const unsub = window.api.instance.onActivity(({ id, activity }) => {
-        if (id === inst.id && activity === 'waiting' && !sent) {
-          sent = true
-          unsub()
-          window.api.instance.write(inst.id, '\n')
-          setTimeout(() => {
-            window.api.instance.write(inst.id, prompt + '\n')
-          }, 500)
+        if (id !== inst.id || sent) return
+        if (activity === 'waiting') {
+          waitCount++
+          if (waitCount === 1) {
+            window.api.instance.write(inst.id, '\r')
+          } else {
+            sent = true
+            unsub()
+            const sessionName = `Edit: ${agent.name}`
+            window.api.instance.rename(inst.id, sessionName)
+            window.api.instance.write(inst.id, `/rename ${sessionName}\r`)
+            setTimeout(() => {
+              window.api.instance.write(inst.id, prompt + '\r')
+            }, 300)
+          }
         }
       })
+      setTimeout(() => {
+        if (!sent && waitCount >= 1) {
+          sent = true
+          unsub()
+          const sessionName = `Edit: ${agent.name}`
+          window.api.instance.rename(inst.id, sessionName)
+          window.api.instance.write(inst.id, `/rename ${sessionName}\r`)
+          setTimeout(() => {
+            window.api.instance.write(inst.id, prompt + '\r')
+          }, 300)
+        }
+      }, 5000)
       setTimeout(() => { if (!sent) unsub() }, 15000)
     })
 
@@ -227,7 +248,7 @@ export default function AgentEditor({ agent, onBack, onSave, onInstanceCreated }
     <div className="agent-editor">
       <div className="agent-editor-header">
         <div className="agent-editor-header-left">
-          <button className="agent-editor-back" onClick={onBack}>&larr;</button>
+          <button className="agent-editor-back" onClick={onBack} title="Back">&larr;</button>
           <span className="agent-editor-title">{agent.name}</span>
           <span className="agent-editor-path">{agent.filePath}</span>
         </div>
@@ -244,6 +265,7 @@ export default function AgentEditor({ agent, onBack, onSave, onInstanceCreated }
             className="agent-editor-save"
             onClick={handleSave}
             disabled={!isDirty || saving}
+            title="Save changes"
           >
             {saving ? 'Saving...' : 'Save'}
           </button>

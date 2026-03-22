@@ -53,11 +53,58 @@ export default function App() {
   }, [])
 
   // Track unread: output on non-visible terminals marks them unread
+  // Smart dedup: track recent output per instance, only trigger on genuinely new content
   useEffect(() => {
-    const unsub = window.api.instance.onOutput(({ id }) => {
+    const recentOutput = new Map<string, string>() // last seen clean text per instance
+    const novelBytes = new Map<string, number>()   // accumulated novel bytes
+    const THRESHOLD = 80
+
+    const unsub = window.api.instance.onOutput(({ id, data }) => {
       const { activeId: currentActive, view: currentView } = activeViewRef.current
       const isVisible = currentView === 'instances' && id === currentActive
-      if (!isVisible) {
+      if (isVisible) {
+        // Reset tracking when user is looking at it
+        novelBytes.delete(id)
+        recentOutput.delete(id)
+        return
+      }
+
+      // Strip ANSI escapes and control chars
+      const clean = data
+        .replace(/\x1B\[[0-9;]*[a-zA-Z]|\x1B\][\s\S]*?(\x07|\x1B\\)|\x1B[()][AB012]|\x1B\[?\??[0-9;]*[hlm]/g, '')
+        .replace(/[\x00-\x1F\x7F]/g, '')
+        .trim()
+      if (clean.length < 3) return
+
+      // Compare against recent output — if the new text is a substring of
+      // what we've already seen (or vice versa), it's a TUI redraw
+      const prev = recentOutput.get(id) || ''
+      if (prev.includes(clean) || clean.includes(prev)) {
+        // Redraw — update the snapshot but don't count as novel
+        recentOutput.set(id, clean)
+        return
+      }
+
+      // Check character-level novelty: how many chars in `clean` are NOT in `prev`?
+      // This catches status line updates where only the timer/counter changes
+      const prevChars = new Set(prev.split(''))
+      let novelCount = 0
+      for (const ch of clean) {
+        if (!prevChars.has(ch)) novelCount++
+      }
+      // If less than 30% of chars are novel, it's a minor update (timer tick, spinner)
+      if (clean.length > 10 && novelCount / clean.length < 0.3) {
+        recentOutput.set(id, clean)
+        return
+      }
+
+      // Genuinely new content
+      recentOutput.set(id, clean)
+      const total = (novelBytes.get(id) || 0) + clean.length
+      novelBytes.set(id, total)
+
+      if (total >= THRESHOLD) {
+        novelBytes.delete(id)
         setUnreadIds((prev) => {
           if (prev.has(id)) return prev
           const next = new Set(prev)
@@ -447,6 +494,18 @@ export default function App() {
       window.removeEventListener('colony:close-split', onClose)
     }
   }, [handleToggleSplit, handleCloseSplitView])
+
+  // Escape to close modals (capture phase to beat xterm)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (showSplitPicker) { setShowSplitPicker(false); e.stopPropagation() }
+        if (showNewDialog) { setShowNewDialog(false); e.stopPropagation() }
+      }
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [showSplitPicker, showNewDialog])
 
   const active = instances.find((i) => i.id === activeId) || null
   const showTerminal = view === 'instances' && active

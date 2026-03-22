@@ -69,7 +69,7 @@ export default function SettingsPanel({ onBack }: Props) {
           <ArrowLeft size={16} />
         </button>
         <h2>Settings</h2>
-        <button className="settings-save-inline" onClick={handleSave}>
+        <button className="settings-save-inline" onClick={handleSave} title="Save settings">
           {saved ? 'Saved!' : 'Save'}
         </button>
       </div>
@@ -134,6 +134,7 @@ export default function SettingsPanel({ onBack }: Props) {
             onClick={() => setSoundOnFinish(!soundOnFinish)}
             role="switch"
             aria-checked={soundOnFinish}
+            title={soundOnFinish ? 'Disable sound' : 'Enable sound'}
           >
             <span className="settings-toggle-knob" />
           </button>
@@ -177,6 +178,7 @@ export default function SettingsPanel({ onBack }: Props) {
           <button
             className="settings-daemon-restart"
             onClick={() => setShowRestartConfirm(true)}
+            title="Restart daemon"
           >
             <RotateCcw size={13} /> Restart Daemon
           </button>
@@ -190,12 +192,14 @@ export default function SettingsPanel({ onBack }: Props) {
               <button
                 className="settings-daemon-cancel"
                 onClick={() => setShowRestartConfirm(false)}
+                title="Cancel"
               >
                 Cancel
               </button>
               <button
                 className="settings-daemon-confirm-btn"
                 disabled={restarting}
+                title="Confirm restart"
                 onClick={async () => {
                   setRestarting(true)
                   try {
@@ -223,6 +227,7 @@ export default function SettingsPanel({ onBack }: Props) {
             <button
               className="settings-logs-toggle"
               onClick={() => setShowLogs(!showLogs)}
+              title={showLogs ? 'Hide logs' : 'Show logs'}
             >
               {showLogs ? 'Hide' : 'Show'}
             </button>
@@ -230,6 +235,7 @@ export default function SettingsPanel({ onBack }: Props) {
               <button
                 className="settings-logs-toggle"
                 onClick={() => { window.api.logs.clear(); setLogs('') }}
+                title="Clear logs"
               >
                 Clear
               </button>

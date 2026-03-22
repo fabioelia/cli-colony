@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Plus, RefreshCw, Download, Upload } from 'lucide-react'
 import type { AgentDef } from '../types'
 import { COLOR_MAP } from '../lib/constants'
+import Tooltip from './Tooltip'
 
 interface Props {
   onLaunchAgent: (agent: AgentDef) => void
@@ -87,12 +88,16 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
               </div>
             )}
             <div className="agent-item-actions-row">
-              <button className="agent-edit-btn" onClick={() => onEditAgent(agent)}>
-                Edit
-              </button>
-              <button className="agent-launch-btn" onClick={() => onLaunchAgent(agent)}>
-                Launch Instance
-              </button>
+              <Tooltip text="Edit Agent" detail="Open the agent definition in a split editor with Claude assistance" position="bottom">
+                <button className="agent-edit-btn" onClick={() => onEditAgent(agent)}>
+                  Edit
+                </button>
+              </Tooltip>
+              <Tooltip text="Launch Session" detail="Start a new Claude session using this agent's configuration" position="bottom">
+                <button className="agent-launch-btn" onClick={() => onLaunchAgent(agent)}>
+                  Launch
+                </button>
+              </Tooltip>
             </div>
           </div>
         )}
@@ -120,6 +125,7 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
         <button
           className="agent-add-btn"
           onClick={() => setAddingTo({ scope, projectPath })}
+          title="Add agent"
         >
           <Plus size={13} /> Add Agent
         </button>
@@ -137,8 +143,8 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
             if (e.key === 'Escape') { setAddingTo(null); setNewAgentName('') }
           }}
         />
-        <button onClick={handleCreateAgent}>Create</button>
-        <button onClick={() => { setAddingTo(null); setNewAgentName('') }}>Cancel</button>
+        <button onClick={handleCreateAgent} title="Create agent">Create</button>
+        <button onClick={() => { setAddingTo(null); setNewAgentName('') }} title="Cancel">Cancel</button>
       </div>
     )
   }
@@ -157,9 +163,13 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
           Personal Agents
           <div className="agents-section-actions">
             {personal.length > 0 && (
-              <button title="Export agents" onClick={() => handleExport(personal)}><Download size={12} /></button>
+              <Tooltip text="Export Agents" detail="Download all personal agents as a zip file">
+                <button onClick={() => handleExport(personal)}><Download size={12} /></button>
+              </Tooltip>
             )}
-            <button title="Import agents" onClick={() => handleImport('personal')}><Upload size={12} /></button>
+            <Tooltip text="Import Agents" detail="Import agent definitions from a zip file">
+              <button onClick={() => handleImport('personal')}><Upload size={12} /></button>
+            </Tooltip>
           </div>
         </div>
         {personal.length === 0 && (
@@ -175,9 +185,13 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
             {projName}
             <div className="agents-section-actions">
               {projAgents.length > 0 && (
-                <button title="Export agents" onClick={() => handleExport(projAgents)}><Download size={12} /></button>
+                <Tooltip text="Export Agents" detail={`Download ${projName} agents as a zip file`}>
+                  <button onClick={() => handleExport(projAgents)}><Download size={12} /></button>
+                </Tooltip>
               )}
-              <button title="Import agents" onClick={() => handleImport('project', path)}><Upload size={12} /></button>
+              <Tooltip text="Import Agents" detail={`Import agent definitions into ${projName}`}>
+                <button onClick={() => handleImport('project', path)}><Upload size={12} /></button>
+              </Tooltip>
             </div>
           </div>
           {projAgents.map(renderAgent)}

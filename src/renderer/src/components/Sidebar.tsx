@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2 } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
+import Tooltip from './Tooltip'
 import { COLORS, formatTime } from '../lib/constants'
 
 export type SidebarView = 'instances' | 'agents' | 'github' | 'sessions' | 'settings' | 'logs'
@@ -190,21 +191,32 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
           {inst.status === 'running' ? 'live' : `exit ${inst.exitCode ?? '?'}`}
         </span>
         <div className="instance-item-actions">
-          <button title="Info" aria-label="Info" onClick={(e) => { e.stopPropagation(); togglePopover(inst.id, 'info', e) }}><Info size={13} /></button>
-          <button title="Rename" aria-label="Rename" onClick={(e) => { e.stopPropagation(); startRename(inst) }}><Pencil size={13} /></button>
-          <button
-            title={inst.pinned ? 'Unpin' : 'Pin'}
-            aria-label={inst.pinned ? 'Unpin' : 'Pin'}
-            onClick={(e) => { e.stopPropagation(); inst.pinned ? onUnpin(inst.id) : onPin(inst.id) }}
-          >
-            {inst.pinned ? <PinOff size={13} /> : <Pin size={13} />}
-          </button>
+          <Tooltip text="Session Info" detail="View command, directory, PID, and MCP servers">
+            <button aria-label="Info" onClick={(e) => { e.stopPropagation(); togglePopover(inst.id, 'info', e) }}><Info size={13} /></button>
+          </Tooltip>
+          <Tooltip text="Rename" detail="Change the session display name">
+            <button aria-label="Rename" onClick={(e) => { e.stopPropagation(); startRename(inst) }}><Pencil size={13} /></button>
+          </Tooltip>
+          <Tooltip text={inst.pinned ? 'Unpin Session' : 'Pin Session'} detail={inst.pinned ? 'Remove from pinned section' : 'Keep at the top of the sidebar'}>
+            <button
+              aria-label={inst.pinned ? 'Unpin' : 'Pin'}
+              onClick={(e) => { e.stopPropagation(); inst.pinned ? onUnpin(inst.id) : onPin(inst.id) }}
+            >
+              {inst.pinned ? <PinOff size={13} /> : <Pin size={13} />}
+            </button>
+          </Tooltip>
           {inst.status === 'running' ? (
-            <button className="danger" title="Kill" aria-label="Kill" onClick={(e) => { e.stopPropagation(); onKill(inst.id) }}><Square size={13} /></button>
+            <Tooltip text="Kill Session" detail="Terminate the Claude CLI process">
+              <button className="danger" aria-label="Kill" onClick={(e) => { e.stopPropagation(); onKill(inst.id) }}><Square size={13} /></button>
+            </Tooltip>
           ) : (
             <>
-              <button title="Restart" aria-label="Restart" onClick={(e) => { e.stopPropagation(); onRestart(inst.id) }}><Play size={13} /></button>
-              <button className="danger" title="Remove" aria-label="Remove" onClick={(e) => { e.stopPropagation(); onRemove(inst.id) }}><Trash2 size={13} /></button>
+              <Tooltip text="Restart" detail="Launch a new session in the same directory">
+                <button aria-label="Restart" onClick={(e) => { e.stopPropagation(); onRestart(inst.id) }}><Play size={13} /></button>
+              </Tooltip>
+              <Tooltip text="Remove" detail="Remove this stopped session from the list">
+                <button className="danger" aria-label="Remove" onClick={(e) => { e.stopPropagation(); onRemove(inst.id) }}><Trash2 size={13} /></button>
+              </Tooltip>
             </>
           )}
         </div>
@@ -216,22 +228,24 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
     <div className="sidebar" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <div className="sidebar-header">
         <div className="sidebar-tabs">
-          <button className={`sidebar-tab ${view === 'instances' ? 'active' : ''}`} onClick={() => onViewChange('instances')}>
+          <button className={`sidebar-tab ${view === 'instances' ? 'active' : ''}`} onClick={() => onViewChange('instances')} title="View sessions">
             Sessions {instances.length > 0 && <span className="sidebar-tab-count">{instances.length}</span>}
           </button>
-          <button className={`sidebar-tab ${view === 'agents' ? 'active' : ''}`} onClick={() => onViewChange('agents')}>
+          <button className={`sidebar-tab ${view === 'agents' ? 'active' : ''}`} onClick={() => onViewChange('agents')} title="View agents">
             Agents
           </button>
-          <button className={`sidebar-tab ${view === 'github' ? 'active' : ''}`} onClick={() => onViewChange('github')}>
+          <button className={`sidebar-tab ${view === 'github' ? 'active' : ''}`} onClick={() => onViewChange('github')} title="View pull requests">
             <GitPullRequest size={12} /> PRs
           </button>
         </div>
       </div>
 
       <div className="sidebar-instance-actions">
-        <button className="sidebar-new-btn" onClick={onNew}><Plus size={14} /> New Session</button>
+        <Tooltip text="New Session" detail="Launch a new Claude CLI terminal" shortcut="Cmd+T" position="bottom">
+          <button className="sidebar-new-btn" onClick={onNew}><Plus size={14} /> New Session</button>
+        </Tooltip>
         {view === 'instances' && restorableCount > 0 && instances.length === 0 && (
-          <button className="sidebar-restore-btn" onClick={onRestoreAll}>
+          <button className="sidebar-restore-btn" onClick={onRestoreAll} title="Restore previous sessions">
             Restore {restorableCount} from last run
           </button>
         )}
@@ -392,6 +406,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
                   onCloseSplit()
                   setContextMenu(null)
                 }}
+                title="Close split view"
               >
                 Close Split View
               </button>
@@ -402,6 +417,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
                   onSplitWith(contextMenu.id)
                   setContextMenu(null)
                 }}
+                title="Open in split view"
               >
                 Open in Split View
               </button>
@@ -412,6 +428,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
                 startRename(instances.find((i) => i.id === contextMenu.id)!)
                 setContextMenu(null)
               }}
+              title="Rename session"
             >
               Rename
             </button>
@@ -423,6 +440,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
                 else onRemove(contextMenu.id)
                 setContextMenu(null)
               }}
+              title={instances.find((i) => i.id === contextMenu.id)?.status === 'running' ? 'Kill session' : 'Remove session'}
             >
               {instances.find((i) => i.id === contextMenu.id)?.status === 'running' ? 'Kill' : 'Remove'}
             </button>
@@ -435,6 +453,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
           className={`sidebar-footer-btn ${view === 'settings' ? 'active' : ''}`}
           onClick={() => onViewChange(view === 'settings' ? 'instances' : 'settings')}
           aria-label="Settings"
+          title="Settings"
         >
           <Settings size={14} /> Settings
         </button>

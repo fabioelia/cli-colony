@@ -5,8 +5,10 @@ import { getAllInstances, ClaudeInstance } from './instance-manager'
 let tray: Tray | null = null
 
 export function createTray(mainWindow: BrowserWindow | null): void {
-  const iconPath = join(__dirname, '../../resources/icon.png')
-  const icon = nativeImage.createFromPath(iconPath).resize({ width: 22, height: 22 })
+  // Use -Template naming so macOS auto-handles light/dark mode
+  // nativeImage automatically picks up @2x for Retina
+  const trayIconPath = join(__dirname, '../../resources/tray-iconTemplate.png')
+  const icon = nativeImage.createFromPath(trayIconPath)
   icon.setTemplateImage(true)
 
   tray = new Tray(icon)

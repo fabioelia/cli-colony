@@ -82,6 +82,7 @@ export interface QuickPrompt {
   id: string
   label: string
   prompt: string
+  scope: 'pr' | 'global'
 }
 
 export interface GitHubRepo {

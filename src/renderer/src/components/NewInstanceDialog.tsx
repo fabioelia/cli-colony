@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { AgentDef } from '../types'
 import { COLORS, COLOR_MAP } from '../lib/constants'
 
@@ -47,6 +47,12 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
     onClose()
   }
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
   return (
     <div className="dialog-overlay" onClick={handleClose}>
       <form className="dialog" onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); handleCreate() }}>
@@ -76,7 +82,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
               value={workingDirectory}
               onChange={(e) => setWorkingDirectory(e.target.value)}
             />
-            <button type="button" onClick={handlePickDir}>Browse</button>
+            <button type="button" onClick={handlePickDir} title="Browse directory">Browse</button>
           </div>
         </div>
 
@@ -111,8 +117,8 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
         </div>
 
         <div className="dialog-actions">
-          <button type="button" className="cancel" onClick={handleClose} disabled={creating}>Cancel</button>
-          <button type="submit" className="confirm" disabled={creating}>{creating ? 'Creating...' : 'Create'}</button>
+          <button type="button" className="cancel" onClick={handleClose} disabled={creating} title="Cancel">Cancel</button>
+          <button type="submit" className="confirm" disabled={creating} title="Create session">{creating ? 'Creating...' : 'Create'}</button>
         </div>
       </form>
     </div>
