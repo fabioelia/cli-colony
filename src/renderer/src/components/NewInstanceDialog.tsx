@@ -50,7 +50,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
   return (
     <div className="dialog-overlay" onClick={handleClose}>
       <form className="dialog" onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); handleCreate() }}>
-        <h2>{prefill ? `Launch: ${prefill.name}` : 'New Claude Instance'}</h2>
+        <h2>{prefill ? `Launch: ${prefill.name}` : 'New Session'}</h2>
 
         {prefill && (
           <div className="dialog-agent-info">

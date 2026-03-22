@@ -1850,6 +1850,7 @@ __metadata:
     electron-builder: ^25.1.8
     electron-vite: ^2.3.0
     lucide-react: ^0.577.0
+    marked: ^17.0.5
     node-pty: ^1.1.0
     react: ^19.0.0
     react-dom: ^19.0.0
@@ -3471,6 +3472,15 @@ __metadata:
     proc-log: ^6.0.0
     ssri: ^13.0.0
   checksum: e43195c1e98d37acb4358eb574e6b4a591cd46624cbb4800ab2988bd21a3e7b4a26f94b561af119637643b87144e2adf03808909fefa4f88122ee1b3af7e9400
+  languageName: node
+  linkType: hard
+
+"marked@npm:^17.0.5":
+  version: 17.0.5
+  resolution: "marked@npm:17.0.5"
+  bin:
+    marked: bin/marked.js
+  checksum: f0eb2dccdff191add484cf7636b20b276fc068f65e83c2a12f57c63b2367a208ae6ceb57789dbf233286aa885960b79070a77a041ab0d69fb515ca9c988a86c0
   languageName: node
   linkType: hard
 

@@ -50,9 +50,17 @@ export interface RecentSession {
   exitType: 'running' | 'exited' | 'killed'
 }
 
+export interface PRComment {
+  author: string
+  body: string
+  createdAt: string
+  path?: string
+}
+
 export interface GitHubPR {
   number: number
   title: string
+  body: string
   author: string
   assignees: string[]
   reviewers: string[]
@@ -67,6 +75,7 @@ export interface GitHubPR {
   deletions: number
   reviewDecision: string
   labels: string[]
+  comments: PRComment[]
 }
 
 export interface QuickPrompt {

@@ -67,7 +67,7 @@ export function wireDaemonEvents(): void {
         const iconPath = join(__dirname, '../../resources/icon.png')
         const notif = new Notification({
           title: 'Claude is waiting',
-          body: 'An instance finished processing and needs your attention.',
+          body: 'A session finished processing and needs your attention.',
           silent: true, // we already play our own sound
           icon: iconPath,
         })

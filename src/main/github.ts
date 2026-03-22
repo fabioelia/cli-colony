@@ -8,9 +8,17 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
 
+export interface PRComment {
+  author: string
+  body: string
+  createdAt: string
+  path?: string  // file path for review comments, undefined for general comments
+}
+
 export interface GitHubPR {
   number: number
   title: string
+  body: string
   author: string
   assignees: string[]
   reviewers: string[]
@@ -25,6 +33,7 @@ export interface GitHubPR {
   deletions: number
   reviewDecision: string
   labels: string[]
+  comments: PRComment[]
 }
 
 export interface QuickPrompt {
@@ -116,12 +125,13 @@ export async function fetchPRs(repo: GitHubRepo): Promise<GitHubPR[]> {
     'pr', 'list',
     '--repo', repoSlug,
     '--state', 'open',
-    '--json', 'number,title,author,assignees,reviewRequests,headRefName,baseRefName,state,isDraft,url,createdAt,updatedAt,additions,deletions,reviewDecision,labels',
+    '--json', 'number,title,body,author,assignees,reviewRequests,headRefName,baseRefName,state,isDraft,url,createdAt,updatedAt,additions,deletions,reviewDecision,labels,comments',
     '--limit', '200',
   ])
   const raw = JSON.parse(json) as Array<{
     number: number
     title: string
+    body: string
     author: { login: string }
     assignees: Array<{ login: string }>
     reviewRequests: Array<{ login: string } | { name: string }>
@@ -136,10 +146,12 @@ export async function fetchPRs(repo: GitHubRepo): Promise<GitHubPR[]> {
     deletions: number
     reviewDecision: string
     labels: Array<{ name: string }>
+    comments: Array<{ author: { login: string }; body: string; createdAt: string }>
   }>
   return raw.map((pr) => ({
     number: pr.number,
     title: pr.title,
+    body: pr.body || '',
     author: pr.author.login,
     assignees: (pr.assignees || []).map((a) => a.login),
     reviewers: (pr.reviewRequests || []).map((r) => 'login' in r ? r.login : r.name),
@@ -154,7 +166,40 @@ export async function fetchPRs(repo: GitHubRepo): Promise<GitHubPR[]> {
     deletions: pr.deletions,
     reviewDecision: pr.reviewDecision,
     labels: pr.labels.map((l) => l.name),
+    comments: (pr.comments || []).map((c) => ({
+      author: c.author.login,
+      body: c.body,
+      createdAt: c.createdAt,
+    })),
   }))
+
+  // Fetch review comments (file-level) in parallel for PRs that have any activity
+  const results = await Promise.allSettled(
+    prs.map(async (pr) => {
+      try {
+        const reviewJson = await gh([
+          'api', `repos/${repoSlug}/pulls/${pr.number}/comments`,
+          '--jq', '.[].{author: .user.login, body: .body, createdAt: .created_at, path: .path}',
+        ])
+        if (!reviewJson.trim()) return
+        // gh --jq outputs one JSON object per line
+        const reviewComments: PRComment[] = reviewJson.trim().split('\n')
+          .filter((l) => l.trim())
+          .map((l) => {
+            try {
+              const c = JSON.parse(l)
+              return { author: c.author, body: c.body, createdAt: c.createdAt, path: c.path }
+            } catch { return null }
+          })
+          .filter(Boolean) as PRComment[]
+        if (reviewComments.length > 0) {
+          pr.comments.push(...reviewComments)
+        }
+      } catch { /* skip if API fails */ }
+    })
+  )
+
+  return prs
 }
 
 // ---- Config CRUD ----
@@ -225,6 +270,34 @@ export function writePrContext(prsByRepo: Record<string, GitHubPR[]>): string {
       if (pr.labels.length > 0) lines.push(`- **Labels:** ${pr.labels.join(', ')}`)
       lines.push(`- **Updated:** ${pr.updatedAt}`)
       lines.push(`- **URL:** ${pr.url}`)
+      if (pr.body) {
+        // Strip HTML tags and trim
+        const cleanBody = pr.body.replace(/<[^>]+>/g, '').trim()
+        if (cleanBody) {
+          lines.push('')
+          lines.push('**Description:**')
+          lines.push(cleanBody.slice(0, 1000))
+        }
+      }
+      if (pr.comments && pr.comments.length > 0) {
+        // Write comments to a separate file
+        const commentsDir = join(PR_WORKSPACE, 'comments')
+        if (!existsSync(commentsDir)) mkdirSync(commentsDir, { recursive: true })
+        const safeSlug = slug.replace(/\//g, '-')
+        const commentFile = join(commentsDir, `${safeSlug}-${pr.number}.md`)
+        const commentLines = [
+          `# Comments on ${slug}#${pr.number}: ${pr.title}`,
+          '',
+          `PR: ${pr.url}`,
+          '',
+        ]
+        for (const c of pr.comments) {
+          const cleanComment = c.body.replace(/<[^>]+>/g, '').trim()
+          commentLines.push(`## ${c.author} (${c.createdAt})`, '', cleanComment, '')
+        }
+        writeFileSync(commentFile, commentLines.join('\n'), 'utf-8')
+        lines.push(`- **Comments:** ${pr.comments.length} — see ${commentFile}`)
+      }
       lines.push('')
     }
   }

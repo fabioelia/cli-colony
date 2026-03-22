@@ -4,7 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, XCircle, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink } from 'lucide-react'
 import '@xterm/xterm/css/xterm.css'
 import type { ClaudeInstance } from '../types'
 
@@ -21,6 +21,9 @@ interface Props {
   onKill: (id: string) => void
   onRestart: (id: string) => void
   onRemove: (id: string) => void
+  onSplit?: () => void
+  onCloseSplit?: () => void
+  isSplit?: boolean
   terminalsRef: MutableRefObject<Map<string, TerminalEntry>>
   searchOpen?: boolean
   onSearchClose?: () => void
@@ -165,7 +168,7 @@ function FileTreeNode({ node, depth, selectedPath, expandedPaths, filter, onTogg
 
 type ViewTab = 'terminal' | 'files'
 
-export default function TerminalView({ instance, onKill, onRestart, onRemove, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane }: Props) {
+export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, isSplit, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const initializedRef = useRef(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -674,13 +677,15 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, te
           )}
         </div>
         <div className="terminal-header-actions">
-          {instance.status === 'running' ? (
-            <button className="danger" onClick={() => onKill(instance.id)} aria-label="Kill"><XCircle size={14} /> Kill</button>
-          ) : (
-            <>
-              <button onClick={() => onRestart(instance.id)} aria-label="Restart"><RotateCcw size={14} /> Restart</button>
-              <button className="danger" onClick={() => onRemove(instance.id)} aria-label="Remove"><Trash2 size={14} /> Remove</button>
-            </>
+          {!isSplit && onSplit && (
+            <button onClick={onSplit} aria-label="Split view" title="Split view">
+              <Columns2 size={14} /> Split
+            </button>
+          )}
+          {isSplit && onCloseSplit && (
+            <button onClick={onCloseSplit} aria-label="Close split" title="Close split">
+              <X size={14} /> Close
+            </button>
           )}
         </div>
       </div>
@@ -690,6 +695,9 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, te
             <div className="filetree-sidebar">
               <div className="filetree-header">
                 <span className="filetree-root-path">{instance.workingDirectory.split('/').pop()}</span>
+                <button className="filetree-refresh" onClick={() => window.api.shell.openExternal(`file://${instance.workingDirectory}`)} title="Open in Finder">
+                  <ExternalLink size={13} />
+                </button>
                 <button className="filetree-refresh" onClick={() => setShowIgnoreSettings(!showIgnoreSettings)} title="Ignore rules">
                   <Settings size={13} />
                 </button>

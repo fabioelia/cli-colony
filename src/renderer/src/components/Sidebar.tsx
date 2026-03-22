@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2 } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { COLORS, formatTime } from '../lib/constants'
 
@@ -24,13 +24,14 @@ interface Props {
   restorableCount: number
   unreadIds: Set<string>
   splitId: string | null
+  splitPairs: Map<string, string>
   focusedPane: 'left' | 'right'
   onSplitWith: (id: string) => void
   onCloseSplit: () => void
   onDrop?: (e: React.DragEvent) => void
 }
 
-export default function Sidebar({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onRestoreAll, restorableCount, unreadIds, splitId, focusedPane, onSplitWith, onCloseSplit, onDrop }: Props) {
+export default function Sidebar({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onRestoreAll, restorableCount, unreadIds, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop }: Props) {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [popoverId, setPopoverId] = useState<string | null>(null)
@@ -166,6 +167,9 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
             {inst.name}
             {splitId && inst.id === activeId && <span className={`split-badge ${focusedPane === 'left' ? 'focused' : ''}`} title="Left split pane">L</span>}
             {splitId && inst.id === splitId && <span className={`split-badge ${focusedPane === 'right' ? 'focused' : ''}`} title="Right split pane">R</span>}
+            {inst.id !== activeId && inst.id !== splitId && splitPairs.has(inst.id) && (
+              <span className="split-indicator" title={`Split with another session`}><Columns2 size={11} /></span>
+            )}
             {inst.status === 'running' && inst.activity === 'waiting' && (
               <span className="instance-attention-badge" title="Waiting for your input">your turn</span>
             )}
@@ -213,7 +217,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
       <div className="sidebar-header">
         <div className="sidebar-tabs">
           <button className={`sidebar-tab ${view === 'instances' ? 'active' : ''}`} onClick={() => onViewChange('instances')}>
-            Instances {instances.length > 0 && <span className="sidebar-tab-count">{instances.length}</span>}
+            Sessions {instances.length > 0 && <span className="sidebar-tab-count">{instances.length}</span>}
           </button>
           <button className={`sidebar-tab ${view === 'agents' ? 'active' : ''}`} onClick={() => onViewChange('agents')}>
             Agents
@@ -225,10 +229,10 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
       </div>
 
       <div className="sidebar-instance-actions">
-        <button className="sidebar-new-btn" onClick={onNew}><Plus size={14} /> New Instance</button>
+        <button className="sidebar-new-btn" onClick={onNew}><Plus size={14} /> New Session</button>
         {view === 'instances' && restorableCount > 0 && instances.length === 0 && (
           <button className="sidebar-restore-btn" onClick={onRestoreAll}>
-            Restore {restorableCount} session{restorableCount > 1 ? 's' : ''} from last run
+            Restore {restorableCount} from last run
           </button>
         )}
       </div>
@@ -251,7 +255,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
         )}
         {exited.map(renderInstance)}
         {instances.length === 0 && (
-          <div className="instance-list-empty">No instances</div>
+          <div className="instance-list-empty">No sessions</div>
         )}
       </div>
 

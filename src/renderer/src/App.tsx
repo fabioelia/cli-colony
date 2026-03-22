@@ -19,7 +19,7 @@ export default function App() {
   const [editorInstanceId, setEditorInstanceId] = useState<string | null>(null)
   const [restorableSessions, setRestorableSessions] = useState<RecentSession[]>([])
   const [searchOpen, setSearchOpen] = useState(false)
-  const [splitId, setSplitId] = useState<string | null>(null)
+  const [splitPairs, setSplitPairs] = useState<Map<string, string>>(new Map()) // leftId → rightId
   const [focusedPane, setFocusedPane] = useState<'left' | 'right'>('left')
   const [showSplitPicker, setShowSplitPicker] = useState(false)
   const [splitRatio, setSplitRatio] = useState(0.5)
@@ -32,6 +32,8 @@ export default function App() {
   activeViewRef.current = { activeId, view }
   const instancesRef = useRef(instances)
   instancesRef.current = instances
+  // Derived: the split partner for the currently active instance (if any)
+  const splitId = activeId ? (splitPairs.get(activeId) || null) : null
   const splitRef = useRef<{ splitId: string | null; focusedPane: 'left' | 'right' }>({ splitId: null, focusedPane: 'left' })
   splitRef.current = { splitId, focusedPane }
 
@@ -195,47 +197,48 @@ export default function App() {
       return
     }
 
-    // In split mode: clicking replaces focused pane, or swaps if clicking unfocused pane's instance
-    if (splitId) {
-      if (id === splitId && focusedPane === 'left') {
-        // Clicking the right pane's instance — swap
-        setSplitId(activeId)
-        setActiveId(id)
-      } else if (id === activeId && focusedPane === 'right') {
-        // Clicking the left pane's instance — swap focus
-        setFocusedPane('left')
-      } else if (focusedPane === 'left') {
-        setActiveId(id)
-      } else {
-        setSplitId(id)
-      }
-    } else {
-      setActiveId(id)
-    }
+    // Just select the instance — if it has a split partner, the split will show automatically
+    setActiveId(id)
+    setFocusedPane('left')
     setView('instances')
-  }, [editorInstanceId, editingAgent, splitId, activeId, focusedPane])
+  }, [editorInstanceId, editingAgent])
 
   const handleKill = useCallback(async (id: string) => {
     await window.api.instance.kill(id)
-    // If we killed a split instance, collapse to the surviving one
-    if (splitId && (id === activeId || id === splitId)) {
-      const survivingId = id === activeId ? splitId : activeId
-      setActiveId(survivingId)
-      setSplitId(null)
+    // Remove any split pairs involving this instance
+    setSplitPairs((prev) => {
+      const next = new Map(prev)
+      next.delete(id) // remove if it was a left pane
+      for (const [left, right] of prev) { // remove if it was a right pane
+        if (right === id) next.delete(left)
+      }
+      return next
+    })
+    if (id === activeId) {
+      // If it had a split partner, switch to the partner
+      const partner = splitPairs.get(id)
+      setActiveId(partner || null)
       setFocusedPane('left')
     }
-  }, [splitId, activeId])
+  }, [activeId, splitPairs])
 
   const handleRemove = useCallback(async (id: string) => {
     await window.api.instance.remove(id)
+    setSplitPairs((prev) => {
+      const next = new Map(prev)
+      next.delete(id)
+      for (const [left, right] of prev) {
+        if (right === id) next.delete(left)
+      }
+      return next
+    })
     if (activeId === id) setActiveId(null)
-    if (splitId === id) setSplitId(null)
     if (editorInstanceId === id) {
       setEditorInstanceId(null)
       setEditingAgent(null)
       setView('agents')
     }
-  }, [activeId, editorInstanceId, splitId])
+  }, [activeId, editorInstanceId, splitPairs])
 
   const handleRename = useCallback(async (id: string, name: string) => {
     await window.api.instance.rename(id, name)
@@ -335,59 +338,103 @@ export default function App() {
 
   const regularInstances = instances.filter((i) => i.id !== editorInstanceId)
 
-  // Open split with a specific instance
+  // Open split with a specific instance as the right pane
   const handleSplitWith = useCallback((id: string) => {
-    if (id === activeId) return
-    setSplitId(id)
+    if (!activeId || id === activeId) return
+    setSplitPairs((prev) => {
+      const next = new Map(prev)
+      next.set(activeId!, id)
+      return next
+    })
     setFocusedPane('left')
     setSplitRatio(0.5)
     setView('instances')
-  }, [activeId])
+    // Scroll both terminals to bottom after split renders
+    requestAnimationFrame(() => {
+      for (const tid of [activeId, id]) {
+        const entry = terminalsRef.current.get(tid)
+        if (entry) entry.term.scrollToBottom()
+      }
+    })
+  }, [activeId, terminalsRef])
 
   // Toggle split on/off (Cmd+\)
   const handleToggleSplit = useCallback(() => {
+    if (!activeId) return
     if (splitId) {
-      // Close split, keep focused pane's instance
-      const keepId = focusedPane === 'left' ? activeId : splitId
-      setActiveId(keepId)
-      setSplitId(null)
+      // Close split for this instance
+      setSplitPairs((prev) => {
+        const next = new Map(prev)
+        next.delete(activeId!)
+        return next
+      })
       setFocusedPane('left')
     } else {
       // Open split — auto-pick if 2 instances, show picker if more
       const others = regularInstances.filter((i) => i.id !== activeId)
       if (others.length === 1) {
-        setSplitId(others[0].id)
+        const partnerId = others[0].id
+        setSplitPairs((prev) => {
+          const next = new Map(prev)
+          next.set(activeId!, partnerId)
+          return next
+        })
         setFocusedPane('left')
         setSplitRatio(0.5)
+        requestAnimationFrame(() => {
+          for (const tid of [activeId!, partnerId]) {
+            const entry = terminalsRef.current.get(tid)
+            if (entry) entry.term.scrollToBottom()
+          }
+        })
       } else if (others.length > 1) {
         setShowSplitPicker(true)
       }
     }
-  }, [splitId, focusedPane, activeId, regularInstances])
+  }, [splitId, activeId, regularInstances, terminalsRef])
 
-  // Close split, keep both instances alive (Cmd+Shift+W)
+  // Close split for the active instance
   const handleCloseSplitView = useCallback(() => {
-    if (!splitId) return
-    const keepId = focusedPane === 'left' ? activeId : splitId
-    setActiveId(keepId)
-    setSplitId(null)
+    if (!activeId || !splitId) return
+    setSplitPairs((prev) => {
+      const next = new Map(prev)
+      next.delete(activeId!)
+      return next
+    })
     setFocusedPane('left')
-  }, [splitId, focusedPane, activeId])
+  }, [splitId, activeId])
 
   const handlePickSplit = useCallback((id: string) => {
-    setSplitId(id)
+    if (!activeId) return
+    setSplitPairs((prev) => {
+      const next = new Map(prev)
+      next.set(activeId!, id)
+      return next
+    })
     setFocusedPane('left')
     setSplitRatio(0.5)
     setShowSplitPicker(false)
-  }, [])
+    requestAnimationFrame(() => {
+      for (const tid of [activeId!, id]) {
+        const entry = terminalsRef.current.get(tid)
+        if (entry) entry.term.scrollToBottom()
+      }
+    })
+  }, [activeId, terminalsRef])
 
-  // I5: Clear splitId if the split instance no longer exists
+  // Clean up split pairs if either instance no longer exists
   useEffect(() => {
-    if (splitId && !instances.some((i) => i.id === splitId)) {
-      setSplitId(null)
-      setFocusedPane('left')
+    const ids = new Set(instances.map((i) => i.id))
+    let changed = false
+    const next = new Map(splitPairs)
+    for (const [left, right] of splitPairs) {
+      if (!ids.has(left) || !ids.has(right)) {
+        next.delete(left)
+        changed = true
+      }
     }
-  }, [instances, splitId])
+    if (changed) setSplitPairs(next)
+  }, [instances, splitPairs])
 
   // Bridge custom events to handlers (so shortcuts can call stateful handlers)
   useEffect(() => {
@@ -475,6 +522,7 @@ export default function App() {
         onRestoreAll={handleRestoreAll}
         restorableCount={restorableSessions.filter((s) => s.sessionId && s.exitType !== 'killed').length}
         splitId={splitId}
+        splitPairs={splitPairs}
         focusedPane={focusedPane}
         onSplitWith={handleSplitWith}
         onCloseSplit={handleCloseSplitView}
@@ -503,6 +551,17 @@ export default function App() {
                 onKill={handleKill}
                 onRestart={handleRestart}
                 onRemove={handleRemove}
+                onSplit={() => {
+                  // Open split with a picker for the right pane
+                  const others = regularInstances.filter((i) => i.id !== inst.id)
+                  if (others.length === 1) {
+                    handleSplitWith(others[0].id)
+                  } else if (others.length > 1) {
+                    setShowSplitPicker(true)
+                  }
+                }}
+                onCloseSplit={handleCloseSplitView}
+                isSplit={isSplit}
                 terminalsRef={terminalsRef}
                 searchOpen={isFocused && searchOpen}
                 onSearchClose={() => setSearchOpen(false)}
@@ -602,8 +661,8 @@ export default function App() {
         </div>
         {view === 'instances' && !active && (
           <div className="empty-state">
-            <h2>No instance selected</h2>
-            <p>Create a new Claude CLI instance to get started</p>
+            <h2>No session selected</h2>
+            <p>Create a new Claude session to get started</p>
             <button onClick={() => setShowNewDialog(true)}>New Instance</button>
           </div>
         )}

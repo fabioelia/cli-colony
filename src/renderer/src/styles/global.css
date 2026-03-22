@@ -663,7 +663,6 @@ input, select {
 
 .terminal-header {
   padding: 48px 16px 8px;
-  padding-right: 80px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1773,26 +1772,24 @@ input, select {
 }
 
 /* Save row */
-.settings-save-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
-  padding-top: 4px;
-}
-
-.settings-save {
-  padding: 7px 20px;
+.settings-save-inline {
+  margin-left: auto;
+  padding: 5px 14px;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   background: var(--accent);
   color: white;
   transition: opacity 0.15s;
 }
 
-.settings-save:hover {
+.settings-save-inline:hover {
   opacity: 0.85;
+}
+
+.settings-footer {
+  padding: 12px 0;
+  text-align: center;
 }
 
 .settings-config-path {
@@ -2148,6 +2145,15 @@ input, select {
   background: var(--accent);
   border-color: var(--accent);
   color: white;
+}
+
+.split-indicator {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  color: var(--accent);
+  opacity: 0.6;
+  vertical-align: middle;
 }
 
 /* Context menu */
@@ -2655,6 +2661,283 @@ input, select {
   color: var(--text-secondary);
 }
 
+.github-pr-body {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 8px;
+  max-height: 150px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  border-left: 2px solid var(--accent);
+}
+
+.github-pr-view-comments {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+  transition: all 0.15s;
+  margin-bottom: 8px;
+}
+
+.github-pr-view-comments:hover {
+  color: var(--accent);
+  background: var(--bg-tertiary);
+}
+
+/* Comments modal — split view */
+.github-comments-modal {
+  background: var(--bg-primary);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  width: 900px;
+  max-width: 95vw;
+  height: 70vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.github-comments-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.github-comments-modal-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.github-comments-modal-title {
+  font-size: 13px;
+  color: var(--text-secondary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.github-comments-modal-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.github-comments-modal-header > button {
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+  padding: 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.github-comments-modal-header > button:hover {
+  color: var(--text-primary);
+}
+
+.github-comments-modal-split {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.github-comments-sidebar {
+  width: 240px;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+}
+
+.github-comments-group {
+  margin-bottom: 4px;
+}
+
+.github-comments-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+.github-comments-group-count {
+  margin-left: auto;
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+.github-comments-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: background 0.1s;
+  text-align: left;
+}
+
+.github-comments-sidebar-item:hover {
+  background: var(--bg-surface);
+}
+
+.github-comments-sidebar-item.active {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--accent);
+}
+
+.github-comments-sidebar-author {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.github-comments-sidebar-time {
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.github-comments-content {
+  flex: 1;
+  overflow-y: auto;
+  min-width: 0;
+  padding: 16px 20px;
+}
+
+.github-comments-content-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.github-comments-content-meta span {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.github-comments-content-path {
+  font-family: Menlo, Monaco, monospace;
+  font-size: 11px !important;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--bg-surface);
+}
+
+.github-comments-content-body {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.7;
+}
+
+/* Markdown body styling */
+.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+  margin: 16px 0 8px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.markdown-body h1 { font-size: 18px; }
+.markdown-body h2 { font-size: 15px; }
+.markdown-body h3 { font-size: 13px; }
+.markdown-body p { margin: 8px 0; }
+.markdown-body ul, .markdown-body ol { padding-left: 20px; margin: 8px 0; }
+.markdown-body li { margin: 4px 0; }
+.markdown-body code {
+  font-family: Menlo, Monaco, monospace;
+  font-size: 12px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg-surface);
+}
+.markdown-body pre {
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--bg-surface);
+  overflow-x: auto;
+  margin: 8px 0;
+}
+.markdown-body pre code {
+  padding: 0;
+  background: none;
+}
+.markdown-body blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: 12px;
+  color: var(--text-muted);
+  margin: 8px 0;
+}
+.markdown-body table {
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 12px;
+}
+.markdown-body th, .markdown-body td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+}
+.markdown-body th {
+  background: var(--bg-surface);
+  font-weight: 600;
+}
+.markdown-body a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.markdown-body a:hover {
+  text-decoration: underline;
+}
+.markdown-body img {
+  max-width: 100%;
+  border-radius: 4px;
+}
+
+.github-pr-comment-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.github-pr-comment-count.clickable {
+  cursor: pointer;
+  padding: 1px 5px;
+  border-radius: 4px;
+  transition: all 0.1s;
+}
+
+.github-pr-comment-count.clickable:hover {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--accent);
+}
+
 .github-pr-quick-actions {
   display: flex;
   flex-wrap: wrap;
@@ -2830,6 +3113,66 @@ input, select {
 
 .github-prompt-save:hover {
   opacity: 0.85;
+}
+
+/* Context file viewer */
+.github-context-viewer {
+  background: var(--bg-primary);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  width: 700px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.github-context-viewer-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.github-context-viewer-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.github-context-viewer-path {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: Menlo, Monaco, monospace;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.github-context-viewer-header button {
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.github-context-viewer-header button:hover {
+  color: var(--text-primary);
+}
+
+.github-context-viewer-content {
+  flex: 1;
+  overflow: auto;
+  padding: 14px 16px;
+  font-size: 12px;
+  font-family: Menlo, Monaco, monospace;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 0;
 }
 
 /* PR Memory */

@@ -41,9 +41,17 @@ export interface CliSession {
   recentlyOpened: boolean
 }
 
+export interface PRComment {
+  author: string
+  body: string
+  createdAt: string
+  path?: string
+}
+
 export interface GitHubPR {
   number: number
   title: string
+  body: string
   author: string
   assignees: string[]
   reviewers: string[]
@@ -58,6 +66,7 @@ export interface GitHubPR {
   deletions: number
   reviewDecision: string
   labels: string[]
+  comments: PRComment[]
 }
 
 export interface QuickPrompt {
@@ -167,6 +176,7 @@ export interface ClaudeManagerAPI {
     savePrMemory: (content: string) => Promise<boolean>
     getPrMemoryPath: () => Promise<string>
     getPrWorkspacePath: () => Promise<string>
+    getCommentsFile: (repoSlug: string, prNumber: number) => Promise<string | null>
   }
 }
 
@@ -280,6 +290,7 @@ const api: ClaudeManagerAPI = {
     savePrMemory: (content) => ipcRenderer.invoke('github:savePrMemory', content),
     getPrMemoryPath: () => ipcRenderer.invoke('github:getPrMemoryPath'),
     getPrWorkspacePath: () => ipcRenderer.invoke('github:getPrWorkspacePath'),
+    getCommentsFile: (repoSlug, prNumber) => ipcRenderer.invoke('github:getCommentsFile', repoSlug, prNumber),
   },
 }
 

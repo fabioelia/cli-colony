@@ -1,4 +1,4 @@
-import { ipcMain, dialog, shell } from 'electron'
+import { ipcMain, dialog, shell, app } from 'electron'
 import {
   createInstance,
   writeToInstance,
@@ -326,4 +326,13 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('github:savePrMemory', (_e, content: string) => savePrMemory(content))
   ipcMain.handle('github:getPrMemoryPath', () => getPrMemoryPath())
   ipcMain.handle('github:getPrWorkspacePath', () => getPrWorkspacePath())
+  ipcMain.handle('github:getCommentsFile', (_e, repoSlug: string, prNumber: number) => {
+    const { readFileSync, existsSync } = require('fs') as typeof import('fs')
+    const { join } = require('path') as typeof import('path')
+    const commentsDir = join(app.getPath('home'), '.claude-colony', 'pr-workspace', 'comments')
+    const safeSlug = repoSlug.replace(/\//g, '-')
+    const filePath = join(commentsDir, `${safeSlug}-${prNumber}.md`)
+    if (!existsSync(filePath)) return null
+    return readFileSync(filePath, 'utf-8')
+  })
 }

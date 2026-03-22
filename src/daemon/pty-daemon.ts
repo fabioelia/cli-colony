@@ -96,6 +96,7 @@ const COLORS = [
   '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
   '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#6366f1',
 ]
+// Only colors accepted by Claude CLI's /color command
 const HEX_TO_NAME: Record<string, string> = {
   '#3b82f6': 'blue',
   '#10b981': 'green',
@@ -105,8 +106,8 @@ const HEX_TO_NAME: Record<string, string> = {
   '#ec4899': 'pink',
   '#06b6d4': 'cyan',
   '#f97316': 'orange',
-  '#14b8a6': 'teal',
-  '#6366f1': 'indigo',
+  '#14b8a6': 'cyan',    // teal → closest valid: cyan
+  '#6366f1': 'purple',  // indigo → closest valid: purple
 }
 function nextColor(): string {
   // Pick the color used by the fewest existing instances
@@ -299,7 +300,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
         const hasTrustPrompt = /trust|safety check/i.test(recentOutput)
         if (!hasTrustPrompt || waitingCount > 1) {
           colorSent = true
-          const colorName = HEX_TO_NAME[instance.color]
+          const colorName = closestColorName(instance.color)
           if (colorName) {
             instance.pty.write(`/color ${colorName}\r`)
           }
@@ -377,19 +378,48 @@ function renameInstance(id: string, name: string): boolean {
   return true
 }
 
+// Find the closest named color by hex distance
+function closestColorName(hex: string): string | null {
+  // Exact match first
+  if (HEX_TO_NAME[hex]) return HEX_TO_NAME[hex]
+  // Parse hex
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return null
+  let best = ''
+  let bestDist = Infinity
+  for (const [h, name] of Object.entries(HEX_TO_NAME)) {
+    const r2 = parseInt(h.slice(1, 3), 16)
+    const g2 = parseInt(h.slice(3, 5), 16)
+    const b2 = parseInt(h.slice(5, 7), 16)
+    const dist = (r - r2) ** 2 + (g - g2) ** 2 + (b - b2) ** 2
+    if (dist < bestDist) { bestDist = dist; best = name }
+  }
+  return best || null
+}
+
+// Debounce color sync per instance
+const colorSyncTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
 function recolorInstance(id: string, color: string): boolean {
   const inst = instances.get(id)
   if (!inst) return false
   inst.color = color
-  const colorName = HEX_TO_NAME[color]
-  log(`recolor ${id} to ${color} (name: ${colorName || 'unknown'}) status=${inst.status} activity=${inst.activity} hasPty=${!!inst.pty}`)
-  // Sync color to Claude CLI if instance is running
-  if (inst.pty && inst.status === 'running') {
+  notifyListChanged()
+
+  // Debounce the CLI color sync (300ms) to avoid flooding PTY
+  if (colorSyncTimers.has(id)) clearTimeout(colorSyncTimers.get(id)!)
+  colorSyncTimers.set(id, setTimeout(() => {
+    colorSyncTimers.delete(id)
+    if (!inst.pty || inst.status !== 'running') return
+    const colorName = closestColorName(color)
     if (colorName) {
+      log(`recolor ${id} syncing /color ${colorName}`)
       inst.pty.write(`/color ${colorName}\r`)
     }
-  }
-  notifyListChanged()
+  }, 300))
+
   return true
 }
 

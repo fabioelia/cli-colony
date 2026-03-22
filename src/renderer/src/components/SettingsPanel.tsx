@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Volume2, Cpu } from 'lucide-react'
 
 interface Props {
   onBack: () => void
@@ -69,19 +69,20 @@ export default function SettingsPanel({ onBack }: Props) {
           <ArrowLeft size={16} />
         </button>
         <h2>Settings</h2>
+        <button className="settings-save-inline" onClick={handleSave}>
+          {saved ? 'Saved!' : 'Save'}
+        </button>
       </div>
 
-      {/* CLI Configuration */}
+      {/* CLI */}
       <div className="settings-section">
         <div className="settings-section-title">
           <Terminal size={12} />
-          CLI Configuration
+          CLI
         </div>
         <div className="settings-field">
           <label>Default Arguments</label>
-          <p className="settings-help">
-            Prepended to every new Claude instance.
-          </p>
+          <p className="settings-help">Prepended to every new session.</p>
           <input
             value={defaultArgs}
             onChange={(e) => setDefaultArgs(e.target.value)}
@@ -89,11 +90,10 @@ export default function SettingsPanel({ onBack }: Props) {
           />
         </div>
         <div className="settings-field">
-          <label>Shell Profile</label>
+          <label>Shell</label>
           <p className="settings-help">
-            Shell used to resolve your environment (PATH, aliases, etc).
-            Leave blank for default.
-            <span className="settings-restart-note">Requires restart</span>
+            Environment for Claude sessions.
+            <span className="settings-restart-note">Requires daemon restart</span>
           </p>
           <select
             value={shellProfile}
@@ -111,7 +111,7 @@ export default function SettingsPanel({ onBack }: Props) {
           <label>Global Hotkey</label>
           <p className="settings-help">
             Brings the app to front from anywhere.
-            <span className="settings-restart-note">Requires restart</span>
+            <span className="settings-restart-note">Requires app restart</span>
           </p>
           <input
             value={globalHotkey}
@@ -121,13 +121,14 @@ export default function SettingsPanel({ onBack }: Props) {
         </div>
       </div>
 
-      {/* Behavior */}
+      {/* Notifications */}
       <div className="settings-section">
         <div className="settings-section-title">
-          Behavior
+          <Volume2 size={12} />
+          Notifications
         </div>
         <div className="settings-row">
-          <span className="settings-row-label">Play sound on instance finish</span>
+          <span className="settings-row-label">Sound when Claude finishes</span>
           <button
             className={`settings-toggle ${soundOnFinish ? 'active' : ''}`}
             onClick={() => setSoundOnFinish(!soundOnFinish)}
@@ -137,8 +138,17 @@ export default function SettingsPanel({ onBack }: Props) {
             <span className="settings-toggle-knob" />
           </button>
         </div>
+        <p className="settings-help settings-help-bottom">Plays when a session goes from busy to waiting and the app is not focused.</p>
+      </div>
+
+      {/* Sessions */}
+      <div className="settings-section">
+        <div className="settings-section-title">
+          <Terminal size={12} />
+          Sessions
+        </div>
         <div className="settings-row">
-          <span className="settings-row-label">Auto-cleanup exited instances after</span>
+          <span className="settings-row-label">Auto-cleanup stopped sessions</span>
           <div className="settings-row-control">
             <input
               type="number"
@@ -151,27 +161,17 @@ export default function SettingsPanel({ onBack }: Props) {
             <span className="settings-unit">min</span>
           </div>
         </div>
-        <p className="settings-help settings-help-bottom">Set to 0 to disable auto-cleanup.</p>
-      </div>
-
-      {/* Save */}
-      <div className="settings-save-row">
-        <button className="settings-save" onClick={handleSave}>
-          {saved ? 'Saved!' : 'Save Settings'}
-        </button>
-        <span className="settings-config-path">~/.claude-colony/settings.json</span>
+        <p className="settings-help settings-help-bottom">Set to 0 to keep stopped sessions indefinitely.</p>
       </div>
 
       {/* Daemon */}
       <div className="settings-section">
         <div className="settings-section-title">
-          <RotateCcw size={12} />
-          PTY Daemon
+          <Cpu size={12} />
+          Daemon
         </div>
         <p className="settings-help">
-          The daemon is a background process that owns all terminal sessions.
-          Restarting it picks up changes to shell profile and environment, but
-          will terminate all running Claude instances.
+          Background process that owns all terminal sessions. Restart to apply shell changes.
         </p>
         {!showRestartConfirm ? (
           <button
@@ -184,7 +184,7 @@ export default function SettingsPanel({ onBack }: Props) {
           <div className="settings-daemon-confirm">
             <div className="settings-daemon-warning">
               <AlertTriangle size={14} />
-              <span>This will kill all active Claude instances. They cannot be recovered.</span>
+              <span>All running sessions will be terminated.</span>
             </div>
             <div className="settings-daemon-confirm-actions">
               <button
@@ -207,7 +207,7 @@ export default function SettingsPanel({ onBack }: Props) {
                   setShowRestartConfirm(false)
                 }}
               >
-                {restarting ? 'Restarting...' : 'Yes, Restart Daemon'}
+                {restarting ? 'Restarting...' : 'Restart'}
               </button>
             </div>
           </div>
@@ -218,7 +218,7 @@ export default function SettingsPanel({ onBack }: Props) {
       <div className={`settings-section settings-logs-section ${showLogs ? '' : 'collapsed'}`}>
         <div className="settings-section-title">
           <ScrollText size={12} />
-          Application Logs
+          Logs
           <div className="settings-logs-actions">
             <button
               className="settings-logs-toggle"
@@ -241,6 +241,10 @@ export default function SettingsPanel({ onBack }: Props) {
             {logs || 'No logs yet.'}
           </pre>
         )}
+      </div>
+
+      <div className="settings-footer">
+        <span className="settings-config-path">~/.claude-colony/settings.json</span>
       </div>
     </div>
   )

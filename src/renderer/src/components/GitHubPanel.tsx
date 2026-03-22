@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Plus, Trash2, RefreshCw, GitPullRequest, ExternalLink, Play, FolderOpen, Pencil, ChevronDown, ChevronRight, MessageSquare, Send, User, Users, Eye, GitBranch, Clock, FileDiff, ShieldCheck, ShieldAlert, ShieldQuestion, Brain, Save, X } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, RefreshCw, GitPullRequest, ExternalLink, Play, Pencil, ChevronDown, ChevronRight, MessageSquare, Send, User, Users, Eye, GitBranch, Clock, FileDiff, ShieldCheck, ShieldAlert, ShieldQuestion, Brain, Save, X, FileText, File } from 'lucide-react'
+import { marked } from 'marked'
 import type { GitHubPR, GitHubRepo, QuickPrompt } from '../types'
 
 interface Props {
@@ -37,6 +38,11 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const [showMemory, setShowMemory] = useState(false)
   const [editingMemory, setEditingMemory] = useState(false)
   const [memoryDraft, setMemoryDraft] = useState('')
+  const [showContextFile, setShowContextFile] = useState(false)
+  const [contextFileContent, setContextFileContent] = useState('')
+  const [showCommentsViewer, setShowCommentsViewer] = useState(false)
+  const [commentsViewerPR, setCommentsViewerPR] = useState<GitHubPR | null>(null)
+  const [commentsViewerIndex, setCommentsViewerIndex] = useState(0)
 
   // Sync PR context file whenever prsByRepo changes
   const [contextPath, setContextPath] = useState<string | null>(null)
@@ -255,6 +261,15 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
         <button className="settings-back" onClick={onBack}><ArrowLeft size={16} /></button>
         <h2>GitHub</h2>
         <div className="github-header-actions">
+          {contextPath && (
+            <button className="github-header-btn" onClick={async () => {
+              const result = await window.api.fs.readFile(contextPath)
+              if (result.content) setContextFileContent(result.content)
+              setShowContextFile(true)
+            }} title="View PR context file">
+              <FileText size={13} /> Context
+            </button>
+          )}
           <button className="github-header-btn" onClick={handleOpenPromptEditor} title="Edit quick prompts">
             <Pencil size={13} /> Prompts
           </button>
@@ -316,7 +331,6 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                   </span>
                 )}
                 <div className="github-repo-actions" onClick={(e) => e.stopPropagation()}>
-                  <button title="Set local path" onClick={() => handleSetLocalPath(repo)}><FolderOpen size={13} /></button>
                   <button title="Refresh PRs" onClick={() => fetchPRsForRepo(repo)}>
                     <RefreshCw size={13} className={isLoading ? 'spinning' : ''} />
                   </button>
@@ -359,6 +373,20 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                                   {' '}{pr.reviewDecision.toLowerCase().replace(/_/g, ' ')}
                                 </span>
                               )}
+                              {pr.comments?.length > 0 && (
+                                <span
+                                  className="github-pr-comment-count clickable"
+                                  title={`${pr.comments.length} comment${pr.comments.length !== 1 ? 's' : ''} — click to view`}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setCommentsViewerPR(pr)
+                                    setCommentsViewerIndex(0)
+                                    setShowCommentsViewer(true)
+                                  }}
+                                >
+                                  <MessageSquare size={11} /> {pr.comments.length}
+                                </span>
+                              )}
                             </div>
                           </div>
                           <button
@@ -371,12 +399,30 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                         </div>
                         {isOpen && (
                           <div className="github-pr-actions">
-                            {pr.labels.length > 0 && (
+                            {pr.body && (
+                              <div
+                                className="github-pr-body markdown-body"
+                                dangerouslySetInnerHTML={{ __html: marked.parse(pr.body) as string }}
+                              />
+                            )}
+                            {pr.labels?.length > 0 && (
                               <div className="github-pr-labels">
                                 {pr.labels.map((l) => (
                                   <span key={l} className="github-pr-label">{l}</span>
                                 ))}
                               </div>
+                            )}
+                            {pr.comments?.length > 0 && (
+                              <button
+                                className="github-pr-view-comments"
+                                onClick={() => {
+                                  setCommentsViewerPR(pr)
+                                  setCommentsViewerIndex(0)
+                                  setShowCommentsViewer(true)
+                                }}
+                              >
+                                <MessageSquare size={12} /> View {pr.comments.length} comment{pr.comments.length !== 1 ? 's' : ''}
+                              </button>
                             )}
                             <div className="github-pr-quick-actions">
                               {prompts.map((prompt) => (
@@ -478,6 +524,96 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
           >
             <Send size={14} />
           </button>
+        </div>
+      )}
+
+      {/* Comments viewer */}
+      {showCommentsViewer && commentsViewerPR && (() => {
+        const general = commentsViewerPR.comments.filter((c) => !c.path)
+        const fileComments = commentsViewerPR.comments.filter((c) => c.path)
+        const byFile = fileComments.reduce<Record<string, typeof fileComments>>((acc, c) => {
+          const key = c.path!
+          if (!acc[key]) acc[key] = []
+          acc[key].push(c)
+          return acc
+        }, {})
+        const allGroups = [
+          ...(general.length > 0 ? [{ label: 'General', icon: 'general' as const, comments: general }] : []),
+          ...Object.entries(byFile).map(([path, comments]) => ({
+            label: path.split('/').pop()!,
+            fullPath: path,
+            icon: 'file' as const,
+            comments,
+          })),
+        ]
+        const activeComment = commentsViewerPR.comments[commentsViewerIndex]
+
+        return (
+          <div className="dialog-overlay" onClick={() => setShowCommentsViewer(false)}>
+            <div className="github-comments-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="github-comments-modal-header">
+                <h3>#{commentsViewerPR.number}</h3>
+                <span className="github-comments-modal-title">{commentsViewerPR.title}</span>
+                <span className="github-comments-modal-count">{commentsViewerPR.comments.length} comments</span>
+                <button onClick={() => setShowCommentsViewer(false)}><X size={14} /></button>
+              </div>
+              <div className="github-comments-modal-split">
+                <div className="github-comments-sidebar">
+                  {allGroups.map((group) => (
+                    <div key={group.label} className="github-comments-group">
+                      <div className="github-comments-group-header">
+                        {group.icon === 'general' ? <MessageSquare size={12} /> : <File size={12} />}
+                        <span title={'fullPath' in group ? group.fullPath : undefined}>{group.label}</span>
+                        <span className="github-comments-group-count">{group.comments.length}</span>
+                      </div>
+                      {group.comments.map((c, i) => {
+                        const globalIdx = commentsViewerPR!.comments.indexOf(c)
+                        return (
+                          <button
+                            key={i}
+                            className={`github-comments-sidebar-item ${globalIdx === commentsViewerIndex ? 'active' : ''}`}
+                            onClick={() => setCommentsViewerIndex(globalIdx)}
+                          >
+                            <span className="github-comments-sidebar-author">{c.author}</span>
+                            <span className="github-comments-sidebar-time">{timeSince(c.createdAt)}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ))}
+                </div>
+                <div className="github-comments-content">
+                  {activeComment && (
+                    <>
+                      <div className="github-comments-content-meta">
+                        <strong>{activeComment.author}</strong>
+                        <span>{new Date(activeComment.createdAt).toLocaleString()}</span>
+                        {activeComment.path && <span className="github-comments-content-path">{activeComment.path}</span>}
+                      </div>
+                      <div
+                        className="github-comments-content-body markdown-body"
+                        dangerouslySetInnerHTML={{ __html: marked.parse(activeComment.body) as string }}
+                      />
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Context file viewer */}
+      {showContextFile && (
+        <div className="dialog-overlay" onClick={() => setShowContextFile(false)}>
+          <div className="github-context-viewer" onClick={(e) => e.stopPropagation()}>
+            <div className="github-context-viewer-header">
+              <h3>PR Context File</h3>
+              <span className="github-context-viewer-path">{contextPath}</span>
+              <button onClick={() => setShowContextFile(false)}><X size={14} /></button>
+            </div>
+            <pre className="github-context-viewer-content">{contextFileContent}</pre>
+          </div>
         </div>
       )}
 
