@@ -338,6 +338,9 @@ const COLONY_REVIEW_PROMPT: QuickPrompt = {
   label: 'Provide Colony Feedback Review',
   prompt: `Review PR #{{pr.number}} ({{pr.title}}) on branch {{pr.branch}}.
 
+PR Description:
+{{pr.description}}
+
 Check the diff for bugs, security issues, code quality, and correctness.
 
 When done, write your feedback to the colony-feedback branch so the author's Colony app picks it up automatically:
@@ -512,6 +515,8 @@ export function resolvePrompt(prompt: QuickPrompt, pr: GitHubPR, repo: GitHubRep
     .replace(/\{\{pr\.labels\}\}/g, pr.labels.join(', ') || 'none')
     .replace(/\{\{pr\.additions\}\}/g, String(pr.additions))
     .replace(/\{\{pr\.deletions\}\}/g, String(pr.deletions))
+    .replace(/\{\{pr\.body\}\}/g, pr.body || '')
+    .replace(/\{\{pr\.description\}\}/g, pr.body || '')
     .replace(/\{\{repo\.owner\}\}/g, repo.owner)
     .replace(/\{\{repo\.name\}\}/g, repo.name)
 }
