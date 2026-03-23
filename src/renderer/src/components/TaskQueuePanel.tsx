@@ -116,9 +116,58 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
   }, [])
 
   const [colonyContextInstruction, setColonyCtx] = useState('')
-  useEffect(() => { window.api.colony.getContextInstruction().then(setColonyCtx) }, [])
+  const [workspacePath, setWorkspacePath] = useState<string | null>(null)
+  useEffect(() => {
+    window.api.colony.getContextInstruction().then(setColonyCtx)
+    window.api.taskQueue.getWorkspacePath().then(setWorkspacePath)
+  }, [])
 
-  const TASK_PROMPT = `You are helping the user create and manage task queue YAML files for Claude Colony. Task queues define batch jobs that spawn multiple Claude sessions. The format is:\n\n\`\`\`yaml\nname: Queue Name\nmode: parallel  # or sequential\ntasks:\n  - prompt: "What to do"\n    directory: /path/to/project\n    name: Task Name\n\`\`\`\n\nTask queue files are stored in ~/.claude-colony/task-queues/. Help the user design task queues, suggest tasks based on their projects, and write YAML files.${colonyContextInstruction}\n\nAsk what they want to accomplish.\r`
+  const TASK_PROMPT = `You are helping the user create and manage task queue YAML files for Claude Colony. Task queues define batch jobs that spawn multiple Claude sessions. The format is:\n\n\`\`\`yaml\nname: Queue Name\nmode: parallel  # or sequential\ntasks:\n  - prompt: "What to do"\n    directory: /path/to/project\n    name: Task Name\n\`\`\`\n\nTask queue files are stored in ~/.claude-colony/task-queues/. Help the user design task queues, suggest tasks based on their projects, and write YAML files.${colonyContextInstruction}\n\nAsk what they want to accomplish.`
+
+  // Robust prompt sender — waits for CLI to be ready, dismisses trust prompt
+  // Returns a promise that resolves once the prompt has been sent
+  // IMPORTANT: Do NOT call instance.rename() before the prompt — the daemon's
+  // renameInstance writes /rename to the PTY which concatenates with the prompt
+  const sendPromptWhenReady = useCallback((id: string, prompt: string, sessionName?: string): Promise<void> => {
+    return new Promise((resolve) => {
+      let sent = false
+      let waitCount = 0
+
+      const unsub = window.api.instance.onActivity(({ id: instId, activity }) => {
+        if (instId !== id || sent) return
+        if (activity === 'waiting') {
+          waitCount++
+          if (waitCount === 1) {
+            // First waiting might be trust prompt — dismiss it
+            window.api.instance.write(id, '\r')
+          } else {
+            sent = true
+            unsub()
+            window.api.instance.write(id, prompt + '\r')
+            // Rename after prompt is sent — delayed so CLI processes the prompt first
+            if (sessionName) {
+              setTimeout(() => window.api.instance.rename(id, sessionName), 2000)
+            }
+            resolve()
+          }
+        }
+      })
+      // Fallback: if only one waiting state (no trust prompt), send after timeout
+      setTimeout(() => {
+        if (!sent && waitCount >= 1) {
+          sent = true
+          unsub()
+          window.api.instance.write(id, prompt + '\r')
+          if (sessionName) {
+            setTimeout(() => window.api.instance.rename(id, sessionName), 2000)
+          }
+          resolve()
+        }
+      }, 5000)
+      // Safety timeout
+      setTimeout(() => { if (!sent) { unsub(); resolve() } }, 15000)
+    })
+  }, [])
 
   const spawnAssistant = useCallback(async () => {
     // Clean up old terminal if it exists
@@ -128,26 +177,17 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
       termRef.current = null
     }
 
-    const inst = await window.api.instance.create({ name: 'Task Assistant', color: '#f59e0b' })
-    setAssistantId(inst.id)
-    window.api.instance.rename(inst.id, 'Task Assistant')
-
-    // Prime with context
-    let sent = false
-    let waitCount = 0
-    const unsub = window.api.instance.onActivity(({ id, activity }) => {
-      if (id !== inst.id || sent) return
-      if (activity === 'waiting') {
-        waitCount++
-        if (waitCount === 1) { window.api.instance.write(inst.id, '\r') }
-        else { sent = true; unsub(); window.api.instance.write(inst.id, `/rename Task Assistant\r`); setTimeout(() => window.api.instance.write(inst.id, TASK_PROMPT), 300) }
-      }
+    const inst = await window.api.instance.create({
+      name: 'Task Assistant',
+      color: '#f59e0b',
+      workingDirectory: workspacePath || undefined,
     })
-    setTimeout(() => { if (!sent && waitCount >= 1) { sent = true; unsub(); window.api.instance.write(inst.id, TASK_PROMPT) } }, 5000)
-    setTimeout(() => { if (!sent) unsub() }, 15000)
+    setAssistantId(inst.id)
+    // Don't pass sessionName — create already set it, no need for /rename via PTY
+    sendPromptWhenReady(inst.id, TASK_PROMPT)
 
     return inst.id
-  }, [])
+  }, [workspacePath, sendPromptWhenReady, TASK_PROMPT])
 
   // On mount: reuse existing Task Assistant or spawn new
   useEffect(() => {
@@ -271,24 +311,17 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
     const runTask = async (taskIndex: number): Promise<void> => {
       if (stopRef.current) return
       const task = queue.tasks[taskIndex]
+      const taskLabel = task.name || `Task ${taskIndex + 1}`
+      const sessionName = `${queue.name} › ${taskLabel}`
       statuses[taskIndex].state = 'running'
       setTaskStatuses([...statuses])
       try {
-        const inst = await window.api.instance.create({ name: task.name || `Task ${taskIndex + 1}`, workingDirectory: task.directory || undefined })
+        // Each task gets its own directory unless one is specified
+        const dir = task.directory || await window.api.taskQueue.createTaskDir(queue.name, taskLabel)
+        const inst = await window.api.instance.create({ name: sessionName, workingDirectory: dir })
         statuses[taskIndex].instanceId = inst.id
-        await new Promise<void>((resolve) => {
-          let sent = false; let waitCount = 0
-          const unsub = window.api.instance.onActivity(({ id, activity }) => {
-            if (id !== inst.id || sent) return
-            if (activity === 'waiting') {
-              waitCount++
-              if (waitCount === 1) { window.api.instance.write(inst.id, '\r') }
-              else { sent = true; unsub(); window.api.instance.write(inst.id, task.prompt + '\r'); resolve() }
-            }
-          })
-          setTimeout(() => { if (!sent && waitCount >= 1) { sent = true; unsub(); window.api.instance.write(inst.id, task.prompt + '\r'); resolve() } }, 5000)
-          setTimeout(() => { if (!sent) { unsub(); resolve() } }, 15000)
-        })
+        // Don't pass sessionName — create already set it, no need for /rename via PTY
+        await sendPromptWhenReady(inst.id, task.prompt)
         await new Promise<void>((resolve) => {
           const unsub = window.api.instance.onExited(({ id, exitCode }) => {
             if (id !== inst.id) return; unsub()
@@ -303,7 +336,7 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
     if (queue.mode === 'parallel') { await Promise.all(queue.tasks.map((_, i) => runTask(i))) }
     else { for (let i = 0; i < queue.tasks.length; i++) { if (stopRef.current) break; await runTask(i) } }
     setIsRunning(false)
-  }, [editor])
+  }, [editor, workspacePath, sendPromptWhenReady])
 
   const handleStop = useCallback(() => {
     stopRef.current = true

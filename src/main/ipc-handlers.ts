@@ -346,6 +346,22 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('colony:getContextPath', () => getColonyContextPath())
   ipcMain.handle('colony:getContextInstruction', () => getColonyContextInstruction())
 
+  // Task workspace path
+  const TASK_WORKSPACE = join(app.getPath('home'), '.claude-colony', 'task-workspace')
+  ipcMain.handle('taskQueue:getWorkspacePath', () => {
+    const { existsSync, mkdirSync } = require('fs') as typeof import('fs')
+    if (!existsSync(TASK_WORKSPACE)) mkdirSync(TASK_WORKSPACE, { recursive: true })
+    return TASK_WORKSPACE
+  })
+  // Create a per-task run directory: task-workspace/<queue>/<task>/
+  ipcMain.handle('taskQueue:createTaskDir', (_e, queueName: string, taskName: string) => {
+    const { existsSync, mkdirSync } = require('fs') as typeof import('fs')
+    const safeName = (s: string) => s.replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-').slice(0, 60)
+    const dir = join(TASK_WORKSPACE, safeName(queueName), safeName(taskName))
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+    return dir
+  })
+
   // Task queue file I/O
   const QUEUE_DIR = join(app.getPath('home'), '.claude-colony', 'task-queues')
   ipcMain.handle('taskQueue:list', () => {
