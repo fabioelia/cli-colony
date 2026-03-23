@@ -3637,19 +3637,32 @@ input, select {
 /* Prompt scope toggle */
 .github-prompt-scope-toggle {
   display: flex;
-  border-radius: 5px;
+  border-radius: 10px;
   overflow: hidden;
   border: 1px solid var(--border);
   flex-shrink: 0;
+  background: var(--bg-primary);
+  padding: 1px;
+  gap: 1px;
 }
 
 .github-prompt-scope-toggle button {
-  padding: 3px 8px;
-  font-size: 10px;
-  font-weight: 600;
+  padding: 2px 7px;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
   color: var(--text-muted);
-  background: var(--bg-surface);
-  transition: all 0.1s;
+  background: transparent;
+  border-radius: 9px;
+  transition: all 0.15s;
+  border: none;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.github-prompt-scope-toggle button:hover {
+  color: var(--text-secondary);
 }
 
 .github-prompt-scope-toggle button.active {
