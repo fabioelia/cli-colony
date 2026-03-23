@@ -5364,6 +5364,77 @@ input, select {
   font-size: 11px;
 }
 
+.pipeline-ask-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  transition: border-color 0.15s;
+}
+
+.pipeline-ask-bar:focus-within {
+  border-color: var(--accent);
+}
+
+.pipeline-ask-icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.pipeline-ask-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.pipeline-ask-input::placeholder {
+  color: var(--text-muted);
+}
+
+.pipeline-ask-send {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  border: none;
+  border-radius: 5px;
+  color: white;
+  padding: 4px 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.pipeline-ask-send:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pipeline-ask-send:not(:disabled):hover {
+  filter: brightness(1.1);
+}
+
+.pipeline-ask-focus {
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.pipeline-ask-focus:hover {
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
 .pipelines-empty {
   display: flex;
   flex-direction: column;

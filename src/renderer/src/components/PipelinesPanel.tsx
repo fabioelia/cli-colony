@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Zap, ZapOff, Play, RefreshCw, ChevronDown, ChevronRight,
-  FileText, Clock, CheckCircle, XCircle, AlertTriangle, Save, BookOpen
+  FileText, Clock, CheckCircle, XCircle, AlertTriangle, Save, BookOpen,
+  MessageSquare, Send, Plus
 } from 'lucide-react'
 
 interface PipelineInfo {
@@ -17,7 +18,72 @@ interface PipelineInfo {
   fireCount: number
 }
 
-export default function PipelinesPanel() {
+interface Props {
+  onLaunchInstance: (opts: { name?: string; workingDirectory?: string; color?: string }) => Promise<string>
+  onFocusInstance: (id: string) => void
+  instances: Array<{ id: string; name: string; status: string }>
+}
+
+const PIPELINE_SYSTEM_PROMPT = `You are a Pipeline Assistant for Claude Colony. You help users create, edit, and manage pipeline YAML files.
+
+Pipelines are YAML files stored in ~/.claude-colony/pipelines/ that define automated trigger → condition → action workflows.
+
+## Pipeline YAML Format
+
+\`\`\`yaml
+name: Pipeline Name
+description: What this pipeline does
+enabled: false
+
+trigger:
+  type: git-poll          # or: file-poll, cron
+  interval: 300           # seconds between polls
+  repos: auto             # "auto" = repos from GitHub tab
+
+condition:
+  type: branch-file-exists   # or: pr-checks-failed, always
+  branch: branch-name
+  path: "path/to/file.md"
+  match:
+    pr.author: "{{github.user}}"
+
+action:
+  type: route-to-session     # or: launch-session
+  match:
+    gitBranch: "{{pr.branch}}"
+    workingDirectory: "{{repo.localPath}}"
+  busyStrategy: wait         # or: launch-new
+  name: "Session Name"
+  workingDirectory: "{{repo.localPath}}"
+  color: "#f59e0b"
+  prompt: |
+    Your prompt here with {{template.variables}}
+
+dedup:
+  key: "unique-key-per-event"
+  ttl: 3600
+\`\`\`
+
+## Template Variables
+{{pr.number}}, {{pr.title}}, {{pr.branch}}, {{pr.baseBranch}}, {{pr.author}}, {{pr.url}}, {{pr.assignees}}, {{pr.reviewers}}, {{pr.labels}}
+{{repo.owner}}, {{repo.name}}, {{repo.localPath}}
+{{github.user}}, {{timestamp}}
+
+## Action Types
+- \`launch-session\`: Always spawns a new Claude session
+- \`route-to-session\`: Finds an existing session matching the branch/repo, injects the prompt. Falls back to launching new if no match.
+
+## Condition Types
+- \`branch-file-exists\`: Checks if a file exists on a specific branch (uses GitHub API)
+- \`pr-checks-failed\`: Fires when CI checks fail on matching PRs
+- \`always\`: Always fires (for cron triggers)
+
+## Dedup
+Content-hash based: tracks the Git SHA of matched files. Same content = skip. Changed content = fire. TTL is a fallback for conditions without content hashes.
+
+Help the user design pipelines for their use cases. Write the YAML files directly to ~/.claude-colony/pipelines/. Ask what they want to automate.`
+
+export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, instances }: Props) {
   const [pipelines, setPipelines] = useState<PipelineInfo[]>([])
   const [expandedPipeline, setExpandedPipeline] = useState<string | null>(null)
   const [editingContent, setEditingContent] = useState<string | null>(null)
@@ -25,6 +91,12 @@ export default function PipelinesPanel() {
   const [dirty, setDirty] = useState(false)
   const [readmeContent, setReadmeContent] = useState<string | null>(null)
   const [expandedTab, setExpandedTab] = useState<'yaml' | 'docs'>('yaml')
+
+  // Pipeline assistant
+  const [askInput, setAskInput] = useState('')
+  const [assistantId, setAssistantId] = useState<string | null>(null)
+  const [pipelinesDir, setPipelinesDir] = useState<string | null>(null)
+  const sendingRef = useRef(false)
 
   const loadPipelines = useCallback(async () => {
     const list = await window.api.pipeline.list()
@@ -36,6 +108,66 @@ export default function PipelinesPanel() {
     const unsub = window.api.pipeline.onStatus((list) => setPipelines(list))
     return unsub
   }, [loadPipelines])
+
+  // Load pipelines dir
+  useEffect(() => {
+    window.api.pipeline.getDir().then(setPipelinesDir)
+  }, [])
+
+  // Track if assistant is still alive
+  useEffect(() => {
+    if (assistantId && !instances.some(i => i.id === assistantId && i.status === 'running')) {
+      setAssistantId(null)
+    }
+  }, [instances, assistantId])
+
+  const sendPromptToAssistant = useCallback((id: string, prompt: string) => {
+    let sent = false
+    let waitCount = 0
+    const unsub = window.api.instance.onActivity(({ id: instId, activity }) => {
+      if (instId !== id || sent) return
+      if (activity === 'waiting') {
+        waitCount++
+        if (waitCount === 1) {
+          window.api.instance.write(id, '\r')
+        } else {
+          sent = true
+          unsub()
+          window.api.instance.write(id, prompt + '\r')
+        }
+      }
+    })
+    setTimeout(() => { if (!sent && waitCount >= 1) { sent = true; unsub(); window.api.instance.write(id, prompt + '\r') } }, 5000)
+    setTimeout(() => { if (!sent) unsub() }, 15000)
+  }, [])
+
+  const handleAsk = useCallback(async () => {
+    const q = askInput.trim()
+    if (!q || sendingRef.current) return
+    setAskInput('')
+    sendingRef.current = true
+
+    try {
+      // Reuse existing assistant session
+      if (assistantId && instances.some(i => i.id === assistantId && i.status === 'running')) {
+        await window.api.instance.write(assistantId, q + '\r')
+        onFocusInstance(assistantId)
+        return
+      }
+
+      // Launch new assistant
+      const id = await onLaunchInstance({
+        name: 'Pipeline Assistant',
+        workingDirectory: pipelinesDir || undefined,
+        color: '#8b5cf6',
+      })
+      setAssistantId(id)
+      sendPromptToAssistant(id, PIPELINE_SYSTEM_PROMPT + '\n\nUser request: ' + q)
+      onFocusInstance(id)
+    } finally {
+      sendingRef.current = false
+    }
+  }, [askInput, assistantId, instances, pipelinesDir, onLaunchInstance, onFocusInstance, sendPromptToAssistant])
 
   const handleToggle = async (name: string, enabled: boolean) => {
     await window.api.pipeline.toggle(name, enabled)
@@ -100,6 +232,34 @@ export default function PipelinesPanel() {
       <p className="pipelines-description">
         Pipelines automate trigger → action workflows. Define them as YAML files in <code>~/.claude-colony/pipelines/</code>.
       </p>
+
+      <div className="pipeline-ask-bar">
+        <MessageSquare size={14} className="pipeline-ask-icon" />
+        <input
+          className="pipeline-ask-input"
+          placeholder="Ask the Pipeline Assistant to create or modify a pipeline..."
+          value={askInput}
+          onChange={(e) => setAskInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAsk() } }}
+        />
+        <button
+          className="pipeline-ask-send"
+          onClick={handleAsk}
+          disabled={!askInput.trim()}
+          title="Send to Pipeline Assistant"
+        >
+          <Send size={13} />
+        </button>
+        {assistantId && instances.some(i => i.id === assistantId && i.status === 'running') && (
+          <button
+            className="pipeline-ask-focus"
+            onClick={() => onFocusInstance(assistantId!)}
+            title="Focus Pipeline Assistant session"
+          >
+            View
+          </button>
+        )}
+      </div>
 
       {pipelines.length === 0 && (
         <div className="pipelines-empty">

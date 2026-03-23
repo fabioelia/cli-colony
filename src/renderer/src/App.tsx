@@ -798,7 +798,21 @@ export default function App() {
             }}
           />
         )}
-        {view === 'pipelines' && <PipelinesPanel />}
+        {view === 'pipelines' && (
+          <PipelinesPanel
+            instances={instances}
+            onLaunchInstance={async (opts) => {
+              const inst = await window.api.instance.create(opts)
+              setActiveId(inst.id)
+              setView('instances')
+              return inst.id
+            }}
+            onFocusInstance={(id) => {
+              setActiveId(id)
+              setView('instances')
+            }}
+          />
+        )}
         <div style={{ display: view === 'github' ? 'contents' : 'none' }}>
           <GitHubPanel
             onBack={() => setView('instances')}
