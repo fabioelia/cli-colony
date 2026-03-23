@@ -13,6 +13,8 @@ import { createInstance, writeToInstance, getAllInstances } from './instance-man
 import type { ClaudeInstance } from './instance-manager'
 import { getDaemonClient } from './daemon-client'
 import { getRepos, fetchPRs, fetchChecks, gh } from './github'
+import { scanSessions } from './session-scanner'
+import type { CliSession } from './session-scanner'
 import type { GitHubRepo, GitHubPR, PRChecks } from './github'
 
 // ---- Types ----
@@ -356,41 +358,47 @@ function getLiveBranch(dir: string): string | null {
   } catch { return null }
 }
 
-async function findMatchingSession(match: {
+interface RouteResult {
+  type: 'running'
+  instance: ClaudeInstance
+  score: number
+} | {
+  type: 'resume'
+  sessionId: string
+  project: string
+  name: string
+  score: number
+}
+
+async function findBestRoute(match: {
   gitBranch?: string
   workingDirectory?: string
   repoName?: string
   prNumber?: number
-}): Promise<ClaudeInstance | null> {
+}): Promise<RouteResult | null> {
+  const candidates: RouteResult[] = []
+
+  // ---- 1. Score running instances ----
   const all = await getAllInstances()
   const running = all.filter(i => i.status === 'running')
 
-  if (running.length === 0) return null
-
-  const scored = await Promise.all(running.map(async (inst) => {
+  for (const inst of running) {
     let score = 0
 
-    // 1. Live git branch check — most reliable signal
     if (match.gitBranch) {
       const liveBranch = getLiveBranch(inst.workingDirectory)
       if (liveBranch === match.gitBranch) {
         score += 15
       } else if (inst.gitBranch === match.gitBranch) {
-        // Fallback: metadata branch match (may be stale)
         score += 10
       }
     }
 
-    // 2. Working directory match
     if (match.workingDirectory) {
-      if (inst.workingDirectory === match.workingDirectory) {
-        score += 5
-      } else if (inst.workingDirectory.startsWith(match.workingDirectory + '/')) {
-        score += 3
-      }
+      if (inst.workingDirectory === match.workingDirectory) score += 5
+      else if (inst.workingDirectory.startsWith(match.workingDirectory + '/')) score += 3
     }
 
-    // 3. Repo name in working directory path (when localPath is missing)
     if (match.repoName && !match.workingDirectory) {
       const dirLower = inst.workingDirectory.toLowerCase()
       const repoLower = match.repoName.toLowerCase()
@@ -399,36 +407,98 @@ async function findMatchingSession(match: {
       }
     }
 
-    // 4. Session name contains PR number or branch
     if (match.prNumber && inst.name) {
       const nameLower = inst.name.toLowerCase()
-      if (nameLower.includes(`#${match.prNumber}`) || nameLower.includes(`pr ${match.prNumber}`)) {
-        score += 6
-      }
+      if (nameLower.includes(`#${match.prNumber}`) || nameLower.includes(`pr ${match.prNumber}`)) score += 6
     }
     if (match.gitBranch && inst.name) {
-      if (inst.name.toLowerCase().includes(match.gitBranch.toLowerCase())) {
-        score += 4
+      if (inst.name.toLowerCase().includes(match.gitBranch.toLowerCase())) score += 4
+    }
+
+    if (score > 0) {
+      // Boost waiting sessions slightly so they win ties over busy
+      const adjusted = inst.activity === 'waiting' ? score + 1 : score
+      candidates.push({ type: 'running', instance: inst, score: adjusted })
+    }
+  }
+
+  // ---- 2. Score CLI history sessions (for --resume) ----
+  // Only consider if no strong running match found
+  const bestRunning = candidates.length > 0 ? Math.max(...candidates.map(c => c.score)) : 0
+
+  if (bestRunning < 10) {
+    try {
+      const history = scanSessions(100)
+      // Exclude sessions that are already running in Colony
+      const runningArgs = all.flatMap(i => i.args || [])
+
+      for (const session of history) {
+        if (runningArgs.includes(session.sessionId)) continue
+
+        let score = 0
+
+        // Check if history session's project dir matches
+        if (match.workingDirectory && session.project === match.workingDirectory) {
+          score += 5
+        }
+
+        if (match.repoName && !match.workingDirectory) {
+          const projLower = session.project.toLowerCase()
+          const repoLower = match.repoName.toLowerCase()
+          if (projLower.endsWith('/' + repoLower) || projLower.includes('/' + repoLower + '/')) {
+            score += 4
+          }
+        }
+
+        // Check if session was on the right branch (check live branch of project dir)
+        if (match.gitBranch && session.project) {
+          const liveBranch = getLiveBranch(session.project)
+          if (liveBranch === match.gitBranch) {
+            score += 8
+          }
+        }
+
+        // Name/display contains PR number or branch
+        const display = (session.name || session.display || '').toLowerCase()
+        if (match.prNumber && (display.includes(`#${match.prNumber}`) || display.includes(`pr ${match.prNumber}`))) {
+          score += 6
+        }
+        if (match.gitBranch && display.includes(match.gitBranch.toLowerCase())) {
+          score += 4
+        }
+
+        // History sessions get a small penalty vs running (prefer live context)
+        if (score > 0) {
+          candidates.push({
+            type: 'resume',
+            sessionId: session.sessionId,
+            project: session.project,
+            name: session.name || session.display.slice(0, 40),
+            score: score - 2,
+          })
+        }
       }
+    } catch (err) {
+      log(`Failed to scan session history: ${err}`)
     }
+  }
 
-    return { inst, score }
-  }))
+  if (candidates.length === 0) return null
 
-  const matches = scored.filter(s => s.score > 0)
-  if (matches.length === 0) return null
-
-  // Sort: highest score, prefer waiting over busy, then most recent
-  matches.sort((a, b) => {
+  // Sort by score descending, then prefer running over resume
+  candidates.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score
-    if (a.inst.activity !== b.inst.activity) {
-      return a.inst.activity === 'waiting' ? -1 : 1
-    }
-    return new Date(b.inst.createdAt).getTime() - new Date(a.inst.createdAt).getTime()
+    if (a.type !== b.type) return a.type === 'running' ? -1 : 1
+    return 0
   })
 
-  log(`Routing: best match "${matches[0].inst.name}" score=${matches[0].score}`)
-  return matches[0].inst
+  const best = candidates[0]
+  if (best.type === 'running') {
+    log(`Routing: best match is running session "${best.instance.name}" score=${best.score}`)
+  } else {
+    log(`Routing: best match is history session "${best.name}" (${best.sessionId}) score=${best.score} — will resume`)
+  }
+  return best
 }
 
 // ---- Trigger Execution ----
@@ -541,10 +611,11 @@ async function fireAction(action: ActionDef, ctx: TriggerContext): Promise<void>
     }
 
     log(`Routing: looking for session matching branch=${resolvedMatch.gitBranch} dir=${resolvedMatch.workingDirectory} repo=${resolvedMatch.repoName} pr=#${resolvedMatch.prNumber}`)
-    const existing = await findMatchingSession(resolvedMatch)
+    const route = await findBestRoute(resolvedMatch)
 
-    if (existing) {
-      log(`Routing: found session "${existing.name}" (${existing.id}) activity=${existing.activity}`)
+    if (route?.type === 'running') {
+      const existing = route.instance
+      log(`Routing: found running session "${existing.name}" (${existing.id}) activity=${existing.activity}`)
 
       if (existing.activity === 'waiting') {
         writeToInstance(existing.id, prompt + '\r')
@@ -554,14 +625,23 @@ async function fireAction(action: ActionDef, ctx: TriggerContext): Promise<void>
 
       if (action.busyStrategy === 'launch-new') {
         log(`Routing: session busy, busyStrategy=launch-new, launching new session`)
-        // Fall through to launch-session below
       } else {
-        // Default: wait for session to become idle
         log(`Routing: session busy, waiting for idle...`)
         await sendPromptToExistingSession(existing.id, prompt)
         broadcast('pipeline:fired', { pipeline: name, instanceId: existing.id, routed: true })
         return
       }
+    } else if (route?.type === 'resume') {
+      log(`Routing: resuming history session "${route.name}" (${route.sessionId})`)
+      const inst = await createInstance({
+        name: name,
+        workingDirectory: route.project,
+        color: action.color,
+        args: ['--resume', route.sessionId],
+      })
+      await sendPromptWhenReady(inst.id, prompt)
+      broadcast('pipeline:fired', { pipeline: name, instanceId: inst.id, routed: true, resumed: true })
+      return
     } else {
       log(`Routing: no matching session found, launching new`)
     }
