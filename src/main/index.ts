@@ -7,6 +7,7 @@ import { createTray, updateTrayMenu } from './tray'
 import { initLogger } from './logger'
 import { getSetting } from './settings'
 import { updateColonyContext } from './colony-context'
+import { seedDefaultPipelines, startPipelines } from './pipeline-engine'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -242,6 +243,9 @@ app.whenReady().then(() => {
   // Update tray when instance list changes — set before daemon connect so no events are missed
   setOnInstanceListChanged(() => updateTrayMenu(mainWindow))
 
+  // Seed default pipelines before daemon connects
+  seedDefaultPipelines()
+
   // Connect to PTY daemon (spawns it if not running)
   initDaemon().then(async () => {
     console.log('[app] daemon connected')
@@ -249,6 +253,12 @@ app.whenReady().then(() => {
     // Generate initial colony context
     await updateColonyContext()
     console.log('[app] colony context initialized')
+    // Start pipeline polling
+    startPipelines().then(() => {
+      console.log('[app] pipelines started')
+    }).catch((err) => {
+      console.error('[app] pipelines failed to start:', err)
+    })
   }).catch((err) => {
     console.error('[app] daemon init failed:', err)
   })

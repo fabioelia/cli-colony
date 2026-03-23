@@ -80,6 +80,22 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 - Task Assistant session helps design and create queues (reuses existing, "New" button for fresh start)
 - Parse validation shows task count and mode before running
 
+### Pipelines
+- **Pipelines tab** — reactive automation: trigger → condition → action
+- Define pipelines as YAML files in `~/.claude-colony/pipelines/`
+- **git-poll trigger** — polls repos for branch/file changes on an interval
+- **branch-file-exists condition** — checks if a specific file exists on a branch
+- **pr-checks-failed condition** — fires when CI checks fail on your PRs
+- **launch-session action** — spawns a Claude session with a templated prompt
+- **route-to-session action** — finds an existing session on the matching branch/repo, injects the prompt into it, falls back to launching new if no match
+  - Score-based matching: exact branch (10pts) > exact dir (5pts) > subdir (3pts)
+  - Activity-aware: prefers idle sessions, waits for busy ones (configurable)
+  - `busyStrategy: wait` (default) or `launch-new`
+- **Dedup** — avoids re-firing for the same event within a configurable TTL
+- **Template variables** — `{{pr.number}}`, `{{pr.branch}}`, `{{repo.localPath}}`, `{{github.user}}`, etc.
+- Enable/disable pipelines from the UI, edit YAML inline, trigger polls manually
+- **Pre-seeded pipeline**: Colony Feedback — routes reviewer feedback from `colony-feedback` branch (`reviews/<pr-number>/feedback.md`) to an existing session on that branch, or launches a new one
+
 ### Session Orchestration
 - **Orchestrate tab** combining cross-session intelligence
 - **Cross-session search** — search terminal output across all active sessions
@@ -199,6 +215,8 @@ All app data lives in `~/.claude-colony/`:
 ├── daemon.pid             # Daemon process ID
 ├── daemon.log             # Daemon process logs
 ├── colony-context.md      # Auto-generated shared context for all sessions
+├── pipelines/             # YAML pipeline definitions (trigger → action)
+├── pipeline-state.json    # Pipeline poll state and dedup keys
 ├── screenshots/           # Pasted clipboard images
 ├── task-queues/           # YAML task queue definitions
 ├── task-workspace/        # Per-task run directories (<queue>/<task>/)

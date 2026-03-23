@@ -5,7 +5,8 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 import {
   Plus, Trash2, Play, Square, ChevronDown, ChevronRight,
-  Save, FileText, CheckCircle, XCircle, Loader, Clock, ListOrdered, Layers
+  Save, FileText, CheckCircle, XCircle, Loader, Clock, ListOrdered, Layers,
+  FolderOpen, File, RefreshCw, FolderTree
 } from 'lucide-react'
 import type { ClaudeInstance } from '../types'
 
@@ -32,6 +33,24 @@ interface QueueFile {
   name: string
   path: string
   content: string
+}
+
+interface RunFile {
+  name: string
+  path: string
+  size: number
+}
+
+interface RunTask {
+  name: string
+  path: string
+  files: RunFile[]
+}
+
+interface RunQueue {
+  name: string
+  path: string
+  tasks: RunTask[]
 }
 
 interface Props {
@@ -103,6 +122,51 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
   const [isRunning, setIsRunning] = useState(false)
   const [showResults, setShowResults] = useState(false)
   const stopRef = useRef(false)
+
+  // Runs & artifacts
+  const [runs, setRuns] = useState<RunQueue[]>([])
+  const [expandedRuns, setExpandedRuns] = useState<Set<string>>(new Set())
+  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set())
+  const [previewFile, setPreviewFile] = useState<{ path: string; content: string; name: string } | null>(null)
+  const [showRuns, setShowRuns] = useState(true)
+
+  const loadRuns = useCallback(async () => {
+    const data = await window.api.taskQueue.listRuns()
+    setRuns(data)
+  }, [])
+
+  // Load runs on mount and after a queue finishes running
+  useEffect(() => { loadRuns() }, [loadRuns])
+  useEffect(() => { if (!isRunning && showResults) loadRuns() }, [isRunning])
+
+  const toggleRunExpand = (key: string) => {
+    setExpandedRuns((prev) => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  }
+
+  const toggleTaskExpand = (key: string) => {
+    setExpandedTasks((prev) => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  }
+
+  const handlePreviewFile = async (file: RunFile) => {
+    const result = await window.api.fs.readFile(file.path)
+    if (result.content !== undefined) {
+      setPreviewFile({ path: file.path, content: result.content, name: file.name })
+    }
+  }
+
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
 
   // CLI assistant terminal
   const [assistantId, setAssistantId] = useState<string | null>(null)
@@ -457,7 +521,61 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
             </div>
           )}
 
-          {!selectedFile && !editingNew && queueFiles.length === 0 && (
+          {/* Runs & Artifacts */}
+          {runs.length > 0 && (
+            <div className="task-runs">
+              <div className="task-runs-header" onClick={() => setShowRuns(!showRuns)}>
+                {showRuns ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                <FolderTree size={13} />
+                <span>Runs & Artifacts</span>
+                <span className="task-runs-count">{runs.length} queue{runs.length !== 1 ? 's' : ''}</span>
+                <button className="task-runs-refresh" onClick={(e) => { e.stopPropagation(); loadRuns() }} title="Refresh"><RefreshCw size={11} /></button>
+              </div>
+              {showRuns && (
+                <div className="task-runs-tree">
+                  {runs.map((queue) => (
+                    <div key={queue.name} className="task-runs-queue">
+                      <div className="task-runs-queue-row" onClick={() => toggleRunExpand(queue.name)}>
+                        {expandedRuns.has(queue.name) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                        <FolderOpen size={12} />
+                        <span className="task-runs-queue-name">{queue.name}</span>
+                        <span className="task-runs-task-count">{queue.tasks.length} task{queue.tasks.length !== 1 ? 's' : ''}</span>
+                      </div>
+                      {expandedRuns.has(queue.name) && queue.tasks.map((task) => (
+                        <div key={task.name} className="task-runs-task">
+                          <div className="task-runs-task-row" onClick={() => toggleTaskExpand(`${queue.name}/${task.name}`)}>
+                            {expandedTasks.has(`${queue.name}/${task.name}`) ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                            <FolderOpen size={11} />
+                            <span className="task-runs-task-name">{task.name}</span>
+                            {task.files.length > 0 && <span className="task-runs-file-count">{task.files.length} file{task.files.length !== 1 ? 's' : ''}</span>}
+                          </div>
+                          {expandedTasks.has(`${queue.name}/${task.name}`) && (
+                            <div className="task-runs-files">
+                              {task.files.length === 0 ? (
+                                <div className="task-runs-no-files">No artifacts yet</div>
+                              ) : task.files.map((file) => (
+                                <div
+                                  key={file.name}
+                                  className={`task-runs-file ${previewFile?.path === file.path ? 'active' : ''}`}
+                                  onClick={() => handlePreviewFile(file)}
+                                >
+                                  <File size={11} />
+                                  <span className="task-runs-file-name">{file.name}</span>
+                                  <span className="task-runs-file-size">{formatSize(file.size)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {!selectedFile && !editingNew && queueFiles.length === 0 && runs.length === 0 && (
             <div className="task-queue-empty-state">
               <ListOrdered size={28} />
               <p>Define batch tasks as YAML</p>
@@ -469,19 +587,43 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
         {/* Divider */}
         <div className="task-queue-divider" onMouseDown={handleDragStart} />
 
-        {/* Right: CLI assistant */}
+        {/* Right: CLI assistant or file preview */}
         <div className="task-queue-right" style={{ width: `${100 - dividerX}%` }}>
-          <div className="task-queue-term-header">
-            <span>Task Assistant</span>
-            <button
-              className="task-queue-term-new"
-              onClick={() => spawnAssistant()}
-              title="Start a fresh Task Assistant session"
-            >
-              <Plus size={12} /> New
-            </button>
-          </div>
-          <div className="task-queue-term-container" ref={termContainerRef} />
+          {previewFile ? (
+            <>
+              <div className="task-queue-term-header">
+                <File size={12} />
+                <span title={previewFile.path}>{previewFile.name}</span>
+                <button className="task-queue-term-new" onClick={() => setPreviewFile(null)} title="Back to Task Assistant">
+                  Back
+                </button>
+              </div>
+              <div className="task-runs-preview">
+                <pre className="task-runs-preview-code">
+                  {previewFile.content.split('\n').map((line, i) => (
+                    <div key={i} className="task-runs-preview-line">
+                      <span className="task-runs-preview-num">{i + 1}</span>
+                      <span>{line}</span>
+                    </div>
+                  ))}
+                </pre>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="task-queue-term-header">
+                <span>Task Assistant</span>
+                <button
+                  className="task-queue-term-new"
+                  onClick={() => spawnAssistant()}
+                  title="Start a fresh Task Assistant session"
+                >
+                  <Plus size={12} /> New
+                </button>
+              </div>
+              <div className="task-queue-term-container" ref={termContainerRef} />
+            </>
+          )}
         </div>
       </div>
     </div>

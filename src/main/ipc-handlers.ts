@@ -29,6 +29,10 @@ import {
 } from './github'
 import type { GitHubRepo, QuickPrompt, GitHubPR } from './github'
 import { updateColonyContext, getColonyContextPath, getColonyContextInstruction } from './colony-context'
+import {
+  getPipelineList, togglePipeline, triggerPollNow, getPipelinesDir,
+  getPipelineContent, savePipelineContent, loadPipelines,
+} from './pipeline-engine'
 
 export function registerIpcHandlers(): void {
   ipcMain.handle('instance:create', (_e, opts) => createInstance(opts || {}))
@@ -346,6 +350,15 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('colony:getContextPath', () => getColonyContextPath())
   ipcMain.handle('colony:getContextInstruction', () => getColonyContextInstruction())
 
+  // Pipelines
+  ipcMain.handle('pipeline:list', () => getPipelineList())
+  ipcMain.handle('pipeline:toggle', (_e, name: string, enabled: boolean) => togglePipeline(name, enabled))
+  ipcMain.handle('pipeline:triggerNow', (_e, name: string) => triggerPollNow(name))
+  ipcMain.handle('pipeline:getDir', () => getPipelinesDir())
+  ipcMain.handle('pipeline:getContent', (_e, fileName: string) => getPipelineContent(fileName))
+  ipcMain.handle('pipeline:saveContent', (_e, fileName: string, content: string) => savePipelineContent(fileName, content))
+  ipcMain.handle('pipeline:reload', () => { loadPipelines(); return getPipelineList() })
+
   // Task workspace path
   const TASK_WORKSPACE = join(app.getPath('home'), '.claude-colony', 'task-workspace')
   ipcMain.handle('taskQueue:getWorkspacePath', () => {
@@ -360,6 +373,42 @@ export function registerIpcHandlers(): void {
     const dir = join(TASK_WORKSPACE, safeName(queueName), safeName(taskName))
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
     return dir
+  })
+
+  // List runs: returns queue dirs → task dirs → files
+  ipcMain.handle('taskQueue:listRuns', () => {
+    const { readdirSync, statSync, existsSync, mkdirSync } = require('fs') as typeof import('fs')
+    if (!existsSync(TASK_WORKSPACE)) mkdirSync(TASK_WORKSPACE, { recursive: true })
+    try {
+      const queues = readdirSync(TASK_WORKSPACE).filter((d: string) => {
+        try { return statSync(join(TASK_WORKSPACE, d)).isDirectory() } catch { return false }
+      })
+      return queues.map((queueDir: string) => {
+        const queuePath = join(TASK_WORKSPACE, queueDir)
+        const tasks = readdirSync(queuePath).filter((d: string) => {
+          try { return statSync(join(queuePath, d)).isDirectory() } catch { return false }
+        })
+        return {
+          name: queueDir,
+          path: queuePath,
+          tasks: tasks.map((taskDir: string) => {
+            const taskPath = join(queuePath, taskDir)
+            const files = readdirSync(taskPath).filter((f: string) => {
+              try { return statSync(join(taskPath, f)).isFile() } catch { return false }
+            })
+            return {
+              name: taskDir,
+              path: taskPath,
+              files: files.map((f: string) => ({
+                name: f,
+                path: join(taskPath, f),
+                size: statSync(join(taskPath, f)).size,
+              })),
+            }
+          }),
+        }
+      })
+    } catch { return [] }
   })
 
   // Task queue file I/O

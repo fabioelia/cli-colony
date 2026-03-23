@@ -120,7 +120,7 @@ function saveConfig(config: GitHubConfig): void {
 
 // ---- gh CLI wrapper ----
 
-function gh(args: string[]): Promise<string> {
+export function gh(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile('gh', args, { timeout: 15000, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) {
