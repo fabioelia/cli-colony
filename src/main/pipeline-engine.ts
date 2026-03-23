@@ -743,7 +743,7 @@ export function seedDefaultPipelines(): void {
   const feedbackFile = join(PIPELINES_DIR, 'colony-feedback.yaml')
   if (!existsSync(feedbackFile)) {
     const template = `name: Colony Feedback
-description: Route reviewer feedback to an existing session on the branch, or launch a new one
+description: Route reviewer feedback to existing sessions. When enabled, also adds a Colony-aware Review PR button to the PRs tab.
 enabled: false
 
 trigger:
@@ -797,6 +797,8 @@ Automates PR review feedback loops. When a reviewer pushes structured feedback t
 1. Go to the **Pipelines** tab in Colony (⚡ icon in sidebar)
 2. Enable the **Colony Feedback** pipeline
 3. Make sure the repo is added in the **Pull Requests** tab with a local path configured
+
+Once enabled, the **Review PR** button on the PRs tab automatically upgrades to include Colony Feedback instructions — it tells the reviewing agent to push structured feedback to the \`colony-feedback\` branch so your app can pick it up.
 
 Colony will poll every 5 minutes. When feedback is detected for a PR you authored, it will be handled automatically.
 

@@ -56,12 +56,6 @@ interface GitHubConfig {
 
 const DEFAULT_PROMPTS: QuickPrompt[] = [
   {
-    id: 'review',
-    label: 'Review PR',
-    prompt: 'Review PR #{{pr.number}} on branch {{pr.branch}}. Check the diff for bugs, security issues, and code quality. Provide a concise summary of changes and any issues found.',
-    scope: 'pr',
-  },
-  {
     id: 'summarize',
     label: 'Summarize PR',
     prompt: 'Summarize the changes in PR #{{pr.number}} ({{pr.title}}) on branch {{pr.branch}}. Give me a brief overview of what this PR does and its impact.',
@@ -339,8 +333,57 @@ export function updateRepoPath(owner: string, name: string, localPath: string): 
   return config.repos
 }
 
+const COLONY_REVIEW_PROMPT: QuickPrompt = {
+  id: 'colony-review',
+  label: 'Review PR',
+  prompt: `Review PR #{{pr.number}} ({{pr.title}}) on branch {{pr.branch}}.
+
+Check the diff for bugs, security issues, code quality, and correctness.
+
+When done, write your feedback to the colony-feedback branch so the author's Colony app picks it up automatically:
+
+1. git stash (if needed)
+2. git checkout -b colony-feedback origin/main 2>/dev/null || git checkout colony-feedback
+3. mkdir -p reviews/{{pr.number}}
+4. Write your structured feedback to reviews/{{pr.number}}/feedback.md with:
+   - ## Critical — blocking issues (security, bugs, correctness)
+   - ## Suggestions — improvements and best practices
+   - ## Questions — things that need clarification
+   Use checkboxes (- [ ]) for each item, reference specific files and line numbers.
+5. git add reviews/ && git commit -m "Review feedback for PR #{{pr.number}}" && git push origin colony-feedback
+6. Switch back to your previous branch`,
+  scope: 'pr',
+}
+
+const BASIC_REVIEW_PROMPT: QuickPrompt = {
+  id: 'review',
+  label: 'Review PR',
+  prompt: 'Review PR #{{pr.number}} on branch {{pr.branch}}. Check the diff for bugs, security issues, and code quality. Provide a concise summary of changes and any issues found.',
+  scope: 'pr',
+}
+
 export function getPrompts(): QuickPrompt[] {
-  return loadConfig().prompts
+  const prompts = loadConfig().prompts
+
+  // If user already has a review prompt (custom or saved), don't inject
+  if (prompts.some(p => p.id === 'review' || p.id === 'colony-review')) {
+    return prompts
+  }
+
+  // Check if Colony Feedback pipeline is enabled
+  try {
+    const pipelinesDir = join(app.getPath('home'), '.claude-colony', 'pipelines')
+    const feedbackFile = join(pipelinesDir, 'colony-feedback.yaml')
+    if (existsSync(feedbackFile)) {
+      const content = readFileSync(feedbackFile, 'utf-8')
+      if (/^enabled:\s*true/m.test(content)) {
+        return [COLONY_REVIEW_PROMPT, ...prompts]
+      }
+    }
+  } catch { /* ignore */ }
+
+  // Pipeline not enabled — use basic review prompt
+  return [BASIC_REVIEW_PROMPT, ...prompts]
 }
 
 export function savePrompts(prompts: QuickPrompt[]): QuickPrompt[] {
