@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, Workflow, TerminalSquare, Bot } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, Workflow, TerminalSquare, Bot, Zap } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import Tooltip from './Tooltip'
 import { COLORS, formatTime, cliBackendLabel, formatInstanceCmd } from '../lib/constants'
 
-export type SidebarView = 'instances' | 'agents' | 'github' | 'sessions' | 'settings' | 'logs' | 'tasks' | 'orchestrate'
+export type SidebarView = 'instances' | 'agents' | 'github' | 'sessions' | 'settings' | 'logs' | 'tasks' | 'orchestrate' | 'pipelines'
 
 interface Props {
   instances: ClaudeInstance[]
@@ -269,6 +269,11 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
           <Tooltip text="Orchestrate" detail="Session search, chains, dependencies" position="bottom">
             <button className={`sidebar-nav-btn ${view === 'orchestrate' ? 'active' : ''}`} onClick={() => onViewChange('orchestrate')}>
               <Workflow size={16} />
+            </button>
+          </Tooltip>
+          <Tooltip text="Pipelines" detail="Automated triggers and actions" position="bottom">
+            <button className={`sidebar-nav-btn ${view === 'pipelines' ? 'active' : ''}`} onClick={() => onViewChange('pipelines')}>
+              <Zap size={16} />
             </button>
           </Tooltip>
           <div className="sidebar-nav-spacer" />

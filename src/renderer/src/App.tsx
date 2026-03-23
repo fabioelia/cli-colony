@@ -10,6 +10,7 @@ import GitHubPanel from './components/GitHubPanel'
 import CommandPalette from './components/CommandPalette'
 import TaskQueuePanel from './components/TaskQueuePanel'
 import SessionDepsPanel from './components/SessionDepsPanel'
+import PipelinesPanel from './components/PipelinesPanel'
 
 type View = SidebarView | 'agent-editor'
 
@@ -797,6 +798,7 @@ export default function App() {
             }}
           />
         )}
+        {view === 'pipelines' && <PipelinesPanel />}
         <div style={{ display: view === 'github' ? 'contents' : 'none' }}>
           <GitHubPanel
             onBack={() => setView('instances')}

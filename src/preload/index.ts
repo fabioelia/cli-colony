@@ -206,12 +206,43 @@ export interface ClaudeManagerAPI {
     getContextPath: () => Promise<string>
     getContextInstruction: () => Promise<string>
   }
+  pipeline: {
+    list: () => Promise<Array<{
+      name: string
+      description: string
+      enabled: boolean
+      fileName: string
+      triggerType: string
+      interval: number
+      lastPollAt: string | null
+      lastFiredAt: string | null
+      lastError: string | null
+      fireCount: number
+    }>>
+    toggle: (name: string, enabled: boolean) => Promise<boolean>
+    triggerNow: (name: string) => Promise<boolean>
+    getDir: () => Promise<string>
+    getContent: (fileName: string) => Promise<string | null>
+    saveContent: (fileName: string, content: string) => Promise<boolean>
+    reload: () => Promise<any>
+    onStatus: (cb: (pipelines: any[]) => void) => () => void
+    onFired: (cb: (data: { pipeline: string; instanceId: string }) => void) => () => void
+  }
   taskQueue: {
     list: () => Promise<Array<{ name: string; path: string; content: string }>>
     save: (name: string, content: string) => Promise<string>
     delete: (name: string) => Promise<boolean>
     getWorkspacePath: () => Promise<string>
     createTaskDir: (queueName: string, taskName: string) => Promise<string>
+    listRuns: () => Promise<Array<{
+      name: string
+      path: string
+      tasks: Array<{
+        name: string
+        path: string
+        files: Array<{ name: string; path: string; size: number }>
+      }>
+    }>>
   }
   resources: {
     getUsage: () => Promise<{
@@ -347,9 +378,29 @@ const api: ClaudeManagerAPI = {
     delete: (name) => ipcRenderer.invoke('taskQueue:delete', name),
     getWorkspacePath: () => ipcRenderer.invoke('taskQueue:getWorkspacePath'),
     createTaskDir: (queueName, taskName) => ipcRenderer.invoke('taskQueue:createTaskDir', queueName, taskName),
+    listRuns: () => ipcRenderer.invoke('taskQueue:listRuns'),
   },
   resources: {
     getUsage: () => ipcRenderer.invoke('resources:getUsage'),
+  },
+  pipeline: {
+    list: () => ipcRenderer.invoke('pipeline:list'),
+    toggle: (name, enabled) => ipcRenderer.invoke('pipeline:toggle', name, enabled),
+    triggerNow: (name) => ipcRenderer.invoke('pipeline:triggerNow', name),
+    getDir: () => ipcRenderer.invoke('pipeline:getDir'),
+    getContent: (fileName) => ipcRenderer.invoke('pipeline:getContent', fileName),
+    saveContent: (fileName, content) => ipcRenderer.invoke('pipeline:saveContent', fileName, content),
+    reload: () => ipcRenderer.invoke('pipeline:reload'),
+    onStatus: (cb) => {
+      const l = (_e: any, data: any[]) => cb(data)
+      ipcRenderer.on('pipeline:status', l)
+      return () => ipcRenderer.removeListener('pipeline:status', l)
+    },
+    onFired: (cb) => {
+      const l = (_e: any, data: { pipeline: string; instanceId: string }) => cb(data)
+      ipcRenderer.on('pipeline:fired', l)
+      return () => ipcRenderer.removeListener('pipeline:fired', l)
+    },
   },
 }
 
