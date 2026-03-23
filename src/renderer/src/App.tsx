@@ -645,6 +645,14 @@ export default function App() {
                   }
                 }}
                 onCloseSplit={handleCloseSplitView}
+                onSpawnChild={async () => {
+                  const child = await window.api.instance.create({
+                    name: `${inst.name} → child`,
+                    workingDirectory: inst.workingDirectory,
+                    parentId: inst.id,
+                  })
+                  setActiveId(child.id)
+                }}
                 isSplit={isSplit}
                 terminalsRef={terminalsRef}
                 searchOpen={isFocused && searchOpen}
@@ -789,13 +797,13 @@ export default function App() {
             {fontSize}px
           </span>
           {resourceUsage && resourceUsage.total.cpu > 0 && (
-            <span className="status-bar-item status-bar-resources" title={`Colony total: CPU ${resourceUsage.total.cpu}%, Memory ${resourceUsage.total.memory}MB`}>
-              CPU {resourceUsage.total.cpu}% | {resourceUsage.total.memory}MB
+            <span className="status-bar-item status-bar-resources" title={`Colony total: CPU ${resourceUsage.total.cpu.toFixed(1)}%, Memory ${resourceUsage.total.memory.toFixed(1)}MB`}>
+              CPU {resourceUsage.total.cpu.toFixed(1)}% | {resourceUsage.total.memory.toFixed(1)}MB
             </span>
           )}
           {active && resourceUsage?.perInstance[active.id] && (
-            <span className="status-bar-item status-bar-session-resources" title={`This session: CPU ${resourceUsage.perInstance[active.id].cpu}%, Memory ${resourceUsage.perInstance[active.id].memory}MB`}>
-              [{resourceUsage.perInstance[active.id].cpu}% / {resourceUsage.perInstance[active.id].memory}MB]
+            <span className="status-bar-item status-bar-session-resources" title={`This session: CPU ${resourceUsage.perInstance[active.id].cpu.toFixed(1)}%, Memory ${resourceUsage.perInstance[active.id].memory.toFixed(1)}MB`}>
+              [{resourceUsage.perInstance[active.id].cpu.toFixed(1)}% / {resourceUsage.perInstance[active.id].memory.toFixed(1)}MB]
             </span>
           )}
           <span className="status-bar-spacer" />

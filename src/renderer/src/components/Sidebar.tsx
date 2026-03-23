@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, Workflow } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, Workflow, TerminalSquare, Bot } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import Tooltip from './Tooltip'
 import { COLORS, formatTime } from '../lib/constants'
@@ -184,7 +184,11 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
             )}
           </div>
         )}
-        <div className="instance-meta">{dirName(inst.workingDirectory)}</div>
+        <div className="instance-meta">
+          {inst.parentId && <span className="instance-child-indicator" title="Child session">↳ </span>}
+          {dirName(inst.workingDirectory)}
+          {inst.childIds?.length > 0 && <span className="instance-parent-badge" title={`${inst.childIds.length} child session${inst.childIds.length > 1 ? 's' : ''}`}> · {inst.childIds.length} child{inst.childIds.length > 1 ? 'ren' : ''}</span>}
+        </div>
       </div>
       <div className="instance-item-right">
         <span className={`instance-status ${inst.status}`}>
@@ -227,22 +231,39 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
   return (
     <div className="sidebar" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <div className="sidebar-header">
-        <div className="sidebar-tabs">
-          <button className={`sidebar-tab ${view === 'instances' ? 'active' : ''}`} onClick={() => onViewChange('instances')} title="View sessions">
-            Sessions {instances.length > 0 && <span className="sidebar-tab-count">{instances.length}</span>}
-          </button>
-          <button className={`sidebar-tab ${view === 'agents' ? 'active' : ''}`} onClick={() => onViewChange('agents')} title="View agents">
-            Agents
-          </button>
-          <button className={`sidebar-tab ${view === 'github' ? 'active' : ''}`} onClick={() => onViewChange('github')} title="View pull requests">
-            <GitPullRequest size={12} /> PRs
-          </button>
-          <button className={`sidebar-tab ${view === 'tasks' ? 'active' : ''}`} onClick={() => onViewChange('tasks')} title="Task queue / batch mode">
-            <ListChecks size={12} /> Tasks
-          </button>
-          <button className={`sidebar-tab ${view === 'orchestrate' ? 'active' : ''}`} onClick={() => onViewChange('orchestrate')} title="Search, chains, dependencies">
-            <Workflow size={12} /> Orch
-          </button>
+        <div className="sidebar-nav">
+          <Tooltip text="Sessions" detail={`${instances.length} active`} shortcut="Cmd+1-9" position="bottom">
+            <button className={`sidebar-nav-btn ${view === 'instances' ? 'active' : ''}`} onClick={() => onViewChange('instances')}>
+              <TerminalSquare size={16} />
+              {instances.length > 0 && <span className="sidebar-nav-badge">{instances.length}</span>}
+            </button>
+          </Tooltip>
+          <Tooltip text="Agents" detail="Browse and create agent definitions" position="bottom">
+            <button className={`sidebar-nav-btn ${view === 'agents' ? 'active' : ''}`} onClick={() => onViewChange('agents')}>
+              <Bot size={16} />
+            </button>
+          </Tooltip>
+          <Tooltip text="Pull Requests" detail="GitHub PRs, reviews, comments" position="bottom">
+            <button className={`sidebar-nav-btn ${view === 'github' ? 'active' : ''}`} onClick={() => onViewChange('github')}>
+              <GitPullRequest size={16} />
+            </button>
+          </Tooltip>
+          <Tooltip text="Tasks" detail="Task queue and batch execution" position="bottom">
+            <button className={`sidebar-nav-btn ${view === 'tasks' ? 'active' : ''}`} onClick={() => onViewChange('tasks')}>
+              <ListChecks size={16} />
+            </button>
+          </Tooltip>
+          <Tooltip text="Orchestrate" detail="Session search, chains, dependencies" position="bottom">
+            <button className={`sidebar-nav-btn ${view === 'orchestrate' ? 'active' : ''}`} onClick={() => onViewChange('orchestrate')}>
+              <Workflow size={16} />
+            </button>
+          </Tooltip>
+          <div className="sidebar-nav-spacer" />
+          <Tooltip text="Settings" position="bottom">
+            <button className={`sidebar-nav-btn ${view === 'settings' ? 'active' : ''}`} onClick={() => onViewChange(view === 'settings' ? 'instances' : 'settings')}>
+              <Settings size={16} />
+            </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -453,14 +474,6 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
       )}
 
       <div className="sidebar-footer">
-        <button
-          className={`sidebar-footer-btn ${view === 'settings' ? 'active' : ''}`}
-          onClick={() => onViewChange(view === 'settings' ? 'instances' : 'settings')}
-          aria-label="Settings"
-          title="Settings"
-        >
-          <Settings size={14} /> Settings
-        </button>
       </div>
     </div>
   )

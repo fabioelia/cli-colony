@@ -58,6 +58,36 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 - 15 template variables: `{{pr.number}}`, `{{pr.title}}`, `{{pr.branch}}`, `{{pr.status}}`, `{{pr.author}}`, `{{pr.assignees}}`, `{{pr.reviewers}}`, `{{pr.labels}}`, etc.
 - Relative markdown links resolved to absolute GitHub URLs
 - Auto-refresh all repos on page load, ensures context is current before launching prompts
+- **CI/CD Status** — GitHub Actions check status per PR (green/red/yellow badges), expand to see individual checks, fetch logs for failures, one-click "Fix Failing Checks" to launch a session
+
+### Command Palette
+- **Cmd+K** opens a fuzzy search across everything
+- Switch to any active session, resume history sessions, navigate to any panel
+- Actions: New Session, Kill active, Toggle Split
+- Arrow keys + Enter to select, Escape to close
+
+### Task Queue
+- **Tasks tab** in the sidebar for batch execution
+- Define task queues as YAML files in `~/.claude-colony/task-queues/`
+- Each task: prompt + working directory, run parallel or sequential
+- Create, edit, delete queues from the UI
+- Each task spawns a Claude session automatically
+
+### Session Orchestration
+- **Orchestrate tab** combining cross-session intelligence
+- **Cross-session search** — search terminal output across all active sessions
+- **Agent chains** — multi-step workflows (Design → Implement → Test → PR), each step spawns a session
+- **Session dependencies** — declare that one session depends on another, auto-start or notify on completion
+- **Parent-child sessions** — spawn child sessions that report back via structured handoff documents
+  - Child writes a handoff to `~/.claude-colony/handoffs/<id>.md` when done
+  - Parent is automatically notified to read the handoff and decide next steps
+  - Sidebar shows parent/child relationships (↳ indicator, child count)
+
+### Resource Monitor
+- Live CPU and memory usage in the status bar
+- Per-session usage for the active session
+- Total Colony resource usage (all sessions + child processes)
+- Polls every 5 seconds via `ps`
 
 ### Split View
 - Per-session split partners — session A's split with B persists when switching away
@@ -144,6 +174,7 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 | `Cmd+F` | Find in terminal / file preview |
 | `Cmd+1` – `Cmd+9` | Switch session by position (pinned → active → stopped) |
 | `Alt+Tab` / `Alt+Shift+Tab` | Cycle through sessions |
+| `Cmd+K` | Command palette |
 | `Cmd+=` / `Cmd+-` / `Cmd+0` | Zoom in / out / reset |
 | `Escape` | Close any open modal |
 
@@ -160,6 +191,8 @@ All app data lives in `~/.claude-colony/`:
 ├── daemon.pid             # Daemon process ID
 ├── daemon.log             # Daemon process logs
 ├── screenshots/           # Pasted clipboard images
+├── task-queues/           # YAML task queue definitions
+├── handoffs/              # Child session handoff documents
 └── pr-workspace/          # Dedicated workspace for PR-related instances
     ├── pr-context.md      # Auto-generated PR data for CLI consumption
     ├── pr-memory.md       # Persistent knowledge from PR conversations

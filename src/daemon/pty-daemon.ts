@@ -79,6 +79,7 @@ interface InternalInstance extends ClaudeInstance {
   cleanupTimer: ReturnType<typeof setTimeout> | null
   _lastSnapshot: string
   _activityInterval: ReturnType<typeof setInterval> | null
+  _handoffRequested: boolean
 }
 
 const instances = new Map<string, InternalInstance>()
@@ -155,6 +156,8 @@ function toSerializable(inst: InternalInstance): ClaudeInstance {
     tokenUsage: inst.tokenUsage,
     pinned: inst.pinned,
     mcpServers: inst.mcpServers,
+    parentId: inst.parentId,
+    childIds: inst.childIds,
   }
 }
 
@@ -219,8 +222,9 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
       gitBranch: resolveGitBranch(cwd),
       tokenUsage: { input: 0, output: 0, cost: 0 },
       pinned: false, mcpServers: [],
+      parentId: opts.parentId || null, childIds: [],
       pty: null, outputBuffer: [`Failed to spawn claude: ${err}\r\n`],
-      cleanupTimer: null, _lastSnapshot: '', _activityInterval: null,
+      cleanupTimer: null, _lastSnapshot: '', _activityInterval: null, _handoffRequested: false,
     }
     instances.set(id, instance)
     notifyListChanged()
@@ -234,8 +238,18 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
     args: claudeArgs, gitBranch: resolveGitBranch(cwd),
     tokenUsage: { input: 0, output: 0, cost: 0 },
     pinned: false, mcpServers: [],
+    parentId: opts.parentId || null, childIds: [],
     pty: ptyProcess, outputBuffer: [],
     cleanupTimer: null, _lastSnapshot: '', _activityInterval: null,
+  }
+
+  // Register this child with its parent
+  if (opts.parentId) {
+    const parent = instances.get(opts.parentId)
+    if (parent) {
+      parent.childIds.push(id)
+      notifyListChanged()
+    }
   }
 
   instances.set(id, instance)
@@ -291,6 +305,41 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
     if (newActivity !== instance.activity) {
       instance.activity = newActivity
       broadcastEvent({ type: 'activity', instanceId: id, activity: newActivity })
+
+      // When a child goes busy→waiting, ask it to write a handoff document
+      // Use a flag to only do this once (not on the handoff write itself)
+      if (newActivity === 'waiting' && instance.parentId && instance.pty && !instance._handoffRequested) {
+        instance._handoffRequested = true
+        const handoffDir = path.join(COLONY_DIR, 'handoffs')
+        if (!fs.existsSync(handoffDir)) fs.mkdirSync(handoffDir, { recursive: true })
+        const handoffPath = path.join(handoffDir, `${id}.md`)
+
+        // Ask the child to write a handoff summary
+        const handoffPrompt = `Write a concise handoff document to ${handoffPath} summarizing: 1) What you were asked to do, 2) What you did, 3) Key decisions made, 4) Current state / what's left. Use the Write tool to create the file. Keep it under 200 lines.\r`
+        instance.pty.write(handoffPrompt)
+        log(`asked child ${id} to write handoff to ${handoffPath}`)
+
+        // Poll for the handoff file to appear, then notify parent
+        let pollCount = 0
+        const pollInterval = setInterval(() => {
+          pollCount++
+          if (fs.existsSync(handoffPath) || pollCount > 30) { // 30 * 2s = 60s max
+            clearInterval(pollInterval)
+            const parent = instances.get(instance.parentId!)
+            if (parent?.pty && parent.status === 'running') {
+              if (fs.existsSync(handoffPath)) {
+                const relay = `Your child session "${instance.name}" has completed its work and written a handoff document. Read ${handoffPath} for a summary of what was done, decisions made, and current state. Then decide on next steps.\r`
+                parent.pty.write(relay)
+                log(`notified parent ${instance.parentId} to read handoff from child ${id}`)
+              } else {
+                const relay = `Your child session "${instance.name}" has completed but did not produce a handoff document. You may want to check its terminal output directly.\r`
+                parent.pty.write(relay)
+                log(`child ${id} did not produce handoff, notified parent ${instance.parentId}`)
+              }
+            }
+          }
+        }, 2000)
+      }
 
       // Send /color once Claude CLI is ready for input
       if (newActivity === 'waiting' && !colorSent && instance.pty) {

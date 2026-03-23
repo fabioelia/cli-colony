@@ -13,6 +13,8 @@ export interface ClaudeInstance {
   tokenUsage: { input: number; output: number; cost: number }
   pinned: boolean
   mcpServers: string[]
+  parentId: string | null
+  childIds: string[]
 }
 
 export interface AgentDef {

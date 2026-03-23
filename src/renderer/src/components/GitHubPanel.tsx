@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { ArrowLeft, Plus, Trash2, RefreshCw, GitPullRequest, ExternalLink, Play, Pencil, ChevronDown, ChevronRight, MessageSquare, Send, User, Users, Eye, GitBranch, Clock, FileDiff, ShieldCheck, ShieldAlert, ShieldQuestion, Brain, Save, X, FileText, File, Filter, Search, CheckCircle, XCircle, Loader, CircleDot, Wrench } from 'lucide-react'
 import { marked } from 'marked'
 import type { GitHubPR, GitHubRepo, QuickPrompt, PRChecks } from '../types'
@@ -81,6 +81,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   // CI/CD check status per PR (keyed by "owner/name#number")
   const [checksByPR, setChecksByPR] = useState<Record<string, PRChecks>>({})
   const [checksLoading, setChecksLoading] = useState<Set<string>>(new Set())
+  const checksFetchedRef = useRef<Set<string>>(new Set())
   const [checkLogContent, setCheckLogContent] = useState<string | null>(null)
   const [checkLogName, setCheckLogName] = useState<string | null>(null)
 
@@ -396,7 +397,9 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     try {
       const checks = await window.api.github.fetchChecks(repo, pr.number)
       setChecksByPR((prev) => ({ ...prev, [key]: checks }))
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.error(`[CI] failed to fetch checks for ${key}:`, err)
+    }
     setChecksLoading((prev) => {
       const next = new Set(prev)
       next.delete(key)
@@ -404,7 +407,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     })
   }, [])
 
-  // Auto-fetch checks when PRs are loaded for an expanded repo
+  // Auto-fetch checks once when PRs are loaded for an expanded repo
   useEffect(() => {
     if (!expandedRepo) return
     const repo = repos.find((r) => `${r.owner}/${r.name}` === expandedRepo)
@@ -412,11 +415,12 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     const prs = prsByRepo[expandedRepo] || []
     for (const pr of prs) {
       const key = `${expandedRepo}#${pr.number}`
-      if (!checksByPR[key] && !checksLoading.has(key)) {
+      if (!checksFetchedRef.current.has(key)) {
+        checksFetchedRef.current.add(key)
         fetchChecksForPR(repo, pr)
       }
     }
-  }, [expandedRepo, prsByRepo, repos, checksByPR, checksLoading, fetchChecksForPR])
+  }, [expandedRepo, prsByRepo, repos, fetchChecksForPR])
 
   const timeSince = (dateStr: string) => {
     const secs = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)

@@ -21,6 +21,8 @@ export interface ClaudeInstance {
   tokenUsage: { input: number; output: number; cost: number }
   pinned: boolean
   mcpServers: string[]
+  parentId: string | null
+  childIds: string[]
 }
 
 export interface CreateOpts {
@@ -29,6 +31,7 @@ export interface CreateOpts {
   color?: string
   args?: string[]
   defaultArgs?: string[]
+  parentId?: string
 }
 
 // ---- Client → Daemon requests ----

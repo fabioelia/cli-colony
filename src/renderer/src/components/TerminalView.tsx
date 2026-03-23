@@ -4,7 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork } from 'lucide-react'
 import '@xterm/xterm/css/xterm.css'
 import type { ClaudeInstance } from '../types'
 import Tooltip from './Tooltip'
@@ -24,6 +24,7 @@ interface Props {
   onRemove: (id: string) => void
   onSplit?: () => void
   onCloseSplit?: () => void
+  onSpawnChild?: () => void
   isSplit?: boolean
   terminalsRef: MutableRefObject<Map<string, TerminalEntry>>
   searchOpen?: boolean
@@ -169,7 +170,7 @@ function FileTreeNode({ node, depth, selectedPath, expandedPaths, filter, onTogg
 
 type ViewTab = 'terminal' | 'files'
 
-export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, isSplit, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane }: Props) {
+export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, isSplit, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const initializedRef = useRef(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -680,6 +681,13 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           )}
         </div>
         <div className="terminal-header-actions">
+          {onSpawnChild && (
+            <Tooltip text="Spawn Child" detail="Create a child session that reports back to this one when done" position="bottom">
+              <button onClick={onSpawnChild} aria-label="Spawn child session">
+                <GitFork size={14} />
+              </button>
+            </Tooltip>
+          )}
           {!isSplit && onSplit && (
             <Tooltip text="Split View" detail="Open a second session side-by-side" shortcut="Cmd+\">
               <button onClick={onSplit} aria-label="Split view">

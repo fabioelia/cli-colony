@@ -244,29 +244,31 @@ export async function fetchChecks(repo: GitHubRepo, prNumber: number): Promise<P
     const json = await gh([
       'pr', 'checks', String(prNumber),
       '--repo', repoSlug,
-      '--json', 'name,state,conclusion,link',
+      '--json', 'name,state,link',
     ])
     const raw = JSON.parse(json) as Array<{
       name: string
       state: string
-      conclusion: string
       link: string
     }>
-    const checks: CheckRun[] = raw.map((c) => ({
-      name: c.name,
-      status: c.state === 'SUCCESS' || c.state === 'FAILURE' || c.state === 'SKIPPED' || c.state === 'CANCELLED' || c.state === 'NEUTRAL'
-        ? 'completed'
-        : c.state === 'PENDING' ? 'in_progress' : c.state.toLowerCase(),
-      conclusion: c.state === 'SUCCESS' ? 'success'
-        : c.state === 'FAILURE' ? 'failure'
-        : c.state === 'SKIPPED' ? 'skipped'
-        : c.state === 'CANCELLED' ? 'cancelled'
-        : c.state === 'NEUTRAL' ? 'neutral'
-        : null,
-      url: c.link || '',
-    }))
+    // state is directly: SUCCESS, FAILURE, PENDING, SKIPPED, CANCELLED, NEUTRAL, STARTUP_FAILURE
+    const checks: CheckRun[] = raw.map((c) => {
+      const s = c.state.toUpperCase()
+      const done = s === 'SUCCESS' || s === 'FAILURE' || s === 'SKIPPED' || s === 'CANCELLED' || s === 'NEUTRAL' || s === 'STARTUP_FAILURE'
+      return {
+        name: c.name,
+        status: done ? 'completed' : 'in_progress',
+        conclusion: s === 'SUCCESS' ? 'success'
+          : s === 'FAILURE' || s === 'STARTUP_FAILURE' ? 'failure'
+          : s === 'SKIPPED' ? 'skipped'
+          : s === 'CANCELLED' ? 'cancelled'
+          : s === 'NEUTRAL' ? 'neutral'
+          : null,
+        url: c.link || '',
+      }
+    })
     if (checks.length === 0) return { overall: 'none', checks: [] }
-    const hasFailed = checks.some((c) => c.conclusion === 'failure' || c.conclusion === 'timed_out')
+    const hasFailed = checks.some((c) => c.conclusion === 'failure')
     const hasPending = checks.some((c) => c.status !== 'completed')
     const overall = hasFailed ? 'failure' : hasPending ? 'pending' : 'success'
     return { overall, checks }

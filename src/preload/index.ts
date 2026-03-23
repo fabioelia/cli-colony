@@ -15,6 +15,8 @@ export interface ClaudeInstance {
   tokenUsage: { input: number; output: number; cost: number }
   pinned: boolean
   mcpServers: string[]
+  parentId: string | null
+  childIds: string[]
 }
 
 export interface AgentDef {
@@ -109,6 +111,7 @@ export interface ClaudeManagerAPI {
       workingDirectory?: string
       color?: string
       args?: string[]
+      parentId?: string
     }) => Promise<ClaudeInstance>
     write: (id: string, data: string) => Promise<boolean>
     resize: (id: string, cols: number, rows: number) => Promise<boolean>
