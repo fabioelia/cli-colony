@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { ClaudeInstance, AgentDef, CliSession, RecentSession } from './types'
+import type { ClaudeInstance, AgentDef, CliSession, RecentSession, CliBackend } from './types'
 import Sidebar, { SidebarView } from './components/Sidebar'
 import TerminalView from './components/TerminalView'
 import NewInstanceDialog from './components/NewInstanceDialog'
@@ -13,6 +13,12 @@ import SessionDepsPanel from './components/SessionDepsPanel'
 import PipelinesPanel from './components/PipelinesPanel'
 
 type View = SidebarView | 'agent-editor'
+
+/** Older daemons may omit cliBackend; keep renderer stable. */
+function withCliBackend(inst: ClaudeInstance): ClaudeInstance {
+  if (inst.cliBackend === 'cursor-agent') return inst
+  return { ...inst, cliBackend: 'claude' as const }
+}
 
 export default function App() {
   const [instances, setInstances] = useState<ClaudeInstance[]>([])
@@ -48,7 +54,7 @@ export default function App() {
   splitRef.current = { splitId, focusedPane }
 
   useEffect(() => {
-    window.api.instance.list().then(setInstances)
+    window.api.instance.list().then((list) => setInstances(list.map(withCliBackend)))
     window.api.sessions.restorable().then(setRestorableSessions)
     window.api.settings.getAll().then((s) => {
       if (s.fontSize) {
@@ -58,7 +64,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const unsub = window.api.instance.onListUpdate(setInstances)
+    const unsub = window.api.instance.onListUpdate((list) => setInstances(list.map(withCliBackend)))
     return unsub
   }, [])
 
@@ -245,6 +251,7 @@ export default function App() {
     workingDirectory?: string
     color?: string
     args?: string[]
+    cliBackend?: CliBackend
   }) => {
     agentToLaunchRef.current = null
     const inst = await window.api.instance.create(opts)
@@ -380,6 +387,7 @@ export default function App() {
       name: session.name || session.display.slice(0, 40),
       workingDirectory: session.project,
       args: ['--resume', session.sessionId],
+      cliBackend: 'claude',
     })
     setActiveId(inst.id)
     setView('instances')
@@ -393,6 +401,7 @@ export default function App() {
         workingDirectory: s.workingDirectory,
         color: s.color,
         args: ['--resume', s.sessionId!],
+        cliBackend: s.cliBackend ?? 'claude',
       })
       if (s.pinned) {
         await window.api.instance.pin(inst.id)
@@ -687,6 +696,7 @@ export default function App() {
                     name: `${inst.name} → child`,
                     workingDirectory: inst.workingDirectory,
                     parentId: inst.id,
+                    cliBackend: inst.cliBackend ?? 'claude',
                   })
                   setActiveId(child.id)
                 }}

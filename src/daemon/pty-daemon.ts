@@ -12,6 +12,7 @@ import { execSync } from 'child_process'
 import * as pty from 'node-pty'
 import type {
   ClaudeInstance,
+  CliBackend,
   CreateOpts,
   DaemonRequest,
   DaemonResponse,
@@ -70,6 +71,18 @@ function loadShellEnv(): Record<string, string> {
 }
 
 const shellEnv = loadShellEnv()
+
+/** Read ~/.claude-colony/settings.json — whether to inject /rename and /color into Claude Code. */
+function readSyncClaudeSlashCommands(): boolean {
+  try {
+    const settingsPath = path.join(COLONY_DIR, 'settings.json')
+    if (fs.existsSync(settingsPath)) {
+      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')) as Record<string, string>
+      return settings.syncClaudeSlashCommands !== 'false'
+    }
+  } catch { /* */ }
+  return true
+}
 
 // ---- Instance management ----
 
@@ -152,6 +165,7 @@ function toSerializable(inst: InternalInstance): ClaudeInstance {
     exitCode: inst.exitCode,
     pid: inst.pid,
     args: inst.args,
+    cliBackend: inst.cliBackend,
     gitBranch: inst.gitBranch,
     tokenUsage: inst.tokenUsage,
     pinned: inst.pinned,
@@ -188,42 +202,65 @@ function genId(): string {
   return `${hex()}${hex()}-${hex()}-${hex()}`
 }
 
+function resolveCliBackend(opts: CreateOpts): CliBackend {
+  return opts.cliBackend === 'cursor-agent' ? 'cursor-agent' : 'claude'
+}
+
+function buildSpawn(
+  cliBackend: CliBackend,
+  cwd: string,
+  name: string,
+  defaultArgs: string[],
+  userArgs: string[],
+): { command: string; argv: string[] } {
+  if (cliBackend === 'cursor-agent') {
+    return { command: 'agent', argv: [...defaultArgs, ...userArgs] }
+  }
+  return {
+    command: 'claude',
+    argv: ['--add-dir', cwd, '--name', name, ...defaultArgs, ...userArgs],
+  }
+}
+
 // ---- Core operations ----
 
 function createInstance(opts: CreateOpts): ClaudeInstance {
   const id = genId()
   const cwd = opts.workingDirectory || HOME
+  const cliBackend = resolveCliBackend(opts)
   instanceCounter++
-  const name = opts.name || `Claude ${instanceCounter}`
+  const defaultName =
+    cliBackend === 'cursor-agent' ? `Cursor ${instanceCounter}` : `Claude ${instanceCounter}`
+  const name = opts.name || defaultName
   const color = opts.color || nextColor()
 
   const defaultArgs = opts.defaultArgs || []
   const userArgs = opts.args || []
-  const claudeArgs = ['--add-dir', cwd, '--name', name, ...defaultArgs, ...userArgs]
+  const { command, argv } = buildSpawn(cliBackend, cwd, name, defaultArgs, userArgs)
 
-  log(`creating instance name="${name}" cwd=${cwd} args=${JSON.stringify(claudeArgs)}`)
+  log(`creating instance name="${name}" cwd=${cwd} cliBackend=${cliBackend} command=${command} args=${JSON.stringify(argv)}`)
 
   let ptyProcess: pty.IPty
   try {
-    ptyProcess = pty.spawn('claude', claudeArgs, {
+    ptyProcess = pty.spawn(command, argv, {
       name: 'xterm-256color',
       cols: 120,
       rows: 30,
       cwd,
       env: shellEnv,
     })
-    log(`spawned claude pid=${ptyProcess.pid}`)
+    log(`spawned ${command} pid=${ptyProcess.pid}`)
   } catch (err) {
-    log(`failed to spawn claude: ${err}`)
+    log(`failed to spawn ${command}: ${err}`)
     const instance: InternalInstance = {
       id, name, color, status: 'exited', activity: 'waiting',
       workingDirectory: cwd, createdAt: new Date().toISOString(),
-      exitCode: -1, pid: null, args: claudeArgs,
+      exitCode: -1, pid: null, args: argv, cliBackend,
       gitBranch: resolveGitBranch(cwd),
       tokenUsage: { input: 0, output: 0, cost: 0 },
       pinned: false, mcpServers: [],
       parentId: opts.parentId || null, childIds: [],
-      pty: null, outputBuffer: [`Failed to spawn claude: ${err}\r\n`],
+      pty: null, outputBuffer: [`Failed to spawn ${command}: ${err}\r\n`],
       cleanupTimer: null, _lastSnapshot: '', _activityInterval: null, _handoffRequested: false,
     }
     instances.set(id, instance)
@@ -235,12 +272,12 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
     id, name, color, status: 'running', activity: 'busy',
     workingDirectory: cwd, createdAt: new Date().toISOString(),
     exitCode: null, pid: ptyProcess.pid,
-    args: claudeArgs, gitBranch: resolveGitBranch(cwd),
+    args: argv, cliBackend, gitBranch: resolveGitBranch(cwd),
     tokenUsage: { input: 0, output: 0, cost: 0 },
     pinned: false, mcpServers: [],
     parentId: opts.parentId || null, childIds: [],
     pty: ptyProcess, outputBuffer: [],
-    cleanupTimer: null, _lastSnapshot: '', _activityInterval: null,
+    cleanupTimer: null, _lastSnapshot: '', _activityInterval: null, _handoffRequested: false,
   }
 
   // Register this child with its parent
@@ -341,8 +378,14 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
         }, 2000)
       }
 
-      // Send /color once Claude CLI is ready for input
-      if (newActivity === 'waiting' && !colorSent && instance.pty) {
+      // Send /color once Claude CLI is ready for input (Claude Code only, if sync enabled)
+      if (
+        instance.cliBackend === 'claude' &&
+        readSyncClaudeSlashCommands() &&
+        newActivity === 'waiting' &&
+        !colorSent &&
+        instance.pty
+      ) {
         waitingCount++
         // Skip first waiting if it looks like a trust prompt (check output for "trust")
         const recentOutput = instance.outputBuffer.slice(-50).join('')
@@ -420,7 +463,7 @@ function renameInstance(id: string, name: string): boolean {
   const inst = instances.get(id)
   if (!inst) return false
   inst.name = name
-  if (inst.pty && inst.status === 'running') {
+  if (inst.cliBackend === 'claude' && inst.pty && inst.status === 'running' && readSyncClaudeSlashCommands()) {
     inst.pty.write(`/rename ${name}\r`)
   }
   notifyListChanged()
@@ -461,7 +504,9 @@ function recolorInstance(id: string, color: string): boolean {
   if (colorSyncTimers.has(id)) clearTimeout(colorSyncTimers.get(id)!)
   colorSyncTimers.set(id, setTimeout(() => {
     colorSyncTimers.delete(id)
-    if (!inst.pty || inst.status !== 'running') return
+    if (!inst.pty || inst.status !== 'running' || inst.cliBackend !== 'claude' || !readSyncClaudeSlashCommands()) {
+      return
+    }
     const colorName = closestColorName(color)
     if (colorName) {
       log(`recolor ${id} syncing /color ${colorName}`)
@@ -505,6 +550,7 @@ function restartInstance(id: string, defaultArgs?: string[]): ClaudeInstance | n
   const dArgs = defaultArgs || []
   const filteredArgs = userArgs.filter((arg) => !dArgs.includes(arg))
 
+  const cliBackend = inst.cliBackend
   instances.delete(id)
   return createInstance({
     name: inst.name,
@@ -512,6 +558,7 @@ function restartInstance(id: string, defaultArgs?: string[]): ClaudeInstance | n
     color: inst.color,
     args: filteredArgs.length > 0 ? filteredArgs : undefined,
     defaultArgs: dArgs,
+    cliBackend,
   })
 }
 

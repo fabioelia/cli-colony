@@ -27,6 +27,8 @@ function createWindow(): void {
     minHeight: 600,
     minWidth: 900,
     show: false,
+    // Helps first paint / ready-to-show on macOS vibrancy windows; matches renderer theme
+    backgroundColor: '#1a1a2e',
     title: 'Claude Colony',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
@@ -48,8 +50,38 @@ function createWindow(): void {
     }
   })
 
+  const fallbackShowTimer = setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      console.warn(
+        '[app] Main window was still hidden after timeout; calling show(). ' +
+          'If the window is blank, confirm you started via `yarn dev` (Vite) or ran `yarn build`, and check the terminal for errors.'
+      )
+      mainWindow.show()
+    }
+  }, 5000)
+
   mainWindow.on('ready-to-show', () => {
+    clearTimeout(fallbackShowTimer)
     mainWindow?.show()
+  })
+
+  mainWindow.on('closed', () => {
+    clearTimeout(fallbackShowTimer)
+  })
+
+  mainWindow.webContents.on(
+    'did-fail-load',
+    (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (!isMainFrame) return
+      console.error('[app] Renderer did-fail-load:', { errorCode, errorDescription, validatedURL })
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.show()
+      }
+    }
+  )
+
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    console.error('[app] render-process-gone:', details)
   })
 
   // Prevent Electron from handling Cmd+- / Cmd+= / Cmd+0 as native zoom

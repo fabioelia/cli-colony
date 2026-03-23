@@ -3,7 +3,7 @@ import {
   Search, Plus, Trash2, Play, ArrowRight, Link, ChevronDown, ChevronRight,
   CheckCircle, Loader, XCircle, Clock, ArrowDown,
 } from 'lucide-react'
-import type { ClaudeInstance, AgentChain, AgentChainStep, SessionDependency } from '../types'
+import type { ClaudeInstance, AgentChain, AgentChainStep, SessionDependency, CliBackend } from '../types'
 
 // ---- Cross-session search ----
 
@@ -58,7 +58,12 @@ const DEFAULT_CHAINS: AgentChain[] = [
 interface Props {
   instances: ClaudeInstance[]
   onFocusInstance: (id: string) => void
-  onCreateInstance: (opts: { name?: string; workingDirectory?: string; args?: string[] }) => Promise<ClaudeInstance>
+  onCreateInstance: (opts: {
+    name?: string
+    workingDirectory?: string
+    args?: string[]
+    cliBackend?: CliBackend
+  }) => Promise<ClaudeInstance>
 }
 
 interface ChainRun {

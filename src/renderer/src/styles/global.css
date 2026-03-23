@@ -568,6 +568,19 @@ input, select {
   vertical-align: middle;
 }
 
+.instance-cli-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  border-radius: 3px;
+  background: rgba(148, 163, 184, 0.2);
+  color: #94a3b8;
+  vertical-align: middle;
+}
+
 .instance-unread-badge {
   display: inline-block;
   margin-left: 4px;

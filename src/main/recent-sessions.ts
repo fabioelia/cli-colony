@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
+import type { CliBackend } from '../daemon/protocol'
 
 export interface RecentSession {
   instanceName: string
@@ -8,6 +9,8 @@ export interface RecentSession {
   workingDirectory: string
   color: string
   args: string[]
+  /** Which CLI was used; omitted in older saved files (treat as Claude). */
+  cliBackend?: CliBackend
   pinned?: boolean
   openedAt: string
   closedAt: string | null
@@ -46,6 +49,7 @@ export function trackOpened(opts: {
   workingDirectory: string
   color: string
   args: string[]
+  cliBackend?: CliBackend
   pinned?: boolean
 }): void {
   const sessions = load()
@@ -55,6 +59,7 @@ export function trackOpened(opts: {
     workingDirectory: opts.workingDirectory,
     color: opts.color,
     args: opts.args,
+    cliBackend: opts.cliBackend,
     pinned: opts.pinned || false,
     openedAt: new Date().toISOString(),
     closedAt: null,

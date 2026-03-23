@@ -1,3 +1,5 @@
+import type { CliBackend } from '../types'
+
 export const COLORS = [
   '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
   '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#6366f1',
@@ -14,6 +16,22 @@ export const COLOR_MAP: Record<string, string> = {
   pink: '#ec4899',
   teal: '#14b8a6',
   indigo: '#6366f1',
+}
+
+/** Short label for session list badges (Claude Code vs Cursor `agent`). */
+export function cliBackendLabel(backend: CliBackend | undefined): string {
+  if (backend === 'cursor-agent') return 'Cursor'
+  return 'Claude'
+}
+
+export function cliBinaryForBackend(backend: CliBackend | undefined): string {
+  return backend === 'cursor-agent' ? 'agent' : 'claude'
+}
+
+export function formatInstanceCmd(inst: { cliBackend?: CliBackend; args: string[] }): string {
+  const bin = cliBinaryForBackend(inst.cliBackend)
+  const rest = inst.args.join(' ')
+  return rest ? `${bin} ${rest}` : `${bin} (interactive)`
 }
 
 export function formatTime(ts: number): string {

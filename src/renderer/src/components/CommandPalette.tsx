@@ -4,6 +4,7 @@ import {
   MonitorPlay, History, Search, ArrowRight,
 } from 'lucide-react'
 import type { ClaudeInstance, CliSession } from '../types'
+import { cliBackendLabel } from '../lib/constants'
 
 export interface CommandPaletteAction {
   id: string
@@ -51,11 +52,11 @@ export default function CommandPalette({
       items.push({
         id: `switch-${inst.id}`,
         label: inst.name,
-        detail: `${inst.workingDirectory.split('/').pop()} -- ${inst.status === 'running' ? 'running' : `exited (${inst.exitCode})`}`,
+        detail: `${cliBackendLabel(inst.cliBackend)} · ${inst.workingDirectory.split('/').pop()} · ${inst.status === 'running' ? 'running' : `exited (${inst.exitCode})`}`,
         icon: <MonitorPlay size={14} />,
         section: 'Sessions',
         color: inst.color,
-        keywords: inst.workingDirectory,
+        keywords: `${inst.workingDirectory} ${cliBackendLabel(inst.cliBackend)}`,
         onExecute: () => onSelect(inst.id),
       })
     }

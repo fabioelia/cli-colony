@@ -1,3 +1,5 @@
+export type CliBackend = 'claude' | 'cursor-agent'
+
 export interface ClaudeInstance {
   id: string
   name: string
@@ -9,6 +11,7 @@ export interface ClaudeInstance {
   exitCode: number | null
   pid: number | null
   args: string[]
+  cliBackend: CliBackend
   gitBranch: string | null
   tokenUsage: { input: number; output: number; cost: number }
   pinned: boolean
@@ -47,6 +50,7 @@ export interface RecentSession {
   workingDirectory: string
   color: string
   args: string[]
+  cliBackend?: CliBackend
   openedAt: string
   closedAt: string | null
   exitType: 'running' | 'exited' | 'killed'

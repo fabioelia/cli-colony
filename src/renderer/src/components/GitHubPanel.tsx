@@ -3,6 +3,7 @@ import { ArrowLeft, Plus, Trash2, RefreshCw, GitPullRequest, ExternalLink, Play,
 import { marked } from 'marked'
 import type { GitHubPR, GitHubRepo, QuickPrompt, PRChecks } from '../types'
 import Tooltip from './Tooltip'
+import { shouldSyncClaudeSlashCommands } from '../lib/claude-slash-sync'
 
 function resolveRelativeUrl(href: string, repoSlug: string, branch: string): string {
   if (!href || href.startsWith('http') || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('data:')) return href
@@ -269,16 +270,16 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     let sent = false
     let waitCount = 0
 
-    const sendNameAndPrompt = () => {
+    const sendNameAndPrompt = async () => {
       if (sessionName) {
-        // Rename both Colony sidebar and Claude CLI session
-        window.api.instance.rename(id, sessionName)
-        window.api.instance.write(id, `/rename ${sessionName}\r`)
-        setTimeout(() => {
-          window.api.instance.write(id, prompt + '\r')
-        }, 300)
+        await window.api.instance.rename(id, sessionName)
+        if (await shouldSyncClaudeSlashCommands()) {
+          await window.api.instance.write(id, `/rename ${sessionName}\r`)
+          await new Promise((r) => setTimeout(r, 300))
+        }
+        await window.api.instance.write(id, prompt + '\r')
       } else {
-        window.api.instance.write(id, prompt + '\r')
+        await window.api.instance.write(id, prompt + '\r')
       }
     }
 
@@ -293,7 +294,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
         } else {
           sent = true
           unsub()
-          sendNameAndPrompt()
+          void sendNameAndPrompt()
         }
       }
     })
@@ -302,7 +303,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
       if (!sent && waitCount >= 1) {
         sent = true
         unsub()
-        sendNameAndPrompt()
+        void sendNameAndPrompt()
       }
     }, 5000)
     // Safety timeout — clean up listener after 15s
