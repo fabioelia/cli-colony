@@ -1056,7 +1056,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
               <button onClick={() => setShowPromptEditor(false)} title="Close"><X size={14} /></button>
             </div>
             <p className="github-prompt-help">
-              Per PR prompts use variables: <code>{'{{pr.number}}'}</code> <code>{'{{pr.title}}'}</code> <code>{'{{pr.branch}}'}</code> <code>{'{{pr.url}}'}</code> <code>{'{{pr.author}}'}</code> <code>{'{{pr.status}}'}</code> <code>{'{{pr.reviewDecision}}'}</code> <code>{'{{pr.assignees}}'}</code> <code>{'{{pr.labels}}'}</code> <code>{'{{repo.owner}}'}</code> <code>{'{{repo.name}}'}</code>
+              Per PR prompts use variables: <code>{'{{pr.number}}'}</code> <code>{'{{pr.title}}'}</code> <code>{'{{pr.description}}'}</code> <code>{'{{pr.branch}}'}</code> <code>{'{{pr.url}}'}</code> <code>{'{{pr.author}}'}</code> <code>{'{{pr.status}}'}</code> <code>{'{{pr.reviewDecision}}'}</code> <code>{'{{pr.assignees}}'}</code> <code>{'{{pr.reviewers}}'}</code> <code>{'{{pr.labels}}'}</code> <code>{'{{pr.additions}}'}</code> <code>{'{{pr.deletions}}'}</code> <code>{'{{repo.owner}}'}</code> <code>{'{{repo.name}}'}</code>
             </p>
             <div className="github-prompt-list">
               {editingPrompts.map((p) => (
