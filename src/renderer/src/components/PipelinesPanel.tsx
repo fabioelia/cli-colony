@@ -77,7 +77,7 @@ dedup:
 
 ## Condition Types
 - \`branch-file-exists\`: Checks if a file exists on a specific branch (uses GitHub API)
-- \`pr-checks-failed\`: Fires when CI checks fail on matching PRs
+- \`pr-checks-failed\`: Fires when CI checks fail on matching PRs. Supports \`exclude\` array to ignore specific checks (e.g. playwright, e2e)
 - \`always\`: Always fires (for cron triggers)
 
 ## Dedup

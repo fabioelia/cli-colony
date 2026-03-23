@@ -32,6 +32,7 @@ export interface ConditionDef {
   branch?: string
   path?: string
   match?: Record<string, string>
+  exclude?: string[] // check names to ignore (substring match)
 }
 
 export interface ActionDef {
@@ -230,10 +231,34 @@ function parseYaml(content: string): PipelineDef | null {
       result.condition.match = {}
     }
 
-    // Parse watch array
-    if (result.trigger?.watch && typeof result.trigger.watch === 'string') {
-      result.trigger.watch = [result.trigger.watch]
+    // Parse YAML arrays: lines starting with "- value" under a key
+    // This handles exclude, watch, and any other array fields
+    const arrayFields: Array<{ parent: any; key: string }> = []
+    if (result.condition?.exclude !== undefined) arrayFields.push({ parent: result.condition, key: 'exclude' })
+    if (result.trigger?.watch !== undefined) arrayFields.push({ parent: result.trigger, key: 'watch' })
+
+    for (const { parent, key } of arrayFields) {
+      if (typeof parent[key] === 'string') {
+        parent[key] = [parent[key]]
+      }
     }
+
+    // Also parse dash-list arrays from the raw content for exclude and watch
+    const parseArrayField = (section: string, field: string): string[] | null => {
+      const regex = new RegExp(`${field}:\\s*\\n((?:\\s+-\\s+.+\\n?)+)`, 'm')
+      const m = content.match(regex)
+      if (!m) return null
+      return m[1].split('\n')
+        .map(l => l.trim())
+        .filter(l => l.startsWith('- '))
+        .map(l => l.slice(2).trim().replace(/^["']|["']$/g, ''))
+    }
+
+    const excludeArr = parseArrayField('condition', 'exclude')
+    if (excludeArr && result.condition) result.condition.exclude = excludeArr
+
+    const watchArr = parseArrayField('trigger', 'watch')
+    if (watchArr && result.trigger) result.trigger.watch = watchArr
 
     if (!result.name || !result.trigger?.type || !result.action?.prompt) return null
     if (result.enabled === undefined) result.enabled = true
@@ -722,7 +747,27 @@ async function evaluatePrChecksFailed(condition: ConditionDef, ctx: TriggerConte
   try {
     const checks = await fetchChecks(ctx.repo, ctx.pr.number)
     ctx.checks = checks
-    return checks.overall === 'failure'
+
+    // Filter out excluded checks
+    const excludePatterns = condition.exclude || []
+    const failedChecks = checks.checks.filter(c => {
+      if (c.conclusion !== 'failure' && c.status !== 'failure') return false
+      // Exclude checks matching any exclude pattern (case-insensitive substring)
+      for (const pattern of excludePatterns) {
+        if (c.name.toLowerCase().includes(pattern.toLowerCase())) return false
+      }
+      return true
+    })
+
+    if (failedChecks.length === 0) return false
+
+    // Generate a content hash from the failing check names so dedup
+    // knows when the set of failures changes
+    const failureKey = failedChecks.map(c => c.name).sort().join('|')
+    const { createHash } = require('crypto') as typeof import('crypto')
+    ctx.contentSha = createHash('sha256').update(failureKey).digest('hex').slice(0, 12)
+
+    return true
   } catch {
     return false
   }
@@ -1191,5 +1236,55 @@ When feedback is detected, Colony looks for a running session that matches the P
 `
     writeFileSync(readmeFile, readme, 'utf-8')
     log('Seeded pipeline README: colony-feedback-README.md')
+  }
+
+  // ---- CI Auto-Fix pipeline ----
+  const ciFixFile = join(PIPELINES_DIR, 'ci-auto-fix.yaml')
+  if (!existsSync(ciFixFile)) {
+    const ciTemplate = `name: CI Auto-Fix
+description: Hourly during work hours — find my PRs with failing CI (excluding Playwright) and auto-fix them
+enabled: false
+
+trigger:
+  type: git-poll
+  cron: "0 9-17 * * 1-5"
+  interval: 300
+  repos: auto
+
+condition:
+  type: pr-checks-failed
+  match:
+    pr.author: "{{github.user}}"
+  exclude:
+    - playwright
+    - e2e
+
+action:
+  type: route-to-session
+  match:
+    gitBranch: "{{pr.branch}}"
+    workingDirectory: "{{repo.localPath}}"
+  busyStrategy: wait
+  name: "CI Fix: {{repo.name}}#{{pr.number}}"
+  workingDirectory: "{{repo.localPath}}"
+  color: "#ef4444"
+  prompt: |
+    CI checks are failing on PR #{{pr.number}} ({{pr.title}}) on branch {{pr.branch}} in {{repo.owner}}/{{repo.name}}.
+
+    1. Make sure you are on the PR branch: git checkout {{pr.branch}}
+    2. Pull latest: git pull origin {{pr.branch}}
+    3. Identify which CI checks are failing and why — look at the GitHub Actions logs
+    4. Fix the failing tests or build issues
+    5. Run the relevant tests locally to verify your fix
+    6. Commit and push: git add -A && git commit -m "fix: resolve CI failures" && git push origin {{pr.branch}}
+
+    Focus only on fixing the CI failures. Do not refactor or change unrelated code.
+
+dedup:
+  key: "ci-{{repo.owner}}/{{repo.name}}/{{pr.number}}"
+  ttl: 3600
+`
+    writeFileSync(ciFixFile, ciTemplate, 'utf-8')
+    log('Seeded default pipeline: ci-auto-fix.yaml')
   }
 }
