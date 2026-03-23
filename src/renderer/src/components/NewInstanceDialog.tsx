@@ -9,7 +9,7 @@ interface Props {
     color?: string
     args?: string[]
     cliBackend?: CliBackend
-  }) => void
+  }) => void | Promise<void>
   onClose: () => void
   prefill?: AgentDef
 }
@@ -38,17 +38,24 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
     if (dir) setWorkingDirectory(dir)
   }
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (creating) return
     setCreating(true)
     const args = extraArgs.trim() ? extraArgs.trim().split(/\s+/) : undefined
-    onCreate({
-      name: name.trim() || undefined,
-      workingDirectory: workingDirectory.trim() || undefined,
-      color,
-      args,
-      cliBackend,
-    })
+    try {
+      await onCreate({
+        name: name.trim() || undefined,
+        workingDirectory: workingDirectory.trim() || undefined,
+        color,
+        args,
+        cliBackend,
+      })
+    } catch (err) {
+      console.error(err)
+      const message = err instanceof Error ? err.message : String(err)
+      window.alert(`Could not create session: ${message}`)
+      setCreating(false)
+    }
   }
 
   const handleClose = () => {

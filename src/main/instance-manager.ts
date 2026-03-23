@@ -5,9 +5,10 @@
  * need zero changes. All PTY ownership lives in the daemon process.
  */
 
-import { BrowserWindow, Notification, shell } from 'electron'
+import { app, BrowserWindow, Notification, shell } from 'electron'
 import { exec } from 'child_process'
 import { join } from 'path'
+import { existsSync, statSync } from 'fs'
 import { getDaemonClient, DaemonClient } from './daemon-client'
 import { getDefaultArgs, getSetting, getDefaultCliBackend } from './settings'
 import type { CliBackend } from '../daemon/protocol'
@@ -20,6 +21,15 @@ import type { ClaudeInstance } from '../daemon/protocol'
 let onInstanceListChanged: (() => void) | null = null
 export function setOnInstanceListChanged(cb: () => void): void {
   onInstanceListChanged = cb
+}
+
+/** Expand ~ and trim; default to Electron home (matches Finder / standard paths). */
+function resolveWorkingDirectory(input: string | undefined, home: string): string {
+  const raw = (input ?? '').trim()
+  if (!raw) return home
+  if (raw === '~') return home
+  if (raw.startsWith('~/')) return join(home, raw.slice(2))
+  return raw
 }
 
 function broadcast(channel: string, ...args: unknown[]): void {
@@ -128,11 +138,16 @@ export async function createInstance(opts: {
   cliBackend?: CliBackend
 }): Promise<ClaudeInstance> {
   const defaultArgs = getDefaultArgs()
-  const cwd = opts.workingDirectory || process.env.HOME || '/'
+  const home = app.getPath('home')
+  const cwd = resolveWorkingDirectory(opts.workingDirectory, home)
+  if (!existsSync(cwd) || !statSync(cwd).isDirectory()) {
+    throw new Error(`Working directory is missing or not a folder: ${cwd}`)
+  }
   const cliBackend = opts.cliBackend ?? getDefaultCliBackend()
 
   const inst = await getDaemonClient().createInstance({
     ...opts,
+    workingDirectory: cwd,
     defaultArgs,
     cliBackend,
   })

@@ -13,6 +13,12 @@ import SessionDepsPanel from './components/SessionDepsPanel'
 
 type View = SidebarView | 'agent-editor'
 
+/** Older daemons may omit cliBackend; keep renderer stable. */
+function withCliBackend(inst: ClaudeInstance): ClaudeInstance {
+  if (inst.cliBackend === 'cursor-agent') return inst
+  return { ...inst, cliBackend: 'claude' as const }
+}
+
 export default function App() {
   const [instances, setInstances] = useState<ClaudeInstance[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -47,7 +53,7 @@ export default function App() {
   splitRef.current = { splitId, focusedPane }
 
   useEffect(() => {
-    window.api.instance.list().then(setInstances)
+    window.api.instance.list().then((list) => setInstances(list.map(withCliBackend)))
     window.api.sessions.restorable().then(setRestorableSessions)
     window.api.settings.getAll().then((s) => {
       if (s.fontSize) {
@@ -57,7 +63,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const unsub = window.api.instance.onListUpdate(setInstances)
+    const unsub = window.api.instance.onListUpdate((list) => setInstances(list.map(withCliBackend)))
     return unsub
   }, [])
 

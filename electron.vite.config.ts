@@ -18,6 +18,11 @@ export default defineConfig({
   },
   renderer: {
     root: 'src/renderer',
+    // Avoid sharing default 5173 with other Vite apps (wrong UI / blank page while dev URL mismatches).
+    server: {
+      port: 5173,
+      strictPort: true,
+    },
     build: {
       rollupOptions: {
         input: 'src/renderer/index.html'
