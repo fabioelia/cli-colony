@@ -785,4 +785,90 @@ dedup:
     writeFileSync(feedbackFile, template, 'utf-8')
     log('Seeded default pipeline: colony-feedback.yaml')
   }
+
+  const readmeFile = join(PIPELINES_DIR, 'colony-feedback-README.md')
+  if (!existsSync(readmeFile)) {
+    const readme = `# Colony Feedback Pipeline
+
+Automates PR review feedback loops. When a reviewer pushes structured feedback to the \`colony-feedback\` branch, Colony detects it and either routes the feedback to your existing session on that branch (preserving full context) or launches a new session to address it.
+
+## Setup (PR Author)
+
+1. Go to the **Pipelines** tab in Colony (⚡ icon in sidebar)
+2. Enable the **Colony Feedback** pipeline
+3. Make sure the repo is added in the **Pull Requests** tab with a local path configured
+
+Colony will poll every 5 minutes. When feedback is detected for a PR you authored, it will be handled automatically.
+
+## Instructions for Reviewers
+
+Share these instructions with anyone reviewing your PRs.
+
+### Steps
+
+**1. Navigate to the repo**
+
+\`\`\`bash
+cd /path/to/repo
+\`\`\`
+
+**2. Create the \`colony-feedback\` branch**
+
+\`\`\`bash
+git fetch origin
+git checkout -b colony-feedback origin/main 2>/dev/null || git checkout colony-feedback
+\`\`\`
+
+**3. Write your feedback**
+
+Create \`reviews/<pr-number>/feedback.md\`:
+
+\`\`\`bash
+mkdir -p reviews/42
+\`\`\`
+
+Example \`reviews/42/feedback.md\`:
+
+\`\`\`markdown
+# Review Feedback — PR #42
+
+## Critical
+- [ ] SQL injection in \\\`src/auth/login.ts:42\\\` — user input interpolated directly into query. Use parameterized queries.
+- [ ] Missing null check on \\\`user.profile\\\` in \\\`src/api/users.ts:88\\\` — crashes on new accounts.
+
+## Suggestions
+- [ ] Consider using bcrypt instead of SHA-256 for password hashing (\\\`src/auth/hash.ts:15\\\`)
+- [ ] The session timeout of 24h seems long — should this be configurable?
+
+## Questions
+- Is the rate limiter at 1000 req/min intentional? Seems high for this endpoint.
+\`\`\`
+
+**4. Commit and push**
+
+\`\`\`bash
+git add reviews/
+git commit -m "Review feedback for PR #42"
+git push origin colony-feedback
+\`\`\`
+
+**5. Done** — Colony picks it up automatically within 5 minutes.
+
+### Feedback Format Tips
+
+- Use checkboxes (\`- [ ]\`) so the agent can mark items as addressed
+- Reference specific files and line numbers for precise fixes
+- Separate by severity (Critical / Suggestions / Questions) so the agent prioritizes correctly
+- The dedup TTL is 1 hour — after that, updated feedback will re-trigger
+
+### How Routing Works
+
+When feedback is detected, Colony looks for a running session that matches the PR branch:
+- If found and idle → feedback prompt is injected directly (context preserved)
+- If found and busy → waits for it to finish, then sends the feedback
+- If no match → launches a new session in the repo directory
+`
+    writeFileSync(readmeFile, readme, 'utf-8')
+    log('Seeded pipeline README: colony-feedback-README.md')
+  }
 }

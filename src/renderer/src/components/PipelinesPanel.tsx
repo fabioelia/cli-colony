@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Zap, ZapOff, Play, RefreshCw, ChevronDown, ChevronRight,
-  FileText, Clock, CheckCircle, XCircle, AlertTriangle, Save, Edit3
+  FileText, Clock, CheckCircle, XCircle, AlertTriangle, Save, BookOpen
 } from 'lucide-react'
 
 interface PipelineInfo {
@@ -23,6 +23,8 @@ export default function PipelinesPanel() {
   const [editingContent, setEditingContent] = useState<string | null>(null)
   const [editingFileName, setEditingFileName] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
+  const [readmeContent, setReadmeContent] = useState<string | null>(null)
+  const [expandedTab, setExpandedTab] = useState<'yaml' | 'docs'>('yaml')
 
   const loadPipelines = useCallback(async () => {
     const list = await window.api.pipeline.list()
@@ -49,6 +51,7 @@ export default function PipelinesPanel() {
       setExpandedPipeline(null)
       setEditingContent(null)
       setEditingFileName(null)
+      setReadmeContent(null)
       setDirty(false)
       return
     }
@@ -57,6 +60,12 @@ export default function PipelinesPanel() {
     setEditingContent(content || '')
     setEditingFileName(p.fileName)
     setDirty(false)
+    setExpandedTab('yaml')
+
+    // Try to load companion README
+    const readmeName = p.fileName.replace(/\.(yaml|yml)$/, '-README.md')
+    const readme = await window.api.pipeline.getContent(readmeName)
+    setReadmeContent(readme)
   }
 
   const handleSave = async () => {
@@ -166,19 +175,49 @@ export default function PipelinesPanel() {
             {expandedPipeline === p.name && editingContent !== null && (
               <div className="pipeline-editor">
                 <div className="pipeline-editor-header">
-                  <span><FileText size={11} /> {p.fileName}</span>
-                  {dirty && (
+                  <div className="pipeline-editor-tabs">
+                    <button
+                      className={`pipeline-tab ${expandedTab === 'yaml' ? 'active' : ''}`}
+                      onClick={() => setExpandedTab('yaml')}
+                    >
+                      <FileText size={11} /> Config
+                    </button>
+                    {readmeContent && (
+                      <button
+                        className={`pipeline-tab ${expandedTab === 'docs' ? 'active' : ''}`}
+                        onClick={() => setExpandedTab('docs')}
+                      >
+                        <BookOpen size={11} /> Docs
+                      </button>
+                    )}
+                  </div>
+                  {expandedTab === 'yaml' && dirty && (
                     <button className="pipeline-save-btn" onClick={handleSave}>
                       <Save size={11} /> Save
                     </button>
                   )}
                 </div>
-                <textarea
-                  className="pipeline-editor-textarea"
-                  value={editingContent}
-                  onChange={(e) => { setEditingContent(e.target.value); setDirty(true) }}
-                  spellCheck={false}
-                />
+                {expandedTab === 'yaml' ? (
+                  <textarea
+                    className="pipeline-editor-textarea"
+                    value={editingContent}
+                    onChange={(e) => { setEditingContent(e.target.value); setDirty(true) }}
+                    spellCheck={false}
+                  />
+                ) : (
+                  <div className="pipeline-readme" dangerouslySetInnerHTML={{
+                    __html: readmeContent!
+                      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+                      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+                      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+                      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                      .replace(/`([^`]+)`/g, '<code>$1</code>')
+                      .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+                      .replace(/\n\n/g, '</p><p>')
+                      .replace(/\n/g, '<br/>')
+                  }} />
+                )}
               </div>
             )}
           </div>
