@@ -884,8 +884,13 @@ async function runPoll(pipelineName: string): Promise<void> {
 
     if (p.def.trigger.type === 'git-poll') {
       contexts = await executeGitPollTrigger(p.def.trigger)
+    } else if (p.def.trigger.type === 'cron') {
+      // Cron trigger fires once per poll with minimal context
+      contexts = [{
+        githubUser: githubUser || undefined,
+        timestamp: new Date().toISOString(),
+      }]
     }
-    // file-poll and cron can be added later
 
     for (const ctx of contexts) {
       const matched = await evaluateCondition(p.def.condition, ctx)
@@ -1286,5 +1291,68 @@ dedup:
 `
     writeFileSync(ciFixFile, ciTemplate, 'utf-8')
     log('Seeded default pipeline: ci-auto-fix.yaml')
+  }
+
+  // ---- PR Attention Digest pipeline ----
+  const digestFile = join(PIPELINES_DIR, 'pr-attention-digest.yaml')
+  if (!existsSync(digestFile)) {
+    const digestTemplate = `name: PR Attention Digest
+description: Hourly digest of PRs that need your attention — assigned, review requested, or mentioned
+enabled: false
+
+trigger:
+  type: cron
+  cron: "0 9-17 * * 1-5"
+
+condition:
+  type: always
+
+action:
+  type: launch-session
+  name: "PR Digest — {{timestamp}}"
+  workingDirectory: "~/.claude-colony/pr-workspace"
+  color: "#6366f1"
+  prompt: |
+    Generate a PR attention digest for me ({{github.user}}).
+
+    Read the PR context file at ~/.claude-colony/pr-workspace/pr-context.md for all open PRs across my repositories.
+
+    Create a prioritized report of PRs that need my attention:
+
+    ## 1. Review Requested
+    PRs where I am a requested reviewer. These are highest priority.
+
+    ## 2. Assigned to Me
+    PRs where I am an assignee.
+
+    ## 3. My PRs Needing Action
+    PRs I authored that have review comments, requested changes, or failing CI.
+
+    For EACH PR include:
+    - PR title with clickable link
+    - Author and age (how long ago it was opened/updated)
+    - Review status (approved, changes requested, pending)
+    - CI status (passing, failing, pending)
+    - Risk assessment: 🔴 High / 🟡 Medium / 🟢 Low based on:
+      - Lines changed (>500 = high, >100 = medium)
+      - Number of files changed
+      - Whether it touches critical paths (auth, payments, database migrations, CI config)
+      - Age without review (>3 days = higher risk)
+      - Whether it has failing CI
+
+    ## Summary
+    - Total PRs needing attention: X
+    - High risk: X | Medium risk: X | Low risk: X
+    - Suggested focus order (most urgent first)
+
+    Write the digest to ~/.claude-colony/reports/pr-digest-$(date +%Y-%m-%d-%H%M).md
+    Create the reports directory if it doesn't exist: mkdir -p ~/.claude-colony/reports
+
+dedup:
+  key: "pr-digest-{{timestamp}}"
+  ttl: 3600
+`
+    writeFileSync(digestFile, digestTemplate, 'utf-8')
+    log('Seeded default pipeline: pr-attention-digest.yaml')
   }
 }
