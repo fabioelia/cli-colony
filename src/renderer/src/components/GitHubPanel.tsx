@@ -34,9 +34,10 @@ interface Props {
   onLaunchInstance: (opts: { name?: string; workingDirectory?: string; args?: string[] }) => Promise<string> // returns instance id
   onFocusInstance: (id: string) => void
   instances: Array<{ id: string; status: string }>
+  visible?: boolean
 }
 
-export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance, instances }: Props) {
+export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance, instances, visible }: Props) {
   const [repos, setRepos] = useState<GitHubRepo[]>([])
   const [prompts, setPrompts] = useState<QuickPrompt[]>([])
   const [ghAuth, setGhAuth] = useState<boolean | null>(null)
@@ -163,6 +164,13 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     window.api.github.getPrMemoryPath().then(setMemoryPath)
     window.api.github.getPrWorkspacePath().then(setWorkspacePath)
   }, [])
+
+  // Reload prompts when panel becomes visible (picks up pipeline-enabled changes)
+  useEffect(() => {
+    if (visible) {
+      window.api.github.getPrompts().then(setPrompts)
+    }
+  }, [visible])
 
   // Escape key closes any open modal
   useEffect(() => {

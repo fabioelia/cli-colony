@@ -803,6 +803,7 @@ export default function App() {
           <GitHubPanel
             onBack={() => setView('instances')}
             instances={instances}
+            visible={view === 'github'}
             onLaunchInstance={async (opts) => {
               const inst = await window.api.instance.create(opts)
               setActiveId(inst.id)
