@@ -358,6 +358,132 @@ function getLiveBranch(dir: string): string | null {
   } catch { return null }
 }
 
+// Check branch in a subdirectory matching the repo name (for monorepo/workspace parents)
+function getLiveBranchInSubdir(dir: string, repoName: string): string | null {
+  if (!repoName) return null
+  try {
+    const { readdirSync, statSync } = require('fs') as typeof import('fs')
+    const entries = readdirSync(dir)
+    for (const entry of entries) {
+      if (entry.toLowerCase() === repoName.toLowerCase()) {
+        const sub = join(dir, entry)
+        try { if (!statSync(sub).isDirectory()) continue } catch { continue }
+        return getLiveBranch(sub)
+      }
+    }
+  } catch { /* ignore */ }
+  return null
+}
+
+// Check if a session name partially matches a branch name
+function nameMatchesBranch(sessionName: string, branch: string): boolean {
+  if (!sessionName || !branch || sessionName.length < 4) return false
+  const nameLower = sessionName.toLowerCase().trim()
+  const branchLower = branch.toLowerCase()
+  if (nameLower.length < 4) return false
+  // Exact substring (name in branch or branch in name)
+  if (branchLower.includes(nameLower)) return true
+  if (nameLower.includes(branchLower)) return true
+  // Word-level: split name into words, check all significant words appear in branch
+  const nameWords = nameLower.split(/[\s\-_\/]+/).filter(w => w.length > 2)
+  return nameWords.length > 0 && nameWords.every(w => branchLower.includes(w))
+}
+
+// Shared scoring function for both running instances and history sessions
+function scoreSessionDir(
+  dir: string,
+  sessionName: string,
+  metadataBranch: string | null,
+  match: { gitBranch?: string; workingDirectory?: string; repoName?: string; prNumber?: number }
+): number {
+  let score = 0
+
+  // 1. Git branch check — check live branch first, then subdirectory, then metadata
+  if (match.gitBranch) {
+    const liveBranch = getLiveBranch(dir)
+    if (liveBranch === match.gitBranch) {
+      score += 15
+    } else if (match.repoName) {
+      // If dir is a parent workspace, check for repo subdirectory
+      // But only if the dir seems related (contains repo as direct child, not a generic parent)
+      const subBranch = getLiveBranchInSubdir(dir, match.repoName)
+      if (subBranch === match.gitBranch) {
+        // Only give full points if the dir seems repo-specific (not e.g. ~/projects)
+        const dirDepth = dir.split('/').length
+        const homeDepth = (process.env.HOME || '').split('/').length
+        if (dirDepth > homeDepth + 1) {
+          score += 12
+        } else {
+          score += 3 // generic parent — weak signal
+        }
+      }
+    }
+    // Stale metadata branch
+    if (score === 0 && metadataBranch === match.gitBranch) {
+      score += 10
+    }
+  }
+
+  // 2. Working directory match
+  if (match.workingDirectory) {
+    if (dir === match.workingDirectory) score += 5
+    else if (dir.startsWith(match.workingDirectory + '/')) score += 3
+  }
+
+  // 3. Repo name in directory path (direct child or in path)
+  if (match.repoName && !match.workingDirectory) {
+    const dirLower = dir.toLowerCase()
+    const repoLower = match.repoName.toLowerCase()
+    if (dirLower.endsWith('/' + repoLower) || dirLower.includes('/' + repoLower + '/')) {
+      score += 4
+    } else {
+      // Check if repo exists as subdirectory (workspace parent like nri-automation)
+      try {
+        const sub = join(dir, match.repoName)
+        const { statSync } = require('fs') as typeof import('fs')
+        if (statSync(sub).isDirectory()) score += 3
+      } catch { /* ignore */ }
+    }
+  }
+
+  // 4. Session name matches PR number
+  if (match.prNumber && sessionName) {
+    const nameLower = sessionName.toLowerCase()
+    if (nameLower.includes(`#${match.prNumber}`) || nameLower.includes(`pr ${match.prNumber}`)) {
+      score += 8
+    }
+  }
+
+  // 5. Session name matches branch (exact or partial)
+  if (match.gitBranch && sessionName) {
+    if (sessionName.toLowerCase().includes(match.gitBranch.toLowerCase())) {
+      score += 6
+    } else if (nameMatchesBranch(sessionName, match.gitBranch)) {
+      score += 5
+    }
+  }
+
+  // 6. Penalty: if directory is clearly inside a DIFFERENT repo
+  //    e.g. session in .../nri-frontend/... should not match repo=nri-server
+  if (match.repoName && score > 0) {
+    const dirLower = dir.toLowerCase()
+    const repoLower = match.repoName.toLowerCase()
+    // Get all configured repos to detect siblings
+    const allRepos = getRepos()
+    for (const r of allRepos) {
+      const otherLower = r.name.toLowerCase()
+      if (otherLower === repoLower) continue // same repo, no penalty
+      // If the dir path contains this other repo name as a segment
+      if (dirLower.includes('/' + otherLower + '/') || dirLower.endsWith('/' + otherLower)) {
+        score = Math.max(0, score - 10) // strong penalty for wrong repo
+        break
+      }
+    }
+  }
+
+  return score
+}
+
 interface RouteResult {
   type: 'running'
   instance: ClaudeInstance
@@ -368,6 +494,7 @@ interface RouteResult {
   project: string
   name: string
   score: number
+  messageCount: number
 }
 
 async function findBestRoute(match: {
@@ -383,40 +510,9 @@ async function findBestRoute(match: {
   const running = all.filter(i => i.status === 'running')
 
   for (const inst of running) {
-    let score = 0
-
-    if (match.gitBranch) {
-      const liveBranch = getLiveBranch(inst.workingDirectory)
-      if (liveBranch === match.gitBranch) {
-        score += 15
-      } else if (inst.gitBranch === match.gitBranch) {
-        score += 10
-      }
-    }
-
-    if (match.workingDirectory) {
-      if (inst.workingDirectory === match.workingDirectory) score += 5
-      else if (inst.workingDirectory.startsWith(match.workingDirectory + '/')) score += 3
-    }
-
-    if (match.repoName && !match.workingDirectory) {
-      const dirLower = inst.workingDirectory.toLowerCase()
-      const repoLower = match.repoName.toLowerCase()
-      if (dirLower.endsWith('/' + repoLower) || dirLower.includes('/' + repoLower + '/')) {
-        score += 4
-      }
-    }
-
-    if (match.prNumber && inst.name) {
-      const nameLower = inst.name.toLowerCase()
-      if (nameLower.includes(`#${match.prNumber}`) || nameLower.includes(`pr ${match.prNumber}`)) score += 6
-    }
-    if (match.gitBranch && inst.name) {
-      if (inst.name.toLowerCase().includes(match.gitBranch.toLowerCase())) score += 4
-    }
+    const score = scoreSessionDir(inst.workingDirectory, inst.name || '', inst.gitBranch, match)
 
     if (score > 0) {
-      // Boost waiting sessions slightly so they win ties over busy
       const adjusted = inst.activity === 'waiting' ? score + 1 : score
       candidates.push({ type: 'running', instance: inst, score: adjusted })
     }
@@ -435,39 +531,9 @@ async function findBestRoute(match: {
       for (const session of history) {
         if (runningArgs.includes(session.sessionId)) continue
 
-        let score = 0
+        const sessionName = session.name || session.display || ''
+        const score = scoreSessionDir(session.project, sessionName, null, match)
 
-        // Check if history session's project dir matches
-        if (match.workingDirectory && session.project === match.workingDirectory) {
-          score += 5
-        }
-
-        if (match.repoName && !match.workingDirectory) {
-          const projLower = session.project.toLowerCase()
-          const repoLower = match.repoName.toLowerCase()
-          if (projLower.endsWith('/' + repoLower) || projLower.includes('/' + repoLower + '/')) {
-            score += 4
-          }
-        }
-
-        // Check if session was on the right branch (check live branch of project dir)
-        if (match.gitBranch && session.project) {
-          const liveBranch = getLiveBranch(session.project)
-          if (liveBranch === match.gitBranch) {
-            score += 8
-          }
-        }
-
-        // Name/display contains PR number or branch
-        const display = (session.name || session.display || '').toLowerCase()
-        if (match.prNumber && (display.includes(`#${match.prNumber}`) || display.includes(`pr ${match.prNumber}`))) {
-          score += 6
-        }
-        if (match.gitBranch && display.includes(match.gitBranch.toLowerCase())) {
-          score += 4
-        }
-
-        // History sessions get a small penalty vs running (prefer live context)
         if (score > 0) {
           candidates.push({
             type: 'resume',
@@ -475,6 +541,7 @@ async function findBestRoute(match: {
             project: session.project,
             name: session.name || session.display.slice(0, 40),
             score: score - 2,
+            messageCount: session.messageCount,
           })
         }
       }
@@ -485,11 +552,14 @@ async function findBestRoute(match: {
 
   if (candidates.length === 0) return null
 
-  // Sort by score descending, then prefer running over resume
+  // Sort by score descending, then prefer running over resume, then most messages (deeper context)
   candidates.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score
     if (a.type !== b.type) return a.type === 'running' ? -1 : 1
-    return 0
+    // Among resume candidates, prefer more messages (deeper context)
+    const aMsgs = a.type === 'resume' ? a.messageCount : 0
+    const bMsgs = b.type === 'resume' ? b.messageCount : 0
+    return bMsgs - aMsgs
   })
 
   const best = candidates[0]
