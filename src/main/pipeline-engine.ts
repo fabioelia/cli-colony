@@ -484,7 +484,7 @@ function scoreSessionDir(
   return score
 }
 
-interface RouteResult {
+type RouteResult = {
   type: 'running'
   instance: ClaudeInstance
   score: number
