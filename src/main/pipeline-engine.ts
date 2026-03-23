@@ -346,34 +346,74 @@ async function sendPromptToExistingSession(instanceId: string, prompt: string): 
 
 // ---- Session Routing ----
 
+// Check the live git branch for a directory (not the stale metadata)
+function getLiveBranch(dir: string): string | null {
+  try {
+    const { execFileSync } = require('child_process') as typeof import('child_process')
+    return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+      cwd: dir, timeout: 3000, encoding: 'utf-8',
+    }).trim() || null
+  } catch { return null }
+}
+
 async function findMatchingSession(match: {
   gitBranch?: string
   workingDirectory?: string
+  repoName?: string
+  prNumber?: number
 }): Promise<ClaudeInstance | null> {
   const all = await getAllInstances()
   const running = all.filter(i => i.status === 'running')
 
   if (running.length === 0) return null
 
-  const scored = running.map(inst => {
+  const scored = await Promise.all(running.map(async (inst) => {
     let score = 0
 
-    // Exact git branch match — strongest signal
-    if (match.gitBranch && inst.gitBranch === match.gitBranch) {
-      score += 10
+    // 1. Live git branch check — most reliable signal
+    if (match.gitBranch) {
+      const liveBranch = getLiveBranch(inst.workingDirectory)
+      if (liveBranch === match.gitBranch) {
+        score += 15
+      } else if (inst.gitBranch === match.gitBranch) {
+        // Fallback: metadata branch match (may be stale)
+        score += 10
+      }
     }
 
-    // Working directory match — repo-level match
+    // 2. Working directory match
     if (match.workingDirectory) {
       if (inst.workingDirectory === match.workingDirectory) {
         score += 5
       } else if (inst.workingDirectory.startsWith(match.workingDirectory + '/')) {
-        score += 3 // subdirectory of repo
+        score += 3
+      }
+    }
+
+    // 3. Repo name in working directory path (when localPath is missing)
+    if (match.repoName && !match.workingDirectory) {
+      const dirLower = inst.workingDirectory.toLowerCase()
+      const repoLower = match.repoName.toLowerCase()
+      if (dirLower.endsWith('/' + repoLower) || dirLower.includes('/' + repoLower + '/')) {
+        score += 4
+      }
+    }
+
+    // 4. Session name contains PR number or branch
+    if (match.prNumber && inst.name) {
+      const nameLower = inst.name.toLowerCase()
+      if (nameLower.includes(`#${match.prNumber}`) || nameLower.includes(`pr ${match.prNumber}`)) {
+        score += 6
+      }
+    }
+    if (match.gitBranch && inst.name) {
+      if (inst.name.toLowerCase().includes(match.gitBranch.toLowerCase())) {
+        score += 4
       }
     }
 
     return { inst, score }
-  })
+  }))
 
   const matches = scored.filter(s => s.score > 0)
   if (matches.length === 0) return null
@@ -387,6 +427,7 @@ async function findMatchingSession(match: {
     return new Date(b.inst.createdAt).getTime() - new Date(a.inst.createdAt).getTime()
   })
 
+  log(`Routing: best match "${matches[0].inst.name}" score=${matches[0].score}`)
   return matches[0].inst
 }
 
@@ -493,11 +534,13 @@ async function fireAction(action: ActionDef, ctx: TriggerContext): Promise<void>
   if (action.type === 'route-to-session') {
     const matchDef = action.match || {}
     const resolvedMatch = {
-      gitBranch: matchDef.gitBranch ? resolveTemplate(matchDef.gitBranch, ctx) : undefined,
+      gitBranch: matchDef.gitBranch ? resolveTemplate(matchDef.gitBranch, ctx) : ctx.pr?.branch,
       workingDirectory: matchDef.workingDirectory ? resolveTemplate(matchDef.workingDirectory, ctx) : undefined,
+      repoName: ctx.repo?.name,
+      prNumber: ctx.pr?.number,
     }
 
-    log(`Routing: looking for session matching branch=${resolvedMatch.gitBranch} dir=${resolvedMatch.workingDirectory}`)
+    log(`Routing: looking for session matching branch=${resolvedMatch.gitBranch} dir=${resolvedMatch.workingDirectory} repo=${resolvedMatch.repoName} pr=#${resolvedMatch.prNumber}`)
     const existing = await findMatchingSession(resolvedMatch)
 
     if (existing) {
@@ -527,11 +570,29 @@ async function fireAction(action: ActionDef, ctx: TriggerContext): Promise<void>
   // ---- Launch new session (or route-to-session fallback) ----
   if (action.type !== 'launch-session' && action.type !== 'route-to-session') return
 
-  log(`Firing action: launching "${name}"`)
+  // If no working directory resolved, try to infer from running sessions in same repo
+  let resolvedCwd = cwd
+  if (!resolvedCwd && ctx.repo?.name) {
+    const all = await getAllInstances()
+    const repoLower = ctx.repo.name.toLowerCase()
+    const match = all.find(i =>
+      i.status === 'running' &&
+      (i.workingDirectory.toLowerCase().endsWith('/' + repoLower) ||
+       i.workingDirectory.toLowerCase().includes('/' + repoLower + '/'))
+    )
+    if (match) {
+      // Extract the repo root from the matched session's directory
+      const idx = match.workingDirectory.toLowerCase().indexOf('/' + repoLower)
+      resolvedCwd = match.workingDirectory.slice(0, idx + 1 + repoLower.length)
+      log(`Inferred working directory from session "${match.name}": ${resolvedCwd}`)
+    }
+  }
+
+  log(`Firing action: launching "${name}" in ${resolvedCwd || '$HOME'}`)
 
   const inst = await createInstance({
     name,
-    workingDirectory: cwd,
+    workingDirectory: resolvedCwd,
     color: action.color,
   })
 
