@@ -335,7 +335,7 @@ export function updateRepoPath(owner: string, name: string, localPath: string): 
 
 const COLONY_REVIEW_PROMPT: QuickPrompt = {
   id: 'colony-review',
-  label: 'Review PR',
+  label: 'Provide Colony Feedback Review',
   prompt: `Review PR #{{pr.number}} ({{pr.title}}) on branch {{pr.branch}}.
 
 Check the diff for bugs, security issues, code quality, and correctness.
