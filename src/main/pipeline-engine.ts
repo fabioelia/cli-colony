@@ -65,6 +65,7 @@ export interface PipelineDef {
 interface PipelineState {
   lastPollAt: string | null
   firedKeys: Record<string, number> // dedup key -> timestamp ms
+  contentHashes: Record<string, string> // dedup key -> last seen content SHA
   fireCount: number
   lastFiredAt: string | null
   lastError: string | null
@@ -90,6 +91,7 @@ interface TriggerContext {
   file?: { path: string; name: string; directory: string }
   githubUser?: string
   timestamp: string
+  contentSha?: string // SHA of matched file — for change detection
 }
 
 // ---- Constants ----
@@ -215,7 +217,7 @@ function saveState(): void {
 }
 
 function freshState(): PipelineState {
-  return { lastPollAt: null, firedKeys: {}, fireCount: 0, lastFiredAt: null, lastError: null }
+  return { lastPollAt: null, firedKeys: {}, contentHashes: {}, fireCount: 0, lastFiredAt: null, lastError: null }
 }
 
 // ---- Template Resolution ----
@@ -241,26 +243,45 @@ function resolveTemplate(template: string, ctx: TriggerContext): string {
 
 // ---- Dedup ----
 
-function isDuplicate(pipelineName: string, key: string, ttlSeconds: number): boolean {
+function isDuplicate(pipelineName: string, key: string, ttlSeconds: number, contentSha?: string): boolean {
   const p = pipelines.get(pipelineName)
   if (!p) return false
+
+  // If we have a content SHA, check if the content changed since last fire
+  if (contentSha) {
+    const lastSha = p.state.contentHashes[key]
+    if (lastSha === contentSha) {
+      // Content hasn't changed — skip regardless of TTL
+      return true
+    }
+    // Content is new or changed — allow firing even within TTL
+    return false
+  }
+
+  // No content SHA — fall back to time-based dedup
   const lastFired = p.state.firedKeys[key]
   if (!lastFired) return false
   return Date.now() - lastFired < ttlSeconds * 1000
 }
 
-function recordFired(pipelineName: string, key: string): void {
+function recordFired(pipelineName: string, key: string, contentSha?: string): void {
   const p = pipelines.get(pipelineName)
   if (!p) return
   p.state.firedKeys[key] = Date.now()
+  if (contentSha) {
+    p.state.contentHashes[key] = contentSha
+  }
   p.state.fireCount++
   p.state.lastFiredAt = new Date().toISOString()
 
-  // Clean expired dedup keys
+  // Clean expired keys
   const now = Date.now()
   const ttl = (p.def.dedup.ttl || 3600) * 1000
   for (const [k, ts] of Object.entries(p.state.firedKeys)) {
-    if (now - ts > ttl * 2) delete p.state.firedKeys[k]
+    if (now - ts > ttl * 2) {
+      delete p.state.firedKeys[k]
+      delete p.state.contentHashes[k]
+    }
   }
 
   saveState()
@@ -621,7 +642,8 @@ async function evaluateBranchFileExists(condition: ConditionDef, ctx: TriggerCon
 
   const slug = `${ctx.repo.owner}/${ctx.repo.name}`
   try {
-    await gh(['api', `repos/${slug}/contents/${filePath}?ref=${branch}`, '--silent'])
+    const response = await gh(['api', `repos/${slug}/contents/${filePath}?ref=${branch}`, '--jq', '.sha'])
+    ctx.contentSha = response.trim() || undefined
     return true
   } catch {
     return false
@@ -773,10 +795,10 @@ async function runPoll(pipelineName: string): Promise<void> {
       if (!matched) continue
 
       const dedupKey = resolveTemplate(p.def.dedup.key, ctx)
-      if (isDuplicate(pipelineName, dedupKey, p.def.dedup.ttl || 3600)) continue
+      if (isDuplicate(pipelineName, dedupKey, p.def.dedup.ttl || 3600, ctx.contentSha)) continue
 
       await fireAction(p.def.action, ctx)
-      recordFired(pipelineName, dedupKey)
+      recordFired(pipelineName, dedupKey, ctx.contentSha)
     }
 
     p.state.lastError = null
