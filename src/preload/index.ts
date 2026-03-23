@@ -210,6 +210,8 @@ export interface ClaudeManagerAPI {
     list: () => Promise<Array<{ name: string; path: string; content: string }>>
     save: (name: string, content: string) => Promise<string>
     delete: (name: string) => Promise<boolean>
+    getWorkspacePath: () => Promise<string>
+    createTaskDir: (queueName: string, taskName: string) => Promise<string>
   }
   resources: {
     getUsage: () => Promise<{
@@ -343,6 +345,8 @@ const api: ClaudeManagerAPI = {
     list: () => ipcRenderer.invoke('taskQueue:list'),
     save: (name, content) => ipcRenderer.invoke('taskQueue:save', name, content),
     delete: (name) => ipcRenderer.invoke('taskQueue:delete', name),
+    getWorkspacePath: () => ipcRenderer.invoke('taskQueue:getWorkspacePath'),
+    createTaskDir: (queueName, taskName) => ipcRenderer.invoke('taskQueue:createTaskDir', queueName, taskName),
   },
   resources: {
     getUsage: () => ipcRenderer.invoke('resources:getUsage'),

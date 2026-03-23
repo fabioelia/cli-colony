@@ -72,6 +72,9 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 - **Tasks tab** in the sidebar — split view: YAML editor + Task Assistant CLI
 - Define task queues as YAML files in `~/.claude-colony/task-queues/`
 - Each task: prompt + working directory, run parallel or sequential
+- **Per-task directories** — each task runs in its own folder under `~/.claude-colony/task-workspace/<queue>/<task>/`
+- **Smart session names** — sessions named `Queue Name › Task Name` from the YAML definition
+- Runs in Colony-owned workspace to avoid CLI trust prompts
 - Create, edit, delete queues from the UI
 - Each task spawns a Claude session automatically
 - Task Assistant session helps design and create queues (reuses existing, "New" button for fresh start)
@@ -198,6 +201,7 @@ All app data lives in `~/.claude-colony/`:
 ├── colony-context.md      # Auto-generated shared context for all sessions
 ├── screenshots/           # Pasted clipboard images
 ├── task-queues/           # YAML task queue definitions
+├── task-workspace/        # Per-task run directories (<queue>/<task>/)
 ├── handoffs/              # Child session handoff documents
 └── pr-workspace/          # Dedicated workspace for PR-related instances
     ├── pr-context.md      # Auto-generated PR data for CLI consumption
