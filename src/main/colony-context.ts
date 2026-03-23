@@ -40,7 +40,8 @@ export async function updateColonyContext(): Promise<string> {
     } else {
       for (const inst of running) {
         const activity = inst.activity === 'busy' ? '(busy)' : '(waiting)'
-        lines.push(`- **${inst.name}** ${activity} — ${inst.workingDirectory}`)
+        const cli = inst.cliBackend === 'cursor-agent' ? 'Cursor agent' : 'Claude Code'
+        lines.push(`- **${inst.name}** [${cli}] ${activity} — ${inst.workingDirectory}`)
         if (inst.parentId) lines.push(`  - Child of another session`)
         if (inst.childIds.length > 0) lines.push(`  - Has ${inst.childIds.length} child session(s)`)
       }

@@ -6,6 +6,9 @@
 
 // ---- Instance types (shared between daemon and client) ----
 
+/** Which CLI binary this PTY session runs (`claude` vs Cursor `agent`). */
+export type CliBackend = 'claude' | 'cursor-agent'
+
 export interface ClaudeInstance {
   id: string
   name: string
@@ -17,6 +20,8 @@ export interface ClaudeInstance {
   exitCode: number | null
   pid: number | null
   args: string[]
+  /** CLI used for this session (drives spawn command and integrations like /color). */
+  cliBackend: CliBackend
   gitBranch: string | null
   tokenUsage: { input: number; output: number; cost: number }
   pinned: boolean
@@ -32,6 +37,7 @@ export interface CreateOpts {
   args?: string[]
   defaultArgs?: string[]
   parentId?: string
+  cliBackend?: CliBackend
 }
 
 // ---- Client → Daemon requests ----

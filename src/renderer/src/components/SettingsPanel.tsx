@@ -7,6 +7,8 @@ interface Props {
 
 export default function SettingsPanel({ onBack }: Props) {
   const [defaultArgs, setDefaultArgs] = useState('')
+  const [defaultCliBackend, setDefaultCliBackend] = useState<'claude' | 'cursor-agent'>('claude')
+  const [syncClaudeSlashCommands, setSyncClaudeSlashCommands] = useState(true)
   const [shellProfile, setShellProfile] = useState('')
   const [soundOnFinish, setSoundOnFinish] = useState(true)
   const [autoCleanupMinutes, setAutoCleanupMinutes] = useState('5')
@@ -23,6 +25,8 @@ export default function SettingsPanel({ onBack }: Props) {
   useEffect(() => {
     window.api.settings.getAll().then((s) => {
       setDefaultArgs(s.defaultArgs || '')
+      setDefaultCliBackend(s.defaultCliBackend === 'cursor-agent' ? 'cursor-agent' : 'claude')
+      setSyncClaudeSlashCommands(s.syncClaudeSlashCommands !== 'false')
       setShellProfile(s.shellProfile || '')
       setSoundOnFinish(s.soundOnFinish !== 'false')
       setAutoCleanupMinutes(s.autoCleanupMinutes || '5')
@@ -53,6 +57,8 @@ export default function SettingsPanel({ onBack }: Props) {
   const handleSave = async () => {
     await Promise.all([
       window.api.settings.set('defaultArgs', defaultArgs),
+      window.api.settings.set('defaultCliBackend', defaultCliBackend),
+      window.api.settings.set('syncClaudeSlashCommands', syncClaudeSlashCommands ? 'true' : 'false'),
       window.api.settings.set('shellProfile', shellProfile),
       window.api.settings.set('soundOnFinish', soundOnFinish ? 'true' : 'false'),
       window.api.settings.set('autoCleanupMinutes', autoCleanupMinutes),
@@ -90,9 +96,40 @@ export default function SettingsPanel({ onBack }: Props) {
           />
         </div>
         <div className="settings-field">
+          <label>Default CLI</label>
+          <p className="settings-help">
+            New sessions spawn this program in the terminal. Claude Code uses <code>claude</code> with Colony&apos;s
+            extra flags; Cursor uses the <code>agent</code> binary on your PATH.
+          </p>
+          <select
+            value={defaultCliBackend}
+            onChange={(e) => setDefaultCliBackend(e.target.value as 'claude' | 'cursor-agent')}
+            className="settings-select"
+          >
+            <option value="claude">Claude Code (claude)</option>
+            <option value="cursor-agent">Cursor Agent (agent)</option>
+          </select>
+        </div>
+        <div className="settings-row">
+          <span className="settings-row-label">Sync /rename and /color to Claude Code</span>
+          <button
+            className={`settings-toggle ${syncClaudeSlashCommands ? 'active' : ''}`}
+            onClick={() => setSyncClaudeSlashCommands(!syncClaudeSlashCommands)}
+            role="switch"
+            aria-checked={syncClaudeSlashCommands}
+            title={syncClaudeSlashCommands ? 'Colony will inject slash commands into Claude sessions' : 'Colony will not send /rename or /color into the PTY'}
+          >
+            <span className="settings-toggle-knob" />
+          </button>
+        </div>
+        <p className="settings-help settings-help-bottom">
+          When on, Colony sends Claude Code TUI commands so the in-terminal session name and color match the sidebar.
+          Turn off if those lines in the transcript bother you. Sidebar names still update; Cursor Agent sessions never receive these.
+        </p>
+        <div className="settings-field">
           <label>Shell</label>
           <p className="settings-help">
-            Environment for Claude sessions.
+            Environment for terminal sessions.
             <span className="settings-restart-note">Requires daemon restart</span>
           </p>
           <select

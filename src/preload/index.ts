@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
+export type CliBackend = 'claude' | 'cursor-agent'
+
 export interface ClaudeInstance {
   id: string
   name: string
@@ -11,6 +13,7 @@ export interface ClaudeInstance {
   exitCode: number | null
   pid: number | null
   args: string[]
+  cliBackend: CliBackend
   gitBranch: string | null
   tokenUsage: { input: number; output: number; cost: number }
   pinned: boolean
@@ -112,6 +115,7 @@ export interface ClaudeManagerAPI {
       color?: string
       args?: string[]
       parentId?: string
+      cliBackend?: CliBackend
     }) => Promise<ClaudeInstance>
     write: (id: string, data: string) => Promise<boolean>
     resize: (id: string, cols: number, rows: number) => Promise<boolean>

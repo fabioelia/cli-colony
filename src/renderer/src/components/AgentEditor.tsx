@@ -5,6 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 import type { AgentDef, ClaudeInstance } from '../types'
+import { shouldSyncClaudeSlashCommands } from '../lib/claude-slash-sync'
 
 interface Props {
   agent: AgentDef
@@ -70,11 +71,14 @@ export default function AgentEditor({ agent, onBack, onSave, onInstanceCreated }
             sent = true
             unsub()
             const sessionName = `Edit: ${agent.name}`
-            window.api.instance.rename(inst.id, sessionName)
-            window.api.instance.write(inst.id, `/rename ${sessionName}\r`)
-            setTimeout(() => {
-              window.api.instance.write(inst.id, prompt + '\r')
-            }, 300)
+            void (async () => {
+              await window.api.instance.rename(inst.id, sessionName)
+              if (await shouldSyncClaudeSlashCommands()) {
+                await window.api.instance.write(inst.id, `/rename ${sessionName}\r`)
+                await new Promise((r) => setTimeout(r, 300))
+              }
+              await window.api.instance.write(inst.id, prompt + '\r')
+            })()
           }
         }
       })
@@ -83,11 +87,14 @@ export default function AgentEditor({ agent, onBack, onSave, onInstanceCreated }
           sent = true
           unsub()
           const sessionName = `Edit: ${agent.name}`
-          window.api.instance.rename(inst.id, sessionName)
-          window.api.instance.write(inst.id, `/rename ${sessionName}\r`)
-          setTimeout(() => {
-            window.api.instance.write(inst.id, prompt + '\r')
-          }, 300)
+          void (async () => {
+            await window.api.instance.rename(inst.id, sessionName)
+            if (await shouldSyncClaudeSlashCommands()) {
+              await window.api.instance.write(inst.id, `/rename ${sessionName}\r`)
+              await new Promise((r) => setTimeout(r, 300))
+            }
+            await window.api.instance.write(inst.id, prompt + '\r')
+          })()
         }
       }, 5000)
       setTimeout(() => { if (!sent) unsub() }, 15000)

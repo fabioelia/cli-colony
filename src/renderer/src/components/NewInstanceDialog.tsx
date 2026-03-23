@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { AgentDef } from '../types'
+import type { AgentDef, CliBackend } from '../types'
 import { COLORS, COLOR_MAP } from '../lib/constants'
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
     workingDirectory?: string
     color?: string
     args?: string[]
+    cliBackend?: CliBackend
   }) => void
   onClose: () => void
   prefill?: AgentDef
@@ -23,7 +24,14 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
   const [workingDirectory, setWorkingDirectory] = useState('')
   const [color, setColor] = useState(resolveColor(prefill?.color))
   const [extraArgs, setExtraArgs] = useState('')
+  const [cliBackend, setCliBackend] = useState<CliBackend>('claude')
   const [creating, setCreating] = useState(false)
+
+  useEffect(() => {
+    window.api.settings.getAll().then((s) => {
+      setCliBackend(s.defaultCliBackend === 'cursor-agent' ? 'cursor-agent' : 'claude')
+    })
+  }, [])
 
   const handlePickDir = async () => {
     const dir = await window.api.dialog.openDirectory()
@@ -39,6 +47,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
       workingDirectory: workingDirectory.trim() || undefined,
       color,
       args,
+      cliBackend,
     })
   }
 
@@ -114,6 +123,19 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
             value={extraArgs}
             onChange={(e) => setExtraArgs(e.target.value)}
           />
+        </div>
+
+        <div className="dialog-field">
+          <label>CLI for this session</label>
+          <select
+            value={cliBackend}
+            onChange={(e) => setCliBackend(e.target.value as CliBackend)}
+            className="settings-select"
+            style={{ width: '100%' }}
+          >
+            <option value="claude">Claude Code (claude)</option>
+            <option value="cursor-agent">Cursor Agent (agent)</option>
+          </select>
         </div>
 
         <div className="dialog-actions">

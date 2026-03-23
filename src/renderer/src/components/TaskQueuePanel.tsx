@@ -8,6 +8,7 @@ import {
   Save, FileText, CheckCircle, XCircle, Loader, Clock, ListOrdered, Layers
 } from 'lucide-react'
 import type { ClaudeInstance } from '../types'
+import { shouldSyncClaudeSlashCommands } from '../lib/claude-slash-sync'
 
 interface TaskDef {
   prompt: string
@@ -140,7 +141,17 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
       if (activity === 'waiting') {
         waitCount++
         if (waitCount === 1) { window.api.instance.write(inst.id, '\r') }
-        else { sent = true; unsub(); window.api.instance.write(inst.id, `/rename Task Assistant\r`); setTimeout(() => window.api.instance.write(inst.id, TASK_PROMPT), 300) }
+        else {
+          sent = true
+          unsub()
+          void (async () => {
+            if (await shouldSyncClaudeSlashCommands()) {
+              await window.api.instance.write(inst.id, '/rename Task Assistant\r')
+              await new Promise((r) => setTimeout(r, 300))
+            }
+            await window.api.instance.write(inst.id, TASK_PROMPT)
+          })()
+        }
       }
     })
     setTimeout(() => { if (!sent && waitCount >= 1) { sent = true; unsub(); window.api.instance.write(inst.id, TASK_PROMPT) } }, 5000)

@@ -34,8 +34,10 @@ export async function updateTrayMenu(mainWindow: BrowserWindow | null): Promise<
   const running = instances.filter((i) => i.status === 'running')
   console.log(`[tray] updating menu: ${instances.length} total, ${running.length} running`)
 
+  const cliLabel = (b: string | undefined) => (b === 'cursor-agent' ? 'Cursor' : 'Claude')
+
   const instanceItems: Electron.MenuItemConstructorOptions[] = running.map((inst) => ({
-    label: `${inst.name} — ${inst.workingDirectory.split('/').pop()}`,
+    label: `${inst.name} (${cliLabel(inst.cliBackend)}) — ${inst.workingDirectory.split('/').pop()}`,
     click: () => {
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.show()

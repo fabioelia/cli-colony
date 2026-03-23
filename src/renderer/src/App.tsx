@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { ClaudeInstance, AgentDef, CliSession, RecentSession } from './types'
+import type { ClaudeInstance, AgentDef, CliSession, RecentSession, CliBackend } from './types'
 import Sidebar, { SidebarView } from './components/Sidebar'
 import TerminalView from './components/TerminalView'
 import NewInstanceDialog from './components/NewInstanceDialog'
@@ -244,6 +244,7 @@ export default function App() {
     workingDirectory?: string
     color?: string
     args?: string[]
+    cliBackend?: CliBackend
   }) => {
     agentToLaunchRef.current = null
     const inst = await window.api.instance.create(opts)
@@ -379,6 +380,7 @@ export default function App() {
       name: session.name || session.display.slice(0, 40),
       workingDirectory: session.project,
       args: ['--resume', session.sessionId],
+      cliBackend: 'claude',
     })
     setActiveId(inst.id)
     setView('instances')
@@ -392,6 +394,7 @@ export default function App() {
         workingDirectory: s.workingDirectory,
         color: s.color,
         args: ['--resume', s.sessionId!],
+        cliBackend: s.cliBackend ?? 'claude',
       })
       if (s.pinned) {
         await window.api.instance.pin(inst.id)
@@ -686,6 +689,7 @@ export default function App() {
                     name: `${inst.name} → child`,
                     workingDirectory: inst.workingDirectory,
                     parentId: inst.id,
+                    cliBackend: inst.cliBackend ?? 'claude',
                   })
                   setActiveId(child.id)
                 }}

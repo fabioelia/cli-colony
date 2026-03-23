@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, Workflow, TerminalSquare, Bot } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import Tooltip from './Tooltip'
-import { COLORS, formatTime } from '../lib/constants'
+import { COLORS, formatTime, cliBackendLabel, formatInstanceCmd } from '../lib/constants'
 
 export type SidebarView = 'instances' | 'agents' | 'github' | 'sessions' | 'settings' | 'logs' | 'tasks' | 'orchestrate'
 
@@ -192,6 +192,9 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
                 MCP {inst.mcpServers.length}
               </span>
             )}
+            <span className="instance-cli-badge" title="CLI for this session">
+              {cliBackendLabel(inst.cliBackend)}
+            </span>
           </div>
         )}
         <div className="instance-meta">
@@ -220,7 +223,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
             </button>
           </Tooltip>
           {inst.status === 'running' ? (
-            <Tooltip text="Kill Session" detail="Terminate the Claude CLI process">
+            <Tooltip text="Kill Session" detail="Terminate the CLI process for this session">
               <button className="danger" aria-label="Kill" onClick={(e) => { e.stopPropagation(); onKill(inst.id) }}><Square size={13} /></button>
             </Tooltip>
           ) : (
@@ -339,7 +342,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
         if (!inst) return null
         return (
           <div className="instance-popover" style={{ top: instancePopoverPos.top, left: instancePopoverPos.left }} onClick={(e) => e.stopPropagation()}>
-            <div className="instance-info-row"><span>cmd</span> claude {inst.args.join(' ') || '(interactive)'}</div>
+            <div className="instance-info-row"><span>cmd</span> {formatInstanceCmd(inst)}</div>
             <div className="instance-info-row"><span>dir</span> {inst.workingDirectory}</div>
             <div className="instance-info-row"><span>pid</span> {inst.pid ?? '—'}</div>
             <div className="instance-info-row"><span>started</span> {new Date(inst.createdAt).toLocaleTimeString()}</div>

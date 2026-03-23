@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
+import type { CliBackend } from '../daemon/protocol'
 
 interface AppSettings {
   defaultArgs: string
@@ -57,4 +58,9 @@ export function getDefaultArgs(): string[] {
   const raw = getSetting('defaultArgs').trim()
   if (!raw) return []
   return raw.split(/\s+/)
+}
+
+export function getDefaultCliBackend(): CliBackend {
+  const raw = getSetting('defaultCliBackend').trim()
+  return raw === 'cursor-agent' ? 'cursor-agent' : 'claude'
 }
