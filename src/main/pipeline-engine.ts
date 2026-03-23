@@ -22,6 +22,7 @@ import type { GitHubRepo, GitHubPR, PRChecks } from './github'
 export interface TriggerDef {
   type: 'git-poll' | 'file-poll' | 'cron'
   interval?: number // seconds
+  cron?: string // cron expression: "min hour dom month dow" (e.g. "0 9 * * 1-5")
   repos?: 'auto' | GitHubRepo[]
   watch?: string[]
 }
@@ -78,6 +79,7 @@ export interface PipelineInfo {
   fileName: string
   triggerType: string
   interval: number
+  cron: string | null
   lastPollAt: string | null
   lastFiredAt: string | null
   lastError: string | null
@@ -92,6 +94,56 @@ interface TriggerContext {
   githubUser?: string
   timestamp: string
   contentSha?: string // SHA of matched file — for change detection
+}
+
+// ---- Cron Expression Matcher ----
+// Supports: "min hour dom month dow" (5 fields)
+// Each field: number, *, */N, N-M, comma-separated, named days (mon-sun)
+
+const DAY_NAMES: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 }
+
+function cronFieldMatches(field: string, value: number, max: number): boolean {
+  if (field === '*') return true
+  for (const part of field.split(',')) {
+    const trimmed = part.trim().toLowerCase()
+    // */N step
+    if (trimmed.startsWith('*/')) {
+      const step = parseInt(trimmed.slice(2))
+      if (!isNaN(step) && step > 0 && value % step === 0) return true
+      continue
+    }
+    // N-M range
+    if (trimmed.includes('-')) {
+      const [startStr, endStr] = trimmed.split('-')
+      const start = DAY_NAMES[startStr] ?? parseInt(startStr)
+      const end = DAY_NAMES[endStr] ?? parseInt(endStr)
+      if (!isNaN(start) && !isNaN(end) && value >= start && value <= end) return true
+      continue
+    }
+    // Named day
+    if (DAY_NAMES[trimmed] !== undefined) {
+      if (DAY_NAMES[trimmed] === value) return true
+      continue
+    }
+    // Exact number
+    const num = parseInt(trimmed)
+    if (!isNaN(num) && num === value) return true
+  }
+  return false
+}
+
+function cronMatches(expression: string, date?: Date): boolean {
+  const d = date || new Date()
+  const fields = expression.trim().split(/\s+/)
+  if (fields.length < 5) return false
+  const [minute, hour, dom, month, dow] = fields
+  return (
+    cronFieldMatches(minute, d.getMinutes(), 59) &&
+    cronFieldMatches(hour, d.getHours(), 23) &&
+    cronFieldMatches(dom, d.getDate(), 31) &&
+    cronFieldMatches(month, d.getMonth() + 1, 12) &&
+    cronFieldMatches(dow, d.getDay(), 6)
+  )
 }
 
 // ---- Constants ----
@@ -854,10 +906,46 @@ export async function startPipelines(): Promise<void> {
 
   for (const [name, p] of pipelines) {
     if (!p.def.enabled) continue
-    const intervalMs = (p.def.trigger.interval || 300) * 1000
-    log(`Starting poll for ${name} every ${intervalMs / 1000}s`)
+    schedulePipeline(name, p.def)
+  }
+}
 
-    // Run first poll after a short delay (let app fully initialize)
+function schedulePipeline(name: string, def: PipelineDef): void {
+  const cronExpr = def.trigger.cron
+
+  if (cronExpr) {
+    // Cron-based: check every 60s if the cron expression matches
+    const intervalMs = (def.trigger.interval || 300) * 1000
+    log(`Starting cron pipeline ${name}: "${cronExpr}" (poll interval ${intervalMs / 1000}s when active)`)
+
+    // Track last cron-triggered minute to avoid double-firing within same minute
+    let lastCronMinute = -1
+
+    const cronCheck = setInterval(() => {
+      const now = new Date()
+      const currentMinute = now.getHours() * 60 + now.getMinutes()
+
+      if (cronMatches(cronExpr, now) && currentMinute !== lastCronMinute) {
+        lastCronMinute = currentMinute
+        log(`Cron matched for ${name} at ${now.toLocaleTimeString()}`)
+        runPoll(name)
+      }
+    }, 60000) // Check every minute
+
+    timers.set(name, cronCheck)
+
+    // Also run on startup if cron matches right now
+    setTimeout(() => {
+      if (cronMatches(cronExpr)) {
+        log(`Cron matches on startup for ${name}`)
+        runPoll(name)
+      }
+    }, 10000)
+  } else {
+    // Interval-based: simple fixed interval
+    const intervalMs = (def.trigger.interval || 300) * 1000
+    log(`Starting interval pipeline ${name} every ${intervalMs / 1000}s`)
+
     setTimeout(() => runPoll(name), 10000)
     const timer = setInterval(() => runPoll(name), intervalMs)
     timers.set(name, timer)
@@ -883,6 +971,7 @@ export function getPipelineList(): PipelineInfo[] {
       fileName: p.fileName,
       triggerType: p.def.trigger.type,
       interval: p.def.trigger.interval || 300,
+      cron: p.def.trigger.cron || null,
       lastPollAt: p.state.lastPollAt,
       lastFiredAt: p.state.lastFiredAt,
       lastError: p.state.lastError,
@@ -909,9 +998,7 @@ export function togglePipeline(name: string, enabled: boolean): boolean {
   }
 
   if (enabled && !timers.has(name)) {
-    const intervalMs = (p.def.trigger.interval || 300) * 1000
-    runPoll(name)
-    timers.set(name, setInterval(() => runPoll(name), intervalMs))
+    schedulePipeline(name, p.def)
     log(`Enabled pipeline: ${name}`)
   } else if (!enabled && timers.has(name)) {
     clearInterval(timers.get(name)!)
@@ -955,8 +1042,7 @@ export function savePipelineContent(fileName: string, content: string): boolean 
     // Restart enabled ones
     for (const [name, p] of pipelines) {
       if (p.def.enabled) {
-        const intervalMs = (p.def.trigger.interval || 300) * 1000
-        timers.set(name, setInterval(() => runPoll(name), intervalMs))
+        schedulePipeline(name, p.def)
       }
     }
     started = true

@@ -12,6 +12,7 @@ interface PipelineInfo {
   fileName: string
   triggerType: string
   interval: number
+  cron: string | null
   lastPollAt: string | null
   lastFiredAt: string | null
   lastError: string | null
@@ -37,7 +38,8 @@ enabled: false
 
 trigger:
   type: git-poll          # or: file-poll, cron
-  interval: 300           # seconds between polls
+  interval: 300           # seconds between polls (used when cron matches)
+  cron: "0 9 * * 1-5"    # optional: only run during certain times (min hour dom month dow)
   repos: auto             # "auto" = repos from GitHub tab
 
 condition:
@@ -282,7 +284,11 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
               </div>
               <div className="pipeline-card-right">
                 <span className="pipeline-card-trigger">{p.triggerType}</span>
-                <span className="pipeline-card-interval">{p.interval}s</span>
+                {p.cron ? (
+                  <span className="pipeline-card-cron" title={`Cron: ${p.cron}`}><Clock size={10} /> {p.cron}</span>
+                ) : (
+                  <span className="pipeline-card-interval">{p.interval}s</span>
+                )}
                 {p.fireCount > 0 && (
                   <span className="pipeline-card-fires">
                     <Zap size={10} /> {p.fireCount}

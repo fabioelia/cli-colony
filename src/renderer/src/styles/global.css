@@ -5524,6 +5524,15 @@ input, select {
   color: var(--text-muted);
 }
 
+.pipeline-card-cron {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--text-muted);
+  font-family: Menlo, Monaco, 'Courier New', monospace;
+  font-size: 9px;
+}
+
 .pipeline-card-fires {
   display: flex;
   align-items: center;
