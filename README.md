@@ -34,6 +34,8 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 - Auto-cleanup of exited sessions after configurable timeout
 - Unique colors — new sessions pick the least-used color, synced to Claude CLI via `/color`
 - Session name synced to Claude CLI via `/rename`
+- Shortcut numbers (1-9) shown on each session in sidebar for quick `Cmd+N` jumping
+- Resuming stopped sessions auto-removes the stopped duplicate
 
 ### Persistent PTY Daemon
 - Standalone Node.js daemon owns all PTY file descriptors independently of Electron
@@ -67,11 +69,13 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 - Arrow keys + Enter to select, Escape to close
 
 ### Task Queue
-- **Tasks tab** in the sidebar for batch execution
+- **Tasks tab** in the sidebar — split view: YAML editor + Task Assistant CLI
 - Define task queues as YAML files in `~/.claude-colony/task-queues/`
 - Each task: prompt + working directory, run parallel or sequential
 - Create, edit, delete queues from the UI
 - Each task spawns a Claude session automatically
+- Task Assistant session helps design and create queues (reuses existing, "New" button for fresh start)
+- Parse validation shows task count and mode before running
 
 ### Session Orchestration
 - **Orchestrate tab** combining cross-session intelligence
@@ -161,6 +165,7 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 - Drag & drop folders onto sidebar to create new session
 - Rich tooltips on all buttons with descriptions and keyboard shortcuts
 - Crash handler with reload/continue options and stack trace
+- **Colony Context** — shared `colony-context.md` file auto-generated with all active sessions, repos, agents, task queues, and handoffs. Every Colony-launched session is told to read it for broader workspace awareness.
 
 ### Keyboard Shortcuts
 
@@ -190,6 +195,7 @@ All app data lives in `~/.claude-colony/`:
 ├── daemon.sock            # Unix socket for daemon communication
 ├── daemon.pid             # Daemon process ID
 ├── daemon.log             # Daemon process logs
+├── colony-context.md      # Auto-generated shared context for all sessions
 ├── screenshots/           # Pasted clipboard images
 ├── task-queues/           # YAML task queue definitions
 ├── handoffs/              # Child session handoff documents
@@ -249,6 +255,7 @@ src/
 │   ├── agent-scanner.ts     # Scans for agent definitions, creates new agents
 │   ├── session-scanner.ts   # Reads ~/.claude/history.jsonl for session history
 │   ├── recent-sessions.ts   # Tracks sessions opened via the app
+│   ├── colony-context.ts    # Shared context file generator for cross-session awareness
 │   ├── settings.ts          # Read/write ~/.claude-colony/settings.json
 │   ├── tray.ts              # System tray menu
 │   └── logger.ts            # In-memory log buffer for the logs viewer
@@ -270,6 +277,9 @@ src/
         │   ├── AgentsPanel.tsx      # Agent browser with cards, create, export/import
         │   ├── AgentEditor.tsx      # Split view: file editor + terminal
         │   ├── SettingsPanel.tsx    # Settings + daemon + logs
+        │   ├── TaskQueuePanel.tsx   # Split view: YAML editor + Task Assistant CLI
+        │   ├── SessionDepsPanel.tsx # Cross-session search, chains, dependencies
+        │   ├── CommandPalette.tsx   # Cmd+K fuzzy search palette
         │   ├── Tooltip.tsx          # Rich tooltip component
         │   └── ErrorBoundary.tsx    # Crash handler with reload
         ├── styles/

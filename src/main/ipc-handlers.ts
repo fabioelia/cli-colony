@@ -28,6 +28,7 @@ import {
   fetchChecks, fetchCheckLogs,
 } from './github'
 import type { GitHubRepo, QuickPrompt, GitHubPR } from './github'
+import { updateColonyContext, getColonyContextPath, getColonyContextInstruction } from './colony-context'
 
 export function registerIpcHandlers(): void {
   ipcMain.handle('instance:create', (_e, opts) => createInstance(opts || {}))
@@ -339,6 +340,11 @@ export function registerIpcHandlers(): void {
   })
   ipcMain.handle('github:fetchChecks', (_e, repo: GitHubRepo, prNumber: number) => fetchChecks(repo, prNumber))
   ipcMain.handle('github:fetchCheckLogs', (_e, repo: GitHubRepo, prNumber: number, checkName: string) => fetchCheckLogs(repo, prNumber, checkName))
+
+  // Colony context
+  ipcMain.handle('colony:updateContext', () => updateColonyContext())
+  ipcMain.handle('colony:getContextPath', () => getColonyContextPath())
+  ipcMain.handle('colony:getContextInstruction', () => getColonyContextInstruction())
 
   // Task queue file I/O
   const QUEUE_DIR = join(app.getPath('home'), '.claude-colony', 'task-queues')

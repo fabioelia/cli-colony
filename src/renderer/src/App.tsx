@@ -359,13 +359,21 @@ export default function App() {
   }, [])
 
   const handleResumeSession = useCallback(async (session: CliSession) => {
-    const existing = instances.find((i) =>
-      i.args.includes('--resume') && i.args.includes(session.sessionId)
+    // If already running with this session, just focus it
+    const running = instances.find((i) =>
+      i.status === 'running' && i.args.includes('--resume') && i.args.includes(session.sessionId)
     )
-    if (existing) {
-      setActiveId(existing.id)
+    if (running) {
+      setActiveId(running.id)
       setView('instances')
       return
+    }
+    // Remove any stopped instance with this session ID to avoid duplicates
+    const stopped = instances.find((i) =>
+      i.status !== 'running' && i.args.includes('--resume') && i.args.includes(session.sessionId)
+    )
+    if (stopped) {
+      await window.api.instance.remove(stopped.id)
     }
     const inst = await window.api.instance.create({
       name: session.name || session.display.slice(0, 40),
@@ -492,6 +500,34 @@ export default function App() {
       }
     })
   }, [activeId, terminalsRef])
+
+  // Direct keyboard handler for zoom (fallback for when menu accelerators don't fire)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return
+      if (e.key === '=' || e.key === '+') {
+        e.preventDefault()
+        setFontSize((prev) => {
+          const next = Math.min(prev + 1, 28)
+          window.api.settings.set('fontSize', String(next))
+          return next
+        })
+      } else if (e.key === '-' || e.key === '_') {
+        e.preventDefault()
+        setFontSize((prev) => {
+          const next = Math.max(prev - 1, 8)
+          window.api.settings.set('fontSize', String(next))
+          return next
+        })
+      } else if (e.key === '0') {
+        e.preventDefault()
+        setFontSize(13)
+        window.api.settings.set('fontSize', '13')
+      }
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [])
 
   // Clean up split pairs if either instance no longer exists
   useEffect(() => {

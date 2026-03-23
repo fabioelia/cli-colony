@@ -112,6 +112,12 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
   const pinned = instances.filter((i) => i.pinned)
   const running = instances.filter((i) => i.status === 'running' && !i.pinned)
   const exited = instances.filter((i) => i.status !== 'running' && !i.pinned)
+  // Visual order for Cmd+N shortcuts
+  const orderedInstances = [...pinned, ...running, ...exited]
+  const instanceIndex = (id: string) => {
+    const idx = orderedInstances.findIndex((i) => i.id === id)
+    return idx >= 0 && idx < 9 ? idx + 1 : null // 1-indexed, max 9
+  }
 
   const handleKeyDown = (e: React.KeyboardEvent, action: () => void) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -135,6 +141,9 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
         setContextMenu({ id: inst.id, x, y })
       }}
     >
+      {instanceIndex(inst.id) && (
+        <span className="instance-shortcut" title={`Cmd+${instanceIndex(inst.id)}`}>{instanceIndex(inst.id)}</span>
+      )}
       <div
         className={`instance-dot clickable ${inst.status === 'running' && inst.activity === 'busy' ? 'pulsing' : ''}`}
         style={{
@@ -157,6 +166,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
             onChange={(e) => setRenameValue(e.target.value)}
             onBlur={commitRename}
             onKeyDown={(e) => {
+              e.stopPropagation()
               if (e.key === 'Enter') commitRename()
               if (e.key === 'Escape') setRenamingId(null)
             }}

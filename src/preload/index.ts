@@ -197,6 +197,11 @@ export interface ClaudeManagerAPI {
     fetchChecks: (repo: GitHubRepo, prNumber: number) => Promise<PRChecks>
     fetchCheckLogs: (repo: GitHubRepo, prNumber: number, checkName: string) => Promise<string>
   }
+  colony: {
+    updateContext: () => Promise<string>
+    getContextPath: () => Promise<string>
+    getContextInstruction: () => Promise<string>
+  }
   taskQueue: {
     list: () => Promise<Array<{ name: string; path: string; content: string }>>
     save: (name: string, content: string) => Promise<string>
@@ -324,6 +329,11 @@ const api: ClaudeManagerAPI = {
     getCommentsFile: (repoSlug, prNumber) => ipcRenderer.invoke('github:getCommentsFile', repoSlug, prNumber),
     fetchChecks: (repo, prNumber) => ipcRenderer.invoke('github:fetchChecks', repo, prNumber),
     fetchCheckLogs: (repo, prNumber, checkName) => ipcRenderer.invoke('github:fetchCheckLogs', repo, prNumber, checkName),
+  },
+  colony: {
+    updateContext: () => ipcRenderer.invoke('colony:updateContext'),
+    getContextPath: () => ipcRenderer.invoke('colony:getContextPath'),
+    getContextInstruction: () => ipcRenderer.invoke('colony:getContextInstruction'),
   },
   taskQueue: {
     list: () => ipcRenderer.invoke('taskQueue:list'),

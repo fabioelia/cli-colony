@@ -114,6 +114,8 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     // Always rewrite context file with latest data
     const path = await window.api.github.writePrContext(updated)
     setContextPath(path)
+    // Also update colony context so all sessions see fresh state
+    await window.api.colony.updateContext()
     return path
   }
 
@@ -146,7 +148,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
       workingDirectory: workspacePath || undefined,
     })
     setAssistantId(id)
-    const prompt = `Read the file ${currentContextPath} which contains all open PRs across my repositories. Each PR may have a comments file referenced — read those too if relevant. Then answer this question: ${q}${memoryInstructions}`
+    const prompt = `Read the file ${currentContextPath} which contains all open PRs across my repositories. Each PR may have a comments file referenced — read those too if relevant. Then answer this question: ${q}${memoryInstructions}${colonyContextInstruction}`
     sendPromptWhenReady(id, prompt, `PR: ${q.slice(0, 30)}`)
   }
 
@@ -257,6 +259,11 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     ? `\n\nIMPORTANT: A PR memory file exists at ${memoryPath}. Read it for context from previous PR discussions. If you learn something important during this conversation (patterns, decisions, team preferences, recurring issues), append it to that file so it's available in future PR sessions.`
     : ''
 
+  const [colonyContextInstruction, setColonyContextInstruction] = useState('')
+  useEffect(() => {
+    window.api.colony.getContextInstruction().then(setColonyContextInstruction)
+  }, [])
+
   const sendPromptWhenReady = (id: string, prompt: string, sessionName?: string) => {
     // Listen for activity changes — send prompt once Claude is waiting for input
     let sent = false
@@ -314,7 +321,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
       name: `${prompt.label}: ${repo.name}#${pr.number}`,
       workingDirectory: repo.localPath || workspacePath || undefined,
     })
-    sendPromptWhenReady(id, resolved + commentRef + memoryInstructions, `${prompt.label}: ${repo.name}#${pr.number}`)
+    sendPromptWhenReady(id, resolved + commentRef + memoryInstructions + colonyContextInstruction, `${prompt.label}: ${repo.name}#${pr.number}`)
   }
 
   const handleOpenPromptEditor = () => {

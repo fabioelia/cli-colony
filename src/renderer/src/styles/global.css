@@ -454,6 +454,22 @@ input, select {
   background: var(--bg-tertiary);
 }
 
+.instance-shortcut {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 14px;
+  text-align: center;
+  opacity: 0.5;
+  flex-shrink: 0;
+  font-family: Menlo, Monaco, monospace;
+}
+
+.instance-item:hover .instance-shortcut,
+.instance-item.active .instance-shortcut {
+  opacity: 0.8;
+}
+
 .instance-dot {
   width: 10px;
   height: 10px;
@@ -4703,6 +4719,94 @@ input, select {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.task-queue-split {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.task-queue-left {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 48px 16px 16px;
+}
+
+.task-queue-divider {
+  width: 3px;
+  background: var(--border);
+  cursor: col-resize;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.task-queue-divider:hover {
+  background: var(--accent);
+}
+
+.task-queue-right {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: #000;
+}
+
+.task-queue-term-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 14px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--warning);
+  background: var(--bg-primary);
+  border-bottom: 2px solid var(--border);
+  -webkit-app-region: drag;
+}
+
+.task-queue-term-header span {
+  flex: 1;
+}
+
+.task-queue-term-new {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  transition: all 0.15s;
+  -webkit-app-region: no-drag;
+}
+
+.task-queue-term-new:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.task-queue-term-container {
+  flex: 1;
+  padding: 2px 0 0 6px;
+}
+
+.task-queue-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 0;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.task-queue-empty-hint {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .task-queue-header {

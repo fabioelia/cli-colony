@@ -33,6 +33,9 @@ export default function AgentEditor({ agent, onBack, onSave, onInstanceCreated }
     })
   }, [agent.filePath])
 
+  const [colonyCtx, setColonyCtx] = useState('')
+  useEffect(() => { window.api.colony.getContextInstruction().then(setColonyCtx) }, [])
+
   // Spawn a claude instance for this agent edit session (guard against StrictMode double-fire)
   const spawnedRef = useRef(false)
   const instanceIdRef = useRef<string | null>(null)
@@ -52,7 +55,7 @@ export default function AgentEditor({ agent, onBack, onSave, onInstanceCreated }
       onInstanceCreated?.(inst.id)
 
       // Prime the instance with context about the agent file
-      const prompt = `You are helping the user build and refine the Claude Code agent definition at ${agent.filePath}. Read that file now. Your job is to help them:\n- Write a clear, effective system prompt\n- Choose the right tools and model\n- Test and iterate on the agent's behavior\n\nThe agent file uses markdown frontmatter (name, description, tools, model, color) followed by the system prompt body. Start by reading the file and suggesting improvements or asking what the user wants this agent to do.`
+      const prompt = `You are helping the user build and refine the Claude Code agent definition at ${agent.filePath}. Read that file now. Your job is to help them:\n- Write a clear, effective system prompt\n- Choose the right tools and model\n- Test and iterate on the agent's behavior\n\nThe agent file uses markdown frontmatter (name, description, tools, model, color) followed by the system prompt body.${colonyCtx}\n\nStart by reading the file and suggesting improvements or asking what the user wants this agent to do.`
 
       // Wait for Claude to be ready, then set name and send the prompt
       let sent = false

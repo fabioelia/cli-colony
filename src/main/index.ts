@@ -6,6 +6,7 @@ import { initDaemon, disconnectDaemon, setOnInstanceListChanged } from './instan
 import { createTray, updateTrayMenu } from './tray'
 import { initLogger } from './logger'
 import { getSetting } from './settings'
+import { updateColonyContext } from './colony-context'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -48,6 +49,19 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()
+  })
+
+  // Prevent Electron from handling Cmd+- / Cmd+= / Cmd+0 as native zoom
+  // so our custom font size zoom works instead
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if ((input.meta || input.control) && (input.key === '-' || input.key === '=' || input.key === '+' || input.key === '0')) {
+      // Let it through to the renderer — don't let Electron's default zoom handle it
+      // We need to explicitly send to renderer since Electron eats these
+      if (input.key === '-') {
+        event.preventDefault()
+        sendToRenderer('shortcut:zoom-out')
+      }
+    }
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -165,8 +179,20 @@ function buildAppMenu(): void {
           click: () => sendToRenderer('shortcut:zoom-in'),
         },
         {
+          label: 'Zoom In (Plus)',
+          accelerator: 'CmdOrCtrl+Plus',
+          visible: false,
+          click: () => sendToRenderer('shortcut:zoom-in'),
+        },
+        {
           label: 'Zoom Out',
           accelerator: 'CmdOrCtrl+-',
+          click: () => sendToRenderer('shortcut:zoom-out'),
+        },
+        {
+          label: 'Zoom Out (Underscore)',
+          accelerator: 'CmdOrCtrl+_',
+          visible: false,
           click: () => sendToRenderer('shortcut:zoom-out'),
         },
         {
@@ -217,10 +243,12 @@ app.whenReady().then(() => {
   setOnInstanceListChanged(() => updateTrayMenu(mainWindow))
 
   // Connect to PTY daemon (spawns it if not running)
-  initDaemon().then(() => {
+  initDaemon().then(async () => {
     console.log('[app] daemon connected')
-    // Refresh tray now that daemon is connected
     updateTrayMenu(mainWindow)
+    // Generate initial colony context
+    await updateColonyContext()
+    console.log('[app] colony context initialized')
   }).catch((err) => {
     console.error('[app] daemon init failed:', err)
   })
