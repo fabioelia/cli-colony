@@ -79,6 +79,7 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 - Each task spawns a Claude session automatically
 - Task Assistant session helps design and create queues (reuses existing, "New" button for fresh start)
 - Parse validation shows task count and mode before running
+- **Runs & Artifacts** — browse past task runs as a tree (queue → task → files), preview generated artifacts with line numbers
 
 ### Pipelines
 - **Pipelines tab** — reactive automation: trigger → condition → action
@@ -94,7 +95,8 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 - **Dedup** — avoids re-firing for the same event within a configurable TTL
 - **Template variables** — `{{pr.number}}`, `{{pr.branch}}`, `{{repo.localPath}}`, `{{github.user}}`, etc.
 - Enable/disable pipelines from the UI, edit YAML inline, trigger polls manually
-- **Pre-seeded pipeline**: Colony Feedback — routes reviewer feedback from `colony-feedback` branch (`reviews/<pr-number>/feedback.md`) to an existing session on that branch, or launches a new one
+- **Companion docs** — each pipeline can have a `<name>-README.md` with instructions, shown as a Docs tab in the UI
+- **Pre-seeded pipeline**: Colony Feedback — routes reviewer feedback from `colony-feedback` branch (`reviews/<pr-number>/feedback.md`) to an existing session on that branch, or launches a new one. Includes reviewer instructions README.
 
 ### Session Orchestration
 - **Orchestrate tab** combining cross-session intelligence
@@ -249,6 +251,7 @@ Agent definitions are read from `~/.claude/agents/` (personal) and `<project>/.c
 │  Electron App (Renderer + Main)                 │
 │  ├── React UI (sidebar, terminals, panels)      │
 │  ├── IPC handlers (bridge to daemon)            │
+│  ├── Pipeline engine (polling, routing, dedup)  │
 │  └── Notifications, tray, global hotkey         │
 └──────────────┬──────────────────────────────────┘
                │ Unix domain socket (NDJSON)
@@ -278,6 +281,7 @@ src/
 │   ├── session-scanner.ts   # Reads ~/.claude/history.jsonl for session history
 │   ├── recent-sessions.ts   # Tracks sessions opened via the app
 │   ├── colony-context.ts    # Shared context file generator for cross-session awareness
+│   ├── pipeline-engine.ts   # Pipeline engine: triggers, conditions, routing, dedup
 │   ├── settings.ts          # Read/write ~/.claude-colony/settings.json
 │   ├── tray.ts              # System tray menu
 │   └── logger.ts            # In-memory log buffer for the logs viewer
@@ -301,6 +305,7 @@ src/
         │   ├── SettingsPanel.tsx    # Settings + daemon + logs
         │   ├── TaskQueuePanel.tsx   # Split view: YAML editor + Task Assistant CLI
         │   ├── SessionDepsPanel.tsx # Cross-session search, chains, dependencies
+        │   ├── PipelinesPanel.tsx   # Pipeline management, YAML editor, docs viewer
         │   ├── CommandPalette.tsx   # Cmd+K fuzzy search palette
         │   ├── Tooltip.tsx          # Rich tooltip component
         │   └── ErrorBoundary.tsx    # Crash handler with reload
