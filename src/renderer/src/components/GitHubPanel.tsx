@@ -423,20 +423,20 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     })
   }, [])
 
-  // Auto-fetch checks once when PRs are loaded for an expanded repo
+  // Auto-fetch checks for all loaded PRs across all repos
   useEffect(() => {
-    if (!expandedRepo) return
-    const repo = repos.find((r) => `${r.owner}/${r.name}` === expandedRepo)
-    if (!repo) return
-    const prs = prsByRepo[expandedRepo] || []
-    for (const pr of prs) {
-      const key = `${expandedRepo}#${pr.number}`
-      if (!checksFetchedRef.current.has(key)) {
-        checksFetchedRef.current.add(key)
-        fetchChecksForPR(repo, pr)
+    for (const repo of repos) {
+      const slug = `${repo.owner}/${repo.name}`
+      const prs = prsByRepo[slug] || []
+      for (const pr of prs) {
+        const key = `${slug}#${pr.number}`
+        if (!checksFetchedRef.current.has(key)) {
+          checksFetchedRef.current.add(key)
+          fetchChecksForPR(repo, pr)
+        }
       }
     }
-  }, [expandedRepo, prsByRepo, repos, fetchChecksForPR])
+  }, [prsByRepo, repos, fetchChecksForPR])
 
   const timeSince = (dateStr: string) => {
     const secs = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
