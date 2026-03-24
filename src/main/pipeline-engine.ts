@@ -784,8 +784,10 @@ async function evaluateCondition(condition: ConditionDef, ctx: TriggerContext): 
 
 // ---- Action Execution ----
 
-async function fireAction(action: ActionDef, ctx: TriggerContext): Promise<void> {
-  const name = resolveTemplate(action.name || 'Pipeline Session', ctx)
+async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<void> {
+  const rawName = resolveTemplate(action.name || 'Pipeline Session', ctx)
+  // Prefix with "Pipe" so pipeline-launched sessions are identifiable
+  const name = rawName.startsWith('Pipe') ? rawName : `Pipe (${rawName})`
   const cwd = resolveTemplate(action.workingDirectory || '', ctx) || undefined
   const prompt = resolveTemplate(action.prompt, ctx)
 
@@ -899,7 +901,7 @@ async function runPoll(pipelineName: string): Promise<void> {
       const dedupKey = resolveTemplate(p.def.dedup.key, ctx)
       if (isDuplicate(pipelineName, dedupKey, p.def.dedup.ttl || 3600, ctx.contentSha)) continue
 
-      await fireAction(p.def.action, ctx)
+      await fireAction(p.def.action, ctx, p.def.name)
       recordFired(pipelineName, dedupKey, ctx.contentSha)
     }
 
