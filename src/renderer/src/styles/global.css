@@ -5283,11 +5283,43 @@ input, select {
   gap: 1px;
 }
 
+.task-outputs-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.task-outputs-date {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.task-outputs-date:hover { color: var(--text-secondary); }
+.task-outputs-date.expanded { color: var(--text-secondary); }
+
+.task-outputs-date-count {
+  margin-left: auto;
+  font-weight: 400;
+  font-size: 9px;
+  color: var(--text-muted);
+  background: var(--bg-hover);
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
 .task-outputs-file {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 5px 8px;
+  padding: 4px 8px 4px 22px;
   border-radius: 4px;
   font-size: 11px;
   color: var(--text-muted);

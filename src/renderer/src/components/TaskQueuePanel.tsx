@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Plus, Trash2, Play, Square, Save, FileText, CheckCircle, XCircle,
   Loader, Clock, ListOrdered, Layers, FolderOpen, File, Zap,
-  MessageSquare, Send
+  MessageSquare, Send, ChevronDown, ChevronRight
 } from 'lucide-react'
 import type { ClaudeInstance } from '../types'
 
@@ -88,6 +88,7 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
   const [memoryDirty, setMemoryDirty] = useState(false)
   const [taskOutputs, setTaskOutputs] = useState<Array<{ name: string; path: string; size: number; modified: number }>>([])
   const [outputPreview, setOutputPreview] = useState<{ name: string; content: string } | null>(null)
+  const [expandedOutputDate, setExpandedOutputDate] = useState<string | null>(null)
 
   const [runningQueue, setRunningQueue] = useState<QueueDef | null>(null)
   const [taskStatuses, setTaskStatuses] = useState<TaskStatus[]>([])
@@ -375,24 +376,49 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
               <textarea className="task-queue-textarea" value={editor} onChange={(e) => setEditor(e.target.value)} spellCheck={false} />
             ) : editorTab === 'outputs' ? (
               <div className="task-outputs-split">
-                {/* File tree */}
+                {/* File tree grouped by date */}
                 <div className="task-outputs-tree">
-                  {taskOutputs.map((f) => (
-                    <div
-                      key={f.path}
-                      className={`task-outputs-file ${outputPreview?.name === f.name ? 'active' : ''}`}
-                      onClick={async () => {
-                        const result = await window.api.fs.readFile(f.path)
-                        if (result.content !== undefined) setOutputPreview({ name: f.name, content: result.content })
-                      }}
-                    >
-                      <File size={11} />
-                      <span className="task-outputs-file-name">{f.name}</span>
-                      <span className="task-outputs-file-size">
-                        {f.size < 1024 ? `${f.size}B` : `${(f.size / 1024).toFixed(1)}KB`}
-                      </span>
-                    </div>
-                  ))}
+                  {(() => {
+                    // Group files by date
+                    const grouped = new Map<string, typeof taskOutputs>()
+                    for (const f of taskOutputs) {
+                      const d = new Date(f.modified)
+                      const key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                      if (!grouped.has(key)) grouped.set(key, [])
+                      grouped.get(key)!.push(f)
+                    }
+                    return [...grouped.entries()].map(([date, files]) => (
+                      <div key={date} className="task-outputs-group">
+                        <div
+                          className={`task-outputs-date ${expandedOutputDate === date || expandedOutputDate === null ? 'expanded' : ''}`}
+                          onClick={() => setExpandedOutputDate(expandedOutputDate === date ? null : date)}
+                        >
+                          {expandedOutputDate === date || expandedOutputDate === null
+                            ? <ChevronDown size={10} />
+                            : <ChevronRight size={10} />}
+                          <Clock size={10} />
+                          <span>{date}</span>
+                          <span className="task-outputs-date-count">{files.length}</span>
+                        </div>
+                        {(expandedOutputDate === date || expandedOutputDate === null) && files.map((f) => (
+                          <div
+                            key={f.path}
+                            className={`task-outputs-file ${outputPreview?.name === f.name ? 'active' : ''}`}
+                            onClick={async () => {
+                              const result = await window.api.fs.readFile(f.path)
+                              if (result.content !== undefined) setOutputPreview({ name: f.name, content: result.content })
+                            }}
+                          >
+                            <File size={10} />
+                            <span className="task-outputs-file-name">{f.name}</span>
+                            <span className="task-outputs-file-size">
+                              {f.size < 1024 ? `${f.size}B` : `${(f.size / 1024).toFixed(1)}KB`}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ))
+                  })()}
                 </div>
                 {/* Preview */}
                 <div className="task-outputs-preview">
