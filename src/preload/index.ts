@@ -216,6 +216,7 @@ export interface ClaudeManagerAPI {
       interval: number
       cron: string | null
       running: boolean
+      outputsDir: string | null
       lastPollAt: string | null
       lastFiredAt: string | null
       lastError: string | null
@@ -229,6 +230,7 @@ export interface ClaudeManagerAPI {
     reload: () => Promise<any>
     onStatus: (cb: (pipelines: any[]) => void) => () => void
     onFired: (cb: (data: { pipeline: string; instanceId: string }) => void) => () => void
+    listOutputs: (outputDir: string) => Promise<Array<{ name: string; path: string; size: number; modified: number }>>
     getMemory: (fileName: string) => Promise<string>
     saveMemory: (fileName: string, content: string) => Promise<boolean>
   }
@@ -409,6 +411,7 @@ const api: ClaudeManagerAPI = {
       ipcRenderer.on('pipeline:fired', l)
       return () => ipcRenderer.removeListener('pipeline:fired', l)
     },
+    listOutputs: (outputDir) => ipcRenderer.invoke('pipeline:listOutputs', outputDir),
     getMemory: (fileName) => ipcRenderer.invoke('pipeline:getMemory', fileName),
     saveMemory: (fileName, content) => ipcRenderer.invoke('pipeline:saveMemory', fileName, content),
   },

@@ -359,6 +359,36 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('pipeline:saveContent', (_e, fileName: string, content: string) => savePipelineContent(fileName, content))
   ipcMain.handle('pipeline:reload', () => { loadPipelines(); return getPipelineList() })
 
+  // Pipeline outputs
+  ipcMain.handle('pipeline:listOutputs', (_e, outputDir: string) => {
+    const { readdirSync, statSync, existsSync } = require('fs') as typeof import('fs')
+    const resolved = outputDir.replace(/^~/, app.getPath('home'))
+    if (!existsSync(resolved)) return []
+    try {
+      const scanDir = (dir: string, prefix = ''): Array<{ name: string; path: string; size: number; modified: number }> => {
+        const results: Array<{ name: string; path: string; size: number; modified: number }> = []
+        for (const entry of readdirSync(dir)) {
+          const full = join(dir, entry)
+          try {
+            const stat = statSync(full)
+            if (stat.isDirectory()) {
+              results.push(...scanDir(full, prefix ? `${prefix}/${entry}` : entry))
+            } else {
+              results.push({
+                name: prefix ? `${prefix}/${entry}` : entry,
+                path: full,
+                size: stat.size,
+                modified: stat.mtimeMs,
+              })
+            }
+          } catch { /* skip */ }
+        }
+        return results
+      }
+      return scanDir(resolved).sort((a, b) => b.modified - a.modified)
+    } catch { return [] }
+  })
+
   // Task workspace path
   const TASK_WORKSPACE = join(app.getPath('home'), '.claude-colony', 'task-workspace')
   ipcMain.handle('taskQueue:getWorkspacePath', () => {

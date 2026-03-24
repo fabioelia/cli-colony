@@ -14,6 +14,7 @@ interface PipelineInfo {
   interval: number
   cron: string | null
   running: boolean
+  outputsDir: string | null
   lastPollAt: string | null
   lastFiredAt: string | null
   lastError: string | null
@@ -96,7 +97,9 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [readmeContent, setReadmeContent] = useState<string | null>(null)
   const [pipelineMemory, setPipelineMemory] = useState('')
   const [memoryDirty, setMemoryDirty] = useState(false)
-  const [expandedTab, setExpandedTab] = useState<'yaml' | 'docs' | 'memory'>('yaml')
+  const [outputFiles, setOutputFiles] = useState<Array<{ name: string; path: string; size: number; modified: number }>>([])
+  const [outputPreview, setOutputPreview] = useState<{ name: string; content: string } | null>(null)
+  const [expandedTab, setExpandedTab] = useState<'yaml' | 'docs' | 'memory' | 'outputs'>('yaml')
 
   // Pipeline assistant
   const [askInput, setAskInput] = useState('')
@@ -211,6 +214,14 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     const mem = await window.api.pipeline.getMemory(p.fileName)
     setPipelineMemory(mem || '')
     setMemoryDirty(false)
+
+    // Load outputs
+    setOutputFiles([])
+    setOutputPreview(null)
+    if (p.outputsDir) {
+      const files = await window.api.pipeline.listOutputs(p.outputsDir)
+      setOutputFiles(files)
+    }
   }
 
   const handleSaveMemory = async () => {
@@ -372,6 +383,14 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                     >
                       <Zap size={11} /> Memory
                     </button>
+                    {p.outputsDir && (
+                      <button
+                        className={`pipeline-tab ${expandedTab === 'outputs' ? 'active' : ''}`}
+                        onClick={() => setExpandedTab('outputs')}
+                      >
+                        <FileText size={11} /> Outputs {outputFiles.length > 0 && `(${outputFiles.length})`}
+                      </button>
+                    )}
                     {readmeContent && (
                       <button
                         className={`pipeline-tab ${expandedTab === 'docs' ? 'active' : ''}`}
@@ -399,6 +418,48 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                     onChange={(e) => { setEditingContent(e.target.value); setDirty(true) }}
                     spellCheck={false}
                   />
+                ) : expandedTab === 'outputs' ? (
+                  <div className="pipeline-outputs">
+                    {outputPreview ? (
+                      <div className="pipeline-output-preview">
+                        <div className="pipeline-output-preview-header">
+                          <span>{outputPreview.name}</span>
+                          <button onClick={() => setOutputPreview(null)}>Back</button>
+                        </div>
+                        <pre className="pipeline-output-preview-code">
+                          {outputPreview.content.split('\n').map((line, i) => (
+                            <div key={i} className="pipeline-output-preview-line">
+                              <span className="pipeline-output-preview-num">{i + 1}</span>
+                              <span>{line}</span>
+                            </div>
+                          ))}
+                        </pre>
+                      </div>
+                    ) : outputFiles.length === 0 ? (
+                      <p className="pipeline-memory-hint">No output files yet. Run the pipeline to generate artifacts.</p>
+                    ) : (
+                      <div className="pipeline-output-list">
+                        {outputFiles.map((f) => (
+                          <div
+                            key={f.path}
+                            className="pipeline-output-file"
+                            onClick={async () => {
+                              const result = await window.api.fs.readFile(f.path)
+                              if (result.content !== undefined) setOutputPreview({ name: f.name, content: result.content })
+                            }}
+                          >
+                            <FileText size={11} />
+                            <span className="pipeline-output-file-name">{f.name}</span>
+                            <span className="pipeline-output-file-meta">
+                              {f.size < 1024 ? `${f.size}B` : `${(f.size / 1024).toFixed(1)}KB`}
+                              {' · '}
+                              {new Date(f.modified).toLocaleDateString()} {new Date(f.modified).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ) : expandedTab === 'memory' ? (
                   <div className="pipeline-memory-editor">
                     <p className="pipeline-memory-hint">

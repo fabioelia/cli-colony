@@ -48,6 +48,7 @@ export interface ActionDef {
     workingDirectory?: string
   }
   busyStrategy?: 'wait' | 'launch-new' // default: 'wait'
+  outputs?: string // directory to scan for generated artifacts (template supported)
 }
 
 export interface DedupDef {
@@ -83,6 +84,7 @@ export interface PipelineInfo {
   interval: number
   cron: string | null
   running: boolean
+  outputsDir: string | null
   lastPollAt: string | null
   lastFiredAt: string | null
   lastError: string | null
@@ -1051,6 +1053,7 @@ export function getPipelineList(): PipelineInfo[] {
       interval: p.def.trigger.interval || 300,
       cron: p.def.trigger.cron || null,
       running: runningPolls.has(name),
+      outputsDir: p.def.action.outputs || null,
       lastPollAt: p.state.lastPollAt,
       lastFiredAt: p.state.lastFiredAt,
       lastError: p.state.lastError,
@@ -1341,6 +1344,7 @@ action:
   name: "PR Digest — {{timestamp}}"
   workingDirectory: "~/.claude-colony/pr-workspace"
   color: "#6366f1"
+  outputs: "~/.claude-colony/reports"
   prompt: |
     Generate a PR attention digest for me ({{github.user}}).
 
