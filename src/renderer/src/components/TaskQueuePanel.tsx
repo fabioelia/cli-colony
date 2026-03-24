@@ -123,6 +123,12 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
   const [showResults, setShowResults] = useState(false)
   const stopRef = useRef(false)
 
+  // Convert to pipeline modal
+  const [showConvertModal, setShowConvertModal] = useState(false)
+  const [convertCron, setConvertCron] = useState('0 9 * * 1-5')
+  const [convertReuse, setConvertReuse] = useState(true)
+  const [convertResult, setConvertResult] = useState<{ count: number; names: string[] } | null>(null)
+
   // Runs & artifacts
   const [runs, setRuns] = useState<RunQueue[]>([])
   const [expandedRuns, setExpandedRuns] = useState<Set<string>>(new Set())
@@ -361,10 +367,19 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
     setEditor(TEMPLATE)
   }, [])
 
-  const handleConvertToPipeline = useCallback(async () => {
+  const handleOpenConvertModal = useCallback(() => {
     const queue = parseQueue(editor)
     if (!queue) return
-    // Generate a pipeline YAML for each task in the queue
+    setConvertCron('0 9 * * 1-5')
+    setConvertReuse(true)
+    setConvertResult(null)
+    setShowConvertModal(true)
+  }, [editor])
+
+  const handleConvertConfirm = useCallback(async () => {
+    const queue = parseQueue(editor)
+    if (!queue) return
+    const names: string[] = []
     for (const task of queue.tasks) {
       const safeName = (task.name || queue.name).replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '-').toLowerCase()
       const fileName = `${safeName}.yaml`
@@ -374,14 +389,14 @@ enabled: false
 
 trigger:
   type: cron
-  cron: "0 9 * * 1-5"
+  cron: "${convertCron}"
 
 condition:
   type: always
 
 action:
   type: launch-session
-  reuse: true
+  ${convertReuse ? 'reuse: true' : '# reuse: false'}
   name: "${task.name || queue.name}"
   ${task.directory ? `workingDirectory: "${task.directory}"` : '# workingDirectory: /path/to/project'}
   color: "#8b5cf6"
@@ -393,10 +408,11 @@ dedup:
   ttl: 3600
 `
       await window.api.pipeline.saveContent(fileName, yaml)
+      names.push(task.name || `Task ${names.length + 1}`)
     }
     await window.api.pipeline.reload()
-    alert(`Converted ${queue.tasks.length} task${queue.tasks.length !== 1 ? 's' : ''} to pipeline${queue.tasks.length !== 1 ? 's' : ''} (disabled). Check the Pipelines tab.`)
-  }, [editor])
+    setConvertResult({ count: names.length, names })
+  }, [editor, convertCron, convertReuse])
 
   const handleRun = useCallback(async () => {
     const queue = parseQueue(editor)
@@ -523,7 +539,7 @@ dedup:
                 <button className="task-queue-save-btn" onClick={handleSave} title="Save"><Save size={12} /> Save</button>
                 {parsed && !isRunning && <button className="task-queue-run-btn" onClick={handleRun} title="Run all tasks"><Play size={12} /> Run</button>}
                 {isRunning && <button className="task-queue-stop-btn" onClick={handleStop} title="Stop"><Square size={12} /> Stop</button>}
-                {parsed && !isRunning && <button className="task-queue-pipeline-btn" onClick={handleConvertToPipeline} title="Convert tasks to pipelines (cron-scheduled)"><Zap size={12} /> To Pipeline</button>}
+                {parsed && !isRunning && <button className="task-queue-pipeline-btn" onClick={handleOpenConvertModal} title="Convert tasks to pipelines (cron-scheduled)"><Zap size={12} /> To Pipeline</button>}
               </div>
             </div>
           )}
@@ -664,6 +680,87 @@ dedup:
           )}
         </div>
       </div>
+
+      {/* Convert to Pipeline Modal */}
+      {showConvertModal && (() => {
+        const queue = parseQueue(editor)
+        return (
+          <div className="convert-pipeline-overlay" onClick={() => setShowConvertModal(false)}>
+            <div className="convert-pipeline-modal" onClick={(e) => e.stopPropagation()}>
+              {!convertResult ? (
+                <>
+                  <div className="convert-pipeline-header">
+                    <Zap size={16} />
+                    <h3>Convert to Pipeline</h3>
+                  </div>
+
+                  <p className="convert-pipeline-desc">
+                    {queue ? `${queue.tasks.length} task${queue.tasks.length !== 1 ? 's' : ''}` : 'Tasks'} from <strong>{queue?.name || 'queue'}</strong> will be saved as pipeline{queue && queue.tasks.length !== 1 ? 's' : ''} (disabled).
+                  </p>
+
+                  {queue && (
+                    <div className="convert-pipeline-tasks">
+                      {queue.tasks.map((t, i) => (
+                        <div key={i} className="convert-pipeline-task">
+                          <Zap size={11} />
+                          <span className="convert-pipeline-task-name">{t.name || `Task ${i + 1}`}</span>
+                          <span className="convert-pipeline-task-prompt">{t.prompt.slice(0, 50)}…</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="convert-pipeline-field">
+                    <label>Cron Schedule</label>
+                    <input
+                      value={convertCron}
+                      onChange={(e) => setConvertCron(e.target.value)}
+                      placeholder="0 9 * * 1-5"
+                      spellCheck={false}
+                    />
+                    <span className="convert-pipeline-hint">min hour dom month dow — e.g. "0 9 * * 1-5" = 9am weekdays</span>
+                  </div>
+
+                  <div className="convert-pipeline-field">
+                    <label className="convert-pipeline-checkbox">
+                      <input type="checkbox" checked={convertReuse} onChange={(e) => setConvertReuse(e.target.checked)} />
+                      Reuse existing sessions when possible
+                    </label>
+                  </div>
+
+                  <div className="convert-pipeline-actions">
+                    <button className="convert-pipeline-cancel" onClick={() => setShowConvertModal(false)}>Cancel</button>
+                    <button className="convert-pipeline-confirm" onClick={handleConvertConfirm}>
+                      <Zap size={12} /> Create Pipeline{queue && queue.tasks.length !== 1 ? 's' : ''}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="convert-pipeline-header">
+                    <CheckCircle size={16} />
+                    <h3>Pipelines Created</h3>
+                  </div>
+
+                  <div className="convert-pipeline-result">
+                    <p>{convertResult.count} pipeline{convertResult.count !== 1 ? 's' : ''} created (disabled):</p>
+                    <ul>
+                      {convertResult.names.map((n, i) => (
+                        <li key={i}><Zap size={11} /> {n}</li>
+                      ))}
+                    </ul>
+                    <p className="convert-pipeline-hint">Go to the <strong>Pipelines</strong> tab to enable them.</p>
+                  </div>
+
+                  <div className="convert-pipeline-actions">
+                    <button className="convert-pipeline-confirm" onClick={() => setShowConvertModal(false)}>Done</button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
