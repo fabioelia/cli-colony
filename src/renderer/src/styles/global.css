@@ -5054,7 +5054,8 @@ input, select {
 
 .task-queue-save-btn,
 .task-queue-run-btn,
-.task-queue-stop-btn {
+.task-queue-stop-btn,
+.task-queue-pipeline-btn {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -5286,9 +5287,9 @@ input, select {
 }
 
 .task-queue-pipeline-btn {
-  background: rgba(139, 92, 246, 0.15) !important;
-  border-color: rgba(139, 92, 246, 0.3) !important;
-  color: #8b5cf6 !important;
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.3);
+  color: #8b5cf6;
 }
 
 .task-queue-pipeline-btn:hover {
