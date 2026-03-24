@@ -249,6 +249,11 @@ export interface ClaudeManagerAPI {
         files: Array<{ name: string; path: string; size: number }>
       }>
     }>>
+    listOutputRuns: (queueOutputDir: string) => Promise<Array<{
+      name: string
+      path: string
+      files: Array<{ name: string; path: string; size: number }>
+    }>>
     getMemory: (queueName: string) => Promise<string>
     saveMemory: (queueName: string, content: string) => Promise<boolean>
   }
@@ -387,6 +392,7 @@ const api: ClaudeManagerAPI = {
     getWorkspacePath: () => ipcRenderer.invoke('taskQueue:getWorkspacePath'),
     createTaskDir: (queueName, taskName) => ipcRenderer.invoke('taskQueue:createTaskDir', queueName, taskName),
     listRuns: () => ipcRenderer.invoke('taskQueue:listRuns'),
+    listOutputRuns: (queueOutputDir) => ipcRenderer.invoke('taskQueue:listOutputRuns', queueOutputDir),
     getMemory: (queueName) => ipcRenderer.invoke('taskQueue:getMemory', queueName),
     saveMemory: (queueName, content) => ipcRenderer.invoke('taskQueue:saveMemory', queueName, content),
   },

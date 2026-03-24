@@ -82,9 +82,9 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
   const [editorTab, setEditorTab] = useState<'yaml' | 'memory' | 'outputs'>('yaml')
   const [taskMemory, setTaskMemory] = useState('')
   const [memoryDirty, setMemoryDirty] = useState(false)
-  const [taskOutputs, setTaskOutputs] = useState<Array<{ name: string; path: string; size: number; modified: number }>>([])
+  const [outputRuns, setOutputRuns] = useState<Array<{ name: string; path: string; files: Array<{ name: string; path: string; size: number }> }>>([])
   const [outputPreview, setOutputPreview] = useState<{ name: string; content: string } | null>(null)
-  const [expandedOutputDate, setExpandedOutputDate] = useState<string | null>(null)
+  const [expandedRun, setExpandedRun] = useState<string | null>(null)
   const [outputViewMode, setOutputViewMode] = useState<'text' | 'markdown'>('markdown')
 
   const [runningQueue, setRunningQueue] = useState<QueueDef | null>(null)
@@ -165,13 +165,14 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
     const mem = await window.api.taskQueue.getMemory(file.name)
     setTaskMemory(mem || ''); setMemoryDirty(false); setTaskOutputs([])
 
-    // Output directory is always derived from queue name
+    // Load output runs
     const q = parseQueue(file.content)
     if (q) {
       const safeName = q.name.replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '-').toLowerCase()
-      const outputsDir = `~/.claude-colony/outputs/${safeName}`
-      const files = await window.api.pipeline.listOutputs(outputsDir)
-      setTaskOutputs(files)
+      const runs = await window.api.taskQueue.listOutputRuns(`~/.claude-colony/outputs/${safeName}`)
+      setOutputRuns(runs)
+      // Auto-expand the latest run
+      if (runs.length > 0) setExpandedRun(runs[0].name)
     }
   }, [])
 
@@ -213,9 +214,11 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
     const modeInstruction = queue.mode === 'parallel'
       ? 'Execute ALL tasks in whatever order is most efficient.'
       : 'Execute each task IN ORDER. Complete one before starting the next.'
-    // Always inject an output directory based on the queue name
+    // Inject output directory: outputs/<queue-name>/<timestamp>/
     const safeName = queue.name.replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '-').toLowerCase()
-    const outputDir = `~/.claude-colony/outputs/${safeName}`
+    const now = new Date()
+    const ts = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}-${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`
+    const outputDir = `~/.claude-colony/outputs/${safeName}/${ts}`
     let combinedPrompt = `You have ${queue.tasks.length} task${queue.tasks.length !== 1 ? 's' : ''} (${queue.mode}).\n\n${modeInstruction}\n\n${taskDescriptions}\n\n--- Output Directory ---\nWrite all output files to: ${outputDir}\nCreate it first: mkdir -p ${outputDir}\nDo NOT hardcode output paths from the task prompts — always use this directory.`
     const memFn = selectedFile?.replace(/\.(yaml|yml)$/, '')
     if (selectedFile) {
@@ -323,9 +326,9 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
               <div className="task-queue-editor-tabs">
                 <button className={`task-queue-tab ${editorTab === 'yaml' ? 'active' : ''}`} onClick={() => setEditorTab('yaml')}><FileText size={11} /> Config</button>
                 <button className={`task-queue-tab ${editorTab === 'memory' ? 'active' : ''}`} onClick={() => setEditorTab('memory')}><Zap size={11} /> Memory</button>
-                {taskOutputs.length > 0 && (
+                {outputRuns.length > 0 && (
                   <button className={`task-queue-tab ${editorTab === 'outputs' ? 'active' : ''}`} onClick={() => setEditorTab('outputs')}>
-                    <FolderOpen size={11} /> Outputs ({taskOutputs.length})
+                    <FolderOpen size={11} /> Outputs ({outputRuns.reduce((n, r) => n + r.files.length, 0)})
                   </button>
                 )}
               </div>
@@ -361,50 +364,37 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
               <textarea className="task-queue-textarea" value={editor} onChange={(e) => setEditor(e.target.value)} spellCheck={false} />
             ) : editorTab === 'outputs' ? (
               <div className="task-outputs-split">
-                {/* File tree grouped by date */}
+                {/* Run tree */}
                 <div className="task-outputs-tree">
-                  {(() => {
-                    // Group files by date
-                    const grouped = new Map<string, typeof taskOutputs>()
-                    for (const f of taskOutputs) {
-                      const d = new Date(f.modified)
-                      const key = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                      if (!grouped.has(key)) grouped.set(key, [])
-                      grouped.get(key)!.push(f)
-                    }
-                    return [...grouped.entries()].map(([date, files]) => (
-                      <div key={date} className="task-outputs-group">
-                        <div
-                          className={`task-outputs-date ${expandedOutputDate === date || expandedOutputDate === null ? 'expanded' : ''}`}
-                          onClick={() => setExpandedOutputDate(expandedOutputDate === date ? null : date)}
-                        >
-                          {expandedOutputDate === date || expandedOutputDate === null
-                            ? <ChevronDown size={10} />
-                            : <ChevronRight size={10} />}
-                          <Clock size={10} />
-                          <span>{date}</span>
-                          <span className="task-outputs-date-count">{files.length}</span>
-                        </div>
-                        {(expandedOutputDate === date || expandedOutputDate === null) && files.map((f) => (
-                          <div
-                            key={f.path}
-                            className={`task-outputs-file ${outputPreview?.name === f.name ? 'active' : ''}`}
-                            onClick={async () => {
-                              const result = await window.api.fs.readFile(f.path)
-                              if (result.content !== undefined) setOutputPreview({ name: f.name, content: result.content })
-                            }}
-                          >
-                            <File size={10} />
-                            <span className="task-outputs-file-name">{f.name}</span>
-                            <span className="task-outputs-file-size">
-                              {f.size < 1024 ? `${f.size}B` : `${(f.size / 1024).toFixed(1)}KB`}
-                            </span>
-                          </div>
-                        ))}
+                  {outputRuns.map((run) => (
+                    <div key={run.name} className="task-outputs-group">
+                      <div
+                        className={`task-outputs-date ${expandedRun === run.name ? 'expanded' : ''}`}
+                        onClick={() => setExpandedRun(expandedRun === run.name ? null : run.name)}
+                      >
+                        {expandedRun === run.name ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                        <FolderOpen size={10} />
+                        <span>{run.name === '_root' ? 'Legacy' : run.name}</span>
+                        <span className="task-outputs-date-count">{run.files.length}</span>
                       </div>
-                    ))
-                  })()}
-                </div>
+                      {expandedRun === run.name && run.files.map((f) => (
+                        <div
+                          key={f.path}
+                          className={`task-outputs-file ${outputPreview?.name === f.name ? 'active' : ''}`}
+                          onClick={async () => {
+                            const result = await window.api.fs.readFile(f.path)
+                            if (result.content !== undefined) setOutputPreview({ name: f.name, content: result.content })
+                          }}
+                        >
+                          <File size={10} />
+                          <span className="task-outputs-file-name">{f.name}</span>
+                          <span className="task-outputs-file-size">
+                            {f.size < 1024 ? `${f.size}B` : `${(f.size / 1024).toFixed(1)}KB`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
                 {/* Preview */}
                 <div className="task-outputs-preview">
                   {outputPreview ? (

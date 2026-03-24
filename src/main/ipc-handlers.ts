@@ -359,6 +359,39 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('pipeline:saveContent', (_e, fileName: string, content: string) => savePipelineContent(fileName, content))
   ipcMain.handle('pipeline:reload', () => { loadPipelines(); return getPipelineList() })
 
+  // Task output runs: lists run folders (timestamps) with their files
+  ipcMain.handle('taskQueue:listOutputRuns', (_e, queueOutputDir: string) => {
+    const { readdirSync, statSync, existsSync } = require('fs') as typeof import('fs')
+    const resolved = queueOutputDir.replace(/^~/, app.getPath('home'))
+    if (!existsSync(resolved)) return []
+    try {
+      const entries = readdirSync(resolved)
+      const runs: Array<{ name: string; path: string; files: Array<{ name: string; path: string; size: number }> }> = []
+      for (const entry of entries) {
+        const full = join(resolved, entry)
+        try {
+          const stat = statSync(full)
+          if (stat.isDirectory()) {
+            const files = readdirSync(full)
+              .filter((f: string) => { try { return statSync(join(full, f)).isFile() } catch { return false } })
+              .map((f: string) => {
+                const fp = join(full, f)
+                return { name: f, path: fp, size: statSync(fp).size }
+              })
+            if (files.length > 0) runs.push({ name: entry, path: full, files })
+          } else {
+            // Legacy: files directly in queue dir (no timestamp subfolder)
+            if (!runs.some(r => r.name === '_root')) runs.push({ name: '_root', path: resolved, files: [] })
+            const rootRun = runs.find(r => r.name === '_root')!
+            rootRun.files.push({ name: entry, path: full, size: stat.size })
+          }
+        } catch { /* skip */ }
+      }
+      // Sort runs newest first (timestamp folders sort lexicographically)
+      return runs.sort((a, b) => b.name.localeCompare(a.name))
+    } catch { return [] }
+  })
+
   // Pipeline outputs
   ipcMain.handle('pipeline:listOutputs', (_e, outputDir: string) => {
     const { readdirSync, statSync, existsSync } = require('fs') as typeof import('fs')
