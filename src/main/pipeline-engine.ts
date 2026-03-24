@@ -412,14 +412,31 @@ async function sendPromptWhenReady(instanceId: string, prompt: string): Promise<
   })
 }
 
+// ---- Write prompt to file, send short trigger to PTY ----
+
+function writePromptFile(prompt: string): string {
+  const promptsDir = join(COLONY_DIR, 'pipeline-prompts')
+  if (!existsSync(promptsDir)) mkdirSync(promptsDir, { recursive: true })
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const filePath = join(promptsDir, `${id}.md`)
+  writeFileSync(filePath, prompt, 'utf-8')
+  return filePath
+}
+
+function buildFilePromptTrigger(filePath: string): string {
+  return `Read and execute the instructions in ${filePath}`
+}
+
 // ---- Send Prompt to Existing Session (no trust prompt handling) ----
 
 async function sendPromptToExistingSession(instanceId: string, prompt: string): Promise<void> {
   const client = getDaemonClient()
   const inst = await client.getInstance(instanceId)
+  const filePath = writePromptFile(prompt)
+  const trigger = buildFilePromptTrigger(filePath)
 
   if (inst?.activity === 'waiting') {
-    writeToInstance(instanceId, prompt + '\r')
+    writeToInstance(instanceId, trigger + '\r')
     return
   }
 
@@ -432,7 +449,7 @@ async function sendPromptToExistingSession(instanceId: string, prompt: string): 
       if (activity === 'waiting') {
         sent = true
         client.removeListener('activity', handler)
-        writeToInstance(instanceId, prompt + '\r')
+        writeToInstance(instanceId, trigger + '\r')
         resolve()
       }
     }
@@ -831,7 +848,8 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
       log(`Routing: found running session "${existing.name}" (${existing.id}) activity=${existing.activity}`)
 
       if (existing.activity === 'waiting') {
-        writeToInstance(existing.id, prompt + '\r')
+        const filePath = writePromptFile(prompt)
+        writeToInstance(existing.id, buildFilePromptTrigger(filePath) + '\r')
         broadcast('pipeline:fired', { pipeline: name, instanceId: existing.id, routed: true })
         return
       }
