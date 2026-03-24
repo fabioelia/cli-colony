@@ -93,6 +93,7 @@ interface InternalInstance extends ClaudeInstance {
   _lastSnapshot: string
   _activityInterval: ReturnType<typeof setInterval> | null
   _handoffRequested: boolean
+  _userInputReceived: boolean
 }
 
 const instances = new Map<string, InternalInstance>()
@@ -261,7 +262,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
       pinned: false, mcpServers: [],
       parentId: opts.parentId || null, childIds: [],
       pty: null, outputBuffer: [`Failed to spawn ${command}: ${err}\r\n`],
-      cleanupTimer: null, _lastSnapshot: '', _activityInterval: null, _handoffRequested: false,
+      cleanupTimer: null, _lastSnapshot: '', _activityInterval: null, _handoffRequested: false, _userInputReceived: false,
     }
     instances.set(id, instance)
     notifyListChanged()
@@ -277,7 +278,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
     pinned: false, mcpServers: [],
     parentId: opts.parentId || null, childIds: [],
     pty: ptyProcess, outputBuffer: [],
-    cleanupTimer: null, _lastSnapshot: '', _activityInterval: null, _handoffRequested: false,
+    cleanupTimer: null, _lastSnapshot: '', _activityInterval: null, _handoffRequested: false, _userInputReceived: false,
   }
 
   // Register this child with its parent
@@ -325,9 +326,10 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
   })
 
   // Send /color command once Claude is ready
-  // Wait for 2 waiting states — first may be trust prompt
+  // Skip if user has already started typing or session is too old
   let colorSent = false
   let waitingCount = 0
+  const colorDeadline = Date.now() + 15000 // 15s window to send color
 
   // Activity detection
   instance._activityInterval = setInterval(() => {
@@ -379,7 +381,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
       }
 
       // Send /color once Claude CLI is ready for input (Claude Code only, if sync enabled)
-      // Always wait for 2nd waiting state — 1st may be trust/safety prompt
+      // Skip if: user already typed something, or we're past the 15s window
       if (
         instance.cliBackend === 'claude' &&
         readSyncClaudeSlashCommands() &&
@@ -387,16 +389,21 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
         !colorSent &&
         instance.pty
       ) {
-        waitingCount++
-        if (waitingCount === 1) {
-          // First waiting — could be trust prompt. Send Enter to dismiss.
-          instance.pty.write('\r')
-        } else {
-          // Second waiting — CLI is ready for real input
+        if (instance._userInputReceived || Date.now() > colorDeadline) {
+          // User already engaged or too late — skip color
           colorSent = true
-          const colorName = closestColorName(instance.color)
-          if (colorName) {
-            instance.pty.write(`/color ${colorName}\r`)
+        } else {
+          waitingCount++
+          if (waitingCount === 1) {
+            // First waiting — could be trust prompt. Send Enter to dismiss.
+            instance.pty.write('\r')
+          } else {
+            // Second waiting — CLI is ready for real input
+            colorSent = true
+            const colorName = closestColorName(instance.color)
+            if (colorName) {
+              instance.pty.write(`/color ${colorName}\r`)
+            }
           }
         }
       }
@@ -422,6 +429,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
 function writeToInstance(id: string, data: string): boolean {
   const inst = instances.get(id)
   if (!inst?.pty) return false
+  inst._userInputReceived = true
   inst.pty.write(data)
   return true
 }
