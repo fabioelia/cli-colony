@@ -6,8 +6,8 @@ import {
 } from 'lucide-react'
 import type { ClaudeInstance } from '../types'
 
-interface TaskDef { prompt: string; directory?: string; name?: string; outputs?: string }
-interface QueueDef { name: string; mode: 'parallel' | 'sequential'; outputs?: string; tasks: TaskDef[] }
+interface TaskDef { prompt: string; directory?: string; name?: string }
+interface QueueDef { name: string; mode: 'parallel' | 'sequential'; tasks: TaskDef[] }
 interface TaskStatus { index: number; instanceId: string | null; state: 'pending' | 'running' | 'done' | 'failed'; exitCode: number | null }
 interface QueueFile { name: string; path: string; content: string }
 
@@ -20,14 +20,13 @@ interface Props {
 function parseQueue(content: string): QueueDef | null {
   try {
     const lines = content.split('\n')
-    let name = 'Untitled Queue'; let mode: 'parallel' | 'sequential' = 'parallel'; let outputs: string | undefined
+    let name = 'Untitled Queue'; let mode: 'parallel' | 'sequential' = 'parallel'
     const tasks: TaskDef[] = []; let inTasks = false; let currentTask: Partial<TaskDef> | null = null
     for (const line of lines) {
       const trimmed = line.trim()
       if (!trimmed || trimmed.startsWith('#')) continue
       if (trimmed.startsWith('name:') && !inTasks) { name = trimmed.slice(5).trim().replace(/^["']|["']$/g, '') }
       else if (trimmed.startsWith('mode:')) { mode = trimmed.slice(5).trim().toLowerCase() === 'sequential' ? 'sequential' : 'parallel' }
-      else if (trimmed.startsWith('outputs:') && !inTasks) { outputs = trimmed.slice(8).trim().replace(/^["']|["']$/g, '') }
       else if (trimmed === 'tasks:') { inTasks = true }
       else if (inTasks) {
         if (trimmed.startsWith('- prompt:') || trimmed.startsWith('-prompt:')) {
@@ -35,18 +34,16 @@ function parseQueue(content: string): QueueDef | null {
           currentTask = { prompt: trimmed.replace(/^-\s*prompt:\s*/, '').replace(/^["']|["']$/g, '') }
         } else if (trimmed.startsWith('directory:') && currentTask) { currentTask.directory = trimmed.slice(10).trim().replace(/^["']|["']$/g, '') }
         else if (trimmed.startsWith('name:') && currentTask) { currentTask.name = trimmed.slice(5).trim().replace(/^["']|["']$/g, '') }
-        else if (trimmed.startsWith('outputs:') && currentTask) { currentTask.outputs = trimmed.slice(8).trim().replace(/^["']|["']$/g, '') }
       }
     }
     if (currentTask?.prompt) tasks.push(currentTask as TaskDef)
     if (tasks.length === 0) return null
-    return { name, mode, outputs, tasks }
+    return { name, mode, tasks }
   } catch { return null }
 }
 
 const TEMPLATE = `name: My Task Batch
 mode: parallel
-outputs: "~/.claude-colony/outputs/my-task-batch"
 tasks:
   - prompt: "Analyze the codebase and list all TODOs"
     directory: /path/to/project
@@ -63,7 +60,6 @@ Task queues define batch jobs that run in a single Claude session. The format is
 \`\`\`yaml
 name: Queue Name
 mode: parallel  # or sequential
-outputs: "~/.claude-colony/outputs/my-queue"
 tasks:
   - prompt: "What to do"
     directory: /path/to/project
@@ -72,8 +68,8 @@ tasks:
 
 - **parallel**: Agent executes all tasks in whatever order is most efficient
 - **sequential**: Agent executes tasks in order, completing one before starting the next
-- **outputs**: Directory where the session should write generated files
 - Task queue files are stored in ~/.claude-colony/task-queues/
+- Output directory is injected automatically at runtime (based on queue name) — task prompts should NOT hardcode file paths for outputs
 
 Help the user design task queues, suggest tasks based on their projects, and write YAML files directly to ~/.claude-colony/task-queues/. Ask what they want to accomplish.`
 
@@ -169,25 +165,11 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
     const mem = await window.api.taskQueue.getMemory(file.name)
     setTaskMemory(mem || ''); setMemoryDirty(false); setTaskOutputs([])
 
-    // Find outputs directory: explicit field OR detect from task prompts
+    // Output directory is always derived from queue name
     const q = parseQueue(file.content)
-    let outputsDir = q?.outputs
-    if (!outputsDir) {
-      // Scan prompts for ~/.claude-colony/outputs/<something> patterns
-      const outputPaths = new Set<string>()
-      const content = file.content
-      const matches = content.match(/~\/\.claude-colony\/outputs\/[^\s"']+/g)
-      if (matches) {
-        for (const m of matches) {
-          const parts = m.split('/')
-          if (parts[parts.length - 1].includes('.')) parts.pop()
-          // Normalize: remove trailing slash
-          outputPaths.add(parts.join('/').replace(/\/$/, ''))
-        }
-      }
-      if (outputPaths.size >= 1) outputsDir = [...outputPaths][0]
-    }
-    if (outputsDir) {
+    if (q) {
+      const safeName = q.name.replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '-').toLowerCase()
+      const outputsDir = `~/.claude-colony/outputs/${safeName}`
       const files = await window.api.pipeline.listOutputs(outputsDir)
       setTaskOutputs(files)
     }
@@ -231,8 +213,10 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
     const modeInstruction = queue.mode === 'parallel'
       ? 'Execute ALL tasks in whatever order is most efficient.'
       : 'Execute each task IN ORDER. Complete one before starting the next.'
-    let combinedPrompt = `You have ${queue.tasks.length} task${queue.tasks.length !== 1 ? 's' : ''} (${queue.mode}).\n\n${modeInstruction}\n\n${taskDescriptions}`
-    if (queue.outputs) { const r = queue.outputs.replace(/^~/, process.env.HOME || '~'); combinedPrompt += `\n\nWrite outputs to: ${r}\nmkdir -p ${r}` }
+    // Always inject an output directory based on the queue name
+    const safeName = queue.name.replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '-').toLowerCase()
+    const outputDir = `~/.claude-colony/outputs/${safeName}`
+    let combinedPrompt = `You have ${queue.tasks.length} task${queue.tasks.length !== 1 ? 's' : ''} (${queue.mode}).\n\n${modeInstruction}\n\n${taskDescriptions}\n\n--- Output Directory ---\nWrite all output files to: ${outputDir}\nCreate it first: mkdir -p ${outputDir}\nDo NOT hardcode output paths from the task prompts — always use this directory.`
     const memFn = selectedFile?.replace(/\.(yaml|yml)$/, '')
     if (selectedFile) {
       const memory = await window.api.taskQueue.getMemory(selectedFile)
