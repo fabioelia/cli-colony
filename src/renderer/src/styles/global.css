@@ -5005,6 +5005,19 @@ input, select {
   gap: 6px;
 }
 
+.task-queue-outputs {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 100px;
+}
+
+.task-queue-outputs code {
+  background: var(--bg-hover);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 10px;
+}
+
 .task-queue-memory-hint {
   font-size: 10px;
   color: var(--text-muted);

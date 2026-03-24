@@ -14,11 +14,13 @@ interface TaskDef {
   prompt: string
   directory?: string
   name?: string
+  outputs?: string
 }
 
 interface QueueDef {
   name: string
   mode: 'parallel' | 'sequential'
+  outputs?: string // queue-level outputs directory
   tasks: TaskDef[]
 }
 
@@ -63,6 +65,7 @@ function parseQueue(content: string): QueueDef | null {
     const lines = content.split('\n')
     let name = 'Untitled Queue'
     let mode: 'parallel' | 'sequential' = 'parallel'
+    let outputs: string | undefined
     const tasks: TaskDef[] = []
     let inTasks = false
     let currentTask: Partial<TaskDef> | null = null
@@ -71,11 +74,13 @@ function parseQueue(content: string): QueueDef | null {
       const trimmed = line.trim()
       if (!trimmed || trimmed.startsWith('#')) continue
 
-      if (trimmed.startsWith('name:')) {
+      if (trimmed.startsWith('name:') && !inTasks) {
         name = trimmed.slice(5).trim().replace(/^["']|["']$/g, '')
       } else if (trimmed.startsWith('mode:')) {
         const m = trimmed.slice(5).trim().toLowerCase()
         mode = m === 'sequential' ? 'sequential' : 'parallel'
+      } else if (trimmed.startsWith('outputs:') && !inTasks) {
+        outputs = trimmed.slice(8).trim().replace(/^["']|["']$/g, '')
       } else if (trimmed === 'tasks:') {
         inTasks = true
       } else if (inTasks) {
@@ -86,12 +91,14 @@ function parseQueue(content: string): QueueDef | null {
           currentTask.directory = trimmed.slice(10).trim().replace(/^["']|["']$/g, '')
         } else if (trimmed.startsWith('name:') && currentTask) {
           currentTask.name = trimmed.slice(5).trim().replace(/^["']|["']$/g, '')
+        } else if (trimmed.startsWith('outputs:') && currentTask) {
+          currentTask.outputs = trimmed.slice(8).trim().replace(/^["']|["']$/g, '')
         }
       }
     }
     if (currentTask?.prompt) tasks.push(currentTask as TaskDef)
     if (tasks.length === 0) return null
-    return { name, mode, tasks }
+    return { name, mode, outputs, tasks }
   } catch {
     return null
   }
@@ -99,6 +106,7 @@ function parseQueue(content: string): QueueDef | null {
 
 const TEMPLATE = `name: My Task Batch
 mode: parallel
+outputs: "~/.claude-colony/outputs/my-task-batch"
 tasks:
   - prompt: "Analyze the codebase and list all TODOs"
     directory: /path/to/project
@@ -115,9 +123,11 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
   const [editingNew, setEditingNew] = useState(false)
   const [newFileName, setNewFileName] = useState('')
   const [dividerX, setDividerX] = useState(50)
-  const [editorTab, setEditorTab] = useState<'yaml' | 'memory'>('yaml')
+  const [editorTab, setEditorTab] = useState<'yaml' | 'memory' | 'outputs'>('yaml')
   const [taskMemory, setTaskMemory] = useState('')
   const [memoryDirty, setMemoryDirty] = useState(false)
+  const [taskOutputs, setTaskOutputs] = useState<Array<{ name: string; path: string; size: number; modified: number }>>([])
+  const [taskOutputPreview, setTaskOutputPreview] = useState<{ name: string; content: string } | null>(null)
 
   // Running state
   const [runningQueue, setRunningQueue] = useState<QueueDef | null>(null)
@@ -348,6 +358,15 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
     const mem = await window.api.taskQueue.getMemory(file.name)
     setTaskMemory(mem || '')
     setMemoryDirty(false)
+    // Load outputs if the queue specifies an outputs dir
+    setTaskOutputs([])
+    setTaskOutputPreview(null)
+    const q = parseQueue(file.content)
+    const outputsDir = q?.outputs
+    if (outputsDir) {
+      const files = await window.api.pipeline.listOutputs(outputsDir)
+      setTaskOutputs(files)
+    }
   }, [])
 
   const handleSave = useCallback(async () => {
@@ -457,12 +476,21 @@ dedup:
       statuses[taskIndex].state = 'running'
       setTaskStatuses([...statuses])
       try {
-        // Inject memory if available
+        // Inject outputs dir, memory, and memory file path
         let taskPrompt = task.prompt
+        const outputsDir = task.outputs || queue.outputs
+        if (outputsDir) {
+          const resolved = outputsDir.replace(/^~/, process.env.HOME || '~')
+          taskPrompt += `\n\nWrite any output files to: ${resolved}\nCreate the directory if it doesn't exist: mkdir -p ${resolved}`
+        }
+        const memoryFileName = selectedFile?.replace(/\.(yaml|yml)$/, '')
         if (selectedFile) {
           const memory = await window.api.taskQueue.getMemory(selectedFile)
+          const memPath = `~/.claude-colony/task-queues/${memoryFileName}-memory.md`
           if (memory?.trim()) {
-            taskPrompt += `\n\n--- Task Memory ---\nLearnings from previous runs:\n\n${memory}\n\nWhen done, if you learned anything useful about tools, approaches, or patterns, mention it so it can be saved for next time.`
+            taskPrompt += `\n\n--- Task Memory ---\nLearnings from previous runs:\n\n${memory}\n\nWhen you finish, if you learned anything new about tools, approaches, or useful patterns, append it to ${memPath}`
+          } else {
+            taskPrompt += `\n\nWhen you finish, if you learned anything useful about tools, approaches, or patterns that would help future runs, write it to ${memPath}`
           }
         }
 
@@ -565,10 +593,57 @@ dedup:
                   <button className={`task-queue-tab ${editorTab === 'memory' ? 'active' : ''}`} onClick={() => setEditorTab('memory')}>
                     <Zap size={11} /> Memory
                   </button>
+                  {parsed?.outputs && (
+                    <button className={`task-queue-tab ${editorTab === 'outputs' ? 'active' : ''}`} onClick={() => setEditorTab('outputs')}>
+                      <FolderOpen size={11} /> Outputs {taskOutputs.length > 0 && `(${taskOutputs.length})`}
+                    </button>
+                  )}
                 </div>
               )}
               {editorTab === 'yaml' || editingNew ? (
                 <textarea className="task-queue-textarea" value={editor} onChange={(e) => setEditor(e.target.value)} spellCheck={false} />
+              ) : editorTab === 'outputs' ? (
+                <div className="task-queue-outputs">
+                  {taskOutputPreview ? (
+                    <div className="pipeline-output-preview">
+                      <div className="pipeline-output-preview-header">
+                        <span>{taskOutputPreview.name}</span>
+                        <button onClick={() => setTaskOutputPreview(null)}>Back</button>
+                      </div>
+                      <pre className="pipeline-output-preview-code">
+                        {taskOutputPreview.content.split('\n').map((line, i) => (
+                          <div key={i} className="pipeline-output-preview-line">
+                            <span className="pipeline-output-preview-num">{i + 1}</span>
+                            <span>{line}</span>
+                          </div>
+                        ))}
+                      </pre>
+                    </div>
+                  ) : taskOutputs.length === 0 ? (
+                    <p className="task-queue-memory-hint">No output files yet. Add <code>outputs: "~/.claude-colony/outputs/my-task"</code> to your YAML and run the task.</p>
+                  ) : (
+                    <div className="pipeline-output-list">
+                      {taskOutputs.map((f) => (
+                        <div
+                          key={f.path}
+                          className="pipeline-output-file"
+                          onClick={async () => {
+                            const result = await window.api.fs.readFile(f.path)
+                            if (result.content !== undefined) setTaskOutputPreview({ name: f.name, content: result.content })
+                          }}
+                        >
+                          <File size={11} />
+                          <span className="pipeline-output-file-name">{f.name}</span>
+                          <span className="pipeline-output-file-meta">
+                            {f.size < 1024 ? `${f.size}B` : `${(f.size / 1024).toFixed(1)}KB`}
+                            {' · '}
+                            {new Date(f.modified).toLocaleDateString()} {new Date(f.modified).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="task-queue-memory-editor">
                   <p className="task-queue-memory-hint">
