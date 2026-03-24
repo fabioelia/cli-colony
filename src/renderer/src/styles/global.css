@@ -5749,8 +5749,30 @@ input, select {
   box-shadow: 0 0 4px var(--success);
 }
 
+.pipeline-status-dot.running {
+  background: var(--warning);
+  box-shadow: 0 0 4px var(--warning);
+  animation: pulse-dot 1s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 .pipeline-status-dot.inactive {
   background: var(--text-muted);
+}
+
+.pipeline-running-badge {
+  font-size: 9px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--warning);
+  background: rgba(245, 158, 11, 0.15);
+  padding: 1px 5px;
+  border-radius: 3px;
 }
 
 .pipeline-card-name {

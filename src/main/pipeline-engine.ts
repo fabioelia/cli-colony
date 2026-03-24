@@ -82,6 +82,7 @@ export interface PipelineInfo {
   triggerType: string
   interval: number
   cron: string | null
+  running: boolean
   lastPollAt: string | null
   lastFiredAt: string | null
   lastError: string | null
@@ -158,6 +159,7 @@ const STATE_PATH = join(COLONY_DIR, 'pipeline-state.json')
 
 const pipelines = new Map<string, { def: PipelineDef; state: PipelineState; fileName: string }>()
 const timers = new Map<string, ReturnType<typeof setInterval>>()
+const runningPolls = new Set<string>()
 let githubUser: string | null = null
 let started = false
 
@@ -893,8 +895,13 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
 async function runPoll(pipelineName: string): Promise<void> {
   const p = pipelines.get(pipelineName)
   if (!p || !p.def.enabled) return
+  if (runningPolls.has(pipelineName)) return // prevent overlapping polls
+
+  runningPolls.add(pipelineName)
+  broadcast('pipeline:status', getPipelineList())
 
   p.state.lastPollAt = new Date().toISOString()
+  let fired = false
 
   try {
     let contexts: TriggerContext[] = []
@@ -902,7 +909,6 @@ async function runPoll(pipelineName: string): Promise<void> {
     if (p.def.trigger.type === 'git-poll') {
       contexts = await executeGitPollTrigger(p.def.trigger)
     } else if (p.def.trigger.type === 'cron') {
-      // Cron trigger fires once per poll with minimal context
       contexts = [{
         githubUser: githubUser || undefined,
         timestamp: new Date().toISOString(),
@@ -918,6 +924,7 @@ async function runPoll(pipelineName: string): Promise<void> {
 
       await fireAction(p.def.action, ctx, p.def.name)
       recordFired(pipelineName, dedupKey, ctx.contentSha)
+      fired = true
     }
 
     p.state.lastError = null
@@ -926,7 +933,8 @@ async function runPoll(pipelineName: string): Promise<void> {
     log(`Poll error for ${pipelineName}: ${err}`)
   }
 
-  saveState()
+  runningPolls.delete(pipelineName)
+  if (fired) saveState() // only write to disk if something fired
   broadcast('pipeline:status', getPipelineList())
 }
 
@@ -1039,6 +1047,7 @@ export function getPipelineList(): PipelineInfo[] {
       triggerType: p.def.trigger.type,
       interval: p.def.trigger.interval || 300,
       cron: p.def.trigger.cron || null,
+      running: runningPolls.has(name),
       lastPollAt: p.state.lastPollAt,
       lastFiredAt: p.state.lastFiredAt,
       lastError: p.state.lastError,

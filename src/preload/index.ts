@@ -215,6 +215,7 @@ export interface ClaudeManagerAPI {
       triggerType: string
       interval: number
       cron: string | null
+      running: boolean
       lastPollAt: string | null
       lastFiredAt: string | null
       lastError: string | null

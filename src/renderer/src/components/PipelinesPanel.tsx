@@ -13,6 +13,7 @@ interface PipelineInfo {
   triggerType: string
   interval: number
   cron: string | null
+  running: boolean
   lastPollAt: string | null
   lastFiredAt: string | null
   lastError: string | null
@@ -295,8 +296,9 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
             <div className="pipeline-card-header" onClick={() => handleExpand(p)}>
               <div className="pipeline-card-left">
                 {expandedPipeline === p.name ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                <span className={`pipeline-status-dot ${p.enabled ? 'active' : 'inactive'}`} />
+                <span className={`pipeline-status-dot ${p.running ? 'running' : p.enabled ? 'active' : 'inactive'}`} />
                 <span className="pipeline-card-name">{p.name}</span>
+                {p.running && <span className="pipeline-running-badge">Running</span>}
               </div>
               <div className="pipeline-card-right">
                 <span className="pipeline-card-trigger">{p.triggerType}</span>
