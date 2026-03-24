@@ -391,6 +391,7 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
                       ))}
                     </div>
                   ))}
+                </div>
                 {/* Preview */}
                 <div className="task-outputs-preview">
                   {outputPreview ? (
