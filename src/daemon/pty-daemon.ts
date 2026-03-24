@@ -379,6 +379,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
       }
 
       // Send /color once Claude CLI is ready for input (Claude Code only, if sync enabled)
+      // Always wait for 2nd waiting state — 1st may be trust/safety prompt
       if (
         instance.cliBackend === 'claude' &&
         readSyncClaudeSlashCommands() &&
@@ -387,10 +388,11 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
         instance.pty
       ) {
         waitingCount++
-        // Skip first waiting if it looks like a trust prompt (check output for "trust")
-        const recentOutput = instance.outputBuffer.slice(-50).join('')
-        const hasTrustPrompt = /trust|safety check/i.test(recentOutput)
-        if (!hasTrustPrompt || waitingCount > 1) {
+        if (waitingCount === 1) {
+          // First waiting — could be trust prompt. Send Enter to dismiss.
+          instance.pty.write('\r')
+        } else {
+          // Second waiting — CLI is ready for real input
           colorSent = true
           const colorName = closestColorName(instance.color)
           if (colorName) {
