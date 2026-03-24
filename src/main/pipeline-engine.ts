@@ -331,6 +331,7 @@ function isDuplicate(pipelineName: string, key: string, ttlSeconds: number, cont
 
   // If we have a content SHA, check if the content changed since last fire
   if (contentSha) {
+    if (!p.state.contentHashes) p.state.contentHashes = {}
     const lastSha = p.state.contentHashes[key]
     if (lastSha === contentSha) {
       // Content hasn't changed — skip regardless of TTL
@@ -351,6 +352,7 @@ function recordFired(pipelineName: string, key: string, contentSha?: string): vo
   if (!p) return
   p.state.firedKeys[key] = Date.now()
   if (contentSha) {
+    if (!p.state.contentHashes) p.state.contentHashes = {}
     p.state.contentHashes[key] = contentSha
   }
   p.state.fireCount++
@@ -362,7 +364,7 @@ function recordFired(pipelineName: string, key: string, contentSha?: string): vo
   for (const [k, ts] of Object.entries(p.state.firedKeys)) {
     if (now - ts > ttl * 2) {
       delete p.state.firedKeys[k]
-      delete p.state.contentHashes[k]
+      if (p.state.contentHashes) delete p.state.contentHashes[k]
     }
   }
 
