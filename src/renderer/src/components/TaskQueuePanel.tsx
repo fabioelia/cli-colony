@@ -87,6 +87,7 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
   const [taskMemory, setTaskMemory] = useState('')
   const [memoryDirty, setMemoryDirty] = useState(false)
   const [taskOutputs, setTaskOutputs] = useState<Array<{ name: string; path: string; size: number; modified: number }>>([])
+  const [outputPreview, setOutputPreview] = useState<{ name: string; content: string } | null>(null)
 
   const [runningQueue, setRunningQueue] = useState<QueueDef | null>(null)
   const [taskStatuses, setTaskStatuses] = useState<TaskStatus[]>([])
@@ -165,8 +166,30 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
     setSelectedFile(file.name); setEditor(file.content); setEditingNew(false); setEditorTab('yaml')
     const mem = await window.api.taskQueue.getMemory(file.name)
     setTaskMemory(mem || ''); setMemoryDirty(false); setTaskOutputs([])
+
+    // Find outputs directory: explicit field OR detect from task prompts
     const q = parseQueue(file.content)
-    if (q?.outputs) { const files = await window.api.pipeline.listOutputs(q.outputs); setTaskOutputs(files) }
+    let outputsDir = q?.outputs
+    if (!outputsDir) {
+      // Scan prompts for ~/.claude-colony/outputs/<something> patterns
+      const outputPaths = new Set<string>()
+      const content = file.content
+      const matches = content.match(/~\/\.claude-colony\/outputs\/[^\s"']+/g)
+      if (matches) {
+        for (const m of matches) {
+          // Extract the directory (drop the filename)
+          const parts = m.split('/')
+          // If last segment has a dot (it's a file), take parent dir
+          if (parts[parts.length - 1].includes('.')) parts.pop()
+          outputPaths.add(parts.join('/'))
+        }
+      }
+      if (outputPaths.size === 1) outputsDir = [...outputPaths][0]
+    }
+    if (outputsDir) {
+      const files = await window.api.pipeline.listOutputs(outputsDir)
+      setTaskOutputs(files)
+    }
   }, [])
 
   const handleSave = useCallback(async () => {
@@ -315,9 +338,9 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
               <div className="task-queue-editor-tabs">
                 <button className={`task-queue-tab ${editorTab === 'yaml' ? 'active' : ''}`} onClick={() => setEditorTab('yaml')}><FileText size={11} /> Config</button>
                 <button className={`task-queue-tab ${editorTab === 'memory' ? 'active' : ''}`} onClick={() => setEditorTab('memory')}><Zap size={11} /> Memory</button>
-                {parsed?.outputs && (
+                {taskOutputs.length > 0 && (
                   <button className={`task-queue-tab ${editorTab === 'outputs' ? 'active' : ''}`} onClick={() => setEditorTab('outputs')}>
-                    <FolderOpen size={11} /> Outputs {taskOutputs.length > 0 && `(${taskOutputs.length})`}
+                    <FolderOpen size={11} /> Outputs ({taskOutputs.length})
                   </button>
                 )}
               </div>
@@ -353,12 +376,29 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
               <textarea className="task-queue-textarea" value={editor} onChange={(e) => setEditor(e.target.value)} spellCheck={false} />
             ) : editorTab === 'outputs' ? (
               <div className="task-queue-outputs">
-                {taskOutputs.length === 0 ? (
-                  <p className="task-queue-empty-hint">No output files yet. Run the task to generate artifacts.</p>
+                {outputPreview ? (
+                  <>
+                    <div className="task-output-preview-header">
+                      <File size={11} />
+                      <span>{outputPreview.name}</span>
+                      <button onClick={() => setOutputPreview(null)}>Back</button>
+                    </div>
+                    <pre className="task-output-preview-code">
+                      {outputPreview.content.split('\n').map((line, i) => (
+                        <div key={i} className="task-output-preview-line">
+                          <span className="task-output-preview-num">{i + 1}</span>
+                          <span>{line}</span>
+                        </div>
+                      ))}
+                    </pre>
+                  </>
                 ) : (
                   <div className="pipeline-output-list">
                     {taskOutputs.map((f) => (
-                      <div key={f.path} className="pipeline-output-file">
+                      <div key={f.path} className="pipeline-output-file" onClick={async () => {
+                        const result = await window.api.fs.readFile(f.path)
+                        if (result.content !== undefined) setOutputPreview({ name: f.name, content: result.content })
+                      }}>
                         <File size={11} />
                         <span className="pipeline-output-file-name">{f.name}</span>
                         <span className="pipeline-output-file-meta">
