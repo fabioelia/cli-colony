@@ -72,8 +72,9 @@ dedup:
 {{github.user}}, {{timestamp}}
 
 ## Action Types
-- \`launch-session\`: Always spawns a new Claude session
+- \`launch-session\`: Spawns a new Claude session. Add \`reuse: true\` to try finding/resuming a matching session first.
 - \`route-to-session\`: Finds an existing session matching the branch/repo, injects the prompt. Falls back to launching new if no match.
+- **\`reuse: true\`** flag: works on either action type. Searches running sessions and CLI history by branch, repo, PR number, and session name. Resumes via \`--resume\` if a history match is found.
 
 ## Condition Types
 - \`branch-file-exists\`: Checks if a file exists on a specific branch (uses GitHub API)

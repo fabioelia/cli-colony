@@ -37,11 +37,12 @@ export interface ConditionDef {
 
 export interface ActionDef {
   type: 'launch-session' | 'route-to-session'
+  reuse?: boolean // shorthand: when true, launch-session tries to find/resume a matching session first
   name?: string
   workingDirectory?: string
   color?: string
   prompt: string
-  // route-to-session specific:
+  // route-to-session specific (also used when reuse: true):
   match?: {
     gitBranch?: string
     workingDirectory?: string
@@ -792,7 +793,9 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
   const prompt = resolveTemplate(action.prompt, ctx)
 
   // ---- Route to existing session ----
-  if (action.type === 'route-to-session') {
+  // reuse: true on launch-session acts like route-to-session
+  const shouldRoute = action.type === 'route-to-session' || (action.type === 'launch-session' && action.reuse)
+  if (shouldRoute) {
     const matchDef = action.match || {}
     const resolvedMatch = {
       gitBranch: matchDef.gitBranch ? resolveTemplate(matchDef.gitBranch, ctx) : ctx.pr?.branch,

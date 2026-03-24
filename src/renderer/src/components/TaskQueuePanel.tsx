@@ -381,6 +381,7 @@ condition:
 
 action:
   type: launch-session
+  reuse: true
   name: "${task.name || queue.name}"
   ${task.directory ? `workingDirectory: "${task.directory}"` : '# workingDirectory: /path/to/project'}
   color: "#8b5cf6"
