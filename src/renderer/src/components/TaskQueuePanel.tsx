@@ -437,23 +437,45 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
                       )}
                       {outputViewMode === 'markdown' && outputPreview.name.endsWith('.md') ? (
                         <div className="task-output-markdown" dangerouslySetInnerHTML={{
-                          __html: outputPreview.content
-                            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-                            .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
-                            .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-                            .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-                            .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-                            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-                            .replace(/\*(.+?)\*/g, '<em>$1</em>')
-                            .replace(/`([^`]+)`/g, '<code>$1</code>')
-                            .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
-                            .replace(/^- \[x\] (.+)$/gm, '<div class="task-md-check checked">$1</div>')
-                            .replace(/^- \[ \] (.+)$/gm, '<div class="task-md-check">$1</div>')
-                            .replace(/^- (.+)$/gm, '<li>$1</li>')
-                            .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
-                            .replace(/^---$/gm, '<hr/>')
-                            .replace(/\n\n/g, '</p><p>')
-                            .replace(/\n/g, '<br/>')
+                          __html: (() => {
+                            let md = outputPreview.content
+                              .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+                            // Parse tables: find consecutive lines starting with |
+                            md = md.replace(/((?:^\|.+\|$\n?)+)/gm, (block) => {
+                              const rows = block.trim().split('\n').filter(r => r.trim())
+                              if (rows.length < 2) return block
+                              const parseRow = (r: string) => r.split('|').slice(1, -1).map(c => c.trim())
+                              const isSep = (r: string) => /^\|[\s\-:|]+\|$/.test(r.trim())
+                              let html = '<table>'
+                              let inBody = false
+                              for (let i = 0; i < rows.length; i++) {
+                                if (isSep(rows[i])) { inBody = true; continue }
+                                const cells = parseRow(rows[i])
+                                const tag = !inBody && i === 0 ? 'th' : 'td'
+                                html += '<tr>' + cells.map(c => `<${tag}>${c}</${tag}>`).join('') + '</tr>'
+                                if (i === 0 && (i + 1 >= rows.length || isSep(rows[i + 1]))) inBody = true
+                              }
+                              return html + '</table>'
+                            })
+
+                            return md
+                              .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
+                              .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+                              .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+                              .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+                              .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                              .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                              .replace(/`([^`]+)`/g, '<code>$1</code>')
+                              .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+                              .replace(/^- \[x\] (.+)$/gm, '<div class="task-md-check checked">$1</div>')
+                              .replace(/^- \[ \] (.+)$/gm, '<div class="task-md-check">$1</div>')
+                              .replace(/^- (.+)$/gm, '<li>$1</li>')
+                              .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+                              .replace(/^---$/gm, '<hr/>')
+                              .replace(/\n\n/g, '</p><p>')
+                              .replace(/\n/g, '<br/>')
+                          })()
                         }} />
                       ) : (
                         <pre className="task-output-preview-code">

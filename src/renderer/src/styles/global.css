@@ -5406,6 +5406,10 @@ input, select {
 .task-output-markdown li { margin: 2px 0; padding-left: 4px; }
 .task-output-markdown hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
 .task-output-markdown p { margin: 6px 0; }
+.task-output-markdown table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 11px; }
+.task-output-markdown th { text-align: left; padding: 6px 10px; border-bottom: 2px solid var(--border); color: var(--text-primary); font-weight: 600; background: var(--bg-hover); }
+.task-output-markdown td { padding: 5px 10px; border-bottom: 1px solid var(--border); }
+.task-output-markdown tr:hover td { background: var(--bg-hover); }
 
 .task-md-check { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
 .task-md-check::before { content: '☐'; color: var(--text-muted); font-size: 13px; }
