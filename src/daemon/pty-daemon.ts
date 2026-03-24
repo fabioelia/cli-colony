@@ -325,11 +325,20 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
     }
   })
 
-  // Send /color command once Claude is ready
-  // Skip if user has already started typing or session is too old
-  let colorSent = false
-  let waitingCount = 0
-  const colorDeadline = Date.now() + 15000 // 15s window to send color
+  // Send /color immediately — PTY buffers input, CLI processes when ready
+  if (instance.cliBackend === 'claude' && readSyncClaudeSlashCommands()) {
+    const colorName = closestColorName(instance.color)
+    if (colorName && instance.pty) {
+      // Small delay to let the PTY initialize, then send
+      setTimeout(() => {
+        if (instance.pty && !instance._userInputReceived) {
+          instance.pty.write(`/color ${colorName}\r`)
+          log(`sent /color ${colorName} to ${id}`)
+        }
+      }, 500)
+    }
+  }
+
   const startupEnd = Date.now() + 15000
 
   // Activity detection — start fast (500ms) for snappy startup, slow to 2s after
@@ -393,31 +402,12 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
         }, 2000)
       }
 
-      // Send /color once Claude CLI is ready for input (Claude Code only, if sync enabled)
-      // Skip if: user already typed something, or we're past the 15s window
-      if (
-        instance.cliBackend === 'claude' &&
-        readSyncClaudeSlashCommands() &&
-        newActivity === 'waiting' &&
-        !colorSent &&
-        instance.pty
-      ) {
-        if (instance._userInputReceived || Date.now() > colorDeadline) {
-          // User already engaged or too late — skip color
-          colorSent = true
-        } else {
-          waitingCount++
-          if (waitingCount === 1) {
-            // First waiting — could be trust prompt. Send Enter to dismiss.
-            instance.pty.write('\r')
-          } else {
-            // Second waiting — CLI is ready for real input
-            colorSent = true
-            const colorName = closestColorName(instance.color)
-            if (colorName) {
-              instance.pty.write(`/color ${colorName}\r`)
-            }
-          }
+      // Dismiss trust prompt on first waiting state
+      if (newActivity === 'waiting' && instance.cliBackend === 'claude' && instance.pty && !instance._userInputReceived) {
+        // Check recent output for trust prompt
+        const recentOutput = instance.outputBuffer.slice(-30).join('')
+        if (/trust|safety check/i.test(recentOutput)) {
+          instance.pty.write('\r')
         }
       }
     }
