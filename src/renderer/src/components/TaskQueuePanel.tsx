@@ -367,56 +367,81 @@ dedup:
     setShowResults(true)
     stopRef.current = false
 
-    const statuses: TaskStatus[] = queue.tasks.map((_, i) => ({ index: i, instanceId: null, state: 'pending' as const, exitCode: null }))
+    const statuses: TaskStatus[] = queue.tasks.map((_, i) => ({ index: i, instanceId: null, state: 'running' as const, exitCode: null }))
     setTaskStatuses([...statuses])
 
-    const runTask = async (taskIndex: number): Promise<void> => {
-      if (stopRef.current) return
-      const task = queue.tasks[taskIndex]
-      const taskLabel = task.name || `Task ${taskIndex + 1}`
-      const sessionName = `${queue.name} › ${taskLabel}`
-      statuses[taskIndex].state = 'running'
-      setTaskStatuses([...statuses])
-      try {
-        let taskPrompt = task.prompt
-        const outputsDir = task.outputs || queue.outputs
-        if (outputsDir) {
-          const resolved = outputsDir.replace(/^~/, process.env.HOME || '~')
-          taskPrompt += `\n\nWrite any output files to: ${resolved}\nCreate the directory if it doesn't exist: mkdir -p ${resolved}`
-        }
-        const memoryFileName = selectedFile?.replace(/\.(yaml|yml)$/, '')
-        if (selectedFile) {
-          const memory = await window.api.taskQueue.getMemory(selectedFile)
-          const memPath = `~/.claude-colony/task-queues/${memoryFileName}-memory.md`
-          if (memory?.trim()) {
-            taskPrompt += `\n\n--- Task Memory ---\nLearnings from previous runs:\n\n${memory}\n\nWhen you finish, if you learned anything new, append it to ${memPath}`
-          } else {
-            taskPrompt += `\n\nWhen you finish, if you learned anything useful, write it to ${memPath}`
-          }
-        }
-        const dir = task.directory || await window.api.taskQueue.createTaskDir(queue.name, taskLabel)
-        const inst = await window.api.instance.create({ name: sessionName, workingDirectory: dir })
-        statuses[taskIndex].instanceId = inst.id
-        await sendPromptWhenReady(inst.id, taskPrompt)
-        await new Promise<void>((resolve) => {
-          const unsub = window.api.instance.onExited(({ id, exitCode }) => {
-            if (id !== inst.id) return; unsub()
-            statuses[taskIndex].exitCode = exitCode
-            statuses[taskIndex].state = exitCode === 0 ? 'done' : 'failed'
-            setTaskStatuses([...statuses]); resolve()
-          })
-        })
-      } catch { statuses[taskIndex].state = 'failed'; setTaskStatuses([...statuses]) }
+    // Build combined prompt — one session handles all tasks
+    const taskDescriptions = queue.tasks.map((task, i) => {
+      const label = task.name || `Task ${i + 1}`
+      const dir = task.directory ? `\n   Working directory: ${task.directory}` : ''
+      return `### ${i + 1}. ${label}${dir}\n${task.prompt}`
+    }).join('\n\n')
+
+    const modeInstruction = queue.mode === 'parallel'
+      ? 'Execute ALL tasks. You may work on them in whatever order is most efficient, or interleave work across them.'
+      : 'Execute each task IN ORDER. Complete one fully before starting the next.'
+
+    let combinedPrompt = `You have ${queue.tasks.length} task${queue.tasks.length !== 1 ? 's' : ''} to execute (${queue.mode} mode).\n\n${modeInstruction}\n\n${taskDescriptions}`
+
+    // Add outputs dir
+    const outputsDir = queue.outputs
+    if (outputsDir) {
+      const resolved = outputsDir.replace(/^~/, process.env.HOME || '~')
+      combinedPrompt += `\n\nWrite any output files to: ${resolved}\nCreate the directory if it doesn't exist: mkdir -p ${resolved}`
     }
 
-    if (queue.mode === 'parallel') { await Promise.all(queue.tasks.map((_, i) => runTask(i))) }
-    else { for (let i = 0; i < queue.tasks.length; i++) { if (stopRef.current) break; await runTask(i) } }
+    // Add memory
+    const memoryFileName = selectedFile?.replace(/\.(yaml|yml)$/, '')
+    if (selectedFile) {
+      const memory = await window.api.taskQueue.getMemory(selectedFile)
+      const memPath = `~/.claude-colony/task-queues/${memoryFileName}-memory.md`
+      if (memory?.trim()) {
+        combinedPrompt += `\n\n--- Task Memory ---\nLearnings from previous runs:\n\n${memory}\n\nWhen you finish, if you learned anything new, append it to ${memPath}`
+      } else {
+        combinedPrompt += `\n\nWhen you finish, if you learned anything useful, write it to ${memPath}`
+      }
+    }
+
+    try {
+      const dir = queue.tasks[0]?.directory || workspacePath || undefined
+      const inst = await window.api.instance.create({
+        name: queue.name,
+        workingDirectory: dir,
+        args: ['--append-system-prompt', combinedPrompt],
+      })
+
+      // All tasks share this session
+      for (const s of statuses) s.instanceId = inst.id
+      setTaskStatuses([...statuses])
+
+      // Send trigger
+      await sendPromptWhenReady(inst.id, 'Execute the tasks defined in your system prompt. Begin now.')
+
+      // Wait for session to exit
+      await new Promise<void>((resolve) => {
+        const unsub = window.api.instance.onExited(({ id, exitCode }) => {
+          if (id !== inst.id) return; unsub()
+          for (const s of statuses) {
+            s.exitCode = exitCode
+            s.state = exitCode === 0 ? 'done' : 'failed'
+          }
+          setTaskStatuses([...statuses])
+          resolve()
+        })
+      })
+    } catch {
+      for (const s of statuses) s.state = 'failed'
+      setTaskStatuses([...statuses])
+    }
+
     setIsRunning(false)
   }, [editor, workspacePath, sendPromptWhenReady, selectedFile])
 
   const handleStop = useCallback(() => {
     stopRef.current = true
-    for (const s of taskStatuses) { if (s.state === 'running' && s.instanceId) window.api.instance.kill(s.instanceId) }
+    // Kill the single session
+    const id = taskStatuses.find(s => s.instanceId)?.instanceId
+    if (id) window.api.instance.kill(id)
     setIsRunning(false)
   }, [taskStatuses])
 
