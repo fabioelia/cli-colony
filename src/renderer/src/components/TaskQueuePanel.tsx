@@ -177,14 +177,13 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
       const matches = content.match(/~\/\.claude-colony\/outputs\/[^\s"']+/g)
       if (matches) {
         for (const m of matches) {
-          // Extract the directory (drop the filename)
           const parts = m.split('/')
-          // If last segment has a dot (it's a file), take parent dir
           if (parts[parts.length - 1].includes('.')) parts.pop()
-          outputPaths.add(parts.join('/'))
+          // Normalize: remove trailing slash
+          outputPaths.add(parts.join('/').replace(/\/$/, ''))
         }
       }
-      if (outputPaths.size === 1) outputsDir = [...outputPaths][0]
+      if (outputPaths.size >= 1) outputsDir = [...outputPaths][0]
     }
     if (outputsDir) {
       const files = await window.api.pipeline.listOutputs(outputsDir)
