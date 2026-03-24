@@ -786,6 +786,12 @@ export default function App() {
           <TaskQueuePanel
             instances={instances}
             onFocusInstance={(id) => { setActiveId(id); setView('instances') }}
+            onLaunchInstance={async (opts) => {
+              const inst = await window.api.instance.create(opts)
+              setActiveId(inst.id)
+              setView('instances')
+              return inst.id
+            }}
           />
         )}
         {view === 'orchestrate' && (
