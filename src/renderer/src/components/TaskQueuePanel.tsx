@@ -165,15 +165,11 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
     const mem = await window.api.taskQueue.getMemory(file.name)
     setTaskMemory(mem || ''); setMemoryDirty(false); setTaskOutputs([])
 
-    // Load output runs
-    const q = parseQueue(file.content)
-    if (q) {
-      const safeName = q.name.replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '-').toLowerCase()
-      const runs = await window.api.taskQueue.listOutputRuns(`~/.claude-colony/outputs/${safeName}`)
-      setOutputRuns(runs)
-      // Auto-expand the latest run
-      if (runs.length > 0) setExpandedRun(runs[0].name)
-    }
+    // Load output runs — derived from file name (stable, not queue name which user can change)
+    const baseName = file.name.replace(/\.(yaml|yml)$/, '')
+    const runs = await window.api.taskQueue.listOutputRuns(`~/.claude-colony/outputs/${baseName}`)
+    setOutputRuns(runs)
+    if (runs.length > 0) setExpandedRun(runs[0].name)
   }, [])
 
   const handleSave = useCallback(async () => {
@@ -214,11 +210,11 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
     const modeInstruction = queue.mode === 'parallel'
       ? 'Execute ALL tasks in whatever order is most efficient.'
       : 'Execute each task IN ORDER. Complete one before starting the next.'
-    // Inject output directory: outputs/<queue-name>/<timestamp>/
-    const safeName = queue.name.replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '-').toLowerCase()
+    // Inject output directory: outputs/<file-name>/<timestamp>/
+    const baseName = selectedFile?.replace(/\.(yaml|yml)$/, '') || queue.name.replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '-').toLowerCase()
     const now = new Date()
     const ts = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}-${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`
-    const outputDir = `~/.claude-colony/outputs/${safeName}/${ts}`
+    const outputDir = `~/.claude-colony/outputs/${baseName}/${ts}`
     let combinedPrompt = `You have ${queue.tasks.length} task${queue.tasks.length !== 1 ? 's' : ''} (${queue.mode}).\n\n${modeInstruction}\n\n${taskDescriptions}\n\n--- Output Directory ---\nWrite all output files to: ${outputDir}\nCreate it first: mkdir -p ${outputDir}\nDo NOT hardcode output paths from the task prompts — always use this directory.`
     const memFn = selectedFile?.replace(/\.(yaml|yml)$/, '')
     if (selectedFile) {
