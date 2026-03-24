@@ -20,7 +20,7 @@ interface PipelineInfo {
 }
 
 interface Props {
-  onLaunchInstance: (opts: { name?: string; workingDirectory?: string; color?: string }) => Promise<string>
+  onLaunchInstance: (opts: { name?: string; workingDirectory?: string; color?: string; args?: string[] }) => Promise<string>
   onFocusInstance: (id: string) => void
   instances: Array<{ id: string; name: string; status: string }>
 }
@@ -160,14 +160,16 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
         return
       }
 
-      // Launch new assistant
+      // Launch new assistant with system prompt baked in
       const id = await onLaunchInstance({
         name: 'Pipeline Assistant',
         workingDirectory: pipelinesDir || undefined,
         color: '#8b5cf6',
+        args: ['--append-system-prompt', PIPELINE_SYSTEM_PROMPT],
       })
       setAssistantId(id)
-      sendPromptToAssistant(id, PIPELINE_SYSTEM_PROMPT + '\n\nUser request: ' + q)
+      // Send user question once CLI is ready
+      sendPromptToAssistant(id, q)
       onFocusInstance(id)
     } finally {
       sendingRef.current = false

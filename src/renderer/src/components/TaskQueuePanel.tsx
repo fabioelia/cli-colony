@@ -254,13 +254,12 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
       name: 'Task Assistant',
       color: '#f59e0b',
       workingDirectory: workspacePath || undefined,
+      args: ['--append-system-prompt', TASK_PROMPT],
     })
     setAssistantId(inst.id)
-    // Don't pass sessionName — create already set it, no need for /rename via PTY
-    sendPromptWhenReady(inst.id, TASK_PROMPT)
 
     return inst.id
-  }, [workspacePath, sendPromptWhenReady, TASK_PROMPT])
+  }, [workspacePath, TASK_PROMPT])
 
   // On mount: reuse existing Task Assistant or spawn new
   useEffect(() => {
