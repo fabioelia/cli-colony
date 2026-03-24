@@ -790,7 +790,19 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
   // Prefix with "Pipe" so pipeline-launched sessions are identifiable
   const name = rawName.startsWith('Pipe') ? rawName : `Pipe (${rawName})`
   const cwd = resolveTemplate(action.workingDirectory || '', ctx) || undefined
-  const prompt = resolveTemplate(action.prompt, ctx)
+  let prompt = resolveTemplate(action.prompt, ctx)
+
+  // Inject pipeline memory if it exists
+  const p = [...pipelines.values()].find(pp => pp.def.name === pipelineName)
+  if (p) {
+    const memPath = join(PIPELINES_DIR, `${p.fileName.replace(/\.(yaml|yml)$/, '')}-memory.md`)
+    if (existsSync(memPath)) {
+      const memory = readFileSync(memPath, 'utf-8').trim()
+      if (memory) {
+        prompt += `\n\n--- Pipeline Memory ---\nThe following are learnings from previous runs. Use these to improve your approach:\n\n${memory}\n\nWhen you finish, if you learned anything new about tools, approaches, or useful patterns that would help future runs, append it to ${memPath}`
+      }
+    }
+  }
 
   // ---- Route to existing session ----
   // reuse: true on launch-session acts like route-to-session

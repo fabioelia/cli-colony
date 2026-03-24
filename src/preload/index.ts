@@ -228,6 +228,8 @@ export interface ClaudeManagerAPI {
     reload: () => Promise<any>
     onStatus: (cb: (pipelines: any[]) => void) => () => void
     onFired: (cb: (data: { pipeline: string; instanceId: string }) => void) => () => void
+    getMemory: (fileName: string) => Promise<string>
+    saveMemory: (fileName: string, content: string) => Promise<boolean>
   }
   taskQueue: {
     list: () => Promise<Array<{ name: string; path: string; content: string }>>
@@ -244,6 +246,8 @@ export interface ClaudeManagerAPI {
         files: Array<{ name: string; path: string; size: number }>
       }>
     }>>
+    getMemory: (queueName: string) => Promise<string>
+    saveMemory: (queueName: string, content: string) => Promise<boolean>
   }
   resources: {
     getUsage: () => Promise<{
@@ -380,6 +384,8 @@ const api: ClaudeManagerAPI = {
     getWorkspacePath: () => ipcRenderer.invoke('taskQueue:getWorkspacePath'),
     createTaskDir: (queueName, taskName) => ipcRenderer.invoke('taskQueue:createTaskDir', queueName, taskName),
     listRuns: () => ipcRenderer.invoke('taskQueue:listRuns'),
+    getMemory: (queueName) => ipcRenderer.invoke('taskQueue:getMemory', queueName),
+    saveMemory: (queueName, content) => ipcRenderer.invoke('taskQueue:saveMemory', queueName, content),
   },
   resources: {
     getUsage: () => ipcRenderer.invoke('resources:getUsage'),
@@ -402,6 +408,8 @@ const api: ClaudeManagerAPI = {
       ipcRenderer.on('pipeline:fired', l)
       return () => ipcRenderer.removeListener('pipeline:fired', l)
     },
+    getMemory: (fileName) => ipcRenderer.invoke('pipeline:getMemory', fileName),
+    saveMemory: (fileName, content) => ipcRenderer.invoke('pipeline:saveMemory', fileName, content),
   },
 }
 

@@ -93,7 +93,9 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [editingFileName, setEditingFileName] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
   const [readmeContent, setReadmeContent] = useState<string | null>(null)
-  const [expandedTab, setExpandedTab] = useState<'yaml' | 'docs'>('yaml')
+  const [pipelineMemory, setPipelineMemory] = useState('')
+  const [memoryDirty, setMemoryDirty] = useState(false)
+  const [expandedTab, setExpandedTab] = useState<'yaml' | 'docs' | 'memory'>('yaml')
 
   // Pipeline assistant
   const [askInput, setAskInput] = useState('')
@@ -201,6 +203,17 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     const readmeName = p.fileName.replace(/\.(yaml|yml)$/, '-README.md')
     const readme = await window.api.pipeline.getContent(readmeName)
     setReadmeContent(readme)
+
+    // Load memory
+    const mem = await window.api.pipeline.getMemory(p.fileName)
+    setPipelineMemory(mem || '')
+    setMemoryDirty(false)
+  }
+
+  const handleSaveMemory = async () => {
+    if (!editingFileName) return
+    await window.api.pipeline.saveMemory(editingFileName, pipelineMemory)
+    setMemoryDirty(false)
   }
 
   const handleSave = async () => {
@@ -349,6 +362,12 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                     >
                       <FileText size={11} /> Config
                     </button>
+                    <button
+                      className={`pipeline-tab ${expandedTab === 'memory' ? 'active' : ''}`}
+                      onClick={() => setExpandedTab('memory')}
+                    >
+                      <Zap size={11} /> Memory
+                    </button>
                     {readmeContent && (
                       <button
                         className={`pipeline-tab ${expandedTab === 'docs' ? 'active' : ''}`}
@@ -363,6 +382,11 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                       <Save size={11} /> Save
                     </button>
                   )}
+                  {expandedTab === 'memory' && memoryDirty && (
+                    <button className="pipeline-save-btn" onClick={handleSaveMemory}>
+                      <Save size={11} /> Save
+                    </button>
+                  )}
                 </div>
                 {expandedTab === 'yaml' ? (
                   <textarea
@@ -371,6 +395,19 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                     onChange={(e) => { setEditingContent(e.target.value); setDirty(true) }}
                     spellCheck={false}
                   />
+                ) : expandedTab === 'memory' ? (
+                  <div className="pipeline-memory-editor">
+                    <p className="pipeline-memory-hint">
+                      Learnings from previous runs — tools, patterns, and approaches that help future executions. Injected into prompts automatically.
+                    </p>
+                    <textarea
+                      className="pipeline-editor-textarea"
+                      value={pipelineMemory}
+                      onChange={(e) => { setPipelineMemory(e.target.value); setMemoryDirty(true) }}
+                      placeholder="No memories yet. Learnings will be captured from pipeline runs, or add them manually here."
+                      spellCheck={false}
+                    />
+                  </div>
                 ) : (
                   <div className="pipeline-readme" dangerouslySetInnerHTML={{
                     __html: readmeContent!

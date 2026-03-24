@@ -440,6 +440,35 @@ export function registerIpcHandlers(): void {
     return false
   })
 
+  // Task queue memory
+  ipcMain.handle('taskQueue:getMemory', (_e, queueName: string) => {
+    const { readFileSync, existsSync } = require('fs') as typeof import('fs')
+    const memPath = join(QUEUE_DIR, `${queueName.replace(/\.(yaml|yml)$/, '')}-memory.md`)
+    return existsSync(memPath) ? readFileSync(memPath, 'utf-8') : ''
+  })
+  ipcMain.handle('taskQueue:saveMemory', (_e, queueName: string, content: string) => {
+    const { writeFileSync, existsSync, mkdirSync } = require('fs') as typeof import('fs')
+    if (!existsSync(QUEUE_DIR)) mkdirSync(QUEUE_DIR, { recursive: true })
+    const memPath = join(QUEUE_DIR, `${queueName.replace(/\.(yaml|yml)$/, '')}-memory.md`)
+    writeFileSync(memPath, content, 'utf-8')
+    return true
+  })
+
+  // Pipeline memory
+  const PIPELINES_DIR_MEM = join(app.getPath('home'), '.claude-colony', 'pipelines')
+  ipcMain.handle('pipeline:getMemory', (_e, fileName: string) => {
+    const { readFileSync, existsSync } = require('fs') as typeof import('fs')
+    const memPath = join(PIPELINES_DIR_MEM, `${fileName.replace(/\.(yaml|yml)$/, '')}-memory.md`)
+    return existsSync(memPath) ? readFileSync(memPath, 'utf-8') : ''
+  })
+  ipcMain.handle('pipeline:saveMemory', (_e, fileName: string, content: string) => {
+    const { writeFileSync, existsSync, mkdirSync } = require('fs') as typeof import('fs')
+    if (!existsSync(PIPELINES_DIR_MEM)) mkdirSync(PIPELINES_DIR_MEM, { recursive: true })
+    const memPath = join(PIPELINES_DIR_MEM, `${fileName.replace(/\.(yaml|yml)$/, '')}-memory.md`)
+    writeFileSync(memPath, content, 'utf-8')
+    return true
+  })
+
   // Resource monitor — get CPU/memory for all instance PIDs
   ipcMain.handle('resources:getUsage', async () => {
     const { execFile } = require('child_process') as typeof import('child_process')

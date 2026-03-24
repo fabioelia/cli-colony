@@ -115,6 +115,9 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
   const [editingNew, setEditingNew] = useState(false)
   const [newFileName, setNewFileName] = useState('')
   const [dividerX, setDividerX] = useState(50)
+  const [editorTab, setEditorTab] = useState<'yaml' | 'memory'>('yaml')
+  const [taskMemory, setTaskMemory] = useState('')
+  const [memoryDirty, setMemoryDirty] = useState(false)
 
   // Running state
   const [runningQueue, setRunningQueue] = useState<QueueDef | null>(null)
@@ -336,10 +339,14 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
     return () => { observer.disconnect(); unsub() }
   }, [assistantInstance])
 
-  const handleSelectFile = useCallback((file: QueueFile) => {
+  const handleSelectFile = useCallback(async (file: QueueFile) => {
     setSelectedFile(file.name)
     setEditor(file.content)
     setEditingNew(false)
+    setEditorTab('yaml')
+    const mem = await window.api.taskQueue.getMemory(file.name)
+    setTaskMemory(mem || '')
+    setMemoryDirty(false)
   }, [])
 
   const handleSave = useCallback(async () => {
@@ -366,6 +373,12 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
     setNewFileName('')
     setEditor(TEMPLATE)
   }, [])
+
+  const handleSaveMemory = useCallback(async () => {
+    if (!selectedFile) return
+    await window.api.taskQueue.saveMemory(selectedFile, taskMemory)
+    setMemoryDirty(false)
+  }, [selectedFile, taskMemory])
 
   const handleOpenConvertModal = useCallback(() => {
     const queue = parseQueue(editor)
@@ -433,12 +446,21 @@ dedup:
       statuses[taskIndex].state = 'running'
       setTaskStatuses([...statuses])
       try {
+        // Inject memory if available
+        let taskPrompt = task.prompt
+        if (selectedFile) {
+          const memory = await window.api.taskQueue.getMemory(selectedFile)
+          if (memory?.trim()) {
+            taskPrompt += `\n\n--- Task Memory ---\nLearnings from previous runs:\n\n${memory}\n\nWhen done, if you learned anything useful about tools, approaches, or patterns, mention it so it can be saved for next time.`
+          }
+        }
+
         // Each task gets its own directory unless one is specified
         const dir = task.directory || await window.api.taskQueue.createTaskDir(queue.name, taskLabel)
         const inst = await window.api.instance.create({ name: sessionName, workingDirectory: dir })
         statuses[taskIndex].instanceId = inst.id
         // Don't pass sessionName — create already set it, no need for /rename via PTY
-        await sendPromptWhenReady(inst.id, task.prompt)
+        await sendPromptWhenReady(inst.id, taskPrompt)
         await new Promise<void>((resolve) => {
           const unsub = window.api.instance.onExited(({ id, exitCode }) => {
             if (id !== inst.id) return; unsub()
@@ -524,7 +546,37 @@ dedup:
                   <input placeholder="queue-name.yaml" value={newFileName} onChange={(e) => setNewFileName(e.target.value)} autoFocus />
                 </div>
               )}
-              <textarea className="task-queue-textarea" value={editor} onChange={(e) => setEditor(e.target.value)} spellCheck={false} />
+              {!editingNew && selectedFile && (
+                <div className="task-queue-editor-tabs">
+                  <button className={`task-queue-tab ${editorTab === 'yaml' ? 'active' : ''}`} onClick={() => setEditorTab('yaml')}>
+                    <FileText size={11} /> Config
+                  </button>
+                  <button className={`task-queue-tab ${editorTab === 'memory' ? 'active' : ''}`} onClick={() => setEditorTab('memory')}>
+                    <Zap size={11} /> Memory
+                  </button>
+                </div>
+              )}
+              {editorTab === 'yaml' || editingNew ? (
+                <textarea className="task-queue-textarea" value={editor} onChange={(e) => setEditor(e.target.value)} spellCheck={false} />
+              ) : (
+                <div className="task-queue-memory-editor">
+                  <p className="task-queue-memory-hint">
+                    Learnings from previous runs — tools, patterns, and approaches that help future executions. Injected into prompts automatically.
+                  </p>
+                  <textarea
+                    className="task-queue-textarea"
+                    value={taskMemory}
+                    onChange={(e) => { setTaskMemory(e.target.value); setMemoryDirty(true) }}
+                    placeholder="No memories yet. Run the task and add learnings here, or they'll be captured automatically."
+                    spellCheck={false}
+                  />
+                  {memoryDirty && (
+                    <button className="task-queue-save-btn" onClick={handleSaveMemory} style={{ alignSelf: 'flex-end' }}>
+                      <Save size={12} /> Save Memory
+                    </button>
+                  )}
+                </div>
+              )}
               <div className="task-queue-editor-actions">
                 <div className="task-queue-editor-info">
                   {parsed ? (
