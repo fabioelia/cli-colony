@@ -796,16 +796,17 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
   const cwd = resolveTemplate(action.workingDirectory || '', ctx) || undefined
   let prompt = resolveTemplate(action.prompt, ctx)
 
-  // Inject pipeline memory if it exists
+  // Inject pipeline memory and always tell the session where to write learnings
   const p = [...pipelines.values()].find(pp => pp.def.name === pipelineName)
   if (p) {
     const memPath = join(PIPELINES_DIR, `${p.fileName.replace(/\.(yaml|yml)$/, '')}.memory.md`)
     if (existsSync(memPath)) {
       const memory = readFileSync(memPath, 'utf-8').trim()
       if (memory) {
-        prompt += `\n\n--- Pipeline Memory ---\nThe following are learnings from previous runs. Use these to improve your approach:\n\n${memory}\n\nWhen you finish, if you learned anything new about tools, approaches, or useful patterns that would help future runs, append it to ${memPath}`
+        prompt += `\n\n--- Pipeline Memory ---\nThe following are learnings from previous runs. Use these to improve your approach:\n\n${memory}`
       }
     }
+    prompt += `\n\nWhen you finish, if you learned anything new about tools, approaches, or useful patterns that would help future runs, append it to ${memPath}`
   }
 
   // ---- Route to existing session ----
