@@ -163,7 +163,7 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
   const handleSelectFile = useCallback(async (file: QueueFile) => {
     setSelectedFile(file.name); setEditor(file.content); setEditingNew(false); setEditorTab('yaml')
     const mem = await window.api.taskQueue.getMemory(file.name)
-    setTaskMemory(mem || ''); setMemoryDirty(false); setTaskOutputs([])
+    setTaskMemory(mem || ''); setMemoryDirty(false); setOutputRuns([])
 
     // Load output runs — derived from file name (stable, not queue name which user can change)
     const baseName = file.name.replace(/\.(yaml|yml)$/, '')
