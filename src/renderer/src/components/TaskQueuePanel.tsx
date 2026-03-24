@@ -374,14 +374,29 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
             {editorTab === 'yaml' || editingNew ? (
               <textarea className="task-queue-textarea" value={editor} onChange={(e) => setEditor(e.target.value)} spellCheck={false} />
             ) : editorTab === 'outputs' ? (
-              <div className="task-queue-outputs">
-                {outputPreview ? (
-                  <>
-                    <div className="task-output-preview-header">
+              <div className="task-outputs-split">
+                {/* File tree */}
+                <div className="task-outputs-tree">
+                  {taskOutputs.map((f) => (
+                    <div
+                      key={f.path}
+                      className={`task-outputs-file ${outputPreview?.name === f.name ? 'active' : ''}`}
+                      onClick={async () => {
+                        const result = await window.api.fs.readFile(f.path)
+                        if (result.content !== undefined) setOutputPreview({ name: f.name, content: result.content })
+                      }}
+                    >
                       <File size={11} />
-                      <span>{outputPreview.name}</span>
-                      <button onClick={() => setOutputPreview(null)}>Back</button>
+                      <span className="task-outputs-file-name">{f.name}</span>
+                      <span className="task-outputs-file-size">
+                        {f.size < 1024 ? `${f.size}B` : `${(f.size / 1024).toFixed(1)}KB`}
+                      </span>
                     </div>
+                  ))}
+                </div>
+                {/* Preview */}
+                <div className="task-outputs-preview">
+                  {outputPreview ? (
                     <pre className="task-output-preview-code">
                       {outputPreview.content.split('\n').map((line, i) => (
                         <div key={i} className="task-output-preview-line">
@@ -390,23 +405,13 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
                         </div>
                       ))}
                     </pre>
-                  </>
-                ) : (
-                  <div className="pipeline-output-list">
-                    {taskOutputs.map((f) => (
-                      <div key={f.path} className="pipeline-output-file" onClick={async () => {
-                        const result = await window.api.fs.readFile(f.path)
-                        if (result.content !== undefined) setOutputPreview({ name: f.name, content: result.content })
-                      }}>
-                        <File size={11} />
-                        <span className="pipeline-output-file-name">{f.name}</span>
-                        <span className="pipeline-output-file-meta">
-                          {f.size < 1024 ? `${f.size}B` : `${(f.size / 1024).toFixed(1)}KB`} · {new Date(f.modified).toLocaleDateString()}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                  ) : (
+                    <div className="task-outputs-empty">
+                      <File size={20} />
+                      <span>Select a file to preview</span>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <textarea

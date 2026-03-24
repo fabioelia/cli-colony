@@ -5266,35 +5266,76 @@ input, select {
 .task-queue-empty-state p { margin: 0; font-size: 13px; }
 .task-queue-empty-hint { font-size: 11px; color: var(--text-muted); }
 
-.task-queue-outputs {
+.task-outputs-split {
   flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.task-outputs-tree {
+  width: 180px;
+  flex-shrink: 0;
   overflow-y: auto;
-  padding: 8px;
+  border-right: 1px solid var(--border);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.task-outputs-file {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.task-outputs-file:hover {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.task-outputs-file.active {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--accent);
+}
+
+.task-outputs-file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.task-outputs-file-size {
+  font-size: 9px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.task-outputs-preview {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
   display: flex;
   flex-direction: column;
 }
 
-.task-output-preview-header {
+.task-outputs-empty {
+  flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 4px 4px 8px;
+  color: var(--text-muted);
   font-size: 11px;
-  color: var(--text-secondary);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.task-output-preview-header span { flex: 1; font-weight: 500; }
-
-.task-output-preview-header button {
-  font-size: 10px;
-  padding: 2px 8px;
-  border-radius: 3px;
-  border: 1px solid var(--border);
-  background: var(--bg-hover);
-  color: var(--text-secondary);
-  cursor: pointer;
 }
 
 .task-output-preview-code {
@@ -5309,7 +5350,7 @@ input, select {
 
 .task-output-preview-line {
   display: flex;
-  padding: 0 4px;
+  padding: 0 8px;
 }
 
 .task-output-preview-line:hover { background: var(--bg-hover); }
