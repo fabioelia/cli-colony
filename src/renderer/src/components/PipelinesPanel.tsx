@@ -342,9 +342,10 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                 </span>
               )}
               {p.lastError && (
-                <span className="pipeline-meta-item pipeline-meta-error" title={p.lastError}>
-                  <AlertTriangle size={10} /> Error
-                </span>
+                <div className="pipeline-error-block">
+                  <AlertTriangle size={10} />
+                  <span className="pipeline-error-text">{p.lastError}</span>
+                </div>
               )}
             </div>
 

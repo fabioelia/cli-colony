@@ -5994,6 +5994,27 @@ input, select {
   color: var(--danger);
 }
 
+.pipeline-error-block {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 5px 8px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 4px;
+  font-size: 10px;
+  color: var(--danger);
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+.pipeline-error-block svg { flex-shrink: 0; margin-top: 1px; }
+
+.pipeline-error-text {
+  word-break: break-word;
+  opacity: 0.9;
+}
+
 .pipeline-card-actions {
   display: flex;
   align-items: center;
