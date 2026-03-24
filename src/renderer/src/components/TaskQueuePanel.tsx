@@ -235,7 +235,7 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
     const memFn = selectedFile?.replace(/\.(yaml|yml)$/, '')
     if (selectedFile) {
       const memory = await window.api.taskQueue.getMemory(selectedFile)
-      const memPath = `~/.claude-colony/task-queues/${memFn}-memory.md`
+      const memPath = `~/.claude-colony/task-queues/${memFn}.memory.md`
       if (memory?.trim()) combinedPrompt += `\n\n--- Task Memory ---\n${memory}\n\nAppend new learnings to ${memPath}`
       else combinedPrompt += `\n\nWrite learnings to ${memPath}`
     }

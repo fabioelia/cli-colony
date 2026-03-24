@@ -799,7 +799,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
   // Inject pipeline memory if it exists
   const p = [...pipelines.values()].find(pp => pp.def.name === pipelineName)
   if (p) {
-    const memPath = join(PIPELINES_DIR, `${p.fileName.replace(/\.(yaml|yml)$/, '')}-memory.md`)
+    const memPath = join(PIPELINES_DIR, `${p.fileName.replace(/\.(yaml|yml)$/, '')}.memory.md`)
     if (existsSync(memPath)) {
       const memory = readFileSync(memPath, 'utf-8').trim()
       if (memory) {
@@ -1187,7 +1187,7 @@ dedup:
     log('Seeded default pipeline: colony-feedback.yaml')
   }
 
-  const readmeFile = join(PIPELINES_DIR, 'colony-feedback-README.md')
+  const readmeFile = join(PIPELINES_DIR, 'colony-feedback.readme.md')
   if (!existsSync(readmeFile)) {
     const readme = `# Colony Feedback Pipeline
 
@@ -1272,7 +1272,7 @@ When feedback is detected, Colony looks for a running session that matches the P
 - If no match → launches a new session in the repo directory
 `
     writeFileSync(readmeFile, readme, 'utf-8')
-    log('Seeded pipeline README: colony-feedback-README.md')
+    log('Seeded pipeline README: colony-feedback.readme.md')
   }
 
   // ---- CI Auto-Fix pipeline ----

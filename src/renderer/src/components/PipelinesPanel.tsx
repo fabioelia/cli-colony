@@ -206,7 +206,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     setExpandedTab('yaml')
 
     // Try to load companion README
-    const readmeName = p.fileName.replace(/\.(yaml|yml)$/, '-README.md')
+    const readmeName = p.fileName.replace(/\.(yaml|yml)$/, '.readme.md')
     const readme = await window.api.pipeline.getContent(readmeName)
     setReadmeContent(readme)
 
