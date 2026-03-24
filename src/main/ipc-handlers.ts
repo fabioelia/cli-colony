@@ -448,7 +448,7 @@ export function registerIpcHandlers(): void {
     if (!existsSync(QUEUE_DIR)) mkdirSync(QUEUE_DIR, { recursive: true })
     try {
       return readdirSync(QUEUE_DIR)
-        .filter((f: string) => f.endsWith('.yaml') || f.endsWith('.yml') || f.endsWith('.md'))
+        .filter((f: string) => (f.endsWith('.yaml') || f.endsWith('.yml')) && !f.endsWith('-memory.md'))
         .map((f: string) => ({
           name: f,
           path: join(QUEUE_DIR, f),
