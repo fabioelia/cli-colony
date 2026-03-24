@@ -330,13 +330,26 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
   let colorSent = false
   let waitingCount = 0
   const colorDeadline = Date.now() + 15000 // 15s window to send color
+  const startupEnd = Date.now() + 15000
 
-  // Activity detection
-  instance._activityInterval = setInterval(() => {
+  // Activity detection — start fast (500ms) for snappy startup, slow to 2s after
+  const FAST_INTERVAL = 500
+  const NORMAL_INTERVAL = 2000
+  let currentInterval = FAST_INTERVAL
+
+  const activityCheck = () => {
     if (instance.status !== 'running') {
       if (instance._activityInterval) clearInterval(instance._activityInterval)
       return
     }
+
+    // Switch to normal interval after startup window
+    if (currentInterval === FAST_INTERVAL && Date.now() > startupEnd) {
+      currentInterval = NORMAL_INTERVAL
+      if (instance._activityInterval) clearInterval(instance._activityInterval)
+      instance._activityInterval = setInterval(activityCheck, NORMAL_INTERVAL)
+    }
+
     const tail = instance.outputBuffer.slice(-200).join('')
     const changed = tail !== instance._lastSnapshot
     instance._lastSnapshot = tail
@@ -408,7 +421,8 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
         }
       }
     }
-  }, 2000)
+  }
+  instance._activityInterval = setInterval(activityCheck, FAST_INTERVAL)
 
   // Handle exit
   ptyProcess.onExit(({ exitCode }) => {
