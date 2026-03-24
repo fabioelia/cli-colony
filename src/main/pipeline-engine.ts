@@ -845,9 +845,10 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
         name: name,
         workingDirectory: route.project,
         color: action.color,
-        args: ['--resume', route.sessionId],
+        args: ['--resume', route.sessionId, '--append-system-prompt', prompt],
       })
-      await sendPromptWhenReady(inst.id, prompt)
+      // Just send a small trigger — full prompt is in system prompt
+      await sendPromptWhenReady(inst.id, 'Execute the instructions in your system prompt. Begin now.')
       broadcast('pipeline:fired', { pipeline: name, instanceId: inst.id, routed: true, resumed: true })
       return
     } else {
@@ -882,9 +883,11 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
     name,
     workingDirectory: resolvedCwd,
     color: action.color,
+    args: ['--append-system-prompt', prompt],
   })
 
-  await sendPromptWhenReady(inst.id, prompt)
+  // Full prompt is baked into CLI args — just send a small trigger
+  await sendPromptWhenReady(inst.id, 'Execute the instructions in your system prompt. Begin now.')
 
   // Notify renderer about pipeline-triggered session
   broadcast('pipeline:fired', { pipeline: name, instanceId: inst.id })

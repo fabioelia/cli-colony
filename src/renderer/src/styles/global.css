@@ -5156,10 +5156,46 @@ input, select {
   color: var(--text-secondary);
 }
 
-.convert-pipeline-task-name {
+.convert-pipeline-task-input {
+  font-size: 11px;
   font-weight: 500;
   color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px 6px;
+  min-width: 100px;
   flex-shrink: 0;
+}
+
+.convert-pipeline-task-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.convert-pipeline-mode-toggle {
+  display: flex;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.convert-pipeline-mode-toggle button {
+  padding: 4px 12px;
+  font-size: 11px;
+  border: none;
+  background: var(--bg-primary);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.convert-pipeline-mode-toggle button:hover {
+  color: var(--text-secondary);
+}
+
+.convert-pipeline-mode-toggle button.active {
+  background: var(--accent);
+  color: white;
 }
 
 .convert-pipeline-task-prompt {
