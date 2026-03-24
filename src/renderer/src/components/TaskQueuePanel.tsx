@@ -318,22 +318,46 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
   const handleConvertConfirm = useCallback(async () => {
     const queue = parseQueue(editor)
     if (!queue) return
-    const resultNames: string[] = []
-    for (let i = 0; i < queue.tasks.length; i++) {
-      const task = queue.tasks[i]
-      const taskName = convertNames[i] || task.name || `Task ${i + 1}`
-      const safeName = taskName.replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '-').toLowerCase()
-      const fileName = `${safeName}.yaml`
-      const promptSection = convertMode === 'reference'
-        ? `    Read the task queue file at ~/.claude-colony/task-queues/${selectedFile || 'unknown.yaml'} and execute the task named "${taskName}" (task #${i + 1}).`
-        : `    ${task.prompt.split('\n').join('\n    ')}`
-      const yaml = `name: ${taskName}\ndescription: ${convertMode === 'reference' ? `References task from "${queue.name}"` : `Converted from "${queue.name}"`}\nenabled: false\n\ntrigger:\n  type: cron\n  cron: "${convertCron}"\n\ncondition:\n  type: always\n\naction:\n  type: launch-session\n  ${convertReuse ? 'reuse: true' : '# reuse: false'}\n  name: "${taskName}"\n  ${task.directory ? `workingDirectory: "${task.directory}"` : '# workingDirectory: /path/to/project'}\n  color: "#8b5cf6"\n  prompt: |\n${promptSection}\n\ndedup:\n  key: "${safeName}"\n  ttl: 3600\n`
-      await window.api.pipeline.saveContent(fileName, yaml)
-      resultNames.push(taskName)
-    }
+    const pipelineName = convertNames[0] || queue.name
+    const safeName = pipelineName.replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '-').toLowerCase()
+    const fileName = `${safeName}.yaml`
+    const queueFile = selectedFile || 'unknown.yaml'
+    const taskList = queue.tasks.map((t, i) => `  ${i + 1}. ${t.name || `Task ${i + 1}`}`).join('\n')
+
+    const yaml = `name: ${pipelineName}
+description: Runs task queue "${queue.name}" on schedule
+enabled: false
+
+trigger:
+  type: cron
+  cron: "${convertCron}"
+
+condition:
+  type: always
+
+action:
+  type: launch-session
+  ${convertReuse ? 'reuse: true' : '# reuse: false'}
+  name: "${pipelineName}"
+  color: "#8b5cf6"
+  prompt: |
+    Run the task queue defined in ~/.claude-colony/task-queues/${queueFile}
+
+    The queue "${queue.name}" contains ${queue.tasks.length} task${queue.tasks.length !== 1 ? 's' : ''} in ${queue.mode} mode:
+${taskList}
+
+    Read the file, then execute each task according to the queue definition.
+    For each task, follow the prompt exactly as written.
+    ${queue.outputs ? `Write outputs to: ${queue.outputs}` : ''}
+
+dedup:
+  key: "${safeName}"
+  ttl: 3600
+`
+    await window.api.pipeline.saveContent(fileName, yaml)
     await window.api.pipeline.reload()
-    setConvertResult({ count: resultNames.length, names: resultNames })
-  }, [editor, convertCron, convertReuse, convertNames, convertMode, selectedFile])
+    setConvertResult({ count: 1, names: [pipelineName] })
+  }, [editor, convertCron, convertReuse, convertNames, selectedFile])
 
   const handleRun = useCallback(async () => {
     const queue = parseQueue(editor)
@@ -642,33 +666,29 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
                     <h3>Convert to Pipeline</h3>
                   </div>
                   <p className="convert-pipeline-desc">
-                    {queue ? `${queue.tasks.length} task${queue.tasks.length !== 1 ? 's' : ''}` : 'Tasks'} from <strong>{queue?.name || 'queue'}</strong> will be saved as pipeline{queue && queue.tasks.length !== 1 ? 's' : ''} (disabled).
+                    Creates a pipeline that references <strong>{queue?.name || 'this queue'}</strong> ({queue?.tasks.length} task{queue && queue.tasks.length !== 1 ? 's' : ''}, {queue?.mode}). Edits to the task queue apply automatically.
                   </p>
+
                   {queue && (
                     <div className="convert-pipeline-tasks">
                       {queue.tasks.map((t, i) => (
                         <div key={i} className="convert-pipeline-task">
-                          <Zap size={11} />
-                          <input
-                            className="convert-pipeline-task-input"
-                            value={convertNames[i] || ''}
-                            onChange={(e) => { const next = [...convertNames]; next[i] = e.target.value; setConvertNames(next) }}
-                            placeholder={`Task ${i + 1}`}
-                          />
-                          <span className="convert-pipeline-task-prompt">{t.prompt.slice(0, 40)}…</span>
+                          <CheckCircle size={10} />
+                          <span className="convert-pipeline-task-name">{t.name || `Task ${i + 1}`}</span>
+                          <span className="convert-pipeline-task-prompt">{t.prompt.slice(0, 50)}…</span>
                         </div>
                       ))}
                     </div>
                   )}
+
                   <div className="convert-pipeline-field">
-                    <label>Mode</label>
-                    <div className="convert-pipeline-mode-toggle">
-                      <button className={convertMode === 'reference' ? 'active' : ''} onClick={() => setConvertMode('reference')}>Reference</button>
-                      <button className={convertMode === 'copy' ? 'active' : ''} onClick={() => setConvertMode('copy')}>Copy</button>
-                    </div>
-                    <span className="convert-pipeline-hint">
-                      {convertMode === 'reference' ? 'Pipeline reads the task queue file — edits apply automatically' : 'Pipeline gets its own copy of the prompt'}
-                    </span>
+                    <label>Pipeline Name</label>
+                    <input
+                      value={convertNames[0] || ''}
+                      onChange={(e) => setConvertNames([e.target.value])}
+                      placeholder={queue?.name || 'Pipeline name'}
+                      spellCheck={false}
+                    />
                   </div>
                   <div className="convert-pipeline-field">
                     <label>Cron Schedule</label>
@@ -684,7 +704,7 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
                   <div className="convert-pipeline-actions">
                     <button className="convert-pipeline-cancel" onClick={() => setShowConvertModal(false)}>Cancel</button>
                     <button className="convert-pipeline-confirm" onClick={handleConvertConfirm}>
-                      <Zap size={12} /> Create Pipeline{queue && queue.tasks.length !== 1 ? 's' : ''}
+                      <Zap size={12} /> Create Pipeline
                     </button>
                   </div>
                 </>
