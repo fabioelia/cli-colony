@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Plus, Trash2, Play, Square, Save, FileText, CheckCircle, XCircle,
   Loader, Clock, ListOrdered, Layers, FolderOpen, File, Zap,
-  MessageSquare, Send, ChevronDown, ChevronRight
+  MessageSquare, Send, ChevronDown, ChevronRight, Code, BookOpen
 } from 'lucide-react'
 import type { ClaudeInstance } from '../types'
 
@@ -89,6 +89,7 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
   const [taskOutputs, setTaskOutputs] = useState<Array<{ name: string; path: string; size: number; modified: number }>>([])
   const [outputPreview, setOutputPreview] = useState<{ name: string; content: string } | null>(null)
   const [expandedOutputDate, setExpandedOutputDate] = useState<string | null>(null)
+  const [outputViewMode, setOutputViewMode] = useState<'text' | 'markdown'>('markdown')
 
   const [runningQueue, setRunningQueue] = useState<QueueDef | null>(null)
   const [taskStatuses, setTaskStatuses] = useState<TaskStatus[]>([])
@@ -423,14 +424,48 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
                 {/* Preview */}
                 <div className="task-outputs-preview">
                   {outputPreview ? (
-                    <pre className="task-output-preview-code">
-                      {outputPreview.content.split('\n').map((line, i) => (
-                        <div key={i} className="task-output-preview-line">
-                          <span className="task-output-preview-num">{i + 1}</span>
-                          <span>{line}</span>
+                    <>
+                      {outputPreview.name.endsWith('.md') && (
+                        <div className="task-output-mode-toggle">
+                          <button className={outputViewMode === 'markdown' ? 'active' : ''} onClick={() => setOutputViewMode('markdown')}>
+                            <BookOpen size={10} /> Rendered
+                          </button>
+                          <button className={outputViewMode === 'text' ? 'active' : ''} onClick={() => setOutputViewMode('text')}>
+                            <Code size={10} /> Source
+                          </button>
                         </div>
-                      ))}
-                    </pre>
+                      )}
+                      {outputViewMode === 'markdown' && outputPreview.name.endsWith('.md') ? (
+                        <div className="task-output-markdown" dangerouslySetInnerHTML={{
+                          __html: outputPreview.content
+                            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                            .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
+                            .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+                            .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+                            .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+                            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                            .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                            .replace(/`([^`]+)`/g, '<code>$1</code>')
+                            .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+                            .replace(/^- \[x\] (.+)$/gm, '<div class="task-md-check checked">$1</div>')
+                            .replace(/^- \[ \] (.+)$/gm, '<div class="task-md-check">$1</div>')
+                            .replace(/^- (.+)$/gm, '<li>$1</li>')
+                            .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+                            .replace(/^---$/gm, '<hr/>')
+                            .replace(/\n\n/g, '</p><p>')
+                            .replace(/\n/g, '<br/>')
+                        }} />
+                      ) : (
+                        <pre className="task-output-preview-code">
+                          {outputPreview.content.split('\n').map((line, i) => (
+                            <div key={i} className="task-output-preview-line">
+                              <span className="task-output-preview-num">{i + 1}</span>
+                              <span>{line}</span>
+                            </div>
+                          ))}
+                        </pre>
+                      )}
+                    </>
                   ) : (
                     <div className="task-outputs-empty">
                       <File size={20} />
