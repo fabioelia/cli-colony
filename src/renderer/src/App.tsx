@@ -9,7 +9,6 @@ import SettingsPanel from './components/SettingsPanel'
 import GitHubPanel from './components/GitHubPanel'
 import CommandPalette from './components/CommandPalette'
 import TaskQueuePanel from './components/TaskQueuePanel'
-import SessionDepsPanel from './components/SessionDepsPanel'
 import PipelinesPanel from './components/PipelinesPanel'
 
 type View = SidebarView | 'agent-editor'
@@ -368,8 +367,13 @@ export default function App() {
 
   const handleResumeSession = useCallback(async (session: CliSession) => {
     // If already running with this session, just focus it
+    // Match by: session ID in args, OR same name + same working directory
+    const sessionName = session.name || session.display.slice(0, 40)
     const running = instances.find((i) =>
-      i.status === 'running' && i.args.includes('--resume') && i.args.includes(session.sessionId)
+      i.status === 'running' && (
+        (i.args.includes('--resume') && i.args.includes(session.sessionId)) ||
+        (i.name === sessionName && i.workingDirectory === session.project)
+      )
     )
     if (running) {
       setActiveId(running.id)
@@ -791,16 +795,6 @@ export default function App() {
               setActiveId(inst.id)
               setView('instances')
               return inst.id
-            }}
-          />
-        )}
-        {view === 'orchestrate' && (
-          <SessionDepsPanel
-            instances={regularInstances}
-            onFocusInstance={(id) => { setActiveId(id); setView('instances') }}
-            onCreateInstance={async (opts) => {
-              const inst = await window.api.instance.create(opts)
-              return inst
             }}
           />
         )}

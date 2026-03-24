@@ -225,7 +225,8 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
     }
     try {
       const dir = queue.tasks[0]?.directory || workspacePath || undefined
-      const inst = await window.api.instance.create({ name: queue.name, workingDirectory: dir, args: ['--append-system-prompt', combinedPrompt] })
+      const promptFile = await window.api.colony.writePromptFile(combinedPrompt)
+      const inst = await window.api.instance.create({ name: queue.name, workingDirectory: dir, args: ['--append-system-prompt-file', promptFile] })
       for (const s of statuses) s.instanceId = inst.id
       setTaskStatuses([...statuses])
       await sendPromptWhenReady(inst.id, 'Execute the tasks in your system prompt. Begin now.')

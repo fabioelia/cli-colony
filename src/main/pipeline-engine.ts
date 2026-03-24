@@ -864,13 +864,13 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
       }
     } else if (route?.type === 'resume') {
       log(`Routing: resuming history session "${route.name}" (${route.sessionId})`)
+      const promptFile = writePromptFile(prompt)
       const inst = await createInstance({
         name: name,
         workingDirectory: route.project,
         color: action.color,
-        args: ['--resume', route.sessionId, '--append-system-prompt', prompt],
+        args: ['--resume', route.sessionId, '--append-system-prompt-file', promptFile],
       })
-      // Just send a small trigger — full prompt is in system prompt
       await sendPromptWhenReady(inst.id, 'Execute the instructions in your system prompt. Begin now.')
       broadcast('pipeline:fired', { pipeline: name, instanceId: inst.id, routed: true, resumed: true })
       return
@@ -902,14 +902,15 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
 
   log(`Firing action: launching "${name}" in ${resolvedCwd || '$HOME'}`)
 
+  const promptFile = writePromptFile(prompt)
   const inst = await createInstance({
     name,
     workingDirectory: resolvedCwd,
     color: action.color,
-    args: ['--append-system-prompt', prompt],
+    args: ['--append-system-prompt-file', promptFile],
   })
 
-  // Full prompt is baked into CLI args — just send a small trigger
+  // Full prompt is in the system prompt file — just send a trigger
   await sendPromptWhenReady(inst.id, 'Execute the instructions in your system prompt. Begin now.')
 
   // Notify renderer about pipeline-triggered session

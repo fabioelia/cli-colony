@@ -25,6 +25,7 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 
 ### Session Management
 - Launch multiple Claude CLI sessions with custom names, colors, and working directories
+- Session names set via `--name` flag at launch, shown in CLI `/resume` and Colony sidebar
 - Kill, restart, remove, rename, recolor sessions from the sidebar
 - Pin important sessions to the top of the list
 - Per-session split view — each session can have a split partner, click to toggle
@@ -32,77 +33,73 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 - Smart unread indicator — filters TUI redraws, only triggers on genuinely new content
 - Info popup showing launch command, directory, PID, MCP servers, token usage
 - Auto-cleanup of exited sessions after configurable timeout
-- Unique colors — new sessions pick the least-used color, synced to Claude CLI via `/color`
-- Session name synced to Claude CLI via `/rename`
+- Unique colors — new sessions pick the least-used color (Colony-tracked)
 - Shortcut numbers (1-9) shown on each session in sidebar for quick `Cmd+N` jumping
-- Resuming stopped sessions auto-removes the stopped duplicate
+- Resume from history detects already-running sessions and focuses them instead of duplicating
 
 ### Persistent PTY Daemon
 - Standalone Node.js daemon owns all PTY file descriptors independently of Electron
 - Sessions survive app crashes and restarts — reconnect to running sessions
 - Unix domain socket communication with NDJSON protocol
 - Auto-spawns daemon on app start, auto-reconnects on disconnect
+- Fast activity detection — 500ms polling during startup, 2s during normal operation
 - Daemon restart from Settings (with confirmation warning)
 - Daemon logs visible in Settings alongside app logs
 
 ### GitHub PR Integration
 - **PRs tab** in the sidebar — configure repositories you care about
 - Fetches open PRs via `gh` CLI with descriptions, comments (general + file-level), assignees, reviewers, labels
+- **CI/CD Status** — GitHub Actions check status per PR across all repos (green/red/yellow badges), fetch logs for failures
 - **PR filters** — text search across titles/descriptions/comments, status/author/reviewer/label multiselect chips
 - **Quick actions** per PR — configurable prompt templates (Review, Summarize, Checkout & Test)
+- **Colony Feedback Review** — when Colony Feedback pipeline is enabled, the Review button instructs the agent to push structured feedback to the `colony-feedback` branch
 - **Global prompts** — prefill the ask bar with common questions (My PRs, Needs Review, Stale PRs)
 - **Ask bar** — natural language questions about your PRs with persistent PR Assistant session
 - **Comments viewer** — split modal with sidebar grouped by general/file, markdown rendered, newest first
 - **PR Memory** — persistent knowledge base that CLI sessions read/write across conversations
 - **PR Context file** — auto-generated markdown with all PR data, referenced by CLI sessions
 - **Comment files** — separate file per PR with full comment history
-- Prompt scope system: `pr` (per-PR with template variables) vs `global` (prefills ask bar)
-- 15 template variables: `{{pr.number}}`, `{{pr.title}}`, `{{pr.branch}}`, `{{pr.status}}`, `{{pr.author}}`, `{{pr.assignees}}`, `{{pr.reviewers}}`, `{{pr.labels}}`, etc.
-- Relative markdown links resolved to absolute GitHub URLs
-- Auto-refresh all repos on page load, ensures context is current before launching prompts
-- **CI/CD Status** — GitHub Actions check status per PR (green/red/yellow badges), expand to see individual checks, fetch logs for failures, one-click "Fix Failing Checks" to launch a session
+- Template variables: `{{pr.number}}`, `{{pr.title}}`, `{{pr.description}}`, `{{pr.branch}}`, `{{pr.url}}`, `{{pr.author}}`, `{{pr.status}}`, `{{pr.reviewDecision}}`, `{{pr.assignees}}`, `{{pr.reviewers}}`, `{{pr.labels}}`, `{{pr.additions}}`, `{{pr.deletions}}`, `{{repo.owner}}`, `{{repo.name}}`
 
 ### Command Palette
 - **Cmd+K** opens a fuzzy search across everything
 - Switch to any active session, resume history sessions, navigate to any panel
+- **Cross-session terminal search** — type 3+ characters to search terminal output across all running sessions
 - Actions: New Session, Kill active, Toggle Split
 - Arrow keys + Enter to select, Escape to close
 
 ### Task Queue
-- **Tasks tab** in the sidebar — split view: YAML editor + Task Assistant CLI
+- **Tasks tab** — ask bar + YAML editor with Config/Memory/Outputs tabs
 - Define task queues as YAML files in `~/.claude-colony/task-queues/`
-- Each task: prompt + working directory, run parallel or sequential
-- **Per-task directories** — each task runs in its own folder under `~/.claude-colony/task-workspace/<queue>/<task>/`
-- **Smart session names** — sessions named `Queue Name › Task Name` from the YAML definition
-- Runs in Colony-owned workspace to avoid CLI trust prompts
-- Create, edit, delete queues from the UI
-- Each task spawns a Claude session automatically
-- Task Assistant session helps design and create queues (reuses existing, "New" button for fresh start)
+- Each task: prompt + optional working directory, run parallel or sequential in a single session
+- **Single-session execution** — all tasks run in one Claude session (parallel: agent optimizes order; sequential: one at a time)
+- **Output directory** — injected at runtime as `~/.claude-colony/outputs/<queue-name>/<timestamp>/`, task prompts don't hardcode paths
+- **Outputs tab** — browse run folders with files, split view with markdown/source toggle and table rendering
+- **Memory** — `<queue>.memory.md` files with learnings from previous runs, injected into prompts automatically
+- **Task Assistant** — ask bar launches a session to help create/edit task YAML
+- **Convert to Pipeline** — one-click conversion with editable name, cron schedule, and reuse toggle
 - Parse validation shows task count and mode before running
-- **Runs & Artifacts** — browse past task runs as a tree (queue → task → files), preview generated artifacts with line numbers
 
 ### Pipelines
 - **Pipelines tab** — reactive automation: trigger → condition → action
 - Define pipelines as YAML files in `~/.claude-colony/pipelines/`
-- **git-poll trigger** — polls repos for branch/file changes on an interval
-- **branch-file-exists condition** — checks if a specific file exists on a branch
-- **pr-checks-failed condition** — fires when CI checks fail on your PRs
-- **launch-session action** — spawns a Claude session with a templated prompt
-- **route-to-session action** — finds an existing session on the matching branch/repo, injects the prompt into it, falls back to launching new if no match
-  - Score-based matching: exact branch (10pts) > exact dir (5pts) > subdir (3pts)
-  - Activity-aware: prefers idle sessions, waits for busy ones (configurable)
-  - `busyStrategy: wait` (default) or `launch-new`
-- **Dedup** — avoids re-firing for the same event within a configurable TTL
-- **Template variables** — `{{pr.number}}`, `{{pr.branch}}`, `{{repo.localPath}}`, `{{github.user}}`, etc.
-- Enable/disable pipelines from the UI, edit YAML inline, trigger polls manually
-- **Companion docs** — each pipeline can have a `<name>-README.md` with instructions, shown as a Docs tab in the UI
-- **Pre-seeded pipeline**: Colony Feedback — routes reviewer feedback from `colony-feedback` branch (`reviews/<pr-number>/feedback.md`) to an existing session on that branch, or launches a new one. Includes reviewer instructions README.
-
-### Session Orchestration
-- **Orchestrate tab** combining cross-session intelligence
-- **Cross-session search** — search terminal output across all active sessions
-- **Agent chains** — multi-step workflows (Design → Implement → Test → PR), each step spawns a session
-- **Session dependencies** — declare that one session depends on another, auto-start or notify on completion
+- **Triggers**: `git-poll` (polls repos on interval), `cron` (fires once per schedule), `file-poll`
+- **Cron scheduling** — `"0 9-17 * * 1-5"` = hourly 9am-5pm weekdays. Supports `*`, `*/N`, `N-M`, named days
+- **Conditions**: `branch-file-exists`, `pr-checks-failed` (with `exclude` list), `always`
+- **Actions**: `launch-session`, `route-to-session` (score-based matching), `reuse: true` flag
+- **Intelligent session routing** — finds existing sessions by live git branch, repo name, PR number, session name. Resumes from CLI history via `--resume`. Falls back to launching new.
+- **Content-hash dedup** — tracks Git SHA of matched files, only re-fires when content changes
+- **Memory** — `<pipeline>.memory.md` injected into prompts, sessions told to append learnings
+- **Outputs** — configurable `outputs` directory, browsable in the UI
+- **Companion docs** — `<name>.readme.md` shown as a Docs tab
+- **Pipeline Assistant** — ask bar to create/modify pipelines
+- **Running indicator** — pulsing amber dot + badge when actively polling
+- **Error display** — inline error block with full message
+- Prompts delivered via `--append-system-prompt-file` (no PTY pollution)
+- **Pre-seeded pipelines** (disabled):
+  - **Colony Feedback** — routes reviewer feedback from `colony-feedback` branch to existing session
+  - **CI Auto-Fix** — hourly during work hours, finds failing CI (excluding playwright/e2e), auto-fixes
+  - **PR Attention Digest** — hourly digest of PRs needing attention with risk assessment
 - **Parent-child sessions** — spawn child sessions that report back via structured handoff documents
   - Child writes a handoff to `~/.claude-colony/handoffs/<id>.md` when done
   - Parent is automatically notified to read the handoff and decide next steps
@@ -150,8 +147,8 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 
 ### Session History
 - Browse Claude CLI conversation history with search
-- Resume prior sessions with one click (deduplicates already-open ones)
-- Sessions renamed via `/rename` show their custom name
+- Session names resolved from `customTitle` in CLI session files (set via `--name` flag)
+- Resume prior sessions with one click — detects already-running sessions and focuses them
 - "Recent" badge on sessions previously opened in the app
 - Restore all sessions from last app run on launch (preserves pinned state)
 
@@ -200,7 +197,7 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 | `Cmd+F` | Find in terminal / file preview |
 | `Cmd+1` – `Cmd+9` | Switch session by position (pinned → active → stopped) |
 | `Alt+Tab` / `Alt+Shift+Tab` | Cycle through sessions |
-| `Cmd+K` | Command palette |
+| `Cmd+K` | Command palette (+ cross-session terminal search) |
 | `Cmd+=` / `Cmd+-` / `Cmd+0` | Zoom in / out / reset |
 | `Escape` | Close any open modal |
 
@@ -218,18 +215,28 @@ All app data lives in `~/.claude-colony/`:
 ├── daemon.log             # Daemon process logs
 ├── colony-context.md      # Auto-generated shared context for all sessions
 ├── pipelines/             # YAML pipeline definitions (trigger → action)
-├── pipeline-state.json    # Pipeline poll state and dedup keys
+│   ├── *.yaml             # Pipeline configs
+│   ├── *.memory.md        # Pipeline learnings
+│   └── *.readme.md        # Pipeline companion docs
+├── pipeline-state.json    # Pipeline poll state, dedup keys, content hashes
+├── pipeline-prompts/      # Temp files for --append-system-prompt-file
+├── outputs/               # Task/pipeline output files
+│   └── <queue-name>/      # Per-queue output directory
+│       └── <timestamp>/   # Per-run timestamped folder
 ├── screenshots/           # Pasted clipboard images
 ├── task-queues/           # YAML task queue definitions
-├── task-workspace/        # Per-task run directories (<queue>/<task>/)
+│   ├── *.yaml             # Task configs
+│   └── *.memory.md        # Task learnings
+├── task-workspace/        # Per-task run directories
 ├── handoffs/              # Child session handoff documents
+├── reports/               # Pipeline-generated reports
 └── pr-workspace/          # Dedicated workspace for PR-related instances
     ├── pr-context.md      # Auto-generated PR data for CLI consumption
     ├── pr-memory.md       # Persistent knowledge from PR conversations
     └── comments/          # Per-PR comment files (repo-number.md)
 ```
 
-Session history is read from Claude CLI's own data at `~/.claude/history.jsonl`.
+Session history is read from Claude CLI's own data at `~/.claude/history.jsonl` and `~/.claude/projects/*/`.
 
 Agent definitions are read from `~/.claude/agents/` (personal) and `<project>/.claude/agents/` (project-level).
 
@@ -260,7 +267,7 @@ Agent definitions are read from `~/.claude/agents/` (personal) and `<project>/.c
 │  ├── Owns all PTY file descriptors              │
 │  ├── Survives app crashes / restarts            │
 │  ├── Activity detection, token parsing          │
-│  └── Color sync, MCP detection                  │
+│  └── MCP detection                              │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -270,7 +277,7 @@ Agent definitions are read from `~/.claude/agents/` (personal) and `<project>/.c
 src/
 ├── daemon/                  # Standalone PTY daemon
 │   ├── protocol.ts          # Shared NDJSON message types
-│   └── pty-daemon.ts        # Daemon: PTY lifecycle, activity detection, color sync
+│   └── pty-daemon.ts        # Daemon: PTY lifecycle, activity detection
 ├── main/                    # Electron main process
 │   ├── index.ts             # App bootstrap, window, menu, tray, global hotkey
 │   ├── instance-manager.ts  # Thin proxy over daemon client
@@ -278,7 +285,7 @@ src/
 │   ├── ipc-handlers.ts      # IPC bridge between main and renderer
 │   ├── github.ts            # GitHub integration (gh CLI, PR data, memory, workspace)
 │   ├── agent-scanner.ts     # Scans for agent definitions, creates new agents
-│   ├── session-scanner.ts   # Reads ~/.claude/history.jsonl for session history
+│   ├── session-scanner.ts   # Reads session history + customTitle from CLI data
 │   ├── recent-sessions.ts   # Tracks sessions opened via the app
 │   ├── colony-context.ts    # Shared context file generator for cross-session awareness
 │   ├── pipeline-engine.ts   # Pipeline engine: triggers, conditions, routing, dedup
@@ -303,10 +310,9 @@ src/
         │   ├── AgentsPanel.tsx      # Agent browser with cards, create, export/import
         │   ├── AgentEditor.tsx      # Split view: file editor + terminal
         │   ├── SettingsPanel.tsx    # Settings + daemon + logs
-        │   ├── TaskQueuePanel.tsx   # Split view: YAML editor + Task Assistant CLI
-        │   ├── SessionDepsPanel.tsx # Cross-session search, chains, dependencies
+        │   ├── TaskQueuePanel.tsx   # Task queue editor, runner, outputs browser
         │   ├── PipelinesPanel.tsx   # Pipeline management, YAML editor, docs viewer
-        │   ├── CommandPalette.tsx   # Cmd+K fuzzy search palette
+        │   ├── CommandPalette.tsx   # Cmd+K fuzzy search + cross-session terminal search
         │   ├── Tooltip.tsx          # Rich tooltip component
         │   └── ErrorBoundary.tsx    # Crash handler with reload
         ├── styles/

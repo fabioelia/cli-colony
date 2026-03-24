@@ -325,19 +325,8 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
     }
   })
 
-  // Send /color immediately — PTY buffers input, CLI processes when ready
-  if (instance.cliBackend === 'claude' && readSyncClaudeSlashCommands()) {
-    const colorName = closestColorName(instance.color)
-    if (colorName && instance.pty) {
-      // Small delay to let the PTY initialize, then send
-      setTimeout(() => {
-        if (instance.pty && !instance._userInputReceived) {
-          instance.pty.write(`/color ${colorName}\r`)
-          log(`sent /color ${colorName} to ${id}`)
-        }
-      }, 500)
-    }
-  }
+  // Color is tracked internally by Colony — no /color PTY write needed
+  // (PTY writes show up in CLI history as user messages)
 
   const startupEnd = Date.now() + 15000
 
@@ -476,8 +465,11 @@ function removeInstance(id: string): boolean {
 function renameInstance(id: string, name: string): boolean {
   const inst = instances.get(id)
   if (!inst) return false
+  const oldName = inst.name
   inst.name = name
-  if (inst.cliBackend === 'claude' && inst.pty && inst.status === 'running' && readSyncClaudeSlashCommands()) {
+  // Only send /rename when user explicitly renames (not at creation — --name handles that)
+  // _userInputReceived means the session is past startup, so this is a user-initiated rename
+  if (name !== oldName && inst.cliBackend === 'claude' && inst.pty && inst.status === 'running' && inst._userInputReceived) {
     inst.pty.write(`/rename ${name}\r`)
   }
   notifyListChanged()
@@ -506,28 +498,14 @@ function closestColorName(hex: string): string | null {
 }
 
 // Debounce color sync per instance
-const colorSyncTimers = new Map<string, ReturnType<typeof setTimeout>>()
+// colorSyncTimers removed — color tracked internally, no PTY writes
 
 function recolorInstance(id: string, color: string): boolean {
   const inst = instances.get(id)
   if (!inst) return false
   inst.color = color
   notifyListChanged()
-
-  // Debounce the CLI color sync (300ms) to avoid flooding PTY
-  if (colorSyncTimers.has(id)) clearTimeout(colorSyncTimers.get(id)!)
-  colorSyncTimers.set(id, setTimeout(() => {
-    colorSyncTimers.delete(id)
-    if (!inst.pty || inst.status !== 'running' || inst.cliBackend !== 'claude' || !readSyncClaudeSlashCommands()) {
-      return
-    }
-    const colorName = closestColorName(color)
-    if (colorName) {
-      log(`recolor ${id} syncing /color ${colorName}`)
-      inst.pty.write(`/color ${colorName}\r`)
-    }
-  }, 300))
-
+  // Color tracked internally — no /color PTY write (shows in CLI history)
   return true
 }
 

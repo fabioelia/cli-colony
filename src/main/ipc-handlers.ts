@@ -422,6 +422,17 @@ export function registerIpcHandlers(): void {
     } catch { return [] }
   })
 
+  // Write a prompt to a temp file and return the path (for --append-system-prompt-file)
+  ipcMain.handle('colony:writePromptFile', (_e, content: string) => {
+    const { writeFileSync, existsSync, mkdirSync } = require('fs') as typeof import('fs')
+    const promptsDir = join(app.getPath('home'), '.claude-colony', 'pipeline-prompts')
+    if (!existsSync(promptsDir)) mkdirSync(promptsDir, { recursive: true })
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const filePath = join(promptsDir, `${id}.md`)
+    writeFileSync(filePath, content, 'utf-8')
+    return filePath
+  })
+
   // Task workspace path
   const TASK_WORKSPACE = join(app.getPath('home'), '.claude-colony', 'task-workspace')
   ipcMain.handle('taskQueue:getWorkspacePath', () => {

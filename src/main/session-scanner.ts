@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from 'fs'
+import { readFileSync, existsSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
 import { getRecentSessions } from './recent-sessions'
@@ -73,12 +73,46 @@ export function scanSessions(limit = 50): CliSession[] {
       recent.filter((r) => r.sessionId).map((r) => r.sessionId!)
     )
 
+    // Read customTitle from session JSONL files (set via --name or /rename)
+    const customTitles = new Map<string, string>()
+    try {
+      const projectsDir = join(home, '.claude', 'projects')
+      if (existsSync(projectsDir)) {
+        const projectDirs = readdirSync(projectsDir)
+        for (const dir of projectDirs) {
+          const dirPath = join(projectsDir, dir)
+          try {
+            const files = readdirSync(dirPath).filter((f: string) => f.endsWith('.jsonl'))
+            for (const file of files) {
+              const sessionId = file.replace('.jsonl', '')
+              if (customTitles.has(sessionId)) continue
+              try {
+                // Only read the first few lines — customTitle is usually first
+                const fd = readFileSync(join(dirPath, file), 'utf-8')
+                const firstLines = fd.slice(0, 500).split('\n')
+                for (const line of firstLines) {
+                  try {
+                    const entry = JSON.parse(line)
+                    if (entry.type === 'custom-title' && entry.customTitle) {
+                      customTitles.set(entry.sessionId || sessionId, entry.customTitle)
+                      break
+                    }
+                  } catch { /* skip */ }
+                }
+              } catch { /* skip */ }
+            }
+          } catch { /* skip */ }
+        }
+      }
+    } catch { /* skip */ }
+
     // Build session list
     const sessions: CliSession[] = []
     for (const [sessionId, data] of sessionData) {
       const projectPath = data.project
       const parts = projectPath.split('/')
-      const name = lastRename.get(sessionId) || null
+      // Priority: /rename from CLI > customTitle from --name > null
+      const name = lastRename.get(sessionId) || customTitles.get(sessionId) || null
       const lastMsg = data.lastDisplay !== data.firstDisplay ? data.lastDisplay : null
 
       sessions.push({

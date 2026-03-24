@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import {
   Plus, Settings, GitPullRequest, Users, Square, Play, Columns2,
-  MonitorPlay, History, Search, ArrowRight,
+  MonitorPlay, History, Search, ArrowRight, Terminal,
 } from 'lucide-react'
 import type { ClaudeInstance, CliSession } from '../types'
 import { cliBackendLabel } from '../lib/constants'
@@ -40,6 +40,8 @@ export default function CommandPalette({
 }: Props) {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [terminalMatches, setTerminalMatches] = useState<CommandPaletteAction[]>([])
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
@@ -135,13 +137,13 @@ export default function CommandPalette({
       onExecute: () => onViewChange('tasks'),
     })
     items.push({
-      id: 'nav-orchestrate',
-      label: 'Open Orchestrate',
-      detail: 'Search, chains, dependencies',
+      id: 'nav-pipelines',
+      label: 'Open Pipelines',
+      detail: 'Automated triggers and actions',
       icon: <Search size={14} />,
       section: 'Navigate',
-      keywords: 'search chain dependency orchestrate workflow',
-      onExecute: () => onViewChange('orchestrate'),
+      keywords: 'pipeline automation trigger cron',
+      onExecute: () => onViewChange('pipelines'),
     })
 
     // Recent sessions (limit to 10)
@@ -160,6 +162,50 @@ export default function CommandPalette({
     return items
   }, [instances, activeId, sessions, onSelect, onNew, onKill, onRestart, onViewChange, onToggleSplit, onResumeSession])
 
+  // Search terminal output buffers when query is 3+ chars
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    if (query.trim().length < 3) { setTerminalMatches([]); return }
+
+    searchTimerRef.current = setTimeout(async () => {
+      const q = query.trim().toLowerCase()
+      const matches: CommandPaletteAction[] = []
+      const running = instances.filter(i => i.status === 'running')
+
+      for (const inst of running) {
+        try {
+          const buf = await window.api.instance.buffer(inst.id)
+          if (!buf) continue
+          // Strip ANSI codes for searching
+          const clean = buf.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+          const lines = clean.split('\n')
+          const matchingLines: string[] = []
+          for (const line of lines) {
+            if (line.toLowerCase().includes(q)) {
+              matchingLines.push(line.trim().slice(0, 80))
+              if (matchingLines.length >= 3) break
+            }
+          }
+          if (matchingLines.length > 0) {
+            matches.push({
+              id: `terminal-${inst.id}`,
+              label: inst.name,
+              detail: matchingLines[0],
+              icon: <Terminal size={14} />,
+              section: 'Terminal Output',
+              color: inst.color,
+              keywords: matchingLines.join(' '),
+              onExecute: () => onSelect(inst.id),
+            })
+          }
+        } catch { /* skip */ }
+      }
+      setTerminalMatches(matches)
+    }, 300)
+
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current) }
+  }, [query, instances, onSelect])
+
   // Filter actions by query
   const filtered = useMemo(() => {
     if (!query.trim()) return actions
@@ -177,15 +223,18 @@ export default function CommandPalette({
     })
   }, [query, actions])
 
+  // Combine filtered actions with terminal matches
+  const allFiltered = useMemo(() => [...filtered, ...terminalMatches], [filtered, terminalMatches])
+
   // Group by section for display
   const grouped = useMemo(() => {
     const map = new Map<string, CommandPaletteAction[]>()
-    for (const item of filtered) {
+    for (const item of allFiltered) {
       if (!map.has(item.section)) map.set(item.section, [])
       map.get(item.section)!.push(item)
     }
     return map
-  }, [filtered])
+  }, [allFiltered])
 
   // Clamp selected index when results change
   useEffect(() => {
@@ -211,14 +260,14 @@ export default function CommandPalette({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setSelectedIndex((prev) => Math.min(prev + 1, filtered.length - 1))
+      setSelectedIndex((prev) => Math.min(prev + 1, allFiltered.length - 1))
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       setSelectedIndex((prev) => Math.max(prev - 1, 0))
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      if (filtered[selectedIndex]) {
-        filtered[selectedIndex].onExecute()
+      if (allFiltered[selectedIndex]) {
+        allFiltered[selectedIndex].onExecute()
         onClose()
       }
     } else if (e.key === 'Escape') {
@@ -247,7 +296,7 @@ export default function CommandPalette({
           <kbd className="cmd-palette-kbd">esc</kbd>
         </div>
         <div className="cmd-palette-list" ref={listRef}>
-          {filtered.length === 0 && (
+          {allFiltered.length === 0 && (
             <div className="cmd-palette-empty">No matching commands</div>
           )}
           {Array.from(grouped.entries()).map(([section, items]) => (

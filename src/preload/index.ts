@@ -205,6 +205,7 @@ export interface ClaudeManagerAPI {
     updateContext: () => Promise<string>
     getContextPath: () => Promise<string>
     getContextInstruction: () => Promise<string>
+    writePromptFile: (content: string) => Promise<string>
   }
   pipeline: {
     list: () => Promise<Array<{
@@ -384,6 +385,7 @@ const api: ClaudeManagerAPI = {
     updateContext: () => ipcRenderer.invoke('colony:updateContext'),
     getContextPath: () => ipcRenderer.invoke('colony:getContextPath'),
     getContextInstruction: () => ipcRenderer.invoke('colony:getContextInstruction'),
+    writePromptFile: (content) => ipcRenderer.invoke('colony:writePromptFile', content),
   },
   taskQueue: {
     list: () => ipcRenderer.invoke('taskQueue:list'),
