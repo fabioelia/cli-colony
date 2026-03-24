@@ -5043,6 +5043,16 @@ input, select {
   opacity: 0.85;
 }
 
+.task-queue-pipeline-btn {
+  background: rgba(139, 92, 246, 0.15) !important;
+  border-color: rgba(139, 92, 246, 0.3) !important;
+  color: #8b5cf6 !important;
+}
+
+.task-queue-pipeline-btn:hover {
+  opacity: 0.85;
+}
+
 .task-queue-results {
   border: 1px solid var(--border);
   border-radius: 8px;

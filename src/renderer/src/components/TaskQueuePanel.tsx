@@ -6,7 +6,7 @@ import '@xterm/xterm/css/xterm.css'
 import {
   Plus, Trash2, Play, Square, ChevronDown, ChevronRight,
   Save, FileText, CheckCircle, XCircle, Loader, Clock, ListOrdered, Layers,
-  FolderOpen, File, RefreshCw, FolderTree
+  FolderOpen, File, RefreshCw, FolderTree, Zap
 } from 'lucide-react'
 import type { ClaudeInstance } from '../types'
 
@@ -361,6 +361,42 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
     setEditor(TEMPLATE)
   }, [])
 
+  const handleConvertToPipeline = useCallback(async () => {
+    const queue = parseQueue(editor)
+    if (!queue) return
+    // Generate a pipeline YAML for each task in the queue
+    for (const task of queue.tasks) {
+      const safeName = (task.name || queue.name).replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '-').toLowerCase()
+      const fileName = `${safeName}.yaml`
+      const yaml = `name: ${task.name || queue.name}
+description: Converted from task queue "${queue.name}"
+enabled: false
+
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+
+condition:
+  type: always
+
+action:
+  type: launch-session
+  name: "${task.name || queue.name}"
+  ${task.directory ? `workingDirectory: "${task.directory}"` : '# workingDirectory: /path/to/project'}
+  color: "#8b5cf6"
+  prompt: |
+    ${task.prompt.split('\n').join('\n    ')}
+
+dedup:
+  key: "${safeName}"
+  ttl: 3600
+`
+      await window.api.pipeline.saveContent(fileName, yaml)
+    }
+    await window.api.pipeline.reload()
+    alert(`Converted ${queue.tasks.length} task${queue.tasks.length !== 1 ? 's' : ''} to pipeline${queue.tasks.length !== 1 ? 's' : ''} (disabled). Check the Pipelines tab.`)
+  }, [editor])
+
   const handleRun = useCallback(async () => {
     const queue = parseQueue(editor)
     if (!queue) return
@@ -486,6 +522,7 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
                 <button className="task-queue-save-btn" onClick={handleSave} title="Save"><Save size={12} /> Save</button>
                 {parsed && !isRunning && <button className="task-queue-run-btn" onClick={handleRun} title="Run all tasks"><Play size={12} /> Run</button>}
                 {isRunning && <button className="task-queue-stop-btn" onClick={handleStop} title="Stop"><Square size={12} /> Stop</button>}
+                {parsed && !isRunning && <button className="task-queue-pipeline-btn" onClick={handleConvertToPipeline} title="Convert tasks to pipelines (cron-scheduled)"><Zap size={12} /> To Pipeline</button>}
               </div>
             </div>
           )}
