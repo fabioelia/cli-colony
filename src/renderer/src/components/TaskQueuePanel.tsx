@@ -20,7 +20,7 @@ interface TaskDef {
 interface QueueDef {
   name: string
   mode: 'parallel' | 'sequential'
-  outputs?: string // queue-level outputs directory
+  outputs?: string
   tasks: TaskDef[]
 }
 
@@ -37,23 +37,9 @@ interface QueueFile {
   content: string
 }
 
-interface RunFile {
-  name: string
-  path: string
-  size: number
-}
-
-interface RunTask {
-  name: string
-  path: string
-  files: RunFile[]
-}
-
-interface RunQueue {
-  name: string
-  path: string
-  tasks: RunTask[]
-}
+interface RunFile { name: string; path: string; size: number }
+interface RunTask { name: string; path: string; files: RunFile[] }
+interface RunQueue { name: string; path: string; tasks: RunTask[] }
 
 interface Props {
   instances: ClaudeInstance[]
@@ -144,50 +130,9 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
   const [convertNames, setConvertNames] = useState<string[]>([])
   const [convertMode, setConvertMode] = useState<'copy' | 'reference'>('reference')
 
-  // Runs & artifacts
-  const [runs, setRuns] = useState<RunQueue[]>([])
-  const [expandedRuns, setExpandedRuns] = useState<Set<string>>(new Set())
-  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set())
-  const [previewFile, setPreviewFile] = useState<{ path: string; content: string; name: string } | null>(null)
-  const [showRuns, setShowRuns] = useState(true)
-
-  const loadRuns = useCallback(async () => {
-    const data = await window.api.taskQueue.listRuns()
-    setRuns(data)
-  }, [])
-
-  // Load runs on mount and after a queue finishes running
-  useEffect(() => { loadRuns() }, [loadRuns])
-  useEffect(() => { if (!isRunning && showResults) loadRuns() }, [isRunning])
-
-  const toggleRunExpand = (key: string) => {
-    setExpandedRuns((prev) => {
-      const next = new Set(prev)
-      next.has(key) ? next.delete(key) : next.add(key)
-      return next
-    })
-  }
-
-  const toggleTaskExpand = (key: string) => {
-    setExpandedTasks((prev) => {
-      const next = new Set(prev)
-      next.has(key) ? next.delete(key) : next.add(key)
-      return next
-    })
-  }
-
-  const handlePreviewFile = async (file: RunFile) => {
-    const result = await window.api.fs.readFile(file.path)
-    if (result.content !== undefined) {
-      setPreviewFile({ path: file.path, content: result.content, name: file.name })
-    }
-  }
-
-  const formatSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  }
+  // Right panel mode
+  const [rightPanel, setRightPanel] = useState<'assistant' | 'preview'>('assistant')
+  const [previewContent, setPreviewContent] = useState<{ name: string; content: string } | null>(null)
 
   // CLI assistant terminal
   const [assistantId, setAssistantId] = useState<string | null>(null)
@@ -207,61 +152,39 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
     window.api.taskQueue.getWorkspacePath().then(setWorkspacePath)
   }, [])
 
-  const TASK_PROMPT = `You are helping the user create and manage task queue YAML files for Claude Colony. Task queues define batch jobs that spawn multiple Claude sessions. The format is:\n\n\`\`\`yaml\nname: Queue Name\nmode: parallel  # or sequential\ntasks:\n  - prompt: "What to do"\n    directory: /path/to/project\n    name: Task Name\n\`\`\`\n\nTask queue files are stored in ~/.claude-colony/task-queues/. Help the user design task queues, suggest tasks based on their projects, and write YAML files.${colonyContextInstruction}\n\nAsk what they want to accomplish.`
+  const TASK_PROMPT = `You are helping the user create and manage task queue YAML files for Claude Colony. Task queues define batch jobs that spawn multiple Claude sessions. The format is:\n\n\`\`\`yaml\nname: Queue Name\nmode: parallel  # or sequential\noutputs: "~/.claude-colony/outputs/my-queue"\ntasks:\n  - prompt: "What to do"\n    directory: /path/to/project\n    name: Task Name\n\`\`\`\n\nTask queue files are stored in ~/.claude-colony/task-queues/. Help the user design task queues, suggest tasks based on their projects, and write YAML files.${colonyContextInstruction}\n\nAsk what they want to accomplish.`
 
-  // Robust prompt sender — waits for CLI to be ready, dismisses trust prompt
-  // Returns a promise that resolves once the prompt has been sent
-  // IMPORTANT: Do NOT call instance.rename() before the prompt — the daemon's
-  // renameInstance writes /rename to the PTY which concatenates with the prompt
+  // Robust prompt sender
   const sendPromptWhenReady = useCallback((id: string, prompt: string, sessionName?: string): Promise<void> => {
     return new Promise((resolve) => {
       let sent = false
       let waitCount = 0
-
       const unsub = window.api.instance.onActivity(({ id: instId, activity }) => {
         if (instId !== id || sent) return
         if (activity === 'waiting') {
           waitCount++
           if (waitCount === 1) {
-            // First waiting might be trust prompt — dismiss it
             window.api.instance.write(id, '\r')
           } else {
             sent = true
             unsub()
             window.api.instance.write(id, prompt + '\r')
-            // Rename after prompt is sent — delayed so CLI processes the prompt first
-            if (sessionName) {
-              setTimeout(() => window.api.instance.rename(id, sessionName), 2000)
-            }
+            if (sessionName) setTimeout(() => window.api.instance.rename(id, sessionName), 2000)
             resolve()
           }
         }
       })
-      // Fallback: if only one waiting state (no trust prompt), send after timeout
-      setTimeout(() => {
-        if (!sent && waitCount >= 1) {
-          sent = true
-          unsub()
-          window.api.instance.write(id, prompt + '\r')
-          if (sessionName) {
-            setTimeout(() => window.api.instance.rename(id, sessionName), 2000)
-          }
-          resolve()
-        }
-      }, 5000)
-      // Safety timeout
+      setTimeout(() => { if (!sent && waitCount >= 1) { sent = true; unsub(); window.api.instance.write(id, prompt + '\r'); resolve() } }, 5000)
       setTimeout(() => { if (!sent) { unsub(); resolve() } }, 15000)
     })
   }, [])
 
   const spawnAssistant = useCallback(async () => {
-    // Clean up old terminal if it exists
     if (termRef.current) {
       termRef.current.unsub?.()
       termRef.current.term.dispose()
       termRef.current = null
     }
-
     const inst = await window.api.instance.create({
       name: 'Task Assistant',
       color: '#f59e0b',
@@ -269,7 +192,6 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
       args: ['--append-system-prompt', TASK_PROMPT],
     })
     setAssistantId(inst.id)
-
     return inst.id
   }, [workspacePath, TASK_PROMPT])
 
@@ -277,7 +199,6 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
   useEffect(() => {
     if (initRef.current) return
     initRef.current = true
-
     const existing = instances.find((i) => i.name === 'Task Assistant' && i.status === 'running')
     if (existing) {
       setAssistantId(existing.id)
@@ -286,7 +207,6 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
     }
   }, [])
 
-  // If the assistant instance gets killed/removed, clear the ID
   useEffect(() => {
     if (assistantId && !instances.some((i) => i.id === assistantId)) {
       setAssistantId(null)
@@ -303,52 +223,37 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
   // Setup terminal
   useEffect(() => {
     if (!assistantInstance || !termContainerRef.current || termRef.current) return
-
     const term = new Terminal({
       theme: { background: '#000000', foreground: '#e0e0e0', cursor: 'transparent', selectionBackground: '#3b82f650' },
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-      fontSize: 13,
-      lineHeight: 1.2,
-      cursorBlink: false,
-      cursorStyle: 'underline',
-      cursorWidth: 1,
-      cursorInactiveStyle: 'none',
-      scrollback: 10000,
-      allowProposedApi: true,
+      fontSize: 13, lineHeight: 1.2, cursorBlink: false, cursorStyle: 'underline',
+      cursorWidth: 1, cursorInactiveStyle: 'none', scrollback: 10000, allowProposedApi: true,
     })
-
     const fitAddon = new FitAddon()
     term.loadAddon(fitAddon)
     term.loadAddon(new WebLinksAddon((_event, uri) => { window.api.shell.openExternal(uri) }))
-
     term.onData((data) => { window.api.instance.write(assistantInstance.id, data) })
-
     const unsub = window.api.instance.onOutput(({ id, data }) => {
       if (id === assistantInstance.id) term.write(data)
     })
-
     termRef.current = { term, fitAddon, unsub }
     term.open(termContainerRef.current)
-
-    window.api.instance.buffer(assistantInstance.id).then((buf) => {
-      if (buf) term.write(buf)
-    })
-
+    window.api.instance.buffer(assistantInstance.id).then((buf) => { if (buf) term.write(buf) })
     requestAnimationFrame(() => {
       fitAddon.fit()
       const dims = fitAddon.proposeDimensions()
       if (dims) window.api.instance.resize(assistantInstance.id, dims.cols, dims.rows)
     })
-
     const observer = new ResizeObserver(() => {
       fitAddon.fit()
       const dims = fitAddon.proposeDimensions()
       if (dims && assistantInstance) window.api.instance.resize(assistantInstance.id, dims.cols, dims.rows)
     })
     observer.observe(termContainerRef.current)
-
     return () => { observer.disconnect(); unsub() }
   }, [assistantInstance])
+
+  // ---- Handlers ----
 
   const handleSelectFile = useCallback(async (file: QueueFile) => {
     setSelectedFile(file.name)
@@ -358,13 +263,11 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
     const mem = await window.api.taskQueue.getMemory(file.name)
     setTaskMemory(mem || '')
     setMemoryDirty(false)
-    // Load outputs if the queue specifies an outputs dir
     setTaskOutputs([])
     setTaskOutputPreview(null)
     const q = parseQueue(file.content)
-    const outputsDir = q?.outputs
-    if (outputsDir) {
-      const files = await window.api.pipeline.listOutputs(outputsDir)
+    if (q?.outputs) {
+      const files = await window.api.pipeline.listOutputs(q.outputs)
       setTaskOutputs(files)
     }
   }, [])
@@ -392,6 +295,7 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
     setSelectedFile(null)
     setNewFileName('')
     setEditor(TEMPLATE)
+    setEditorTab('yaml')
   }, [])
 
   const handleSaveMemory = useCallback(async () => {
@@ -420,36 +324,10 @@ export default function TaskQueuePanel({ instances, onFocusInstance }: Props) {
       const taskName = convertNames[i] || task.name || `Task ${i + 1}`
       const safeName = taskName.replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '-').toLowerCase()
       const fileName = `${safeName}.yaml`
-
-      // Reference mode: point to the task queue file; Copy mode: inline the prompt
       const promptSection = convertMode === 'reference'
-        ? `    Read the task queue file at ~/.claude-colony/task-queues/${selectedFile || 'unknown.yaml'} and execute the task named "${taskName}" (task #${i + 1}). Follow the prompt defined there exactly.`
+        ? `    Read the task queue file at ~/.claude-colony/task-queues/${selectedFile || 'unknown.yaml'} and execute the task named "${taskName}" (task #${i + 1}).`
         : `    ${task.prompt.split('\n').join('\n    ')}`
-
-      const yaml = `name: ${taskName}
-description: ${convertMode === 'reference' ? `References task from "${queue.name}"` : `Converted from task queue "${queue.name}"`}
-enabled: false
-
-trigger:
-  type: cron
-  cron: "${convertCron}"
-
-condition:
-  type: always
-
-action:
-  type: launch-session
-  ${convertReuse ? 'reuse: true' : '# reuse: false'}
-  name: "${taskName}"
-  ${task.directory ? `workingDirectory: "${task.directory}"` : '# workingDirectory: /path/to/project'}
-  color: "#8b5cf6"
-  prompt: |
-${promptSection}
-
-dedup:
-  key: "${safeName}"
-  ttl: 3600
-`
+      const yaml = `name: ${taskName}\ndescription: ${convertMode === 'reference' ? `References task from "${queue.name}"` : `Converted from "${queue.name}"`}\nenabled: false\n\ntrigger:\n  type: cron\n  cron: "${convertCron}"\n\ncondition:\n  type: always\n\naction:\n  type: launch-session\n  ${convertReuse ? 'reuse: true' : '# reuse: false'}\n  name: "${taskName}"\n  ${task.directory ? `workingDirectory: "${task.directory}"` : '# workingDirectory: /path/to/project'}\n  color: "#8b5cf6"\n  prompt: |\n${promptSection}\n\ndedup:\n  key: "${safeName}"\n  ttl: 3600\n`
       await window.api.pipeline.saveContent(fileName, yaml)
       resultNames.push(taskName)
     }
@@ -476,7 +354,6 @@ dedup:
       statuses[taskIndex].state = 'running'
       setTaskStatuses([...statuses])
       try {
-        // Inject outputs dir, memory, and memory file path
         let taskPrompt = task.prompt
         const outputsDir = task.outputs || queue.outputs
         if (outputsDir) {
@@ -488,17 +365,14 @@ dedup:
           const memory = await window.api.taskQueue.getMemory(selectedFile)
           const memPath = `~/.claude-colony/task-queues/${memoryFileName}-memory.md`
           if (memory?.trim()) {
-            taskPrompt += `\n\n--- Task Memory ---\nLearnings from previous runs:\n\n${memory}\n\nWhen you finish, if you learned anything new about tools, approaches, or useful patterns, append it to ${memPath}`
+            taskPrompt += `\n\n--- Task Memory ---\nLearnings from previous runs:\n\n${memory}\n\nWhen you finish, if you learned anything new, append it to ${memPath}`
           } else {
-            taskPrompt += `\n\nWhen you finish, if you learned anything useful about tools, approaches, or patterns that would help future runs, write it to ${memPath}`
+            taskPrompt += `\n\nWhen you finish, if you learned anything useful, write it to ${memPath}`
           }
         }
-
-        // Each task gets its own directory unless one is specified
         const dir = task.directory || await window.api.taskQueue.createTaskDir(queue.name, taskLabel)
         const inst = await window.api.instance.create({ name: sessionName, workingDirectory: dir })
         statuses[taskIndex].instanceId = inst.id
-        // Don't pass sessionName — create already set it, no need for /rename via PTY
         await sendPromptWhenReady(inst.id, taskPrompt)
         await new Promise<void>((resolve) => {
           const unsub = window.api.instance.onExited(({ id, exitCode }) => {
@@ -514,13 +388,21 @@ dedup:
     if (queue.mode === 'parallel') { await Promise.all(queue.tasks.map((_, i) => runTask(i))) }
     else { for (let i = 0; i < queue.tasks.length; i++) { if (stopRef.current) break; await runTask(i) } }
     setIsRunning(false)
-  }, [editor, workspacePath, sendPromptWhenReady])
+  }, [editor, workspacePath, sendPromptWhenReady, selectedFile])
 
   const handleStop = useCallback(() => {
     stopRef.current = true
     for (const s of taskStatuses) { if (s.state === 'running' && s.instanceId) window.api.instance.kill(s.instanceId) }
     setIsRunning(false)
   }, [taskStatuses])
+
+  const handlePreviewFile = async (filePath: string, fileName: string) => {
+    const result = await window.api.fs.readFile(filePath)
+    if (result.content !== undefined) {
+      setPreviewContent({ name: fileName, content: result.content })
+      setRightPanel('preview')
+    }
+  }
 
   const handleDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -553,8 +435,9 @@ dedup:
   return (
     <div className="task-queue-panel">
       <div className="task-queue-split">
-        {/* Left: editor */}
+        {/* Left panel */}
         <div className="task-queue-left" style={{ width: `${dividerX}%` }}>
+          {/* Header */}
           <div className="task-queue-header">
             <h2>Tasks</h2>
             <button className="task-queue-new-btn" onClick={handleNew} title="Create new queue">
@@ -577,7 +460,7 @@ dedup:
             ))}
           </div>
 
-          {/* Editor */}
+          {/* Editor area */}
           {(selectedFile || editingNew) && (
             <div className="task-queue-editor">
               {editingNew && (
@@ -585,99 +468,84 @@ dedup:
                   <input placeholder="queue-name.yaml" value={newFileName} onChange={(e) => setNewFileName(e.target.value)} autoFocus />
                 </div>
               )}
-              {!editingNew && selectedFile && (
-                <div className="task-queue-editor-tabs">
-                  <button className={`task-queue-tab ${editorTab === 'yaml' ? 'active' : ''}`} onClick={() => setEditorTab('yaml')}>
-                    <FileText size={11} /> Config
-                  </button>
-                  <button className={`task-queue-tab ${editorTab === 'memory' ? 'active' : ''}`} onClick={() => setEditorTab('memory')}>
-                    <Zap size={11} /> Memory
-                  </button>
-                  {parsed?.outputs && (
-                    <button className={`task-queue-tab ${editorTab === 'outputs' ? 'active' : ''}`} onClick={() => setEditorTab('outputs')}>
-                      <FolderOpen size={11} /> Outputs {taskOutputs.length > 0 && `(${taskOutputs.length})`}
+
+              {/* Tabs + actions bar */}
+              <div className="task-queue-toolbar">
+                {!editingNew && selectedFile && (
+                  <div className="task-queue-editor-tabs">
+                    <button className={`task-queue-tab ${editorTab === 'yaml' ? 'active' : ''}`} onClick={() => setEditorTab('yaml')}>
+                      <FileText size={11} /> Config
                     </button>
+                    <button className={`task-queue-tab ${editorTab === 'memory' ? 'active' : ''}`} onClick={() => setEditorTab('memory')}>
+                      <Zap size={11} /> Memory
+                    </button>
+                    {parsed?.outputs && (
+                      <button className={`task-queue-tab ${editorTab === 'outputs' ? 'active' : ''}`} onClick={() => setEditorTab('outputs')}>
+                        <FolderOpen size={11} /> Outputs {taskOutputs.length > 0 && `(${taskOutputs.length})`}
+                      </button>
+                    )}
+                  </div>
+                )}
+                <div className="task-queue-toolbar-actions">
+                  {editorTab === 'yaml' && <button className="task-queue-save-btn" onClick={handleSave} title="Save"><Save size={11} /> Save</button>}
+                  {editorTab === 'memory' && memoryDirty && <button className="task-queue-save-btn" onClick={handleSaveMemory} title="Save Memory"><Save size={11} /> Save</button>}
+                  {parsed && !isRunning && editorTab === 'yaml' && (
+                    <>
+                      <button className="task-queue-run-btn" onClick={handleRun} title="Run all tasks"><Play size={11} /> Run</button>
+                      <button className="task-queue-pipeline-btn" onClick={handleOpenConvertModal} title="Convert to pipeline"><Zap size={11} /> Pipeline</button>
+                    </>
                   )}
+                  {isRunning && <button className="task-queue-stop-btn" onClick={handleStop} title="Stop"><Square size={11} /> Stop</button>}
+                </div>
+              </div>
+
+              {/* Parse info */}
+              {editorTab === 'yaml' && (
+                <div className="task-queue-editor-info">
+                  {parsed ? (
+                    <>
+                      <span className="task-queue-parse-ok"><CheckCircle size={10} /> {parsed.tasks.length} task{parsed.tasks.length !== 1 ? 's' : ''}</span>
+                      <span className="task-queue-parse-mode">{parsed.mode === 'parallel' ? <Layers size={10} /> : <ListOrdered size={10} />} {parsed.mode}</span>
+                    </>
+                  ) : editor.trim() ? (
+                    <span className="task-queue-parse-err"><XCircle size={10} /> Invalid YAML format</span>
+                  ) : null}
                 </div>
               )}
-              {editorTab === 'yaml' || editingNew ? (
-                <textarea className="task-queue-textarea" value={editor} onChange={(e) => setEditor(e.target.value)} spellCheck={false} />
-              ) : editorTab === 'outputs' ? (
-                <div className="task-queue-outputs">
-                  {taskOutputPreview ? (
-                    <div className="pipeline-output-preview">
-                      <div className="pipeline-output-preview-header">
-                        <span>{taskOutputPreview.name}</span>
-                        <button onClick={() => setTaskOutputPreview(null)}>Back</button>
-                      </div>
-                      <pre className="pipeline-output-preview-code">
-                        {taskOutputPreview.content.split('\n').map((line, i) => (
-                          <div key={i} className="pipeline-output-preview-line">
-                            <span className="pipeline-output-preview-num">{i + 1}</span>
-                            <span>{line}</span>
+
+              {/* Content area */}
+              <div className="task-queue-content-area">
+                {editorTab === 'yaml' || editingNew ? (
+                  <textarea className="task-queue-textarea" value={editor} onChange={(e) => setEditor(e.target.value)} spellCheck={false} />
+                ) : editorTab === 'outputs' ? (
+                  <div className="task-queue-outputs">
+                    {taskOutputs.length === 0 ? (
+                      <p className="task-queue-empty-hint">No output files yet. Run the task to generate artifacts.</p>
+                    ) : (
+                      <div className="pipeline-output-list">
+                        {taskOutputs.map((f) => (
+                          <div key={f.path} className="pipeline-output-file" onClick={() => handlePreviewFile(f.path, f.name)}>
+                            <File size={11} />
+                            <span className="pipeline-output-file-name">{f.name}</span>
+                            <span className="pipeline-output-file-meta">
+                              {f.size < 1024 ? `${f.size}B` : `${(f.size / 1024).toFixed(1)}KB`}
+                              {' · '}
+                              {new Date(f.modified).toLocaleDateString()}
+                            </span>
                           </div>
                         ))}
-                      </pre>
-                    </div>
-                  ) : taskOutputs.length === 0 ? (
-                    <p className="task-queue-memory-hint">No output files yet. Add <code>outputs: "~/.claude-colony/outputs/my-task"</code> to your YAML and run the task.</p>
-                  ) : (
-                    <div className="pipeline-output-list">
-                      {taskOutputs.map((f) => (
-                        <div
-                          key={f.path}
-                          className="pipeline-output-file"
-                          onClick={async () => {
-                            const result = await window.api.fs.readFile(f.path)
-                            if (result.content !== undefined) setTaskOutputPreview({ name: f.name, content: result.content })
-                          }}
-                        >
-                          <File size={11} />
-                          <span className="pipeline-output-file-name">{f.name}</span>
-                          <span className="pipeline-output-file-meta">
-                            {f.size < 1024 ? `${f.size}B` : `${(f.size / 1024).toFixed(1)}KB`}
-                            {' · '}
-                            {new Date(f.modified).toLocaleDateString()} {new Date(f.modified).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="task-queue-memory-editor">
-                  <p className="task-queue-memory-hint">
-                    Learnings from previous runs — tools, patterns, and approaches that help future executions. Injected into prompts automatically.
-                  </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
                   <textarea
                     className="task-queue-textarea"
                     value={taskMemory}
                     onChange={(e) => { setTaskMemory(e.target.value); setMemoryDirty(true) }}
-                    placeholder="No memories yet. Run the task and add learnings here, or they'll be captured automatically."
+                    placeholder="No memories yet. Learnings from runs will appear here, or add them manually."
                     spellCheck={false}
                   />
-                  {memoryDirty && (
-                    <button className="task-queue-save-btn" onClick={handleSaveMemory} style={{ alignSelf: 'flex-end' }}>
-                      <Save size={12} /> Save Memory
-                    </button>
-                  )}
-                </div>
-              )}
-              <div className="task-queue-editor-actions">
-                <div className="task-queue-editor-info">
-                  {parsed ? (
-                    <>
-                      <span className="task-queue-parse-ok"><CheckCircle size={11} /> {parsed.tasks.length} task{parsed.tasks.length !== 1 ? 's' : ''}</span>
-                      <span className="task-queue-parse-mode">{parsed.mode === 'parallel' ? <Layers size={11} /> : <ListOrdered size={11} />} {parsed.mode}</span>
-                    </>
-                  ) : (
-                    <span className="task-queue-parse-err"><XCircle size={11} /> Invalid format</span>
-                  )}
-                </div>
-                <button className="task-queue-save-btn" onClick={handleSave} title="Save"><Save size={12} /> Save</button>
-                {parsed && !isRunning && <button className="task-queue-run-btn" onClick={handleRun} title="Run all tasks"><Play size={12} /> Run</button>}
-                {isRunning && <button className="task-queue-stop-btn" onClick={handleStop} title="Stop"><Square size={12} /> Stop</button>}
-                {parsed && !isRunning && <button className="task-queue-pipeline-btn" onClick={handleOpenConvertModal} title="Convert tasks to pipelines (cron-scheduled)"><Zap size={12} /> To Pipeline</button>}
+                )}
               </div>
             </div>
           )}
@@ -689,7 +557,7 @@ dedup:
                 <span>{runningQueue.name}</span>
                 {!isRunning && totalCount > 0 && (
                   <span className="task-queue-results-summary">
-                    {doneCount}/{totalCount} passed{failedCount > 0 && <span className="task-queue-results-failed"> | {failedCount} failed</span>}
+                    {doneCount}/{totalCount} done{failedCount > 0 && <span className="task-queue-results-failed"> · {failedCount} failed</span>}
                   </span>
                 )}
                 {isRunning && <Loader size={12} className="spinning" />}
@@ -699,13 +567,12 @@ dedup:
                 return (
                   <div key={s.index} className={`task-queue-result-item ${s.state}`}>
                     <span className="task-queue-result-icon">
-                      {s.state === 'pending' && <Clock size={12} />}
-                      {s.state === 'running' && <Loader size={12} className="spinning" />}
-                      {s.state === 'done' && <CheckCircle size={12} />}
-                      {s.state === 'failed' && <XCircle size={12} />}
+                      {s.state === 'pending' && <Clock size={11} />}
+                      {s.state === 'running' && <Loader size={11} className="spinning" />}
+                      {s.state === 'done' && <CheckCircle size={11} />}
+                      {s.state === 'failed' && <XCircle size={11} />}
                     </span>
                     <span className="task-queue-result-name">{task.name || `Task ${s.index + 1}`}</span>
-                    <span className="task-queue-result-prompt">{task.prompt.slice(0, 60)}</span>
                     {s.instanceId && <button className="task-queue-result-focus" onClick={() => onFocusInstance(s.instanceId!)} title="Focus session">View</button>}
                   </div>
                 )
@@ -713,65 +580,12 @@ dedup:
             </div>
           )}
 
-          {/* Runs & Artifacts */}
-          {runs.length > 0 && (
-            <div className="task-runs">
-              <div className="task-runs-header" onClick={() => setShowRuns(!showRuns)}>
-                {showRuns ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                <FolderTree size={13} />
-                <span>Runs & Artifacts</span>
-                <span className="task-runs-count">{runs.length} queue{runs.length !== 1 ? 's' : ''}</span>
-                <button className="task-runs-refresh" onClick={(e) => { e.stopPropagation(); loadRuns() }} title="Refresh"><RefreshCw size={11} /></button>
-              </div>
-              {showRuns && (
-                <div className="task-runs-tree">
-                  {runs.map((queue) => (
-                    <div key={queue.name} className="task-runs-queue">
-                      <div className="task-runs-queue-row" onClick={() => toggleRunExpand(queue.name)}>
-                        {expandedRuns.has(queue.name) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                        <FolderOpen size={12} />
-                        <span className="task-runs-queue-name">{queue.name}</span>
-                        <span className="task-runs-task-count">{queue.tasks.length} task{queue.tasks.length !== 1 ? 's' : ''}</span>
-                      </div>
-                      {expandedRuns.has(queue.name) && queue.tasks.map((task) => (
-                        <div key={task.name} className="task-runs-task">
-                          <div className="task-runs-task-row" onClick={() => toggleTaskExpand(`${queue.name}/${task.name}`)}>
-                            {expandedTasks.has(`${queue.name}/${task.name}`) ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-                            <FolderOpen size={11} />
-                            <span className="task-runs-task-name">{task.name}</span>
-                            {task.files.length > 0 && <span className="task-runs-file-count">{task.files.length} file{task.files.length !== 1 ? 's' : ''}</span>}
-                          </div>
-                          {expandedTasks.has(`${queue.name}/${task.name}`) && (
-                            <div className="task-runs-files">
-                              {task.files.length === 0 ? (
-                                <div className="task-runs-no-files">No artifacts yet</div>
-                              ) : task.files.map((file) => (
-                                <div
-                                  key={file.name}
-                                  className={`task-runs-file ${previewFile?.path === file.path ? 'active' : ''}`}
-                                  onClick={() => handlePreviewFile(file)}
-                                >
-                                  <File size={11} />
-                                  <span className="task-runs-file-name">{file.name}</span>
-                                  <span className="task-runs-file-size">{formatSize(file.size)}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {!selectedFile && !editingNew && queueFiles.length === 0 && runs.length === 0 && (
+          {/* Empty state */}
+          {!selectedFile && !editingNew && queueFiles.length === 0 && (
             <div className="task-queue-empty-state">
               <ListOrdered size={28} />
               <p>Define batch tasks as YAML</p>
-              <p className="task-queue-empty-hint">Each task spawns a Claude session. Ask the assistant on the right for help.</p>
+              <p className="task-queue-empty-hint">Each task spawns a Claude session. Use the assistant on the right for help.</p>
             </div>
           )}
         </div>
@@ -779,20 +593,20 @@ dedup:
         {/* Divider */}
         <div className="task-queue-divider" onMouseDown={handleDragStart} />
 
-        {/* Right: CLI assistant or file preview */}
+        {/* Right panel */}
         <div className="task-queue-right" style={{ width: `${100 - dividerX}%` }}>
-          {previewFile ? (
+          {rightPanel === 'preview' && previewContent ? (
             <>
               <div className="task-queue-term-header">
                 <File size={12} />
-                <span title={previewFile.path}>{previewFile.name}</span>
-                <button className="task-queue-term-new" onClick={() => setPreviewFile(null)} title="Back to Task Assistant">
+                <span title={previewContent.name}>{previewContent.name}</span>
+                <button className="task-queue-term-new" onClick={() => { setRightPanel('assistant'); setPreviewContent(null) }}>
                   Back
                 </button>
               </div>
               <div className="task-runs-preview">
                 <pre className="task-runs-preview-code">
-                  {previewFile.content.split('\n').map((line, i) => (
+                  {previewContent.content.split('\n').map((line, i) => (
                     <div key={i} className="task-runs-preview-line">
                       <span className="task-runs-preview-num">{i + 1}</span>
                       <span>{line}</span>
@@ -805,11 +619,7 @@ dedup:
             <>
               <div className="task-queue-term-header">
                 <span>Task Assistant</span>
-                <button
-                  className="task-queue-term-new"
-                  onClick={() => spawnAssistant()}
-                  title="Start a fresh Task Assistant session"
-                >
+                <button className="task-queue-term-new" onClick={() => spawnAssistant()} title="Start a fresh Task Assistant session">
                   <Plus size={12} /> New
                 </button>
               </div>
@@ -831,11 +641,9 @@ dedup:
                     <Zap size={16} />
                     <h3>Convert to Pipeline</h3>
                   </div>
-
                   <p className="convert-pipeline-desc">
                     {queue ? `${queue.tasks.length} task${queue.tasks.length !== 1 ? 's' : ''}` : 'Tasks'} from <strong>{queue?.name || 'queue'}</strong> will be saved as pipeline{queue && queue.tasks.length !== 1 ? 's' : ''} (disabled).
                   </p>
-
                   {queue && (
                     <div className="convert-pipeline-tasks">
                       {queue.tasks.map((t, i) => (
@@ -844,11 +652,7 @@ dedup:
                           <input
                             className="convert-pipeline-task-input"
                             value={convertNames[i] || ''}
-                            onChange={(e) => {
-                              const next = [...convertNames]
-                              next[i] = e.target.value
-                              setConvertNames(next)
-                            }}
+                            onChange={(e) => { const next = [...convertNames]; next[i] = e.target.value; setConvertNames(next) }}
                             placeholder={`Task ${i + 1}`}
                           />
                           <span className="convert-pipeline-task-prompt">{t.prompt.slice(0, 40)}…</span>
@@ -856,48 +660,27 @@ dedup:
                       ))}
                     </div>
                   )}
-
                   <div className="convert-pipeline-field">
                     <label>Mode</label>
                     <div className="convert-pipeline-mode-toggle">
-                      <button
-                        className={convertMode === 'reference' ? 'active' : ''}
-                        onClick={() => setConvertMode('reference')}
-                      >
-                        Reference
-                      </button>
-                      <button
-                        className={convertMode === 'copy' ? 'active' : ''}
-                        onClick={() => setConvertMode('copy')}
-                      >
-                        Copy
-                      </button>
+                      <button className={convertMode === 'reference' ? 'active' : ''} onClick={() => setConvertMode('reference')}>Reference</button>
+                      <button className={convertMode === 'copy' ? 'active' : ''} onClick={() => setConvertMode('copy')}>Copy</button>
                     </div>
                     <span className="convert-pipeline-hint">
-                      {convertMode === 'reference'
-                        ? 'Pipeline reads the task queue file at runtime — edits to the task automatically apply'
-                        : 'Pipeline gets its own copy of the prompt — independent of the task queue'}
+                      {convertMode === 'reference' ? 'Pipeline reads the task queue file — edits apply automatically' : 'Pipeline gets its own copy of the prompt'}
                     </span>
                   </div>
-
                   <div className="convert-pipeline-field">
                     <label>Cron Schedule</label>
-                    <input
-                      value={convertCron}
-                      onChange={(e) => setConvertCron(e.target.value)}
-                      placeholder="0 9 * * 1-5"
-                      spellCheck={false}
-                    />
+                    <input value={convertCron} onChange={(e) => setConvertCron(e.target.value)} placeholder="0 9 * * 1-5" spellCheck={false} />
                     <span className="convert-pipeline-hint">min hour dom month dow — e.g. "0 9 * * 1-5" = 9am weekdays</span>
                   </div>
-
                   <div className="convert-pipeline-field">
                     <label className="convert-pipeline-checkbox">
                       <input type="checkbox" checked={convertReuse} onChange={(e) => setConvertReuse(e.target.checked)} />
-                      Reuse existing sessions when possible
+                      Reuse existing sessions
                     </label>
                   </div>
-
                   <div className="convert-pipeline-actions">
                     <button className="convert-pipeline-cancel" onClick={() => setShowConvertModal(false)}>Cancel</button>
                     <button className="convert-pipeline-confirm" onClick={handleConvertConfirm}>
@@ -911,17 +694,13 @@ dedup:
                     <CheckCircle size={16} />
                     <h3>Pipelines Created</h3>
                   </div>
-
                   <div className="convert-pipeline-result">
                     <p>{convertResult.count} pipeline{convertResult.count !== 1 ? 's' : ''} created (disabled):</p>
                     <ul>
-                      {convertResult.names.map((n, i) => (
-                        <li key={i}><Zap size={11} /> {n}</li>
-                      ))}
+                      {convertResult.names.map((n, i) => (<li key={i}><Zap size={11} /> {n}</li>))}
                     </ul>
                     <p className="convert-pipeline-hint">Go to the <strong>Pipelines</strong> tab to enable them.</p>
                   </div>
-
                   <div className="convert-pipeline-actions">
                     <button className="convert-pipeline-confirm" onClick={() => setShowConvertModal(false)}>Done</button>
                   </div>
