@@ -828,6 +828,16 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
   const cwd = resolveTemplate(action.workingDirectory || '', ctx) || undefined
   let prompt = resolveTemplate(action.prompt, ctx)
 
+  // Inject timestamped output directory when action.outputs is configured
+  if (action.outputs) {
+    const resolvedBase = resolveTemplate(action.outputs, ctx).replace(/^~/, app.getPath('home'))
+    const now = new Date()
+    const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`
+    const outputDir = join(resolvedBase, ts)
+    prompt += `\n\n--- Output Directory ---\nWrite all output files to: ${outputDir}\nCreate it first: mkdir -p ${outputDir}\nDo NOT use hardcoded output paths from task prompts — always use this directory instead.`
+    log(`Output directory injected: ${outputDir}`)
+  }
+
   // Inject pipeline memory and always tell the session where to write learnings
   const p = [...pipelines.values()].find(pp => pp.def.name === pipelineName)
   if (p) {

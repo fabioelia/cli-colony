@@ -88,6 +88,7 @@ const DEFAULT_PROMPTS: QuickPrompt[] = [
 ]
 
 import { colonyPaths } from '../shared/colony-paths'
+import { ensureBareRepo as ensureBareRepoWorktree } from '../shared/git-worktree'
 
 function configPath(): string {
   return colonyPaths.githubJson
@@ -305,13 +306,18 @@ export async function fetchCheckLogs(repo: GitHubRepo, prNumber: number, checkNa
 
 const REPOS_DIR = colonyPaths.repos
 
-/** Resolve clone directory — checks new path (owner/name) first, then legacy (owner-name) */
+/**
+ * Resolve repo directory — checks bare repo (.git suffix) first, then legacy paths.
+ * For the GitHub panel's `localPath` reference — returns whichever exists.
+ */
 function resolveCloneDir(owner: string, name: string): string {
+  const bareDir = colonyPaths.bareRepoDir(owner, name)
+  if (existsSync(bareDir)) return bareDir
   const newPath = colonyPaths.repoDir(owner, name)
   if (existsSync(newPath)) return newPath
   const legacyPath = join(REPOS_DIR, `${owner}-${name}`)
   if (existsSync(legacyPath)) return legacyPath
-  return newPath // default to new format for new clones
+  return bareDir // default to bare repo format for new repos
 }
 
 export function getRepos(): GitHubRepo[] {
@@ -329,14 +335,20 @@ export function getRepos(): GitHubRepo[] {
   return config.repos
 }
 
-// Ensure all repos are shallow cloned — call on startup
+/**
+ * Ensure all tracked repos have bare clones — call on startup.
+ * Replaces the old shallow clone approach. Bare repos serve as both
+ * the shared object store for worktree-based environments AND the
+ * GitHub panel's reference repo.
+ */
 export function ensureRepoClones(): void {
   const repos = getRepos()
   for (const repo of repos) {
-    const cloneDir = resolveCloneDir(repo.owner, repo.name)
-    if (!existsSync(cloneDir)) {
-      shallowCloneRepo(repo).catch(err => {
-        console.error(`[github] shallow clone failed for ${repo.owner}/${repo.name}:`, err)
+    const bareDir = colonyPaths.bareRepoDir(repo.owner, repo.name)
+    if (!existsSync(bareDir)) {
+      const remoteUrl = `git@github.com:${repo.owner}/${repo.name}.git`
+      ensureBareRepoWorktree(repo.owner, repo.name, remoteUrl).catch(err => {
+        console.error(`[github] bare clone failed for ${repo.owner}/${repo.name}:`, err)
       })
     }
   }
@@ -346,52 +358,27 @@ export function addRepo(repo: GitHubRepo): GitHubRepo[] {
   const config = loadConfig()
   const exists = config.repos.some((r) => r.owner === repo.owner && r.name === repo.name)
   if (!exists) {
-    const cloneDir = colonyPaths.repoDir(repo.owner, repo.name)
-    repo.localPath = repo.localPath || cloneDir
+    const bareDir = colonyPaths.bareRepoDir(repo.owner, repo.name)
+    repo.localPath = repo.localPath || bareDir
     config.repos.push(repo)
     saveConfig(config)
 
-    // Shallow clone in background (don't block)
-    shallowCloneRepo(repo).catch(err => {
-      console.error(`[github] shallow clone failed for ${repo.owner}/${repo.name}:`, err)
+    // Create bare repo in background (don't block)
+    const remoteUrl = `git@github.com:${repo.owner}/${repo.name}.git`
+    ensureBareRepoWorktree(repo.owner, repo.name, remoteUrl).catch(err => {
+      console.error(`[github] bare clone failed for ${repo.owner}/${repo.name}:`, err)
     })
   }
   return config.repos
 }
 
+/**
+ * Ensure a bare repo exists for the given repo, creating it if needed.
+ * This is the unified entry point — all repo cloning goes through bare repos now.
+ */
 export async function shallowCloneRepo(repo: GitHubRepo): Promise<void> {
-  const cloneDir = resolveCloneDir(repo.owner, repo.name)
-  if (existsSync(cloneDir)) {
-    // Already cloned — just fetch latest
-    try {
-      await gh(['api', '--method', 'GET', '/repos/' + repo.owner + '/' + repo.name])
-      const { execSync } = require('child_process') as typeof import('child_process')
-      execSync('git fetch --depth 1 origin', { cwd: cloneDir, timeout: 30000, stdio: 'ignore' })
-      console.log(`[github] updated shallow clone: ${repo.owner}/${repo.name}`)
-    } catch { /* ignore fetch failures */ }
-    return
-  }
-
-  // Use new path format: repos/<owner>/<name>
-  const newCloneDir = colonyPaths.repoDir(repo.owner, repo.name)
-  const parentDir = join(REPOS_DIR, repo.owner)
-  if (!existsSync(parentDir)) mkdirSync(parentDir, { recursive: true })
-
   const remoteUrl = `git@github.com:${repo.owner}/${repo.name}.git`
-  const { execSync } = require('child_process') as typeof import('child_process')
-  try {
-    execSync(`git clone --depth 1 "${remoteUrl}" "${newCloneDir}"`, { timeout: 60000, stdio: 'ignore' })
-    console.log(`[github] shallow cloned: ${repo.owner}/${repo.name} → ${newCloneDir}`)
-  } catch (err) {
-    // Try HTTPS fallback
-    try {
-      const httpsUrl = `https://github.com/${repo.owner}/${repo.name}.git`
-      execSync(`git clone --depth 1 "${httpsUrl}" "${newCloneDir}"`, { timeout: 60000, stdio: 'ignore' })
-      console.log(`[github] shallow cloned (https): ${repo.owner}/${repo.name} → ${newCloneDir}`)
-    } catch {
-      console.error(`[github] failed to clone ${repo.owner}/${repo.name}:`, err)
-    }
-  }
+  await ensureBareRepoWorktree(repo.owner, repo.name, remoteUrl)
 }
 
 export function removeRepo(owner: string, name: string): GitHubRepo[] {

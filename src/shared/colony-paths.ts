@@ -41,8 +41,11 @@ export const colonyPaths = {
   taskQueues: path.join(ROOT, 'task-queues'),
   recentSessions: path.join(ROOT, 'recent-sessions.json'),
 
-  /** Build a repo clone path for a given owner/name */
+  /** Build a repo clone path for a given owner/name (shallow clones for GitHub panel) */
   repoDir: (owner: string, name: string) => path.join(ROOT, 'repos', owner, name),
+
+  /** Build a bare repo path for worktree-based environments: repos/<owner>/<name>.git */
+  bareRepoDir: (owner: string, name: string) => path.join(ROOT, 'repos', owner, name + '.git'),
 
   /** Build an environment instance path */
   envDir: (envName: string) => path.join(ROOT, 'environments', envName),

@@ -41,10 +41,10 @@ export const TEMPLATE_RULES = `## Rules
 
 export const TEMPLATE_SCHEMA_REFERENCE = `## Template Schema
 
-Templates define: repos to clone, services to run, resources needed, port allocation, git branches, and setup/teardown hooks.
+Templates define: repos to set up as worktrees, services to run, resources needed, port allocation, git branches, and setup/teardown hooks.
 
 **Key sections:**
-- **repos[]** — repos to clone. \`as\` is the role key (e.g. "backend"). \`localPath\` is the source for fast local clones.
+- **repos[]** — repos to set up as worktrees from bare repos. \`as\` is the role key (e.g. "backend"). \`localPath\` is optional (the app uses shared bare repos).
 - **services{}** — service definitions with command, cwd, port, healthCheck, dependsOn, env vars
 - **resources{}** — databases, caches, etc. with connection details
 - **ports[]** — list of named port slots (e.g. ["backend", "frontend"]). App dynamically finds conflict-free ports for each.
@@ -77,12 +77,14 @@ You will:
 3. Extract the proven recipe into a template schema
 4. The template lets users spin up unlimited instances later (each with its own clone, ports, database)
 
-## Colony Repo Clones
+## Colony Repo Store
 
-Colony maintains shallow clones of repos configured in the PRs tab at:
-  ~/.claude-colony/repos/<owner>/<repo>/
+Colony maintains bare repos as shared object stores at:
+  ~/.claude-colony/repos/<owner>/<repo>.git/
 
-Check this directory first for quick access to project files. These are shallow clones — good for reading configs/READMEs but not for running services.
+These bare repos are used to create lightweight git worktrees for each environment.
+Check this directory first for repo availability. To read files from a bare repo:
+  git -C ~/.claude-colony/repos/<owner>/<repo>.git show HEAD:<file>
 
 ## Step 1: Discovery
 
@@ -103,8 +105,8 @@ Ask the user clarifying questions about:
 
 Create a preview environment at: ~/.claude-colony/environments/_preview-<template-name>/
 
-1. Clone repos using \`git clone --local <source>\` for speed (hardlinks, nearly instant from local repos)
-2. Checkout the appropriate branch
+1. The app uses git worktrees (not clones) to set up repos. Each environment gets a lightweight worktree from a shared bare repo. The app handles this automatically via the template's repos[] config.
+2. For manual preview setup: use \`git worktree add\` from the bare repo at \`~/.claude-colony/repos/<owner>/<name>.git\`
 3. Install dependencies
 4. Create database (if needed) — use \`CREATE DATABASE ... WITH TEMPLATE\` for Postgres, or equivalent for other DBs
 5. Run migrations
@@ -113,7 +115,7 @@ Create a preview environment at: ~/.claude-colony/environments/_preview-<templat
 8. Once validated, stop the services
 
 IMPORTANT for speed:
-- Use \`git clone --local /path/to/repo\` when a local source exists (instant via hardlinks)
+- The app uses git worktrees which share a single object store — creating a new environment adds only ~100 bytes of git metadata instead of duplicating the entire repo
 - For Postgres, use \`CREATE DATABASE x WITH TEMPLATE y\` (instant copy)
 - Mark independent hooks as \`"parallel": true\` so they run concurrently. Example: installing backend and frontend deps can run in parallel, but migrations must wait for both.
   \`\`\`json
@@ -139,8 +141,9 @@ ${TEMPLATE_ALLOCATION_RULES}
 ${TEMPLATE_JSON_FORMAT}
 
 ${TEMPLATE_RULES}
-- DO clone repos and set up a real preview to validate
-- DO use git clone --local and database template copies for speed
+- DO set up a real preview to validate
+- DO use git worktrees from bare repos for fast environment creation
+- DO use database template copies for speed
 - DO ask the user about shared resources and branch conventions
 - Write template to ~/.claude-colony/environment-templates/
 - Preview goes in ~/.claude-colony/environments/_preview-<name>/`

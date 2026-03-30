@@ -10,6 +10,7 @@ import * as path from 'path'
 import { execSync } from 'child_process'
 import { getEnvDaemonClient, EnvDaemonClient } from './env-daemon-client'
 import { allocatePorts, isPortInUse } from './port-allocator'
+import { ensureBareRepo, addWorktree, removeWorktree, isWorktree, getBareRepoForWorktree, pruneAllBareRepos, migrateReposToBare } from '../shared/git-worktree'
 import { buildContext, resolveTemplate as resolveTemplateVars, findUnresolved } from '../shared/template-resolver'
 import { readAndReconcileState, emptyState, writeState } from '../shared/env-state'
 import { addToIndex, removeFromIndex, allEnvDirs } from '../shared/env-index'
@@ -108,6 +109,14 @@ export async function initEnvDaemon(): Promise<void> {
     await client.connect()
     wireEnvDaemonEvents()
     console.log('[env-manager] envd initialized')
+
+    // Migrate legacy shallow clones to bare repos (one-time, non-blocking)
+    migrateReposToBare().catch(err => {
+      console.warn('[env-manager] repo migration failed (non-fatal):', err)
+    })
+
+    // Prune stale worktree entries from all bare repos
+    try { pruneAllBareRepos() } catch { /* non-fatal */ }
 
     // Register existing environments from disk
     await syncEnvironmentsFromDisk()
@@ -415,37 +424,37 @@ export async function setupEnvironment(envId: string): Promise<void> {
   logSetup(`Template: ${template?.name || 'none'}, Branch: ${branch}`)
 
   try {
-    // Phase 1: Clone repos from template
+    // Phase 1: Create worktrees from bare repos (replaces git clone)
     updateStep('Clone repos', 'running')
     if (template?.repos) {
       for (const repo of template.repos) {
         const targetDir = manifest.paths[repo.as] || path.join(envDir, repo.name)
-        if (fs.existsSync(targetDir)) continue // already cloned
+        if (fs.existsSync(targetDir)) continue // already set up
 
-        // Try local clone first (fast), fall back to remote
-        const localSource = repo.localPath || colonyPaths.repoDir(repo.owner, repo.name)
         const remoteUrl = repo.remoteUrl || `git@github.com:${repo.owner}/${repo.name}.git`
 
-        if (fs.existsSync(localSource)) {
-          await execAsync(`git clone --local --quiet "${localSource}" "${targetDir}"`, { timeout: 60000 })
-        } else {
-          await execAsync(`git clone --depth 1 "${remoteUrl}" "${targetDir}"`, { timeout: 120000 })
-        }
+        logSetup(`Setting up ${repo.owner}/${repo.name} as worktree...`)
 
-        // Checkout branch
+        // 1. Ensure bare repo exists (shared object store)
+        const bareDir = await ensureBareRepo(repo.owner, repo.name, remoteUrl)
+        logSetup(`  Bare repo ready: ${bareDir}`)
+
+        // 2. Fetch the target branch
         try {
-          await execAsync(`git checkout "${branch}"`, { cwd: targetDir, timeout: 10000 })
-        } catch {
-          try {
-            await execAsync(`git fetch origin "${branch}" --depth 1`, { cwd: targetDir, timeout: 30000 })
-            await execAsync(`git checkout "${branch}"`, { cwd: targetDir, timeout: 10000 })
-          } catch { /* stay on default branch */ }
+          await execAsync(`git fetch origin "${branch}"`, { cwd: bareDir, timeout: 60000 })
+        } catch (fetchErr: any) {
+          logSetup(`  Warning: fetch of branch "${branch}" failed: ${fetchErr.message}`)
+          // Continue — the branch may already be available from the initial clone
         }
 
-        // Set remote to the real URL (not the local clone source)
+        // 3. Create worktree with per-env tracking branch
+        await addWorktree(bareDir, targetDir, branch, manifest.name)
+        logSetup(`  Worktree created: ${targetDir} (branch: env/${manifest.name}/${branch})`)
+
+        // 4. Set remote URL in the worktree (ensures push/pull work correctly)
         try {
           await execAsync(`git remote set-url origin "${remoteUrl}"`, { cwd: targetDir, timeout: 5000 })
-        } catch { /* ignore */ }
+        } catch { /* ignore — bare repo already has the correct remote */ }
       }
     }
     updateStep('Clone repos', 'done')
@@ -705,6 +714,13 @@ export async function teardownEnvironment(envId: string): Promise<void> {
   const envDir = findEnvDir(envId)
   if (!envDir) throw new Error(`Environment ${envId} not found`)
 
+  // Read manifest to get environment slug for branch cleanup
+  let envSlug: string | undefined
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(envDir, 'instance.json'), 'utf-8')) as InstanceManifest
+    envSlug = manifest.name
+  } catch { /* continue without slug */ }
+
   // Delegate to the daemon: stops services, waits for them to die, runs hooks, unregisters.
   // This runs in the daemon process so it doesn't block the Electron main process.
   try {
@@ -716,10 +732,35 @@ export async function teardownEnvironment(envId: string): Promise<void> {
     try { await getEnvDaemonClient().unregister(envId) } catch { /* */ }
   }
 
+  // Clean up worktrees before deleting directories.
+  // For each repo subdirectory that is a worktree, remove it from the bare repo's
+  // worktree list and delete the per-env tracking branch.
+  try {
+    if (fs.existsSync(envDir)) {
+      const entries = fs.readdirSync(envDir)
+      for (const entry of entries) {
+        const subdir = path.join(envDir, entry)
+        try {
+          if (!fs.statSync(subdir).isDirectory()) continue
+        } catch { continue }
+
+        if (isWorktree(subdir)) {
+          const bareDir = getBareRepoForWorktree(subdir)
+          if (bareDir) {
+            console.log(`[env-manager] removing worktree: ${subdir} from ${bareDir}`)
+            await removeWorktree(bareDir, subdir, envSlug)
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error(`[env-manager] worktree cleanup failed (continuing with rm):`, err)
+  }
+
   // Remove from index
   removeFromIndex(envId)
 
-  // Delete files — always runs even if hooks failed
+  // Delete files — always runs even if worktree cleanup failed
   try {
     fs.rmSync(envDir, { recursive: true, force: true })
   } catch (err) {

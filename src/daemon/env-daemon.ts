@@ -63,6 +63,7 @@ function log(msg: string): void {
 import { createResolver, resolveService } from '../shared/template-resolver'
 import { writeState, readAndReconcileState, emptyState, isPidAlive, type EnvState, type ServiceState as FileServiceState } from '../shared/env-state'
 import { allEnvDirs, addToIndex } from '../shared/env-index'
+import { pruneAllBareRepos } from '../shared/git-worktree'
 
 /**
  * Resolves ${...} template variables in a string against the manifest.
@@ -987,6 +988,14 @@ function shutdown(): void {
 
 /** Scan environment directories for state.json + instance.json and recover */
 async function recoverFromDisk(): Promise<void> {
+  // Prune stale worktree entries from bare repos (handles unclean shutdowns)
+  try {
+    pruneAllBareRepos()
+    log('pruned stale worktree entries from bare repos')
+  } catch (err) {
+    log(`worktree prune failed (non-fatal): ${err}`)
+  }
+
   const seen = new Set<string>()
   const dirs: string[] = []
 
