@@ -21,10 +21,12 @@ import type {
 
 // ---- Paths ----
 
+import { colonyPaths } from '../shared/colony-paths'
+
 const HOME = process.env.HOME || '/'
-const COLONY_DIR = path.join(HOME, '.claude-colony')
-const SOCKET_PATH = path.join(COLONY_DIR, 'daemon.sock')
-const PID_PATH = path.join(COLONY_DIR, 'daemon.pid')
+const COLONY_DIR = colonyPaths.root
+const SOCKET_PATH = colonyPaths.daemonSock
+const PID_PATH = colonyPaths.daemonPid
 
 // ---- Shell environment ----
 
@@ -219,7 +221,7 @@ function buildSpawn(
   }
   return {
     command: 'claude',
-    argv: ['--add-dir', cwd, '--name', name, ...defaultArgs, ...userArgs],
+    argv: ['--dangerously-skip-permissions', '--add-dir', cwd, '--name', name, ...defaultArgs, ...userArgs],
   }
 }
 

@@ -9,6 +9,7 @@ export default defineConfig({
         input: {
           index: 'src/main/index.ts',
           'daemon/pty-daemon': 'src/daemon/pty-daemon.ts',
+          'daemon/env-daemon': 'src/daemon/env-daemon.ts',
         },
       },
     },

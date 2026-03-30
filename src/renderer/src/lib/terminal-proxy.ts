@@ -173,5 +173,7 @@ export class TerminalProxy {
       clearTimeout(this.flushTimer)
       this.flushTimer = null
     }
+    this.syncBuffer = ''
+    this.pendingData = ''
   }
 }

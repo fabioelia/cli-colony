@@ -17,6 +17,8 @@ export interface CommandPaletteAction {
   color?: string
   /** Keywords for search matching beyond the label */
   keywords?: string
+  /** If true, don't close the palette after executing */
+  stayOpen?: boolean
 }
 
 interface Props {
@@ -41,6 +43,8 @@ export default function CommandPalette({
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [terminalMatches, setTerminalMatches] = useState<CommandPaletteAction[]>([])
+  const [searchMode, setSearchMode] = useState<'commands' | 'sessions'>('commands')
+  const [allSessions, setAllSessions] = useState<CliSession[]>([])
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -146,6 +150,21 @@ export default function CommandPalette({
       onExecute: () => onViewChange('pipelines'),
     })
 
+    items.push({
+      id: 'search-sessions',
+      label: 'Search All Sessions',
+      detail: 'Deep search across session names, messages, and projects',
+      icon: <Search size={14} />,
+      section: 'Actions',
+      keywords: 'find session history search',
+      stayOpen: true,
+      onExecute: () => {
+        setSearchMode('sessions')
+        setQuery('')
+        window.api.sessions.list(500).then(setAllSessions)
+      },
+    })
+
     // Recent sessions (limit to 10)
     for (const session of sessions.slice(0, 10)) {
       items.push({
@@ -223,8 +242,53 @@ export default function CommandPalette({
     })
   }, [query, actions])
 
-  // Combine filtered actions with terminal matches
-  const allFiltered = useMemo(() => [...filtered, ...terminalMatches], [filtered, terminalMatches])
+  // Deep session search (when in sessions mode) — async, debounced
+  const [sessionResults, setSessionResults] = useState<CommandPaletteAction[]>([])
+  const [sessionSearching, setSessionSearching] = useState(false)
+  const sessionSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (searchMode !== 'sessions') { setSessionResults([]); return }
+    if (sessionSearchTimerRef.current) clearTimeout(sessionSearchTimerRef.current)
+
+    const q = query.trim()
+    if (q.length < 2) {
+      // Show recent sessions when no query
+      setSessionResults(allSessions.slice(0, 30).map(s => ({
+        id: `session-${s.sessionId}`,
+        label: s.name || s.display.slice(0, 60),
+        detail: `${s.projectName} · ${s.messageCount} msgs`,
+        icon: <History size={14} />,
+        section: 'Recent Sessions',
+        onExecute: () => onResumeSession(s),
+      })))
+      return
+    }
+
+    setSessionSearching(true)
+    sessionSearchTimerRef.current = setTimeout(async () => {
+      try {
+        const results = await window.api.sessions.search(q)
+        setSessionResults(results.map(r => ({
+          id: `session-${r.sessionId}`,
+          label: r.name || r.sessionId.slice(0, 12),
+          detail: `${r.project} · ${r.match}`,
+          icon: <History size={14} />,
+          section: 'Matching Sessions',
+          onExecute: () => onResumeSession({ sessionId: r.sessionId, name: r.name, display: r.match, lastMessage: null, messageCount: 0, project: '', timestamp: 0, projectName: r.project, recentlyOpened: false }),
+        })))
+      } catch { setSessionResults([]) }
+      setSessionSearching(false)
+    }, 400)
+
+    return () => { if (sessionSearchTimerRef.current) clearTimeout(sessionSearchTimerRef.current) }
+  }, [searchMode, query, allSessions, onResumeSession])
+
+  // Combine filtered actions with terminal matches (or session results in session mode)
+  const allFiltered = useMemo(() => {
+    if (searchMode === 'sessions') return sessionResults
+    return [...filtered, ...terminalMatches]
+  }, [searchMode, filtered, terminalMatches, sessionResults])
 
   // Group by section for display
   const grouped = useMemo(() => {
@@ -246,6 +310,8 @@ export default function CommandPalette({
     if (open) {
       setQuery('')
       setSelectedIndex(0)
+      setSearchMode('commands')
+      setTerminalMatches([])
       requestAnimationFrame(() => inputRef.current?.focus())
     }
   }, [open])
@@ -268,11 +334,17 @@ export default function CommandPalette({
       e.preventDefault()
       if (allFiltered[selectedIndex]) {
         allFiltered[selectedIndex].onExecute()
-        onClose()
+        if (!allFiltered[selectedIndex].stayOpen) onClose()
       }
     } else if (e.key === 'Escape') {
       e.preventDefault()
-      onClose()
+      if (searchMode === 'sessions') {
+        setSearchMode('commands')
+        setQuery('')
+        setSelectedIndex(0)
+      } else {
+        onClose()
+      }
     }
   }
 
@@ -284,16 +356,21 @@ export default function CommandPalette({
     <div className="cmd-palette-overlay" onClick={onClose}>
       <div className="cmd-palette" onClick={(e) => e.stopPropagation()}>
         <div className="cmd-palette-input-row">
+          {searchMode === 'sessions' && (
+            <button className="cmd-palette-back" onClick={() => { setSearchMode('commands'); setQuery(''); setSelectedIndex(0) }} title="Back to commands">
+              <ArrowRight size={14} style={{ transform: 'rotate(180deg)' }} />
+            </button>
+          )}
           <Search size={14} className="cmd-palette-search-icon" />
           <input
             ref={inputRef}
             className="cmd-palette-input"
-            placeholder="Type a command or session name..."
+            placeholder={searchMode === 'sessions' ? 'Search sessions by name, message, project...' : 'Type a command or session name...'}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
           />
-          <kbd className="cmd-palette-kbd">esc</kbd>
+          <kbd className="cmd-palette-kbd">{searchMode === 'sessions' ? 'esc: back' : 'esc'}</kbd>
         </div>
         <div className="cmd-palette-list" ref={listRef}>
           {allFiltered.length === 0 && (
@@ -308,7 +385,7 @@ export default function CommandPalette({
                   <div
                     key={item.id}
                     className={`cmd-palette-item ${idx === selectedIndex ? 'selected' : ''}`}
-                    onClick={() => { item.onExecute(); onClose() }}
+                    onClick={() => { item.onExecute(); if (!item.stayOpen) onClose() }}
                     onMouseEnter={() => setSelectedIndex(idx)}
                   >
                     <span className="cmd-palette-item-icon">{item.icon}</span>

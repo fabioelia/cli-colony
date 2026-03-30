@@ -31,7 +31,8 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 - Per-session split view — each session can have a split partner, click to toggle
 - Activity detection — pulsing dot when busy, solid dot when idle
 - Smart unread indicator — filters TUI redraws, only triggers on genuinely new content
-- Info popup showing launch command, directory, PID, MCP servers, token usage
+- Info popup showing launch command, directory, PID, MCP servers, token usage, and child processes
+- **Child process visibility** — info popover lists processes (vite, runserver, redis, etc.) running under the session's directory with CPU/memory stats and kill button
 - Auto-cleanup of exited sessions after configurable timeout
 - Unique colors — new sessions pick the least-used color (Colony-tracked)
 - Shortcut numbers (1-9) shown on each session in sidebar for quick `Cmd+N` jumping
@@ -105,6 +106,16 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
   - Parent is automatically notified to read the handoff and decide next steps
   - Sidebar shows parent/child relationships (↳ indicator, child count)
 
+### Environments
+- **Template-based dev environments** — define environment templates with repos, services, and hooks
+- **Environment daemon** — dedicated Node.js process managing service lifecycles, port allocation, and log streaming
+- **Service management** — start, stop, restart individual services; live status with uptime, restarts, port info
+- **Port allocator** — automatic unique port assignment per environment to avoid conflicts
+- **Setup hooks** — clone repos, install dependencies, run migrations on environment creation
+- **Log viewer** — stream service logs and setup output per environment
+- **Diagnose mode** — launch a Claude session pre-loaded with environment state, crash info, and service logs
+- **Template editor** — edit environment templates with a Claude-assisted session
+
 ### Resource Monitor
 - Live CPU and memory usage in the status bar
 - Per-session usage for the active session
@@ -144,6 +155,13 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 - **File preview** with line numbers
 - **Cmd+F in preview** — search within file with Enter/Shift+Enter navigation, active match highlighting
 - Click a file to paste its path into the terminal
+
+### External Sessions
+- **Detect** Claude CLI processes running outside Colony (terminal, VS Code, etc.)
+- Preview conversation messages before taking over
+- **Takeover** — kills the external process and resumes the session inside Colony with full history
+- Session ID detection via open file handles, command-line flags, or project directory matching
+- CWD resolution via `lsof` before process termination
 
 ### Session History
 - Browse Claude CLI conversation history with search
@@ -210,10 +228,18 @@ All app data lives in `~/.claude-colony/`:
 ├── settings.json          # App settings (args, shell, hotkey, ignore rules)
 ├── recent-sessions.json   # Tracks recently opened sessions for restore
 ├── github.json            # GitHub repos and custom PR prompts
-├── daemon.sock            # Unix socket for daemon communication
-├── daemon.pid             # Daemon process ID
-├── daemon.log             # Daemon process logs
+├── daemon.sock            # Unix socket for PTY daemon
+├── daemon.pid             # PTY daemon process ID
+├── daemon.log             # PTY daemon logs
+├── env-daemon.sock        # Unix socket for environment daemon
+├── env-daemon.pid         # Environment daemon process ID
+├── env-daemon.log         # Environment daemon logs
 ├── colony-context.md      # Auto-generated shared context for all sessions
+├── environments/          # Template-based dev environments
+│   └── <name>/            # Per-environment directory
+│       ├── instance.json  # Environment manifest (repos, services, ports)
+│       └── <repos>/       # Cloned repositories
+├── env-templates/         # Environment template definitions (YAML)
 ├── pipelines/             # YAML pipeline definitions (trigger → action)
 │   ├── *.yaml             # Pipeline configs
 │   ├── *.memory.md        # Pipeline learnings
@@ -257,38 +283,57 @@ Agent definitions are read from `~/.claude/agents/` (personal) and `<project>/.c
 ┌─────────────────────────────────────────────────┐
 │  Electron App (Renderer + Main)                 │
 │  ├── React UI (sidebar, terminals, panels)      │
-│  ├── IPC handlers (bridge to daemon)            │
+│  ├── IPC handlers (bridge to daemons)           │
 │  ├── Pipeline engine (polling, routing, dedup)  │
 │  └── Notifications, tray, global hotkey         │
-└──────────────┬──────────────────────────────────┘
-               │ Unix domain socket (NDJSON)
-┌──────────────▼──────────────────────────────────┐
-│  PTY Daemon (standalone Node.js process)        │
-│  ├── Owns all PTY file descriptors              │
-│  ├── Survives app crashes / restarts            │
-│  ├── Activity detection, token parsing          │
-│  └── MCP detection                              │
-└─────────────────────────────────────────────────┘
+└──────────┬──────────────────┬───────────────────┘
+           │                  │ Unix domain sockets (NDJSON)
+┌──────────▼───────────┐  ┌──▼──────────────────────────┐
+│  PTY Daemon          │  │  Environment Daemon          │
+│  ├── PTY lifecycle   │  │  ├── Service management      │
+│  ├── Activity detect │  │  ├── Port allocation         │
+│  ├── Token parsing   │  │  ├── Log streaming           │
+│  └── MCP detection   │  │  └── Setup hook execution    │
+└──────────────────────┘  └─────────────────────────────┘
 ```
 
 ## Project Structure
 
 ```
 src/
-├── daemon/                  # Standalone PTY daemon
-│   ├── protocol.ts          # Shared NDJSON message types
-│   └── pty-daemon.ts        # Daemon: PTY lifecycle, activity detection
+├── shared/                  # Shared types and paths
+│   ├── types.ts             # Canonical type definitions (ClaudeInstance, etc.)
+│   └── colony-paths.ts      # Centralized path constants
+├── daemon/                  # Standalone daemon processes
+│   ├── protocol.ts          # PTY daemon NDJSON message types
+│   ├── pty-daemon.ts        # PTY daemon: lifecycle, activity detection
+│   ├── env-protocol.ts      # Environment daemon message types
+│   └── env-daemon.ts        # Environment daemon: services, ports, logs
 ├── main/                    # Electron main process
 │   ├── index.ts             # App bootstrap, window, menu, tray, global hotkey
-│   ├── instance-manager.ts  # Thin proxy over daemon client
-│   ├── daemon-client.ts     # Connects to PTY daemon, auto-spawn, auto-reconnect
-│   ├── ipc-handlers.ts      # IPC bridge between main and renderer
+│   ├── instance-manager.ts  # Thin proxy over PTY daemon client
+│   ├── base-daemon-client.ts # Shared daemon client base (socket, NDJSON, reconnect)
+│   ├── daemon-client.ts     # PTY daemon client
+│   ├── env-daemon-client.ts # Environment daemon client
+│   ├── env-manager.ts       # Environment lifecycle (create, start, stop, diagnose)
+│   ├── broadcast.ts         # Centralized event broadcasting to renderer
+│   ├── ipc-handlers.ts      # IPC bridge + fs/resource handlers
+│   ├── ipc/                 # Domain-specific IPC handlers
+│   │   ├── instance-handlers.ts  # Instance CRUD + child process detection
+│   │   ├── session-handlers.ts   # Session history, external detection, takeover
+│   │   ├── agent-handlers.ts     # Agent CRUD
+│   │   ├── github-handlers.ts    # GitHub/PR operations
+│   │   ├── pipeline-handlers.ts  # Pipeline management
+│   │   ├── task-queue-handlers.ts # Task queue operations
+│   │   └── env-handlers.ts       # Environment operations
 │   ├── github.ts            # GitHub integration (gh CLI, PR data, memory, workspace)
 │   ├── agent-scanner.ts     # Scans for agent definitions, creates new agents
 │   ├── session-scanner.ts   # Reads session history + customTitle from CLI data
 │   ├── recent-sessions.ts   # Tracks sessions opened via the app
 │   ├── colony-context.ts    # Shared context file generator for cross-session awareness
 │   ├── pipeline-engine.ts   # Pipeline engine: triggers, conditions, routing, dedup
+│   ├── port-allocator.ts    # Unique port assignment per environment
+│   ├── shell-env.ts         # Shell environment resolution
 │   ├── settings.ts          # Read/write ~/.claude-colony/settings.json
 │   ├── tray.ts              # System tray menu
 │   └── logger.ts            # In-memory log buffer for the logs viewer
@@ -300,25 +345,30 @@ src/
         ├── App.tsx           # Root component, state orchestration, split view
         ├── main.tsx          # React entry point (with ErrorBoundary)
         ├── lib/
-        │   ├── constants.ts       # Shared colors, utilities
-        │   └── terminal-proxy.ts  # Sync-block buffering, scroll preservation
+        │   ├── constants.ts            # Shared colors, utilities
+        │   ├── terminal-proxy.ts       # Sync-block buffering, scroll preservation
+        │   └── send-prompt-when-ready.ts # Reliable prompt delivery with trust prompt handling
         ├── components/
-        │   ├── Sidebar.tsx          # Session list, history, tabs, context menu
-        │   ├── TerminalView.tsx     # xterm.js terminal with file explorer
-        │   ├── NewInstanceDialog.tsx # Create session form
-        │   ├── GitHubPanel.tsx      # PR browser, filters, ask bar, comments viewer
-        │   ├── AgentsPanel.tsx      # Agent browser with cards, create, export/import
-        │   ├── AgentEditor.tsx      # Split view: file editor + terminal
-        │   ├── SettingsPanel.tsx    # Settings + daemon + logs
-        │   ├── TaskQueuePanel.tsx   # Task queue editor, runner, outputs browser
-        │   ├── PipelinesPanel.tsx   # Pipeline management, YAML editor, docs viewer
-        │   ├── CommandPalette.tsx   # Cmd+K fuzzy search + cross-session terminal search
-        │   ├── Tooltip.tsx          # Rich tooltip component
-        │   └── ErrorBoundary.tsx    # Crash handler with reload
+        │   ├── Sidebar.tsx              # Session list, history, external sessions, tabs
+        │   ├── TerminalView.tsx         # xterm.js terminal with file explorer
+        │   ├── NewInstanceDialog.tsx    # Create session form
+        │   ├── ExternalSessionPopover.tsx # Preview & takeover external Claude sessions
+        │   ├── GitHubPanel.tsx          # PR browser, filters, ask bar, comments viewer
+        │   ├── AgentsPanel.tsx          # Agent browser with cards, create, export/import
+        │   ├── AgentEditor.tsx          # Split view: file editor + terminal
+        │   ├── SettingsPanel.tsx        # Settings + daemon + logs
+        │   ├── TaskQueuePanel.tsx       # Task queue editor, runner, outputs browser
+        │   ├── PipelinesPanel.tsx       # Pipeline management, YAML editor, docs viewer
+        │   ├── EnvironmentsPanel.tsx    # Environment management, templates, services
+        │   ├── EnvironmentLogViewer.tsx # Streaming log viewer per environment/service
+        │   ├── NewEnvironmentDialog.tsx # Create environment from template
+        │   ├── CommandPalette.tsx       # Cmd+K fuzzy search + cross-session terminal search
+        │   ├── Tooltip.tsx              # Rich tooltip component
+        │   └── ErrorBoundary.tsx        # Crash handler with reload
         ├── styles/
-        │   └── global.css           # All styles
+        │   └── global.css               # All styles
         └── types/
-            └── index.ts             # Shared TypeScript interfaces
+            └── index.ts                 # Shared TypeScript interfaces
 ```
 
 ## License

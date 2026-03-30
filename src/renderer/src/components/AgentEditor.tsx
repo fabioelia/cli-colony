@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import { RefreshCw } from 'lucide-react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
@@ -59,33 +60,8 @@ export default function AgentEditor({ agent, onBack, onSave, onInstanceCreated }
       const prompt = `You are helping the user build and refine the Claude Code agent definition at ${agent.filePath}. Read that file now. Your job is to help them:\n- Write a clear, effective system prompt\n- Choose the right tools and model\n- Test and iterate on the agent's behavior\n\nThe agent file uses markdown frontmatter (name, description, tools, model, color) followed by the system prompt body.${colonyCtx}\n\nStart by reading the file and suggesting improvements or asking what the user wants this agent to do.`
 
       // Wait for Claude to be ready, then set name and send the prompt
-      let sent = false
-      let waitCount = 0
-      const unsub = window.api.instance.onActivity(({ id, activity }) => {
-        if (id !== inst.id || sent) return
-        if (activity === 'waiting') {
-          waitCount++
-          if (waitCount === 1) {
-            window.api.instance.write(inst.id, '\r')
-          } else {
-            sent = true
-            unsub()
-            const sessionName = `Edit: ${agent.name}`
-            void (async () => {
-              await window.api.instance.rename(inst.id, sessionName)
-              if (await shouldSyncClaudeSlashCommands()) {
-                await window.api.instance.write(inst.id, `/rename ${sessionName}\r`)
-                await new Promise((r) => setTimeout(r, 300))
-              }
-              await window.api.instance.write(inst.id, prompt + '\r')
-            })()
-          }
-        }
-      })
-      setTimeout(() => {
-        if (!sent && waitCount >= 1) {
-          sent = true
-          unsub()
+      sendPromptWhenReady(inst.id, {
+        onReady: () => {
           const sessionName = `Edit: ${agent.name}`
           void (async () => {
             await window.api.instance.rename(inst.id, sessionName)
@@ -93,11 +69,11 @@ export default function AgentEditor({ agent, onBack, onSave, onInstanceCreated }
               await window.api.instance.write(inst.id, `/rename ${sessionName}\r`)
               await new Promise((r) => setTimeout(r, 300))
             }
-            await window.api.instance.write(inst.id, prompt + '\r')
+            window.api.instance.write(inst.id, prompt)
+            setTimeout(() => window.api.instance.write(inst.id, '\r'), 150)
           })()
-        }
-      }, 5000)
-      setTimeout(() => { if (!sent) unsub() }, 15000)
+        },
+      })
     })
 
     return () => {

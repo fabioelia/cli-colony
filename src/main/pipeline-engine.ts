@@ -8,7 +8,7 @@
 
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync } from 'fs'
 import { join, basename } from 'path'
-import { app, BrowserWindow } from 'electron'
+import { app } from 'electron'
 import { createInstance, writeToInstance, getAllInstances } from './instance-manager'
 import type { ClaudeInstance } from './instance-manager'
 import { getDaemonClient } from './daemon-client'
@@ -153,8 +153,10 @@ function cronMatches(expression: string, date?: Date): boolean {
 
 // ---- Constants ----
 
-const COLONY_DIR = join(app.getPath('home'), '.claude-colony')
-const PIPELINES_DIR = join(COLONY_DIR, 'pipelines')
+import { colonyPaths } from '../shared/colony-paths'
+
+const COLONY_DIR = colonyPaths.root
+const PIPELINES_DIR = colonyPaths.pipelines
 const STATE_PATH = join(COLONY_DIR, 'pipeline-state.json')
 
 // ---- Engine ----
@@ -169,11 +171,7 @@ function log(msg: string): void {
   console.log(`[pipeline] ${msg}`)
 }
 
-function broadcast(channel: string, ...args: unknown[]): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) win.webContents.send(channel, ...args)
-  }
-}
+import { broadcast } from './broadcast'
 
 // ---- YAML Parser (simple, no dependency) ----
 
@@ -197,23 +195,27 @@ function parseYaml(content: string): PipelineDef | null {
       const parent = stack[stack.length - 1].obj
 
       if (trimmed.includes(':')) {
-        const colonIdx = trimmed.indexOf(':')
-        const key = trimmed.slice(0, colonIdx).trim().replace(/^- /, '')
-        let value = trimmed.slice(colonIdx + 1).trim()
+        // Only split on the FIRST colon that's followed by a space or end-of-line
+        // This preserves colons in values like "Fix the bug: it crashes" and URLs
+        const colonMatch = trimmed.match(/^(-\s+)?([^:]+?):\s(.*)/) || trimmed.match(/^(-\s+)?([^:]+?):$/)
+        if (colonMatch) {
+          const key = (colonMatch[2] || '').trim()
+          let value = (colonMatch[3] || '').trim()
 
-        if (!value) {
-          // Nested object
-          const child: any = {}
-          parent[key] = child
-          stack.push({ obj: child, indent })
-        } else {
-          // Remove quotes
-          value = value.replace(/^["']|["']$/g, '')
-          // Parse booleans and numbers
-          if (value === 'true') parent[key] = true
-          else if (value === 'false') parent[key] = false
-          else if (/^\d+$/.test(value)) parent[key] = parseInt(value)
-          else parent[key] = value
+          if (!value) {
+            // Nested object or block scalar
+            const child: any = {}
+            parent[key] = child
+            stack.push({ obj: child, indent })
+          } else {
+            // Remove quotes
+            value = value.replace(/^["']|["']$/g, '')
+            // Parse booleans and numbers
+            if (value === 'true') parent[key] = true
+            else if (value === 'false') parent[key] = false
+            else if (/^\d+$/.test(value)) parent[key] = parseInt(value)
+            else parent[key] = value
+          }
         }
       }
     }
@@ -375,39 +377,50 @@ function recordFired(pipelineName: string, key: string, contentSha?: string): vo
 
 async function sendPromptWhenReady(instanceId: string, prompt: string): Promise<void> {
   const client = getDaemonClient()
+
   return new Promise((resolve) => {
     let sent = false
     let waitCount = 0
+    let forceTimer: ReturnType<typeof setTimeout>
+
+    const fire = () => {
+      if (sent) return
+      sent = true
+      client.removeListener('activity', handler)
+      clearTimeout(forceTimer)
+      clearTimeout(abandonTimer)
+      // Write text first, then submit after a short delay so the TUI
+      // has time to process the input before receiving the Enter key.
+      writeToInstance(instanceId, prompt)
+      setTimeout(() => {
+        writeToInstance(instanceId, '\r')
+        resolve()
+      }, 150)
+    }
 
     const handler = (_id: string, activity: string) => {
       if (_id !== instanceId || sent) return
       if (activity === 'waiting') {
         waitCount++
         if (waitCount === 1) {
-          // Dismiss trust prompt
+          // Dismiss trust/directory prompt
           writeToInstance(instanceId, '\r')
+          // If no second waiting arrives, force-send after 3s
+          forceTimer = setTimeout(() => fire(), 3000)
         } else {
-          sent = true
-          client.removeListener('activity', handler)
-          writeToInstance(instanceId, prompt + '\r')
-          resolve()
+          fire()
         }
       }
     }
 
     client.on('activity', handler)
 
-    setTimeout(() => {
-      if (!sent && waitCount >= 1) {
+    const abandonTimer = setTimeout(() => {
+      if (!sent) {
         sent = true
         client.removeListener('activity', handler)
-        writeToInstance(instanceId, prompt + '\r')
         resolve()
       }
-    }, 5000)
-
-    setTimeout(() => {
-      if (!sent) { client.removeListener('activity', handler); resolve() }
     }, 15000)
   })
 }
@@ -559,7 +572,7 @@ function scoreSessionDir(
     if (dirLower.endsWith('/' + repoLower) || dirLower.includes('/' + repoLower + '/')) {
       score += 4
     } else {
-      // Check if repo exists as subdirectory (workspace parent like nri-automation)
+      // Check if repo exists as subdirectory (workspace parent containing multiple repos)
       try {
         const sub = join(dir, match.repoName)
         const { statSync } = require('fs') as typeof import('fs')
@@ -586,7 +599,7 @@ function scoreSessionDir(
   }
 
   // 6. Penalty: if directory is clearly inside a DIFFERENT repo
-  //    e.g. session in .../nri-frontend/... should not match repo=nri-server
+  //    e.g. session in .../repo-a/... should not match repo=repo-b
   if (match.repoName && score > 0) {
     const dirLower = dir.toLowerCase()
     const repoLower = match.repoName.toLowerCase()

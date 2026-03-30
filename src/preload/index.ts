@@ -1,103 +1,17 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import type {
+  CliBackend, ClaudeInstance, AgentDef, CliSession,
+  CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
+  EnvServiceStatus, EnvStatus,
+} from '../shared/types'
 
-export type CliBackend = 'claude' | 'cursor-agent'
-
-export interface ClaudeInstance {
-  id: string
-  name: string
-  color: string
-  status: 'running' | 'exited'
-  activity: 'busy' | 'waiting'
-  workingDirectory: string
-  createdAt: string
-  exitCode: number | null
-  pid: number | null
-  args: string[]
-  cliBackend: CliBackend
-  gitBranch: string | null
-  tokenUsage: { input: number; output: number; cost: number }
-  pinned: boolean
-  mcpServers: string[]
-  parentId: string | null
-  childIds: string[]
+// Re-export shared types so existing imports from this module continue to work
+export type {
+  CliBackend, ClaudeInstance, AgentDef, CliSession,
+  CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
+  EnvServiceStatus, EnvStatus,
 }
 
-export interface AgentDef {
-  id: string
-  name: string
-  description: string
-  tools: string[]
-  model?: string
-  color?: string
-  filePath: string
-  scope: 'personal' | 'project'
-  projectName?: string
-}
-
-export interface CliSession {
-  sessionId: string
-  name: string | null
-  display: string
-  lastMessage: string | null
-  messageCount: number
-  project: string
-  timestamp: number
-  projectName: string
-  recentlyOpened: boolean
-}
-
-export interface CheckRun {
-  name: string
-  status: string
-  conclusion: string | null
-  url: string
-}
-
-export interface PRChecks {
-  overall: 'success' | 'failure' | 'pending' | 'none'
-  checks: CheckRun[]
-}
-
-export interface PRComment {
-  author: string
-  body: string
-  createdAt: string
-  path?: string
-}
-
-export interface GitHubPR {
-  number: number
-  title: string
-  body: string
-  author: string
-  assignees: string[]
-  reviewers: string[]
-  branch: string
-  baseBranch: string
-  state: string
-  draft: boolean
-  url: string
-  createdAt: string
-  updatedAt: string
-  additions: number
-  deletions: number
-  reviewDecision: string
-  labels: string[]
-  comments: PRComment[]
-}
-
-export interface QuickPrompt {
-  id: string
-  label: string
-  prompt: string
-  scope: 'pr' | 'global'
-}
-
-export interface GitHubRepo {
-  owner: string
-  name: string
-  localPath?: string
-}
 
 export interface ClaudeManagerAPI {
   agents: {
@@ -129,6 +43,8 @@ export interface ClaudeManagerAPI {
     list: () => Promise<ClaudeInstance[]>
     get: (id: string) => Promise<ClaudeInstance | null>
     buffer: (id: string) => Promise<string>
+    processes: (id: string) => Promise<Array<{ pid: number; name: string; command: string; cpu: string; mem: string }>>
+    killProcess: (pid: number) => Promise<boolean>
     onOutput: (callback: (data: { id: string; data: string }) => void) => () => void
     onExited: (callback: (data: { id: string; exitCode: number }) => void) => () => void
     onListUpdate: (callback: (instances: ClaudeInstance[]) => void) => () => void
@@ -137,6 +53,15 @@ export interface ClaudeManagerAPI {
   }
   sessions: {
     list: (limit?: number) => Promise<CliSession[]>
+    search: (query: string) => Promise<Array<{ sessionId: string; name: string | null; project: string; match: string }>>
+    external: () => Promise<Array<{ pid: number; name: string; cwd: string; sessionId: string | null; args: string }>>
+    messages: (sessionId: string, limit?: number) => Promise<{
+      messages: Array<{ role: string; text: string; timestamp?: string; type?: string }>
+      project: string | null
+    }>
+    takeover: (opts: { pid: number; sessionId: string | null; name: string; cwd: string }) => Promise<{
+      cwd: string; args: string[]; name: string
+    }>
     restorable: () => Promise<any[]>
     clearRestorable: () => Promise<boolean>
     recent: () => Promise<any[]>
@@ -177,6 +102,7 @@ export interface ClaudeManagerAPI {
     searchContent: (dirPath: string, query: string, ignoreDirs?: string[]) => Promise<Array<{ file: string; matches: Array<{ line: number; text: string }> }>>
     saveClipboardImage: (base64Data: string) => Promise<string>
     pasteClipboardImage: () => Promise<string | null>
+    writeTempFile: (prefix: string, content: string) => Promise<string>
   }
   getPathForFile: (file: File) => string
   dialog: {
@@ -187,6 +113,7 @@ export interface ClaudeManagerAPI {
     fetchPRs: (repo: GitHubRepo) => Promise<GitHubPR[]>
     getRepos: () => Promise<GitHubRepo[]>
     addRepo: (repo: GitHubRepo) => Promise<GitHubRepo[]>
+    cloneRepo: (repo: GitHubRepo) => Promise<boolean>
     removeRepo: (owner: string, name: string) => Promise<GitHubRepo[]>
     updateRepoPath: (owner: string, name: string, localPath: string) => Promise<GitHubRepo[]>
     getPrompts: () => Promise<QuickPrompt[]>
@@ -264,6 +191,28 @@ export interface ClaudeManagerAPI {
       total: { cpu: number; memory: number }
     }>
   }
+  env: {
+    list: () => Promise<EnvStatus[]>
+    get: (envId: string) => Promise<EnvStatus | null>
+    create: (opts: { name: string; branch?: string; baseBranch?: string; projectType?: string; target?: string }) => Promise<any>
+    start: (envId: string, services?: string[]) => Promise<void>
+    stop: (envId: string, services?: string[]) => Promise<void>
+    teardown: (envId: string) => Promise<void>
+    logs: (envId: string, service: string, lines?: number) => Promise<string>
+    restartService: (envId: string, service: string) => Promise<void>
+    manifest: (envId: string) => Promise<any>
+    saveManifest: (envId: string, manifest: any) => Promise<void>
+    retrySetup: (envId: string) => Promise<void>
+    fix: (envId: string) => Promise<{ fixed: string[] }>
+    listTemplates: () => Promise<any[]>
+    getTemplate: (id: string) => Promise<any>
+    saveTemplate: (template: any) => Promise<boolean>
+    deleteTemplate: (id: string) => Promise<boolean>
+    onStatusUpdate: (cb: (environments: EnvStatus[]) => void) => () => void
+    onServiceOutput: (cb: (data: { envId: string; service: string; data: string }) => void) => () => void
+    onServiceCrashed: (cb: (data: { envId: string; service: string; exitCode: number }) => void) => () => void
+    onTemplatesChanged: (cb: (templates: any[]) => void) => () => void
+  }
 }
 
 const api: ClaudeManagerAPI = {
@@ -289,6 +238,8 @@ const api: ClaudeManagerAPI = {
     list: () => ipcRenderer.invoke('instance:list'),
     get: (id) => ipcRenderer.invoke('instance:get', id),
     buffer: (id) => ipcRenderer.invoke('instance:buffer', id),
+    processes: (id) => ipcRenderer.invoke('instance:processes', id),
+    killProcess: (pid) => ipcRenderer.invoke('instance:killProcess', pid),
     onOutput: (callback) => {
       const listener = (_e: any, data: { id: string; data: string }) => callback(data)
       ipcRenderer.on('instance:output', listener)
@@ -317,6 +268,10 @@ const api: ClaudeManagerAPI = {
   },
   sessions: {
     list: (limit) => ipcRenderer.invoke('sessions:list', limit),
+    search: (query: string) => ipcRenderer.invoke('sessions:search', query),
+    external: () => ipcRenderer.invoke('sessions:external'),
+    messages: (sessionId: string, limit?: number) => ipcRenderer.invoke('sessions:messages', sessionId, limit),
+    takeover: (opts) => ipcRenderer.invoke('sessions:takeover', opts),
     restorable: () => ipcRenderer.invoke('sessions:restorable'),
     clearRestorable: () => ipcRenderer.invoke('sessions:clearRestorable'),
     recent: () => ipcRenderer.invoke('sessions:recent'),
@@ -357,6 +312,7 @@ const api: ClaudeManagerAPI = {
     searchContent: (dirPath, query, ignoreDirs) => ipcRenderer.invoke('fs:searchContent', dirPath, query, ignoreDirs),
     saveClipboardImage: (base64Data) => ipcRenderer.invoke('fs:saveClipboardImage', base64Data),
     pasteClipboardImage: () => ipcRenderer.invoke('fs:pasteClipboardImage'),
+    writeTempFile: (prefix, content) => ipcRenderer.invoke('fs:writeTempFile', prefix, content),
   },
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   dialog: {
@@ -367,6 +323,7 @@ const api: ClaudeManagerAPI = {
     fetchPRs: (repo) => ipcRenderer.invoke('github:fetchPRs', repo),
     getRepos: () => ipcRenderer.invoke('github:getRepos'),
     addRepo: (repo) => ipcRenderer.invoke('github:addRepo', repo),
+    cloneRepo: (repo) => ipcRenderer.invoke('github:cloneRepo', repo),
     removeRepo: (owner, name) => ipcRenderer.invoke('github:removeRepo', owner, name),
     updateRepoPath: (owner, name, localPath) => ipcRenderer.invoke('github:updateRepoPath', owner, name, localPath),
     getPrompts: () => ipcRenderer.invoke('github:getPrompts'),
@@ -422,6 +379,44 @@ const api: ClaudeManagerAPI = {
     listOutputs: (outputDir) => ipcRenderer.invoke('pipeline:listOutputs', outputDir),
     getMemory: (fileName) => ipcRenderer.invoke('pipeline:getMemory', fileName),
     saveMemory: (fileName, content) => ipcRenderer.invoke('pipeline:saveMemory', fileName, content),
+  },
+  env: {
+    list: () => ipcRenderer.invoke('env:list'),
+    get: (envId) => ipcRenderer.invoke('env:get', envId),
+    create: (opts) => ipcRenderer.invoke('env:create', opts),
+    start: (envId, services?) => ipcRenderer.invoke('env:start', envId, services),
+    stop: (envId, services?) => ipcRenderer.invoke('env:stop', envId, services),
+    teardown: (envId) => ipcRenderer.invoke('env:teardown', envId),
+    logs: (envId, service, lines) => ipcRenderer.invoke('env:logs', envId, service, lines),
+    restartService: (envId, service) => ipcRenderer.invoke('env:restartService', envId, service),
+    manifest: (envId) => ipcRenderer.invoke('env:manifest', envId),
+    saveManifest: (envId, manifest) => ipcRenderer.invoke('env:saveManifest', envId, manifest),
+    retrySetup: (envId) => ipcRenderer.invoke('env:retrySetup', envId),
+    fix: (envId) => ipcRenderer.invoke('env:fix', envId),
+    listTemplates: () => ipcRenderer.invoke('env:listTemplates'),
+    getTemplate: (id: string) => ipcRenderer.invoke('env:getTemplate', id),
+    saveTemplate: (template: any) => ipcRenderer.invoke('env:saveTemplate', template),
+    deleteTemplate: (id: string) => ipcRenderer.invoke('env:deleteTemplate', id),
+    onTemplatesChanged: (cb: (templates: any[]) => void) => {
+      const l = (_e: any, templates: any[]) => cb(templates)
+      ipcRenderer.on('env:templates-changed', l)
+      return () => ipcRenderer.removeListener('env:templates-changed', l)
+    },
+    onStatusUpdate: (cb) => {
+      const l = (_e: any, environments: any[]) => cb(environments)
+      ipcRenderer.on('env:list', l)
+      return () => ipcRenderer.removeListener('env:list', l)
+    },
+    onServiceOutput: (cb) => {
+      const l = (_e: any, data: { envId: string; service: string; data: string }) => cb(data)
+      ipcRenderer.on('env:service-output', l)
+      return () => ipcRenderer.removeListener('env:service-output', l)
+    },
+    onServiceCrashed: (cb) => {
+      const l = (_e: any, data: { envId: string; service: string; exitCode: number }) => cb(data)
+      ipcRenderer.on('env:service-crashed', l)
+      return () => ipcRenderer.removeListener('env:service-crashed', l)
+    },
   },
 }
 

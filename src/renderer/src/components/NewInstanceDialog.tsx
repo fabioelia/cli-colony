@@ -19,6 +19,14 @@ function resolveColor(c?: string): string {
   return COLOR_MAP[c] || c
 }
 
+interface EnvOption {
+  id: string
+  name: string
+  paths: Record<string, string>
+  branch: string
+  status: string
+}
+
 export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props) {
   const [name, setName] = useState(prefill?.name || '')
   const [workingDirectory, setWorkingDirectory] = useState('')
@@ -26,11 +34,16 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
   const [extraArgs, setExtraArgs] = useState('')
   const [cliBackend, setCliBackend] = useState<CliBackend>('claude')
   const [creating, setCreating] = useState(false)
+  const [environments, setEnvironments] = useState<EnvOption[]>([])
 
   useEffect(() => {
     window.api.settings.getAll().then((s) => {
       setCliBackend(s.defaultCliBackend === 'cursor-agent' ? 'cursor-agent' : 'claude')
     })
+    // Load environments for picker
+    window.api.env?.list?.().then((envs: any[]) => {
+      if (envs?.length) setEnvironments(envs)
+    }).catch(() => {})
   }, [])
 
   const handlePickDir = async () => {
@@ -101,6 +114,30 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
             <button type="button" onClick={handlePickDir} title="Browse directory">Browse</button>
           </div>
         </div>
+
+        {environments.length > 0 && (
+          <div className="dialog-field">
+            <label>Environment (optional)</label>
+            <div className="dialog-env-picker">
+              {environments.map(env => (
+                <button
+                  key={env.id}
+                  type="button"
+                  className={`dialog-env-chip ${workingDirectory === (env.paths.root || env.paths.backend) ? 'active' : ''}`}
+                  onClick={() => {
+                    const dir = env.paths.root || env.paths.backend || ''
+                    setWorkingDirectory(dir)
+                    if (!name.trim()) setName(`${env.name}`)
+                  }}
+                >
+                  <span className={`dialog-env-dot ${env.status === 'running' ? 'running' : env.status === 'partial' ? 'partial' : ''}`} />
+                  {env.name}
+                  <span className="dialog-env-branch">{env.branch}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="dialog-field">
           <label>Color</label>

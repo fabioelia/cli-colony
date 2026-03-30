@@ -13,6 +13,7 @@ import { getDaemonClient, DaemonClient } from './daemon-client'
 import { getDefaultArgs, getSetting, getDefaultCliBackend } from './settings'
 import type { CliBackend } from '../daemon/protocol'
 import { trackOpened, trackClosed } from './recent-sessions'
+import { broadcast } from './broadcast'
 
 export type { ClaudeInstance } from '../daemon/protocol'
 import type { ClaudeInstance } from '../daemon/protocol'
@@ -23,21 +24,13 @@ export function setOnInstanceListChanged(cb: () => void): void {
   onInstanceListChanged = cb
 }
 
-/** Expand ~ and trim; default to Electron home (matches Finder / standard paths). */
+/** Expand ~ and trim; default to ~/.claude-colony for Colony sessions. */
 function resolveWorkingDirectory(input: string | undefined, home: string): string {
   const raw = (input ?? '').trim()
-  if (!raw) return home
+  if (!raw) return join(home, '.claude-colony')
   if (raw === '~') return home
   if (raw.startsWith('~/')) return join(home, raw.slice(2))
   return raw
-}
-
-function broadcast(channel: string, ...args: unknown[]): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) {
-      win.webContents.send(channel, ...args)
-    }
-  }
 }
 
 // ---- Daemon event wiring ----

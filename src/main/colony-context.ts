@@ -13,8 +13,10 @@ import { app } from 'electron'
 import { getAllInstances } from './instance-manager'
 import { scanAgents } from './agent-scanner'
 
-const COLONY_DIR = join(app.getPath('home'), '.claude-colony')
-const CONTEXT_PATH = join(COLONY_DIR, 'colony-context.md')
+import { colonyPaths } from '../shared/colony-paths'
+
+const COLONY_DIR = colonyPaths.root
+const CONTEXT_PATH = colonyPaths.colonyContext
 
 export async function updateColonyContext(): Promise<string> {
   if (!existsSync(COLONY_DIR)) mkdirSync(COLONY_DIR, { recursive: true })

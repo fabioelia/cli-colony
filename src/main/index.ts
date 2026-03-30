@@ -3,10 +3,49 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerIpcHandlers } from './ipc-handlers'
 import { initDaemon, disconnectDaemon, setOnInstanceListChanged } from './instance-manager'
+import { initEnvDaemon } from './env-manager'
 import { createTray, updateTrayMenu } from './tray'
 import { initLogger } from './logger'
 import { getSetting } from './settings'
 import { updateColonyContext } from './colony-context'
+
+const COLONY_CLI_SCRIPT = `#!/bin/bash
+# colony — control Colony environments from the command line.
+# Usage: colony {start|stop|status} [env-id]
+SOCKET="\${HOME}/.claude-colony/envd.sock"
+send() { echo "$1" | nc -U "$SOCKET" -w 5 2>/dev/null | head -1; }
+case "\${1:-}" in
+  start)
+    [ -z "$2" ] && echo "Usage: colony start <env-id>" && exit 1
+    resp=$(send '{"type":"start","reqId":"cli-'$$'","envId":"'"$2"'"}')
+    echo "$resp" | python3 -c "import json,sys; r=json.load(sys.stdin); print('Started' if r.get('type')=='ok' else f'Error: {r.get(\\\"message\\\",\\\"unknown\\\")}')" 2>/dev/null || echo "$resp"
+    ;;
+  stop)
+    [ -z "$2" ] && echo "Usage: colony stop <env-id>" && exit 1
+    resp=$(send '{"type":"stop","reqId":"cli-'$$'","envId":"'"$2"'"}')
+    echo "$resp" | python3 -c "import json,sys; r=json.load(sys.stdin); print('Stopped' if r.get('type')=='ok' else f'Error: {r.get(\\\"message\\\",\\\"unknown\\\")}')" 2>/dev/null || echo "$resp"
+    ;;
+  status)
+    if [ -n "$2" ]; then
+      resp=$(send '{"type":"status-one","reqId":"cli-'$$'","envId":"'"$2"'"}')
+    else
+      resp=$(send '{"type":"status","reqId":"cli-'$$'"}')
+    fi
+    echo "$resp" | python3 -c "
+import json, sys
+r = json.load(sys.stdin)
+if r.get('type') == 'error': print(f'Error: {r.get(\\\"message\\\")}'); sys.exit(1)
+data = r.get('data')
+if not data: print('No environments'); sys.exit(0)
+envs = data if isinstance(data, list) else [data]
+for e in envs:
+    svcs = ', '.join(f'{s[\\\"name\\\"]}={s[\\\"status\\\"]}' for s in e.get('services', []))
+    print(f'{e[\\\"name\\\"]} [{e[\\\"status\\\"]}] id={e[\\\"id\\\"]} — {svcs}')
+" 2>/dev/null || echo "$resp"
+    ;;
+  *) echo "Usage: colony {start|stop|status} [env-id]"; exit 1 ;;
+esac
+`
 import { seedDefaultPipelines, startPipelines } from './pipeline-engine'
 
 let mainWindow: BrowserWindow | null = null
@@ -285,6 +324,21 @@ app.whenReady().then(() => {
     // Generate initial colony context
     await updateColonyContext()
     console.log('[app] colony context initialized')
+    // Install colony CLI script
+    try {
+      const { mkdirSync, writeFileSync, chmodSync } = require('fs') as typeof import('fs')
+      const { join: pathJoin } = require('path') as typeof import('path')
+      const binDir = pathJoin(app.getPath('home'), '.claude-colony', 'bin')
+      mkdirSync(binDir, { recursive: true })
+      const cliDst = pathJoin(binDir, 'colony')
+      writeFileSync(cliDst, COLONY_CLI_SCRIPT, 'utf-8')
+      chmodSync(cliDst, 0o755)
+    } catch { /* ignore */ }
+    // Ensure all repos have shallow clones for template agent
+    try {
+      const { ensureRepoClones } = require('./github')
+      ensureRepoClones()
+    } catch { /* ignore */ }
     // Start pipeline polling
     startPipelines().then(() => {
       console.log('[app] pipelines started')
@@ -293,6 +347,13 @@ app.whenReady().then(() => {
     })
   }).catch((err) => {
     console.error('[app] daemon init failed:', err)
+  })
+
+  // Connect to environment daemon (spawns it if not running)
+  initEnvDaemon().then(() => {
+    console.log('[app] envd connected')
+  }).catch((err) => {
+    console.error('[app] envd init failed:', err)
   })
 
   // Register global hotkey to bring app to front

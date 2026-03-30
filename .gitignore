@@ -6,3 +6,15 @@ dist/
 .yarn/install-state.gz
 *.log
 .DS_Store
+
+# Playwright
+e2e/
+playwright.config.ts
+test-results/
+playwright-report/
+
+# Planning / review artifacts
+.orchestrator/
+plans/
+architecture-*.md
+

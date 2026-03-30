@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import Tooltip from './Tooltip'
+import ExternalSessionPopover from './ExternalSessionPopover'
 import { COLORS, formatTime, cliBackendLabel, formatInstanceCmd } from '../lib/constants'
 
-export type SidebarView = 'instances' | 'agents' | 'github' | 'sessions' | 'settings' | 'logs' | 'tasks' | 'pipelines'
+export type SidebarView = 'instances' | 'agents' | 'github' | 'sessions' | 'settings' | 'logs' | 'tasks' | 'pipelines' | 'environments'
 
 interface Props {
   instances: ClaudeInstance[]
@@ -21,6 +22,7 @@ interface Props {
   onUnpin: (id: string) => void
   onViewChange: (view: SidebarView) => void
   onResumeSession: (session: CliSession) => void
+  onTakeoverExternal: (ext: { pid: number; name: string; cwd: string; sessionId: string | null }) => void
   onRestoreAll: () => void
   restorableCount: number
   unreadIds: Set<string>
@@ -32,9 +34,24 @@ interface Props {
   onDrop?: (e: React.DragEvent) => void
 }
 
-export default function Sidebar({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onRestoreAll, restorableCount, unreadIds, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop }: Props) {
+export default function Sidebar({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onRestoreAll, restorableCount, unreadIds, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop }: Props) {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [runningEnvCount, setRunningEnvCount] = useState(0)
+
+  useEffect(() => {
+    const load = () => {
+      window.api.env.list().then(envs => {
+        setRunningEnvCount(envs.filter(e => e.status === 'running' || e.status === 'partial').length)
+      }).catch(() => {})
+    }
+    load()
+    const unsub = window.api.env.onStatusUpdate((envs) => {
+      setRunningEnvCount(envs.filter(e => e.status === 'running' || e.status === 'partial').length)
+    })
+    const interval = setInterval(load, 5000)
+    return () => { unsub(); clearInterval(interval) }
+  }, [])
   const [popoverId, setPopoverId] = useState<string | null>(null)
   const [popoverType, setPopoverType] = useState<'color' | 'info' | null>(null)
   const [sessions, setSessions] = useState<CliSession[]>([])
@@ -52,8 +69,14 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
     }
   }, [renamingId])
 
+  const [externalSessions, setExternalSessions] = useState<Array<{ pid: number; name: string; cwd: string; sessionId: string | null; args: string }>>([])
+  const [extPopover, setExtPopover] = useState<{ session: { pid: number; name: string; cwd: string; sessionId: string | null; args: string }; rect: { top: number; left: number; bottom: number; right: number } } | null>(null)
+  const [childProcesses, setChildProcesses] = useState<Array<{ pid: number; name: string; command: string; cpu: string; mem: string }>>([])
+  const [childProcessesId, setChildProcessesId] = useState<string | null>(null)
+
   useEffect(() => {
     window.api.sessions.list(100).then(setSessions)
+    window.api.sessions.external().then(setExternalSessions)
   }, [])
 
   // Close popovers when clicking outside
@@ -81,9 +104,16 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
       setPopoverId(null)
       setPopoverType(null)
       setInstancePopoverPos(null)
+      setChildProcesses([])
+      setChildProcessesId(null)
     } else {
       setPopoverId(id)
       setPopoverType(type)
+      if (type === 'info') {
+        setChildProcesses([])
+        setChildProcessesId(id)
+        window.api.instance.processes(id).then(setChildProcesses)
+      }
       if (e) {
         const rect = (e.currentTarget as HTMLElement).closest('.instance-item')?.getBoundingClientRect()
         if (rect) {
@@ -271,6 +301,12 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
               <Zap size={16} />
             </button>
           </Tooltip>
+          <Tooltip text="Environments" detail={runningEnvCount > 0 ? `${runningEnvCount} running` : 'Dev environment management'} position="bottom">
+            <button className={`sidebar-nav-btn ${view === 'environments' ? 'active' : ''}`} onClick={() => onViewChange('environments')}>
+              <Server size={16} />
+              {runningEnvCount > 0 && <span className="sidebar-nav-badge">{runningEnvCount}</span>}
+            </button>
+          </Tooltip>
           <div className="sidebar-nav-spacer" />
           <Tooltip text="Settings" position="bottom">
             <button className={`sidebar-nav-btn ${view === 'settings' ? 'active' : ''}`} onClick={() => onViewChange(view === 'settings' ? 'instances' : 'settings')}>
@@ -349,9 +385,102 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
             {inst.mcpServers.length > 0 && (
               <div className="instance-info-row"><span>mcp</span> {inst.mcpServers.join(', ')}</div>
             )}
+            {childProcessesId === inst.id && childProcesses.length > 0 && (
+              <>
+                <div className="instance-info-divider" />
+                <div className="instance-info-section-label">Processes</div>
+                {childProcesses.map((p) => (
+                  <div key={p.pid} className="instance-info-process">
+                    <div className="instance-info-process-header">
+                      <span className="instance-info-process-name">{p.name}</span>
+                      <button
+                        className="instance-info-process-kill"
+                        title={`Kill ${p.name} (pid ${p.pid})`}
+                        onClick={() => {
+                          window.api.instance.killProcess(p.pid).then(() => {
+                            setChildProcesses(prev => prev.filter(cp => cp.pid !== p.pid))
+                          })
+                        }}
+                      >
+                        <Square size={10} />
+                      </button>
+                    </div>
+                    <span className="instance-info-process-meta">pid {p.pid} &middot; {p.cpu}% cpu &middot; {p.mem}% mem</span>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         )
       })()}
+
+      {/* External sessions (running outside Colony) */}
+      {externalSessions.length > 0 && (
+        <div className="sidebar-external">
+          <div className="sidebar-sessions-header">
+            <span className="sidebar-sessions-title">External Sessions</span>
+            <span className="sidebar-sessions-count">{externalSessions.length}</span>
+            <button className="sidebar-sessions-refresh" onClick={() => window.api.sessions.external().then(setExternalSessions)} title="Refresh">
+              <RefreshCw size={13} />
+            </button>
+          </div>
+          <div className="sidebar-sessions-list">
+            {externalSessions.map(ext => (
+              <div
+                key={ext.pid}
+                className={`sidebar-session-item sidebar-session-external ${extPopover?.session.pid === ext.pid ? 'active' : ''}`}
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                  if (extPopover?.session.pid === ext.pid) {
+                    setExtPopover(null)
+                  } else {
+                    setExtPopover({
+                      session: ext,
+                      rect: { top: rect.top, left: rect.right, bottom: rect.bottom, right: rect.right },
+                    })
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                    setExtPopover({
+                      session: ext,
+                      rect: { top: rect.top, left: rect.right, bottom: rect.bottom, right: rect.right },
+                    })
+                  }
+                }}
+              >
+                <div className="sidebar-session-display">
+                  <span className="sidebar-external-dot" />
+                  {ext.name}
+                </div>
+                <div className="sidebar-session-meta">
+                  <span className="sidebar-session-project">{ext.cwd.split('/').pop()}</span>
+                  <span>pid {ext.pid}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* External session preview popover */}
+      {extPopover && (
+        <ExternalSessionPopover
+          session={extPopover.session}
+          anchorRect={extPopover.rect}
+          onClose={() => setExtPopover(null)}
+          onTakeover={(ext) => {
+            setExtPopover(null)
+            onTakeoverExternal(ext)
+            // Refresh external sessions after takeover
+            setTimeout(() => window.api.sessions.external().then(setExternalSessions), 2000)
+          }}
+        />
+      )}
 
       <div className="sidebar-sessions">
         <div className="sidebar-sessions-header">
@@ -359,7 +488,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
           <span className="sidebar-sessions-count">{filteredSessions.length}</span>
           <button
             className="sidebar-sessions-refresh"
-            onClick={() => window.api.sessions.list(100).then(setSessions)}
+            onClick={() => { window.api.sessions.list(100).then(setSessions); window.api.sessions.external().then(setExternalSessions) }}
             title="Refresh"
             aria-label="Refresh"
           >
@@ -423,6 +552,9 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
             <div className="instance-list-empty">
               {sessionSearch ? 'No matches' : 'No sessions'}
             </div>
+          )}
+          {sessions.length >= 100 && !sessionSearch && (
+            <div className="sidebar-sessions-cap">Showing most recent 100 sessions</div>
           )}
         </div>
       </div>

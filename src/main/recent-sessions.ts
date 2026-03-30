@@ -17,13 +17,14 @@ export interface RecentSession {
   exitType: 'running' | 'exited' | 'killed'
 }
 
+import { colonyPaths } from '../shared/colony-paths'
+
 function getFilePath(): string {
-  return join(app.getPath('home'), '.claude-colony', 'recent-sessions.json')
+  return colonyPaths.recentSessions
 }
 
 function ensureDir(): void {
-  const dir = join(app.getPath('home'), '.claude-colony')
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+  if (!existsSync(colonyPaths.root)) mkdirSync(colonyPaths.root, { recursive: true })
 }
 
 function load(): RecentSession[] {
@@ -87,8 +88,13 @@ export function getRecentSessions(): RecentSession[] {
 }
 
 export function getRestorableSessions(): RecentSession[] {
-  // Sessions that were running when the app last closed (not explicitly killed)
-  return load().filter((s) => s.exitType === 'running' || s.exitType === 'exited')
+  const cutoff = Date.now() - 12 * 60 * 60 * 1000 // only from last 12 hours
+  return load().filter((s) => {
+    if (s.exitType !== 'running' && s.exitType !== 'exited') return false
+    if (!s.sessionId) return false // can't resume without a session ID
+    const opened = s.openedAt ? new Date(s.openedAt).getTime() : 0
+    return opened > cutoff
+  })
 }
 
 export function clearRestorable(): void {

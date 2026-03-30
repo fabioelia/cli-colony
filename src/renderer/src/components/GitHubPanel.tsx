@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { ArrowLeft, Plus, Trash2, RefreshCw, GitPullRequest, ExternalLink, Play, Pencil, ChevronDown, ChevronRight, MessageSquare, Send, User, Users, Eye, GitBranch, Clock, FileDiff, ShieldCheck, ShieldAlert, ShieldQuestion, Brain, Save, X, FileText, File, Filter, Search, CheckCircle, XCircle, Loader, CircleDot, Wrench } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, RefreshCw, GitPullRequest, ExternalLink, Play, Pencil, ChevronDown, ChevronRight, MessageSquare, Send, User, Users, Eye, GitBranch, Clock, FileDiff, ShieldCheck, ShieldAlert, ShieldQuestion, Brain, Save, X, FileText, File, Filter, Search, CheckCircle, XCircle, Loader, CircleDot, Wrench, Download } from 'lucide-react'
 import { marked } from 'marked'
 import type { GitHubPR, GitHubRepo, QuickPrompt, PRChecks } from '../types'
+import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import Tooltip from './Tooltip'
 import { shouldSyncClaudeSlashCommands } from '../lib/claude-slash-sync'
 
@@ -43,6 +44,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const [ghAuth, setGhAuth] = useState<boolean | null>(null)
   const [prsByRepo, setPrsByRepo] = useState<Record<string, GitHubPR[]>>({})
   const [loadingRepo, setLoadingRepo] = useState<string | null>(null)
+  const [cloningRepo, setCloningRepo] = useState<string | null>(null)
   const [expandedRepo, setExpandedRepo] = useState<string | null>(null)
   const [expandedPR, setExpandedPR] = useState<string | null>(null) // "owner/name#number"
   const [error, setError] = useState<string | null>(null)
@@ -151,7 +153,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     })
     setAssistantId(id)
     const prompt = `Read the file ${currentContextPath} which contains all open PRs across my repositories. Each PR may have a comments file referenced — read those too if relevant. Then answer this question: ${q}${memoryInstructions}${colonyContextInstruction}`
-    sendPromptWhenReady(id, prompt, `PR: ${q.slice(0, 30)}`)
+    sendPromptToInstance(id, prompt, `PR: ${q.slice(0, 30)}`)
   }
 
   const [workspacePath, setWorkspacePath] = useState<string | null>(null)
@@ -273,11 +275,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     window.api.colony.getContextInstruction().then(setColonyContextInstruction)
   }, [])
 
-  const sendPromptWhenReady = (id: string, prompt: string, sessionName?: string) => {
-    // Listen for activity changes — send prompt once Claude is waiting for input
-    let sent = false
-    let waitCount = 0
-
+  const sendPromptToInstance = (id: string, prompt: string, sessionName?: string) => {
     const sendNameAndPrompt = async () => {
       if (sessionName) {
         await window.api.instance.rename(id, sessionName)
@@ -285,37 +283,12 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
           await window.api.instance.write(id, `/rename ${sessionName}\r`)
           await new Promise((r) => setTimeout(r, 300))
         }
-        await window.api.instance.write(id, prompt + '\r')
-      } else {
-        await window.api.instance.write(id, prompt + '\r')
       }
+      window.api.instance.write(id, prompt)
+      setTimeout(() => window.api.instance.write(id, '\r'), 150)
     }
 
-    const unsub = window.api.instance.onActivity(({ id: instId, activity }) => {
-      if (instId !== id || sent) return
-      if (activity === 'waiting') {
-        waitCount++
-        // First waiting might be trust prompt — send Enter to dismiss it
-        // Second waiting is Claude ready for real input
-        if (waitCount === 1) {
-          window.api.instance.write(id, '\r')
-        } else {
-          sent = true
-          unsub()
-          void sendNameAndPrompt()
-        }
-      }
-    })
-    // Fallback: if only one waiting state (no trust prompt), send after timeout
-    setTimeout(() => {
-      if (!sent && waitCount >= 1) {
-        sent = true
-        unsub()
-        void sendNameAndPrompt()
-      }
-    }, 5000)
-    // Safety timeout — clean up listener after 15s
-    setTimeout(() => { if (!sent) unsub() }, 15000)
+    sendPromptWhenReady(id, { onReady: () => void sendNameAndPrompt() })
   }
 
   const handleQuickAction = async (prompt: QuickPrompt, pr: GitHubPR, repo: GitHubRepo) => {
@@ -330,7 +303,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
       name: `${prompt.label}: ${repo.name}#${pr.number}`,
       workingDirectory: repo.localPath || workspacePath || undefined,
     })
-    sendPromptWhenReady(id, resolved + commentRef + memoryInstructions + colonyContextInstruction, `${prompt.label}: ${repo.name}#${pr.number}`)
+    sendPromptToInstance(id, resolved + commentRef + memoryInstructions + colonyContextInstruction, `${prompt.label}: ${repo.name}#${pr.number}`)
   }
 
   const handleOpenPromptEditor = () => {
@@ -645,12 +618,37 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                     {hasActiveFilters && prs.length !== allRepoPRs.length ? `${prs.length}/` : ''}{allRepoPRs.length}
                   </span>
                 )}
-                {repo.localPath && (
-                  <span className="github-repo-path" title={repo.localPath}>
-                    {repo.localPath.split('/').pop()}
+                {(repo as any).cloned ? (
+                  <span className="github-repo-path" title={repo.localPath || ''}>
+                    {(repo.localPath || '').split('/').pop()}
                   </span>
+                ) : cloningRepo === slug ? (
+                  <span className="github-repo-cloning">cloning...</span>
+                ) : (
+                  <span className="github-repo-not-cloned">not cloned</span>
                 )}
                 <div className="github-repo-actions" onClick={(e) => e.stopPropagation()}>
+                  {(!(repo as any).cloned || cloningRepo === slug) && (
+                    <Tooltip text={cloningRepo === slug ? 'Cloning...' : 'Clone'} detail={cloningRepo === slug ? 'Shallow clone in progress' : 'Shallow clone this repo for template agents and environment setup'}>
+                      <button
+                        disabled={cloningRepo === slug}
+                        className={cloningRepo === slug ? 'cloning' : ''}
+                        onClick={async () => {
+                          if (cloningRepo) return
+                          setCloningRepo(slug)
+                          try {
+                            await window.api.github.cloneRepo(repo)
+                            setRepos(await window.api.github.getRepos())
+                          } catch (err: any) {
+                            console.error('Clone failed:', err)
+                          } finally {
+                            setCloningRepo(null)
+                          }
+                        }}>
+                        {cloningRepo === slug ? <Loader size={13} className="spinning" /> : <Download size={13} />}
+                      </button>
+                    </Tooltip>
+                  )}
                   <Tooltip text="Refresh PRs" detail="Re-fetch open PRs, comments, and update context file">
                     <button onClick={() => fetchPRsForRepo(repo)}>
                       <RefreshCw size={13} className={isLoading ? 'spinning' : ''} />
@@ -830,7 +828,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                                         name: `Fix CI: ${repo.name}#${pr.number}`,
                                         workingDirectory: repo.localPath || undefined,
                                       })
-                                      sendPromptWhenReady(id, prompt, `Fix CI: ${repo.name}#${pr.number}`)
+                                      sendPromptToInstance(id, prompt, `Fix CI: ${repo.name}#${pr.number}`)
                                     }}
                                     title="Launch a Claude session to fix failing checks"
                                   >

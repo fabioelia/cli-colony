@@ -1,0 +1,42 @@
+import { ipcMain, app } from 'electron'
+import { join } from 'path'
+import { colonyPaths } from '../../shared/colony-paths'
+import {
+  checkGhAuth, fetchPRs, getRepos, addRepo, removeRepo,
+  updateRepoPath, getPrompts, savePrompts, resolvePrompt, writePrContext,
+  getPrMemory, savePrMemory, getPrMemoryPath, getPrWorkspacePath,
+  fetchChecks, fetchCheckLogs, shallowCloneRepo,
+} from '../github'
+import type { GitHubRepo, QuickPrompt, GitHubPR } from '../github'
+
+export function registerGitHubHandlers(): void {
+  ipcMain.handle('github:authStatus', () => checkGhAuth())
+  ipcMain.handle('github:fetchPRs', (_e, repo: GitHubRepo) => fetchPRs(repo))
+  ipcMain.handle('github:getRepos', () => getRepos())
+  ipcMain.handle('github:addRepo', (_e, repo: GitHubRepo) => addRepo(repo))
+  ipcMain.handle('github:cloneRepo', async (_e, repo: GitHubRepo) => {
+    await shallowCloneRepo(repo)
+    return true
+  })
+  ipcMain.handle('github:removeRepo', (_e, owner: string, name: string) => removeRepo(owner, name))
+  ipcMain.handle('github:updateRepoPath', (_e, owner: string, name: string, localPath: string) => updateRepoPath(owner, name, localPath))
+  ipcMain.handle('github:getPrompts', () => getPrompts())
+  ipcMain.handle('github:savePrompts', (_e, prompts: QuickPrompt[]) => savePrompts(prompts))
+  ipcMain.handle('github:resolvePrompt', (_e, prompt: QuickPrompt, pr: GitHubPR, repo: GitHubRepo) => resolvePrompt(prompt, pr, repo))
+  ipcMain.handle('github:writePrContext', (_e, prsByRepo: Record<string, GitHubPR[]>) => writePrContext(prsByRepo))
+  ipcMain.handle('github:getPrMemory', () => getPrMemory())
+  ipcMain.handle('github:savePrMemory', (_e, content: string) => savePrMemory(content))
+  ipcMain.handle('github:getPrMemoryPath', () => getPrMemoryPath())
+  ipcMain.handle('github:getPrWorkspacePath', () => getPrWorkspacePath())
+  ipcMain.handle('github:getCommentsFile', (_e, repoSlug: string, prNumber: number) => {
+    const { readFileSync, existsSync } = require('fs') as typeof import('fs')
+    const { join: pathJoin } = require('path') as typeof import('path')
+    const commentsDir = colonyPaths.prComments
+    const safeSlug = repoSlug.replace(/\//g, '-')
+    const filePath = pathJoin(commentsDir, `${safeSlug}-${prNumber}.md`)
+    if (!existsSync(filePath)) return null
+    return readFileSync(filePath, 'utf-8')
+  })
+  ipcMain.handle('github:fetchChecks', (_e, repo: GitHubRepo, prNumber: number) => fetchChecks(repo, prNumber))
+  ipcMain.handle('github:fetchCheckLogs', (_e, repo: GitHubRepo, prNumber: number, checkName: string) => fetchCheckLogs(repo, prNumber, checkName))
+}

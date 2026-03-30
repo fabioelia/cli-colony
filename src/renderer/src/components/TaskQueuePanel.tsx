@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import {
   Plus, Trash2, Play, Square, Save, FileText, CheckCircle, XCircle,
   Loader, Clock, ListOrdered, Layers, FolderOpen, File, Zap,
@@ -112,19 +113,15 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
     if (assistantId && !instances.some(i => i.id === assistantId && i.status === 'running')) setAssistantId(null)
   }, [instances, assistantId])
 
-  const sendPromptWhenReady = useCallback((id: string, prompt: string): Promise<void> => {
+  const sendPromptToInstance = useCallback((id: string, prompt: string): Promise<void> => {
     return new Promise((resolve) => {
-      let sent = false; let waitCount = 0
-      const unsub = window.api.instance.onActivity(({ id: instId, activity }) => {
-        if (instId !== id || sent) return
-        if (activity === 'waiting') {
-          waitCount++
-          if (waitCount === 1) { window.api.instance.write(id, '\r') }
-          else { sent = true; unsub(); window.api.instance.write(id, prompt + '\r'); resolve() }
-        }
+      sendPromptWhenReady(id, {
+        prompt,
+        onReady: () => resolve(),
+        abandonTimeout: 15000,
       })
-      setTimeout(() => { if (!sent && waitCount >= 1) { sent = true; unsub(); window.api.instance.write(id, prompt + '\r'); resolve() } }, 5000)
-      setTimeout(() => { if (!sent) { unsub(); resolve() } }, 15000)
+      // Ensure promise resolves even on abandon
+      setTimeout(() => resolve(), 16000)
     })
   }, [])
 
@@ -229,7 +226,7 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
       const inst = await window.api.instance.create({ name: queue.name, workingDirectory: dir, args: ['--append-system-prompt-file', promptFile] })
       for (const s of statuses) s.instanceId = inst.id
       setTaskStatuses([...statuses])
-      await sendPromptWhenReady(inst.id, 'Execute the tasks in your system prompt. Begin now.')
+      await sendPromptToInstance(inst.id, 'Execute the tasks in your system prompt. Begin now.')
       await new Promise<void>((resolve) => {
         const unsub = window.api.instance.onExited(({ id, exitCode }) => {
           if (id !== inst.id) return; unsub()
@@ -239,7 +236,7 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
       })
     } catch { for (const s of statuses) s.state = 'failed'; setTaskStatuses([...statuses]) }
     setIsRunning(false)
-  }, [editor, workspacePath, sendPromptWhenReady, selectedFile])
+  }, [editor, workspacePath, sendPromptToInstance, selectedFile])
 
   const handleStop = useCallback(() => {
     stopRef.current = true
@@ -297,15 +294,26 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
         )}
       </div>
 
-      {/* File list */}
+      {/* File list as cards */}
       <div className="task-queue-files">
-        {queueFiles.map((f) => (
-          <div key={f.name} className={`task-queue-file ${selectedFile === f.name ? 'active' : ''}`} onClick={() => handleSelectFile(f)}>
-            <FileText size={13} />
-            <span>{f.name}</span>
-            <button className="task-queue-file-delete" onClick={(e) => { e.stopPropagation(); handleDelete(f.name) }} title="Delete"><Trash2 size={11} /></button>
-          </div>
-        ))}
+        {queueFiles.map((f) => {
+          const q = parseQueue(f.content)
+          return (
+            <div key={f.name} className={`task-queue-file-card ${selectedFile === f.name ? 'active' : ''}`} onClick={() => handleSelectFile(f)}>
+              <div className="task-queue-file-card-header">
+                <FileText size={12} />
+                <span className="task-queue-file-card-name">{q?.name || f.name}</span>
+                <button className="task-queue-file-delete" onClick={(e) => { e.stopPropagation(); handleDelete(f.name) }} title="Delete"><Trash2 size={10} /></button>
+              </div>
+              {q && (
+                <div className="task-queue-file-card-meta">
+                  <span>{q.tasks.length} task{q.tasks.length !== 1 ? 's' : ''}</span>
+                  <span>{q.mode}</span>
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       {/* Editor area */}
@@ -332,6 +340,18 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
             )}
             <div className="task-queue-toolbar-actions">
               {editorTab === 'yaml' && <button className="task-queue-save-btn" onClick={handleSave}><Save size={11} /> Save</button>}
+              {editorTab === 'yaml' && selectedFile && (
+                <button className="task-queue-save-btn" onClick={async () => {
+                  const context = `You are editing the task queue file: ~/.claude-colony/task-queues/${selectedFile}\n\nCurrent content:\n\`\`\`yaml\n${editor}\n\`\`\`\n\n${taskMemory ? `Task memory (learnings from previous runs):\n${taskMemory}\n\n` : ''}${TASK_SYSTEM_PROMPT}\n\nThe user wants to edit this task queue. Help them modify it. When done, write the updated YAML to ~/.claude-colony/task-queues/${selectedFile}`
+                  const promptFile = await window.api.colony.writePromptFile(context)
+                  onLaunchInstance({
+                    name: `Edit: ${selectedFile}`,
+                    workingDirectory: workspacePath || undefined,
+                    color: '#f59e0b',
+                    args: ['--append-system-prompt-file', promptFile],
+                  })
+                }}><MessageSquare size={11} /> Edit with AI</button>
+              )}
               {editorTab === 'memory' && memoryDirty && <button className="task-queue-save-btn" onClick={handleSaveMemory}><Save size={11} /> Save</button>}
               {parsed && !isRunning && editorTab === 'yaml' && (
                 <>

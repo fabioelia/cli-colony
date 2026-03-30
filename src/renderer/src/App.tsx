@@ -10,6 +10,7 @@ import GitHubPanel from './components/GitHubPanel'
 import CommandPalette from './components/CommandPalette'
 import TaskQueuePanel from './components/TaskQueuePanel'
 import PipelinesPanel from './components/PipelinesPanel'
+import EnvironmentsPanel from './components/EnvironmentsPanel'
 
 type View = SidebarView | 'agent-editor'
 
@@ -397,6 +398,24 @@ export default function App() {
     setView('instances')
   }, [instances])
 
+  const handleTakeoverExternal = useCallback(async (ext: { pid: number; name: string; cwd: string; sessionId: string | null }) => {
+    // Kill the external process and resume the session in Colony
+    const result = await window.api.sessions.takeover({
+      pid: ext.pid,
+      sessionId: ext.sessionId,
+      name: ext.name,
+      cwd: ext.cwd,
+    })
+    const inst = await window.api.instance.create({
+      name: result.name,
+      workingDirectory: result.cwd,
+      args: result.args.length > 0 ? result.args : undefined,
+      cliBackend: 'claude',
+    })
+    setActiveId(inst.id)
+    setView('instances')
+  }, [])
+
   const handleRestoreAll = useCallback(async () => {
     const toRestore = restorableSessions.filter((s) => s.sessionId && s.exitType !== 'killed')
     for (const s of toRestore) {
@@ -653,6 +672,7 @@ export default function App() {
         onUnpin={handleUnpin}
         onViewChange={handleViewChange}
         onResumeSession={handleResumeSession}
+        onTakeoverExternal={handleTakeoverExternal}
         onRestoreAll={handleRestoreAll}
         restorableCount={restorableSessions.filter((s) => s.sessionId && s.exitType !== 'killed').length}
         splitId={splitId}
@@ -801,6 +821,20 @@ export default function App() {
         {view === 'pipelines' && (
           <PipelinesPanel
             instances={instances}
+            onLaunchInstance={async (opts) => {
+              const inst = await window.api.instance.create(opts)
+              setActiveId(inst.id)
+              setView('instances')
+              return inst.id
+            }}
+            onFocusInstance={(id) => {
+              setActiveId(id)
+              setView('instances')
+            }}
+          />
+        )}
+        {view === 'environments' && (
+          <EnvironmentsPanel
             onLaunchInstance={async (opts) => {
               const inst = await window.api.instance.create(opts)
               setActiveId(inst.id)

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import {
   Zap, ZapOff, Play, RefreshCw, ChevronDown, ChevronRight,
   FileText, Clock, CheckCircle, XCircle, AlertTriangle, Save, BookOpen,
@@ -131,23 +132,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   }, [instances, assistantId])
 
   const sendPromptToAssistant = useCallback((id: string, prompt: string) => {
-    let sent = false
-    let waitCount = 0
-    const unsub = window.api.instance.onActivity(({ id: instId, activity }) => {
-      if (instId !== id || sent) return
-      if (activity === 'waiting') {
-        waitCount++
-        if (waitCount === 1) {
-          window.api.instance.write(id, '\r')
-        } else {
-          sent = true
-          unsub()
-          window.api.instance.write(id, prompt + '\r')
-        }
-      }
-    })
-    setTimeout(() => { if (!sent && waitCount >= 1) { sent = true; unsub(); window.api.instance.write(id, prompt + '\r') } }, 5000)
-    setTimeout(() => { if (!sent) unsub() }, 15000)
+    sendPromptWhenReady(id, { prompt })
   }, [])
 
   const handleAsk = useCallback(async () => {
@@ -366,6 +351,26 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                   <Play size={11} /> Poll Now
                 </button>
               )}
+              <button
+                className="pipeline-trigger-btn"
+                onClick={async (e) => {
+                  e.stopPropagation()
+                  const content = await window.api.pipeline.getContent(p.fileName)
+                  const mem = await window.api.pipeline.getMemory(p.fileName)
+                  const memContent = mem ? `\nPipeline memory (learnings):\n${mem}\n` : ''
+                  const context = `You are editing the pipeline: ${p.name}\nFile: ~/.claude-colony/pipelines/${p.fileName}\n\nCurrent YAML:\n\`\`\`yaml\n${content}\n\`\`\`\n${memContent}\n${PIPELINE_SYSTEM_PROMPT}\n\nHelp the user modify this pipeline. Write the updated YAML to ~/.claude-colony/pipelines/${p.fileName}`
+                  const promptFile = await window.api.colony.writePromptFile(context)
+                  onLaunchInstance({
+                    name: `Edit: ${p.name}`,
+                    workingDirectory: pipelinesDir || undefined,
+                    color: '#8b5cf6',
+                    args: ['--append-system-prompt-file', promptFile],
+                  })
+                }}
+                title="Edit this pipeline with AI"
+              >
+                <MessageSquare size={11} /> Edit with AI
+              </button>
             </div>
 
             {expandedPipeline === p.name && editingContent !== null && (
@@ -404,6 +409,21 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                   {expandedTab === 'yaml' && dirty && (
                     <button className="pipeline-save-btn" onClick={handleSave}>
                       <Save size={11} /> Save
+                    </button>
+                  )}
+                  {expandedTab === 'yaml' && editingFileName && (
+                    <button className="pipeline-save-btn" onClick={async () => {
+                      const memContent = pipelineMemory ? `\nPipeline memory (learnings):\n${pipelineMemory}\n` : ''
+                      const context = `You are editing the pipeline file: ~/.claude-colony/pipelines/${editingFileName}\n\nCurrent YAML:\n\`\`\`yaml\n${editingContent}\n\`\`\`\n${memContent}\n${PIPELINE_SYSTEM_PROMPT}\n\nThe user wants to edit this pipeline. Help them modify it. When done, write the updated YAML to ~/.claude-colony/pipelines/${editingFileName}`
+                      const promptFile = await window.api.colony.writePromptFile(context)
+                      onLaunchInstance({
+                        name: `Edit: ${p.name}`,
+                        workingDirectory: pipelinesDir || undefined,
+                        color: '#8b5cf6',
+                        args: ['--append-system-prompt-file', promptFile],
+                      })
+                    }}>
+                      <MessageSquare size={11} /> Edit with AI
                     </button>
                   )}
                   {expandedTab === 'memory' && memoryDirty && (

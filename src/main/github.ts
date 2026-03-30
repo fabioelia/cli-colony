@@ -87,8 +87,10 @@ const DEFAULT_PROMPTS: QuickPrompt[] = [
   },
 ]
 
+import { colonyPaths } from '../shared/colony-paths'
+
 function configPath(): string {
-  return join(app.getPath('home'), '.claude-colony', 'github.json')
+  return colonyPaths.githubJson
 }
 
 function loadConfig(): GitHubConfig {
@@ -164,7 +166,7 @@ export async function fetchPRs(repo: GitHubRepo): Promise<GitHubPR[]> {
     labels: Array<{ name: string }>
     comments: Array<{ author: { login: string }; body: string; createdAt: string }>
   }>
-  return raw.map((pr) => ({
+  const prs: GitHubPR[] = raw.map((pr) => ({
     number: pr.number,
     title: pr.title,
     body: pr.body || '',
@@ -190,7 +192,7 @@ export async function fetchPRs(repo: GitHubRepo): Promise<GitHubPR[]> {
   }))
 
   // Fetch review comments (file-level) in parallel for PRs that have any activity
-  const results = await Promise.allSettled(
+  await Promise.allSettled(
     prs.map(async (pr) => {
       try {
         const reviewJson = await gh([
@@ -198,7 +200,6 @@ export async function fetchPRs(repo: GitHubRepo): Promise<GitHubPR[]> {
           '--jq', '.[].{author: .user.login, body: .body, createdAt: .created_at, path: .path}',
         ])
         if (!reviewJson.trim()) return
-        // gh --jq outputs one JSON object per line
         const reviewComments: PRComment[] = reviewJson.trim().split('\n')
           .filter((l) => l.trim())
           .map((l) => {
@@ -302,18 +303,95 @@ export async function fetchCheckLogs(repo: GitHubRepo, prNumber: number, checkNa
 
 // ---- Config CRUD ----
 
+const REPOS_DIR = colonyPaths.repos
+
+/** Resolve clone directory — checks new path (owner/name) first, then legacy (owner-name) */
+function resolveCloneDir(owner: string, name: string): string {
+  const newPath = colonyPaths.repoDir(owner, name)
+  if (existsSync(newPath)) return newPath
+  const legacyPath = join(REPOS_DIR, `${owner}-${name}`)
+  if (existsSync(legacyPath)) return legacyPath
+  return newPath // default to new format for new clones
+}
+
 export function getRepos(): GitHubRepo[] {
-  return loadConfig().repos
+  const config = loadConfig()
+  let updated = false
+  for (const repo of config.repos) {
+    const cloneDir = resolveCloneDir(repo.owner, repo.name)
+    if (!repo.localPath || !existsSync(repo.localPath)) {
+      repo.localPath = cloneDir
+      updated = true
+    }
+    ;(repo as any).cloned = existsSync(cloneDir)
+  }
+  if (updated) saveConfig(config)
+  return config.repos
+}
+
+// Ensure all repos are shallow cloned — call on startup
+export function ensureRepoClones(): void {
+  const repos = getRepos()
+  for (const repo of repos) {
+    const cloneDir = resolveCloneDir(repo.owner, repo.name)
+    if (!existsSync(cloneDir)) {
+      shallowCloneRepo(repo).catch(err => {
+        console.error(`[github] shallow clone failed for ${repo.owner}/${repo.name}:`, err)
+      })
+    }
+  }
 }
 
 export function addRepo(repo: GitHubRepo): GitHubRepo[] {
   const config = loadConfig()
   const exists = config.repos.some((r) => r.owner === repo.owner && r.name === repo.name)
   if (!exists) {
+    const cloneDir = colonyPaths.repoDir(repo.owner, repo.name)
+    repo.localPath = repo.localPath || cloneDir
     config.repos.push(repo)
     saveConfig(config)
+
+    // Shallow clone in background (don't block)
+    shallowCloneRepo(repo).catch(err => {
+      console.error(`[github] shallow clone failed for ${repo.owner}/${repo.name}:`, err)
+    })
   }
   return config.repos
+}
+
+export async function shallowCloneRepo(repo: GitHubRepo): Promise<void> {
+  const cloneDir = resolveCloneDir(repo.owner, repo.name)
+  if (existsSync(cloneDir)) {
+    // Already cloned — just fetch latest
+    try {
+      await gh(['api', '--method', 'GET', '/repos/' + repo.owner + '/' + repo.name])
+      const { execSync } = require('child_process') as typeof import('child_process')
+      execSync('git fetch --depth 1 origin', { cwd: cloneDir, timeout: 30000, stdio: 'ignore' })
+      console.log(`[github] updated shallow clone: ${repo.owner}/${repo.name}`)
+    } catch { /* ignore fetch failures */ }
+    return
+  }
+
+  // Use new path format: repos/<owner>/<name>
+  const newCloneDir = colonyPaths.repoDir(repo.owner, repo.name)
+  const parentDir = join(REPOS_DIR, repo.owner)
+  if (!existsSync(parentDir)) mkdirSync(parentDir, { recursive: true })
+
+  const remoteUrl = `git@github.com:${repo.owner}/${repo.name}.git`
+  const { execSync } = require('child_process') as typeof import('child_process')
+  try {
+    execSync(`git clone --depth 1 "${remoteUrl}" "${newCloneDir}"`, { timeout: 60000, stdio: 'ignore' })
+    console.log(`[github] shallow cloned: ${repo.owner}/${repo.name} → ${newCloneDir}`)
+  } catch (err) {
+    // Try HTTPS fallback
+    try {
+      const httpsUrl = `https://github.com/${repo.owner}/${repo.name}.git`
+      execSync(`git clone --depth 1 "${httpsUrl}" "${newCloneDir}"`, { timeout: 60000, stdio: 'ignore' })
+      console.log(`[github] shallow cloned (https): ${repo.owner}/${repo.name} → ${newCloneDir}`)
+    } catch {
+      console.error(`[github] failed to clone ${repo.owner}/${repo.name}:`, err)
+    }
+  }
 }
 
 export function removeRepo(owner: string, name: string): GitHubRepo[] {
@@ -375,7 +453,7 @@ export function getPrompts(): QuickPrompt[] {
 
   // Check if Colony Feedback pipeline is enabled
   try {
-    const pipelinesDir = join(app.getPath('home'), '.claude-colony', 'pipelines')
+    const pipelinesDir = colonyPaths.pipelines
     const feedbackFile = join(pipelinesDir, 'colony-feedback.yaml')
     if (existsSync(feedbackFile)) {
       const content = readFileSync(feedbackFile, 'utf-8')
@@ -460,7 +538,7 @@ export function writePrContext(prsByRepo: Record<string, GitHubPR[]>): string {
 
 // ---- PR Workspace ----
 
-const PR_WORKSPACE = join(app.getPath('home'), '.claude-colony', 'pr-workspace')
+const PR_WORKSPACE = colonyPaths.prWorkspace
 
 // ---- PR Memory ----
 

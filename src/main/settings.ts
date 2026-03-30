@@ -8,14 +8,14 @@ interface AppSettings {
   [key: string]: string
 }
 
+import { colonyPaths } from '../shared/colony-paths'
+
 function getSettingsPath(): string {
-  const home = app.getPath('home')
-  return join(home, '.claude-colony', 'settings.json')
+  return colonyPaths.settingsJson
 }
 
 function getSettingsDir(): string {
-  const home = app.getPath('home')
-  return join(home, '.claude-colony')
+  return colonyPaths.root
 }
 
 function ensureDir(): void {

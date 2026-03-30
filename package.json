@@ -12,7 +12,10 @@
     "postinstall": "electron-rebuild -f -w node-pty && plutil -replace CFBundleDisplayName -string 'Claude Colony' node_modules/electron/dist/Electron.app/Contents/Info.plist && plutil -replace CFBundleName -string 'Claude Colony' node_modules/electron/dist/Electron.app/Contents/Info.plist",
     "preview": "electron-vite preview",
     "package": "electron-vite build && electron-builder --mac --config electron-builder.yml",
-    "rebuild": "electron-rebuild -f -w node-pty"
+    "rebuild": "electron-rebuild -f -w node-pty",
+    "test:e2e": "electron-vite build && npx playwright test",
+    "test:e2e:headed": "electron-vite build && npx playwright test --headed",
+    "test:e2e:debug": "electron-vite build && npx playwright test --debug"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",
@@ -31,14 +34,16 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^3.7.2",
+    "@playwright/test": "^1.58.2",
     "@types/archiver": "^7.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "electron": "^33.2.1",
+    "electron": "^41.0.4",
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",
+    "playwright-core": "^1.58.2",
     "typescript": "^5.7.2",
     "vite": "^5.4.11"
   },
