@@ -2485,6 +2485,229 @@ input, select {
   color: var(--text-primary);
 }
 
+/* ===== Shell Terminal ===== */
+.shell-terminal {
+  padding-left: 4px;
+}
+
+/* ===== Services Panel (terminal header tab) ===== */
+.services-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  height: 14px;
+  font-size: 9px;
+  font-weight: 700;
+  border-radius: 7px;
+  margin-left: 4px;
+  padding: 0 3px;
+}
+.services-tab-badge.danger {
+  background: rgba(255, 80, 80, 0.2);
+  color: #f66;
+}
+
+.services-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border);
+  overflow-y: auto;
+  max-height: 100%;
+  flex: 1;
+}
+
+.services-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.services-panel-env-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.services-panel-env-status {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.services-panel-env-status.running { color: #4a4; background: rgba(68, 170, 68, 0.1); }
+.services-panel-env-status.stopped { color: var(--text-muted); background: var(--bg-surface); }
+.services-panel-env-status.partial { color: #ea4; background: rgba(238, 170, 68, 0.1); }
+.services-panel-env-status.error   { color: #e55; background: rgba(238, 85, 85, 0.1); }
+
+.services-panel-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.services-panel-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+}
+.services-panel-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.services-panel-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.services-panel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.04));
+}
+.services-panel-row:hover {
+  background: var(--bg-hover);
+}
+
+.services-panel-row-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.services-panel-svc-name {
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.services-panel-port {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+}
+
+.services-panel-svc-status {
+  font-size: 10px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.services-panel-svc-status.running { color: #4a4; }
+.services-panel-svc-status.stopped { color: var(--text-muted); }
+.services-panel-svc-status.crashed { color: #e55; }
+.services-panel-svc-status.starting { color: #ea4; }
+
+.services-panel-uptime {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.services-panel-restarts {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: #ea4;
+  font-size: 10px;
+}
+
+.services-panel-row-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.services-panel-row-actions button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  padding: 3px 5px;
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+.services-panel-row-actions button:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface);
+}
+
+.services-panel-urls {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.services-panel-url {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--accent);
+  cursor: pointer;
+}
+.services-panel-url:hover {
+  text-decoration: underline;
+}
+
+.services-panel-logs {
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  max-height: 300px;
+  flex: 1;
+  min-height: 0;
+}
+
+.services-panel-logs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.services-panel-logs-header button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+}
+.services-panel-logs-header button:hover {
+  color: var(--text-primary);
+}
+
+.services-panel-logs-content {
+  padding: 8px 12px;
+  margin: 0;
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-secondary);
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  flex: 1;
+}
+
 /* ===== Terminal Drag Drop Overlay ===== */
 .terminal-container.drag-over {
   outline: 2px dashed var(--accent);

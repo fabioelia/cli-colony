@@ -395,6 +395,8 @@ app.on('before-quit', () => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
+  const { killAllShells } = require('./shell-pty') as typeof import('./shell-pty')
+  killAllShells()
 })
 
 declare global {

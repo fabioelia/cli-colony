@@ -51,6 +51,14 @@ export interface ClaudeManagerAPI {
     onFocus: (callback: (data: { id: string }) => void) => () => void
     onActivity: (callback: (data: { id: string; activity: 'busy' | 'waiting' }) => void) => () => void
   }
+  shellPty: {
+    create: (instanceId: string, cwd: string) => Promise<{ pid: number }>
+    write: (instanceId: string, data: string) => Promise<boolean>
+    resize: (instanceId: string, cols: number, rows: number) => Promise<boolean>
+    kill: (instanceId: string) => Promise<boolean>
+    onOutput: (callback: (data: { instanceId: string; data: string }) => void) => () => void
+    onExited: (callback: (data: { instanceId: string }) => void) => () => void
+  }
   sessions: {
     list: (limit?: number) => Promise<CliSession[]>
     search: (query: string) => Promise<Array<{ sessionId: string; name: string | null; project: string; match: string }>>
@@ -264,6 +272,22 @@ const api: ClaudeManagerAPI = {
       const listener = (_e: any, data: { id: string; activity: 'busy' | 'waiting' }) => callback(data)
       ipcRenderer.on('instance:activity', listener)
       return () => ipcRenderer.removeListener('instance:activity', listener)
+    },
+  },
+  shellPty: {
+    create: (instanceId, cwd) => ipcRenderer.invoke('shell-pty:create', instanceId, cwd),
+    write: (instanceId, data) => ipcRenderer.invoke('shell-pty:write', instanceId, data),
+    resize: (instanceId, cols, rows) => ipcRenderer.invoke('shell-pty:resize', instanceId, cols, rows),
+    kill: (instanceId) => ipcRenderer.invoke('shell-pty:kill', instanceId),
+    onOutput: (callback) => {
+      const listener = (_e: any, data: { instanceId: string; data: string }) => callback(data)
+      ipcRenderer.on('shell-pty:output', listener)
+      return () => ipcRenderer.removeListener('shell-pty:output', listener)
+    },
+    onExited: (callback) => {
+      const listener = (_e: any, data: { instanceId: string }) => callback(data)
+      ipcRenderer.on('shell-pty:exited', listener)
+      return () => ipcRenderer.removeListener('shell-pty:exited', listener)
     },
   },
   sessions: {

@@ -4,7 +4,8 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText } from 'lucide-react'
+import type { EnvStatus, EnvServiceStatus } from '../../../shared/types'
 import '@xterm/xterm/css/xterm.css'
 import type { ClaudeInstance } from '../types'
 import Tooltip from './Tooltip'
@@ -32,6 +33,14 @@ interface Props {
   fontSize?: number
   focused?: boolean
   onFocusPane?: () => void
+}
+
+function formatUptime(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  return m > 0 ? `${h}h ${m}m` : `${h}h`
 }
 
 function escapeHtml(s: string): string {
@@ -168,7 +177,7 @@ function FileTreeNode({ node, depth, selectedPath, expandedPaths, filter, onTogg
   )
 }
 
-type ViewTab = 'terminal' | 'files'
+type ViewTab = 'session' | 'shell' | 'files' | 'services'
 
 export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, isSplit, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -176,7 +185,10 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const [searchQuery, setSearchQuery] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const [viewTab, setViewTab] = useState<ViewTab>('terminal')
+  const [viewTab, setViewTab] = useState<ViewTab>('session')
+  const shellContainerRef = useRef<HTMLDivElement>(null)
+  const shellTermRef = useRef<{ term: Terminal; fitAddon: FitAddon; unsub?: () => void } | null>(null)
+  const shellCreatedRef = useRef(false)
   const [fileTree, setFileTree] = useState<FileNode[] | null>(null)
   const [fileTreeLoading, setFileTreeLoading] = useState(false)
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
@@ -195,6 +207,111 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const [contentSearching, setContentSearching] = useState(false)
   const [searchMode, setSearchMode] = useState<'files' | 'content'>('files')
   const [visibleResultCount, setVisibleResultCount] = useState(20)
+
+  // Environment detection: if workingDirectory is under ~/.claude-colony/environments/<name>/
+  const envName = (() => {
+    const marker = '/.claude-colony/environments/'
+    const idx = instance.workingDirectory.indexOf(marker)
+    if (idx < 0) return null
+    const rest = instance.workingDirectory.slice(idx + marker.length)
+    return rest.split('/')[0] || null
+  })()
+  const [envStatus, setEnvStatus] = useState<EnvStatus | null>(null)
+  const [envLogs, setEnvLogs] = useState<{ service: string; content: string } | null>(null)
+
+  useEffect(() => {
+    if (!envName) return
+    // Initial fetch
+    window.api.env.list().then((envs) => {
+      const match = envs.find((e) => e.name === envName || e.id === envName)
+      if (match) setEnvStatus(match)
+    })
+    // Subscribe to updates
+    const unsub = window.api.env.onStatusUpdate((envs) => {
+      const match = envs.find((e) => e.name === envName || e.id === envName)
+      setEnvStatus(match || null)
+    })
+    return unsub
+  }, [envName])
+  // Shell terminal — lazy init when tab is first opened
+  useEffect(() => {
+    if (viewTab !== 'shell') return
+    if (shellCreatedRef.current && shellTermRef.current) {
+      // Already created, just fit
+      setTimeout(() => shellTermRef.current?.fitAddon.fit(), 50)
+      return
+    }
+    if (!shellContainerRef.current) return
+    shellCreatedRef.current = true
+
+    const term = new Terminal({
+      fontSize,
+      cursorBlink: true,
+      theme: { background: '#1a1a2e', foreground: '#e0e0e0', cursor: '#e0e0e0' },
+      allowProposedApi: true,
+    })
+    const fitAddon = new FitAddon()
+    term.loadAddon(fitAddon)
+    term.loadAddon(new WebLinksAddon())
+    term.open(shellContainerRef.current)
+    fitAddon.fit()
+
+    // Spawn the shell PTY
+    window.api.shellPty.create(instance.id, instance.workingDirectory)
+
+    // Stream output
+    const unsubOutput = window.api.shellPty.onOutput(({ instanceId, data }) => {
+      if (instanceId === instance.id) term.write(data)
+    })
+
+    // Forward input
+    term.onData((data) => window.api.shellPty.write(instance.id, data))
+
+    // Forward resize
+    term.onResize(({ cols, rows }) => window.api.shellPty.resize(instance.id, cols, rows))
+
+    // On exit, show message
+    const unsubExit = window.api.shellPty.onExited(({ instanceId }) => {
+      if (instanceId === instance.id) term.write('\r\n\x1b[90m[shell exited]\x1b[0m\r\n')
+    })
+
+    // ResizeObserver for shell container
+    const observer = new ResizeObserver(() => {
+      try { fitAddon.fit() } catch { /* */ }
+    })
+    observer.observe(shellContainerRef.current)
+
+    shellTermRef.current = {
+      term, fitAddon,
+      unsub: () => { unsubOutput(); unsubExit(); observer.disconnect() },
+    }
+
+    setTimeout(() => fitAddon.fit(), 100)
+  }, [viewTab])
+
+  // Clean up shell on unmount
+  useEffect(() => {
+    return () => {
+      if (shellTermRef.current) {
+        shellTermRef.current.unsub?.()
+        shellTermRef.current.term.dispose()
+        shellTermRef.current = null
+      }
+      if (shellCreatedRef.current) {
+        window.api.shellPty.kill(instance.id)
+        shellCreatedRef.current = false
+      }
+    }
+  }, [instance.id])
+
+  // Resize shell terminal on window resize
+  useEffect(() => {
+    if (viewTab !== 'shell' || !shellTermRef.current) return
+    const handleResize = () => shellTermRef.current?.fitAddon.fit()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [viewTab])
+
   const fileSearchInputRef = useRef<HTMLInputElement>(null)
   const previewContentRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -401,7 +518,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
 
   // Focus and refit terminal when this pane becomes focused/visible
   useEffect(() => {
-    if (focused && viewTab === 'terminal') {
+    if (focused && viewTab === 'session') {
       const entry = terminalsRef.current.get(instance.id)
       if (entry) {
         // Double-RAF: first frame for DOM layout, second for final paint
@@ -662,9 +779,16 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           <span className="terminal-header-name" style={{ color: instance.color }}>{instance.name}</span>
           <div className="terminal-header-tabs">
             <button
-              className={`terminal-tab ${viewTab === 'terminal' ? 'active' : ''}`}
-              onClick={(e) => { e.stopPropagation(); setViewTab('terminal') }}
-              title="View terminal"
+              className={`terminal-tab ${viewTab === 'session' ? 'active' : ''}`}
+              onClick={(e) => { e.stopPropagation(); setViewTab('session') }}
+              title="Claude session"
+            >
+              <TerminalSquare size={12} /> Session
+            </button>
+            <button
+              className={`terminal-tab ${viewTab === 'shell' ? 'active' : ''}`}
+              onClick={(e) => { e.stopPropagation(); setViewTab('shell') }}
+              title="Shell terminal"
             >
               <TerminalSquare size={12} /> Terminal
             </button>
@@ -675,6 +799,20 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
             >
               <FolderTree size={12} /> Files
             </button>
+            {envName && (
+              <button
+                className={`terminal-tab ${viewTab === 'services' ? 'active' : ''}`}
+                onClick={(e) => { e.stopPropagation(); setViewTab('services') }}
+                title="Environment services"
+              >
+                <Server size={12} /> Services
+                {envStatus && (() => {
+                  const crashed = envStatus.services.filter(s => s.status === 'crashed').length
+                  if (crashed > 0) return <span className="services-tab-badge danger">{crashed}</span>
+                  return null
+                })()}
+              </button>
+            )}
           </div>
           {instance.gitBranch && (
             <span className="terminal-header-branch"><GitBranch size={12} /> {instance.gitBranch}</span>
@@ -957,6 +1095,105 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           </div>
         </div>
       )}
+      {viewTab === 'services' && envStatus && (
+        <div className="services-panel">
+          <div className="services-panel-header">
+            <span className="services-panel-env-name">{envStatus.displayName || envStatus.name}</span>
+            <span className={`services-panel-env-status ${envStatus.status}`}>{envStatus.status}</span>
+            <div className="services-panel-actions">
+              <button
+                className="services-panel-btn"
+                onClick={() => { window.api.env.start(envStatus.id) }}
+                title="Start all services"
+              >
+                <Play size={12} /> Start All
+              </button>
+              <button
+                className="services-panel-btn"
+                onClick={() => { window.api.env.stop(envStatus.id) }}
+                title="Stop all services"
+              >
+                <Square size={10} /> Stop All
+              </button>
+            </div>
+          </div>
+          <div className="services-panel-list">
+            {envStatus.services.map((svc) => (
+              <div key={svc.name} className="services-panel-row">
+                <div className="services-panel-row-left">
+                  <span className={`env-service-dot ${svc.status}`} />
+                  <span className="services-panel-svc-name">{svc.name}</span>
+                  {svc.port && <span className="services-panel-port">:{svc.port}</span>}
+                  <span className={`services-panel-svc-status ${svc.status}`}>{svc.status}</span>
+                  {svc.status === 'running' && svc.uptime > 0 && (
+                    <span className="services-panel-uptime">{formatUptime(svc.uptime)}</span>
+                  )}
+                  {svc.restarts > 0 && (
+                    <span className="services-panel-restarts" title={`${svc.restarts} restart${svc.restarts > 1 ? 's' : ''}`}>
+                      <RotateCcw size={10} /> {svc.restarts}
+                    </span>
+                  )}
+                </div>
+                <div className="services-panel-row-actions">
+                  <button
+                    title="View logs"
+                    onClick={() => {
+                      if (envLogs?.service === svc.name) {
+                        setEnvLogs(null)
+                      } else {
+                        window.api.env.logs(envStatus.id, svc.name, 200).then((content) => {
+                          setEnvLogs({ service: svc.name, content })
+                        })
+                      }
+                    }}
+                  >
+                    <ScrollText size={13} />
+                  </button>
+                  <button
+                    title={`Restart ${svc.name}`}
+                    onClick={() => window.api.env.restartService(envStatus.id, svc.name)}
+                  >
+                    <RotateCcw size={13} />
+                  </button>
+                  {svc.status === 'running' ? (
+                    <button
+                      title={`Stop ${svc.name}`}
+                      onClick={() => window.api.env.stop(envStatus.id, [svc.name])}
+                    >
+                      <Square size={11} />
+                    </button>
+                  ) : (
+                    <button
+                      title={`Start ${svc.name}`}
+                      onClick={() => window.api.env.start(envStatus.id, [svc.name])}
+                    >
+                      <Play size={13} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          {envLogs && (
+            <div className="services-panel-logs">
+              <div className="services-panel-logs-header">
+                <span>{envLogs.service} logs</span>
+                <button onClick={() => setEnvLogs(null)}><X size={12} /></button>
+              </div>
+              <pre className="services-panel-logs-content">{envLogs.content}</pre>
+            </div>
+          )}
+          {Object.keys(envStatus.urls).length > 0 && (
+            <div className="services-panel-urls">
+              {Object.entries(envStatus.urls).map(([name, url]) => (
+                <a key={name} className="services-panel-url" onClick={() => window.api.shell.openExternal(url)} title={url}>
+                  <ExternalLink size={11} /> {name}
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       <div
         className={`terminal-container ${dragOver ? 'drag-over' : ''}`}
         ref={containerRef}
@@ -968,7 +1205,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        style={{ display: viewTab === 'terminal' ? undefined : 'none' }}
+        style={{ display: viewTab === 'session' ? undefined : 'none' }}
       >
         {searchOpen && (
           <div className="terminal-search-bar">
@@ -993,6 +1230,15 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           <button className="terminal-scroll-btn" onClick={scrollToBottom} title="Scroll to bottom" aria-label="Scroll to bottom"><ChevronDown size={14} /></button>
         </div>
       </div>
+      <div
+        className="terminal-container shell-terminal"
+        ref={shellContainerRef}
+        onClick={() => {
+          onFocusPane?.()
+          shellTermRef.current?.term.focus()
+        }}
+        style={{ display: viewTab === 'shell' ? undefined : 'none' }}
+      />
     </>
   )
 }

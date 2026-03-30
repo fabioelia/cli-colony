@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { execSync } from 'child_process'
+import { createShell, writeShell, resizeShell, killShell } from '../shell-pty'
 import {
   createInstance,
   writeToInstance,
@@ -93,6 +94,20 @@ export function registerInstanceHandlers(): void {
     } catch {
       return []
     }
+  })
+
+  // Shell PTY — real shell terminals per instance
+  ipcMain.handle('shell-pty:create', async (_e, instanceId: string, cwd: string) => {
+    return createShell(instanceId, cwd)
+  })
+  ipcMain.handle('shell-pty:write', (_e, instanceId: string, data: string) => {
+    return writeShell(instanceId, data)
+  })
+  ipcMain.handle('shell-pty:resize', (_e, instanceId: string, cols: number, rows: number) => {
+    return resizeShell(instanceId, cols, rows)
+  })
+  ipcMain.handle('shell-pty:kill', (_e, instanceId: string) => {
+    return killShell(instanceId)
   })
 }
 
