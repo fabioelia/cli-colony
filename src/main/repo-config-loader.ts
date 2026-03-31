@@ -97,8 +97,12 @@ export function loadRepoConfig(repoPath: string): RepoColonyConfig | null {
  */
 export function loadRepoConfigFromBare(bareRepoDir: string, repoSlug: string): RepoColonyConfig | null {
   try {
-    // Check if .colony/ exists in HEAD
-    const treeOutput = execSync(`git ls-tree HEAD .colony/`, {
+    // Resolve the best ref to read from — prefer origin's default branch over local HEAD
+    // (local branch in a bare repo often lags behind after `git fetch`)
+    const ref = resolveBareRef(bareRepoDir)
+
+    // Check if .colony/ exists at the resolved ref
+    const treeOutput = execSync(`git ls-tree ${ref} .colony/`, {
       cwd: bareRepoDir,
       encoding: 'utf-8',
       timeout: 5000,
@@ -106,15 +110,15 @@ export function loadRepoConfigFromBare(bareRepoDir: string, repoSlug: string): R
 
     if (!treeOutput) return null
 
-    const config = loadConfigYamlFromBare(bareRepoDir)
-    const templates = loadTemplatesFromBare(bareRepoDir, repoSlug)
-    const pipelines = loadPipelinesFromBare(bareRepoDir, repoSlug)
-    const prompts = loadPromptsFromBare(bareRepoDir, repoSlug)
-    const context = gitShow(bareRepoDir, '.colony/context.md')
+    const config = loadConfigYamlFromBare(bareRepoDir, ref)
+    const templates = loadTemplatesFromBare(bareRepoDir, repoSlug, ref)
+    const pipelines = loadPipelinesFromBare(bareRepoDir, repoSlug, ref)
+    const prompts = loadPromptsFromBare(bareRepoDir, repoSlug, ref)
+    const context = gitShow(bareRepoDir, '.colony/context.md', ref)
 
     const hashes: RepoColonyConfig['hashes'] = { pipelines: {}, templates: {} }
     for (const p of pipelines) {
-      const content = gitShow(bareRepoDir, `.colony/pipelines/${p.fileName}`)
+      const content = gitShow(bareRepoDir, `.colony/pipelines/${p.fileName}`, ref)
       if (content) hashes.pipelines[p.fileName] = sha256(content)
     }
 
@@ -157,7 +161,9 @@ export function getRepoConfig(repoPath: string, repoSlug?: string): RepoColonyCo
 
   // Try bare repo
   if (!config && repoPath.endsWith('.git')) {
+    console.log(`[repo-config] trying bare repo: ${repoPath} slug=${repoSlug}`)
     config = loadRepoConfigFromBare(repoPath, repoSlug || repoPath)
+    console.log(`[repo-config] bare repo result: ${config ? `${config.templates.length} templates` : 'null'}`)
   }
 
   if (config) {
@@ -215,9 +221,37 @@ function resolveRepoSlug(repoPath: string): string {
   return path.basename(repoPath)
 }
 
-function gitShow(bareRepoDir: string, filePath: string): string | null {
+/**
+ * Resolve the best ref to read .colony/ from in a bare repo.
+ * Prefers the remote default branch (origin/HEAD → origin/main or origin/develop)
+ * because `git fetch` updates remote refs but not local branches.
+ */
+function resolveBareRef(bareRepoDir: string): string {
+  // Try origin/HEAD (set by git clone --bare, points to default branch)
   try {
-    return execSync(`git show HEAD:${filePath}`, {
+    const ref = execSync('git symbolic-ref refs/remotes/origin/HEAD', {
+      cwd: bareRepoDir, encoding: 'utf-8', timeout: 2000,
+    }).trim()
+    if (ref) return ref // e.g. "refs/remotes/origin/main"
+  } catch { /* not set */ }
+
+  // Try common default branch names on origin
+  for (const branch of ['origin/develop', 'origin/main', 'origin/master']) {
+    try {
+      execSync(`git rev-parse --verify ${branch}`, {
+        cwd: bareRepoDir, encoding: 'utf-8', timeout: 2000,
+      })
+      return branch
+    } catch { /* doesn't exist */ }
+  }
+
+  // Fallback to HEAD (local branch — might be stale)
+  return 'HEAD'
+}
+
+function gitShow(bareRepoDir: string, filePath: string, ref = 'HEAD'): string | null {
+  try {
+    return execSync(`git show ${ref}:${filePath}`, {
       cwd: bareRepoDir, encoding: 'utf-8', timeout: 5000,
     })
   } catch {
@@ -238,8 +272,8 @@ function loadConfigYaml(colonyDir: string): ColonyProjectConfig | null {
   }
 }
 
-function loadConfigYamlFromBare(bareRepoDir: string): ColonyProjectConfig | null {
-  const content = gitShow(bareRepoDir, '.colony/config.yaml')
+function loadConfigYamlFromBare(bareRepoDir: string, ref = 'HEAD'): ColonyProjectConfig | null {
+  const content = gitShow(bareRepoDir, '.colony/config.yaml', ref)
   if (!content) return null
   const parsed = parseYaml(content)
   if (!parsed?.name) return null
@@ -262,9 +296,9 @@ function loadTemplates(colonyDir: string, repoSlug: string): (EnvironmentTemplat
   return templates
 }
 
-function loadTemplatesFromBare(bareRepoDir: string, repoSlug: string): (EnvironmentTemplate & { source: string })[] {
+function loadTemplatesFromBare(bareRepoDir: string, repoSlug: string, ref = 'HEAD'): (EnvironmentTemplate & { source: string })[] {
   try {
-    const listing = execSync('git ls-tree --name-only HEAD .colony/templates/', {
+    const listing = execSync(`git ls-tree --name-only ${ref} .colony/templates/`, {
       cwd: bareRepoDir, encoding: 'utf-8', timeout: 5000,
     }).trim()
     if (!listing) return []
@@ -272,7 +306,7 @@ function loadTemplatesFromBare(bareRepoDir: string, repoSlug: string): (Environm
     const templates: (EnvironmentTemplate & { source: string })[] = []
     for (const filePath of listing.split('\n')) {
       if (!filePath.endsWith('.yaml') && !filePath.endsWith('.yml')) continue
-      const content = gitShow(bareRepoDir, filePath)
+      const content = gitShow(bareRepoDir, filePath, ref)
       if (content) {
         const template = parseTemplateYaml(content, repoSlug)
         if (template) templates.push(template)
@@ -321,9 +355,9 @@ function loadPipelines(colonyDir: string, repoSlug: string): (RepoPipelineDef & 
   return pipelines
 }
 
-function loadPipelinesFromBare(bareRepoDir: string, repoSlug: string): (RepoPipelineDef & { source: string; fileName: string })[] {
+function loadPipelinesFromBare(bareRepoDir: string, repoSlug: string, ref = 'HEAD'): (RepoPipelineDef & { source: string; fileName: string })[] {
   try {
-    const listing = execSync('git ls-tree --name-only HEAD .colony/pipelines/', {
+    const listing = execSync(`git ls-tree --name-only ${ref} .colony/pipelines/`, {
       cwd: bareRepoDir, encoding: 'utf-8', timeout: 5000,
     }).trim()
     if (!listing) return []
@@ -332,7 +366,7 @@ function loadPipelinesFromBare(bareRepoDir: string, repoSlug: string): (RepoPipe
     for (const filePath of listing.split('\n')) {
       const fileName = path.basename(filePath)
       if (!fileName.endsWith('.yaml') && !fileName.endsWith('.yml')) continue
-      const content = gitShow(bareRepoDir, filePath)
+      const content = gitShow(bareRepoDir, filePath, ref)
       if (content) {
         const parsed = parseYaml(content) as RepoPipelineDef | null
         if (parsed?.name && parsed?.trigger && parsed?.action) {
@@ -368,9 +402,9 @@ function loadPrompts(colonyDir: string, repoSlug: string): (QuickPrompt & { sour
   return prompts
 }
 
-function loadPromptsFromBare(bareRepoDir: string, repoSlug: string): (QuickPrompt & { source: string })[] {
+function loadPromptsFromBare(bareRepoDir: string, repoSlug: string, ref = 'HEAD'): (QuickPrompt & { source: string })[] {
   try {
-    const listing = execSync('git ls-tree --name-only HEAD .colony/prompts/', {
+    const listing = execSync(`git ls-tree --name-only ${ref} .colony/prompts/`, {
       cwd: bareRepoDir, encoding: 'utf-8', timeout: 5000,
     }).trim()
     if (!listing) return []
@@ -378,7 +412,7 @@ function loadPromptsFromBare(bareRepoDir: string, repoSlug: string): (QuickPromp
     const prompts: (QuickPrompt & { source: string })[] = []
     for (const filePath of listing.split('\n')) {
       if (!filePath.endsWith('.yaml') && !filePath.endsWith('.yml')) continue
-      const content = gitShow(bareRepoDir, filePath)
+      const content = gitShow(bareRepoDir, filePath, ref)
       if (content) {
         const parsed = parseYaml(content)
         if (parsed?.prompts && Array.isArray(parsed.prompts)) {

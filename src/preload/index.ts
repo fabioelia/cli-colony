@@ -76,6 +76,8 @@ export interface ClaudeManagerAPI {
   }
   daemon: {
     restart: () => Promise<void>
+    getVersion: () => Promise<{ running: number; expected: number }>
+    onVersionMismatch: (cb: (info: { running: number; expected: number }) => void) => () => void
   }
   settings: {
     getAll: () => Promise<Record<string, string>>
@@ -216,6 +218,8 @@ export interface ClaudeManagerAPI {
     getTemplate: (id: string) => Promise<any>
     saveTemplate: (template: any) => Promise<boolean>
     deleteTemplate: (id: string) => Promise<boolean>
+    /** Re-scan all repos for .colony/ configs and return merged template list. */
+    refreshTemplates: () => Promise<any[]>
     onStatusUpdate: (cb: (environments: EnvStatus[]) => void) => () => void
     onServiceOutput: (cb: (data: { envId: string; service: string; data: string }) => void) => () => void
     onServiceCrashed: (cb: (data: { envId: string; service: string; exitCode: number }) => void) => () => void
@@ -302,6 +306,12 @@ const api: ClaudeManagerAPI = {
   },
   daemon: {
     restart: () => ipcRenderer.invoke('daemon:restart'),
+    getVersion: () => ipcRenderer.invoke('daemon:version'),
+    onVersionMismatch: (cb) => {
+      const handler = (_e: any, info: { running: number; expected: number }) => cb(info)
+      ipcRenderer.on('daemon:version-mismatch', handler)
+      return () => ipcRenderer.removeListener('daemon:version-mismatch', handler)
+    },
   },
   settings: {
     getAll: () => ipcRenderer.invoke('settings:getAll'),
@@ -421,6 +431,7 @@ const api: ClaudeManagerAPI = {
     getTemplate: (id: string) => ipcRenderer.invoke('env:getTemplate', id),
     saveTemplate: (template: any) => ipcRenderer.invoke('env:saveTemplate', template),
     deleteTemplate: (id: string) => ipcRenderer.invoke('env:deleteTemplate', id),
+    refreshTemplates: () => ipcRenderer.invoke('env:refreshTemplates'),
     onTemplatesChanged: (cb: (templates: any[]) => void) => {
       const l = (_e: any, templates: any[]) => cb(templates)
       ipcRenderer.on('env:templates-changed', l)

@@ -10,6 +10,9 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { execSync } from 'child_process'
 import * as pty from 'node-pty'
+import {
+  DAEMON_VERSION,
+} from './protocol'
 import type {
   ClaudeInstance,
   CliBackend,
@@ -156,6 +159,18 @@ function resolveGitBranch(cwd: string): string | null {
   }
 }
 
+function resolveGitRepo(cwd: string): string | null {
+  try {
+    const url = execSync('git config --get remote.origin.url', { cwd, encoding: 'utf-8', timeout: 2000 }).trim()
+    if (!url) return null
+    // Parse owner/repo from SSH or HTTPS URLs
+    const match = url.match(/[/:]([\w.-]+)\/([\w.-]+?)(?:\.git)?$/)
+    return match ? `${match[1]}/${match[2]}` : null
+  } catch {
+    return null
+  }
+}
+
 function toSerializable(inst: InternalInstance): ClaudeInstance {
   return {
     id: inst.id,
@@ -170,6 +185,7 @@ function toSerializable(inst: InternalInstance): ClaudeInstance {
     args: inst.args,
     cliBackend: inst.cliBackend,
     gitBranch: inst.gitBranch,
+    gitRepo: inst.gitRepo,
     tokenUsage: inst.tokenUsage,
     pinned: inst.pinned,
     mcpServers: inst.mcpServers,
@@ -259,7 +275,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
       id, name, color, status: 'exited', activity: 'waiting',
       workingDirectory: cwd, createdAt: new Date().toISOString(),
       exitCode: -1, pid: null, args: argv, cliBackend,
-      gitBranch: resolveGitBranch(cwd),
+      gitBranch: resolveGitBranch(cwd), gitRepo: resolveGitRepo(cwd),
       tokenUsage: { input: 0, output: 0, cost: 0 },
       pinned: false, mcpServers: [],
       parentId: opts.parentId || null, childIds: [],
@@ -275,7 +291,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
     id, name, color, status: 'running', activity: 'busy',
     workingDirectory: cwd, createdAt: new Date().toISOString(),
     exitCode: null, pid: ptyProcess.pid,
-    args: argv, cliBackend, gitBranch: resolveGitBranch(cwd),
+    args: argv, cliBackend, gitBranch: resolveGitBranch(cwd), gitRepo: resolveGitRepo(cwd),
     tokenUsage: { input: 0, output: 0, cost: 0 },
     pinned: false, mcpServers: [],
     parentId: opts.parentId || null, childIds: [],
@@ -645,6 +661,10 @@ function handleRequest(req: DaemonRequest, socket: net.Socket): void {
       case 'ping': {
         send({ type: 'ok', reqId: req.reqId })
         broadcastEvent({ type: 'pong' })
+        break
+      }
+      case 'version': {
+        send({ type: 'ok', reqId: req.reqId, data: { version: DAEMON_VERSION } })
         break
       }
       case 'shutdown': {

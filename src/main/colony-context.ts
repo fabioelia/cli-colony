@@ -12,6 +12,7 @@ import { join, basename } from 'path'
 import { app } from 'electron'
 import { getAllInstances } from './instance-manager'
 import { scanAgents } from './agent-scanner'
+import { getRepoContext } from './repo-config-loader'
 
 import { colonyPaths } from '../shared/colony-paths'
 
@@ -153,7 +154,6 @@ export function getColonyContextInstruction(workingDirectory?: string): string {
   // Append repo-specific context if .colony/context.md exists
   if (workingDirectory) {
     try {
-      const { getRepoContext } = require('./repo-config-loader') as typeof import('./repo-config-loader')
       const repoContext = getRepoContext(workingDirectory)
       if (repoContext) {
         instruction += `\n\n--- Project Context ---\n${repoContext}`

@@ -11,6 +11,7 @@ import { join } from 'path'
 import { existsSync, statSync } from 'fs'
 import { getDaemonClient, DaemonClient } from './daemon-client'
 import { getDefaultArgs, getSetting, getDefaultCliBackend } from './settings'
+import { DAEMON_VERSION } from '../daemon/protocol'
 import type { CliBackend } from '../daemon/protocol'
 import { trackOpened, trackClosed } from './recent-sessions'
 import { broadcast } from './broadcast'
@@ -87,9 +88,10 @@ export function wireDaemonEvents(): void {
     }
   })
 
-  // Forward exit events + handle auto-cleanup
+  // Forward exit events + handle auto-cleanup + track session closure
   client.on('exited', (instanceId: string, exitCode: number) => {
     broadcast('instance:exited', { id: instanceId, exitCode })
+    trackClosed(instanceId, 'exited')
 
     // Auto-cleanup
     const cleanupMins = parseInt(getSetting('autoCleanupMinutes') || '5', 10)
@@ -117,6 +119,11 @@ export function wireDaemonEvents(): void {
 
   client.on('connected', () => {
     console.log('[instance-manager] daemon connected')
+  })
+
+  client.on('version-mismatch', (info: { running: number; expected: number }) => {
+    console.warn(`[instance-manager] daemon version mismatch: running=${info.running} expected=${info.expected}`)
+    broadcast('daemon:version-mismatch', info)
   })
 }
 
@@ -151,11 +158,13 @@ export async function createInstance(opts: {
   const sessionIdFromArgs = resumeIdx >= 0 ? allArgs[resumeIdx + 1] : null
   trackOpened({
     instanceName: inst.name,
+    instanceId: inst.id,
     sessionId: sessionIdFromArgs,
     workingDirectory: cwd,
     color: inst.color,
     args: allArgs,
     cliBackend: inst.cliBackend,
+    pid: inst.pid ?? null,
   })
 
   return inst
@@ -236,6 +245,15 @@ export async function shutdownDaemon(): Promise<void> {
  * Restart the daemon — kills all instances, shuts down, then reconnects.
  * The new daemon picks up fresh settings (shell profile, etc).
  */
+export async function getDaemonVersion(): Promise<{ running: number; expected: number }> {
+  try {
+    const res = await getDaemonClient().request({ type: 'version', reqId: `v-${Date.now()}` }) as { version?: number } | undefined
+    return { running: res?.version ?? 0, expected: DAEMON_VERSION }
+  } catch {
+    return { running: 0, expected: DAEMON_VERSION }
+  }
+}
+
 export async function restartDaemon(): Promise<void> {
   console.log('[instance-manager] restarting daemon...')
   try {

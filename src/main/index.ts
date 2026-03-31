@@ -3,11 +3,14 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerIpcHandlers } from './ipc-handlers'
 import { initDaemon, disconnectDaemon, setOnInstanceListChanged } from './instance-manager'
-import { initEnvDaemon } from './env-manager'
+import { initEnvDaemon, refreshRepoConfigs } from './env-manager'
 import { createTray, updateTrayMenu } from './tray'
 import { initLogger } from './logger'
 import { getSetting } from './settings'
 import { updateColonyContext } from './colony-context'
+import { killAllShells } from './shell-pty'
+import { snapshotRunning } from './recent-sessions'
+import { ensureRepoClones } from './github'
 
 const COLONY_CLI_SCRIPT = `#!/bin/bash
 # colony — control Colony environments from the command line.
@@ -334,10 +337,12 @@ app.whenReady().then(() => {
       writeFileSync(cliDst, COLONY_CLI_SCRIPT, 'utf-8')
       chmodSync(cliDst, 0o755)
     } catch { /* ignore */ }
-    // Ensure all repos have shallow clones for template agent
+    // Ensure all repos have bare clones, then pre-warm .colony/ config cache
     try {
-      const { ensureRepoClones } = require('./github')
       ensureRepoClones()
+    } catch { /* ignore */ }
+    try {
+      refreshRepoConfigs()
     } catch { /* ignore */ }
     // Start pipeline polling
     startPipelines().then(() => {
@@ -389,13 +394,14 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   app.isQuitting = true
+  // Snapshot running sessions BEFORE disconnect so we know what to restore
+  snapshotRunning()
   // Just disconnect — daemon keeps instances alive for reconnection
   disconnectDaemon()
 })
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
-  const { killAllShells } = require('./shell-pty') as typeof import('./shell-pty')
   killAllShells()
 })
 

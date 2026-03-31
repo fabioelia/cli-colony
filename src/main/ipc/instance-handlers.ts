@@ -16,6 +16,7 @@ import {
   getInstance,
   getInstanceBuffer,
   restartDaemon,
+  getDaemonVersion,
 } from '../instance-manager'
 
 export interface ChildProcess {
@@ -41,6 +42,7 @@ export function registerInstanceHandlers(): void {
   ipcMain.handle('instance:get', (_e, id: string) => getInstance(id))
   ipcMain.handle('instance:buffer', (_e, id: string) => getInstanceBuffer(id))
   ipcMain.handle('daemon:restart', () => restartDaemon())
+  ipcMain.handle('daemon:version', () => getDaemonVersion())
 
   ipcMain.handle('instance:killProcess', async (_e, pid: number): Promise<boolean> => {
     try {

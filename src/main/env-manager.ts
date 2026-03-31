@@ -16,6 +16,8 @@ import { readAndReconcileState, emptyState, writeState } from '../shared/env-sta
 import { addToIndex, removeFromIndex, allEnvDirs } from '../shared/env-index'
 import { broadcast } from './broadcast'
 import { loadShellEnv } from './shell-env'
+import { getAllRepoConfigs, getRepoConfig, clearRepoConfigCache } from './repo-config-loader'
+import { getRepos } from './github'
 import type { InstanceManifest, EnvStatus, EnvironmentTemplate } from '../daemon/env-protocol'
 
 import { colonyPaths } from '../shared/colony-paths'
@@ -122,18 +124,7 @@ export async function initEnvDaemon(): Promise<void> {
     await syncEnvironmentsFromDisk()
 
     // Load .colony/ configs from all known repos
-    try {
-      const { getRepoConfig } = require('./repo-config-loader') as typeof import('./repo-config-loader')
-      const { getRepos } = require('./github') as typeof import('./github')
-      const repos = getRepos()
-      for (const repo of repos) {
-        const localPath = repo.localPath
-        if (localPath && fs.existsSync(localPath)) {
-          getRepoConfig(localPath, `${repo.owner}/${repo.name}`)
-        }
-      }
-      console.log(`[env-manager] loaded .colony/ configs from ${repos.length} repos`)
-    } catch { /* repo config loading is non-fatal */ }
+    refreshRepoConfigs()
 
     // Broadcast current state to renderer so it doesn't have to wait for polling
     try {
@@ -240,9 +231,11 @@ export function listTemplates(): EnvironmentTemplate[] {
 
   // 2. Repo templates (from .colony/templates/ in tracked repos)
   try {
-    const { getAllRepoConfigs } = require('./repo-config-loader') as typeof import('./repo-config-loader')
+    const repoConfigs = getAllRepoConfigs()
+    console.log(`[env-manager] listTemplates: ${templates.length} user templates, ${repoConfigs.length} repo configs`)
     const userNames = new Set(templates.map(t => t.name))
-    for (const repoConfig of getAllRepoConfigs()) {
+    for (const repoConfig of repoConfigs) {
+      console.log(`[env-manager]   repo ${repoConfig.repoSlug}: ${repoConfig.templates.length} templates`)
       for (const t of repoConfig.templates) {
         // User template with same name takes precedence
         if (!userNames.has(t.name)) {
@@ -250,8 +243,11 @@ export function listTemplates(): EnvironmentTemplate[] {
         }
       }
     }
-  } catch { /* repo config loader not available */ }
+  } catch (err) {
+    console.warn('[env-manager] repo template loading failed:', err)
+  }
 
+  console.log(`[env-manager] listTemplates: returning ${templates.length} total`)
   return templates.sort((a, b) => a.name.localeCompare(b.name))
 }
 
@@ -281,6 +277,31 @@ export function deleteTemplate(id: string): boolean {
     } catch { /* skip */ }
   }
   return false
+}
+
+// ---- Repo Config Refresh ----
+
+/** Scan all known repos for .colony/ directories and cache their configs.
+ *  Fetches bare repos first so we read the latest remote state. */
+export function refreshRepoConfigs(): void {
+  try {
+    clearRepoConfigCache()
+    const repos = getRepos()
+    let loaded = 0
+    for (const repo of repos) {
+      const localPath = repo.localPath
+      if (!localPath || !fs.existsSync(localPath)) continue
+      // Fetch latest for bare repos so .colony/ discovery reads current remote state
+      if (localPath.endsWith('.git')) {
+        try { execSync('git fetch origin --prune', { cwd: localPath, timeout: 15000, stdio: 'ignore' }) } catch { /* non-fatal */ }
+      }
+      const config = getRepoConfig(localPath, `${repo.owner}/${repo.name}`)
+      if (config) loaded++
+    }
+    console.log(`[env-manager] refreshed .colony/ configs: ${loaded}/${repos.length} repos have configs`)
+  } catch (err) {
+    console.warn('[env-manager] repo config refresh failed (non-fatal):', err)
+  }
 }
 
 // ---- Public API ----

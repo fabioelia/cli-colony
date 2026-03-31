@@ -23,6 +23,7 @@ export interface ClaudeInstance {
   /** CLI used for this session (drives spawn command and integrations like /color). */
   cliBackend: CliBackend
   gitBranch: string | null
+  gitRepo: string | null
   tokenUsage: { input: number; output: number; cost: number }
   pinned: boolean
   mcpServers: string[]
@@ -58,6 +59,7 @@ export type DaemonRequest =
   | { type: 'buffer'; reqId: string; instanceId: string }
   | { type: 'subscribe'; reqId: string }
   | { type: 'ping'; reqId: string }
+  | { type: 'version'; reqId: string }
   | { type: 'shutdown'; reqId: string }
 
 // ---- Daemon → Client responses ----
@@ -78,6 +80,13 @@ export type DaemonEvent =
 export type DaemonMessage = DaemonResponse | DaemonEvent
 
 // ---- Constants ----
+
+/**
+ * Bump this when the daemon protocol or behavior changes in a way that
+ * requires a daemon restart to pick up. The client checks this on connect
+ * and shows a banner if stale.
+ */
+export const DAEMON_VERSION = 2
 
 export const SOCKET_PATH_SUFFIX = '.claude-colony/daemon.sock'
 export const PID_PATH_SUFFIX = '.claude-colony/daemon.pid'

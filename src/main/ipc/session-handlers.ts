@@ -304,7 +304,19 @@ export function registerSessionHandlers(): void {
     return results
   })
 
-  ipcMain.handle('sessions:restorable', () => getRestorableSessions())
+  ipcMain.handle('sessions:restorable', async () => {
+    // Check which sessions the daemon already has (reconnected automatically)
+    const instances = await getAllInstances()
+    const alreadyRunning = new Set<string>()
+    for (const inst of instances) {
+      // Instances resumed with --resume have the sessionId in args
+      const resumeIdx = inst.args?.indexOf('--resume')
+      if (resumeIdx !== undefined && resumeIdx >= 0 && inst.args?.[resumeIdx + 1]) {
+        alreadyRunning.add(inst.args[resumeIdx + 1])
+      }
+    }
+    return getRestorableSessions(alreadyRunning)
+  })
   ipcMain.handle('sessions:clearRestorable', () => { clearRestorable(); return true })
   ipcMain.handle('sessions:recent', () => getRecentSessions())
 }

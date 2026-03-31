@@ -4,8 +4,9 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity } from 'lucide-react'
 import type { EnvStatus, EnvServiceStatus } from '../../../shared/types'
+import { buildDiagnosePrompt } from '../../../shared/env-prompts'
 import '@xterm/xterm/css/xterm.css'
 import type { ClaudeInstance } from '../types'
 import Tooltip from './Tooltip'
@@ -177,7 +178,7 @@ function FileTreeNode({ node, depth, selectedPath, expandedPaths, filter, onTogg
   )
 }
 
-type ViewTab = 'session' | 'shell' | 'files' | 'services'
+type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs'
 
 export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, isSplit, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -218,6 +219,15 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   })()
   const [envStatus, setEnvStatus] = useState<EnvStatus | null>(null)
   const [envLogs, setEnvLogs] = useState<{ service: string; content: string } | null>(null)
+  const [fixMenuOpen, setFixMenuOpen] = useState(false)
+  const [fixResult, setFixResult] = useState<{ lines: string[]; isError?: boolean } | null>(null)
+  const [fixInProgress, setFixInProgress] = useState(false)
+  // Logs tab state
+  const [logsFilter, setLogsFilter] = useState<string | null>(null) // null = all services
+  const [logsContent, setLogsContent] = useState<Array<{ service: string; line: string; ts: number }>>([])
+  const logsEndRef = useRef<HTMLDivElement>(null)
+  const logsAutoScroll = useRef(true)
+  const logsInitialized = useRef(false)
 
   useEffect(() => {
     if (!envName) return
@@ -233,6 +243,50 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     })
     return unsub
   }, [envName])
+
+  // Logs tab: load initial logs + subscribe to streaming output
+  useEffect(() => {
+    if (viewTab !== 'logs' || !envStatus) return
+    // Load initial logs for all services (only once)
+    if (!logsInitialized.current) {
+      logsInitialized.current = true
+      const loadAll = async () => {
+        const entries: Array<{ service: string; line: string; ts: number }> = []
+        for (const svc of envStatus.services) {
+          try {
+            const content = await window.api.env.logs(envStatus.id, svc.name, 100)
+            if (content) {
+              for (const line of content.split('\n')) {
+                if (line.trim()) entries.push({ service: svc.name, line, ts: Date.now() })
+              }
+            }
+          } catch { /* skip */ }
+        }
+        setLogsContent(entries)
+      }
+      loadAll()
+    }
+    // Subscribe to streaming output
+    const unsub = window.api.env.onServiceOutput((data) => {
+      if (data.envId !== envStatus.id) return
+      const lines = data.data.split('\n').filter((l: string) => l.trim())
+      if (lines.length === 0) return
+      setLogsContent(prev => {
+        const newEntries = lines.map((line: string) => ({ service: data.service, line, ts: Date.now() }))
+        const combined = [...prev, ...newEntries]
+        // Keep last 2000 lines to avoid memory bloat
+        return combined.length > 2000 ? combined.slice(-2000) : combined
+      })
+    })
+    return unsub
+  }, [viewTab, envStatus])
+
+  // Auto-scroll logs
+  useEffect(() => {
+    if (logsAutoScroll.current && logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [logsContent])
   // Shell terminal — lazy init when tab is first opened
   useEffect(() => {
     if (viewTab !== 'shell') return
@@ -813,9 +867,25 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 })()}
               </button>
             )}
+            {envName && (
+              <button
+                className={`terminal-tab ${viewTab === 'logs' ? 'active' : ''}`}
+                onClick={(e) => { e.stopPropagation(); setViewTab('logs') }}
+                title="Service logs"
+              >
+                <ScrollText size={12} /> Logs
+              </button>
+            )}
           </div>
-          {instance.gitBranch && (
-            <span className="terminal-header-branch"><GitBranch size={12} /> {instance.gitBranch}</span>
+          {(instance.gitRepo || instance.gitBranch) && (
+            <div className="terminal-header-repo-info">
+              {instance.gitRepo && (
+                <span className="terminal-header-repo-badge">{instance.gitRepo}</span>
+              )}
+              {instance.gitBranch && (
+                <span className="terminal-header-branch-badge"><GitBranch size={11} /> {instance.gitBranch}</span>
+              )}
+            </div>
           )}
         </div>
         <div className="terminal-header-actions">
@@ -1097,101 +1167,282 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
       )}
       {viewTab === 'services' && envStatus && (
         <div className="services-panel">
+          {/* Header: name, status, actions */}
           <div className="services-panel-header">
             <span className="services-panel-env-name">{envStatus.displayName || envStatus.name}</span>
             <span className={`services-panel-env-status ${envStatus.status}`}>{envStatus.status}</span>
             <div className="services-panel-actions">
-              <button
-                className="services-panel-btn"
-                onClick={() => { window.api.env.start(envStatus.id) }}
-                title="Start all services"
-              >
+              <button className="services-panel-btn" onClick={() => window.api.env.start(envStatus.id)} title="Start all services">
                 <Play size={12} /> Start All
               </button>
-              <button
-                className="services-panel-btn"
-                onClick={() => { window.api.env.stop(envStatus.id) }}
-                title="Stop all services"
-              >
+              <button className="services-panel-btn" onClick={() => window.api.env.stop(envStatus.id)} title="Stop all services">
                 <Square size={10} /> Stop All
               </button>
+              <div className="services-panel-fix-wrap">
+                <button
+                  className={`services-panel-btn ${fixMenuOpen ? 'active' : ''}`}
+                  onClick={() => setFixMenuOpen(!fixMenuOpen)}
+                  title="Fix / diagnose environment"
+                >
+                  <Stethoscope size={12} />
+                </button>
+                {fixMenuOpen && (
+                  <div className="services-panel-fix-dropdown" onClick={(e) => e.stopPropagation()}>
+                    <button className="services-panel-fix-item" onClick={async () => {
+                      setFixMenuOpen(false)
+                      try {
+                        setFixInProgress(true)
+                        setFixResult(null)
+                        await window.api.env.stop(envStatus.id).catch(() => {})
+                        const result = await window.api.env.fix(envStatus.id)
+                        setFixResult({ lines: result.fixed })
+                        setTimeout(() => setFixResult(prev => prev && !prev.isError ? null : prev), 8000)
+                      } catch (err: any) {
+                        setFixResult({ lines: [err.message || String(err)], isError: true })
+                        setTimeout(() => setFixResult(prev => prev?.isError ? null : prev), 8000)
+                      } finally {
+                        setFixInProgress(false)
+                      }
+                    }}>
+                      <RefreshCw size={12} />
+                      <div>
+                        <div className="services-panel-fix-title">Quick Fix</div>
+                        <div className="services-panel-fix-desc">Re-resolve ports and variables from template</div>
+                      </div>
+                    </button>
+                    <button className="services-panel-fix-item" onClick={async () => {
+                      setFixMenuOpen(false)
+                      try {
+                        const [manifest, setupLog] = await Promise.all([
+                          window.api.env.manifest(envStatus.id),
+                          window.api.env.logs(envStatus.id, 'setup', 200).catch(() => '(no setup log)'),
+                        ])
+                        const templateId = manifest?.meta?.templateId as string | undefined
+                        const template = templateId ? await window.api.env.getTemplate(templateId).catch(() => null) : null
+                        const hasCrashedServices = envStatus.services.some(s => s.status === 'crashed')
+                        const { systemPrompt, initialPrompt } = buildDiagnosePrompt({
+                          env: envStatus, manifest, setupLog, template,
+                          isError: envStatus.status === 'error', hasCrashedServices,
+                        })
+                        let promptArgs: string[]
+                        try {
+                          const promptFile = await window.api.fs.writeTempFile(`env-${envStatus.name}`, systemPrompt)
+                          promptArgs = ['--append-system-prompt-file', promptFile]
+                        } catch {
+                          promptArgs = ['--append-system-prompt', systemPrompt]
+                        }
+                        await window.api.instance.create({
+                          name: `Fix: ${envStatus.displayName || envStatus.name}`,
+                          workingDirectory: envStatus.paths.root || instance.workingDirectory,
+                          color: '#ef4444',
+                          args: [...promptArgs, '--prompt', initialPrompt],
+                        })
+                      } catch (err) {
+                        console.error('[services-panel] diagnose failed:', err)
+                      }
+                    }}>
+                      <MessageSquare size={12} />
+                      <div>
+                        <div className="services-panel-fix-title">Diagnose with AI</div>
+                        <div className="services-panel-fix-desc">Launch AI agent with logs and manifest context</div>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-          <div className="services-panel-list">
-            {envStatus.services.map((svc) => (
-              <div key={svc.name} className="services-panel-row">
-                <div className="services-panel-row-left">
-                  <span className={`env-service-dot ${svc.status}`} />
-                  <span className="services-panel-svc-name">{svc.name}</span>
-                  {svc.port && <span className="services-panel-port">:{svc.port}</span>}
-                  <span className={`services-panel-svc-status ${svc.status}`}>{svc.status}</span>
-                  {svc.status === 'running' && svc.uptime > 0 && (
-                    <span className="services-panel-uptime">{formatUptime(svc.uptime)}</span>
-                  )}
-                  {svc.restarts > 0 && (
-                    <span className="services-panel-restarts" title={`${svc.restarts} restart${svc.restarts > 1 ? 's' : ''}`}>
-                      <RotateCcw size={10} /> {svc.restarts}
-                    </span>
-                  )}
-                </div>
-                <div className="services-panel-row-actions">
-                  <button
-                    title="View logs"
-                    onClick={() => {
-                      if (envLogs?.service === svc.name) {
-                        setEnvLogs(null)
-                      } else {
-                        window.api.env.logs(envStatus.id, svc.name, 200).then((content) => {
-                          setEnvLogs({ service: svc.name, content })
-                        })
-                      }
-                    }}
-                  >
-                    <ScrollText size={13} />
-                  </button>
-                  <button
-                    title={`Restart ${svc.name}`}
-                    onClick={() => window.api.env.restartService(envStatus.id, svc.name)}
-                  >
-                    <RotateCcw size={13} />
-                  </button>
-                  {svc.status === 'running' ? (
-                    <button
-                      title={`Stop ${svc.name}`}
-                      onClick={() => window.api.env.stop(envStatus.id, [svc.name])}
-                    >
-                      <Square size={11} />
-                    </button>
-                  ) : (
-                    <button
-                      title={`Start ${svc.name}`}
-                      onClick={() => window.api.env.start(envStatus.id, [svc.name])}
-                    >
-                      <Play size={13} />
-                    </button>
-                  )}
-                </div>
+
+          {/* Fix result banner */}
+          {fixResult && (
+            <div className={`services-panel-fix-result ${fixResult.isError ? 'error' : 'success'}`}>
+              <div className="services-panel-fix-result-header">
+                {fixResult.isError ? <AlertTriangle size={13} /> : <CheckCircle size={13} />}
+                <span>{fixResult.isError ? 'Fix failed' : 'Environment fixed'}</span>
+                <button onClick={() => setFixResult(null)}><X size={11} /></button>
               </div>
-            ))}
+              <div className="services-panel-fix-result-items">
+                {fixResult.lines.map((line, i) => <div key={i}>{line}</div>)}
+              </div>
+            </div>
+          )}
+
+          {/* URLs — prominent, at top */}
+          {Object.keys(envStatus.urls).length > 0 && (
+            <div className="services-panel-urls">
+              <div className="services-panel-section-label">URLs</div>
+              <div className="services-panel-url-list">
+                {Object.entries(envStatus.urls).map(([name, url]) => (
+                  <button key={name} className="services-panel-url" onClick={() => window.api.shell.openExternal(url)} title={url}>
+                    <ExternalLink size={11} /> <span className="services-panel-url-name">{name}</span> <span className="services-panel-url-value">{url}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Services list */}
+          <div className="services-panel-list">
+            <div className="services-panel-section-label">Services</div>
+            {envStatus.services.map((svc) => {
+              const isActive = envLogs?.service === svc.name
+              const matchingUrl = Object.entries(envStatus.urls).find(([k]) => k.toLowerCase() === svc.name.toLowerCase())?.[1]
+                || (svc.port ? `http://localhost:${svc.port}` : null)
+              return (
+                <div key={svc.name} className={`services-panel-row ${isActive ? 'active' : ''}`}>
+                  <div className="services-panel-row-main">
+                    <div className="services-panel-row-left">
+                      <span className={`services-panel-status-dot ${svc.status}`} />
+                      <span className="services-panel-svc-name">{svc.name}</span>
+                      <span className={`services-panel-svc-badge ${svc.status}`}>{svc.status}</span>
+                    </div>
+                    <div className="services-panel-row-meta">
+                      {svc.port && <span className="services-panel-port">:{svc.port}</span>}
+                      {svc.status === 'running' && svc.uptime > 0 && (
+                        <span className="services-panel-uptime"><Activity size={10} /> {formatUptime(svc.uptime)}</span>
+                      )}
+                      {svc.restarts > 0 && (
+                        <span className="services-panel-restarts" title={`${svc.restarts} restart${svc.restarts > 1 ? 's' : ''}`}>
+                          <AlertTriangle size={10} /> {svc.restarts}
+                        </span>
+                      )}
+                    </div>
+                    <div className="services-panel-row-actions">
+                      {matchingUrl && svc.status === 'running' && (
+                        <button title={`Open ${matchingUrl}`} onClick={() => window.api.shell.openExternal(matchingUrl)}>
+                          <ExternalLink size={12} />
+                        </button>
+                      )}
+                      <button
+                        title="View logs"
+                        className={isActive ? 'active' : ''}
+                        onClick={() => {
+                          if (isActive) { setEnvLogs(null) }
+                          else { window.api.env.logs(envStatus.id, svc.name, 200).then((content) => setEnvLogs({ service: svc.name, content })) }
+                        }}
+                      >
+                        <ScrollText size={13} />
+                      </button>
+                      <button title={`Restart ${svc.name}`} onClick={() => window.api.env.restartService(envStatus.id, svc.name)}>
+                        <RotateCcw size={13} />
+                      </button>
+                      {svc.status === 'running' ? (
+                        <button title={`Stop ${svc.name}`} onClick={() => window.api.env.stop(envStatus.id, [svc.name])}>
+                          <Square size={11} />
+                        </button>
+                      ) : (
+                        <button title={`Start ${svc.name}`} onClick={() => window.api.env.start(envStatus.id, [svc.name])}>
+                          <Play size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
+
+          {/* Inline log viewer */}
           {envLogs && (
             <div className="services-panel-logs">
               <div className="services-panel-logs-header">
-                <span>{envLogs.service} logs</span>
-                <button onClick={() => setEnvLogs(null)}><X size={12} /></button>
+                <span><ScrollText size={11} /> {envLogs.service} logs</span>
+                <div className="services-panel-logs-actions">
+                  <button title="Refresh" onClick={() => window.api.env.logs(envStatus.id, envLogs.service, 200).then((content) => setEnvLogs({ service: envLogs.service, content }))}><RefreshCw size={11} /></button>
+                  <button title="Close" onClick={() => setEnvLogs(null)}><X size={12} /></button>
+                </div>
               </div>
               <pre className="services-panel-logs-content">{envLogs.content}</pre>
             </div>
           )}
-          {Object.keys(envStatus.urls).length > 0 && (
-            <div className="services-panel-urls">
-              {Object.entries(envStatus.urls).map(([name, url]) => (
-                <a key={name} className="services-panel-url" onClick={() => window.api.shell.openExternal(url)} title={url}>
-                  <ExternalLink size={11} /> {name}
-                </a>
-              ))}
+
+          {/* Ports & Paths */}
+          {(Object.keys(envStatus.ports).length > 0 || Object.keys(envStatus.paths).length > 0) && (
+            <div className="services-panel-meta">
+              {Object.keys(envStatus.ports).length > 0 && (
+                <div className="services-panel-meta-group">
+                  <div className="services-panel-section-label">Ports</div>
+                  <div className="services-panel-badges">
+                    {Object.entries(envStatus.ports).map(([name, port]) => (
+                      <span key={name} className="services-panel-badge">{name}: {port}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {Object.keys(envStatus.paths).length > 0 && (
+                <div className="services-panel-meta-group">
+                  <div className="services-panel-section-label">Paths</div>
+                  <div className="services-panel-paths">
+                    {Object.entries(envStatus.paths).map(([name, path]) => (
+                      <div key={name} className="services-panel-path-row">
+                        <span className="services-panel-path-label">{name}</span>
+                        <span className="services-panel-path-value" title={path}>{path}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
+        </div>
+      )}
+      {viewTab === 'logs' && envStatus && (
+        <div className="logs-panel">
+          <div className="logs-panel-header">
+            <div className="logs-panel-filters">
+              <button
+                className={`logs-filter-btn ${logsFilter === null ? 'active' : ''}`}
+                onClick={() => setLogsFilter(null)}
+              >
+                All
+              </button>
+              {envStatus.services.map(svc => (
+                <button
+                  key={svc.name}
+                  className={`logs-filter-btn ${logsFilter === svc.name ? 'active' : ''}`}
+                  onClick={() => setLogsFilter(logsFilter === svc.name ? null : svc.name)}
+                >
+                  <span className={`logs-filter-dot ${svc.status}`} />
+                  {svc.name}
+                </button>
+              ))}
+            </div>
+            <div className="logs-panel-actions">
+              <button
+                className="logs-action-btn"
+                title="Clear logs"
+                onClick={() => setLogsContent([])}
+              >
+                <Trash2 size={12} />
+              </button>
+              <button
+                className={`logs-action-btn ${logsAutoScroll.current ? 'active' : ''}`}
+                title="Auto-scroll"
+                onClick={() => { logsAutoScroll.current = !logsAutoScroll.current }}
+              >
+                <ChevronDown size={12} />
+              </button>
+            </div>
+          </div>
+          <div className="logs-panel-content" onScroll={(e) => {
+            const el = e.currentTarget
+            const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40
+            logsAutoScroll.current = atBottom
+          }}>
+            {logsContent
+              .filter(entry => logsFilter === null || entry.service === logsFilter)
+              .map((entry, i) => (
+                <div key={i} className="logs-line">
+                  <span className={`logs-line-service ${entry.service}`}>{entry.service}</span>
+                  <span className="logs-line-text">{entry.line}</span>
+                </div>
+              ))
+            }
+            {logsContent.filter(entry => logsFilter === null || entry.service === logsFilter).length === 0 && (
+              <div className="logs-empty">No logs yet. Start services to see output.</div>
+            )}
+            <div ref={logsEndRef} />
+          </div>
         </div>
       )}
       <div

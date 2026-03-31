@@ -19,6 +19,7 @@ export default function SettingsPanel({ onBack }: Props) {
   const [showRestartConfirm, setShowRestartConfirm] = useState(false)
   const [logs, setLogs] = useState('')
   const [showLogs, setShowLogs] = useState(false)
+  const [daemonVersion, setDaemonVersion] = useState<{ running: number; expected: number } | null>(null)
   const logsRef = useRef<HTMLPreElement>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -33,6 +34,7 @@ export default function SettingsPanel({ onBack }: Props) {
       setGlobalHotkey(s.globalHotkey || 'CommandOrControl+Shift+Space')
     })
     window.api.settings.getShells().then(setAvailableShells)
+    window.api.daemon.getVersion().then(setDaemonVersion).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -211,6 +213,15 @@ export default function SettingsPanel({ onBack }: Props) {
         <p className="settings-help">
           Background process that owns all terminal sessions. Restart to apply shell changes.
         </p>
+        {daemonVersion && (
+          <div className="settings-daemon-version">
+            <span>Running: v{daemonVersion.running}</span>
+            <span>Expected: v{daemonVersion.expected}</span>
+            {daemonVersion.running !== daemonVersion.expected && (
+              <span className="settings-daemon-stale">outdated</span>
+            )}
+          </div>
+        )}
         {!showRestartConfirm ? (
           <button
             className="settings-daemon-restart"
@@ -241,6 +252,7 @@ export default function SettingsPanel({ onBack }: Props) {
                   setRestarting(true)
                   try {
                     await window.api.daemon.restart()
+                    window.api.daemon.getVersion().then(setDaemonVersion).catch(() => {})
                   } catch (err) {
                     console.error('daemon restart failed:', err)
                   }

@@ -14,6 +14,7 @@ import type { ClaudeInstance } from './instance-manager'
 import { getDaemonClient } from './daemon-client'
 import { getRepos, fetchPRs, fetchChecks, gh } from './github'
 import { scanSessions } from './session-scanner'
+import { getAllRepoConfigs } from './repo-config-loader'
 import type { CliSession } from './session-scanner'
 import type { GitHubRepo, GitHubPR, PRChecks } from './github'
 
@@ -1019,7 +1020,6 @@ export function loadPipelines(): void {
 
   // 2. Repo pipelines (from .colony/pipelines/ — disabled by default, user must enable)
   try {
-    const { getAllRepoConfigs } = require('./repo-config-loader') as typeof import('./repo-config-loader')
     for (const repoConfig of getAllRepoConfigs()) {
       for (const repoPipeline of repoConfig.pipelines) {
         if (userNames.has(repoPipeline.name)) continue // user pipeline takes precedence

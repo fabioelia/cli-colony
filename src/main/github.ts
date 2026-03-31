@@ -89,6 +89,7 @@ const DEFAULT_PROMPTS: QuickPrompt[] = [
 
 import { colonyPaths } from '../shared/colony-paths'
 import { ensureBareRepo as ensureBareRepoWorktree } from '../shared/git-worktree'
+import { getAllRepoConfigs, getRepoConfig } from './repo-config-loader'
 
 function configPath(): string {
   return colonyPaths.githubJson
@@ -217,7 +218,27 @@ export async function fetchPRs(repo: GitHubRepo): Promise<GitHubPR[]> {
     })
   )
 
+  // Also refresh the bare repo + .colony/ config for this repo (non-blocking)
+  refreshBareRepoConfig(repo.owner, repo.name).catch(() => {})
+
   return prs
+}
+
+/**
+ * Fetch the bare repo for a given owner/name and refresh its .colony/ config.
+ * Called as a side effect of PR refresh so new templates are discovered.
+ */
+async function refreshBareRepoConfig(owner: string, name: string): Promise<void> {
+  const { execSync } = await import('child_process')
+  const bareDir = colonyPaths.bareRepoDir(owner, name)
+  if (!existsSync(bareDir)) return
+  try {
+    execSync('git fetch origin --prune', { cwd: bareDir, timeout: 15000, stdio: 'ignore' })
+  } catch { /* non-fatal */ }
+  const config = getRepoConfig(bareDir, `${owner}/${name}`)
+  if (config) {
+    console.log(`[github] refreshed .colony/ for ${owner}/${name}: ${config.templates.length} templates`)
+  }
 }
 
 // ---- CI/CD Check Runs ----
@@ -455,7 +476,6 @@ export function getPrompts(): QuickPrompt[] {
 
   // Merge repo-defined prompts (from .colony/prompts/)
   try {
-    const { getAllRepoConfigs } = require('./repo-config-loader') as typeof import('./repo-config-loader')
     const userIds = new Set(combined.map(p => p.id))
     for (const repoConfig of getAllRepoConfigs()) {
       for (const p of repoConfig.prompts) {

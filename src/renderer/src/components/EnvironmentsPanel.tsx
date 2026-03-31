@@ -83,8 +83,24 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
     }
   }, [])
 
+  const [refreshing, setRefreshing] = useState(false)
+  const refreshTemplates = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      const list = await window.api.env.refreshTemplates()
+      setTemplates(list)
+    } catch (err) {
+      console.error('Failed to refresh templates:', err)
+      // Fallback to regular list if refresh fails
+      try { setTemplates(await window.api.env.listTemplates()) } catch {}
+    } finally {
+      setTimeout(() => setRefreshing(false), 400)
+    }
+  }, [])
+
   useEffect(() => {
     loadEnvironments()
+    // Just read cached templates — the heavy refresh happens at app boot and on PR refresh
     loadTemplates()
     const unsub = window.api.env.onStatusUpdate((envs) => {
       setEnvironments(envs)
@@ -95,7 +111,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
     // Poll as fallback — catch state transitions even if events are missed
     const interval = setInterval(loadEnvironments, 3000)
     // Also refresh when the window regains focus (user switches back from a Claude session)
-    const onFocus = () => { loadEnvironments(); loadTemplates() }
+    const onFocus = () => { loadEnvironments() }
     window.addEventListener('focus', onFocus)
     return () => {
       unsub()
@@ -324,6 +340,9 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
           )}
           {activeTab === 'templates' && (
             <>
+              <button className={`env-btn env-btn-secondary ${refreshing ? 'env-btn-spinning' : ''}`} onClick={refreshTemplates} disabled={refreshing} title="Fetch repos and re-scan for .colony/ configs">
+                <RefreshCw size={13} className={refreshing ? 'spin' : ''} /> {refreshing ? 'Scanning...' : 'Refresh'}
+              </button>
               <button className="env-btn env-btn-secondary" onClick={async () => {
                 // Import template from JSON file
                 const input = document.createElement('input')

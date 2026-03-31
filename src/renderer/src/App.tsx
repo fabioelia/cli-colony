@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import type { ClaudeInstance, AgentDef, CliSession, RecentSession, CliBackend } from './types'
 import Sidebar, { SidebarView } from './components/Sidebar'
 import TerminalView from './components/TerminalView'
@@ -41,6 +42,7 @@ export default function App() {
     perInstance: Record<string, { cpu: number; memory: number }>
     total: { cpu: number; memory: number }
   } | null>(null)
+  const [daemonStale, setDaemonStale] = useState(false)
   const terminalsRef = useRef<Map<string, any>>(new Map())
   const agentToLaunchRef = useRef<AgentDef | null>(null)
   // Track activeId + view in a ref so the output listener always has fresh values
@@ -61,6 +63,15 @@ export default function App() {
         setFontSize(parseInt(s.fontSize, 10) || 13)
       }
     })
+    // Check daemon version on mount (the push event may have fired before we loaded)
+    window.api.daemon.getVersion().then((v) => {
+      if (v.running !== v.expected) setDaemonStale(true)
+    }).catch(() => {})
+    // Also listen for push events (e.g. after reconnect)
+    const unsubVersion = window.api.daemon.onVersionMismatch(() => {
+      setDaemonStale(true)
+    })
+    return unsubVersion
   }, [])
 
   useEffect(() => {
@@ -656,6 +667,19 @@ export default function App() {
 
   return (
     <div className="app">
+      {daemonStale && createPortal(
+        <div className="daemon-update-banner">
+          <span>Daemon is outdated — restart to apply updates. Running sessions will be terminated; use resume to restore them.</span>
+          <button onClick={async () => {
+            setDaemonStale(false)
+            await window.api.daemon.restart()
+            const list = await window.api.instance.list()
+            setInstances(list.map(withCliBackend))
+          }}>Restart Daemon</button>
+          <button className="daemon-update-dismiss" onClick={() => setDaemonStale(false)}>Dismiss</button>
+        </div>,
+        document.body
+      )}
       <Sidebar
         instances={instances}
         activeId={activeId}

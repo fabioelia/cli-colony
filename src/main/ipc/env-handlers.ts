@@ -5,7 +5,9 @@ import {
   getEnvironmentLogs, restartServiceInEnv, getManifest, saveManifest,
   fixEnvironment,
   listTemplates, getTemplate, saveTemplate, deleteTemplate,
+  refreshRepoConfigs,
 } from '../env-manager'
+import { getRepoConfig, getAllRepoConfigs } from '../repo-config-loader'
 
 export function registerEnvHandlers(): void {
   ipcMain.handle('env:list', () => listEnvironments())
@@ -41,14 +43,16 @@ export function registerEnvHandlers(): void {
   ipcMain.handle('env:getTemplate', (_e, id: string) => getTemplate(id))
   ipcMain.handle('env:saveTemplate', (_e, template: any) => { saveTemplate(template); return true })
   ipcMain.handle('env:deleteTemplate', (_e, id: string) => deleteTemplate(id))
+  ipcMain.handle('env:refreshTemplates', () => {
+    try { refreshRepoConfigs() } catch (err) { console.warn('[env] refreshRepoConfigs failed:', err) }
+    return listTemplates()
+  })
 
   // Repo .colony/ config
   ipcMain.handle('colony:repoConfig', (_e, repoPath: string) => {
-    const { getRepoConfig } = require('../repo-config-loader') as typeof import('../repo-config-loader')
     return getRepoConfig(repoPath)
   })
   ipcMain.handle('colony:allRepoConfigs', () => {
-    const { getAllRepoConfigs } = require('../repo-config-loader') as typeof import('../repo-config-loader')
     return getAllRepoConfigs()
   })
 }

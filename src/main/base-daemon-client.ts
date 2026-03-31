@@ -8,6 +8,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { spawn } from 'child_process'
 import { EventEmitter } from 'events'
+import { DAEMON_VERSION } from '../daemon/protocol'
 
 export type PendingRequest = {
   resolve: (data: unknown) => void
@@ -41,6 +42,25 @@ export abstract class BaseDaemonClient extends EventEmitter {
     await this.ensureDaemon()
     await this.connectToSocket()
     await this.request({ type: 'subscribe', reqId: this.nextReqId() })
+    this.checkDaemonVersion()
+  }
+
+  /** Ask the daemon its version — emit 'version-mismatch' if stale. */
+  private async checkDaemonVersion(): Promise<void> {
+    try {
+      const res = await this.request({ type: 'version', reqId: this.nextReqId() }) as { version?: number } | undefined
+      const daemonVersion = res?.version ?? 0
+      if (daemonVersion !== DAEMON_VERSION) {
+        console.warn(`[${this.label}] daemon version mismatch: running=${daemonVersion} expected=${DAEMON_VERSION}`)
+        this.emit('version-mismatch', { running: daemonVersion, expected: DAEMON_VERSION })
+      } else {
+        console.log(`[${this.label}] daemon version OK: ${daemonVersion}`)
+      }
+    } catch {
+      // Old daemon without version support — always stale
+      console.warn(`[${this.label}] daemon does not support version check — needs restart`)
+      this.emit('version-mismatch', { running: 0, expected: DAEMON_VERSION })
+    }
   }
 
   private async connectToSocket(): Promise<void> {

@@ -44,7 +44,8 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 - Unix domain socket communication with NDJSON protocol
 - Auto-spawns daemon on app start, auto-reconnects on disconnect
 - Fast activity detection — 500ms polling during startup, 2s during normal operation
-- Daemon restart from Settings (with confirmation warning)
+- **Version tracking** — daemon reports its protocol version; app shows an amber banner when the daemon is outdated with a one-click "Restart Daemon" button
+- Daemon restart from Settings (with confirmation warning, version display)
 - Daemon logs visible in Settings alongside app logs
 
 ### GitHub PR Integration
@@ -60,6 +61,7 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 - **PR Memory** — persistent knowledge base that CLI sessions read/write across conversations
 - **PR Context file** — auto-generated markdown with all PR data, referenced by CLI sessions
 - **Comment files** — separate file per PR with full comment history
+- **Repo config refresh** — PR refresh also fetches the bare repo and discovers `.colony/` templates
 - Template variables: `{{pr.number}}`, `{{pr.title}}`, `{{pr.description}}`, `{{pr.branch}}`, `{{pr.url}}`, `{{pr.author}}`, `{{pr.status}}`, `{{pr.reviewDecision}}`, `{{pr.assignees}}`, `{{pr.reviewers}}`, `{{pr.labels}}`, `{{pr.additions}}`, `{{pr.deletions}}`, `{{repo.owner}}`, `{{repo.name}}`
 
 ### Command Palette
@@ -112,9 +114,11 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 - **Service management** — start, stop, restart individual services; live status with uptime, restarts, port info
 - **Port allocator** — automatic unique port assignment per environment to avoid conflicts
 - **Setup hooks** — clone repos, install dependencies, run migrations on environment creation
-- **Log viewer** — stream service logs and setup output per environment
+- **Logs tab** — real-time streaming log viewer across all services with per-service filtering, auto-scroll, and 2K line buffer
 - **Diagnose mode** — launch a Claude session pre-loaded with environment state, crash info, and service logs
 - **Template editor** — edit environment templates with a Claude-assisted session
+- **`.colony/` repo convention** — repos define templates, pipelines, prompts, and context in `.colony/` directories; discovered from bare repo refs (`origin/HEAD`) on PR refresh and app boot
+- **Lazy template loading** — Environments tab reads from cache instantly; heavy repo scanning only on boot and manual refresh
 
 ### Resource Monitor
 - Live CPU and memory usage in the status bar
@@ -168,7 +172,8 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 - Session names resolved from `customTitle` in CLI session files (set via `--name` flag)
 - Resume prior sessions with one click — detects already-running sessions and focuses them
 - "Recent" badge on sessions previously opened in the app
-- Restore all sessions from last app run on launch (preserves pinned state)
+- **Snapshot-based restore** — on app quit, snapshots running sessions to a separate file; only those are offered for restore on next launch (not sessions previously stopped by the user)
+- Deduplicates by sessionId and filters out sessions the daemon already reconnected to
 
 ### Agents
 - Browse personal agents from `~/.claude/agents/` and project-level agents
@@ -195,7 +200,7 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 - macOS tray icon (template image, auto light/dark mode) with running session count
 - App name shows "Claude Colony" in Cmd+Tab switcher
 - Global hotkey to bring app to front
-- Git branch detection per session
+- Git branch + repo detection per session (shown as badges in session header)
 - Token/cost tracking parsed from CLI output
 - MCP server detection from CLI output
 - Drag & drop folders onto sidebar to create new session
@@ -227,6 +232,7 @@ All app data lives in `~/.claude-colony/`:
 ~/.claude-colony/
 ├── settings.json          # App settings (args, shell, hotkey, ignore rules)
 ├── recent-sessions.json   # Tracks recently opened sessions for restore
+├── restore-snapshot.json  # Sessions running at last app quit (for restore)
 ├── github.json            # GitHub repos and custom PR prompts
 ├── daemon.sock            # Unix socket for PTY daemon
 ├── daemon.pid             # PTY daemon process ID
@@ -239,6 +245,9 @@ All app data lives in `~/.claude-colony/`:
 │   └── <name>/            # Per-environment directory
 │       ├── instance.json  # Environment manifest (repos, services, ports)
 │       └── <repos>/       # Cloned repositories
+├── repos/                 # Bare git repo clones for .colony/ config discovery
+│   └── <owner>/<name>.git
+├── environment-templates/ # User environment template definitions (JSON)
 ├── env-templates/         # Environment template definitions (YAML)
 ├── pipelines/             # YAML pipeline definitions (trigger → action)
 │   ├── *.yaml             # Pipeline configs
@@ -316,6 +325,7 @@ src/
 │   ├── daemon-client.ts     # PTY daemon client
 │   ├── env-daemon-client.ts # Environment daemon client
 │   ├── env-manager.ts       # Environment lifecycle (create, start, stop, diagnose)
+│   ├── repo-config-loader.ts # .colony/ directory discovery (working tree + bare repo)
 │   ├── broadcast.ts         # Centralized event broadcasting to renderer
 │   ├── ipc-handlers.ts      # IPC bridge + fs/resource handlers
 │   ├── ipc/                 # Domain-specific IPC handlers
