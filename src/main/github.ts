@@ -451,7 +451,23 @@ export function getPrompts(): QuickPrompt[] {
   } catch { /* ignore */ }
 
   // Pipeline not enabled — use basic review prompt
-  return [BASIC_REVIEW_PROMPT, ...prompts]
+  const combined = [BASIC_REVIEW_PROMPT, ...prompts]
+
+  // Merge repo-defined prompts (from .colony/prompts/)
+  try {
+    const { getAllRepoConfigs } = require('./repo-config-loader') as typeof import('./repo-config-loader')
+    const userIds = new Set(combined.map(p => p.id))
+    for (const repoConfig of getAllRepoConfigs()) {
+      for (const p of repoConfig.prompts) {
+        if (!userIds.has(p.id)) {
+          combined.push(p)
+          userIds.add(p.id)
+        }
+      }
+    }
+  } catch { /* repo config loader not available */ }
+
+  return combined
 }
 
 export function savePrompts(prompts: QuickPrompt[]): QuickPrompt[] {

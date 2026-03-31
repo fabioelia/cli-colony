@@ -147,6 +147,19 @@ export function getColonyContextPath(): string {
 /**
  * Returns a string to append to any prompt that makes it Colony-aware.
  */
-export function getColonyContextInstruction(): string {
-  return `\n\nA Colony context file exists at ${CONTEXT_PATH}. It describes all active sessions, repos, agents, task queues, and handoffs in this workspace. Read it if you need broader context about what else is happening.`
+export function getColonyContextInstruction(workingDirectory?: string): string {
+  let instruction = `\n\nA Colony context file exists at ${CONTEXT_PATH}. It describes all active sessions, repos, agents, task queues, and handoffs in this workspace. Read it if you need broader context about what else is happening.`
+
+  // Append repo-specific context if .colony/context.md exists
+  if (workingDirectory) {
+    try {
+      const { getRepoContext } = require('./repo-config-loader') as typeof import('./repo-config-loader')
+      const repoContext = getRepoContext(workingDirectory)
+      if (repoContext) {
+        instruction += `\n\n--- Project Context ---\n${repoContext}`
+      }
+    } catch { /* repo config loader not available */ }
+  }
+
+  return instruction
 }

@@ -996,7 +996,9 @@ export function loadPipelines(): void {
   const savedState = loadState()
   pipelines.clear()
 
+  // 1. User pipelines (from ~/.claude-colony/pipelines/)
   const files = readdirSync(PIPELINES_DIR).filter(f => f.endsWith('.yaml') || f.endsWith('.yml'))
+  const userNames = new Set<string>()
 
   for (const file of files) {
     try {
@@ -1008,11 +1010,34 @@ export function loadPipelines(): void {
       }
       const state = savedState[def.name] || freshState()
       pipelines.set(def.name, { def, state, fileName: file })
+      userNames.add(def.name)
       log(`Loaded pipeline: ${def.name} (${def.enabled ? 'enabled' : 'disabled'})`)
     } catch (err) {
       log(`Error loading ${file}: ${err}`)
     }
   }
+
+  // 2. Repo pipelines (from .colony/pipelines/ — disabled by default, user must enable)
+  try {
+    const { getAllRepoConfigs } = require('./repo-config-loader') as typeof import('./repo-config-loader')
+    for (const repoConfig of getAllRepoConfigs()) {
+      for (const repoPipeline of repoConfig.pipelines) {
+        if (userNames.has(repoPipeline.name)) continue // user pipeline takes precedence
+        const enablementKey = `repo:${repoConfig.repoSlug}:${repoPipeline.name}`
+        const enablement = savedState[enablementKey]
+        // Repo pipelines are disabled unless user has explicitly enabled them
+        const def = repoPipeline as unknown as PipelineDef
+        def.enabled = enablement?.enabled ?? false
+        const state = enablement || freshState()
+        pipelines.set(repoPipeline.name, {
+          def,
+          state,
+          fileName: `${repoConfig.repoSlug}:${repoPipeline.fileName}`,
+        })
+        log(`Loaded repo pipeline: ${repoPipeline.name} from ${repoConfig.repoSlug} (${def.enabled ? 'enabled' : 'disabled'})`)
+      }
+    }
+  } catch { /* repo config loader not available */ }
 }
 
 export async function startPipelines(): Promise<void> {

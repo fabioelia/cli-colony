@@ -41,4 +41,14 @@ export function registerEnvHandlers(): void {
   ipcMain.handle('env:getTemplate', (_e, id: string) => getTemplate(id))
   ipcMain.handle('env:saveTemplate', (_e, template: any) => { saveTemplate(template); return true })
   ipcMain.handle('env:deleteTemplate', (_e, id: string) => deleteTemplate(id))
+
+  // Repo .colony/ config
+  ipcMain.handle('colony:repoConfig', (_e, repoPath: string) => {
+    const { getRepoConfig } = require('../repo-config-loader') as typeof import('../repo-config-loader')
+    return getRepoConfig(repoPath)
+  })
+  ipcMain.handle('colony:allRepoConfigs', () => {
+    const { getAllRepoConfigs } = require('../repo-config-loader') as typeof import('../repo-config-loader')
+    return getAllRepoConfigs()
+  })
 }

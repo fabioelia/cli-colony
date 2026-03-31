@@ -137,4 +137,6 @@ export interface EnvironmentTemplate {
   ports?: string[]
   hooks?: Record<string, unknown[]>
   branches?: { default?: string; alternatives?: string[]; sourceDb?: Record<string, string> }
+  /** Where this template came from: "user" or "repo:owner/name" */
+  source?: string
 }

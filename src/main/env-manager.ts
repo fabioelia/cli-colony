@@ -121,6 +121,20 @@ export async function initEnvDaemon(): Promise<void> {
     // Register existing environments from disk
     await syncEnvironmentsFromDisk()
 
+    // Load .colony/ configs from all known repos
+    try {
+      const { getRepoConfig } = require('./repo-config-loader') as typeof import('./repo-config-loader')
+      const { getRepos } = require('./github') as typeof import('./github')
+      const repos = getRepos()
+      for (const repo of repos) {
+        const localPath = repo.localPath
+        if (localPath && fs.existsSync(localPath)) {
+          getRepoConfig(localPath, `${repo.owner}/${repo.name}`)
+        }
+      }
+      console.log(`[env-manager] loaded .colony/ configs from ${repos.length} repos`)
+    } catch { /* repo config loading is non-fatal */ }
+
     // Broadcast current state to renderer so it doesn't have to wait for polling
     try {
       const environments = await client.status()
@@ -212,13 +226,32 @@ function ensureTemplatesDir(): void {
 export function listTemplates(): EnvironmentTemplate[] {
   ensureTemplatesDir()
   const templates: EnvironmentTemplate[] = []
+
+  // 1. User templates (from ~/.claude-colony/environment-templates/)
   for (const file of fs.readdirSync(TEMPLATES_DIR)) {
     if (!file.endsWith('.json')) continue
     try {
       const content = fs.readFileSync(path.join(TEMPLATES_DIR, file), 'utf-8')
-      templates.push(JSON.parse(content))
+      const t = JSON.parse(content) as EnvironmentTemplate
+      t.source = t.source || 'user'
+      templates.push(t)
     } catch { /* skip invalid */ }
   }
+
+  // 2. Repo templates (from .colony/templates/ in tracked repos)
+  try {
+    const { getAllRepoConfigs } = require('./repo-config-loader') as typeof import('./repo-config-loader')
+    const userNames = new Set(templates.map(t => t.name))
+    for (const repoConfig of getAllRepoConfigs()) {
+      for (const t of repoConfig.templates) {
+        // User template with same name takes precedence
+        if (!userNames.has(t.name)) {
+          templates.push(t)
+        }
+      }
+    }
+  } catch { /* repo config loader not available */ }
+
   return templates.sort((a, b) => a.name.localeCompare(b.name))
 }
 

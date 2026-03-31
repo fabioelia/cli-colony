@@ -746,6 +746,9 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                   <div className="env-tpl-title">
                     <span className="env-tpl-name">{t.name}</span>
                     <span className="env-tpl-type">{t.projectType}</span>
+                    {t.source && t.source !== 'user' && (
+                      <span className="env-tpl-source" title={`From ${t.source}`}>{t.source.replace('repo:', '')}</span>
+                    )}
                   </div>
                   <button className="env-btn env-btn-primary env-btn-sm" onClick={(e) => { e.stopPropagation(); setCreateDialogMode('instance'); setCreateDialogTemplate(t); setShowCreateDialog(true) }}>
                     <Plus size={11} /> New Instance
