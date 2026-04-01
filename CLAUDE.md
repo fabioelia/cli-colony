@@ -66,9 +66,12 @@ Do not create new panel-specific header CSS classes. Use `panel-header-btn` for 
 
 ### Daemon Versioning
 
-When changing daemon protocol or behavior:
-1. Bump `DAEMON_VERSION` in `src/daemon/protocol.ts`
-2. The app will show an amber banner prompting daemon restart
+**Any change to files in `src/daemon/` MUST include a `DAEMON_VERSION` bump.** The daemon is a separate long-lived process — code changes only take effect after a restart. Without a version bump, users run stale daemon code with no indication anything is wrong.
+
+When changing daemon protocol, behavior, or any file in `src/daemon/`:
+1. Bump `DAEMON_VERSION` in `src/daemon/protocol.ts` (increment by 1)
+2. The app will automatically show an amber banner prompting the user to restart the daemon
+3. This also applies to changes in `src/main/` that affect daemon communication (e.g., new request types, changed event handling)
 
 ### Static Imports Only
 
