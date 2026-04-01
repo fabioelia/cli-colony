@@ -34,6 +34,28 @@ export interface GitHubPR {
   reviewDecision: string
   labels: string[]
   comments: PRComment[]
+  /** HEAD commit SHA of the PR branch */
+  headSha: string
+}
+
+/** Feedback file from the colony-feedback branch */
+export interface FeedbackFile {
+  /** PR number this feedback is for */
+  pr: number
+  /** GitHub login of the reviewer who wrote the feedback */
+  reviewer: string
+  /** ISO timestamp when the feedback was created */
+  createdAt: string
+  /** PR HEAD SHA at the time of review — compare to current headSha to check if addressed */
+  headSha: string
+  /** Repo slug (owner/name) */
+  repo: string
+  /** PR branch name */
+  branch: string
+  /** Raw markdown content of the feedback */
+  content: string
+  /** File path on the colony-feedback branch */
+  path: string
 }
 
 export interface QuickPrompt {
@@ -145,7 +167,7 @@ export async function fetchPRs(repo: GitHubRepo): Promise<GitHubPR[]> {
     'pr', 'list',
     '--repo', repoSlug,
     '--state', 'open',
-    '--json', 'number,title,body,author,assignees,reviewRequests,headRefName,baseRefName,state,isDraft,url,createdAt,updatedAt,additions,deletions,reviewDecision,labels,comments',
+    '--json', 'number,title,body,author,assignees,reviewRequests,headRefName,headRefOid,baseRefName,state,isDraft,url,createdAt,updatedAt,additions,deletions,reviewDecision,labels,comments',
     '--limit', '200',
   ])
   const raw = JSON.parse(json) as Array<{
@@ -156,6 +178,7 @@ export async function fetchPRs(repo: GitHubRepo): Promise<GitHubPR[]> {
     assignees: Array<{ login: string }>
     reviewRequests: Array<{ login: string } | { name: string }>
     headRefName: string
+    headRefOid: string
     baseRefName: string
     state: string
     isDraft: boolean
@@ -176,6 +199,7 @@ export async function fetchPRs(repo: GitHubRepo): Promise<GitHubPR[]> {
     assignees: (pr.assignees || []).map((a) => a.login),
     reviewers: (pr.reviewRequests || []).map((r) => 'login' in r ? r.login : r.name),
     branch: pr.headRefName,
+    headSha: pr.headRefOid || '',
     baseBranch: pr.baseRefName,
     state: pr.state,
     draft: pr.isDraft,
@@ -238,6 +262,84 @@ async function refreshBareRepoConfig(owner: string, name: string): Promise<void>
   const config = getRepoConfig(bareDir, `${owner}/${name}`)
   if (config) {
     console.log(`[github] refreshed .colony/ for ${owner}/${name}: ${config.templates.length} templates`)
+  }
+}
+
+// ---- GitHub User ----
+
+let _cachedUser: string | null = null
+
+/** Get the authenticated GitHub user's login. Cached after first call. */
+export async function getGitHubUser(): Promise<string | null> {
+  if (_cachedUser) return _cachedUser
+  try {
+    const json = await gh(['api', 'user', '--jq', '.login'])
+    _cachedUser = json.trim() || null
+    return _cachedUser
+  } catch {
+    return null
+  }
+}
+
+// ---- Colony Feedback ----
+
+/**
+ * Fetch feedback files from the colony-feedback branch for a given PR.
+ * Returns empty array if the branch or directory doesn't exist.
+ */
+export async function fetchFeedbackFiles(repo: GitHubRepo, prNumber: number): Promise<FeedbackFile[]> {
+  const repoSlug = `${repo.owner}/${repo.name}`
+  try {
+    // List files in reviews/{prNumber}/ on the colony-feedback branch
+    const listJson = await gh([
+      'api', `repos/${repoSlug}/contents/reviews/${prNumber}`,
+      '--jq', '.[].path',
+      '-H', 'Accept: application/vnd.github.v3+json',
+      '--method', 'GET',
+      '-f', 'ref=colony-feedback',
+    ])
+    const paths = listJson.trim().split('\n').filter((p: string) => p.endsWith('.md'))
+    if (paths.length === 0) return []
+
+    const files: FeedbackFile[] = []
+    for (const filePath of paths) {
+      try {
+        const contentJson = await gh([
+          'api', `repos/${repoSlug}/contents/${filePath}`,
+          '-H', 'Accept: application/vnd.github.v3+json',
+          '-f', 'ref=colony-feedback',
+        ])
+        const parsed = JSON.parse(contentJson)
+        const content = Buffer.from(parsed.content || '', 'base64').toString('utf-8')
+
+        // Parse YAML frontmatter
+        const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
+        const frontmatter: Record<string, string> = {}
+        if (fmMatch) {
+          for (const line of fmMatch[1].split('\n')) {
+            const idx = line.indexOf(':')
+            if (idx > 0) {
+              frontmatter[line.substring(0, idx).trim()] = line.substring(idx + 1).trim()
+            }
+          }
+        }
+
+        files.push({
+          pr: prNumber,
+          reviewer: frontmatter.reviewer || 'unknown',
+          createdAt: frontmatter.createdAt || frontmatter.created || '',
+          headSha: frontmatter.headSha || '',
+          repo: repoSlug,
+          branch: frontmatter.branch || '',
+          content,
+          path: filePath,
+        })
+      } catch { /* skip individual file errors */ }
+    }
+    return files
+  } catch {
+    // 404 = branch or directory doesn't exist, which is normal
+    return []
   }
 }
 
@@ -421,26 +523,48 @@ export function updateRepoPath(owner: string, name: string, localPath: string): 
 
 const COLONY_REVIEW_PROMPT: QuickPrompt = {
   id: 'colony-review',
-  label: 'Provide Colony Feedback Review',
-  prompt: `Review PR #{{pr.number}} ({{pr.title}}) on branch {{pr.branch}}.
+  label: 'Colony Feedback Review',
+  prompt: `Review PR #{{pr.number}} ({{pr.title}}) on branch {{pr.branch}} in {{repo.owner}}/{{repo.name}}.
 
 PR Description:
 {{pr.description}}
 
 Check the diff for bugs, security issues, code quality, and correctness.
 
-When done, write your feedback to the colony-feedback branch so the author's Colony app picks it up automatically:
+When done, push your feedback to the colony-feedback branch so the author's Colony instance picks it up automatically. Follow these steps exactly:
 
-1. git stash (if needed)
-2. git checkout -b colony-feedback origin/main 2>/dev/null || git checkout colony-feedback
-3. mkdir -p reviews/{{pr.number}}
-4. Write your structured feedback to reviews/{{pr.number}}/feedback.md with:
-   - ## Critical — blocking issues (security, bugs, correctness)
-   - ## Suggestions — improvements and best practices
-   - ## Questions — things that need clarification
-   Use checkboxes (- [ ]) for each item, reference specific files and line numbers.
-5. git add reviews/ && git commit -m "Review feedback for PR #{{pr.number}}" && git push origin colony-feedback
-6. Switch back to your previous branch`,
+1. Create a temp directory and clone into it:
+   TMPDIR=$(mktemp -d)
+   git clone --depth 1 --single-branch --branch colony-feedback git@github.com:{{repo.owner}}/{{repo.name}}.git "$TMPDIR" 2>/dev/null || \\
+     (git clone --depth 1 git@github.com:{{repo.owner}}/{{repo.name}}.git "$TMPDIR" && cd "$TMPDIR" && git checkout -b colony-feedback)
+   cd "$TMPDIR"
+
+2. Create the feedback file with YAML frontmatter:
+   mkdir -p reviews/{{pr.number}}
+   Write to reviews/{{pr.number}}/review-{{reviewer}}-$(date +%Y%m%d%H%M%S).md:
+
+   ---
+   headSha: {{pr.headSha}}
+   reviewer: {{reviewer}}
+   createdAt: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+   repo: {{repo.owner}}/{{repo.name}}
+   branch: {{pr.branch}}
+   ---
+
+   ## Critical
+   Blocking issues (security, bugs, correctness). Use - [ ] checkboxes.
+
+   ## Suggestions
+   Improvements and best practices. Use - [ ] checkboxes.
+
+   ## Questions
+   Things that need clarification.
+
+3. Commit and push:
+   git add reviews/ && git commit -m "Colony review: PR #{{pr.number}} by {{reviewer}}" && git push origin colony-feedback
+
+4. Clean up:
+   cd - && rm -rf "$TMPDIR"`,
   scope: 'pr',
 }
 
@@ -608,6 +732,7 @@ export function resolvePrompt(prompt: QuickPrompt, pr: GitHubPR, repo: GitHubRep
     .replace(/\{\{pr\.title\}\}/g, pr.title)
     .replace(/\{\{pr\.url\}\}/g, pr.url)
     .replace(/\{\{pr\.author\}\}/g, pr.author)
+    .replace(/\{\{pr\.headSha\}\}/g, pr.headSha || '')
     .replace(/\{\{pr\.draft\}\}/g, String(pr.draft))
     .replace(/\{\{pr\.status\}\}/g, pr.draft ? 'draft' : pr.state)
     .replace(/\{\{pr\.reviewDecision\}\}/g, pr.reviewDecision || 'none')
@@ -620,4 +745,5 @@ export function resolvePrompt(prompt: QuickPrompt, pr: GitHubPR, repo: GitHubRep
     .replace(/\{\{pr\.description\}\}/g, pr.body || '')
     .replace(/\{\{repo\.owner\}\}/g, repo.owner)
     .replace(/\{\{repo\.name\}\}/g, repo.name)
+    .replace(/\{\{reviewer\}\}/g, _cachedUser || 'unknown')
 }

@@ -2,14 +2,14 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
-  EnvServiceStatus, EnvStatus,
+  FeedbackFile, EnvServiceStatus, EnvStatus,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
 export type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
-  EnvServiceStatus, EnvStatus,
+  FeedbackFile, EnvServiceStatus, EnvStatus,
 }
 
 
@@ -137,6 +137,8 @@ export interface ClaudeManagerAPI {
     getCommentsFile: (repoSlug: string, prNumber: number) => Promise<string | null>
     fetchChecks: (repo: GitHubRepo, prNumber: number) => Promise<PRChecks>
     fetchCheckLogs: (repo: GitHubRepo, prNumber: number, checkName: string) => Promise<string>
+    getUser: () => Promise<string | null>
+    fetchFeedback: (repo: GitHubRepo, prNumber: number) => Promise<FeedbackFile[]>
   }
   colony: {
     updateContext: () => Promise<string>
@@ -224,8 +226,8 @@ export interface ClaudeManagerAPI {
     onServiceOutput: (cb: (data: { envId: string; service: string; data: string }) => void) => () => void
     onServiceCrashed: (cb: (data: { envId: string; service: string; exitCode: number }) => void) => () => void
     onTemplatesChanged: (cb: (templates: any[]) => void) => () => void
-    onPromptRequest: (cb: (data: { requestId: string; envId: string; hookName: string; prompt: string; promptType: string; defaultPath?: string }) => void) => () => void
-    respondToPrompt: (data: { requestId: string; filePath?: string; cancelled?: boolean }) => void
+    onPromptRequest: (cb: (data: { requestId: string; envId: string; hookName: string; prompt: string; promptType: string; defaultPath?: string; options?: string[] }) => void) => () => void
+    respondToPrompt: (data: { requestId: string; filePath?: string; selectedValue?: string; cancelled?: boolean }) => void
     pickFile: (opts: { title?: string; defaultPath?: string; message?: string }) => Promise<string | null>
   }
 }
@@ -374,6 +376,8 @@ const api: ClaudeManagerAPI = {
     getCommentsFile: (repoSlug, prNumber) => ipcRenderer.invoke('github:getCommentsFile', repoSlug, prNumber),
     fetchChecks: (repo, prNumber) => ipcRenderer.invoke('github:fetchChecks', repo, prNumber),
     fetchCheckLogs: (repo, prNumber, checkName) => ipcRenderer.invoke('github:fetchCheckLogs', repo, prNumber, checkName),
+    getUser: () => ipcRenderer.invoke('github:getUser'),
+    fetchFeedback: (repo, prNumber) => ipcRenderer.invoke('github:fetchFeedback', repo, prNumber),
   },
   colony: {
     updateContext: () => ipcRenderer.invoke('colony:updateContext'),

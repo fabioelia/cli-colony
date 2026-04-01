@@ -65,7 +65,6 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
   const [fixResult, setFixResult] = useState<{ envId: string; lines: string[]; isError?: boolean } | null>(null)
   const [fixMenuOpen, setFixMenuOpen] = useState<string | null>(null)
   const [fixMenuRect, setFixMenuRect] = useState<DOMRect | null>(null)
-  const [promptRequest, setPromptRequest] = useState<{ requestId: string; envId: string; hookName: string; prompt: string; promptType: string; defaultPath?: string } | null>(null)
 
   const loadEnvironments = useCallback(async () => {
     try {
@@ -110,9 +109,6 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
     const unsubTemplates = window.api.env.onTemplatesChanged((tmpls) => {
       setTemplates(tmpls)
     })
-    const unsubPrompt = window.api.env.onPromptRequest((data) => {
-      setPromptRequest(data)
-    })
     // Poll as fallback — catch state transitions even if events are missed
     const interval = setInterval(loadEnvironments, 3000)
     // Also refresh when the window regains focus (user switches back from a Claude session)
@@ -121,7 +117,6 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
     return () => {
       unsub()
       unsubTemplates()
-      unsubPrompt()
       clearInterval(interval)
       window.removeEventListener('focus', onFocus)
     }
@@ -905,49 +900,6 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
         />
       )}
 
-
-      {/* File picker prompt modal */}
-      {promptRequest && (
-        <div className="env-dialog-overlay" onClick={() => {
-          window.api.env.respondToPrompt({ requestId: promptRequest.requestId, cancelled: true })
-          setPromptRequest(null)
-        }}>
-          <div className="env-dialog" onClick={e => e.stopPropagation()}>
-            <div className="env-dialog-header">
-              <h3><FolderOpen size={15} /> Select File</h3>
-              <button className="env-btn env-btn-ghost" onClick={() => {
-                window.api.env.respondToPrompt({ requestId: promptRequest.requestId, cancelled: true })
-                setPromptRequest(null)
-              }}><X size={16} /></button>
-            </div>
-            <p className="env-dialog-description">{promptRequest.prompt}</p>
-            {promptRequest.defaultPath && (
-              <div style={{ background: 'var(--bg-secondary)', borderRadius: 6, padding: '8px 10px', margin: '0 0 16px', fontSize: 12, color: 'var(--text-muted)', wordBreak: 'break-all' }}>
-                Expected at: <code style={{ color: 'var(--text-primary)' }}>{promptRequest.defaultPath}</code>
-              </div>
-            )}
-            <div className="env-dialog-actions">
-              <button className="env-btn env-btn-secondary" onClick={() => {
-                window.api.env.respondToPrompt({ requestId: promptRequest.requestId, cancelled: true })
-                setPromptRequest(null)
-              }}>Skip</button>
-              <button className="env-btn env-btn-primary" onClick={async () => {
-                const filePath = await window.api.env.pickFile({
-                  title: 'Select .env file',
-                  message: promptRequest.prompt,
-                  defaultPath: promptRequest.defaultPath,
-                })
-                if (filePath) {
-                  window.api.env.respondToPrompt({ requestId: promptRequest.requestId, filePath })
-                  setPromptRequest(null)
-                }
-              }}>
-                <FolderOpen size={13} /> Browse...
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Delete/teardown confirmation modal */}
       {confirmTeardown && (() => {

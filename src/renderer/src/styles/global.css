@@ -5883,6 +5883,47 @@ input, select {
   to { transform: rotate(360deg); }
 }
 
+/* Attention badges */
+.github-pr-attention {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.github-pr-attention.review-requested {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+}
+.github-pr-attention.assigned {
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.12);
+}
+
+/* Feedback badges */
+.github-pr-feedback {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: default;
+}
+.github-pr-feedback.pending {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+}
+.github-pr-feedback.addressed {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+}
+
 .github-pr-checks {
   border: 1px solid var(--border);
   border-radius: 6px;

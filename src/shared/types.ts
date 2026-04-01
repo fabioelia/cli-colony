@@ -87,6 +87,18 @@ export interface GitHubPR {
   reviewDecision: string
   labels: string[]
   comments: PRComment[]
+  headSha: string
+}
+
+export interface FeedbackFile {
+  pr: number
+  reviewer: string
+  createdAt: string
+  headSha: string
+  repo: string
+  branch: string
+  content: string
+  path: string
 }
 
 export interface QuickPrompt {

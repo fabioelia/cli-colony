@@ -142,6 +142,7 @@ export function resolveHooks(
       promptType: step.promptType,
       defaultPath: step.defaultPath ? resolve(step.defaultPath) : undefined,
       target: step.target ? resolve(step.target) : undefined,
+      optionsCommand: step.optionsCommand ? resolve(step.optionsCommand) : undefined,
     }))
   }
   return result

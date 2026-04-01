@@ -6,6 +6,7 @@ import {
   updateRepoPath, getPrompts, savePrompts, resolvePrompt, writePrContext,
   getPrMemory, savePrMemory, getPrMemoryPath, getPrWorkspacePath,
   fetchChecks, fetchCheckLogs, shallowCloneRepo,
+  getGitHubUser, fetchFeedbackFiles,
 } from '../github'
 import type { GitHubRepo, QuickPrompt, GitHubPR } from '../github'
 
@@ -39,4 +40,6 @@ export function registerGitHubHandlers(): void {
   })
   ipcMain.handle('github:fetchChecks', (_e, repo: GitHubRepo, prNumber: number) => fetchChecks(repo, prNumber))
   ipcMain.handle('github:fetchCheckLogs', (_e, repo: GitHubRepo, prNumber: number, checkName: string) => fetchCheckLogs(repo, prNumber, checkName))
+  ipcMain.handle('github:getUser', () => getGitHubUser())
+  ipcMain.handle('github:fetchFeedback', (_e, repo: GitHubRepo, prNumber: number) => fetchFeedbackFiles(repo, prNumber))
 }

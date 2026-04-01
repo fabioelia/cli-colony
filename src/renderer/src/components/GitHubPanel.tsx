@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { ArrowLeft, Plus, Trash2, RefreshCw, GitPullRequest, ExternalLink, Play, Pencil, ChevronDown, ChevronRight, MessageSquare, Send, User, Users, Eye, GitBranch, Clock, FileDiff, ShieldCheck, ShieldAlert, ShieldQuestion, Brain, Save, X, FileText, File, Filter, Search, CheckCircle, XCircle, Loader, CircleDot, Wrench, Download } from 'lucide-react'
 import { marked } from 'marked'
-import type { GitHubPR, GitHubRepo, QuickPrompt, PRChecks } from '../types'
+import type { GitHubPR, GitHubRepo, QuickPrompt, PRChecks, FeedbackFile } from '../types'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import Tooltip from './Tooltip'
 import HelpPopover from './HelpPopover'
@@ -90,9 +90,20 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const [checkLogContent, setCheckLogContent] = useState<string | null>(null)
   const [checkLogName, setCheckLogName] = useState<string | null>(null)
 
+  // GitHub user (for attention badges)
+  const [ghUser, setGhUser] = useState<string | null>(null)
+
+  // Feedback files per PR (keyed by "owner/name#number")
+  const [feedbackByPR, setFeedbackByPR] = useState<Record<string, FeedbackFile[]>>({})
+
   // Sync PR context file whenever prsByRepo changes
   const [contextPath, setContextPath] = useState<string | null>(null)
   const hasPrs = Object.values(prsByRepo).some((prs) => prs.length > 0)
+
+  // Fetch GitHub user on mount
+  useEffect(() => {
+    window.api.github.getUser().then(setGhUser)
+  }, [])
 
   useEffect(() => {
     if (!hasPrs) return
@@ -212,6 +223,13 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     try {
       const prs = await window.api.github.fetchPRs(repo)
       setPrsByRepo((prev) => ({ ...prev, [slug]: prs }))
+      // Fetch feedback files for each PR (non-blocking)
+      for (const pr of prs) {
+        const prKey = `${slug}#${pr.number}`
+        window.api.github.fetchFeedback(repo, pr.number)
+          .then((files) => { if (files.length > 0) setFeedbackByPR((prev) => ({ ...prev, [prKey]: files })) })
+          .catch(() => {})
+      }
     } catch (err: any) {
       setError(`Failed to fetch PRs for ${slug}: ${err.message}`)
     } finally {
@@ -491,7 +509,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
               <Pencil size={13} /> Prompts
             </button>
           </Tooltip>
-          <Tooltip text="Add Repository" detail="Add a GitHub repository to track its open pull requests" position="bottom">
+          <Tooltip text="Add Repository" detail="Track a repo by owner/name or paste a GitHub URL" position="bottom">
             <button className="panel-header-btn" onClick={() => setShowAddRepo(true)}>
               <Plus size={13} /> Add Repo
             </button>
@@ -696,7 +714,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                       </button>
                     </Tooltip>
                   )}
-                  <Tooltip text="Refresh PRs" detail="Re-fetch open PRs, comments, and update context file">
+                  <Tooltip text="Refresh PRs" detail="Re-fetch open PRs, comments, CI status, feedback, and .colony/ templates">
                     <button onClick={() => fetchPRsForRepo(repo)}>
                       <RefreshCw size={13} className={isLoading ? 'spinning' : ''} />
                     </button>
@@ -774,6 +792,32 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                                   </span>
                                 )
                                 return <span className="github-pr-ci pending" title="Checks in progress"><CircleDot size={11} /> CI</span>
+                              })()}
+                              {/* Attention badges */}
+                              {ghUser && pr.reviewers.includes(ghUser) && (
+                                <span className="github-pr-attention review-requested" title="Your review is requested">
+                                  <Eye size={11} /> Review requested
+                                </span>
+                              )}
+                              {ghUser && pr.assignees.includes(ghUser) && !pr.reviewers.includes(ghUser) && (
+                                <span className="github-pr-attention assigned" title="You are assigned">
+                                  <User size={11} /> Assigned
+                                </span>
+                              )}
+                              {/* Feedback badge */}
+                              {(() => {
+                                const feedback = feedbackByPR[prKey]
+                                if (!feedback || feedback.length === 0) return null
+                                const latest = feedback.reduce((a, b) => a.createdAt > b.createdAt ? a : b)
+                                const addressed = latest.headSha !== pr.headSha
+                                return (
+                                  <span
+                                    className={`github-pr-feedback ${addressed ? 'addressed' : 'pending'}`}
+                                    title={addressed ? 'New commits since last review — ready for re-review' : `Feedback from ${latest.reviewer} — not yet addressed`}
+                                  >
+                                    <MessageSquare size={11} /> {addressed ? 'Re-review' : 'Feedback'}
+                                  </span>
+                                )
                               })()}
                             </div>
                           </div>

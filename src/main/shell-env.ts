@@ -8,6 +8,21 @@ import { execSync } from 'child_process'
 
 let _cachedEnv: Record<string, string> | null = null
 
+/** Safe execSync wrapper that catches EIO and other pipe errors */
+function safeExecSync(cmd: string): string | null {
+  try {
+    return execSync(cmd, {
+      encoding: 'utf-8',
+      timeout: 5000,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      // Prevent EIO from crashing the process — ignore stdin errors
+      env: { ...process.env, NODE_NO_WARNINGS: '1' },
+    })
+  } catch {
+    return null
+  }
+}
+
 /**
  * Load the user's login shell environment. Cached after first call.
  * Tries the user's default shell, falls back to /bin/zsh, then /bin/bash.
@@ -19,8 +34,9 @@ export function loadShellEnv(): Record<string, string> {
   const shells = [loginShell, '/bin/zsh', '/bin/bash'].filter((v, i, a) => a.indexOf(v) === i)
 
   for (const shell of shells) {
-    try {
-      const envOutput = execSync(`${shell} -lc "env"`, { encoding: 'utf-8', timeout: 5000 })
+    // Try full env dump
+    const envOutput = safeExecSync(`${shell} -lc "env"`)
+    if (envOutput) {
       const env: Record<string, string> = { ...process.env } as Record<string, string>
       for (const line of envOutput.split('\n')) {
         const idx = line.indexOf('=')
@@ -30,15 +46,13 @@ export function loadShellEnv(): Record<string, string> {
       }
       _cachedEnv = env
       return env
-    } catch {
-      // Try PATH-only fallback for this shell
-      try {
-        const shellPath = execSync(`${shell} -lc "echo $PATH"`, { encoding: 'utf-8', timeout: 5000 }).trim()
-        if (shellPath) {
-          _cachedEnv = { ...process.env, PATH: shellPath } as Record<string, string>
-          return _cachedEnv
-        }
-      } catch { /* try next shell */ }
+    }
+
+    // Try PATH-only fallback
+    const shellPath = safeExecSync(`${shell} -lc "echo $PATH"`)
+    if (shellPath?.trim()) {
+      _cachedEnv = { ...process.env, PATH: shellPath.trim() } as Record<string, string>
+      return _cachedEnv
     }
   }
 

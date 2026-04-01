@@ -1,4 +1,18 @@
 import { app, BrowserWindow, shell, globalShortcut, Menu, nativeImage } from 'electron'
+
+// Prevent non-fatal pipe/socket errors (EIO, EPIPE) from crashing the app.
+// These occur when child processes exit before their stdio pipes are fully drained.
+process.on('uncaughtException', (err) => {
+  if (err && typeof err === 'object' && 'code' in err) {
+    const code = (err as NodeJS.ErrnoException).code
+    if (code === 'EIO' || code === 'EPIPE' || code === 'ERR_IPC_CHANNEL_CLOSED') {
+      console.warn(`[main] suppressed non-fatal error: ${code} — ${err.message}`)
+      return
+    }
+  }
+  // Re-throw everything else so the crash dialog still works
+  throw err
+})
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerIpcHandlers } from './ipc-handlers'

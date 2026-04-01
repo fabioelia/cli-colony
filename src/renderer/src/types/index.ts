@@ -2,7 +2,7 @@
 export type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
-  EnvServiceStatus, EnvStatus,
+  FeedbackFile, EnvServiceStatus, EnvStatus,
 } from '../../../shared/types'
 
 // Renderer-only types below

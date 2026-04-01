@@ -140,7 +140,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Memory button', detail: 'Open the PR Memory file — a persistent knowledge base that Claude sessions read and write to across conversations.', icon: 'Brain' },
           { label: 'Context button', detail: 'View the auto-generated PR context file that CLI sessions reference.', icon: 'FileText' },
           { label: 'Prompts button', detail: 'Edit quick-action templates (Review, Summarize, etc.) and global prompt questions.', icon: 'Pencil' },
-          { label: 'Add Repo button', detail: 'Track a new GitHub repository by entering owner/name.', icon: 'Plus' },
+          { label: 'Add Repo button', detail: 'Track a new repo by owner/name or paste any GitHub URL.', icon: 'Plus' },
         ],
       },
       {
@@ -156,7 +156,10 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Inside expanded repo',
         items: [
           { label: 'PR row', detail: 'Shows title, author, branch, labels, and review status (approved/changes requested/pending).' },
+          { label: 'Review Requested', detail: 'Amber badge appears when your review is requested on a PR.', icon: 'Eye' },
+          { label: 'Feedback badge', detail: 'Shows Colony Feedback status: amber = feedback pending, green = new commits since review (ready for re-review).', icon: 'MessageSquare' },
           { label: 'CI badges', detail: 'Green/red/yellow dots for GitHub Actions check status. Click to see details and fetch failure logs.' },
+          { label: 'Colony Review', detail: 'Launches a Claude session that reviews the code and pushes structured feedback to the colony-feedback branch.', icon: 'Play' },
           { label: 'Quick actions', detail: 'Buttons (Review, Summarize, Checkout & Test) launch a Claude session with the PR pre-loaded as context.' },
           { label: 'Comments', detail: 'Click to view all PR comments (general + file-level) in a split modal with markdown rendering.', icon: 'MessageSquare' },
         ],

@@ -35,10 +35,11 @@ export interface HookStep {
   type: 'command' | 'prompt'
   command?: string
   prompt?: string              // Message shown to user for prompt-type hooks
-  promptType?: 'file'          // Kind of prompt — currently only file picker
-  defaultPath?: string         // Suggested path; used as starting directory for dialog
+  promptType?: 'file' | 'select'  // file = file picker, select = choose from list
+  defaultPath?: string         // Suggested path for file picker
   alwaysPrompt?: boolean       // Always show the dialog even if defaultPath exists
   target?: string              // Destination to copy the selected file to
+  optionsCommand?: string      // Shell command that outputs one option per line (for select type)
   cwd?: string
   name: string
   interactive?: boolean

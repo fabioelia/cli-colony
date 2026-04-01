@@ -172,6 +172,10 @@ function resolveGitRepo(cwd: string): string | null {
 }
 
 function toSerializable(inst: InternalInstance): ClaudeInstance {
+  // Lazily resolve missing git info (e.g., instances from before gitRepo was added)
+  if (!inst.gitBranch) inst.gitBranch = resolveGitBranch(inst.workingDirectory)
+  if (!inst.gitRepo) inst.gitRepo = resolveGitRepo(inst.workingDirectory)
+
   return {
     id: inst.id,
     name: inst.name,

@@ -359,6 +359,7 @@ export async function createEnvironment(opts: CreateEnvironmentOpts): Promise<In
 
   // Build repos lookup so templates can reference ${repos.backend.localPath} etc.
   // Enrich with localPath from the tracked repo registry if not set in the template.
+  // Prefer a working-tree clone over the bare repo (bare repos end with .git and lack a working tree).
   const trackedRepos = getRepos()
   const repos: Record<string, any> = {}
   if (template?.repos) {
@@ -366,7 +367,15 @@ export async function createEnvironment(opts: CreateEnvironmentOpts): Promise<In
       const enriched = { ...repo }
       if (!enriched.localPath) {
         const tracked = trackedRepos.find(r => r.owner === repo.owner && r.name === repo.name)
-        if (tracked?.localPath) enriched.localPath = tracked.localPath
+        if (tracked?.localPath && !tracked.localPath.endsWith('.git')) {
+          enriched.localPath = tracked.localPath
+        } else if (tracked?.localPath?.endsWith('.git')) {
+          // Bare repo — check for a working-tree clone at common locations
+          const homeProjects = path.join(app.getPath('home'), 'projects', repo.name)
+          if (fs.existsSync(path.join(homeProjects, '.git'))) {
+            enriched.localPath = homeProjects
+          }
+        }
       }
       repos[repo.as] = enriched
     }
@@ -561,61 +570,86 @@ export async function setupEnvironment(envId: string): Promise<void> {
     }
 
     async function runPromptHook(hook: any): Promise<void> {
-      if (hook.promptType !== 'file') {
-        logSetup(`  Skipped: ${hook.name} (unsupported promptType: ${hook.promptType})`)
-        return
-      }
-      logSetup(`  Prompt: ${hook.name} — ${hook.prompt || 'File selection required'}`)
+      logSetup(`  Prompt: ${hook.name} — ${hook.prompt || 'User input required'}`)
       updateStep(hook.name, 'running')
       try {
-        let selectedFile: string
+        const { ipcMain } = require('electron') as typeof import('electron')
+        const requestId = `${envId}:${hook.name}:${Date.now()}`
 
-        // If defaultPath exists and alwaysPrompt is not set, use it automatically
-        if (hook.defaultPath && fs.existsSync(hook.defaultPath) && !hook.alwaysPrompt) {
-          selectedFile = hook.defaultPath
-          logSetup(`  Auto-selected: ${selectedFile} (found at default path)`)
-        } else {
-          // Show in-app file picker modal via IPC to the renderer
-          logSetup(`  Waiting for user to select file...`)
-          const requestId = `${envId}:${hook.name}:${Date.now()}`
-          const { ipcMain } = require('electron') as typeof import('electron')
-          const responsePromise = new Promise<{ filePath?: string; cancelled?: boolean }>((resolve) => {
-            const onResponse = (_event: any, data: { requestId: string; filePath?: string; cancelled?: boolean }) => {
-              if (data.requestId === requestId) {
-                ipcMain.removeListener('env:prompt-response', onResponse)
-                resolve(data)
-              }
+        // Helper: send prompt request to renderer and wait for response
+        const waitForResponse = () => new Promise<{ filePath?: string; selectedValue?: string; cancelled?: boolean }>((resolve) => {
+          const onResponse = (_event: any, data: any) => {
+            if (data.requestId === requestId) {
+              ipcMain.removeListener('env:prompt-response', onResponse)
+              resolve(data)
             }
-            ipcMain.on('env:prompt-response', onResponse)
-          })
+          }
+          ipcMain.on('env:prompt-response', onResponse)
+        })
+
+        if (hook.promptType === 'file') {
+          let selectedFile: string
+
+          // If defaultPath exists and alwaysPrompt is not set, use it automatically
+          if (hook.defaultPath && fs.existsSync(hook.defaultPath) && !hook.alwaysPrompt) {
+            selectedFile = hook.defaultPath
+            logSetup(`  Auto-selected: ${selectedFile} (found at default path)`)
+          } else {
+            logSetup(`  Waiting for user to select file...`)
+            const responsePromise = waitForResponse()
+            broadcast('env:prompt-request', {
+              requestId, envId, hookName: hook.name,
+              prompt: hook.prompt, promptType: 'file', defaultPath: hook.defaultPath,
+            })
+            const response = await responsePromise
+            if (response.cancelled || !response.filePath) {
+              throw new Error(`User cancelled file selection for: ${hook.name}`)
+            }
+            selectedFile = response.filePath
+            logSetup(`  User selected: ${selectedFile}`)
+          }
+
+          // Copy to target if specified
+          if (hook.target) {
+            const targetDir = path.dirname(hook.target)
+            if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true })
+            fs.copyFileSync(selectedFile, hook.target)
+            logSetup(`  Copied to: ${hook.target}`)
+          }
+
+          const key = (hook.name as string).replace(/-/g, '_')
+          hookOutputs[key] = selectedFile
+          hookOutputs[hook.name] = selectedFile
+
+        } else if (hook.promptType === 'select') {
+          // Run optionsCommand to get the list of choices
+          let options: string[] = []
+          if (hook.optionsCommand) {
+            logSetup(`  Running options command: ${hook.optionsCommand.slice(0, 80)}`)
+            const output = await execAsync(hook.optionsCommand, { cwd: hook.cwd || envDir, timeout: 30000 })
+            options = (output || '').trim().split('\n').filter((l: string) => l.trim())
+          }
+
+          logSetup(`  Waiting for user to select from ${options.length} options...`)
+          const responsePromise = waitForResponse()
           broadcast('env:prompt-request', {
-            requestId,
-            envId,
-            hookName: hook.name,
-            prompt: hook.prompt || `Select file for: ${hook.name}`,
-            promptType: hook.promptType,
-            defaultPath: hook.defaultPath,
+            requestId, envId, hookName: hook.name,
+            prompt: hook.prompt, promptType: 'select', options,
           })
           const response = await responsePromise
-          if (response.cancelled || !response.filePath) {
-            throw new Error(`User cancelled file selection for: ${hook.name}`)
+          if (response.cancelled || !response.selectedValue) {
+            throw new Error(`User cancelled selection for: ${hook.name}`)
           }
-          selectedFile = response.filePath
-          logSetup(`  User selected: ${selectedFile}`)
-        }
+          logSetup(`  User selected: ${response.selectedValue}`)
 
-        // Copy to target if specified
-        if (hook.target) {
-          const targetDir = path.dirname(hook.target)
-          if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true })
-          fs.copyFileSync(selectedFile, hook.target)
-          logSetup(`  Copied to: ${hook.target}`)
-        }
+          const key = (hook.name as string).replace(/-/g, '_')
+          hookOutputs[key] = response.selectedValue
+          hookOutputs[hook.name] = response.selectedValue
 
-        // Store path as hook output for downstream hooks
-        const key = (hook.name as string).replace(/-/g, '_')
-        hookOutputs[key] = selectedFile
-        hookOutputs[hook.name] = selectedFile
+        } else {
+          logSetup(`  Skipped: ${hook.name} (unsupported promptType: ${hook.promptType})`)
+          return
+        }
 
         updateStep(hook.name, 'done')
         logSetup(`  Done: ${hook.name}`)
