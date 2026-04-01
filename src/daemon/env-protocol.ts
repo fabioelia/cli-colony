@@ -34,7 +34,11 @@ export interface ResourceDef {
 export interface HookStep {
   type: 'command' | 'prompt'
   command?: string
-  prompt?: string
+  prompt?: string              // Message shown to user for prompt-type hooks
+  promptType?: 'file'          // Kind of prompt — currently only file picker
+  defaultPath?: string         // Suggested path; used as starting directory for dialog
+  alwaysPrompt?: boolean       // Always show the dialog even if defaultPath exists
+  target?: string              // Destination to copy the selected file to
   cwd?: string
   name: string
   interactive?: boolean
@@ -42,7 +46,7 @@ export interface HookStep {
 
 export interface SetupStep {
   name: string
-  status: 'pending' | 'running' | 'done' | 'error'
+  status: 'pending' | 'running' | 'done' | 'error' | 'skipped'
   error?: string
 }
 

@@ -4,6 +4,7 @@ import { marked } from 'marked'
 import type { GitHubPR, GitHubRepo, QuickPrompt, PRChecks } from '../types'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import Tooltip from './Tooltip'
+import HelpPopover from './HelpPopover'
 import { shouldSyncClaudeSlashCommands } from '../lib/claude-slash-sync'
 
 function resolveRelativeUrl(href: string, repoSlug: string, branch: string): string {
@@ -219,12 +220,28 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   }
 
   const handleAddRepo = async () => {
-    const parts = repoInput.trim().split('/')
-    if (parts.length !== 2 || !parts[0] || !parts[1]) {
-      setError('Enter repo as owner/name (e.g. facebook/react)')
+    const raw = repoInput.trim().replace(/\/$/, '')
+    let owner: string | undefined
+    let name: string | undefined
+
+    // Try parsing as a GitHub URL (https://github.com/owner/name/...)
+    const urlMatch = raw.match(/(?:https?:\/\/)?github\.com\/([^/]+)\/([^/]+?)(?:\.git)?(?:\/.*)?$/)
+    if (urlMatch) {
+      owner = urlMatch[1]
+      name = urlMatch[2]
+    } else {
+      // Try owner/name format
+      const parts = raw.split('/')
+      if (parts.length === 2 && parts[0] && parts[1]) {
+        owner = parts[0]
+        name = parts[1]
+      }
+    }
+
+    if (!owner || !name) {
+      setError('Enter a repo as owner/name or paste a GitHub URL')
       return
     }
-    const [owner, name] = parts
     const updated = await window.api.github.addRepo({ owner, name })
     setRepos(updated)
     setRepoInput('')
@@ -443,12 +460,14 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
 
   return (
     <div className="github-panel">
-      <div className="settings-header">
-        <button className="settings-back" onClick={onBack} title="Back"><ArrowLeft size={16} /></button>
-        <h2>GitHub</h2>
-        <div className="github-header-actions">
+      <div className="panel-header">
+        <button className="panel-header-back" onClick={onBack} title="Back"><ArrowLeft size={16} /></button>
+        <h2><GitPullRequest size={16} /> Pull Requests</h2>
+        <div className="panel-header-spacer" />
+        <HelpPopover topic="github" align="right" />
+        <div className="panel-header-actions">
           <Tooltip text="PR Memory" detail="Persistent knowledge base shared across all PR sessions. CLI reads and writes to this file." position="bottom">
-            <button className="github-header-btn" onClick={() => {
+            <button className="panel-header-btn" onClick={() => {
               window.api.github.getPrMemory().then(setMemory)
               setShowMemory(true)
               setEditingMemory(false)
@@ -458,7 +477,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
           </Tooltip>
           {contextPath && (
             <Tooltip text="PR Context File" detail="Auto-generated markdown with all PR data. This is what CLI sessions read for context." position="bottom">
-              <button className="github-header-btn" onClick={async () => {
+              <button className="panel-header-btn" onClick={async () => {
                 const result = await window.api.fs.readFile(contextPath)
                 if (result.content) setContextFileContent(result.content)
                 setShowContextFile(true)
@@ -468,17 +487,45 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
             </Tooltip>
           )}
           <Tooltip text="Edit Prompts" detail="Configure quick action templates for PRs and global questions" position="bottom">
-            <button className="github-header-btn" onClick={handleOpenPromptEditor}>
+            <button className="panel-header-btn" onClick={handleOpenPromptEditor}>
               <Pencil size={13} /> Prompts
             </button>
           </Tooltip>
           <Tooltip text="Add Repository" detail="Add a GitHub repository to track its open pull requests" position="bottom">
-            <button className="github-header-btn" onClick={() => setShowAddRepo(true)}>
+            <button className="panel-header-btn" onClick={() => setShowAddRepo(true)}>
               <Plus size={13} /> Add Repo
             </button>
           </Tooltip>
         </div>
       </div>
+
+      {/* Ask bar */}
+      {contextPath && (
+        <div className="panel-ask-bar">
+          <MessageSquare size={14} className="panel-ask-icon" />
+          <input
+            className="panel-ask-input"
+            placeholder="Ask about these PRs..."
+            value={askInput}
+            onChange={(e) => setAskInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAsk() } }}
+          />
+          {prompts.filter((p) => p.scope === 'global').length > 0 && (
+            <div className="panel-ask-chips">
+              {prompts.filter((p) => p.scope === 'global').map((p) => (
+                <Tooltip key={p.id} text={p.label} detail={p.prompt.slice(0, 120)} position="bottom">
+                  <button className="panel-ask-chip" onClick={() => setAskInput(p.prompt)}>
+                    {p.label}
+                  </button>
+                </Tooltip>
+              ))}
+            </div>
+          )}
+          <button className="panel-ask-send" onClick={handleAsk} disabled={!askInput.trim()} title="Ask">
+            <Send size={14} />
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="github-error" onClick={() => setError(null)}>
@@ -490,7 +537,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
         <div className="github-add-repo">
           <input
             autoFocus
-            placeholder="owner/name (e.g. facebook/react)"
+            placeholder="owner/name or GitHub URL"
             value={repoInput}
             onChange={(e) => setRepoInput(e.target.value)}
             onKeyDown={(e) => {
@@ -905,42 +952,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
         </div>
       )}
 
-      {/* Ask bar — ask questions about visible PRs */}
-      {contextPath && (
-        <>
-          {prompts.filter((p) => p.scope === 'global').length > 0 && (
-            <div className="github-global-prompts">
-              {prompts.filter((p) => p.scope === 'global').map((p) => (
-                <Tooltip key={p.id} text={p.label} detail={p.prompt.slice(0, 120)} position="top">
-                  <button
-                    className="github-global-prompt-chip"
-                    onClick={() => setAskInput(p.prompt)}
-                  >
-                    {p.label}
-                  </button>
-                </Tooltip>
-              ))}
-            </div>
-          )}
-          <div className="github-ask-bar">
-            <MessageSquare size={14} className="github-ask-icon" />
-            <input
-              placeholder="Ask about these PRs..."
-              value={askInput}
-              onChange={(e) => setAskInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleAsk() }}
-            />
-            <button
-              className="github-ask-send"
-              onClick={handleAsk}
-              disabled={!askInput.trim()}
-              title="Ask"
-            >
-              <Send size={14} />
-            </button>
-          </div>
-        </>
-      )}
+      {/* Ask bar moved to top — below header */}
 
       {/* Comments viewer */}
       {showCommentsViewer && commentsViewerPR && (() => {

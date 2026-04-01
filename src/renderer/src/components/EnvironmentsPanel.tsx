@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Server, Play, Square, Trash2, RefreshCw, FileText,
   Plus, ExternalLink, ChevronDown, ChevronRight,
-  Circle, AlertTriangle, Clock, X, FolderOpen, Terminal, Loader, CheckCircle, Upload, Download, MessageSquare, Wrench, Stethoscope
+  Circle, AlertTriangle, Clock, X, FolderOpen, Terminal, Loader, CheckCircle, SkipForward, Upload, Download, MessageSquare, Wrench, Stethoscope
 } from 'lucide-react'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import { buildTemplateEditPrompt, buildDiagnosePrompt } from '../../../shared/env-prompts'
 import Tooltip from './Tooltip'
+import HelpPopover from './HelpPopover'
 import EnvironmentLogViewer from './EnvironmentLogViewer'
 import NewEnvironmentDialog from './NewEnvironmentDialog'
 
@@ -64,6 +65,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
   const [fixResult, setFixResult] = useState<{ envId: string; lines: string[]; isError?: boolean } | null>(null)
   const [fixMenuOpen, setFixMenuOpen] = useState<string | null>(null)
   const [fixMenuRect, setFixMenuRect] = useState<DOMRect | null>(null)
+  const [promptRequest, setPromptRequest] = useState<{ requestId: string; envId: string; hookName: string; prompt: string; promptType: string; defaultPath?: string } | null>(null)
 
   const loadEnvironments = useCallback(async () => {
     try {
@@ -108,6 +110,9 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
     const unsubTemplates = window.api.env.onTemplatesChanged((tmpls) => {
       setTemplates(tmpls)
     })
+    const unsubPrompt = window.api.env.onPromptRequest((data) => {
+      setPromptRequest(data)
+    })
     // Poll as fallback — catch state transitions even if events are missed
     const interval = setInterval(loadEnvironments, 3000)
     // Also refresh when the window regains focus (user switches back from a Claude session)
@@ -116,6 +121,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
     return () => {
       unsub()
       unsubTemplates()
+      unsubPrompt()
       clearInterval(interval)
       window.removeEventListener('focus', onFocus)
     }
@@ -317,34 +323,32 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
   return (
     <div className="env-panel">
       {/* Header */}
-      <div className="env-panel-header">
-        <div className="env-panel-title">
-          <Server size={18} />
-          <span>Environments</span>
-        </div>
-        <div className="env-panel-tabs">
-          <button className={`env-panel-tab ${activeTab === 'instances' ? 'active' : ''}`} onClick={() => setActiveTab('instances')}>
-            Instances {environments.length > 0 && <span className="env-panel-count">{environments.length}</span>}
+      <div className="panel-header">
+        <h2><Server size={16} /> Environments</h2>
+        <div className="panel-header-tabs">
+          <button className={`panel-header-tab ${activeTab === 'instances' ? 'active' : ''}`} onClick={() => setActiveTab('instances')}>
+            Instances {environments.length > 0 && <span className="panel-header-count">{environments.length}</span>}
           </button>
-          <button className={`env-panel-tab ${activeTab === 'templates' ? 'active' : ''}`} onClick={() => setActiveTab('templates')}>
-            Templates {templates.length > 0 && <span className="env-panel-count">{templates.length}</span>}
+          <button className={`panel-header-tab ${activeTab === 'templates' ? 'active' : ''}`} onClick={() => setActiveTab('templates')}>
+            Templates {templates.length > 0 && <span className="panel-header-count">{templates.length}</span>}
           </button>
         </div>
-        <div className="env-panel-actions">
+        <div className="panel-header-spacer" />
+        <HelpPopover topic="environments" align="right" />
+        <div className="panel-header-actions">
           {activeTab === 'instances' && (
             <>
-              <button className="env-btn env-btn-primary" onClick={() => { setCreateDialogMode('instance'); setCreateDialogTemplate(null); setShowCreateDialog(true) }}>
+              <button className="panel-header-btn primary" onClick={() => { setCreateDialogMode('instance'); setCreateDialogTemplate(null); setShowCreateDialog(true) }}>
                 <Plus size={14} /> New Environment
               </button>
             </>
           )}
           {activeTab === 'templates' && (
             <>
-              <button className={`env-btn env-btn-secondary ${refreshing ? 'env-btn-spinning' : ''}`} onClick={refreshTemplates} disabled={refreshing} title="Fetch repos and re-scan for .colony/ configs">
+              <button className={`panel-header-btn ${refreshing ? 'env-btn-spinning' : ''}`} onClick={refreshTemplates} disabled={refreshing} title="Fetch repos and re-scan for .colony/ configs">
                 <RefreshCw size={13} className={refreshing ? 'spin' : ''} /> {refreshing ? 'Scanning...' : 'Refresh'}
               </button>
-              <button className="env-btn env-btn-secondary" onClick={async () => {
-                // Import template from JSON file
+              <button className="panel-header-btn" onClick={async () => {
                 const input = document.createElement('input')
                 input.type = 'file'
                 input.accept = '.json'
@@ -363,7 +367,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
               }}>
                 <Upload size={13} /> Import
               </button>
-              <button className="env-btn env-btn-primary" onClick={() => { setCreateDialogMode('template'); setCreateDialogTemplate(null); setShowCreateDialog(true) }}>
+              <button className="panel-header-btn primary" onClick={() => { setCreateDialogMode('template'); setCreateDialogTemplate(null); setShowCreateDialog(true) }}>
                 <Plus size={14} /> New Template
               </button>
             </>
@@ -412,6 +416,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                         {step.status === 'running' && <Loader size={10} className="spinning" />}
                         {step.status === 'done' && <CheckCircle size={10} />}
                         {step.status === 'error' && <AlertTriangle size={10} />}
+                        {step.status === 'skipped' && <SkipForward size={10} color="var(--text-muted)" />}
                       </span>
                       <span className="env-setup-step-name">{step.name}</span>
                       {step.error && (
@@ -549,6 +554,16 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                       <Terminal size={14} />
                     </button>
                   </Tooltip>
+                  {env.paths.root && (
+                    <Tooltip text="Open Folder" detail="Open environment directory in Finder">
+                      <button
+                        className="env-action-btn"
+                        onClick={() => window.api.shell.openExternal(`file://${env.paths.root}`)}
+                      >
+                        <FolderOpen size={14} />
+                      </button>
+                    </Tooltip>
+                  )}
                   <div className="env-fix-dropdown-wrap">
                     <Tooltip text="Fix" detail="Repair environment configuration">
                       <button
@@ -890,6 +905,49 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
         />
       )}
 
+
+      {/* File picker prompt modal */}
+      {promptRequest && (
+        <div className="env-dialog-overlay" onClick={() => {
+          window.api.env.respondToPrompt({ requestId: promptRequest.requestId, cancelled: true })
+          setPromptRequest(null)
+        }}>
+          <div className="env-dialog" onClick={e => e.stopPropagation()}>
+            <div className="env-dialog-header">
+              <h3><FolderOpen size={15} /> Select File</h3>
+              <button className="env-btn env-btn-ghost" onClick={() => {
+                window.api.env.respondToPrompt({ requestId: promptRequest.requestId, cancelled: true })
+                setPromptRequest(null)
+              }}><X size={16} /></button>
+            </div>
+            <p className="env-dialog-description">{promptRequest.prompt}</p>
+            {promptRequest.defaultPath && (
+              <div style={{ background: 'var(--bg-secondary)', borderRadius: 6, padding: '8px 10px', margin: '0 0 16px', fontSize: 12, color: 'var(--text-muted)', wordBreak: 'break-all' }}>
+                Expected at: <code style={{ color: 'var(--text-primary)' }}>{promptRequest.defaultPath}</code>
+              </div>
+            )}
+            <div className="env-dialog-actions">
+              <button className="env-btn env-btn-secondary" onClick={() => {
+                window.api.env.respondToPrompt({ requestId: promptRequest.requestId, cancelled: true })
+                setPromptRequest(null)
+              }}>Skip</button>
+              <button className="env-btn env-btn-primary" onClick={async () => {
+                const filePath = await window.api.env.pickFile({
+                  title: 'Select .env file',
+                  message: promptRequest.prompt,
+                  defaultPath: promptRequest.defaultPath,
+                })
+                if (filePath) {
+                  window.api.env.respondToPrompt({ requestId: promptRequest.requestId, filePath })
+                  setPromptRequest(null)
+                }
+              }}>
+                <FolderOpen size={13} /> Browse...
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete/teardown confirmation modal */}
       {confirmTeardown && (() => {

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import Tooltip from './Tooltip'
+import HelpPopover from './HelpPopover'
 import ExternalSessionPopover from './ExternalSessionPopover'
 import { COLORS, formatTime, cliBackendLabel, formatInstanceCmd } from '../lib/constants'
 
@@ -305,12 +306,6 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
             <button className={`sidebar-nav-btn ${view === 'environments' ? 'active' : ''}`} onClick={() => onViewChange('environments')}>
               <Server size={16} />
               {runningEnvCount > 0 && <span className="sidebar-nav-badge">{runningEnvCount}</span>}
-            </button>
-          </Tooltip>
-          <div className="sidebar-nav-spacer" />
-          <Tooltip text="Settings" position="bottom">
-            <button className={`sidebar-nav-btn ${view === 'settings' ? 'active' : ''}`} onClick={() => onViewChange(view === 'settings' ? 'instances' : 'settings')}>
-              <Settings size={16} />
             </button>
           </Tooltip>
         </div>
@@ -619,6 +614,12 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
       )}
 
       <div className="sidebar-footer">
+        <HelpPopover topic="sessions" align="right" position="above" />
+        <Tooltip text="Settings" position="top">
+          <button className={`sidebar-footer-btn ${view === 'settings' ? 'active' : ''}`} onClick={() => onViewChange(view === 'settings' ? 'instances' : 'settings')}>
+            <Settings size={14} />
+          </button>
+        </Tooltip>
       </div>
     </div>
   )

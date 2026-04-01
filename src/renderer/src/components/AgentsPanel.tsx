@@ -3,6 +3,7 @@ import { Plus, RefreshCw, Download, Upload, Pencil, Play, ChevronRight, Bot, Fol
 import type { AgentDef } from '../types'
 import { COLOR_MAP } from '../lib/constants'
 import Tooltip from './Tooltip'
+import HelpPopover from './HelpPopover'
 
 interface Props {
   onLaunchAgent: (agent: AgentDef) => void
@@ -176,13 +177,17 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
 
   return (
     <div className="agents-panel">
-      <div className="agents-panel-toolbar">
+      <div className="panel-header">
         <h2>Agents</h2>
-        <Tooltip text="Refresh" detail="Rescan agent directories for changes">
-          <button className="agents-toolbar-btn" onClick={refresh}>
-            <RefreshCw size={13} />
-          </button>
-        </Tooltip>
+        <div className="panel-header-spacer" />
+        <HelpPopover topic="agents" align="right" />
+        <div className="panel-header-actions">
+          <Tooltip text="Refresh" detail="Rescan agent directories for changes">
+            <button className="panel-header-btn" onClick={refresh}>
+              <RefreshCw size={13} />
+            </button>
+          </Tooltip>
+        </div>
       </div>
 
       {agents.length === 0 && (

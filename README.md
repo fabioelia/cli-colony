@@ -50,6 +50,7 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 
 ### GitHub PR Integration
 - **PRs tab** in the sidebar — configure repositories you care about
+- **Add repos** by owner/name or paste any GitHub URL — auto-parses the owner and repo name
 - Fetches open PRs via `gh` CLI with descriptions, comments (general + file-level), assignees, reviewers, labels
 - **CI/CD Status** — GitHub Actions check status per PR across all repos (green/red/yellow badges), fetch logs for failures
 - **PR filters** — text search across titles/descriptions/comments, status/author/reviewer/label multiselect chips
@@ -195,6 +196,18 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 - Search ignore rules for file tree and content search
 - PTY Daemon restart with confirmation
 - Application + daemon logs viewer
+
+### In-App Help
+- **Help popovers** on every panel — click the `?` icon to see zone-structured descriptions of each area of the UI
+- Content organized by visual zones (Header, Main area, Actions, etc.) with collapsible sections
+- **Inline icons** — action items show the same Lucide icon used in the UI so users can visually match
+- Keyboard shortcuts listed where applicable
+- Help content defined in `src/renderer/src/lib/help-content.ts` — kept in sync via CLAUDE.md guidelines
+
+### Consistent UI Patterns
+- **Shared panel header** — all panels use `.panel-header` with title, spacer, help icon, and action buttons
+- **Shared ask bar** — GitHub, Tasks, and Pipelines use `.panel-ask-bar` positioned below the header
+- **Settings and help in sidebar footer** — bottom-left of the sidebar, outside the nav tabs
 
 ### System Integration
 - macOS tray icon (template image, auto light/dark mode) with running session count
@@ -356,6 +369,7 @@ src/
         ├── main.tsx          # React entry point (with ErrorBoundary)
         ├── lib/
         │   ├── constants.ts            # Shared colors, utilities
+        │   ├── help-content.ts         # Zone-structured help content for all panels
         │   ├── terminal-proxy.ts       # Sync-block buffering, scroll preservation
         │   └── send-prompt-when-ready.ts # Reliable prompt delivery with trust prompt handling
         ├── components/
@@ -373,6 +387,7 @@ src/
         │   ├── EnvironmentLogViewer.tsx # Streaming log viewer per environment/service
         │   ├── NewEnvironmentDialog.tsx # Create environment from template
         │   ├── CommandPalette.tsx       # Cmd+K fuzzy search + cross-session terminal search
+        │   ├── HelpPopover.tsx          # Zone-structured help popover with inline icons
         │   ├── Tooltip.tsx              # Rich tooltip component
         │   └── ErrorBoundary.tsx        # Crash handler with reload
         ├── styles/

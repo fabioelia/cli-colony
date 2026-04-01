@@ -6,6 +6,7 @@ import {
   MessageSquare, Send, ChevronDown, ChevronRight, Code, BookOpen
 } from 'lucide-react'
 import type { ClaudeInstance } from '../types'
+import HelpPopover from './HelpPopover'
 
 interface TaskDef { prompt: string; directory?: string; name?: string }
 interface QueueDef { name: string; mode: 'parallel' | 'sequential'; tasks: TaskDef[] }
@@ -269,28 +270,32 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
   return (
     <div className="task-queue-panel">
       {/* Header */}
-      <div className="task-queue-header">
+      <div className="panel-header">
         <h2>Tasks</h2>
-        <button className="task-queue-new-btn" onClick={handleNew} title="Create new queue">
-          <Plus size={13} /> New
-        </button>
+        <div className="panel-header-spacer" />
+        <HelpPopover topic="tasks" align="right" />
+        <div className="panel-header-actions">
+          <button className="panel-header-btn" onClick={handleNew} title="Create new queue">
+            <Plus size={13} /> New
+          </button>
+        </div>
       </div>
 
       {/* Ask bar */}
-      <div className="pipeline-ask-bar">
-        <MessageSquare size={14} className="pipeline-ask-icon" />
+      <div className="panel-ask-bar">
+        <MessageSquare size={14} className="panel-ask-icon" />
         <input
-          className="pipeline-ask-input"
+          className="panel-ask-input"
           placeholder="Ask the Task Assistant to create or modify a task queue..."
           value={askInput}
           onChange={(e) => setAskInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAsk() } }}
         />
-        <button className="pipeline-ask-send" onClick={handleAsk} disabled={!askInput.trim()} title="Send">
+        <button className="panel-ask-send" onClick={handleAsk} disabled={!askInput.trim()} title="Send">
           <Send size={13} />
         </button>
         {assistantId && instances.some(i => i.id === assistantId && i.status === 'running') && (
-          <button className="pipeline-ask-focus" onClick={() => onFocusInstance(assistantId!)} title="Focus session">View</button>
+          <button className="panel-ask-focus" onClick={() => onFocusInstance(assistantId!)} title="Focus session">View</button>
         )}
       </div>
 

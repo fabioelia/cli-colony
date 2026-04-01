@@ -5,6 +5,7 @@ import {
   FileText, Clock, CheckCircle, XCircle, AlertTriangle, Save, BookOpen,
   MessageSquare, Send, Plus
 } from 'lucide-react'
+import HelpPopover from './HelpPopover'
 
 interface PipelineInfo {
   name: string
@@ -237,28 +238,32 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
 
   return (
     <div className="pipelines-panel">
-      <div className="pipelines-header">
+      <div className="panel-header">
         <h2><Zap size={16} /> Pipelines</h2>
-        <button className="pipelines-reload-btn" onClick={handleReload} title="Reload all pipeline files">
-          <RefreshCw size={12} /> Reload
-        </button>
+        <div className="panel-header-spacer" />
+        <HelpPopover topic="pipelines" align="right" />
+        <div className="panel-header-actions">
+          <button className="panel-header-btn" onClick={handleReload} title="Reload all pipeline files">
+            <RefreshCw size={12} /> Reload
+          </button>
+        </div>
       </div>
 
       <p className="pipelines-description">
         Pipelines automate trigger → action workflows. Define them as YAML files in <code>~/.claude-colony/pipelines/</code>.
       </p>
 
-      <div className="pipeline-ask-bar">
-        <MessageSquare size={14} className="pipeline-ask-icon" />
+      <div className="panel-ask-bar">
+        <MessageSquare size={14} className="panel-ask-icon" />
         <input
-          className="pipeline-ask-input"
+          className="panel-ask-input"
           placeholder="Ask the Pipeline Assistant to create or modify a pipeline..."
           value={askInput}
           onChange={(e) => setAskInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAsk() } }}
         />
         <button
-          className="pipeline-ask-send"
+          className="panel-ask-send"
           onClick={handleAsk}
           disabled={!askInput.trim()}
           title="Send to Pipeline Assistant"
@@ -267,7 +272,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
         </button>
         {assistantId && instances.some(i => i.id === assistantId && i.status === 'running') && (
           <button
-            className="pipeline-ask-focus"
+            className="panel-ask-focus"
             onClick={() => onFocusInstance(assistantId!)}
             title="Focus Pipeline Assistant session"
           >

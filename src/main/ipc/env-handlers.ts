@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { ipcMain, dialog, BrowserWindow } from 'electron'
 import {
   listEnvironments, getEnvironment, createEnvironment, setupEnvironment,
   startEnvironment, stopEnvironment, teardownEnvironment,
@@ -46,6 +46,22 @@ export function registerEnvHandlers(): void {
   ipcMain.handle('env:refreshTemplates', () => {
     try { refreshRepoConfigs() } catch (err) { console.warn('[env] refreshRepoConfigs failed:', err) }
     return listTemplates()
+  })
+
+  // File picker for prompt hooks — shows hidden files so .env is visible
+  ipcMain.handle('env:pick-file', async (_e, opts: { title?: string; defaultPath?: string; message?: string }) => {
+    const parentWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]
+    const dialogOpts: Electron.OpenDialogOptions = {
+      title: opts.title || 'Select file',
+      message: opts.message,
+      defaultPath: opts.defaultPath,
+      properties: ['openFile', 'showHiddenFiles'],
+    }
+    const result = parentWindow
+      ? await dialog.showOpenDialog(parentWindow, dialogOpts)
+      : await dialog.showOpenDialog(dialogOpts)
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
   })
 
   // Repo .colony/ config

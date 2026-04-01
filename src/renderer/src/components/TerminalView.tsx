@@ -10,6 +10,7 @@ import { buildDiagnosePrompt } from '../../../shared/env-prompts'
 import '@xterm/xterm/css/xterm.css'
 import type { ClaudeInstance } from '../types'
 import Tooltip from './Tooltip'
+import HelpPopover from './HelpPopover'
 
 interface TerminalEntry {
   term: Terminal
@@ -877,6 +878,11 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               </button>
             )}
           </div>
+          {viewTab === 'session' && <HelpPopover topic="sessionTab" />}
+          {viewTab === 'files' && <HelpPopover topic="filesTab" />}
+          {viewTab === 'shell' && <HelpPopover topic="terminalTab" />}
+          {viewTab === 'services' && <HelpPopover topic="servicesTab" />}
+          {viewTab === 'logs' && <HelpPopover topic="logsTab" />}
           {(instance.gitRepo || instance.gitBranch) && (
             <div className="terminal-header-repo-info">
               {instance.gitRepo && (
@@ -1178,6 +1184,11 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               <button className="services-panel-btn" onClick={() => window.api.env.stop(envStatus.id)} title="Stop all services">
                 <Square size={10} /> Stop All
               </button>
+              {envStatus.paths?.root && (
+                <button className="services-panel-btn" onClick={() => window.api.shell.openExternal(`file://${envStatus.paths.root}`)} title="Open environment folder in Finder">
+                  <FolderOpen size={12} />
+                </button>
+              )}
               <div className="services-panel-fix-wrap">
                 <button
                   className={`services-panel-btn ${fixMenuOpen ? 'active' : ''}`}

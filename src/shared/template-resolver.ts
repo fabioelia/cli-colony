@@ -139,6 +139,8 @@ export function resolveHooks(
       command: step.command ? resolve(step.command) : undefined,
       cwd: step.cwd ? resolve(step.cwd) : undefined,
       prompt: step.prompt ? resolve(step.prompt) : undefined,
+      promptType: step.promptType,
+      defaultPath: step.defaultPath ? resolve(step.defaultPath) : undefined,
       target: step.target ? resolve(step.target) : undefined,
     }))
   }

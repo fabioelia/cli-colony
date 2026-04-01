@@ -41,15 +41,13 @@ export function parseYaml(content: string): Record<string, any> | null {
         const itemContent = trimmed.slice(2).trim()
         const parentKey = stack[stack.length - 1].key
 
-        // Ensure parent context is an array
-        if (parentKey && !Array.isArray(parent[parentKey])) {
-          // Convert to array if it was an empty object placeholder
-          const grandparent = stack.length > 2 ? stack[stack.length - 2].obj : result
-          if (grandparent && parentKey) {
-            grandparent[parentKey] = []
-          }
+        // The grandparent owns the array; parent IS the array on the stack.
+        const grandparent = stack.length > 2 ? stack[stack.length - 2].obj : result
+        // Ensure parent context is an array (only create if not already one)
+        if (parentKey && grandparent && !Array.isArray(grandparent[parentKey])) {
+          grandparent[parentKey] = []
         }
-        const arr = parentKey ? (stack.length > 2 ? stack[stack.length - 2].obj : result)[parentKey] : parent
+        const arr = parentKey ? grandparent[parentKey] : parent
 
         if (itemContent.includes(':')) {
           // Array of objects: "- key: value"
@@ -146,6 +144,7 @@ export function parseYaml(content: string): Record<string, any> | null {
 
 function parseValue(value: string): any {
   if (!value) return ''
+  const isDoubleQuoted = value.length >= 2 && value.startsWith('"') && value.endsWith('"')
   // Remove quotes
   const unquoted = value.replace(/^["']|["']$/g, '')
   if (value === 'true') return true
@@ -153,6 +152,20 @@ function parseValue(value: string): any {
   if (value === 'null') return null
   if (/^\d+$/.test(value)) return parseInt(value)
   if (/^\d+\.\d+$/.test(value)) return parseFloat(value)
+  // Process YAML escape sequences for double-quoted strings
+  if (isDoubleQuoted) {
+    return unquoted.replace(/\\(.)/g, (_match: string, char: string) => {
+      switch (char) {
+        case '"': return '"'
+        case '\\': return '\\'
+        case 'n': return '\n'
+        case 't': return '\t'
+        case 'r': return '\r'
+        case '/': return '/'
+        default: return '\\' + char
+      }
+    })
+  }
   return unquoted
 }
 

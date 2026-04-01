@@ -358,10 +358,17 @@ export async function createEnvironment(opts: CreateEnvironmentOpts): Promise<In
   const portMap = await allocatePorts(portNames)
 
   // Build repos lookup so templates can reference ${repos.backend.localPath} etc.
+  // Enrich with localPath from the tracked repo registry if not set in the template.
+  const trackedRepos = getRepos()
   const repos: Record<string, any> = {}
   if (template?.repos) {
     for (const repo of template.repos) {
-      repos[repo.as] = { ...repo }
+      const enriched = { ...repo }
+      if (!enriched.localPath) {
+        const tracked = trackedRepos.find(r => r.owner === repo.owner && r.name === repo.name)
+        if (tracked?.localPath) enriched.localPath = tracked.localPath
+      }
+      repos[repo.as] = enriched
     }
   }
 
@@ -443,7 +450,7 @@ export async function setupEnvironment(envId: string): Promise<void> {
 
   let hasStepError = false
 
-  const updateStep = (stepName: string, status: 'running' | 'done' | 'error', error?: string) => {
+  const updateStep = (stepName: string, status: 'running' | 'done' | 'error' | 'skipped', error?: string) => {
     if (manifest.setup?.steps) {
       const step = manifest.setup.steps.find(s => s.name === stepName)
       if (step) {
@@ -519,8 +526,12 @@ export async function setupEnvironment(envId: string): Promise<void> {
     const hookOutputs: Record<string, string> = {}
 
     async function runOneHook(hook: any): Promise<void> {
-      if (!hook.command || (hook.type && hook.type !== 'command')) {
-        logSetup(`  Skipped: ${hook.name} (type=${hook.type}, has command=${!!hook.command})`)
+      // Handle prompt-type hooks (e.g. file picker)
+      if (hook.type === 'prompt') {
+        return runPromptHook(hook)
+      }
+      if (!hook.command) {
+        logSetup(`  Skipped: ${hook.name} (no command)`)
         return
       }
       let cmd = hook.command as string
@@ -549,6 +560,71 @@ export async function setupEnvironment(envId: string): Promise<void> {
       }
     }
 
+    async function runPromptHook(hook: any): Promise<void> {
+      if (hook.promptType !== 'file') {
+        logSetup(`  Skipped: ${hook.name} (unsupported promptType: ${hook.promptType})`)
+        return
+      }
+      logSetup(`  Prompt: ${hook.name} — ${hook.prompt || 'File selection required'}`)
+      updateStep(hook.name, 'running')
+      try {
+        let selectedFile: string
+
+        // If defaultPath exists and alwaysPrompt is not set, use it automatically
+        if (hook.defaultPath && fs.existsSync(hook.defaultPath) && !hook.alwaysPrompt) {
+          selectedFile = hook.defaultPath
+          logSetup(`  Auto-selected: ${selectedFile} (found at default path)`)
+        } else {
+          // Show in-app file picker modal via IPC to the renderer
+          logSetup(`  Waiting for user to select file...`)
+          const requestId = `${envId}:${hook.name}:${Date.now()}`
+          const { ipcMain } = require('electron') as typeof import('electron')
+          const responsePromise = new Promise<{ filePath?: string; cancelled?: boolean }>((resolve) => {
+            const onResponse = (_event: any, data: { requestId: string; filePath?: string; cancelled?: boolean }) => {
+              if (data.requestId === requestId) {
+                ipcMain.removeListener('env:prompt-response', onResponse)
+                resolve(data)
+              }
+            }
+            ipcMain.on('env:prompt-response', onResponse)
+          })
+          broadcast('env:prompt-request', {
+            requestId,
+            envId,
+            hookName: hook.name,
+            prompt: hook.prompt || `Select file for: ${hook.name}`,
+            promptType: hook.promptType,
+            defaultPath: hook.defaultPath,
+          })
+          const response = await responsePromise
+          if (response.cancelled || !response.filePath) {
+            throw new Error(`User cancelled file selection for: ${hook.name}`)
+          }
+          selectedFile = response.filePath
+          logSetup(`  User selected: ${selectedFile}`)
+        }
+
+        // Copy to target if specified
+        if (hook.target) {
+          const targetDir = path.dirname(hook.target)
+          if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true })
+          fs.copyFileSync(selectedFile, hook.target)
+          logSetup(`  Copied to: ${hook.target}`)
+        }
+
+        // Store path as hook output for downstream hooks
+        const key = (hook.name as string).replace(/-/g, '_')
+        hookOutputs[key] = selectedFile
+        hookOutputs[hook.name] = selectedFile
+
+        updateStep(hook.name, 'done')
+        logSetup(`  Done: ${hook.name}`)
+      } catch (err: any) {
+        logSetup(`  FAILED: ${hook.name} — ${String(err).slice(0, 300)}`)
+        updateStep(hook.name, 'error', String(err).slice(0, 300))
+      }
+    }
+
     async function runHooks(phase: string, hooks: any[]): Promise<void> {
       logSetup(`Running ${hooks.length} ${phase} hooks`)
 
@@ -569,6 +645,14 @@ export async function setupEnvironment(envId: string): Promise<void> {
       }
 
       for (const batch of batches) {
+        // If a previous hook in this phase failed, skip the rest
+        if (hasStepError) {
+          for (const hook of batch) {
+            logSetup(`  Skipped: ${hook.name} (previous step failed)`)
+            updateStep(hook.name, 'skipped')
+          }
+          continue
+        }
         if (batch.length === 1) {
           await runOneHook(batch[0])
         } else {

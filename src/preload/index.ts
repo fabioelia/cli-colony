@@ -224,6 +224,9 @@ export interface ClaudeManagerAPI {
     onServiceOutput: (cb: (data: { envId: string; service: string; data: string }) => void) => () => void
     onServiceCrashed: (cb: (data: { envId: string; service: string; exitCode: number }) => void) => () => void
     onTemplatesChanged: (cb: (templates: any[]) => void) => () => void
+    onPromptRequest: (cb: (data: { requestId: string; envId: string; hookName: string; prompt: string; promptType: string; defaultPath?: string }) => void) => () => void
+    respondToPrompt: (data: { requestId: string; filePath?: string; cancelled?: boolean }) => void
+    pickFile: (opts: { title?: string; defaultPath?: string; message?: string }) => Promise<string | null>
   }
 }
 
@@ -452,6 +455,13 @@ const api: ClaudeManagerAPI = {
       ipcRenderer.on('env:service-crashed', l)
       return () => ipcRenderer.removeListener('env:service-crashed', l)
     },
+    onPromptRequest: (cb) => {
+      const l = (_e: any, data: any) => cb(data)
+      ipcRenderer.on('env:prompt-request', l)
+      return () => ipcRenderer.removeListener('env:prompt-request', l)
+    },
+    respondToPrompt: (data) => { ipcRenderer.send('env:prompt-response', data) },
+    pickFile: (opts) => ipcRenderer.invoke('env:pick-file', opts),
   },
 }
 

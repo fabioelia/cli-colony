@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Volume2, Cpu } from 'lucide-react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Volume2, Cpu, Settings } from 'lucide-react'
+import HelpPopover from './HelpPopover'
 
 interface Props {
   onBack: () => void
@@ -72,14 +73,18 @@ export default function SettingsPanel({ onBack }: Props) {
 
   return (
     <div className="settings-panel">
-      <div className="settings-header">
-        <button className="settings-back" onClick={onBack} aria-label="Back" title="Back">
+      <div className="panel-header">
+        <button className="panel-header-back" onClick={onBack} title="Back">
           <ArrowLeft size={16} />
         </button>
-        <h2>Settings</h2>
-        <button className="settings-save-inline" onClick={handleSave} title="Save settings">
-          {saved ? 'Saved!' : 'Save'}
-        </button>
+        <h2><Settings size={16} /> Settings</h2>
+        <div className="panel-header-spacer" />
+        <HelpPopover topic="settings" align="right" />
+        <div className="panel-header-actions">
+          <button className="panel-header-btn" onClick={handleSave} title="Save settings">
+            {saved ? 'Saved!' : 'Save'}
+          </button>
+        </div>
       </div>
 
       {/* CLI */}
