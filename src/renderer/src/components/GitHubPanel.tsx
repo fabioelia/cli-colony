@@ -60,6 +60,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const [filterLabels, setFilterLabels] = useState<string[]>([])
   const [filterAuthors, setFilterAuthors] = useState<string[]>([])
   const [filterReviewers, setFilterReviewers] = useState<string[]>([])
+  const [filterBaseBranch, setFilterBaseBranch] = useState<string[]>([])
   const [showFilters, setShowFilters] = useState(false)
 
   // Prompt editor
@@ -377,6 +378,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const allLabels = [...new Set(allPRs.flatMap((pr) => pr.labels || []))].sort()
   const allAuthors = [...new Set(allPRs.map((pr) => pr.author))].sort()
   const allReviewersList = [...new Set(allPRs.flatMap((pr) => pr.reviewers || []))].sort()
+  const allBaseBranches = [...new Set(allPRs.map((pr) => pr.baseBranch).filter(Boolean))].sort()
 
   const filterPR = (pr: GitHubPR): boolean => {
     const q = filterText.toLowerCase()
@@ -401,10 +403,13 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     if (filterReviewers.length > 0) {
       if (!filterReviewers.some((r) => (pr.reviewers || []).includes(r))) return false
     }
+    if (filterBaseBranch.length > 0) {
+      if (!filterBaseBranch.includes(pr.baseBranch)) return false
+    }
     return true
   }
 
-  const hasActiveFilters = filterText || filterStatus.length > 0 || filterLabels.length > 0 || filterAuthors.length > 0 || filterReviewers.length > 0
+  const hasActiveFilters = filterText || filterStatus.length > 0 || filterLabels.length > 0 || filterAuthors.length > 0 || filterReviewers.length > 0 || filterBaseBranch.length > 0
 
   const clearFilters = () => {
     setFilterText('')
@@ -412,6 +417,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     setFilterLabels([])
     setFilterAuthors([])
     setFilterReviewers([])
+    setFilterBaseBranch([])
   }
 
   const fetchChecksForPR = useCallback(async (repo: GitHubRepo, pr: GitHubPR) => {
@@ -641,6 +647,21 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                         onClick={() => setFilterReviewers((prev) => prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r])}
                         title={`Filter by ${r}`}
                       >{r}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {allBaseBranches.length > 1 && (
+                <div className="github-filter-group">
+                  <label>Base Branch</label>
+                  <div className="github-filter-chips">
+                    {allBaseBranches.map((b) => (
+                      <button
+                        key={b}
+                        className={`github-filter-chip ${filterBaseBranch.includes(b) ? 'active' : ''}`}
+                        onClick={() => setFilterBaseBranch((prev) => prev.includes(b) ? prev.filter((x) => x !== b) : [...prev, b])}
+                        title={`Filter by base branch ${b}`}
+                      >{b}</button>
                     ))}
                   </div>
                 </div>
