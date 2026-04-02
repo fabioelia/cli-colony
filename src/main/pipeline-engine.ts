@@ -6,7 +6,7 @@
  * evaluates conditions, and fires actions (usually launching sessions).
  */
 
-import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync } from 'fs'
+import { readFileSync, writeFileSync, appendFileSync, readdirSync, existsSync, mkdirSync, statSync } from 'fs'
 import { join, basename } from 'path'
 import { app } from 'electron'
 import { createInstance, writeToInstance, getAllInstances } from './instance-manager'
@@ -170,6 +170,11 @@ let started = false
 
 function log(msg: string): void {
   console.log(`[pipeline] ${msg}`)
+  // Temporary: also write to file for debugging pipeline issues
+  try {
+    const ts = new Date().toISOString()
+    appendFileSync(join(COLONY_DIR, 'pipeline-debug.log'), `[${ts}] ${msg}\n`)
+  } catch { /* ignore */ }
 }
 
 import { broadcast } from './broadcast'
@@ -222,7 +227,7 @@ function parseYaml(content: string): PipelineDef | null {
     }
 
     // Parse multiline prompt (look for prompt: |)
-    const promptMatch = content.match(/prompt:\s*\|\n([\s\S]*?)(?=\n\w|\ndedup:|\n$)/m)
+    const promptMatch = content.match(/prompt:\s*\|\n([\s\S]*?)(?=\n\w|\ndedup:|\s*$)/)
     if (promptMatch) {
       const promptLines = promptMatch[1].split('\n')
       const baseIndent = promptLines[0]?.search(/\S/) ?? 4
@@ -686,10 +691,21 @@ async function findBestRoute(match: {
     }
   }
 
-  if (candidates.length === 0) return null
+  // Require a minimum score to avoid false-positive routing.
+  // Score reference: direct branch match=15, metadata branch=10, repo-specific subdir=12,
+  // working dir exact=5, name matches PR#=8, name matches branch=5-6.
+  // Generic-parent subdir branch match=3, which is too weak to route on.
+  const MIN_ROUTE_SCORE = 5
+  const strong = candidates.filter(c => c.score >= MIN_ROUTE_SCORE)
+  if (strong.length === 0) {
+    if (candidates.length > 0) {
+      log(`Routing: ${candidates.length} weak candidate(s) below threshold (best score=${Math.max(...candidates.map(c => c.score))}), ignoring`)
+    }
+    return null
+  }
 
   // Sort by score descending, then prefer running over resume, then most messages (deeper context)
-  candidates.sort((a, b) => {
+  strong.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score
     if (a.type !== b.type) return a.type === 'running' ? -1 : 1
     // Among resume candidates, prefer more messages (deeper context)
@@ -698,7 +714,7 @@ async function findBestRoute(match: {
     return bMsgs - aMsgs
   })
 
-  const best = candidates[0]
+  const best = strong[0]
   if (best.type === 'running') {
     log(`Routing: best match is running session "${best.instance.name}" score=${best.score}`)
   } else {
