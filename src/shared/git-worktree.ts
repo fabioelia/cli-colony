@@ -87,6 +87,14 @@ export async function ensureBareRepo(
           `Remove it and retry: rm -rf "${bareDir}"`
         )
       }
+      // Self-heal: if remote is SSH but caller passed HTTPS (or vice versa), update it
+      try {
+        const currentRemote = gitExec('git remote get-url origin', { cwd: bareDir }).trim()
+        if (currentRemote !== remoteUrl) {
+          console.log(`[git-worktree] updating remote for ${owner}/${name}: ${currentRemote} → ${remoteUrl}`)
+          gitExec(`git remote set-url origin "${remoteUrl}"`, { cwd: bareDir })
+        }
+      } catch { /* non-fatal */ }
       // Fetch latest refs from origin
       await gitExecAsync(`git fetch origin --prune`, { cwd: bareDir, timeout: 120000 })
     } catch (fetchErr: any) {
@@ -106,19 +114,22 @@ export async function ensureBareRepo(
     fs.mkdirSync(parentDir, { recursive: true })
   }
 
-  // Clone bare — try SSH first, fall back to HTTPS
+  // Clone bare — try the provided URL first, fall back to the other protocol
   try {
     await gitExecAsync(`git clone --bare "${remoteUrl}" "${bareDir}"`, { timeout: 300000 })
-  } catch (sshErr: any) {
-    // Try HTTPS fallback
-    const httpsUrl = `https://github.com/${owner}/${name}.git`
+  } catch (primaryErr: any) {
+    // Try fallback protocol
+    const isHttps = remoteUrl.startsWith('https://')
+    const fallbackUrl = isHttps
+      ? `git@github.com:${owner}/${name}.git`
+      : `https://github.com/${owner}/${name}.git`
     try {
-      await gitExecAsync(`git clone --bare "${httpsUrl}" "${bareDir}"`, { timeout: 300000 })
-    } catch (httpsErr: any) {
+      await gitExecAsync(`git clone --bare "${fallbackUrl}" "${bareDir}"`, { timeout: 300000 })
+    } catch (fallbackErr: any) {
       throw new Error(
         `Failed to create bare repo for ${owner}/${name}.\n` +
-        `SSH error: ${sshErr.message}\n` +
-        `HTTPS error: ${httpsErr.message}\n` +
+        `Primary error: ${primaryErr.message}\n` +
+        `Fallback error: ${fallbackErr.message}\n` +
         `Check your network connection and git credentials.`
       )
     }
