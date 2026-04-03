@@ -95,13 +95,13 @@ export function wireDaemonEvents(): void {
     trackClosed(instanceId, 'exited')
     onPersonaSessionExit(instanceId)
 
-    // Auto-cleanup
+    // Auto-cleanup (skip persona sessions — they're kept for review)
     const cleanupMins = parseInt(getSetting('autoCleanupMinutes') || '5', 10)
     if (cleanupMins > 0) {
       setTimeout(async () => {
         try {
           const inst = await client.getInstance(instanceId)
-          if (inst && inst.status === 'exited') {
+          if (inst && inst.status === 'exited' && !inst.name.startsWith('Persona: ')) {
             await client.removeInstance(instanceId)
           }
         } catch { /* daemon may be gone */ }

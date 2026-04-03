@@ -21,6 +21,7 @@ interface PersonaState {
   runCount: number
   activeSessionId: string | null
   enabled: boolean
+  lastRunOutput: string | null
 }
 
 let stateCache: Record<string, PersonaState> = {}
@@ -44,7 +45,7 @@ function saveState(): void {
 
 function getState(name: string): PersonaState {
   if (!stateCache[name]) {
-    stateCache[name] = { lastRunAt: null, runCount: 0, activeSessionId: null, enabled: false }
+    stateCache[name] = { lastRunAt: null, runCount: 0, activeSessionId: null, enabled: false, lastRunOutput: null }
   }
   return stateCache[name]
 }
@@ -148,6 +149,7 @@ export function getPersonaList(): PersonaInfo[] {
         runCount: state.runCount,
         content,
         filePath,
+        lastRunOutput: state.lastRunOutput || null,
       })
     } catch { /* skip invalid files */ }
   }
@@ -354,30 +356,38 @@ ${permissions}
 // ---- Send trigger when CLI is ready ----
 
 function sendTriggerWhenReady(instanceId: string, message: string): void {
-  let attempts = 0
-  const maxAttempts = 30 // ~15 seconds
-  const interval = setInterval(async () => {
-    attempts++
-    try {
-      const instances = await getAllInstances()
-      const inst = instances.find(i => i.id === instanceId)
-      if (!inst || inst.status === 'exited') {
-        clearInterval(interval)
-        return
-      }
-      if (inst.activity === 'waiting') {
-        clearInterval(interval)
-        await writeToInstance(instanceId, message + '\r')
+  const { getDaemonClient } = require('./daemon-client') as typeof import('./daemon-client')
+  const client = getDaemonClient()
+
+  let sent = false
+
+  const onActivity = (id: string, activity: string) => {
+    if (id !== instanceId) return
+
+    if (!sent && activity === 'waiting') {
+      // First 'waiting' = CLI is ready for input → send the trigger
+      sent = true
+      writeToInstance(instanceId, message + '\r').then(() => {
         console.log(`[persona] sent trigger to ${instanceId}`)
-      }
-    } catch { /* retry */ }
-    if (attempts >= maxAttempts) {
-      clearInterval(interval)
-      // Force-send anyway
-      writeToInstance(instanceId, message + '\r').catch(() => {})
-      console.log(`[persona] force-sent trigger to ${instanceId} after timeout`)
+      }).catch(() => {})
+    } else if (sent && activity === 'waiting') {
+      // Second 'waiting' = persona finished its work → kill the session
+      client.removeListener('activity', onActivity)
+      console.log(`[persona] session ${instanceId} finished, killing in 5s`)
+      setTimeout(async () => {
+        try {
+          const { killInstance } = await import('./instance-manager')
+          await killInstance(instanceId)
+        } catch { /* already gone */ }
+      }, 5000)
     }
-  }, 500)
+  }
+  client.on('activity', onActivity)
+
+  // Safety cleanup after 10 minutes
+  setTimeout(() => {
+    client.removeListener('activity', onActivity)
+  }, 600_000)
 }
 
 // ---- Run / Stop ----
@@ -415,14 +425,16 @@ export async function runPersona(fileName: string): Promise<string> {
   let cwd = fm.working_directory || colonyPaths.root
   if (cwd.startsWith('~')) cwd = cwd.replace('~', process.env.HOME || '/')
 
-  // Launch session with -p flag so it auto-exits when done
-  const kickoff = `Begin your planning loop now. Read your identity file at ${filePath} and the colony context, then assess, decide, and act.`
+  // Launch interactive session with system prompt, then send trigger when ready
   const inst = await createInstance({
     name: `Persona: ${fm.name}`,
     workingDirectory: cwd,
     color: fm.color,
-    args: ['-p', kickoff, '--append-system-prompt-file', promptFile],
+    args: ['--append-system-prompt-file', promptFile],
   })
+
+  const kickoff = `Begin your planning loop now. Read your identity file at ${filePath} and the colony context, then assess, decide, and act.`
+  sendTriggerWhenReady(inst.id, kickoff)
 
   // Update state
   state.activeSessionId = inst.id
@@ -466,11 +478,22 @@ export function getPersonasDir(): string {
 
 // ---- Session Exit Tracking ----
 
-/** Called by instance-manager when any session exits — clears active persona sessions */
-export function onSessionExit(instanceId: string): void {
+/** Called by instance-manager when any session exits — captures output and clears active session */
+export async function onSessionExit(instanceId: string): Promise<void> {
   let changed = false
   for (const [name, state] of Object.entries(stateCache)) {
     if (state.activeSessionId === instanceId) {
+      // Capture the session's output buffer before clearing
+      try {
+        const { getInstanceBuffer } = await import('./instance-manager')
+        const buffer = await getInstanceBuffer(instanceId)
+        if (buffer) {
+          // Strip ANSI codes and keep last ~5000 chars
+          const clean = buffer.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '')
+          state.lastRunOutput = clean.length > 5000 ? clean.slice(-5000) : clean
+        }
+      } catch { /* buffer may be gone */ }
+
       state.activeSessionId = null
       changed = true
       console.log(`[persona] session exited for "${name}"`)

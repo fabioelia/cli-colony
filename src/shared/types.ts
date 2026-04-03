@@ -182,4 +182,6 @@ export interface PersonaInfo {
   content: string
   /** File path */
   filePath: string
+  /** Output from the last completed run (ANSI-stripped, last ~5000 chars) */
+  lastRunOutput: string | null
 }

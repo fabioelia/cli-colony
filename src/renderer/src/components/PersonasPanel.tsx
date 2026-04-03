@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
-  User, Plus, Play, Square, Trash2, Send, MessageSquare,
+  User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
   ChevronDown, ChevronRight, Clock, Hash,
   ToggleLeft, ToggleRight
 } from 'lucide-react'
+import { marked } from 'marked'
 import HelpPopover from './HelpPopover'
 import Tooltip from './Tooltip'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
@@ -81,10 +82,15 @@ When the user describes what they want, write the persona .md file directly to ~
 /** Parse `## Section` blocks from persona markdown content */
 function parseSections(content: string): Record<string, string> {
   const sections: Record<string, string> = {}
-  const regex = /^## (.+)\s*\n([\s\S]*?)(?=^## |\s*$)/gm
-  let match: RegExpExecArray | null
-  while ((match = regex.exec(content)) !== null) {
-    sections[match[1].trim()] = match[2].trim()
+  // Strip frontmatter
+  const body = content.replace(/^---\n[\s\S]*?\n---\n?/, '')
+  // Split on ## headings (but not ### or deeper)
+  const parts = body.split(/^(?=## [^#])/m)
+  for (const part of parts) {
+    const match = part.match(/^## (.+)\n([\s\S]*)/)
+    if (match) {
+      sections[match[1].trim()] = match[2].trim()
+    }
   }
   return sections
 }
@@ -95,6 +101,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
   const [showNewDialog, setShowNewDialog] = useState(false)
   const [newName, setNewName] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [viewingPersona, setViewingPersona] = useState<PersonaInfo | null>(null)
 
   // Ask bar — persona assistant
   const [askInput, setAskInput] = useState('')
@@ -287,9 +294,62 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
             onToggle={(enabled) => handleToggle(persona.id, enabled)}
             onDelete={() => handleDelete(persona.id)}
             onFocusInstance={onFocusInstance}
+            onViewFile={() => setViewingPersona(persona)}
           />
         ))}
       </div>
+
+      {/* Markdown viewer modal */}
+      {viewingPersona && (
+        <div className="persona-modal-overlay" onClick={() => setViewingPersona(null)}>
+          <div className="persona-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="persona-modal-header">
+              <h3>{viewingPersona.name}</h3>
+              <span className="persona-modal-path">{viewingPersona.filePath}</span>
+              <button className="persona-modal-close" onClick={() => setViewingPersona(null)}>
+                <X size={16} />
+              </button>
+            </div>
+            <div
+              className="persona-modal-content"
+              dangerouslySetInnerHTML={{
+                __html: marked(viewingPersona.content.replace(/^---\n[\s\S]*?\n---\n?/, '')) as string
+              }}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Collapsible section within the persona card */
+function PersonaSection({ title, content, defaultOpen, isOutput, children }: {
+  title: string
+  content: string | null | undefined
+  defaultOpen: boolean
+  isOutput?: boolean
+  children?: React.ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  const hasContent = children || (content && !content.trim().startsWith('('))
+  if (!hasContent) return null
+
+  return (
+    <div className="persona-card-section">
+      <button className="persona-section-toggle" onClick={() => setOpen(!open)}>
+        {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+        <h4>{title}</h4>
+        {!open && content && <span className="persona-section-preview">{content.split('\n').find(l => l.trim())?.trim().slice(0, 80)}...</span>}
+      </button>
+      {open && (
+        children || (
+          <div
+            className={`persona-card-section-content persona-md ${isOutput ? 'persona-run-output' : ''}`}
+            dangerouslySetInnerHTML={{ __html: marked(content || '') as string }}
+          />
+        )
+      )}
     </div>
   )
 }
@@ -304,22 +364,30 @@ interface PersonaCardProps {
   onToggle: (enabled: boolean) => void
   onDelete: () => void
   onFocusInstance: (id: string) => void
+  onViewFile: () => void
 }
 
 function PersonaCard({
   persona, expanded, instances, onToggleExpand,
-  onRun, onStop, onToggle, onDelete, onFocusInstance
+  onRun, onStop, onToggle, onDelete, onFocusInstance, onViewFile
 }: PersonaCardProps) {
   const isRunning = persona.activeSessionId !== null
   const statusClass = isRunning ? 'running' : persona.enabled ? 'idle' : 'disabled'
-  const sections = expanded ? parseSections(persona.content) : {}
+  const allSections = parseSections(persona.content)
+  const sections = expanded ? allSections : {}
+
+  // Always parse session log for the preview (even when collapsed)
+  const sessionLogLines = (allSections['Session Log'] || '')
+    .split('\n')
+    .filter(l => l.trim().startsWith('- ['))
+    .slice(-3) // last 3 entries
 
   return (
     <div className="persona-card">
       <div className="persona-card-header" onClick={onToggleExpand}>
-        <div className="persona-card-icon">
-          {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-        </div>
+        <span className="persona-card-expand">
+          {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        </span>
         <span className={`persona-card-status-dot ${statusClass}`} />
         <div className="persona-card-info">
           <span className="persona-card-name">{persona.name}</span>
@@ -374,91 +442,94 @@ function PersonaCard({
         </div>
       </div>
 
+      {/* Recent activity preview — always visible */}
+      {!expanded && sessionLogLines.length > 0 && (
+        <div className="persona-card-preview" onClick={onToggleExpand}>
+          {sessionLogLines.map((line, i) => {
+            // Parse "- [2026-04-02T21:15:00Z] summary text"
+            const match = line.match(/^- \[([^\]]+)\]\s*(.*)/)
+            if (!match) return null
+            const time = new Date(match[1])
+            const summary = match[2]
+            const timeStr = time.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+            return (
+              <div key={i} className="persona-preview-entry">
+                <span className="persona-preview-time">{timeStr}</span>
+                <span className="persona-preview-text">{summary}</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       {expanded && (
         <div className="persona-card-body">
-          {isRunning && persona.activeSessionId && (
-            <div className="persona-card-section">
-              <div className="persona-card-status">
-                <span className={`persona-card-status-dot running`} />
-                Running
-                <button
-                  className="persona-action-btn"
-                  onClick={() => onFocusInstance(persona.activeSessionId!)}
-                  style={{ marginLeft: 8 }}
-                >
+          {/* Status bar */}
+          <div className="persona-card-status-bar">
+            {isRunning && persona.activeSessionId ? (
+              <>
+                <span className="persona-status-badge running">
+                  <span className="persona-card-status-dot running" /> Running
+                </span>
+                <button className="persona-status-view-btn" onClick={() => onFocusInstance(persona.activeSessionId!)}>
                   View Session
                 </button>
-              </div>
+              </>
+            ) : (
+              <span className="persona-status-badge idle">Idle</span>
+            )}
+            {persona.lastRun && (
+              <span className="persona-status-last-run">
+                Last run: {new Date(persona.lastRun).toLocaleString()}
+              </span>
+            )}
+            <div className="persona-card-footer-inline">
+              <span className={`persona-permission-badge ${persona.canPush ? 'allowed' : 'denied'}`}>Push</span>
+              <span className={`persona-permission-badge ${persona.canMerge ? 'allowed' : 'denied'}`}>Merge</span>
+              <span className={`persona-permission-badge ${persona.canCreateSessions ? 'allowed' : 'denied'}`}>Sessions</span>
+              <span className="persona-card-meta-inline">{persona.model}</span>
+              <button className="persona-view-file-btn" onClick={onViewFile} title="View full persona file">
+                <FileText size={10} /> View File
+              </button>
             </div>
-          )}
+          </div>
 
-          {persona.lastRun && (
-            <div className="persona-card-section">
-              <h4>Last Run</h4>
-              <div className="persona-card-section-content">
-                {new Date(persona.lastRun).toLocaleString()}
-              </div>
-            </div>
-          )}
-
-          {sections['Role'] && (
-            <div className="persona-card-section">
-              <h4>Role</h4>
-              <div className="persona-card-section-content">{sections['Role']}</div>
-            </div>
-          )}
-
-          {sections['Objectives'] && (
-            <div className="persona-card-section">
-              <h4>Objectives</h4>
-              <div className="persona-card-section-content">{sections['Objectives']}</div>
-            </div>
-          )}
-
-          {sections['Active Situations'] && (
-            <div className="persona-card-section">
-              <h4>Active Situations</h4>
-              <div className="persona-card-section-content">{sections['Active Situations']}</div>
-            </div>
-          )}
-
-          {sections['Learnings'] && (
-            <div className="persona-card-section">
-              <h4>Learnings</h4>
-              <div className="persona-card-section-content">{sections['Learnings']}</div>
-            </div>
-          )}
-
-          {sections['Session Log'] && (
-            <div className="persona-card-section">
-              <h4>Session Log</h4>
+          {/* Collapsible sections — dynamic ones open, static ones collapsed */}
+          <PersonaSection title="Active Situations" content={sections['Active Situations']} defaultOpen={true} />
+          <PersonaSection title="Session Log" content={null} defaultOpen={true}>
+            {sections['Session Log'] && (
               <div className="persona-session-log">
-                {sections['Session Log'].split('\n').filter(l => l.trim()).map((line, i) => (
-                  <div key={i} className="persona-session-log-entry">{line}</div>
-                ))}
+                {sections['Session Log'].split('\n').filter(l => l.trim()).reverse().map((line, i) => {
+                  const match = line.match(/^-\s*\[([^\]]+)\]\s*(.*)/)
+                  if (!match) return <div key={i} className="persona-session-log-entry"><span className="persona-log-text">{line.replace(/^-\s*/, '')}</span></div>
+                  const time = new Date(match[1])
+                  const isValid = !isNaN(time.getTime())
+                  const timeStr = isValid ? time.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : match[1]
+                  // Extract session number if present
+                  const sessionMatch = match[2].match(/^(Session \d+):?\s*(.*)/)
+                  return (
+                    <div key={i} className="persona-session-log-entry">
+                      <span className="persona-log-time">{timeStr}</span>
+                      {sessionMatch ? (
+                        <span className="persona-log-text">
+                          <span className="persona-log-session-num">{sessionMatch[1]}</span>
+                          {sessionMatch[2]}
+                        </span>
+                      ) : (
+                        <span className="persona-log-text">{match[2]}</span>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
-            </div>
+            )}
+          </PersonaSection>
+          <PersonaSection title="Learnings" content={sections['Learnings']} defaultOpen={false} />
+          {persona.lastRunOutput && (
+            <PersonaSection title="Last Run Output" content={persona.lastRunOutput} defaultOpen={false} isOutput />
           )}
-
-          <div className="persona-card-section">
-            <h4>Permissions</h4>
-            <div className="persona-card-permissions">
-              <span className={`persona-permission-badge ${persona.canPush ? 'allowed' : 'denied'}`}>
-                Push
-              </span>
-              <span className={`persona-permission-badge ${persona.canMerge ? 'allowed' : 'denied'}`}>
-                Merge
-              </span>
-              <span className={`persona-permission-badge ${persona.canCreateSessions ? 'allowed' : 'denied'}`}>
-                Create Sessions
-              </span>
-            </div>
-          </div>
-
-          <div className="persona-card-meta">
-            <span>Model: {persona.model}</span>
-            <span>Max Sessions: {persona.maxSessions}</span>
-          </div>
+          <PersonaSection title="Role" content={sections['Role']} defaultOpen={false} />
+          <PersonaSection title="Objectives" content={sections['Objectives']} defaultOpen={false} />
         </div>
       )}
     </div>
