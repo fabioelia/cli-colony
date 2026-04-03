@@ -12,6 +12,7 @@ export default function SettingsPanel({ onBack }: Props) {
   const [syncClaudeSlashCommands, setSyncClaudeSlashCommands] = useState(true)
   const [shellProfile, setShellProfile] = useState('')
   const [gitProtocol, setGitProtocol] = useState<'ssh' | 'https'>('ssh')
+  const [detectedProtocol, setDetectedProtocol] = useState<'ssh' | 'https' | null>(null)
   const [soundOnFinish, setSoundOnFinish] = useState(true)
   const [autoCleanupMinutes, setAutoCleanupMinutes] = useState('5')
   const [globalHotkey, setGlobalHotkey] = useState('CommandOrControl+Shift+Space')
@@ -38,6 +39,7 @@ export default function SettingsPanel({ onBack }: Props) {
     })
     window.api.settings.getShells().then(setAvailableShells)
     window.api.daemon.getVersion().then(setDaemonVersion).catch(() => {})
+    window.api.settings.detectGitProtocol().then(setDetectedProtocol).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -158,6 +160,16 @@ export default function SettingsPanel({ onBack }: Props) {
           <label>Git Protocol</label>
           <p className="settings-help">
             Protocol for cloning GitHub repos (environments, bare repos, colony feedback).
+            {detectedProtocol && detectedProtocol !== gitProtocol && (
+              <span className="settings-restart-note" style={{ color: '#f59e0b' }}>
+                Detected: {detectedProtocol} works on this machine
+              </span>
+            )}
+            {detectedProtocol && detectedProtocol === gitProtocol && (
+              <span className="settings-restart-note" style={{ color: '#10b981' }}>
+                Verified: {detectedProtocol} works
+              </span>
+            )}
           </p>
           <select
             value={gitProtocol}
