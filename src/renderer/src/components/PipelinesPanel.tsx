@@ -18,9 +18,11 @@ interface PipelineInfo {
   running: boolean
   outputsDir: string | null
   lastPollAt: string | null
+  lastMatchAt: string | null
   lastFiredAt: string | null
   lastError: string | null
   fireCount: number
+  debugLog: string[]
 }
 
 interface Props {
