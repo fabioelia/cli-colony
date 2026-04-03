@@ -469,7 +469,7 @@ export function ensureRepoClones(): void {
   for (const repo of repos) {
     const bareDir = colonyPaths.bareRepoDir(repo.owner, repo.name)
     if (!existsSync(bareDir)) {
-      const remoteUrl = `git@github.com:${repo.owner}/${repo.name}.git`
+      const remoteUrl = `https://github.com/${repo.owner}/${repo.name}.git`
       ensureBareRepoWorktree(repo.owner, repo.name, remoteUrl).catch(err => {
         console.error(`[github] bare clone failed for ${repo.owner}/${repo.name}:`, err)
       })
@@ -487,7 +487,7 @@ export function addRepo(repo: GitHubRepo): GitHubRepo[] {
     saveConfig(config)
 
     // Create bare repo in background (don't block)
-    const remoteUrl = `git@github.com:${repo.owner}/${repo.name}.git`
+    const remoteUrl = `https://github.com/${repo.owner}/${repo.name}.git`
     ensureBareRepoWorktree(repo.owner, repo.name, remoteUrl).catch(err => {
       console.error(`[github] bare clone failed for ${repo.owner}/${repo.name}:`, err)
     })
@@ -500,7 +500,7 @@ export function addRepo(repo: GitHubRepo): GitHubRepo[] {
  * This is the unified entry point — all repo cloning goes through bare repos now.
  */
 export async function shallowCloneRepo(repo: GitHubRepo): Promise<void> {
-  const remoteUrl = `git@github.com:${repo.owner}/${repo.name}.git`
+  const remoteUrl = `https://github.com/${repo.owner}/${repo.name}.git`
   await ensureBareRepoWorktree(repo.owner, repo.name, remoteUrl)
 }
 
@@ -535,8 +535,8 @@ When done, push your feedback to the colony-feedback branch so the author's Colo
 
 1. Create a temp directory and clone into it:
    TMPDIR=$(mktemp -d)
-   git clone --depth 1 --single-branch --branch colony-feedback git@github.com:{{repo.owner}}/{{repo.name}}.git "$TMPDIR" 2>/dev/null || \\
-     (git clone --depth 1 git@github.com:{{repo.owner}}/{{repo.name}}.git "$TMPDIR" && cd "$TMPDIR" && git checkout -b colony-feedback)
+   git clone --depth 1 --single-branch --branch colony-feedback https://github.com/{{repo.owner}}/{{repo.name}}.git "$TMPDIR" 2>/dev/null || \\
+     (git clone --depth 1 https://github.com/{{repo.owner}}/{{repo.name}}.git "$TMPDIR" && cd "$TMPDIR" && git checkout -b colony-feedback)
    cd "$TMPDIR"
 
 2. Create the feedback file with YAML frontmatter:
