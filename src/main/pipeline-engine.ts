@@ -448,7 +448,7 @@ function buildFilePromptTrigger(filePath: string): string {
 
 // ---- Send Prompt to Existing Session (no trust prompt handling) ----
 
-async function sendPromptToExistingSession(instanceId: string, prompt: string): Promise<void> {
+async function sendPromptToExistingSession(instanceId: string, prompt: string): Promise<boolean> {
   const client = getDaemonClient()
   const inst = await client.getInstance(instanceId)
   const filePath = writePromptFile(prompt)
@@ -456,7 +456,7 @@ async function sendPromptToExistingSession(instanceId: string, prompt: string): 
 
   if (inst?.activity === 'waiting') {
     writeToInstance(instanceId, trigger + '\r')
-    return
+    return true
   }
 
   // Wait for session to become idle
@@ -469,7 +469,7 @@ async function sendPromptToExistingSession(instanceId: string, prompt: string): 
         sent = true
         client.removeListener('activity', handler)
         writeToInstance(instanceId, trigger + '\r')
-        resolve()
+        resolve(true)
       }
     }
 
@@ -480,8 +480,8 @@ async function sendPromptToExistingSession(instanceId: string, prompt: string): 
       if (!sent) {
         sent = true
         client.removeListener('activity', handler)
-        log(`Timed out waiting for session ${instanceId} to become idle`)
-        resolve()
+        log(`Timed out waiting for session ${instanceId} to become idle — prompt not delivered`)
+        resolve(false)
       }
     }, 60000)
   })
@@ -897,10 +897,13 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
       if (action.busyStrategy === 'launch-new') {
         log(`Routing: session busy, busyStrategy=launch-new, launching new session`)
       } else {
-        log(`Routing: session busy, waiting for idle...`)
-        await sendPromptToExistingSession(existing.id, prompt)
-        broadcast('pipeline:fired', { pipeline: name, instanceId: existing.id, routed: true })
-        return
+        log(`Routing: session busy, waiting for idle (60s timeout)...`)
+        const sent = await sendPromptToExistingSession(existing.id, prompt)
+        if (sent) {
+          broadcast('pipeline:fired', { pipeline: name, instanceId: existing.id, routed: true })
+          return
+        }
+        log(`Routing: timed out waiting for session, falling through to launch new`)
       }
     } else if (route?.type === 'resume') {
       log(`Routing: resuming history session "${route.name}" (${route.sessionId})`)
@@ -1246,11 +1249,12 @@ condition:
     pr.author: "{{github.user}}"
 
 action:
-  type: route-to-session
+  type: launch-session
+  reuse: true
   match:
     gitBranch: "{{pr.branch}}"
     workingDirectory: "{{repo.localPath}}"
-  busyStrategy: wait
+  busyStrategy: launch-new
   name: "Feedback: {{repo.name}}#{{pr.number}}"
   workingDirectory: "{{repo.localPath}}"
   color: "#f59e0b"
