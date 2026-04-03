@@ -14,6 +14,12 @@ process.on('uncaughtException', (err) => {
   throw err
 })
 import { join } from 'path'
+
+// Enable Chrome DevTools Protocol on a fixed port for Playwright recording
+if (process.env.COLONY_CDP_PORT) {
+  app.commandLine.appendSwitch('remote-debugging-port', process.env.COLONY_CDP_PORT)
+}
+
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerIpcHandlers } from './ipc-handlers'
 import { initDaemon, disconnectDaemon, setOnInstanceListChanged } from './instance-manager'
@@ -25,6 +31,7 @@ import { updateColonyContext } from './colony-context'
 import { killAllShells } from './shell-pty'
 import { snapshotRunning } from './recent-sessions'
 import { ensureRepoClones } from './github'
+import { loadPersonas, startWatcher as startPersonaWatcher } from './persona-manager'
 
 const COLONY_CLI_SCRIPT = `#!/bin/bash
 # colony — control Colony environments from the command line.
@@ -364,6 +371,11 @@ app.whenReady().then(() => {
     }).catch((err) => {
       console.error('[app] pipelines failed to start:', err)
     })
+    // Load personas and start file watcher
+    try {
+      loadPersonas()
+      startPersonaWatcher()
+    } catch { /* ignore */ }
   }).catch((err) => {
     console.error('[app] daemon init failed:', err)
   })

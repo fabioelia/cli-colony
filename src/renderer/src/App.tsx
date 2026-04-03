@@ -12,6 +12,7 @@ import CommandPalette from './components/CommandPalette'
 import TaskQueuePanel from './components/TaskQueuePanel'
 import PipelinesPanel from './components/PipelinesPanel'
 import EnvironmentsPanel from './components/EnvironmentsPanel'
+import PersonasPanel from './components/PersonasPanel'
 
 type View = SidebarView | 'agent-editor'
 
@@ -876,6 +877,22 @@ export default function App() {
               setActiveId(id)
               setView('instances')
             }}
+          />
+        )}
+        {view === 'personas' && (
+          <PersonasPanel
+            onBack={() => setView('instances')}
+            onFocusInstance={(id) => {
+              setActiveId(id)
+              setView('instances')
+            }}
+            onLaunchInstance={async (opts) => {
+              const inst = await window.api.instance.create(opts)
+              setActiveId(inst.id)
+              setView('instances')
+              return inst.id
+            }}
+            instances={instances}
           />
         )}
         <div style={{ display: view === 'github' ? 'contents' : 'none' }}>

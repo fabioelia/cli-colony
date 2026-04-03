@@ -373,6 +373,53 @@ export const helpContent: Record<string, HelpEntry> = {
     ],
   },
 
+  personas: {
+    title: 'Personas',
+    description: 'Long-lived AI agents with identity, goals, and memory. Personas run periodically, assess the state of your workspace, and take autonomous action.',
+    zones: [
+      {
+        name: 'Header',
+        position: 'Top bar',
+        items: [
+          { label: 'New button', detail: 'Create a new persona from a blank template with a name.', icon: 'Plus' },
+        ],
+      },
+      {
+        name: 'Ask Bar',
+        position: 'Below header',
+        items: [
+          { label: 'Persona Assistant', detail: 'Describe a persona and the assistant will create or modify the .md file for you. It knows the file format, section conventions, and permission scopes.', icon: 'MessageSquare' },
+          { label: 'View button', detail: 'Focus the running Persona Assistant session to continue the conversation.' },
+        ],
+      },
+      {
+        name: 'Persona Cards',
+        position: 'Main area',
+        items: [
+          { label: 'Status dot', detail: 'Green pulsing = running a session. Gray = idle. Dimmed = disabled.' },
+          { label: 'Schedule', detail: 'Cron expression showing when the persona runs automatically (e.g., every 2 hours during work hours).' },
+          { label: 'Run count', detail: 'How many sessions this persona has completed.' },
+          { label: 'Run button', detail: 'Manually trigger a persona session now.', icon: 'Play' },
+          { label: 'Stop button', detail: 'Stop the currently running persona session.', icon: 'Square' },
+          { label: 'Enable/Disable', detail: 'Toggle scheduled runs on or off without deleting the persona.' },
+          { label: 'Delete', detail: 'Remove the persona file.', icon: 'Trash2' },
+        ],
+      },
+      {
+        name: 'Expanded Card',
+        position: 'Below card when expanded',
+        items: [
+          { label: 'Role section', detail: 'The persona\'s identity and instructions (set by you, read-only to the persona).' },
+          { label: 'Objectives', detail: 'What the persona is trying to achieve. You set these, the persona works toward them.' },
+          { label: 'Active Situations', detail: 'Dynamic state managed by the persona — things it\'s tracking across sessions.' },
+          { label: 'Learnings', detail: 'Facts and patterns the persona has discovered. It adds and prunes these itself.' },
+          { label: 'Session Log', detail: 'Recent session summaries. Auto-pruned to the last 20 entries.' },
+          { label: 'Permissions', detail: 'What the persona can and cannot do: push code, merge PRs, create sessions.' },
+        ],
+      },
+    ],
+  },
+
   // Per-session tabs
   sessionTab: {
     title: 'Session (Claude Terminal)',

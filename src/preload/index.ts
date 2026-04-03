@@ -2,14 +2,14 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
-  FeedbackFile, EnvServiceStatus, EnvStatus,
+  FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
 export type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
-  FeedbackFile, EnvServiceStatus, EnvStatus,
+  FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus,
 }
 
 
@@ -173,6 +173,19 @@ export interface ClaudeManagerAPI {
     listOutputs: (outputDir: string) => Promise<Array<{ name: string; path: string; size: number; modified: number }>>
     getMemory: (fileName: string) => Promise<string>
     saveMemory: (fileName: string, content: string) => Promise<boolean>
+  }
+  persona: {
+    list: () => Promise<PersonaInfo[]>
+    getContent: (fileName: string) => Promise<string | null>
+    saveContent: (fileName: string, content: string) => Promise<boolean>
+    create: (name: string) => Promise<{ fileName: string } | null>
+    delete: (fileName: string) => Promise<boolean>
+    run: (fileName: string) => Promise<string>
+    stop: (fileName: string) => Promise<boolean>
+    toggle: (fileName: string, enabled: boolean) => Promise<boolean>
+    getDir: () => Promise<string>
+    onStatus: (cb: (personas: PersonaInfo[]) => void) => () => void
+    onRun: (cb: (data: { persona: string; instanceId: string }) => void) => () => void
   }
   taskQueue: {
     list: () => Promise<Array<{ name: string; path: string; content: string }>>
@@ -420,6 +433,27 @@ const api: ClaudeManagerAPI = {
     listOutputs: (outputDir) => ipcRenderer.invoke('pipeline:listOutputs', outputDir),
     getMemory: (fileName) => ipcRenderer.invoke('pipeline:getMemory', fileName),
     saveMemory: (fileName, content) => ipcRenderer.invoke('pipeline:saveMemory', fileName, content),
+  },
+  persona: {
+    list: () => ipcRenderer.invoke('persona:list'),
+    getContent: (fileName) => ipcRenderer.invoke('persona:getContent', fileName),
+    saveContent: (fileName, content) => ipcRenderer.invoke('persona:saveContent', fileName, content),
+    create: (name) => ipcRenderer.invoke('persona:create', name),
+    delete: (fileName) => ipcRenderer.invoke('persona:delete', fileName),
+    run: (fileName) => ipcRenderer.invoke('persona:run', fileName),
+    stop: (fileName) => ipcRenderer.invoke('persona:stop', fileName),
+    toggle: (fileName, enabled) => ipcRenderer.invoke('persona:toggle', fileName, enabled),
+    getDir: () => ipcRenderer.invoke('persona:getDir'),
+    onStatus: (cb) => {
+      const l = (_e: any, data: PersonaInfo[]) => cb(data)
+      ipcRenderer.on('persona:status', l)
+      return () => ipcRenderer.removeListener('persona:status', l)
+    },
+    onRun: (cb) => {
+      const l = (_e: any, data: { persona: string; instanceId: string }) => cb(data)
+      ipcRenderer.on('persona:run', l)
+      return () => ipcRenderer.removeListener('persona:run', l)
+    },
   },
   env: {
     list: () => ipcRenderer.invoke('env:list'),

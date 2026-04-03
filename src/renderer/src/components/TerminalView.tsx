@@ -4,7 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText } from 'lucide-react'
 import type { EnvStatus, EnvServiceStatus } from '../../../shared/types'
 import { buildDiagnosePrompt } from '../../../shared/env-prompts'
 import '@xterm/xterm/css/xterm.css'
@@ -202,6 +202,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const [fileSearchInput, setFileSearchInput] = useState('')
   const [fileSearchQuery, setFileSearchQuery] = useState('')
   const [fileSearchOpen, setFileSearchOpen] = useState(false)
+  const [wordWrap, setWordWrap] = useState(false)
   const [fileSearchIndex, setFileSearchIndex] = useState(0)
   const [treeFilter, setTreeFilter] = useState('')
   const [contentSearch, setContentSearch] = useState('')
@@ -1130,6 +1131,13 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                     >
                       <TerminalSquare size={12} /> Paste Path
                     </button>
+                    <button
+                      className={`filetree-preview-wrap ${wordWrap ? 'active' : ''}`}
+                      onClick={() => setWordWrap(!wordWrap)}
+                      title={wordWrap ? 'Disable word wrap' : 'Enable word wrap'}
+                    >
+                      <WrapText size={12} />
+                    </button>
                   </div>
                   {fileSearchOpen && (
                     <div className="filetree-search-bar">
@@ -1173,7 +1181,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                       const html = lines.map((line, i) =>
                         `<span class="filetree-line"><span class="filetree-linenum" style="min-width:${gutterWidth}ch">${i + 1}</span><span class="filetree-linecode">${line || ' '}</span></span>`
                       ).join('\n')
-                      return <pre className="filetree-preview-code" dangerouslySetInnerHTML={{ __html: html }} />
+                      return <pre className={`filetree-preview-code ${wordWrap ? 'word-wrap' : ''}`} dangerouslySetInnerHTML={{ __html: html }} />
                     })()}
                   </div>
                 </>

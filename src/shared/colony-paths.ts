@@ -39,6 +39,8 @@ export const colonyPaths = {
   screenshots: path.join(ROOT, 'screenshots'),
   taskWorkspace: path.join(ROOT, 'task-workspace'),
   taskQueues: path.join(ROOT, 'task-queues'),
+  personas: path.join(ROOT, 'personas'),
+  personaState: path.join(ROOT, 'persona-state.json'),
   recentSessions: path.join(ROOT, 'recent-sessions.json'),
 
   /** Build a repo clone path for a given owner/name (shallow clones for GitHub panel) */

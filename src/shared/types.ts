@@ -152,3 +152,34 @@ export interface EnvironmentTemplate {
   /** Where this template came from: "user" or "repo:owner/name" */
   source?: string
 }
+
+export interface PersonaInfo {
+  /** File name (without .md extension) */
+  id: string
+  /** Display name from frontmatter */
+  name: string
+  /** Cron schedule (empty string = manual only) */
+  schedule: string
+  /** Model to use (claude-sonnet-4-5-20250514, opus, etc.) */
+  model: string
+  /** Max concurrent sessions this persona can have */
+  maxSessions: number
+  /** Permission: can push to git branches */
+  canPush: boolean
+  /** Permission: can merge PRs */
+  canMerge: boolean
+  /** Permission: can create new Colony sessions */
+  canCreateSessions: boolean
+  /** Whether the persona is enabled for scheduled runs */
+  enabled: boolean
+  /** Currently running session ID (null if not running) */
+  activeSessionId: string | null
+  /** Timestamp of last run */
+  lastRun: string | null
+  /** Number of completed runs */
+  runCount: number
+  /** Full markdown content of the persona file */
+  content: string
+  /** File path */
+  filePath: string
+}

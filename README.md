@@ -157,7 +157,7 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
   - Click a match to preview the file with search term highlighted
   - Infinite scroll — auto-loads more results as you scroll
   - Configurable ignore rules (gear icon) — add custom patterns, persisted to settings
-- **File preview** with line numbers
+- **File preview** with line numbers and toggleable word wrap
 - **Cmd+F in preview** — search within file with Enter/Shift+Enter navigation, active match highlighting
 - Click a file to paste its path into the terminal
 
@@ -185,6 +185,17 @@ Requires `claude` CLI installed and available in your PATH (`~/.local/bin/claude
 - **Auto-reload** — editor refreshes from disk when CLI finishes editing
 - Export/import agents as zip files per section
 - Launch sessions pre-configured from agent definitions
+
+### Personas
+- **Autonomous AI agents** with persistent identity, goals, memory, and a planning loop
+- Persona defined by a single `.md` file with YAML frontmatter (schedule, model, permissions) and self-managed sections (Role, Objectives, Active Situations, Learnings, Session Log)
+- **Planning loop** — each session: read identity file → read colony context → assess changes → decide actions → execute → update memory
+- **Self-modifying memory** — persona reads and writes its own `.md` file for continuity across sessions
+- **Permission scopes** — `can_push`, `can_merge`, `can_create_sessions` flags in frontmatter
+- **Sub-task sessions** — persona can launch `claude -p` sessions for delegated work
+- **Persona Assistant** — ask bar with system prompt that knows the file format and creates/modifies personas
+- Manual run button + enable/disable toggle for scheduled runs
+- Expandable cards showing role, objectives, active situations, learnings, session log, and permissions
 
 ### Settings
 - Default CLI arguments applied to all new sessions
@@ -355,6 +366,7 @@ src/
 │   ├── recent-sessions.ts   # Tracks sessions opened via the app
 │   ├── colony-context.ts    # Shared context file generator for cross-session awareness
 │   ├── pipeline-engine.ts   # Pipeline engine: triggers, conditions, routing, dedup
+│   ├── persona-manager.ts   # Persona lifecycle: file parsing, planning loop, session launch
 │   ├── port-allocator.ts    # Unique port assignment per environment
 │   ├── shell-env.ts         # Shell environment resolution
 │   ├── settings.ts          # Read/write ~/.claude-colony/settings.json
@@ -383,6 +395,7 @@ src/
         │   ├── SettingsPanel.tsx        # Settings + daemon + logs
         │   ├── TaskQueuePanel.tsx       # Task queue editor, runner, outputs browser
         │   ├── PipelinesPanel.tsx       # Pipeline management, YAML editor, docs viewer
+        │   ├── PersonasPanel.tsx       # Autonomous AI persona management
         │   ├── EnvironmentsPanel.tsx    # Environment management, templates, services
         │   ├── EnvironmentLogViewer.tsx # Streaming log viewer per environment/service
         │   ├── NewEnvironmentDialog.tsx # Create environment from template

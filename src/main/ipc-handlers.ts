@@ -14,6 +14,7 @@ import { registerGitHubHandlers } from './ipc/github-handlers'
 import { registerPipelineHandlers } from './ipc/pipeline-handlers'
 import { registerTaskQueueHandlers } from './ipc/task-queue-handlers'
 import { registerEnvHandlers } from './ipc/env-handlers'
+import { registerPersonaHandlers } from './ipc/persona-handlers'
 
 export function registerIpcHandlers(): void {
   // Delegated handler modules
@@ -24,6 +25,7 @@ export function registerIpcHandlers(): void {
   registerPipelineHandlers()
   registerTaskQueueHandlers()
   registerEnvHandlers()
+  registerPersonaHandlers()
 
   // ---- Temp files ----
   ipcMain.handle('fs:writeTempFile', (_e, prefix: string, content: string) => {

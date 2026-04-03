@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import Tooltip from './Tooltip'
 import HelpPopover from './HelpPopover'
 import ExternalSessionPopover from './ExternalSessionPopover'
 import { COLORS, formatTime, cliBackendLabel, formatInstanceCmd } from '../lib/constants'
 
-export type SidebarView = 'instances' | 'agents' | 'github' | 'sessions' | 'settings' | 'logs' | 'tasks' | 'pipelines' | 'environments'
+export type SidebarView = 'instances' | 'agents' | 'github' | 'sessions' | 'settings' | 'logs' | 'tasks' | 'pipelines' | 'environments' | 'personas'
 
 interface Props {
   instances: ClaudeInstance[]
@@ -306,6 +306,11 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
             <button className={`sidebar-nav-btn ${view === 'environments' ? 'active' : ''}`} onClick={() => onViewChange('environments')}>
               <Server size={16} />
               {runningEnvCount > 0 && <span className="sidebar-nav-badge">{runningEnvCount}</span>}
+            </button>
+          </Tooltip>
+          <Tooltip text="Personas" detail="Autonomous AI agents with identity, goals, and memory" position="bottom">
+            <button className={`sidebar-nav-btn ${view === 'personas' ? 'active' : ''}`} onClick={() => onViewChange('personas')}>
+              <User size={16} />
             </button>
           </Tooltip>
         </div>
