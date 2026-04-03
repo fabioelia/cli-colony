@@ -121,6 +121,7 @@ export type EnvRequest =
   | { type: 'status-one'; reqId: string; envId: string }
   | { type: 'logs'; reqId: string; envId: string; service: string; lines?: number }
   | { type: 'subscribe'; reqId: string }
+  | { type: 'teardown'; reqId: string; envId: string }
   | { type: 'ping'; reqId: string }
   | { type: 'shutdown'; reqId: string }
 

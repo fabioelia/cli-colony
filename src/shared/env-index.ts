@@ -7,21 +7,19 @@
 
 import * as fs from 'fs'
 import { colonyPaths } from './colony-paths'
+import { JsonFile } from './json-file'
 
 export type EnvIndex = Record<string, string>
 
+const indexFile = new JsonFile<EnvIndex>(colonyPaths.envIndex, {})
+
 export function readIndex(): EnvIndex {
-  try {
-    if (fs.existsSync(colonyPaths.envIndex)) {
-      return JSON.parse(fs.readFileSync(colonyPaths.envIndex, 'utf-8'))
-    }
-  } catch { /* corrupt */ }
-  return {}
+  return indexFile.read()
 }
 
 export function writeIndex(index: EnvIndex): void {
   try {
-    fs.writeFileSync(colonyPaths.envIndex, JSON.stringify(index, null, 2), 'utf-8')
+    indexFile.write(index)
   } catch (err) {
     console.error('[env-index] failed to write:', err)
   }

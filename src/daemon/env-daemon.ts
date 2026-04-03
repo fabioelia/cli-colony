@@ -181,11 +181,7 @@ function persistState(env: ManagedEnvironment): void {
   writeState(envDir, state)
 }
 
-// ---- Registry Persistence ----
-
-// Registry is replaced by per-environment state.json files.
-// saveRegistry is now a no-op kept for call-site compat during transition.
-function saveRegistry(): void { /* no-op — state.json written by persistState() via notifyChanged() */ }
+// Registry replaced by per-environment state.json files; saveRegistry removed.
 
 // ---- Log File Management ----
 
@@ -246,14 +242,7 @@ function checkPortTcp(port: number): Promise<boolean> {
   })
 }
 
-function checkProcessAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch {
-    return false
-  }
-}
+// isPidAlive imported from shared/env-state
 
 // ---- Stale PID Cleanup ----
 
@@ -266,7 +255,7 @@ async function killStalePids(pids: Record<string, number>, envName: string): Pro
   const alive: Array<{ name: string; pid: number }> = []
 
   for (const [name, pid] of Object.entries(pids)) {
-    if (checkProcessAlive(pid)) {
+    if (isPidAlive(pid)) {
       alive.push({ name, pid })
     }
   }
@@ -285,7 +274,7 @@ async function killStalePids(pids: Record<string, number>, envName: string): Pro
   const deadline = Date.now() + 5000
   await new Promise<void>((resolve) => {
     const check = () => {
-      const stillAlive = alive.filter(({ pid }) => checkProcessAlive(pid))
+      const stillAlive = alive.filter(({ pid }) => isPidAlive(pid))
       if (stillAlive.length === 0 || Date.now() >= deadline) {
         // SIGKILL any survivors (process group first)
         for (const { name, pid } of stillAlive) {
@@ -428,7 +417,7 @@ function spawnService(env: ManagedEnvironment, svc: ManagedService): void {
     // Start health check
     startHealthCheck(env, svc)
     notifyChanged()
-    saveRegistry()
+
   } catch (err) {
     log(`[${manifest.name}/${svc.name}] failed to spawn: ${err}`)
     const errMsg = `[envd] failed to spawn: ${err}\n`
@@ -484,7 +473,7 @@ function startHealthCheck(env: ManagedEnvironment, svc: ManagedService): void {
         healthy = await checkPortTcp(port)
       }
     } else if (hc.type === 'process') {
-      healthy = svc.pid != null && checkProcessAlive(svc.pid)
+      healthy = svc.pid != null && isPidAlive(svc.pid)
     }
 
     if (healthy && svc.status === 'starting') {
@@ -523,7 +512,7 @@ function stopService(svc: ManagedService): void {
     }
     // Force kill after 5s if still alive
     setTimeout(() => {
-      if (pid && checkProcessAlive(pid)) {
+      if (pid && isPidAlive(pid)) {
         try { process.kill(-pid, 'SIGKILL') } catch {
           try { process.kill(pid, 'SIGKILL') } catch { /* */ }
         }
@@ -538,7 +527,7 @@ function stopService(svc: ManagedService): void {
       try { process.kill(pid, 'SIGTERM') } catch { /* already dead */ }
     }
     setTimeout(() => {
-      if (checkProcessAlive(pid)) {
+      if (isPidAlive(pid)) {
         try { process.kill(-pid, 'SIGKILL') } catch {
           try { process.kill(pid, 'SIGKILL') } catch { /* */ }
         }
@@ -636,7 +625,6 @@ function unregisterEnvironment(envId: string): boolean {
   }
 
   environments.delete(envId)
-  saveRegistry()
   notifyChanged()
   log(`unregistered environment ${env.manifest.name} (${envId})`)
   return true
@@ -694,7 +682,6 @@ async function startEnvironment(envId: string, serviceNames?: string[]): Promise
     })
   }
 
-  saveRegistry()
   notifyChanged()
 }
 
@@ -717,7 +704,6 @@ async function stopEnvironment(envId: string, serviceNames?: string[]): Promise<
     await runHooks(env.manifest, 'postStop')
   }
 
-  saveRegistry()
   notifyChanged()
 }
 
@@ -738,7 +724,7 @@ async function teardownEnvironment(envId: string): Promise<void> {
   const deadline = Date.now() + 8000
   while (Date.now() < deadline) {
     const anyAlive = Array.from(env.services.values()).some(svc =>
-      svc.pid != null && checkProcessAlive(svc.pid)
+      svc.pid != null && isPidAlive(svc.pid)
     )
     if (!anyAlive) break
     await new Promise(r => setTimeout(r, 200))
@@ -746,7 +732,7 @@ async function teardownEnvironment(envId: string): Promise<void> {
 
   // 3. Force kill anything still alive (process group first)
   for (const svc of env.services.values()) {
-    if (svc.pid != null && checkProcessAlive(svc.pid)) {
+    if (svc.pid != null && isPidAlive(svc.pid)) {
       try { process.kill(-svc.pid, 'SIGKILL') } catch {
         try { process.kill(svc.pid, 'SIGKILL') } catch { /* */ }
       }
@@ -978,9 +964,6 @@ let server: net.Server | null = null
 
 function shutdown(): void {
   log('shutting down envd')
-
-  // Save registry before stopping (captures running state)
-  saveRegistry()
 
   // Stop all services
   for (const env of environments.values()) {

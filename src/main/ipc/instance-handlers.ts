@@ -22,18 +22,36 @@ export interface ChildProcess {
 export function registerInstanceHandlers(): void {
   ipcMain.handle('instance:create', (_e, opts) => createInstance(opts || {}))
   const client = getDaemonClient()
-  ipcMain.handle('instance:write', (_e, id: string, data: string) => client.writeToInstance(id, data))
-  ipcMain.handle('instance:resize', (_e, id: string, cols: number, rows: number) => client.resizeInstance(id, cols, rows))
+  ipcMain.handle('instance:write', async (_e, id: string, data: string) => {
+    try { return await client.writeToInstance(id, data) } catch { return false }
+  })
+  ipcMain.handle('instance:resize', async (_e, id: string, cols: number, rows: number) => {
+    try { return await client.resizeInstance(id, cols, rows) } catch { return false }
+  })
   ipcMain.handle('instance:kill', (_e, id: string) => killInstance(id))
-  ipcMain.handle('instance:remove', (_e, id: string) => client.removeInstance(id))
-  ipcMain.handle('instance:rename', (_e, id: string, name: string) => client.renameInstance(id, name))
-  ipcMain.handle('instance:recolor', (_e, id: string, color: string) => client.recolorInstance(id, color))
+  ipcMain.handle('instance:remove', async (_e, id: string) => {
+    try { return await client.removeInstance(id) } catch { return false }
+  })
+  ipcMain.handle('instance:rename', async (_e, id: string, name: string) => {
+    try { return await client.renameInstance(id, name) } catch { return false }
+  })
+  ipcMain.handle('instance:recolor', async (_e, id: string, color: string) => {
+    try { return await client.recolorInstance(id, color) } catch { return false }
+  })
   ipcMain.handle('instance:restart', (_e, id: string) => restartInstance(id))
-  ipcMain.handle('instance:pin', (_e, id: string) => client.pinInstance(id))
-  ipcMain.handle('instance:unpin', (_e, id: string) => client.unpinInstance(id))
+  ipcMain.handle('instance:pin', async (_e, id: string) => {
+    try { return await client.pinInstance(id) } catch { return false }
+  })
+  ipcMain.handle('instance:unpin', async (_e, id: string) => {
+    try { return await client.unpinInstance(id) } catch { return false }
+  })
   ipcMain.handle('instance:list', () => getAllInstances())
-  ipcMain.handle('instance:get', (_e, id: string) => client.getInstance(id))
-  ipcMain.handle('instance:buffer', (_e, id: string) => client.getInstanceBuffer(id))
+  ipcMain.handle('instance:get', async (_e, id: string) => {
+    try { return await client.getInstance(id) } catch { return null }
+  })
+  ipcMain.handle('instance:buffer', async (_e, id: string) => {
+    try { return await client.getInstanceBuffer(id) } catch { return '' }
+  })
   ipcMain.handle('daemon:restart', () => restartDaemon())
   ipcMain.handle('daemon:version', () => getDaemonVersion())
 
@@ -48,7 +66,8 @@ export function registerInstanceHandlers(): void {
 
   // Find non-Claude child processes running under an instance's working directory
   ipcMain.handle('instance:processes', async (_e, id: string): Promise<ChildProcess[]> => {
-    const inst = await getDaemonClient().getInstance(id)
+    let inst
+    try { inst = await getDaemonClient().getInstance(id) } catch { return [] }
     if (!inst?.workingDirectory) return []
     const dir = inst.workingDirectory
 

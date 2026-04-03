@@ -19,24 +19,6 @@ export interface RecentSession {
   exitType: 'running' | 'exited' | 'killed'
 }
 
-export interface SessionDependency {
-  dependsOn: string
-  action: 'auto-start' | 'notify'
-}
-
-export interface AgentChainStep {
-  name: string
-  prompt: string
-  directory?: string
-  dependsOnPrevious: boolean
-}
-
-export interface AgentChain {
-  id: string
-  name: string
-  steps: AgentChainStep[]
-}
-
 declare global {
   interface Window {
     api: import('../../../preload/index').ClaudeManagerAPI

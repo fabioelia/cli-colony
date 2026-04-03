@@ -25,6 +25,7 @@ import type {
 
 import { colonyPaths } from '../shared/colony-paths'
 import { loadShellEnv } from '../shared/shell-env'
+import { genId } from '../shared/utils'
 
 const HOME = process.env.HOME || '/'
 const COLONY_DIR = colonyPaths.root
@@ -34,18 +35,6 @@ const PID_PATH = colonyPaths.daemonPid
 // ---- Shell environment ----
 
 const shellEnv = loadShellEnv()
-
-/** Read ~/.claude-colony/settings.json — whether to inject /rename and /color into Claude Code. */
-function readSyncClaudeSlashCommands(): boolean {
-  try {
-    const settingsPath = path.join(COLONY_DIR, 'settings.json')
-    if (fs.existsSync(settingsPath)) {
-      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')) as Record<string, string>
-      return settings.syncClaudeSlashCommands !== 'false'
-    }
-  } catch { /* */ }
-  return true
-}
 
 // ---- Instance management ----
 
@@ -74,19 +63,6 @@ const COLORS = [
   '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
   '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#6366f1',
 ]
-// Only colors accepted by Claude CLI's /color command
-const HEX_TO_NAME: Record<string, string> = {
-  '#3b82f6': 'blue',
-  '#10b981': 'green',
-  '#f59e0b': 'yellow',
-  '#ef4444': 'red',
-  '#8b5cf6': 'purple',
-  '#ec4899': 'pink',
-  '#06b6d4': 'cyan',
-  '#f97316': 'orange',
-  '#14b8a6': 'cyan',    // teal → closest valid: cyan
-  '#6366f1': 'purple',  // indigo → closest valid: purple
-}
 function nextColor(): string {
   // Pick the color used by the fewest existing instances
   const usedCounts = new Map<string, number>()
@@ -205,10 +181,7 @@ function notifyListChanged(): void {
 
 // ---- Simple UUID (avoid importing uuid in daemon) ----
 
-function genId(): string {
-  const hex = () => Math.random().toString(16).substring(2, 10)
-  return `${hex()}${hex()}-${hex()}-${hex()}`
-}
+// genId imported from shared/utils
 
 function resolveCliBackend(opts: CreateOpts): CliBackend {
   return opts.cliBackend === 'cursor-agent' ? 'cursor-agent' : 'claude'
@@ -482,30 +455,6 @@ function renameInstance(id: string, name: string): boolean {
   notifyListChanged()
   return true
 }
-
-// Find the closest named color by hex distance
-function closestColorName(hex: string): string | null {
-  // Exact match first
-  if (HEX_TO_NAME[hex]) return HEX_TO_NAME[hex]
-  // Parse hex
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
-  if (isNaN(r) || isNaN(g) || isNaN(b)) return null
-  let best = ''
-  let bestDist = Infinity
-  for (const [h, name] of Object.entries(HEX_TO_NAME)) {
-    const r2 = parseInt(h.slice(1, 3), 16)
-    const g2 = parseInt(h.slice(3, 5), 16)
-    const b2 = parseInt(h.slice(5, 7), 16)
-    const dist = (r - r2) ** 2 + (g - g2) ** 2 + (b - b2) ** 2
-    if (dist < bestDist) { bestDist = dist; best = name }
-  }
-  return best || null
-}
-
-// Debounce color sync per instance
-// colorSyncTimers removed — color tracked internally, no PTY writes
 
 function recolorInstance(id: string, color: string): boolean {
   const inst = instances.get(id)

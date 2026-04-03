@@ -10,7 +10,10 @@ import { colonyPaths } from '../shared/colony-paths'
 import { createInstance, getAllInstances } from './instance-manager'
 import { getDaemonClient } from './daemon-client'
 import { sendPromptWhenReady } from './send-prompt-when-ready'
+import { updateColonyContext } from './colony-context'
 import { broadcast } from './broadcast'
+import { cronMatches } from '../shared/cron'
+import { slugify, parseFrontmatter as parseRawFrontmatter } from '../shared/utils'
 import type { PersonaInfo } from '../shared/types'
 
 const PERSONAS_DIR = colonyPaths.personas
@@ -26,6 +29,7 @@ interface PersonaState {
   lastRunOutput: string | null
 }
 
+const stateFile = new JsonFile<Record<string, PersonaState>>(STATE_PATH, {})
 let stateCache: Record<string, PersonaState> = {}
 
 function ensureDir(): void {
@@ -33,16 +37,12 @@ function ensureDir(): void {
 }
 
 function loadState(): Record<string, PersonaState> {
-  try {
-    if (existsSync(STATE_PATH)) {
-      stateCache = JSON.parse(readFileSync(STATE_PATH, 'utf-8'))
-    }
-  } catch { stateCache = {} }
+  stateCache = stateFile.read()
   return stateCache
 }
 
 function saveState(): void {
-  writeFileSync(STATE_PATH, JSON.stringify(stateCache, null, 2), 'utf-8')
+  stateFile.write(stateCache)
 }
 
 function getState(name: string): PersonaState {
@@ -67,43 +67,26 @@ interface PersonaFrontmatter {
 }
 
 function parseFrontmatter(content: string): PersonaFrontmatter | null {
-  const match = content.match(/^---\n([\s\S]*?)\n---/)
-  if (!match) return null
+  const raw = parseRawFrontmatter(content)
+  if (Object.keys(raw).length === 0) return null
 
-  const defaults: PersonaFrontmatter = {
-    name: '',
-    schedule: '',
-    model: 'sonnet',
-    max_sessions: 1,
-    can_push: false,
-    can_merge: false,
-    can_create_sessions: false,
-    working_directory: '',
-    color: '#a78bfa',
+  // Strip surrounding quotes from values
+  const val = (key: string) => (raw[key] || '').replace(/^["']|["']$/g, '')
+
+  const result: PersonaFrontmatter = {
+    name: val('name'),
+    schedule: val('schedule'),
+    model: val('model') || 'sonnet',
+    max_sessions: parseInt(val('max_sessions')) || 1,
+    can_push: val('can_push') === 'true',
+    can_merge: val('can_merge') === 'true',
+    can_create_sessions: val('can_create_sessions') === 'true',
+    working_directory: val('working_directory'),
+    color: val('color') || '#a78bfa',
   }
 
-  for (const line of match[1].split('\n')) {
-    const idx = line.indexOf(':')
-    if (idx <= 0) continue
-    const key = line.substring(0, idx).trim()
-    const val = line.substring(idx + 1).trim().replace(/^["']|["']$/g, '')
-
-    switch (key) {
-      case 'name': defaults.name = val; break
-      case 'schedule': defaults.schedule = val; break
-      case 'model': defaults.model = val; break
-      case 'max_sessions': defaults.max_sessions = parseInt(val) || 1; break
-      case 'can_push': defaults.can_push = val === 'true'; break
-      case 'can_merge': defaults.can_merge = val === 'true'; break
-      case 'can_create_sessions': defaults.can_create_sessions = val === 'true'; break
-      case 'working_directory': defaults.working_directory = val; break
-      case 'color': defaults.color = val; break
-      case 'enabled': /* handled via state file */ break
-    }
-  }
-
-  if (!defaults.name) return null
-  return defaults
+  if (!result.name) return null
+  return result
 }
 
 // ---- Section Extractor ----
@@ -182,7 +165,7 @@ export function savePersonaContent(fileName: string, content: string): boolean {
 
 export function createPersona(name: string): { fileName: string } | null {
   ensureDir()
-  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  const slug = slugify(name)
   if (!slug) return null
   const fileName = `${slug}.md`
   const filePath = join(PERSONAS_DIR, fileName)
@@ -254,7 +237,18 @@ export function togglePersona(fileName: string, enabled: boolean): boolean {
 
 // ---- Planning Loop Prompt ----
 
-function buildPlanningPrompt(fm: PersonaFrontmatter, state: PersonaState, filePath: string): string {
+async function getColonySnapshot(): Promise<string> {
+  try {
+    await updateColonyContext()
+    const contextPath = colonyPaths.colonyContext
+    if (existsSync(contextPath)) {
+      return readFileSync(contextPath, 'utf-8')
+    }
+  } catch { /* */ }
+  return '(Colony context unavailable)'
+}
+
+async function buildPlanningPrompt(fm: PersonaFrontmatter, state: PersonaState, filePath: string): Promise<string> {
   const timestamp = new Date().toISOString()
   const runCount = state.runCount + 1
 
@@ -288,13 +282,9 @@ Your complete identity, objectives, memory, and session history are stored in:
 Read this file NOW, before doing anything else. It contains your Role, Objectives,
 Active Situations, Learnings, and Session Log.
 
-## Colony Context
+## Colony Context (live snapshot)
 
-The Colony workspace state is described in:
-  ${colonyPaths.colonyContext}
-
-Read this file to understand what sessions are running, what PRs are open, what
-repos are tracked, and what other agents/personas exist.
+${await getColonySnapshot()}
 
 ## Planning Loop
 
@@ -302,7 +292,6 @@ Execute this cycle every session:
 
 ### 1. READ
 - Read your identity file (${filePath})
-- Read the colony context (${colonyPaths.colonyContext})
 - Read any other files referenced in your Active Situations
 
 ### 2. ASSESS
@@ -317,13 +306,50 @@ Execute this cycle every session:
 - If nothing needs doing, say so and update your session log
 
 ### 4. ACT
-- Execute your chosen actions
-- Use the tools available to you (file read/write, shell commands, etc.)
+- **Delegate, don't do.** Your primary job is orchestration. Spin up specialist agents for
+  the actual work. Only do tasks yourself if they're trivially small (updating a file, checking
+  a status) or require your cross-cutting awareness.
 - Stay within your permission scope (see below)
-- To launch a sub-task session: \`claude --name "Task Name" --max-turns 100 -p "Your task instructions here"\`
-  The -p flag sends the prompt directly. --max-turns caps it so it doesn't run forever.
-- To resume an existing session: \`claude --resume <session-id> -p "Continue with..."\`
-- Colony will detect these sessions and show them in the sidebar
+
+#### Delegation via \`claude -p\`
+
+Use \`claude -p "task" [flags]\` to run sub-tasks. The \`-p\` flag runs non-interactively
+and returns the output to you. Key flags:
+
+\`\`\`bash
+# Delegate to a specialist agent (recommended — agents have domain expertise)
+claude -p "Review PR #38 for architectural issues, write findings to ~/.claude-colony/outputs/reviews/pr-38.md" \\
+  --agent ~/.claude/agents/architect-reviewer.md \\
+  --add-dir /path/to/repo \\
+  --model sonnet \\
+  --permission-mode bypassPermissions
+
+# Quick task without a specialist agent
+claude -p "Run the test suite and summarize failures" \\
+  --add-dir /path/to/project \\
+  --permission-mode bypassPermissions \\
+  --model sonnet
+
+# Budget-cap expensive tasks
+claude -p "Refactor the auth module" \\
+  --max-budget-usd 2.00 \\
+  --permission-mode bypassPermissions
+\`\`\`
+
+**Rules for delegation:**
+- Always use \`--permission-mode bypassPermissions\` so sub-tasks don't stall on prompts
+- Use \`--model sonnet\` for routine tasks (reviews, tests, analysis) — save opus for complex work
+- Use \`--add-dir\` to give the sub-task access to the right project directory
+- Use \`--agent\` when a specialist agent exists (see Colony Context for the full list)
+- Tell the sub-task to write its output to \`~/.claude-colony/outputs/\` so other sessions can find it
+- For long tasks, use \`--max-budget-usd\` to cap spend
+
+**Capturing results:** \`claude -p\` prints its final response to stdout. You can capture it:
+\`\`\`bash
+result=$(claude -p "Analyze the test failures" --add-dir /path/to/repo --permission-mode bypassPermissions --model sonnet 2>/dev/null)
+\`\`\`
+
+Colony will detect these sub-sessions and show them in the sidebar.
 
 ### 5. UPDATE
 After completing your actions, update your identity file (${filePath}):
@@ -411,7 +437,7 @@ export async function runPersona(fileName: string): Promise<string> {
   }
 
   // Build planning prompt and write to temp file
-  const prompt = buildPlanningPrompt(fm, state, filePath)
+  const prompt = await buildPlanningPrompt(fm, state, filePath)
   const promptsDir = join(colonyPaths.root, 'pipeline-prompts')
   if (!existsSync(promptsDir)) mkdirSync(promptsDir, { recursive: true })
   const promptId = `persona-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
@@ -508,48 +534,7 @@ function broadcastStatus(): void {
 }
 
 // ---- Cron Scheduling ----
-
-const DAY_NAMES: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 }
-
-function cronFieldMatches(field: string, value: number): boolean {
-  if (field === '*') return true
-  for (const part of field.split(',')) {
-    const t = part.trim().toLowerCase()
-    if (t.startsWith('*/')) {
-      const step = parseInt(t.slice(2))
-      if (!isNaN(step) && step > 0 && value % step === 0) return true
-      continue
-    }
-    if (t.includes('-')) {
-      const [s, e] = t.split('-')
-      const start = DAY_NAMES[s] ?? parseInt(s)
-      const end = DAY_NAMES[e] ?? parseInt(e)
-      if (!isNaN(start) && !isNaN(end) && value >= start && value <= end) return true
-      continue
-    }
-    if (DAY_NAMES[t] !== undefined) {
-      if (DAY_NAMES[t] === value) return true
-      continue
-    }
-    const num = parseInt(t)
-    if (!isNaN(num) && num === value) return true
-  }
-  return false
-}
-
-function cronMatches(expression: string): boolean {
-  const d = new Date()
-  const fields = expression.trim().split(/\s+/)
-  if (fields.length < 5) return false
-  const [minute, hour, dom, month, dow] = fields
-  return (
-    cronFieldMatches(minute, d.getMinutes()) &&
-    cronFieldMatches(hour, d.getHours()) &&
-    cronFieldMatches(dom, d.getDate()) &&
-    cronFieldMatches(month, d.getMonth() + 1) &&
-    cronFieldMatches(dow, d.getDay())
-  )
-}
+// Cron matching imported from src/shared/cron.ts
 
 let schedulerInterval: ReturnType<typeof setInterval> | null = null
 let lastCronMinute = -1

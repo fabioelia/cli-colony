@@ -2,24 +2,10 @@ import { readdirSync, readFileSync, writeFileSync, mkdirSync, existsSync } from 
 import { join, basename } from 'path'
 import { app } from 'electron'
 import type { AgentDef } from '../shared/types'
+import { parseFrontmatter } from '../shared/utils'
 
 // Re-export for existing consumers
 export type { AgentDef }
-
-function parseFrontmatter(content: string): Record<string, string> {
-  const match = content.match(/^---\n([\s\S]*?)\n---/)
-  if (!match) return {}
-  const meta: Record<string, string> = {}
-  for (const line of match[1].split('\n')) {
-    const idx = line.indexOf(':')
-    if (idx > 0) {
-      const key = line.slice(0, idx).trim()
-      const value = line.slice(idx + 1).trim()
-      meta[key] = value
-    }
-  }
-  return meta
-}
 
 function scanDir(dir: string, scope: 'personal' | 'project', projectName?: string): AgentDef[] {
   if (!existsSync(dir)) return []

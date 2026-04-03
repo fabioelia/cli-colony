@@ -22,6 +22,7 @@ import { getRepos } from './github'
 import type { InstanceManifest, EnvStatus, EnvironmentTemplate } from '../daemon/env-protocol'
 
 import { colonyPaths } from '../shared/colony-paths'
+import { genId, slugify } from '../shared/utils'
 
 const HOME = process.env.HOME || '/'
 const ENVIRONMENTS_DIR = colonyPaths.environments
@@ -48,21 +49,7 @@ function execAsync(cmd: string, opts?: { cwd?: string; timeout?: number; stdio?:
 }
 
 // ---- Helpers ----
-
-/** Convert a user-provided name to a filesystem/DB-safe slug */
-function slugify(input: string): string {
-  return input
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')  // non-alphanumeric → hyphens
-    .replace(/^-|-$/g, '')          // trim leading/trailing hyphens
-    .slice(0, 60)                   // cap length
-    || 'env'                        // fallback
-}
-
-function genId(): string {
-  const hex = () => Math.random().toString(16).substring(2, 10)
-  return `${hex()}${hex()}-${hex()}-${hex()}`
-}
+// genId and slugify imported from shared/utils
 
 // ---- Daemon event wiring ----
 

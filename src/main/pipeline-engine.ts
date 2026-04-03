@@ -18,6 +18,7 @@ import { sendPromptWhenReady } from './send-prompt-when-ready'
 import { getRepos, fetchPRs, fetchChecks, gh } from './github'
 import { scanSessions } from './session-scanner'
 import { getAllRepoConfigs } from './repo-config-loader'
+import { cronMatches } from '../shared/cron'
 import type { CliSession } from './session-scanner'
 import type { GitHubRepo, GitHubPR, PRChecks } from './github'
 
@@ -111,55 +112,7 @@ interface TriggerContext {
   contentSha?: string // SHA of matched file — for change detection
 }
 
-// ---- Cron Expression Matcher ----
-// Supports: "min hour dom month dow" (5 fields)
-// Each field: number, *, */N, N-M, comma-separated, named days (mon-sun)
-
-const DAY_NAMES: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 }
-
-function cronFieldMatches(field: string, value: number, max: number): boolean {
-  if (field === '*') return true
-  for (const part of field.split(',')) {
-    const trimmed = part.trim().toLowerCase()
-    // */N step
-    if (trimmed.startsWith('*/')) {
-      const step = parseInt(trimmed.slice(2))
-      if (!isNaN(step) && step > 0 && value % step === 0) return true
-      continue
-    }
-    // N-M range
-    if (trimmed.includes('-')) {
-      const [startStr, endStr] = trimmed.split('-')
-      const start = DAY_NAMES[startStr] ?? parseInt(startStr)
-      const end = DAY_NAMES[endStr] ?? parseInt(endStr)
-      if (!isNaN(start) && !isNaN(end) && value >= start && value <= end) return true
-      continue
-    }
-    // Named day
-    if (DAY_NAMES[trimmed] !== undefined) {
-      if (DAY_NAMES[trimmed] === value) return true
-      continue
-    }
-    // Exact number
-    const num = parseInt(trimmed)
-    if (!isNaN(num) && num === value) return true
-  }
-  return false
-}
-
-function cronMatches(expression: string, date?: Date): boolean {
-  const d = date || new Date()
-  const fields = expression.trim().split(/\s+/)
-  if (fields.length < 5) return false
-  const [minute, hour, dom, month, dow] = fields
-  return (
-    cronFieldMatches(minute, d.getMinutes(), 59) &&
-    cronFieldMatches(hour, d.getHours(), 23) &&
-    cronFieldMatches(dom, d.getDate(), 31) &&
-    cronFieldMatches(month, d.getMonth() + 1, 12) &&
-    cronFieldMatches(dow, d.getDay(), 6)
-  )
-}
+// Cron matching imported from src/shared/cron.ts
 
 // ---- Constants ----
 

@@ -14,6 +14,8 @@ import { getAllInstances } from './instance-manager'
 import { scanAgents } from './agent-scanner'
 import { getRepoContext } from './repo-config-loader'
 import { getPersonaList } from './persona-manager'
+import { listEnvironments } from './env-manager'
+import { getPipelineList } from './pipeline-engine'
 
 import { colonyPaths } from '../shared/colony-paths'
 
@@ -85,6 +87,38 @@ export async function updateColonyContext(): Promise<string> {
     lines.push(`**PR Memory:** ${prMemoryPath} — persistent knowledge from PR reviews and discussions.`, '')
   }
 
+  // Environments
+  try {
+    const envs = await listEnvironments()
+    if (envs.length > 0) {
+      lines.push('## Environments', '')
+      for (const env of envs) {
+        const svcSummary = env.services.map(s => `${s.name}(${s.status})`).join(', ')
+        lines.push(`- **${env.displayName || env.name}** [${env.status}] — branch: ${env.branch}, services: ${svcSummary || 'none'}`)
+        if (env.paths.root) lines.push(`  Path: ${env.paths.root}`)
+      }
+      lines.push('')
+    }
+  } catch { /* */ }
+
+  // Pipelines
+  try {
+    const pipelines = getPipelineList()
+    if (pipelines.length > 0) {
+      lines.push('## Pipelines', '')
+      for (const p of pipelines) {
+        const status = p.enabled ? 'enabled' : 'disabled'
+        const lastFired = p.lastFiredAt ? `, last fired: ${p.lastFiredAt.slice(0, 16)}` : ''
+        const trigger = p.cron ? `cron: ${p.cron}` : `${p.triggerType} every ${p.interval}s`
+        lines.push(`- **${p.name}** [${status}] — ${trigger}, fired ${p.fireCount}x${lastFired}`)
+        if (p.description) lines.push(`  ${p.description}`)
+        lines.push(`  File: ${join(COLONY_DIR, 'pipelines', p.fileName)}`)
+        if (p.outputsDir) lines.push(`  Outputs: ${p.outputsDir}`)
+      }
+      lines.push('')
+    }
+  } catch { /* */ }
+
   // Agents
   try {
     const agents = scanAgents()
@@ -120,7 +154,23 @@ export async function updateColonyContext(): Promise<string> {
       if (files.length > 0) {
         lines.push('## Task Queues', '')
         for (const f of files) {
+          // Extract output paths from task prompts
+          const outputDirs = new Set<string>()
+          try {
+            const content = readFileSync(join(queueDir, f), 'utf-8')
+            const matches = content.match(/~\/\.claude-colony\/outputs\/[^\s"']+/g)
+            if (matches) {
+              for (const m of matches) {
+                // Get the directory (strip the filename)
+                const dir = m.replace(/\/[^/]+\.\w+$/, '')
+                outputDirs.add(dir.replace('~', process.env.HOME || '~'))
+              }
+            }
+          } catch { /* */ }
           lines.push(`- ${f} — ${join(queueDir, f)}`)
+          for (const dir of outputDirs) {
+            lines.push(`  Outputs: ${dir}/`)
+          }
         }
         lines.push('')
       }
@@ -145,6 +195,7 @@ export async function updateColonyContext(): Promise<string> {
   // Key paths
   lines.push('## Key Paths', '')
   lines.push(`- Colony config: ${COLONY_DIR}`)
+  lines.push(`- Outputs: ${join(COLONY_DIR, 'outputs')}`)
   lines.push(`- PR workspace: ${join(COLONY_DIR, 'pr-workspace')}`)
   lines.push(`- Task queues: ${join(COLONY_DIR, 'task-queues')}`)
   lines.push(`- Handoffs: ${join(COLONY_DIR, 'handoffs')}`)
