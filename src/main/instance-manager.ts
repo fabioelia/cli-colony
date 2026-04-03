@@ -14,6 +14,7 @@ import { getDefaultArgs, getSetting, getDefaultCliBackend } from './settings'
 import { DAEMON_VERSION } from '../daemon/protocol'
 import type { CliBackend } from '../daemon/protocol'
 import { trackOpened, trackClosed } from './recent-sessions'
+import { onSessionExit as onPersonaSessionExit } from './persona-manager'
 import { broadcast } from './broadcast'
 
 export type { ClaudeInstance } from '../daemon/protocol'
@@ -92,6 +93,7 @@ export function wireDaemonEvents(): void {
   client.on('exited', (instanceId: string, exitCode: number) => {
     broadcast('instance:exited', { id: instanceId, exitCode })
     trackClosed(instanceId, 'exited')
+    onPersonaSessionExit(instanceId)
 
     // Auto-cleanup
     const cleanupMins = parseInt(getSetting('autoCleanupMinutes') || '5', 10)

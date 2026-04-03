@@ -494,6 +494,84 @@ function broadcastStatus(): void {
   broadcast('persona:status', getPersonaList())
 }
 
+// ---- Cron Scheduling ----
+
+const DAY_NAMES: Record<string, number> = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 }
+
+function cronFieldMatches(field: string, value: number): boolean {
+  if (field === '*') return true
+  for (const part of field.split(',')) {
+    const t = part.trim().toLowerCase()
+    if (t.startsWith('*/')) {
+      const step = parseInt(t.slice(2))
+      if (!isNaN(step) && step > 0 && value % step === 0) return true
+      continue
+    }
+    if (t.includes('-')) {
+      const [s, e] = t.split('-')
+      const start = DAY_NAMES[s] ?? parseInt(s)
+      const end = DAY_NAMES[e] ?? parseInt(e)
+      if (!isNaN(start) && !isNaN(end) && value >= start && value <= end) return true
+      continue
+    }
+    if (DAY_NAMES[t] !== undefined) {
+      if (DAY_NAMES[t] === value) return true
+      continue
+    }
+    const num = parseInt(t)
+    if (!isNaN(num) && num === value) return true
+  }
+  return false
+}
+
+function cronMatches(expression: string): boolean {
+  const d = new Date()
+  const fields = expression.trim().split(/\s+/)
+  if (fields.length < 5) return false
+  const [minute, hour, dom, month, dow] = fields
+  return (
+    cronFieldMatches(minute, d.getMinutes()) &&
+    cronFieldMatches(hour, d.getHours()) &&
+    cronFieldMatches(dom, d.getDate()) &&
+    cronFieldMatches(month, d.getMonth() + 1) &&
+    cronFieldMatches(dow, d.getDay())
+  )
+}
+
+let schedulerInterval: ReturnType<typeof setInterval> | null = null
+let lastCronMinute = -1
+
+export function startScheduler(): void {
+  if (schedulerInterval) return
+  console.log('[persona] scheduler started')
+
+  schedulerInterval = setInterval(() => {
+    const currentMinute = new Date().getMinutes()
+    if (currentMinute === lastCronMinute) return // only check once per minute
+    lastCronMinute = currentMinute
+
+    const personas = getPersonaList()
+    for (const persona of personas) {
+      if (!persona.enabled || !persona.schedule) continue
+      if (persona.activeSessionId) continue // already running
+
+      if (cronMatches(persona.schedule)) {
+        console.log(`[persona] cron matched for "${persona.name}", launching`)
+        runPersona(persona.id).catch(err => {
+          console.error(`[persona] scheduled run failed for "${persona.name}":`, err.message)
+        })
+      }
+    }
+  }, 15_000) // check every 15 seconds
+}
+
+export function stopScheduler(): void {
+  if (schedulerInterval) {
+    clearInterval(schedulerInterval)
+    schedulerInterval = null
+  }
+}
+
 // ---- File Watcher ----
 
 let watcher: ReturnType<typeof watch> | null = null

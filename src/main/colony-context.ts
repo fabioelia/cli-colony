@@ -13,6 +13,7 @@ import { app } from 'electron'
 import { getAllInstances } from './instance-manager'
 import { scanAgents } from './agent-scanner'
 import { getRepoContext } from './repo-config-loader'
+import { getPersonaList } from './persona-manager'
 
 import { colonyPaths } from '../shared/colony-paths'
 
@@ -92,6 +93,20 @@ export async function updateColonyContext(): Promise<string> {
       for (const agent of agents) {
         lines.push(`- **${agent.name}** (${agent.scope}) — ${agent.description.slice(0, 80)}`)
         lines.push(`  File: ${agent.filePath}`)
+      }
+      lines.push('')
+    }
+  } catch { /* */ }
+
+  // Personas
+  try {
+    const personas = getPersonaList()
+    if (personas.length > 0) {
+      lines.push('## Personas', '')
+      for (const p of personas) {
+        const status = p.activeSessionId ? 'running' : p.enabled ? 'enabled' : 'disabled'
+        lines.push(`- **${p.name}** (${status}) — model: ${p.model}, runs: ${p.runCount}${p.schedule ? `, schedule: ${p.schedule}` : ''}`)
+        lines.push(`  File: ${p.filePath}`)
       }
       lines.push('')
     }
