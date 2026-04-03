@@ -4,9 +4,6 @@ import { app } from 'electron'
 import type { AgentDef } from '../shared/types'
 import { parseFrontmatter } from '../shared/utils'
 
-// Re-export for existing consumers
-export type { AgentDef }
-
 function scanDir(dir: string, scope: 'personal' | 'project', projectName?: string): AgentDef[] {
   if (!existsSync(dir)) return []
   const agents: AgentDef[] = []

@@ -23,7 +23,7 @@ if (process.env.COLONY_CDP_PORT) {
 
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerIpcHandlers } from './ipc-handlers'
-import { initDaemon, disconnectDaemon, setOnInstanceListChanged } from './instance-manager'
+import { initDaemon, disconnectDaemon, setOnInstanceListChanged, setOnSessionExit } from './instance-manager'
 import { initEnvDaemon, refreshRepoConfigs } from './env-manager'
 import { createTray, updateTrayMenu } from './tray'
 import { initLogger } from './logger'
@@ -32,7 +32,7 @@ import { updateColonyContext } from './colony-context'
 import { killAllShells } from './shell-pty'
 import { snapshotRunning } from './recent-sessions'
 import { ensureRepoClones } from './github'
-import { loadPersonas, startWatcher as startPersonaWatcher, startScheduler as startPersonaScheduler } from './persona-manager'
+import { loadPersonas, startWatcher as startPersonaWatcher, startScheduler as startPersonaScheduler, onSessionExit as onPersonaSessionExit } from './persona-manager'
 
 const COLONY_CLI_SCRIPT = `#!/bin/bash
 # colony — control Colony environments from the command line.
@@ -71,15 +71,10 @@ for e in envs:
   *) echo "Usage: colony {start|stop|status} [env-id]"; exit 1 ;;
 esac
 `
+import { broadcast } from './broadcast'
 import { seedDefaultPipelines, startPipelines } from './pipeline-engine'
 
 let mainWindow: BrowserWindow | null = null
-
-function sendToRenderer(channel: string, ...args: unknown[]): void {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send(channel, ...args)
-  }
-}
 
 function getIconPath(): string {
   return join(__dirname, '../../resources/icon.png')
@@ -156,7 +151,7 @@ function createWindow(): void {
       // We need to explicitly send to renderer since Electron eats these
       if (input.key === '-') {
         event.preventDefault()
-        sendToRenderer('shortcut:zoom-out')
+        broadcast('shortcut:zoom-out')
       }
     }
   })
@@ -193,61 +188,61 @@ function buildAppMenu(): void {
         {
           label: 'New Instance',
           accelerator: 'CmdOrCtrl+T',
-          click: () => sendToRenderer('shortcut:new-instance'),
+          click: () => broadcast('shortcut:new-instance'),
         },
         {
           label: 'Close Instance',
           accelerator: 'CmdOrCtrl+W',
-          click: () => sendToRenderer('shortcut:close-instance'),
+          click: () => broadcast('shortcut:close-instance'),
         },
         {
           label: 'Close Split',
           accelerator: 'CmdOrCtrl+Shift+W',
-          click: () => sendToRenderer('shortcut:close-split'),
+          click: () => broadcast('shortcut:close-split'),
         },
         { type: 'separator' },
         {
           label: 'Toggle Split View',
           accelerator: 'CmdOrCtrl+\\',
-          click: () => sendToRenderer('shortcut:toggle-split'),
+          click: () => broadcast('shortcut:toggle-split'),
         },
         {
           label: 'Focus Left Pane',
           accelerator: 'CmdOrCtrl+Alt+Left',
-          click: () => sendToRenderer('shortcut:focus-pane', 'left'),
+          click: () => broadcast('shortcut:focus-pane', 'left'),
         },
         {
           label: 'Focus Right Pane',
           accelerator: 'CmdOrCtrl+Alt+Right',
-          click: () => sendToRenderer('shortcut:focus-pane', 'right'),
+          click: () => broadcast('shortcut:focus-pane', 'right'),
         },
         { type: 'separator' },
         {
           label: 'Command Palette',
           accelerator: 'CmdOrCtrl+K',
-          click: () => sendToRenderer('shortcut:command-palette'),
+          click: () => broadcast('shortcut:command-palette'),
         },
         {
           label: 'Find in Terminal',
           accelerator: 'CmdOrCtrl+F',
-          click: () => sendToRenderer('shortcut:search'),
+          click: () => broadcast('shortcut:search'),
         },
         { type: 'separator' },
         {
           label: 'Next Instance',
           accelerator: 'Alt+Tab',
-          click: () => sendToRenderer('shortcut:cycle-instance', 1),
+          click: () => broadcast('shortcut:cycle-instance', 1),
         },
         {
           label: 'Previous Instance',
           accelerator: 'Alt+Shift+Tab',
-          click: () => sendToRenderer('shortcut:cycle-instance', -1),
+          click: () => broadcast('shortcut:cycle-instance', -1),
         },
         { type: 'separator' },
         ...Array.from({ length: 9 }, (_, i) => ({
           label: `Switch to Instance ${i + 1}`,
           accelerator: `CmdOrCtrl+${i + 1}`,
-          click: () => sendToRenderer('shortcut:switch-instance', i),
+          click: () => broadcast('shortcut:switch-instance', i),
         })),
       ],
     },
@@ -273,29 +268,29 @@ function buildAppMenu(): void {
         {
           label: 'Zoom In',
           accelerator: 'CmdOrCtrl+=',
-          click: () => sendToRenderer('shortcut:zoom-in'),
+          click: () => broadcast('shortcut:zoom-in'),
         },
         {
           label: 'Zoom In (Plus)',
           accelerator: 'CmdOrCtrl+Plus',
           visible: false,
-          click: () => sendToRenderer('shortcut:zoom-in'),
+          click: () => broadcast('shortcut:zoom-in'),
         },
         {
           label: 'Zoom Out',
           accelerator: 'CmdOrCtrl+-',
-          click: () => sendToRenderer('shortcut:zoom-out'),
+          click: () => broadcast('shortcut:zoom-out'),
         },
         {
           label: 'Zoom Out (Underscore)',
           accelerator: 'CmdOrCtrl+_',
           visible: false,
-          click: () => sendToRenderer('shortcut:zoom-out'),
+          click: () => broadcast('shortcut:zoom-out'),
         },
         {
           label: 'Reset Zoom',
           accelerator: 'CmdOrCtrl+0',
-          click: () => sendToRenderer('shortcut:zoom-reset'),
+          click: () => broadcast('shortcut:zoom-reset'),
         },
         { type: 'separator' as const },
         { role: 'togglefullscreen' as const },
@@ -336,8 +331,9 @@ app.whenReady().then(() => {
   createWindow()
   createTray(mainWindow)
 
-  // Update tray when instance list changes — set before daemon connect so no events are missed
+  // Wire callbacks before daemon connect so no events are missed
   setOnInstanceListChanged(() => updateTrayMenu(mainWindow))
+  setOnSessionExit((instanceId) => onPersonaSessionExit(instanceId))
 
   // Seed default pipelines before daemon connects
   seedDefaultPipelines()

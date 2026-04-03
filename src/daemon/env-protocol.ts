@@ -102,12 +102,6 @@ export interface InstanceManifest {
 // ---- Domain types (single source of truth in shared/types.ts) ----
 
 export type { EnvironmentTemplate, EnvStatus, EnvServiceStatus, EnvServiceState, EnvStatusState } from '../shared/types'
-import type { EnvServiceState, EnvServiceStatus, EnvStatusState } from '../shared/types'
-
-// Backward-compatible aliases for existing consumers
-export type ServiceState = EnvServiceState
-export type ServiceStatus = EnvServiceStatus
-export type EnvState = EnvStatusState
 
 // ---- Client -> envd requests ----
 

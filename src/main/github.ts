@@ -3,14 +3,13 @@
  * Persists repo list and custom prompts to ~/.claude-colony/github.json.
  */
 
-import { execFile } from 'child_process'
+import { execFile, execSync } from 'child_process'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
+import { JsonFile } from '../shared/json-file'
 import { join } from 'path'
 import { app } from 'electron'
 import type { PRComment, GitHubPR, FeedbackFile, QuickPrompt, GitHubRepo } from '../shared/types'
-
-// Re-export for existing consumers
-export type { PRComment, GitHubPR, FeedbackFile, QuickPrompt, GitHubRepo }
+import { resolveMustacheTemplate, parseFrontmatter } from '../shared/utils'
 
 interface GitHubConfig {
   repos: GitHubRepo[]
@@ -55,29 +54,18 @@ import { ensureBareRepo as ensureBareRepoWorktree } from '../shared/git-worktree
 import { getAllRepoConfigs, getRepoConfig } from './repo-config-loader'
 import { gitRemoteUrl } from './settings'
 
-function configPath(): string {
-  return colonyPaths.githubJson
-}
+const configFile = new JsonFile<GitHubConfig>(colonyPaths.githubJson, { repos: [], prompts: DEFAULT_PROMPTS })
 
 function loadConfig(): GitHubConfig {
-  const p = configPath()
-  try {
-    if (existsSync(p)) {
-      const data = JSON.parse(readFileSync(p, 'utf-8'))
-      return {
-        repos: data.repos || [],
-        prompts: data.prompts || DEFAULT_PROMPTS,
-      }
-    }
-  } catch (err) {
-    console.error('[github] failed to load config:', err)
+  const data = configFile.read()
+  return {
+    repos: data.repos || [],
+    prompts: data.prompts || DEFAULT_PROMPTS,
   }
-  return { repos: [], prompts: DEFAULT_PROMPTS }
 }
 
 function saveConfig(config: GitHubConfig): void {
-  const p = configPath()
-  writeFileSync(p, JSON.stringify(config, null, 2), 'utf-8')
+  configFile.write(config)
 }
 
 // ---- gh CLI wrapper ----
@@ -195,7 +183,6 @@ export async function fetchPRs(repo: GitHubRepo): Promise<GitHubPR[]> {
  * Called as a side effect of PR refresh so new templates are discovered.
  */
 async function refreshBareRepoConfig(owner: string, name: string): Promise<void> {
-  const { execSync } = await import('child_process')
   const bareDir = colonyPaths.bareRepoDir(owner, name)
   if (!existsSync(bareDir)) return
   try {
@@ -254,17 +241,7 @@ export async function fetchFeedbackFiles(repo: GitHubRepo, prNumber: number): Pr
         const parsed = JSON.parse(contentJson)
         const content = Buffer.from(parsed.content || '', 'base64').toString('utf-8')
 
-        // Parse YAML frontmatter
-        const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
-        const frontmatter: Record<string, string> = {}
-        if (fmMatch) {
-          for (const line of fmMatch[1].split('\n')) {
-            const idx = line.indexOf(':')
-            if (idx > 0) {
-              frontmatter[line.substring(0, idx).trim()] = line.substring(idx + 1).trim()
-            }
-          }
-        }
+        const frontmatter = parseFrontmatter(content)
 
         files.push({
           pr: prNumber,
@@ -667,26 +644,20 @@ export function getPrWorkspacePath(): string {
 }
 
 export function resolvePrompt(prompt: QuickPrompt, pr: GitHubPR, repo: GitHubRepo): string {
-  return prompt.prompt
-    .replace(/\{\{pr\.number\}\}/g, String(pr.number))
-    .replace(/\{\{pr\.branch\}\}/g, pr.branch)
-    .replace(/\{\{pr\.baseBranch\}\}/g, pr.baseBranch)
-    .replace(/\{\{pr\.title\}\}/g, pr.title)
-    .replace(/\{\{pr\.url\}\}/g, pr.url)
-    .replace(/\{\{pr\.author\}\}/g, pr.author)
-    .replace(/\{\{pr\.headSha\}\}/g, pr.headSha || '')
-    .replace(/\{\{pr\.draft\}\}/g, String(pr.draft))
-    .replace(/\{\{pr\.status\}\}/g, pr.draft ? 'draft' : pr.state)
-    .replace(/\{\{pr\.reviewDecision\}\}/g, pr.reviewDecision || 'none')
-    .replace(/\{\{pr\.assignees\}\}/g, pr.assignees.join(', ') || 'none')
-    .replace(/\{\{pr\.reviewers\}\}/g, pr.reviewers.join(', ') || 'none')
-    .replace(/\{\{pr\.labels\}\}/g, pr.labels.join(', ') || 'none')
-    .replace(/\{\{pr\.additions\}\}/g, String(pr.additions))
-    .replace(/\{\{pr\.deletions\}\}/g, String(pr.deletions))
-    .replace(/\{\{pr\.body\}\}/g, pr.body || '')
-    .replace(/\{\{pr\.description\}\}/g, pr.body || '')
-    .replace(/\{\{repo\.owner\}\}/g, repo.owner)
-    .replace(/\{\{repo\.name\}\}/g, repo.name)
-    .replace(/\{\{repo\.remoteUrl\}\}/g, gitRemoteUrl(repo.owner, repo.name))
-    .replace(/\{\{reviewer\}\}/g, _cachedUser || 'unknown')
+  return resolveMustacheTemplate(prompt.prompt, {
+    pr: {
+      ...pr,
+      status: pr.draft ? 'draft' : pr.state,
+      description: pr.body || '',
+      assignees: pr.assignees.length > 0 ? pr.assignees.join(', ') : 'none',
+      reviewers: pr.reviewers.length > 0 ? pr.reviewers.join(', ') : 'none',
+      labels: pr.labels.length > 0 ? pr.labels.join(', ') : 'none',
+      reviewDecision: pr.reviewDecision || 'none',
+    },
+    repo: {
+      ...repo,
+      remoteUrl: gitRemoteUrl(repo.owner, repo.name),
+    },
+    reviewer: _cachedUser || 'unknown',
+  })
 }

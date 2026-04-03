@@ -3,12 +3,9 @@ import { join } from 'path'
 import { execSync } from 'child_process'
 import { createInterface } from 'readline'
 import { app } from 'electron'
-import { getRecentSessions } from './recent-sessions'
+import { getRecentSessions, discoverSessionId } from './recent-sessions'
 import { getAllInstances } from './instance-manager'
 import type { CliSession } from '../shared/types'
-
-// Re-export for existing consumers
-export type { CliSession }
 
 export function scanSessions(limit = 50): CliSession[] {
   const home = app.getPath('home')
@@ -178,50 +175,8 @@ export async function scanExternalSessions(): Promise<ExternalSession[]> {
       }
 
       if (!sessionId) {
-        try {
-          const lsofOutput = execSync(`lsof -p ${pid} 2>/dev/null`, { encoding: 'utf-8', timeout: 3000 })
-          const jsonlMatch = lsofOutput.match(/\.claude\/projects\/[^\s]+\/([a-f0-9-]{36})\.jsonl/i)
-          if (jsonlMatch) sessionId = jsonlMatch[1]
-        } catch { /* skip */ }
-      }
-
-      if (!sessionId && cwd) {
-        try {
-          const home = app.getPath('home')
-          const projectDirName = cwd.replace(/[/.]/g, '-')
-          const projectDir = join(home, '.claude', 'projects', projectDirName)
-          let searchDir = existsSync(projectDir) ? projectDir : null
-
-          if (!searchDir) {
-            const projectsDir = join(home, '.claude', 'projects')
-            if (existsSync(projectsDir)) {
-              for (const dir of readdirSync(projectsDir)) {
-                const decoded = dir.startsWith('-') ? dir.substring(1).replace(/-/g, '/') : dir.replace(/-/g, '/')
-                if (cwd === '/' + decoded || cwd.startsWith('/' + decoded + '/')) {
-                  const candidate = join(projectsDir, dir)
-                  if (existsSync(candidate)) {
-                    searchDir = candidate
-                    break
-                  }
-                }
-              }
-            }
-          }
-
-          if (searchDir) {
-            const files = readdirSync(searchDir).filter((f: string) => f.endsWith('.jsonl'))
-            let newest: { name: string; mtime: number } | null = null
-            for (const f of files) {
-              const st = statSync(join(searchDir, f))
-              if (!newest || st.mtimeMs > newest.mtime) {
-                newest = { name: f, mtime: st.mtimeMs }
-              }
-            }
-            if (newest && (Date.now() - newest.mtime) < 86400000) {
-              sessionId = newest.name.replace('.jsonl', '')
-            }
-          }
-        } catch { /* skip */ }
+        // Use shared session discovery with 24h recency window for external sessions
+        sessionId = discoverSessionId(pid, cwd || '', 86400000)
       }
 
       external.push({ pid, name, cwd, sessionId, args: fullCmd.slice(0, 200) })

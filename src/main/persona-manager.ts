@@ -7,7 +7,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, watch } from 'fs'
 import { join, basename } from 'path'
 import { colonyPaths } from '../shared/colony-paths'
-import { createInstance, getAllInstances } from './instance-manager'
+import { createInstance, getAllInstances, killInstance } from './instance-manager'
 import { getDaemonClient } from './daemon-client'
 import { sendPromptWhenReady } from './send-prompt-when-ready'
 import { updateColonyContext } from './colony-context'
@@ -330,10 +330,6 @@ claude -p "Run the test suite and summarize failures" \\
   --permission-mode bypassPermissions \\
   --model sonnet
 
-# Budget-cap expensive tasks
-claude -p "Refactor the auth module" \\
-  --max-budget-usd 2.00 \\
-  --permission-mode bypassPermissions
 \`\`\`
 
 **Rules for delegation:**
@@ -342,11 +338,16 @@ claude -p "Refactor the auth module" \\
 - Use \`--add-dir\` to give the sub-task access to the right project directory
 - Use \`--agent\` when a specialist agent exists (see Colony Context for the full list)
 - Tell the sub-task to write its output to \`~/.claude-colony/outputs/\` so other sessions can find it
-- For long tasks, use \`--max-budget-usd\` to cap spend
 
-**Capturing results:** \`claude -p\` prints its final response to stdout. You can capture it:
+**Output convention:** Every delegated task MUST write its results to a predictable path:
+\`\`\`
+~/.claude-colony/outputs/<persona-name>/<task-slug>.md
+\`\`\`
+Tell the sub-task in its prompt: "Write your findings to ~/.claude-colony/outputs/${fm.name.toLowerCase()}/<task-slug>.md"
+
+**Capturing quick results:** For short tasks, capture stdout directly:
 \`\`\`bash
-result=$(claude -p "Analyze the test failures" --add-dir /path/to/repo --permission-mode bypassPermissions --model sonnet 2>/dev/null)
+result=$(claude -p "..." --permission-mode bypassPermissions --model sonnet 2>/dev/null)
 \`\`\`
 
 Colony will detect these sub-sessions and show them in the sidebar.
@@ -354,8 +355,16 @@ Colony will detect these sub-sessions and show them in the sidebar.
 ### 5. UPDATE
 After completing your actions, update your identity file (${filePath}):
 
-**Active Situations** — Replace the entire section content (keep the \`## Active Situations\` heading).
-Write a concise summary of all in-flight work, blockers, and items you're tracking.
+**Active Situations** — This is your supervision board. For every delegated task, track:
+\`\`\`
+- [DELEGATED] PR #38 review → output: ~/.claude-colony/outputs/${fm.name.toLowerCase()}/pr-38-review.md
+- [PENDING] Waiting on test results → output: ~/.claude-colony/outputs/${fm.name.toLowerCase()}/test-failures.md
+- [DONE] Auth refactor complete → output: ~/.claude-colony/outputs/${fm.name.toLowerCase()}/auth-refactor.md (reviewed session #14)
+\`\`\`
+Each entry should have: status (DELEGATED/PENDING/DONE/BLOCKED), what it is, and the output path.
+On your next session, check each DELEGATED/PENDING item — read its output file to see if the
+sub-task completed, then decide next steps (mark done, re-delegate, escalate).
+Remove DONE items after you've reviewed their output.
 
 **Learnings** — Append new entries if you discovered something useful. Remove entries
 that are no longer relevant. Keep this section under 30 items.
@@ -398,7 +407,6 @@ function sendTriggerWhenReady(instanceId: string, message: string): void {
         console.log(`[persona] session ${instanceId} finished, killing in 5s`)
         setTimeout(async () => {
           try {
-            const { killInstance } = await import('./instance-manager')
             await killInstance(instanceId)
           } catch { /* already gone */ }
         }, 5000)
@@ -483,7 +491,6 @@ export async function stopPersona(fileName: string): Promise<boolean> {
   const state = getState(fm.name)
   if (state.activeSessionId) {
     try {
-      const { killInstance } = await import('./instance-manager')
       await killInstance(state.activeSessionId)
     } catch { /* session may already be gone */ }
     state.activeSessionId = null

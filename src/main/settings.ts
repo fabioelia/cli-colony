@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
 import { execSync } from 'child_process'
 import { join } from 'path'
 import { app } from 'electron'
-import type { CliBackend } from '../daemon/protocol'
+import type { CliBackend } from '../shared/types'
 
 interface AppSettings {
   defaultArgs: string
@@ -26,19 +26,24 @@ function ensureDir(): void {
   }
 }
 
+let _cache: AppSettings | null = null
+
 export function getSettings(): AppSettings {
+  if (_cache) return _cache
   ensureDir()
   const path = getSettingsPath()
   try {
     if (existsSync(path)) {
       const data = JSON.parse(readFileSync(path, 'utf-8'))
-      console.log(`[settings] loaded from ${path}:`, JSON.stringify(data))
+      _cache = data
       return data
     }
   } catch (err) {
     console.error('[settings] failed to read:', err)
   }
-  return { defaultArgs: '' }
+  const defaults = { defaultArgs: '' }
+  _cache = defaults
+  return defaults
 }
 
 export function getSetting(key: string): string {
@@ -49,6 +54,7 @@ export function getSetting(key: string): string {
 export function setSetting(key: string, value: string): void {
   const settings = getSettings()
   settings[key] = value
+  _cache = settings
   ensureDir()
   const path = getSettingsPath()
   writeFileSync(path, JSON.stringify(settings, null, 2), 'utf-8')

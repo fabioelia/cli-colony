@@ -12,9 +12,8 @@ import { existsSync, statSync } from 'fs'
 import { getDaemonClient, DaemonClient } from './daemon-client'
 import { getDefaultArgs, getSetting, getDefaultCliBackend } from './settings'
 import { DAEMON_VERSION } from '../daemon/protocol'
-import type { CliBackend } from '../daemon/protocol'
+import type { CliBackend } from '../shared/types'
 import { trackOpened, trackClosed } from './recent-sessions'
-import { onSessionExit as onPersonaSessionExit } from './persona-manager'
 import { broadcast } from './broadcast'
 
 export type { ClaudeInstance } from '../daemon/protocol'
@@ -24,6 +23,12 @@ import type { ClaudeInstance } from '../daemon/protocol'
 let onInstanceListChanged: (() => void) | null = null
 export function setOnInstanceListChanged(cb: () => void): void {
   onInstanceListChanged = cb
+}
+
+// Session exit callback — registered at startup to avoid circular imports
+let onSessionExitCallback: ((instanceId: string) => void) | null = null
+export function setOnSessionExit(cb: (instanceId: string) => void): void {
+  onSessionExitCallback = cb
 }
 
 /** Expand ~ and trim; default to ~/.claude-colony for Colony sessions. */
@@ -93,7 +98,7 @@ export function wireDaemonEvents(): void {
   client.on('exited', (instanceId: string, exitCode: number) => {
     broadcast('instance:exited', { id: instanceId, exitCode })
     trackClosed(instanceId, 'exited')
-    onPersonaSessionExit(instanceId)
+    onSessionExitCallback?.(instanceId)
 
     // Auto-cleanup (skip persona sessions — they're kept for review)
     const cleanupMins = parseInt(getSetting('autoCleanupMinutes') || '5', 10)

@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSy
 import { execSync } from 'child_process'
 import { join } from 'path'
 import { app } from 'electron'
-import type { CliBackend } from '../daemon/protocol'
+import type { CliBackend } from '../shared/types'
 
 export interface RecentSession {
   instanceName: string
@@ -56,9 +56,13 @@ function save(sessions: RecentSession[]): void {
  * Discover the Claude session ID for a running PTY process.
  * Claude CLI opens a .jsonl file under ~/.claude/projects/<encoded-path>/<uuid>.jsonl.
  * We can find it via lsof on the child PID or by scanning the project dir.
+ *
+ * @param pid - Process ID to check via lsof (null to skip lsof)
+ * @param workingDirectory - The session's working directory (used for project dir scanning)
+ * @param recencyMs - Only consider session files modified within this window (default: 60s)
  */
-function discoverSessionId(pid: number | null, workingDirectory: string): string | null {
-  // 1. Try lsof on the PID — most reliable for running processes
+export function discoverSessionId(pid: number | null, workingDirectory: string, recencyMs: number = 60_000): string | null {
+  // 1. Try lsof on the PID -- most reliable for running processes
   if (pid) {
     try {
       const lsofOutput = execSync(`lsof -p ${pid} 2>/dev/null`, { encoding: 'utf-8', timeout: 3000 })
@@ -96,8 +100,7 @@ function discoverSessionId(pid: number | null, workingDirectory: string): string
           newest = { name: f, mtime: st.mtimeMs }
         }
       }
-      // Only use if modified in the last 60 seconds (likely from the session we just spawned)
-      if (newest && (Date.now() - newest.mtime) < 60_000) {
+      if (newest && (Date.now() - newest.mtime) < recencyMs) {
         return newest.name.replace('.jsonl', '')
       }
     }

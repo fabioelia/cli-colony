@@ -22,6 +22,22 @@ export function slugify(input: string): string {
  * Parse YAML frontmatter from a markdown file.
  * Returns key-value pairs as strings; callers handle type coercion.
  */
+/**
+ * Resolve {{mustache}} templates by walking dot-separated paths into a context object.
+ * Arrays are joined with ', '. Null/undefined values resolve to ''.
+ */
+export function resolveMustacheTemplate(template: string, context: Record<string, unknown>): string {
+  return template.replace(/\{\{(\w+(?:\.\w+)*)\}\}/g, (_match, key: string) => {
+    let val: unknown = context
+    for (const part of key.split('.')) {
+      if (val == null) return ''
+      val = (val as Record<string, unknown>)[part]
+    }
+    if (Array.isArray(val)) return val.join(', ')
+    return val != null ? String(val) : ''
+  })
+}
+
 export function parseFrontmatter(content: string): Record<string, string> {
   const match = content.match(/^---\n([\s\S]*?)\n---/)
   if (!match) return {}
