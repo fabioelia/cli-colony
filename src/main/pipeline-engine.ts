@@ -37,19 +37,18 @@ export interface ConditionDef {
 }
 
 export interface ActionDef {
-  type: 'launch-session' | 'route-to-session'
-  reuse?: boolean // shorthand: when true, launch-session tries to find/resume a matching session first
+  type: 'launch-session' | 'route-to-session' // route-to-session is deprecated, normalized to launch-session + reuse:true
+  reuse?: boolean // try to find/resume a matching session before launching new
   name?: string
   workingDirectory?: string
   color?: string
   prompt: string
-  // route-to-session specific (also used when reuse: true):
   match?: {
     gitBranch?: string
     workingDirectory?: string
   }
-  busyStrategy?: 'wait' | 'launch-new' // default: 'wait'
-  outputs?: string // directory to scan for generated artifacts (template supported)
+  busyStrategy?: 'wait' | 'launch-new' // default: 'launch-new'
+  outputs?: string
 }
 
 export interface DedupDef {
@@ -296,6 +295,17 @@ function parseYaml(content: string): PipelineDef | null {
     if (!result.name || !result.trigger?.type || !result.action?.prompt) return null
     if (result.enabled === undefined) result.enabled = true
 
+    // Normalize: route-to-session → launch-session + reuse:true
+    if (result.action?.type === 'route-to-session') {
+      result.action.type = 'launch-session'
+      result.action.reuse = true
+    }
+
+    // Default busyStrategy to launch-new (was 'wait', which silently drops prompts)
+    if (result.action && !result.action.busyStrategy) {
+      result.action.busyStrategy = 'launch-new'
+    }
+
     return result as PipelineDef
   } catch (err) {
     log(`YAML parse error: ${err}`)
@@ -502,15 +512,15 @@ async function sendPromptToExistingSession(instanceId: string, prompt: string): 
 
     client.on('activity', handler)
 
-    // 60s timeout — existing session might be mid-task
+    // 15s timeout — if session doesn't idle quickly, caller should launch new
     setTimeout(() => {
       if (!sent) {
         sent = true
         client.removeListener('activity', handler)
-        log(`Timed out waiting for session ${instanceId} to become idle — prompt not delivered`)
+        log(`Timed out waiting for session ${instanceId} to become idle (15s) — falling back`)
         resolve(false)
       }
-    }, 60000)
+    }, 15000)
   })
 }
 
@@ -904,8 +914,8 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
   }
 
   // ---- Route to existing session ----
-  // reuse: true on launch-session acts like route-to-session
-  const shouldRoute = action.type === 'route-to-session' || (action.type === 'launch-session' && action.reuse)
+  // ---- Reuse: try to route to existing session ----
+  const shouldRoute = action.reuse === true
   if (shouldRoute) {
     const matchDef = action.match || {}
     const resolvedMatch = {
@@ -915,7 +925,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
       prNumber: ctx.pr?.number,
     }
 
-    plog(name, `route-to-session: looking for branch=${resolvedMatch.gitBranch} dir=${resolvedMatch.workingDirectory} repo=${resolvedMatch.repoName} pr=#${resolvedMatch.prNumber}`)
+    plog(name, `reuse: looking for branch=${resolvedMatch.gitBranch} dir=${resolvedMatch.workingDirectory} repo=${resolvedMatch.repoName} pr=#${resolvedMatch.prNumber}`)
     const route = await findBestRoute(resolvedMatch)
 
     if (route?.type === 'running') {
@@ -957,8 +967,8 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
     }
   }
 
-  // ---- Launch new session (or route-to-session fallback) ----
-  if (action.type !== 'launch-session' && action.type !== 'route-to-session') return
+  // ---- Launch new session (fallback when reuse finds nothing) ----
+  if (action.type !== 'launch-session') return
 
   // If no working directory resolved, try to infer from running sessions in same repo
   let resolvedCwd = cwd
@@ -1448,11 +1458,12 @@ condition:
     - e2e
 
 action:
-  type: route-to-session
+  type: launch-session
+  reuse: true
   match:
     gitBranch: "{{pr.branch}}"
     workingDirectory: "{{repo.localPath}}"
-  busyStrategy: wait
+  busyStrategy: launch-new
   name: "CI Fix: {{repo.name}}#{{pr.number}}"
   workingDirectory: "{{repo.localPath}}"
   color: "#ef4444"

@@ -83,6 +83,7 @@ export interface ClaudeManagerAPI {
     getAll: () => Promise<Record<string, string>>
     set: (key: string, value: string) => Promise<boolean>
     getShells: () => Promise<string[]>
+    detectGitProtocol: () => Promise<'ssh' | 'https' | null>
   }
   logs: {
     get: () => Promise<string>
@@ -335,6 +336,7 @@ const api: ClaudeManagerAPI = {
     getAll: () => ipcRenderer.invoke('settings:getAll'),
     set: (key, value) => ipcRenderer.invoke('settings:set', key, value),
     getShells: () => ipcRenderer.invoke('settings:getShells'),
+    detectGitProtocol: () => ipcRenderer.invoke('settings:detectGitProtocol'),
   },
   logs: {
     get: () => ipcRenderer.invoke('logs:get'),

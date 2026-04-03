@@ -54,11 +54,12 @@ condition:
     pr.author: "{{github.user}}"
 
 action:
-  type: route-to-session     # or: launch-session
+  type: launch-session
+  reuse: true                # try to find/resume a matching session first
   match:
     gitBranch: "{{pr.branch}}"
     workingDirectory: "{{repo.localPath}}"
-  busyStrategy: wait         # or: launch-new
+  busyStrategy: launch-new   # or: wait (15s max)
   name: "Session Name"
   workingDirectory: "{{repo.localPath}}"
   color: "#f59e0b"
@@ -76,9 +77,10 @@ dedup:
 {{github.user}}, {{timestamp}}
 
 ## Action Types
-- \`launch-session\`: Spawns a new Claude session. Add \`reuse: true\` to try finding/resuming a matching session first.
-- \`route-to-session\`: Finds an existing session matching the branch/repo, injects the prompt. Falls back to launching new if no match.
-- **\`reuse: true\`** flag: works on either action type. Searches running sessions and CLI history by branch, repo, PR number, and session name. Resumes via \`--resume\` if a history match is found.
+- \`launch-session\`: The only action type. Spawns a new Claude session.
+- **\`reuse: true\`**: Searches running sessions and CLI history by branch, repo, PR number, and session name. If found, routes the prompt there. If busy, applies \`busyStrategy\`. Falls back to launching new if nothing matches.
+- **\`busyStrategy\`**: \`launch-new\` (default) launches a new session if existing is busy. \`wait\` waits up to 15s for it to become idle.
+- **\`route-to-session\`**: Deprecated alias — automatically converted to \`launch-session\` + \`reuse: true\`.
 
 ## Condition Types
 - \`branch-file-exists\`: Checks if a file exists on a specific branch (uses GitHub API)

@@ -2,7 +2,7 @@ import { ipcMain, dialog, shell, app } from 'electron'
 import { join } from 'path'
 import { colonyPaths } from '../shared/colony-paths'
 import { getAllInstances } from './instance-manager'
-import { getSettings, setSetting } from './settings'
+import { getSettings, setSetting, detectGitProtocol } from './settings'
 import { getLogs, clearLogs } from './logger'
 import { updateColonyContext, getColonyContextPath, getColonyContextInstruction } from './colony-context'
 
@@ -50,6 +50,7 @@ export function registerIpcHandlers(): void {
       return ['/bin/zsh', '/bin/bash', '/bin/sh']
     }
   })
+  ipcMain.handle('settings:detectGitProtocol', () => detectGitProtocol())
   ipcMain.handle('settings:set', (_e, key: string, value: string) => {
     setSetting(key, value)
     return true

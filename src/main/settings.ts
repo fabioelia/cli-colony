@@ -66,6 +66,25 @@ export function gitRemoteUrl(owner: string, name: string): string {
   return `git@github.com:${owner}/${name}.git`
 }
 
+/**
+ * Auto-detect whether SSH git access to GitHub works.
+ * Returns 'ssh' if `ssh -T git@github.com` succeeds (exit 1 is success for GitHub),
+ * 'https' if it fails, null if can't determine.
+ */
+export function detectGitProtocol(): 'ssh' | 'https' | null {
+  try {
+    const { execSync } = require('child_process') as typeof import('child_process')
+    // GitHub SSH returns exit code 1 with "Hi username!" on success
+    const result = execSync('ssh -T git@github.com 2>&1 || true', { encoding: 'utf-8', timeout: 10000 })
+    if (result.includes('Hi ') || result.includes('successfully authenticated')) {
+      return 'ssh'
+    }
+    return 'https'
+  } catch {
+    return 'https' // SSH not working, default to HTTPS
+  }
+}
+
 export function getDefaultArgs(): string[] {
   const raw = getSetting('defaultArgs').trim()
   if (!raw) return []
