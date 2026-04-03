@@ -43,6 +43,7 @@ export interface HookStep {
   cwd?: string
   name: string
   interactive?: boolean
+  continueOnError?: boolean    // If true, failure doesn't block subsequent hooks
 }
 
 export interface SetupStep {

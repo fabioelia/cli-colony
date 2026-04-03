@@ -441,7 +441,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                           if (m?.setup) {
                             m.setup.status = 'creating'
                             m.setup.error = null
-                            if (m.setup.steps) m.setup.steps.forEach((s: any) => { if (s.status === 'error') { s.status = 'pending'; s.error = undefined } })
+                            if (m.setup.steps) m.setup.steps.forEach((s: any) => { if (s.status === 'error' || s.status === 'skipped') { s.status = 'pending'; s.error = undefined } })
                             await window.api.env.saveManifest(env.id, m)
                           }
                           // Re-trigger setup

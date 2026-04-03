@@ -462,7 +462,7 @@ export async function setupEnvironment(envId: string): Promise<void> {
 
   let hasStepError = false
 
-  const updateStep = (stepName: string, status: 'running' | 'done' | 'error' | 'skipped', error?: string) => {
+  const updateStep = (stepName: string, status: 'running' | 'done' | 'error' | 'skipped', error?: string, opts?: { continueOnError?: boolean }) => {
     if (manifest.setup?.steps) {
       const step = manifest.setup.steps.find(s => s.name === stepName)
       if (step) {
@@ -470,7 +470,7 @@ export async function setupEnvironment(envId: string): Promise<void> {
         if (error) step.error = error
       }
     }
-    if (status === 'error') {
+    if (status === 'error' && !opts?.continueOnError) {
       hasStepError = true
       manifest.setup!.status = 'error'
       manifest.setup!.error = error || 'A setup step failed'
@@ -537,7 +537,18 @@ export async function setupEnvironment(envId: string): Promise<void> {
     // A sequential hook (no parallel flag) acts as a barrier.
     const hookOutputs: Record<string, string> = {}
 
+    // Check if a step was already completed in a previous run (for retry)
+    function isStepDone(stepName: string): boolean {
+      const step = manifest.setup?.steps?.find(s => s.name === stepName)
+      return step?.status === 'done'
+    }
+
     async function runOneHook(hook: any): Promise<void> {
+      // Skip steps already completed in a previous run (smart retry)
+      if (isStepDone(hook.name)) {
+        logSetup(`  Skipping: ${hook.name} (already done)`)
+        return
+      }
       // Handle prompt-type hooks (e.g. file picker)
       if (hook.type === 'prompt') {
         return runPromptHook(hook)
@@ -568,7 +579,10 @@ export async function setupEnvironment(envId: string): Promise<void> {
       } catch (err: any) {
         const stderr = err.stderr ? `\nStderr: ${err.stderr.slice(0, 500)}` : ''
         logSetup(`  FAILED: ${hook.name} — ${String(err).slice(0, 300)}${stderr}`)
-        updateStep(hook.name, 'error', String(err).slice(0, 300))
+        updateStep(hook.name, 'error', String(err).slice(0, 300), { continueOnError: !!hook.continueOnError })
+        if (hook.continueOnError) {
+          logSetup(`  (continueOnError: proceeding despite failure)`)
+        }
       }
     }
 
@@ -658,7 +672,10 @@ export async function setupEnvironment(envId: string): Promise<void> {
         logSetup(`  Done: ${hook.name}`)
       } catch (err: any) {
         logSetup(`  FAILED: ${hook.name} — ${String(err).slice(0, 300)}`)
-        updateStep(hook.name, 'error', String(err).slice(0, 300))
+        updateStep(hook.name, 'error', String(err).slice(0, 300), { continueOnError: !!hook.continueOnError })
+        if (hook.continueOnError) {
+          logSetup(`  (continueOnError: proceeding despite failure)`)
+        }
       }
     }
 
