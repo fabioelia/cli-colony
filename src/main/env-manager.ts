@@ -233,12 +233,14 @@ export function listTemplates(): EnvironmentTemplate[] {
   try {
     const repoConfigs = getAllRepoConfigs()
     console.log(`[env-manager] listTemplates: ${templates.length} user templates, ${repoConfigs.length} repo configs`)
-    const userNames = new Set(templates.map(t => t.name))
+    const seenNames = new Set(templates.map(t => t.name))
     for (const repoConfig of repoConfigs) {
       console.log(`[env-manager]   repo ${repoConfig.repoSlug}: ${repoConfig.templates.length} templates`)
       for (const t of repoConfig.templates) {
-        // User template with same name takes precedence
-        if (!userNames.has(t.name)) {
+        // Skip duplicates: user templates take precedence, and the same repo
+        // template can appear in multiple cache entries if loaded via different paths
+        if (!seenNames.has(t.name)) {
+          seenNames.add(t.name)
           templates.push(t)
         }
       }
