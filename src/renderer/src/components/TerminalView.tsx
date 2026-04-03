@@ -191,6 +191,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const shellContainerRef = useRef<HTMLDivElement>(null)
   const shellTermRef = useRef<{ term: Terminal; fitAddon: FitAddon; unsub?: () => void } | null>(null)
   const shellCreatedRef = useRef(false)
+  const [shellResetKey, setShellResetKey] = useState(0)
   const [fileTree, setFileTree] = useState<FileNode[] | null>(null)
   const [fileTreeLoading, setFileTreeLoading] = useState(false)
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
@@ -289,7 +290,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
       logsEndRef.current.scrollIntoView({ behavior: 'smooth' })
     }
   }, [logsContent])
-  // Shell terminal — lazy init when tab is first opened
+  // Shell terminal — lazy init when tab is first opened, re-init on shellResetKey
   useEffect(() => {
     if (viewTab !== 'shell') return
     if (shellCreatedRef.current && shellTermRef.current) {
@@ -343,7 +344,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     }
 
     setTimeout(() => fitAddon.fit(), 100)
-  }, [viewTab])
+  }, [viewTab, shellResetKey])
 
   // Clean up shell on unmount
   useEffect(() => {
@@ -583,9 +584,11 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
             entry.fitAddon.fit()
             const dims = entry.fitAddon.proposeDimensions()
             if (dims && dims.cols > 0 && dims.rows > 0) {
-              // Resize bounce: shrink by 1 col then restore — sends SIGWINCH
-              // to force Claude CLI to fully redraw its TUI
-              window.api.instance.resize(instance.id, dims.cols - 1, dims.rows)
+              // Resize bounce: shrink by 1 row then restore — sends SIGWINCH
+              // to force Claude CLI to fully redraw its TUI.
+              // Uses rows (not cols) to avoid width-sensitive rendering artifacts
+              // where a cols-1 repaint leaves residual chars at the last column.
+              window.api.instance.resize(instance.id, dims.cols, dims.rows - 1)
               setTimeout(() => {
                 window.api.instance.resize(instance.id, dims.cols, dims.rows)
                 entry.term.scrollToBottom()
@@ -903,6 +906,55 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           )}
         </div>
         <div className="terminal-header-actions">
+          {(viewTab === 'session' || viewTab === 'shell') && (
+            <Tooltip text="Reset Terminal" detail="Destroy this terminal and create a fresh one" position="bottom">
+              <button onClick={() => {
+                if (viewTab === 'shell') {
+                  // Kill old shell PTY and dispose terminal, then re-create
+                  if (shellTermRef.current) {
+                    shellTermRef.current.unsub?.()
+                    shellTermRef.current.term.dispose()
+                    shellTermRef.current = null
+                  }
+                  window.api.shellPty.kill(instance.id)
+                  shellCreatedRef.current = false
+                  setShellResetKey((k) => k + 1)
+                } else {
+                  // Session tab: clear xterm and re-replay the daemon buffer.
+                  // Must pause the live listener during replay to avoid double-writes.
+                  const entry = terminalsRef.current.get(instance.id)
+                  if (entry) {
+                    // Unsubscribe old listener
+                    entry.unsub?.()
+
+                    entry.term.reset()
+
+                    // Queue live events until buffer replay finishes (same pattern as initial mount)
+                    let queue: string[] | null = []
+                    const unsub = window.api.instance.onOutput(({ id, data }) => {
+                      if (id === instance.id) {
+                        if (queue) {
+                          queue.push(data)
+                        } else {
+                          entry.proxy.write(data)
+                        }
+                      }
+                    })
+                    entry.unsub = unsub
+
+                    window.api.instance.buffer(instance.id).then((buf) => {
+                      if (buf) entry.proxy.write(buf)
+                      const pending = queue!
+                      queue = null
+                      for (const chunk of pending) entry.proxy.write(chunk)
+                    })
+                  }
+                }
+              }} aria-label="Reset terminal">
+                <RotateCcw size={14} />
+              </button>
+            </Tooltip>
+          )}
           {onSpawnChild && (
             <Tooltip text="Spawn Child" detail="Create a child session that reports back to this one when done" position="bottom">
               <button onClick={onSpawnChild} aria-label="Spawn child session">

@@ -112,9 +112,17 @@ export default function AgentEditor({ agent, onBack, onSave, onInstanceCreated }
       window.api.instance.write(instance.id, data)
     })
 
+    // Queue live events until the buffer replay finishes, then drain.
+    // Without this, output arriving between subscribing and the buffer
+    // resolving would be written twice (once live, once in the buffer).
+    let queue: string[] | null = []
     const unsub = window.api.instance.onOutput(({ id, data }) => {
       if (id === instance.id) {
-        term.write(data)
+        if (queue) {
+          queue.push(data)
+        } else {
+          term.write(data)
+        }
       }
     })
 
@@ -122,9 +130,12 @@ export default function AgentEditor({ agent, onBack, onSave, onInstanceCreated }
 
     term.open(termContainerRef.current)
 
-    // Replay buffer
+    // Replay buffer then drain queued live events
     window.api.instance.buffer(instance.id).then((buf) => {
       if (buf) term.write(buf)
+      const pending = queue!
+      queue = null
+      for (const chunk of pending) term.write(chunk)
     })
 
     requestAnimationFrame(() => {
