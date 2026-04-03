@@ -20,6 +20,9 @@ export class TerminalProxy {
   private pendingData = ''
   private flushTimer: ReturnType<typeof setTimeout> | null = null
   private userScrolledUp = false
+  // Suppress scroll tracking during our own programmatic scrollToLine/scrollToBottom calls
+  // to prevent onScroll from incorrectly flipping userScrolledUp
+  private suppressScrollTracking = false
 
   // Throttle interval for batching writes outside sync blocks (ms)
   private readonly THROTTLE_MS = 8
@@ -32,6 +35,7 @@ export class TerminalProxy {
     // Track user scroll state — only consider "scrolled up" if more than 2 rows from the bottom
     // This prevents the proxy from fighting with the user when they scroll down to the bottom
     term.onScroll(() => {
+      if (this.suppressScrollTracking) return
       const distanceFromBottom = term.buffer.active.baseY - term.buffer.active.viewportY
       if (distanceFromBottom <= 1) {
         // User reached the bottom — release scroll lock
@@ -45,10 +49,13 @@ export class TerminalProxy {
   }
 
   /**
-   * Called when user types — reset scroll tracking
+   * Called when user types — reset scroll tracking and snap to bottom
    */
   onUserInput(): void {
     this.userScrolledUp = false
+    this.suppressScrollTracking = true
+    this.term.scrollToBottom()
+    this.suppressScrollTracking = false
   }
 
   /**
@@ -112,10 +119,11 @@ export class TerminalProxy {
     if (this.userScrolledUp) {
       const savedY = this.term.buffer.active.viewportY
       this.term.write(data, () => {
-        // Restore viewport after xterm processes the write
         requestAnimationFrame(() => {
           if (this.userScrolledUp) {
+            this.suppressScrollTracking = true
             this.term.scrollToLine(savedY)
+            this.suppressScrollTracking = false
           }
         })
       })
@@ -132,15 +140,16 @@ export class TerminalProxy {
 
     if (this.userScrolledUp) {
       const savedY = this.term.buffer.active.viewportY
-      // Write the entire sync block atomically — xterm.js batches rendering
-      // between the \x1b[?2026h and \x1b[?2026l markers
       this.term.write(data, () => {
-        // Double-restore: once in callback, once in rAF to catch async rendering
         if (this.userScrolledUp) {
+          this.suppressScrollTracking = true
           this.term.scrollToLine(savedY)
+          this.suppressScrollTracking = false
           requestAnimationFrame(() => {
             if (this.userScrolledUp) {
+              this.suppressScrollTracking = true
               this.term.scrollToLine(savedY)
+              this.suppressScrollTracking = false
             }
           })
         }

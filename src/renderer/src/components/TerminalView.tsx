@@ -749,12 +749,8 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
         if (dims && (dims.cols !== lastCols || dims.rows !== lastRows)) {
           lastCols = dims.cols
           lastRows = dims.rows
-          // Resize bounce to trigger SIGWINCH for full TUI redraw
-          window.api.instance.resize(instanceId, dims.cols - 1, dims.rows)
-          setTimeout(() => {
-            window.api.instance.resize(instanceId, dims.cols, dims.rows)
-            existing!.term.scrollToBottom()
-          }, 50)
+          window.api.instance.resize(instanceId, dims.cols, dims.rows)
+          existing!.term.scrollToBottom()
         }
       } catch { /* */ }
     }
