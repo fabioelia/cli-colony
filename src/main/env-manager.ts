@@ -331,6 +331,9 @@ export async function createEnvironment(opts: CreateEnvironmentOpts): Promise<In
 
   if (fs.existsSync(envDir)) throw new Error(`Environment '${name}' already exists at ${envDir}`)
 
+  // Refresh repo configs (fetches latest from remotes) so templates are up-to-date
+  try { refreshRepoConfigs() } catch { /* non-fatal */ }
+
   // Load template if specified
   let template: EnvironmentTemplate | null = null
   if (opts.templateId) {
