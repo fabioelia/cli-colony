@@ -3,7 +3,7 @@ import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import {
   Zap, ZapOff, Play, RefreshCw, ChevronDown, ChevronRight,
   FileText, Clock, CheckCircle, XCircle, AlertTriangle, Save, BookOpen,
-  MessageSquare, Send, Plus
+  MessageSquare, Send, Plus, Search
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 
@@ -326,6 +326,11 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                   <Clock size={10} /> Polled {timeSince(p.lastPollAt)}
                 </span>
               )}
+              {p.lastMatchAt && (
+                <span className="pipeline-meta-item" title={`Last condition match: ${p.lastMatchAt}`}>
+                  <Search size={10} /> Matched {timeSince(p.lastMatchAt)}
+                </span>
+              )}
               {p.lastFiredAt && (
                 <span className="pipeline-meta-item pipeline-meta-fired" title={`Last fired: ${p.lastFiredAt}`}>
                   <CheckCircle size={10} /> Fired {timeSince(p.lastFiredAt)}
@@ -338,6 +343,15 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                 </div>
               )}
             </div>
+
+            {p.debugLog && p.debugLog.length > 0 && (
+              <details className="pipeline-debug-log">
+                <summary>Debug Log ({p.debugLog.length} entries)</summary>
+                <pre className="pipeline-debug-log-content">
+                  {p.debugLog.slice().reverse().join('\n')}
+                </pre>
+              </details>
+            )}
 
             <div className="pipeline-card-actions">
               <button

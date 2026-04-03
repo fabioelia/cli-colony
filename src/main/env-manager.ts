@@ -16,6 +16,7 @@ import { readAndReconcileState, emptyState, writeState } from '../shared/env-sta
 import { addToIndex, removeFromIndex, allEnvDirs } from '../shared/env-index'
 import { broadcast } from './broadcast'
 import { loadShellEnv } from './shell-env'
+import { gitRemoteUrl } from './settings'
 import { getAllRepoConfigs, getRepoConfig, clearRepoConfigCache } from './repo-config-loader'
 import { getRepos } from './github'
 import type { InstanceManifest, EnvStatus, EnvironmentTemplate } from '../daemon/env-protocol'
@@ -395,7 +396,7 @@ export async function createEnvironment(opts: CreateEnvironmentOpts): Promise<In
   const remotes: Record<string, string> = {}
   if (template?.repos) {
     for (const repo of template.repos) {
-      remotes[repo.as] = repo.remoteUrl || `git@github.com:${repo.owner}/${repo.name}.git`
+      remotes[repo.as] = repo.remoteUrl || gitRemoteUrl(repo.owner, repo.name)
     }
   }
 
@@ -503,7 +504,7 @@ export async function setupEnvironment(envId: string): Promise<void> {
         const targetDir = manifest.paths[repo.as] || path.join(envDir, repo.name)
         if (fs.existsSync(targetDir)) continue // already set up
 
-        const remoteUrl = repo.remoteUrl || `git@github.com:${repo.owner}/${repo.name}.git`
+        const remoteUrl = repo.remoteUrl || gitRemoteUrl(repo.owner, repo.name)
 
         logSetup(`Setting up ${repo.owner}/${repo.name} as worktree...`)
 
