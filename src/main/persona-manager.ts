@@ -336,7 +336,6 @@ If there are more than 20 entries, remove the oldest ones.
 
 IMPORTANT: Do NOT modify the \`## Role\` or \`## Objectives\` sections. Those are set by your operator.
 IMPORTANT: Write the complete file back, preserving the YAML frontmatter exactly as-is.
-IMPORTANT: After updating your identity file, your work is done for this session. Use /exit to close the session cleanly.
 
 ## Permissions
 
@@ -416,19 +415,14 @@ export async function runPersona(fileName: string): Promise<string> {
   let cwd = fm.working_directory || colonyPaths.root
   if (cwd.startsWith('~')) cwd = cwd.replace('~', process.env.HOME || '/')
 
-  // Launch session
+  // Launch session with -p flag so it auto-exits when done
+  const kickoff = `Begin your planning loop now. Read your identity file at ${filePath} and the colony context, then assess, decide, and act.`
   const inst = await createInstance({
     name: `Persona: ${fm.name}`,
     workingDirectory: cwd,
     color: fm.color,
-    args: ['--append-system-prompt-file', promptFile],
+    args: ['-p', kickoff, '--append-system-prompt-file', promptFile],
   })
-
-  // Send kick-off message once CLI is ready
-  // The CLI starts, shows trust prompt, then waits for input.
-  // We poll activity status and send the trigger when it's 'waiting'.
-  const kickoff = `Begin your planning loop now. Read your identity file at ${filePath} and the colony context, then assess, decide, and act.`
-  sendTriggerWhenReady(inst.id, kickoff)
 
   // Update state
   state.activeSessionId = inst.id
