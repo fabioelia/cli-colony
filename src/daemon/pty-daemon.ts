@@ -8,7 +8,6 @@
 import * as net from 'net'
 import * as fs from 'fs'
 import * as path from 'path'
-import { execSync } from 'child_process'
 import * as pty from 'node-pty'
 import {
   DAEMON_VERSION,
@@ -25,6 +24,7 @@ import type {
 // ---- Paths ----
 
 import { colonyPaths } from '../shared/colony-paths'
+import { loadShellEnv } from '../shared/shell-env'
 
 const HOME = process.env.HOME || '/'
 const COLONY_DIR = colonyPaths.root
@@ -32,48 +32,6 @@ const SOCKET_PATH = colonyPaths.daemonSock
 const PID_PATH = colonyPaths.daemonPid
 
 // ---- Shell environment ----
-
-function loadShellEnv(): Record<string, string> {
-  // Read shell profile setting
-  let shellProfile = ''
-  try {
-    const settingsPath = path.join(COLONY_DIR, 'settings.json')
-    if (fs.existsSync(settingsPath)) {
-      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
-      shellProfile = settings.shellProfile || ''
-    }
-  } catch { /* */ }
-
-  let cmd: string
-  if (shellProfile === 'login') {
-    cmd = '/bin/zsh -lc "env"'
-  } else if (shellProfile) {
-    cmd = `${shellProfile} -lc "env"`
-  } else {
-    cmd = '/bin/zsh -lc "env"'
-  }
-
-  try {
-    const envOutput = execSync(cmd, { encoding: 'utf-8', timeout: 5000 })
-    const env: Record<string, string> = { ...process.env }
-    for (const line of envOutput.split('\n')) {
-      const idx = line.indexOf('=')
-      if (idx > 0) {
-        env[line.substring(0, idx)] = line.substring(idx + 1)
-      }
-    }
-    log(`loaded shell env from: ${cmd} (${Object.keys(env).length} vars)`)
-    return env
-  } catch (err) {
-    log(`failed to load shell env: ${err}`)
-    // Fallback: just grab PATH
-    try {
-      const shellPath = execSync('/bin/zsh -lc "echo $PATH"', { encoding: 'utf-8', timeout: 5000 }).trim()
-      if (shellPath) return { ...process.env, PATH: shellPath } as Record<string, string>
-    } catch { /* */ }
-    return { ...process.env } as Record<string, string>
-  }
-}
 
 const shellEnv = loadShellEnv()
 

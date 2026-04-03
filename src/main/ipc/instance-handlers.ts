@@ -3,21 +3,13 @@ import { execSync } from 'child_process'
 import { createShell, writeShell, resizeShell, killShell } from '../shell-pty'
 import {
   createInstance,
-  writeToInstance,
-  resizeInstance,
   killInstance,
-  removeInstance,
-  renameInstance,
-  recolorInstance,
   restartInstance,
-  pinInstance,
-  unpinInstance,
   getAllInstances,
-  getInstance,
-  getInstanceBuffer,
   restartDaemon,
   getDaemonVersion,
 } from '../instance-manager'
+import { getDaemonClient } from '../daemon-client'
 
 export interface ChildProcess {
   pid: number
@@ -29,18 +21,19 @@ export interface ChildProcess {
 
 export function registerInstanceHandlers(): void {
   ipcMain.handle('instance:create', (_e, opts) => createInstance(opts || {}))
-  ipcMain.handle('instance:write', (_e, id: string, data: string) => writeToInstance(id, data))
-  ipcMain.handle('instance:resize', (_e, id: string, cols: number, rows: number) => resizeInstance(id, cols, rows))
+  const client = getDaemonClient()
+  ipcMain.handle('instance:write', (_e, id: string, data: string) => client.writeToInstance(id, data))
+  ipcMain.handle('instance:resize', (_e, id: string, cols: number, rows: number) => client.resizeInstance(id, cols, rows))
   ipcMain.handle('instance:kill', (_e, id: string) => killInstance(id))
-  ipcMain.handle('instance:remove', (_e, id: string) => removeInstance(id))
-  ipcMain.handle('instance:rename', (_e, id: string, name: string) => renameInstance(id, name))
-  ipcMain.handle('instance:recolor', (_e, id: string, color: string) => recolorInstance(id, color))
+  ipcMain.handle('instance:remove', (_e, id: string) => client.removeInstance(id))
+  ipcMain.handle('instance:rename', (_e, id: string, name: string) => client.renameInstance(id, name))
+  ipcMain.handle('instance:recolor', (_e, id: string, color: string) => client.recolorInstance(id, color))
   ipcMain.handle('instance:restart', (_e, id: string) => restartInstance(id))
-  ipcMain.handle('instance:pin', (_e, id: string) => pinInstance(id))
-  ipcMain.handle('instance:unpin', (_e, id: string) => unpinInstance(id))
+  ipcMain.handle('instance:pin', (_e, id: string) => client.pinInstance(id))
+  ipcMain.handle('instance:unpin', (_e, id: string) => client.unpinInstance(id))
   ipcMain.handle('instance:list', () => getAllInstances())
-  ipcMain.handle('instance:get', (_e, id: string) => getInstance(id))
-  ipcMain.handle('instance:buffer', (_e, id: string) => getInstanceBuffer(id))
+  ipcMain.handle('instance:get', (_e, id: string) => client.getInstance(id))
+  ipcMain.handle('instance:buffer', (_e, id: string) => client.getInstanceBuffer(id))
   ipcMain.handle('daemon:restart', () => restartDaemon())
   ipcMain.handle('daemon:version', () => getDaemonVersion())
 
@@ -55,7 +48,7 @@ export function registerInstanceHandlers(): void {
 
   // Find non-Claude child processes running under an instance's working directory
   ipcMain.handle('instance:processes', async (_e, id: string): Promise<ChildProcess[]> => {
-    const inst = await getInstance(id)
+    const inst = await getDaemonClient().getInstance(id)
     if (!inst?.workingDirectory) return []
     const dir = inst.workingDirectory
 

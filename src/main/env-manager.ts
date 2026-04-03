@@ -4,10 +4,10 @@
  * port allocation, and the discovery agent workflow.
  */
 
-import { app } from 'electron'
+import { app, ipcMain } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
-import { execSync } from 'child_process'
+import { exec as nodeExec, execSync } from 'child_process'
 import { getEnvDaemonClient, EnvDaemonClient } from './env-daemon-client'
 import { allocatePorts, isPortInUse } from './port-allocator'
 import { ensureBareRepo, addWorktree, removeWorktree, isWorktree, getBareRepoForWorktree, pruneAllBareRepos, migrateReposToBare } from '../shared/git-worktree'
@@ -15,7 +15,7 @@ import { buildContext, resolveTemplate as resolveTemplateVars, findUnresolved } 
 import { readAndReconcileState, emptyState, writeState } from '../shared/env-state'
 import { addToIndex, removeFromIndex, allEnvDirs } from '../shared/env-index'
 import { broadcast } from './broadcast'
-import { loadShellEnv } from './shell-env'
+import { loadShellEnv } from '../shared/shell-env'
 import { gitRemoteUrl } from './settings'
 import { getAllRepoConfigs, getRepoConfig, clearRepoConfigCache } from './repo-config-loader'
 import { getRepos } from './github'
@@ -36,7 +36,6 @@ function exec(cmd: string, opts?: Parameters<typeof execSync>[1]): string {
 // Helper: async exec that doesn't block the event loop
 function execAsync(cmd: string, opts?: { cwd?: string; timeout?: number; stdio?: any; env?: Record<string, string> }): Promise<string> {
   return new Promise((resolve, reject) => {
-    const { exec: nodeExec } = require('child_process') as typeof import('child_process')
     const env = opts?.env ? { ...shellEnv, ...opts.env } : shellEnv
     nodeExec(cmd, { env, encoding: 'utf-8', cwd: opts?.cwd, timeout: opts?.timeout || 60000, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) {
@@ -590,7 +589,6 @@ export async function setupEnvironment(envId: string): Promise<void> {
       logSetup(`  Prompt: ${hook.name} — ${hook.prompt || 'User input required'}`)
       updateStep(hook.name, 'running')
       try {
-        const { ipcMain } = require('electron') as typeof import('electron')
         const requestId = `${envId}:${hook.name}:${Date.now()}`
 
         // Helper: send prompt request to renderer and wait for response
@@ -859,12 +857,26 @@ function listEnvironmentsFromDisk(): EnvStatus[] {
       else if (running === total) status = 'running'
       else status = 'partial'
 
+      // Resolve live git branch from the first repo subdirectory
+      let liveBranch = manifest.git?.branch || ''
+      try {
+        const entries = fs.readdirSync(envDir, { withFileTypes: true })
+        for (const entry of entries) {
+          if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === 'logs') continue
+          const subdir = path.join(envDir, entry.name)
+          try {
+            liveBranch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: subdir, encoding: 'utf-8', timeout: 2000 }).trim()
+            break
+          } catch { /* not a git repo, try next */ }
+        }
+      } catch { /* can't read dir */ }
+
       results.push({
         id: manifest.id,
         name: manifest.name,
         displayName: manifest.displayName,
         projectType: manifest.projectType,
-        branch: manifest.git?.branch || '',
+        branch: liveBranch,
         status,
         services,
         urls: manifest.urls || {},

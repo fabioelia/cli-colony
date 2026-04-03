@@ -1,10 +1,13 @@
 /**
- * Shell environment loader — resolves the user's login shell PATH and env vars
+ * Shell environment loader -- resolves the user's login shell PATH and env vars
  * so spawned processes can find tools like git, psql, uv, yarn, etc.
- * Shared between env-manager and env-daemon.
+ *
+ * Shared between main process (env-manager, shell-pty) and daemon (pty-daemon, env-daemon).
  */
 
 import { execSync } from 'child_process'
+import * as fs from 'fs'
+import { colonyPaths } from './colony-paths'
 
 let _cachedEnv: Record<string, string> | null = null
 
@@ -15,7 +18,6 @@ function safeExecSync(cmd: string): string | null {
       encoding: 'utf-8',
       timeout: 5000,
       stdio: ['pipe', 'pipe', 'pipe'],
-      // Prevent EIO from crashing the process — ignore stdin errors
       env: { ...process.env, NODE_NO_WARNINGS: '1' },
     })
   } catch {
@@ -24,14 +26,42 @@ function safeExecSync(cmd: string): string | null {
 }
 
 /**
+ * Determine which shell command to use for environment loading.
+ * Reads the shellProfile setting from ~/.claude-colony/settings.json:
+ *   - empty/"" => user's $SHELL (with fallbacks to /bin/zsh, /bin/bash)
+ *   - "login"  => /bin/zsh
+ *   - "/path/to/shell" => use that shell directly
+ */
+function getShellCandidates(): string[] {
+  let shellProfile = ''
+  try {
+    const settingsPath = colonyPaths.settingsJson
+    if (fs.existsSync(settingsPath)) {
+      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
+      shellProfile = settings.shellProfile || ''
+    }
+  } catch { /* */ }
+
+  if (shellProfile === 'login') {
+    return ['/bin/zsh', '/bin/bash']
+  } else if (shellProfile) {
+    return [shellProfile, '/bin/zsh', '/bin/bash']
+  }
+
+  // Default: user's login shell with fallbacks
+  const loginShell = process.env.SHELL || '/bin/zsh'
+  return [loginShell, '/bin/zsh', '/bin/bash'].filter((v, i, a) => a.indexOf(v) === i)
+}
+
+/**
  * Load the user's login shell environment. Cached after first call.
- * Tries the user's default shell, falls back to /bin/zsh, then /bin/bash.
+ * Reads the shellProfile setting from settings.json to determine which shell to use.
+ * Tries the configured shell, falls back to /bin/zsh, then /bin/bash.
  */
 export function loadShellEnv(): Record<string, string> {
   if (_cachedEnv) return _cachedEnv
 
-  const loginShell = process.env.SHELL || '/bin/zsh'
-  const shells = [loginShell, '/bin/zsh', '/bin/bash'].filter((v, i, a) => a.indexOf(v) === i)
+  const shells = getShellCandidates()
 
   for (const shell of shells) {
     // Try full env dump

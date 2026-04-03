@@ -1,4 +1,5 @@
 import { ipcMain, app } from 'electron'
+import * as fs from 'fs'
 import { join } from 'path'
 import { colonyPaths } from '../../shared/colony-paths'
 import {
@@ -30,13 +31,11 @@ export function registerGitHubHandlers(): void {
   ipcMain.handle('github:getPrMemoryPath', () => getPrMemoryPath())
   ipcMain.handle('github:getPrWorkspacePath', () => getPrWorkspacePath())
   ipcMain.handle('github:getCommentsFile', (_e, repoSlug: string, prNumber: number) => {
-    const { readFileSync, existsSync } = require('fs') as typeof import('fs')
-    const { join: pathJoin } = require('path') as typeof import('path')
     const commentsDir = colonyPaths.prComments
     const safeSlug = repoSlug.replace(/\//g, '-')
-    const filePath = pathJoin(commentsDir, `${safeSlug}-${prNumber}.md`)
-    if (!existsSync(filePath)) return null
-    return readFileSync(filePath, 'utf-8')
+    const filePath = join(commentsDir, `${safeSlug}-${prNumber}.md`)
+    if (!fs.existsSync(filePath)) return null
+    return fs.readFileSync(filePath, 'utf-8')
   })
   ipcMain.handle('github:fetchChecks', (_e, repo: GitHubRepo, prNumber: number) => fetchChecks(repo, prNumber))
   ipcMain.handle('github:fetchCheckLogs', (_e, repo: GitHubRepo, prNumber: number, checkName: string) => fetchCheckLogs(repo, prNumber, checkName))

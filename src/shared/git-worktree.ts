@@ -17,21 +17,10 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { execSync } from 'child_process'
 import { colonyPaths } from './colony-paths'
-
-// Use the user's shell environment when available (main process sets this up),
-// fall back to process.env for the daemon process.
-let cachedShellEnv: Record<string, string> | null = null
+import { loadShellEnv } from './shell-env'
 
 function getEnv(): Record<string, string> {
-  if (cachedShellEnv) return cachedShellEnv
-  try {
-    // Try to load shell env (available in main process)
-    const { loadShellEnv } = require('../main/shell-env')
-    cachedShellEnv = loadShellEnv()
-  } catch {
-    cachedShellEnv = process.env as Record<string, string>
-  }
-  return cachedShellEnv!
+  return loadShellEnv()
 }
 
 function gitExec(cmd: string, opts?: { cwd?: string; timeout?: number }): string {

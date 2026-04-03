@@ -1,4 +1,6 @@
 import { ipcMain, dialog, app } from 'electron'
+import * as fs from 'fs'
+import { basename, join as pathJoin } from 'path'
 import { scanAgents, createAgent } from '../agent-scanner'
 
 export function registerAgentHandlers(): void {
@@ -8,8 +10,6 @@ export function registerAgentHandlers(): void {
   )
 
   ipcMain.handle('agents:export', async (_e, agentPaths: string[]) => {
-    const { createWriteStream, existsSync } = require('fs') as typeof import('fs')
-    const { basename } = require('path') as typeof import('path')
     const archiver = require('archiver') as any
     const result = await dialog.showSaveDialog({
       defaultPath: 'agents.zip',
@@ -17,11 +17,11 @@ export function registerAgentHandlers(): void {
     })
     if (result.canceled || !result.filePath) return false
     return new Promise<boolean>((resolve) => {
-      const output = createWriteStream(result.filePath!)
+      const output = fs.createWriteStream(result.filePath!)
       const archive = archiver('zip', { zlib: { level: 9 } })
       archive.pipe(output)
       for (const p of agentPaths) {
-        if (existsSync(p)) {
+        if (fs.existsSync(p)) {
           archive.file(p, { name: basename(p) })
         }
       }
@@ -32,8 +32,6 @@ export function registerAgentHandlers(): void {
   })
 
   ipcMain.handle('agents:import', async (_e, targetDir: string) => {
-    const { mkdirSync, existsSync, createReadStream, createWriteStream } = require('fs') as typeof import('fs')
-    const { join: pathJoin, basename } = require('path') as typeof import('path')
     const unzipper = require('unzipper') as any
     const result = await dialog.showOpenDialog({
       filters: [{ name: 'ZIP', extensions: ['zip'] }],
@@ -41,16 +39,16 @@ export function registerAgentHandlers(): void {
     })
     if (result.canceled || result.filePaths.length === 0) return 0
     const resolvedDir = targetDir || pathJoin(app.getPath('home'), '.claude', 'agents')
-    if (!existsSync(resolvedDir)) mkdirSync(resolvedDir, { recursive: true })
+    if (!fs.existsSync(resolvedDir)) fs.mkdirSync(resolvedDir, { recursive: true })
     return new Promise<number>((resolve) => {
       let count = 0
-      createReadStream(result.filePaths[0])
+      fs.createReadStream(result.filePaths[0])
         .pipe(unzipper.Parse())
         .on('entry', (entry: any) => {
           const name = basename(entry.path)
           if (name.endsWith('.md') && !name.startsWith('.')) {
             count++
-            entry.pipe(createWriteStream(pathJoin(resolvedDir, name)))
+            entry.pipe(fs.createWriteStream(pathJoin(resolvedDir, name)))
           } else {
             entry.autodrain()
           }
@@ -61,18 +59,16 @@ export function registerAgentHandlers(): void {
   })
 
   ipcMain.handle('agents:read', (_e, filePath: string) => {
-    const { readFileSync } = require('fs') as typeof import('fs')
     try {
-      return readFileSync(filePath, 'utf-8')
+      return fs.readFileSync(filePath, 'utf-8')
     } catch {
       return null
     }
   })
 
   ipcMain.handle('agents:write', (_e, filePath: string, content: string) => {
-    const { writeFileSync } = require('fs') as typeof import('fs')
     try {
-      writeFileSync(filePath, content, 'utf-8')
+      fs.writeFileSync(filePath, content, 'utf-8')
       return true
     } catch {
       return false

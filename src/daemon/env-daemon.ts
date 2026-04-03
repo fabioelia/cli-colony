@@ -46,7 +46,7 @@ const LOG_PATH = path.join(COLONY_DIR, 'envd.log')
 
 // ---- Shell environment ----
 
-import { loadShellEnv } from '../main/shell-env'
+import { loadShellEnv } from '../shared/shell-env'
 
 const shellEnv = loadShellEnv()
 
@@ -273,10 +273,12 @@ async function killStalePids(pids: Record<string, number>, envName: string): Pro
 
   if (alive.length === 0) return
 
-  // SIGTERM all alive processes
+  // SIGTERM all alive processes (try process group first, then direct)
   for (const { name, pid } of alive) {
-    log(`[${envName}/${name}] killing stale process pid=${pid} (SIGTERM)`)
-    try { process.kill(pid, 'SIGTERM') } catch { /* already dead */ }
+    log(`[${envName}/${name}] killing stale process pid=${pid} (SIGTERM, process group)`)
+    try { process.kill(-pid, 'SIGTERM') } catch {
+      try { process.kill(pid, 'SIGTERM') } catch { /* already dead */ }
+    }
   }
 
   // Wait up to 5s for graceful shutdown
@@ -285,10 +287,12 @@ async function killStalePids(pids: Record<string, number>, envName: string): Pro
     const check = () => {
       const stillAlive = alive.filter(({ pid }) => checkProcessAlive(pid))
       if (stillAlive.length === 0 || Date.now() >= deadline) {
-        // SIGKILL any survivors
+        // SIGKILL any survivors (process group first)
         for (const { name, pid } of stillAlive) {
-          log(`[${envName}/${name}] force-killing stale process pid=${pid} (SIGKILL)`)
-          try { process.kill(pid, 'SIGKILL') } catch { /* */ }
+          log(`[${envName}/${name}] force-killing stale process pid=${pid} (SIGKILL, process group)`)
+          try { process.kill(-pid, 'SIGKILL') } catch {
+            try { process.kill(pid, 'SIGKILL') } catch { /* */ }
+          }
         }
         resolve()
       } else {
@@ -340,7 +344,7 @@ function spawnService(env: ManagedEnvironment, svc: ManagedService): void {
       cwd,
       env: serviceEnv,
       stdio: ['ignore', 'pipe', 'pipe'],
-      detached: false,
+      detached: true, // creates a new process group so we can kill the entire tree
     })
 
     svc.process = child
@@ -511,24 +515,33 @@ function stopService(svc: ManagedService): void {
   if (svc.process) {
     const pid = svc.process.pid
     try {
-      // Send SIGTERM first
-      svc.process.kill('SIGTERM')
-      // Force kill after 5s if still alive
-      setTimeout(() => {
-        if (pid && checkProcessAlive(pid)) {
+      // Kill the entire process group (negative pid) so child processes die too
+      if (pid) process.kill(-pid, 'SIGTERM')
+    } catch {
+      // Fallback to direct kill if process group kill fails
+      try { svc.process.kill('SIGTERM') } catch { /* already dead */ }
+    }
+    // Force kill after 5s if still alive
+    setTimeout(() => {
+      if (pid && checkProcessAlive(pid)) {
+        try { process.kill(-pid, 'SIGKILL') } catch {
           try { process.kill(pid, 'SIGKILL') } catch { /* */ }
         }
-      }, 5000)
-    } catch { /* already dead */ }
+      }
+    }, 5000)
     svc.process = null
     svc.pid = null
   } else if (svc.pid != null) {
     // No ChildProcess handle (e.g., orphaned from previous daemon session) — kill by PID directly
     const pid = svc.pid
-    try { process.kill(pid, 'SIGTERM') } catch { /* already dead */ }
+    try { process.kill(-pid, 'SIGTERM') } catch {
+      try { process.kill(pid, 'SIGTERM') } catch { /* already dead */ }
+    }
     setTimeout(() => {
       if (checkProcessAlive(pid)) {
-        try { process.kill(pid, 'SIGKILL') } catch { /* */ }
+        try { process.kill(-pid, 'SIGKILL') } catch {
+          try { process.kill(pid, 'SIGKILL') } catch { /* */ }
+        }
       }
     }, 5000)
     svc.pid = null
@@ -731,10 +744,12 @@ async function teardownEnvironment(envId: string): Promise<void> {
     await new Promise(r => setTimeout(r, 200))
   }
 
-  // 3. Force kill anything still alive
+  // 3. Force kill anything still alive (process group first)
   for (const svc of env.services.values()) {
     if (svc.pid != null && checkProcessAlive(svc.pid)) {
-      try { process.kill(svc.pid, 'SIGKILL') } catch { /* */ }
+      try { process.kill(-svc.pid, 'SIGKILL') } catch {
+        try { process.kill(svc.pid, 'SIGKILL') } catch { /* */ }
+      }
     }
   }
 

@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
+import { execSync } from 'child_process'
 import { join } from 'path'
 import { app } from 'electron'
 import type { CliBackend } from '../daemon/protocol'
@@ -73,7 +74,6 @@ export function gitRemoteUrl(owner: string, name: string): string {
  */
 export function detectGitProtocol(): 'ssh' | 'https' | null {
   try {
-    const { execSync } = require('child_process') as typeof import('child_process')
     // GitHub SSH returns exit code 1 with "Hi username!" on success
     const result = execSync('ssh -T git@github.com 2>&1 || true', { encoding: 'utf-8', timeout: 10000 })
     if (result.includes('Hi ') || result.includes('successfully authenticated')) {

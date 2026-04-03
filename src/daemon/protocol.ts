@@ -4,32 +4,9 @@
  * PTY data is base64-encoded to safely transport arbitrary terminal bytes.
  */
 
-// ---- Instance types (shared between daemon and client) ----
-
-/** Which CLI binary this PTY session runs (`claude` vs Cursor `agent`). */
-export type CliBackend = 'claude' | 'cursor-agent'
-
-export interface ClaudeInstance {
-  id: string
-  name: string
-  color: string
-  status: 'running' | 'exited'
-  activity: 'busy' | 'waiting'
-  workingDirectory: string
-  createdAt: string
-  exitCode: number | null
-  pid: number | null
-  args: string[]
-  /** CLI used for this session (drives spawn command and integrations like /color). */
-  cliBackend: CliBackend
-  gitBranch: string | null
-  gitRepo: string | null
-  tokenUsage: { input: number; output: number; cost: number }
-  pinned: boolean
-  mcpServers: string[]
-  parentId: string | null
-  childIds: string[]
-}
+// Re-export domain types from the single source of truth
+export type { CliBackend, ClaudeInstance } from '../shared/types'
+import type { CliBackend, ClaudeInstance } from '../shared/types'
 
 export interface CreateOpts {
   name?: string
@@ -86,7 +63,7 @@ export type DaemonMessage = DaemonResponse | DaemonEvent
  * requires a daemon restart to pick up. The client checks this on connect
  * and shows a banner if stale.
  */
-export const DAEMON_VERSION = 4
+export const DAEMON_VERSION = 6
 
 export const SOCKET_PATH_SUFFIX = '.claude-colony/daemon.sock'
 export const PID_PATH_SUFFIX = '.claude-colony/daemon.pid'

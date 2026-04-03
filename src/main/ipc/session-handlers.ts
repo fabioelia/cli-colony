@@ -1,5 +1,8 @@
 import { ipcMain, app } from 'electron'
+import * as fs from 'fs'
 import { join } from 'path'
+import { execSync } from 'child_process'
+import { createInterface } from 'readline'
 import { getAllInstances } from '../instance-manager'
 import { scanSessions } from '../session-scanner'
 import { getRestorableSessions, clearRestorable, getRecentSessions } from '../recent-sessions'
@@ -8,7 +11,6 @@ export function registerSessionHandlers(): void {
   ipcMain.handle('sessions:list', (_e, limit?: number) => scanSessions(limit))
 
   ipcMain.handle('sessions:external', async () => {
-    const { execSync } = require('child_process') as typeof import('child_process')
     try {
       const psOutput = execSync('ps aux', { encoding: 'utf-8', timeout: 5000 })
 
@@ -58,23 +60,22 @@ export function registerSessionHandlers(): void {
         // Fallback: match CWD to most recently modified session file in the project dir
         if (!sessionId && cwd) {
           try {
-            const { readdirSync, statSync, existsSync } = require('fs') as typeof import('fs')
             const home = app.getPath('home')
             // Claude CLI encodes project paths by replacing both / and . with -
             const projectDirName = cwd.replace(/[/.]/g, '-')
             const projectDir = join(home, '.claude', 'projects', projectDirName)
-            let searchDir = existsSync(projectDir) ? projectDir : null
+            let searchDir = fs.existsSync(projectDir) ? projectDir : null
 
             // Fallback: search all project dirs for one that decodes to our CWD
             if (!searchDir) {
               const projectsDir = join(home, '.claude', 'projects')
-              if (existsSync(projectsDir)) {
-                for (const dir of readdirSync(projectsDir)) {
+              if (fs.existsSync(projectsDir)) {
+                for (const dir of fs.readdirSync(projectsDir)) {
                   // Reverse the encoding: leading - is /, then split on - and check if it matches cwd
                   const decoded = dir.startsWith('-') ? dir.substring(1).replace(/-/g, '/') : dir.replace(/-/g, '/')
                   if (cwd === '/' + decoded || cwd.startsWith('/' + decoded + '/')) {
                     const candidate = join(projectsDir, dir)
-                    if (existsSync(candidate)) {
+                    if (fs.existsSync(candidate)) {
                       searchDir = candidate
                       break
                     }
@@ -84,10 +85,10 @@ export function registerSessionHandlers(): void {
             }
 
             if (searchDir) {
-              const files = readdirSync(searchDir).filter((f: string) => f.endsWith('.jsonl'))
+              const files = fs.readdirSync(searchDir).filter((f: string) => f.endsWith('.jsonl'))
               let newest: { name: string; mtime: number } | null = null
               for (const f of files) {
-                const st = statSync(join(searchDir, f))
+                const st = fs.statSync(join(searchDir, f))
                 if (!newest || st.mtimeMs > newest.mtime) {
                   newest = { name: f, mtime: st.mtimeMs }
                 }
@@ -108,17 +109,16 @@ export function registerSessionHandlers(): void {
   })
 
   ipcMain.handle('sessions:messages', async (_e, sessionId: string, limit: number = 50) => {
-    const { readdirSync, existsSync, statSync, openSync, readSync, closeSync } = require('fs') as typeof import('fs')
     const home = app.getPath('home')
     const projectsDir = join(home, '.claude', 'projects')
-    if (!existsSync(projectsDir)) return { messages: [], project: null }
+    if (!fs.existsSync(projectsDir)) return { messages: [], project: null }
 
     let sessionFile: string | null = null
     let projectPath: string | null = null
     try {
-      for (const dir of readdirSync(projectsDir)) {
+      for (const dir of fs.readdirSync(projectsDir)) {
         const candidate = join(projectsDir, dir, `${sessionId}.jsonl`)
-        if (existsSync(candidate)) {
+        if (fs.existsSync(candidate)) {
           sessionFile = candidate
           projectPath = dir.replace(/-/g, '/')
           break
@@ -131,20 +131,19 @@ export function registerSessionHandlers(): void {
     try {
       // Only read the last ~2MB of large files (messages at the end are most relevant)
       const MAX_READ = 2 * 1024 * 1024
-      const stat = statSync(sessionFile)
+      const stat = fs.statSync(sessionFile)
       let content: string
       if (stat.size > MAX_READ) {
-        const fd = openSync(sessionFile, 'r')
+        const fd = fs.openSync(sessionFile, 'r')
         const buf = Buffer.alloc(MAX_READ)
-        readSync(fd, buf, 0, MAX_READ, stat.size - MAX_READ)
-        closeSync(fd)
+        fs.readSync(fd, buf, 0, MAX_READ, stat.size - MAX_READ)
+        fs.closeSync(fd)
         // Skip the first partial line
         const str = buf.toString('utf-8')
         const nl = str.indexOf('\n')
         content = nl >= 0 ? str.slice(nl + 1) : str
       } else {
-        const { readFileSync } = require('fs') as typeof import('fs')
-        content = readFileSync(sessionFile, 'utf-8')
+        content = fs.readFileSync(sessionFile, 'utf-8')
       }
 
       const lines = content.trim().split('\n')
@@ -198,7 +197,6 @@ export function registerSessionHandlers(): void {
     // Resolve CWD BEFORE killing the process (lsof won't work on a dead process)
     let cwd = opts.cwd
     if (!cwd) {
-      const { execSync } = require('child_process') as typeof import('child_process')
       try {
         const lsofCwd = execSync(`lsof -p ${opts.pid} -d cwd -Fn 2>/dev/null`, {
           encoding: 'utf-8', timeout: 3000,
@@ -210,14 +208,13 @@ export function registerSessionHandlers(): void {
 
     // When we have a sessionId, derive the correct project path from the session file
     if (opts.sessionId && !cwd) {
-      const { readdirSync, existsSync } = require('fs') as typeof import('fs')
       const home = app.getPath('home')
       const projectsDir = join(home, '.claude', 'projects')
       try {
-        if (existsSync(projectsDir)) {
-          for (const dir of readdirSync(projectsDir)) {
+        if (fs.existsSync(projectsDir)) {
+          for (const dir of fs.readdirSync(projectsDir)) {
             const candidate = join(projectsDir, dir, `${opts.sessionId}.jsonl`)
-            if (existsSync(candidate)) {
+            if (fs.existsSync(candidate)) {
               // Decode the project dir name back to a path
               // Claude CLI encodes: /Users/fabio/project → -Users-fabio-project
               // Note: this is lossy (dots become dashes too), so we use it as best-effort
@@ -248,20 +245,18 @@ export function registerSessionHandlers(): void {
   })
 
   ipcMain.handle('sessions:search', async (_e, query: string) => {
-    const { readdirSync, existsSync, createReadStream } = require('fs') as typeof import('fs')
-    const { createInterface } = require('readline') as typeof import('readline')
     const home = app.getPath('home')
     const projectsDir = join(home, '.claude', 'projects')
-    if (!existsSync(projectsDir)) return []
+    if (!fs.existsSync(projectsDir)) return []
 
     const q = query.toLowerCase()
     const results: Array<{ sessionId: string; name: string | null; project: string; match: string }> = []
 
-    for (const dir of readdirSync(projectsDir)) {
+    for (const dir of fs.readdirSync(projectsDir)) {
       if (results.length >= 30) break
       const dirPath = join(projectsDir, dir)
       try {
-        const files = readdirSync(dirPath).filter((f: string) => f.endsWith('.jsonl'))
+        const files = fs.readdirSync(dirPath).filter((f: string) => f.endsWith('.jsonl'))
         for (const file of files) {
           if (results.length >= 30) break
           const sessionId = file.replace('.jsonl', '')
@@ -271,7 +266,7 @@ export function registerSessionHandlers(): void {
               let customTitle: string | null = null
               let matchLine: string | null = null
               let projectPath = ''
-              const rl = createInterface({ input: createReadStream(join(dirPath, file), { encoding: 'utf-8' }) })
+              const rl = createInterface({ input: fs.createReadStream(join(dirPath, file), { encoding: 'utf-8' }) })
               rl.on('line', (line: string) => {
                 if (!line.trim()) return
                 try {

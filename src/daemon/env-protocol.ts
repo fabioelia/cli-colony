@@ -99,94 +99,15 @@ export interface InstanceManifest {
   meta?: Record<string, unknown>
 }
 
-// ---- Environment Template ----
-// Blueprint for creating instances. Created once per project via Instance Agent.
-// Does NOT contain instance-specific data (ports, paths, database names).
+// ---- Domain types (single source of truth in shared/types.ts) ----
 
-export interface EnvironmentTemplate {
-  id: string
-  name: string                      // e.g. "My Django App", "My Next.js App"
-  description?: string
-  projectType: string               // e.g. "django-react", "nextjs", "rails", "generic"
-  createdAt: string
-  updatedAt: string
+export type { EnvironmentTemplate, EnvStatus, EnvServiceStatus, EnvServiceState, EnvStatusState } from '../shared/types'
+import type { EnvServiceState, EnvServiceStatus, EnvStatusState } from '../shared/types'
 
-  // Which repos to clone
-  repos: Array<{
-    owner: string
-    name: string
-    localPath?: string              // source to clone from (if local)
-    remoteUrl?: string              // git remote URL
-    as: string                      // key name, e.g. "backend", "frontend"
-  }>
-
-  // Service definitions (with template variables, no concrete ports)
-  services: Record<string, ServiceDef>
-
-  // Shared resources needed
-  resources?: Record<string, ResourceDef>
-
-  // Port allocation — list of named port slots to allocate dynamically
-  // e.g. ["backend", "frontend"] — app finds a free system port for each
-  ports?: string[]
-
-  // Branch rules
-  branches?: {
-    default: string                 // default branch for new instances
-    alternatives?: string[]
-    sourceDb?: Record<string, string> // branch -> source DB mapping
-  }
-
-  // Hooks — run during instance setup/teardown
-  hooks?: {
-    postClone?: HookStep[]
-    postCreate?: HookStep[]
-    preStart?: HookStep[]
-    postStop?: HookStep[]
-    preTeardown?: HookStep[]
-  }
-
-  // Logs config
-  logs?: {
-    maxSizeKb?: number
-    retention?: number
-  }
-
-  // Agent hints for the Instance Agent (used during template creation)
-  agentHints?: string[]
-
-  // Arbitrary metadata
-  meta?: Record<string, unknown>
-}
-
-// ---- Service Status ----
-
-export type ServiceState = 'running' | 'stopped' | 'crashed' | 'starting'
-
-export interface ServiceStatus {
-  name: string
-  status: ServiceState
-  pid: number | null
-  port: number | null
-  uptime: number // seconds since started
-  restarts: number
-}
-
-export type EnvState = 'running' | 'stopped' | 'partial' | 'creating' | 'error'
-
-export interface EnvStatus {
-  id: string
-  name: string
-  displayName?: string
-  projectType: string
-  branch: string
-  status: EnvState
-  services: ServiceStatus[]
-  urls: Record<string, string>
-  ports: Record<string, number>
-  paths: Record<string, string>
-  createdAt: string
-}
+// Backward-compatible aliases for existing consumers
+export type ServiceState = EnvServiceState
+export type ServiceStatus = EnvServiceStatus
+export type EnvState = EnvStatusState
 
 // ---- Client -> envd requests ----
 

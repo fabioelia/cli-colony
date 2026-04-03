@@ -18,6 +18,7 @@ export interface ClaudeInstance {
   args: string[]
   cliBackend: CliBackend
   gitBranch: string | null
+  gitRepo: string | null
   tokenUsage: { input: number; output: number; cost: number }
   pinned: boolean
   mcpServers: string[]
@@ -114,14 +115,20 @@ export interface GitHubRepo {
   localPath?: string
 }
 
+/** Service status for environment panel display */
+export type EnvServiceState = 'running' | 'stopped' | 'crashed' | 'starting'
+
 export interface EnvServiceStatus {
   name: string
-  status: 'running' | 'stopped' | 'crashed' | 'starting'
+  status: EnvServiceState
   pid: number | null
   port: number | null
   uptime: number
   restarts: number
 }
+
+/** Aggregated environment status */
+export type EnvStatusState = 'running' | 'stopped' | 'partial' | 'creating' | 'error'
 
 export interface EnvStatus {
   id: string
@@ -129,7 +136,7 @@ export interface EnvStatus {
   displayName?: string
   projectType: string
   branch: string
-  status: 'running' | 'stopped' | 'partial' | 'creating' | 'error'
+  status: EnvStatusState
   services: EnvServiceStatus[]
   urls: Record<string, string>
   ports: Record<string, number>
@@ -143,12 +150,16 @@ export interface EnvironmentTemplate {
   description?: string
   projectType: string
   createdAt: string
+  updatedAt?: string
   repos: Array<{ owner: string; name: string; as: string; localPath?: string; remoteUrl?: string }>
   services: Record<string, unknown>
   resources?: Record<string, unknown>
   ports?: string[]
   hooks?: Record<string, unknown[]>
   branches?: { default?: string; alternatives?: string[]; sourceDb?: Record<string, string> }
+  logs?: { maxSizeKb?: number; retention?: number }
+  agentHints?: string[]
+  meta?: Record<string, unknown>
   /** Where this template came from: "user" or "repo:owner/name" */
   source?: string
 }

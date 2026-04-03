@@ -1,18 +1,10 @@
 import { readdirSync, readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
 import { join, basename } from 'path'
 import { app } from 'electron'
+import type { AgentDef } from '../shared/types'
 
-export interface AgentDef {
-  id: string
-  name: string
-  description: string
-  tools: string[]
-  model?: string
-  color?: string
-  filePath: string
-  scope: 'personal' | 'project'
-  projectName?: string
-}
+// Re-export for existing consumers
+export type { AgentDef }
 
 function parseFrontmatter(content: string): Record<string, string> {
   const match = content.match(/^---\n([\s\S]*?)\n---/)

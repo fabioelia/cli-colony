@@ -8,10 +8,13 @@
 
 import { readFileSync, writeFileSync, appendFileSync, readdirSync, existsSync, mkdirSync, statSync } from 'fs'
 import { join, basename } from 'path'
+import { execFileSync } from 'child_process'
+import { createHash } from 'crypto'
 import { app } from 'electron'
-import { createInstance, writeToInstance, getAllInstances } from './instance-manager'
+import { createInstance, getAllInstances } from './instance-manager'
 import type { ClaudeInstance } from './instance-manager'
 import { getDaemonClient } from './daemon-client'
+import { sendPromptWhenReady } from './send-prompt-when-ready'
 import { getRepos, fetchPRs, fetchChecks, gh } from './github'
 import { scanSessions } from './session-scanner'
 import { getAllRepoConfigs } from './repo-config-loader'
@@ -95,7 +98,8 @@ export interface PipelineInfo {
   debugLog: string[]
 }
 
-const MAX_DEBUG_LOG = 50
+const MAX_DEBUG_ITERATIONS = 20
+const DEBUG_ITERATION_SEP = '---'
 
 interface TriggerContext {
   repo?: GitHubRepo
@@ -190,81 +194,25 @@ function plog(name: string, msg: string): void {
   const p = pipelines.get(name)
   if (p) {
     p.state.debugLog.push(entry)
-    if (p.state.debugLog.length > MAX_DEBUG_LOG) {
-      p.state.debugLog = p.state.debugLog.slice(-MAX_DEBUG_LOG)
-    }
   }
 }
 
 import { broadcast } from './broadcast'
+import { parseYaml as parseYamlShared, parseYamlArray } from '../shared/yaml-parser'
 
-// ---- YAML Parser (simple, no dependency) ----
+// ---- Pipeline YAML Parsing (uses shared parser + pipeline-specific post-processing) ----
 
-function parseYaml(content: string): PipelineDef | null {
+function parsePipelineYaml(content: string): PipelineDef | null {
   try {
-    const lines = content.split('\n')
-    const result: any = {}
-    const stack: { obj: any; indent: number }[] = [{ obj: result, indent: -1 }]
-
-    for (const rawLine of lines) {
-      const line = rawLine.replace(/\r$/, '')
-      if (!line.trim() || line.trim().startsWith('#')) continue
-
-      const indent = line.search(/\S/)
-      const trimmed = line.trim()
-
-      // Pop stack to find parent
-      while (stack.length > 1 && stack[stack.length - 1].indent >= indent) {
-        stack.pop()
-      }
-      const parent = stack[stack.length - 1].obj
-
-      if (trimmed.includes(':')) {
-        // Only split on the FIRST colon that's followed by a space or end-of-line
-        // This preserves colons in values like "Fix the bug: it crashes" and URLs
-        const colonMatch = trimmed.match(/^(-\s+)?([^:]+?):\s(.*)/) || trimmed.match(/^(-\s+)?([^:]+?):$/)
-        if (colonMatch) {
-          const key = (colonMatch[2] || '').trim()
-          let value = (colonMatch[3] || '').trim()
-
-          if (!value) {
-            // Nested object or block scalar
-            const child: any = {}
-            parent[key] = child
-            stack.push({ obj: child, indent })
-          } else {
-            // Remove quotes
-            value = value.replace(/^["']|["']$/g, '')
-            // Parse booleans and numbers
-            if (value === 'true') parent[key] = true
-            else if (value === 'false') parent[key] = false
-            else if (/^\d+$/.test(value)) parent[key] = parseInt(value)
-            else parent[key] = value
-          }
-        }
-      }
-    }
-
-    // Parse multiline prompt (look for prompt: |)
-    const promptMatch = content.match(/prompt:\s*\|\n([\s\S]*?)(?=\n\w|\ndedup:|\s*$)/)
-    if (promptMatch) {
-      const promptLines = promptMatch[1].split('\n')
-      const baseIndent = promptLines[0]?.search(/\S/) ?? 4
-      const prompt = promptLines
-        .map(l => l.slice(baseIndent))
-        .join('\n')
-        .trim()
-      if (result.action) result.action.prompt = prompt
-    }
+    const result = parseYamlShared(content) as any
+    if (!result) return null
 
     // Parse match as key-value pairs
     if (result.condition?.match && typeof result.condition.match === 'string') {
-      // Single-line match — shouldn't happen with proper YAML but handle gracefully
       result.condition.match = {}
     }
 
-    // Parse YAML arrays: lines starting with "- value" under a key
-    // This handles exclude, watch, and any other array fields
+    // Ensure array fields are arrays (single string -> wrapped in array)
     const arrayFields: Array<{ parent: any; key: string }> = []
     if (result.condition?.exclude !== undefined) arrayFields.push({ parent: result.condition, key: 'exclude' })
     if (result.trigger?.watch !== undefined) arrayFields.push({ parent: result.trigger, key: 'watch' })
@@ -276,26 +224,16 @@ function parseYaml(content: string): PipelineDef | null {
     }
 
     // Also parse dash-list arrays from the raw content for exclude and watch
-    const parseArrayField = (section: string, field: string): string[] | null => {
-      const regex = new RegExp(`${field}:\\s*\\n((?:\\s+-\\s+.+\\n?)+)`, 'm')
-      const m = content.match(regex)
-      if (!m) return null
-      return m[1].split('\n')
-        .map(l => l.trim())
-        .filter(l => l.startsWith('- '))
-        .map(l => l.slice(2).trim().replace(/^["']|["']$/g, ''))
-    }
-
-    const excludeArr = parseArrayField('condition', 'exclude')
+    const excludeArr = parseYamlArray(content, 'exclude')
     if (excludeArr && result.condition) result.condition.exclude = excludeArr
 
-    const watchArr = parseArrayField('trigger', 'watch')
+    const watchArr = parseYamlArray(content, 'watch')
     if (watchArr && result.trigger) result.trigger.watch = watchArr
 
     if (!result.name || !result.trigger?.type || !result.action?.prompt) return null
     if (result.enabled === undefined) result.enabled = true
 
-    // Normalize: route-to-session → launch-session + reuse:true
+    // Normalize: route-to-session -> launch-session + reuse:true
     if (result.action?.type === 'route-to-session') {
       result.action.type = 'launch-session'
       result.action.reuse = true
@@ -416,58 +354,6 @@ function recordFired(pipelineName: string, key: string, contentSha?: string): vo
   saveState()
 }
 
-// ---- Send Prompt When Ready (main-process version) ----
-
-async function sendPromptWhenReady(instanceId: string, prompt: string): Promise<void> {
-  const client = getDaemonClient()
-
-  return new Promise((resolve) => {
-    let sent = false
-    let waitCount = 0
-    let forceTimer: ReturnType<typeof setTimeout>
-
-    const fire = () => {
-      if (sent) return
-      sent = true
-      client.removeListener('activity', handler)
-      clearTimeout(forceTimer)
-      clearTimeout(abandonTimer)
-      // Write text first, then submit after a short delay so the TUI
-      // has time to process the input before receiving the Enter key.
-      writeToInstance(instanceId, prompt)
-      setTimeout(() => {
-        writeToInstance(instanceId, '\r')
-        resolve()
-      }, 150)
-    }
-
-    const handler = (_id: string, activity: string) => {
-      if (_id !== instanceId || sent) return
-      if (activity === 'waiting') {
-        waitCount++
-        if (waitCount === 1) {
-          // Dismiss trust/directory prompt
-          writeToInstance(instanceId, '\r')
-          // If no second waiting arrives, force-send after 3s
-          forceTimer = setTimeout(() => fire(), 3000)
-        } else {
-          fire()
-        }
-      }
-    }
-
-    client.on('activity', handler)
-
-    const abandonTimer = setTimeout(() => {
-      if (!sent) {
-        sent = true
-        client.removeListener('activity', handler)
-        resolve()
-      }
-    }, 15000)
-  })
-}
-
 // ---- Write prompt to file, send short trigger to PTY ----
 
 function writePromptFile(prompt: string): string {
@@ -492,7 +378,7 @@ async function sendPromptToExistingSession(instanceId: string, prompt: string): 
   const trigger = buildFilePromptTrigger(filePath)
 
   if (inst?.activity === 'waiting') {
-    writeToInstance(instanceId, trigger + '\r')
+    client.writeToInstance(instanceId, trigger + '\r')
     return true
   }
 
@@ -505,7 +391,7 @@ async function sendPromptToExistingSession(instanceId: string, prompt: string): 
       if (activity === 'waiting') {
         sent = true
         client.removeListener('activity', handler)
-        writeToInstance(instanceId, trigger + '\r')
+        client.writeToInstance(instanceId, trigger + '\r')
         resolve(true)
       }
     }
@@ -529,7 +415,6 @@ async function sendPromptToExistingSession(instanceId: string, prompt: string): 
 // Check the live git branch for a directory (not the stale metadata)
 function getLiveBranch(dir: string): string | null {
   try {
-    const { execFileSync } = require('child_process') as typeof import('child_process')
     return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
       cwd: dir, timeout: 3000, encoding: 'utf-8',
     }).trim() || null
@@ -540,7 +425,6 @@ function getLiveBranch(dir: string): string | null {
 function getLiveBranchInSubdir(dir: string, repoName: string): string | null {
   if (!repoName) return null
   try {
-    const { readdirSync, statSync } = require('fs') as typeof import('fs')
     const entries = readdirSync(dir)
     for (const entry of entries) {
       if (entry.toLowerCase() === repoName.toLowerCase()) {
@@ -618,7 +502,6 @@ function scoreSessionDir(
       // Check if repo exists as subdirectory (workspace parent containing multiple repos)
       try {
         const sub = join(dir, match.repoName)
-        const { statSync } = require('fs') as typeof import('fs')
         if (statSync(sub).isDirectory()) score += 3
       } catch { /* ignore */ }
     }
@@ -815,7 +698,7 @@ async function evaluateBranchFileExists(condition: ConditionDef, ctx: TriggerCon
     if (Array.isArray(parsed)) {
       // Directory — compute composite SHA from all file SHAs
       const shas = parsed.map((f: any) => f.sha).filter(Boolean).sort().join('|')
-      ctx.contentSha = shas ? require('crypto').createHash('sha256').update(shas).digest('hex').slice(0, 12) : undefined
+      ctx.contentSha = shas ? createHash('sha256').update(shas).digest('hex').slice(0, 12) : undefined
     } else {
       // Single file
       ctx.contentSha = parsed.sha || undefined
@@ -863,7 +746,6 @@ async function evaluatePrChecksFailed(condition: ConditionDef, ctx: TriggerConte
     // Generate a content hash from the failing check names so dedup
     // knows when the set of failures changes
     const failureKey = failedChecks.map(c => c.name).sort().join('|')
-    const { createHash } = require('crypto') as typeof import('crypto')
     ctx.contentSha = createHash('sha256').update(failureKey).digest('hex').slice(0, 12)
 
     return true
@@ -934,7 +816,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
 
       if (existing.activity === 'waiting') {
         const filePath = writePromptFile(prompt)
-        writeToInstance(existing.id, buildFilePromptTrigger(filePath) + '\r')
+        getDaemonClient().writeToInstance(existing.id, buildFilePromptTrigger(filePath) + '\r')
         broadcast('pipeline:fired', { pipeline: name, instanceId: existing.id, routed: true })
         return
       }
@@ -959,7 +841,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
         color: action.color,
         args: ['--resume', route.sessionId, '--append-system-prompt-file', promptFile],
       })
-      await sendPromptWhenReady(inst.id, 'Execute the instructions in your system prompt. Begin now.')
+      await sendPromptWhenReady(inst.id, { prompt: 'Execute the instructions in your system prompt. Begin now.' })
       broadcast('pipeline:fired', { pipeline: name, instanceId: inst.id, routed: true, resumed: true })
       return
     } else {
@@ -999,7 +881,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
   })
 
   // Full prompt is in the system prompt file — just send a trigger
-  await sendPromptWhenReady(inst.id, 'Execute the instructions in your system prompt. Begin now.')
+  await sendPromptWhenReady(inst.id, { prompt: 'Execute the instructions in your system prompt. Begin now.' })
 
   // Notify renderer about pipeline-triggered session
   broadcast('pipeline:fired', { pipeline: name, instanceId: inst.id })
@@ -1015,6 +897,8 @@ async function runPoll(pipelineName: string): Promise<void> {
   runningPolls.add(pipelineName)
   broadcast('pipeline:status', getPipelineList())
 
+  // Start a new iteration in the debug log
+  p.state.debugLog.push(DEBUG_ITERATION_SEP)
   p.state.lastPollAt = new Date().toISOString()
   let fired = false
 
@@ -1074,6 +958,17 @@ async function runPoll(pipelineName: string): Promise<void> {
   }
 
   runningPolls.delete(pipelineName)
+
+  // Trim debug log to the last N iterations
+  const sepIndices: number[] = []
+  for (let i = 0; i < p.state.debugLog.length; i++) {
+    if (p.state.debugLog[i] === DEBUG_ITERATION_SEP) sepIndices.push(i)
+  }
+  if (sepIndices.length > MAX_DEBUG_ITERATIONS) {
+    const cutAt = sepIndices[sepIndices.length - MAX_DEBUG_ITERATIONS]
+    p.state.debugLog = p.state.debugLog.slice(cutAt)
+  }
+
   if (fired) saveState() // only write to disk if something fired
   broadcast('pipeline:status', getPipelineList())
 }
@@ -1093,7 +988,7 @@ export function loadPipelines(): void {
   for (const file of files) {
     try {
       const content = readFileSync(join(PIPELINES_DIR, file), 'utf-8')
-      const def = parseYaml(content)
+      const def = parsePipelineYaml(content)
       if (!def) {
         log(`Failed to parse ${file}`)
         continue

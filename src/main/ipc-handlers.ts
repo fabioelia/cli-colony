@@ -1,4 +1,8 @@
-import { ipcMain, dialog, shell, app } from 'electron'
+import { ipcMain, dialog, shell, app, clipboard } from 'electron'
+import * as fs from 'fs'
+import * as path from 'path'
+import * as os from 'os'
+import { execFile } from 'child_process'
 import { join } from 'path'
 import { colonyPaths } from '../shared/colony-paths'
 import { getAllInstances } from './instance-manager'
@@ -29,9 +33,6 @@ export function registerIpcHandlers(): void {
 
   // ---- Temp files ----
   ipcMain.handle('fs:writeTempFile', (_e, prefix: string, content: string) => {
-    const fs = require('fs') as typeof import('fs')
-    const path = require('path') as typeof import('path')
-    const os = require('os') as typeof import('os')
     const dir = path.join(os.tmpdir(), 'claude-colony')
     fs.mkdirSync(dir, { recursive: true })
     const filePath = path.join(dir, `${prefix}-${Date.now()}.txt`)
@@ -42,9 +43,8 @@ export function registerIpcHandlers(): void {
   // ---- Settings ----
   ipcMain.handle('settings:getAll', () => getSettings())
   ipcMain.handle('settings:getShells', () => {
-    const { readFileSync } = require('fs') as typeof import('fs')
     try {
-      const content = readFileSync('/etc/shells', 'utf-8')
+      const content = fs.readFileSync('/etc/shells', 'utf-8')
       return content.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'))
     } catch {
       return ['/bin/zsh', '/bin/bash', '/bin/sh']
@@ -59,12 +59,11 @@ export function registerIpcHandlers(): void {
   // ---- Logs ----
   ipcMain.handle('logs:get', () => {
     const appLogs = getLogs()
-    const { readFileSync, existsSync } = require('fs') as typeof import('fs')
     const daemonLogPath = colonyPaths.daemonLog
     let daemonLogs = ''
     try {
-      if (existsSync(daemonLogPath)) {
-        const full = readFileSync(daemonLogPath, 'utf-8')
+      if (fs.existsSync(daemonLogPath)) {
+        const full = fs.readFileSync(daemonLogPath, 'utf-8')
         const lines = full.split('\n')
         daemonLogs = lines.slice(-200).join('\n')
       }
@@ -73,8 +72,7 @@ export function registerIpcHandlers(): void {
   })
   ipcMain.handle('logs:clear', () => {
     clearLogs()
-    const { writeFileSync } = require('fs') as typeof import('fs')
-    try { writeFileSync(colonyPaths.daemonLog, '', 'utf-8') } catch { /* */ }
+    try { fs.writeFileSync(colonyPaths.daemonLog, '', 'utf-8') } catch { /* */ }
     return true
   })
 
@@ -93,12 +91,11 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('colony:getContextPath', () => getColonyContextPath())
   ipcMain.handle('colony:getContextInstruction', () => getColonyContextInstruction())
   ipcMain.handle('colony:writePromptFile', (_e, content: string) => {
-    const { writeFileSync, existsSync, mkdirSync } = require('fs') as typeof import('fs')
     const promptsDir = colonyPaths.pipelinePrompts
-    if (!existsSync(promptsDir)) mkdirSync(promptsDir, { recursive: true })
+    if (!fs.existsSync(promptsDir)) fs.mkdirSync(promptsDir, { recursive: true })
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const filePath = join(promptsDir, `${id}.md`)
-    writeFileSync(filePath, content, 'utf-8')
+    fs.writeFileSync(filePath, content, 'utf-8')
     return filePath
   })
 
@@ -110,9 +107,6 @@ export function registerIpcHandlers(): void {
 
 function registerFsHandlers(): void {
   ipcMain.handle('fs:listDir', async (_e, dirPath: string, depth: number = 2) => {
-    const { readdirSync } = require('fs') as typeof import('fs')
-    const { join: pathJoin } = require('path') as typeof import('path')
-
     interface FileNode {
       name: string
       path: string
@@ -125,7 +119,7 @@ function registerFsHandlers(): void {
 
     function scan(dir: string, currentDepth: number): FileNode[] {
       try {
-        const entries = readdirSync(dir, { withFileTypes: true })
+        const entries = fs.readdirSync(dir, { withFileTypes: true })
           .filter((e) => !e.name.startsWith('.') || e.name === '.env' || e.name === '.github')
           .filter((e) => !IGNORE.has(e.name))
           .sort((a, b) => {
@@ -135,7 +129,7 @@ function registerFsHandlers(): void {
           })
 
         return entries.map((e) => {
-          const fullPath = pathJoin(dir, e.name)
+          const fullPath = path.join(dir, e.name)
           const isDir = e.isDirectory()
           const node: FileNode = { name: e.name, path: fullPath, type: isDir ? 'directory' : 'file' }
           if (isDir && currentDepth < depth) {
@@ -152,31 +146,27 @@ function registerFsHandlers(): void {
   })
 
   ipcMain.handle('fs:pasteClipboardImage', async () => {
-    const { clipboard } = require('electron') as typeof import('electron')
-    const { writeFileSync, mkdirSync, existsSync } = require('fs') as typeof import('fs')
     const img = clipboard.readImage()
     if (img.isEmpty()) return null
     const tmpDir = colonyPaths.screenshots
-    if (!existsSync(tmpDir)) mkdirSync(tmpDir, { recursive: true })
+    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true })
     const fileName = `screenshot-${Date.now()}.png`
     const filePath = join(tmpDir, fileName)
-    writeFileSync(filePath, img.toPNG())
+    fs.writeFileSync(filePath, img.toPNG())
     return filePath
   })
 
   ipcMain.handle('fs:saveClipboardImage', async (_e, base64Data: string) => {
-    const { writeFileSync, mkdirSync, existsSync } = require('fs') as typeof import('fs')
     const tmpDir = colonyPaths.screenshots
-    if (!existsSync(tmpDir)) mkdirSync(tmpDir, { recursive: true })
+    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true })
     const fileName = `screenshot-${Date.now()}.png`
     const filePath = join(tmpDir, fileName)
     const buffer = Buffer.from(base64Data, 'base64')
-    writeFileSync(filePath, buffer)
+    fs.writeFileSync(filePath, buffer)
     return filePath
   })
 
   ipcMain.handle('fs:searchContent', async (_e, dirPath: string, query: string, ignoreDirs?: string[]) => {
-    const { execFile } = require('child_process') as typeof import('child_process')
 
     if (!query || query.length < 2) return []
 
@@ -227,11 +217,10 @@ function registerFsHandlers(): void {
   })
 
   ipcMain.handle('fs:readFile', async (_e, filePath: string) => {
-    const { readFileSync, statSync } = require('fs') as typeof import('fs')
     try {
-      const stat = statSync(filePath)
+      const stat = fs.statSync(filePath)
       if (stat.size > 1024 * 1024) return { error: 'File too large (>1MB)' }
-      return { content: readFileSync(filePath, 'utf-8') }
+      return { content: fs.readFileSync(filePath, 'utf-8') }
     } catch (err: any) {
       return { error: err.message }
     }
@@ -242,7 +231,6 @@ function registerFsHandlers(): void {
 
 function registerResourceHandlers(): void {
   ipcMain.handle('resources:getUsage', async () => {
-    const { execFile } = require('child_process') as typeof import('child_process')
     const instances = await getAllInstances()
     const pids = instances
       .filter((i) => i.pid && i.status === 'running')

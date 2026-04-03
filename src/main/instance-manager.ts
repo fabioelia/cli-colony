@@ -172,43 +172,15 @@ export async function createInstance(opts: {
   return inst
 }
 
-export async function writeToInstance(id: string, data: string): Promise<boolean> {
-  return getDaemonClient().writeToInstance(id, data)
-}
-
-export async function resizeInstance(id: string, cols: number, rows: number): Promise<boolean> {
-  return getDaemonClient().resizeInstance(id, cols, rows)
-}
-
 export async function killInstance(id: string): Promise<boolean> {
   const result = await getDaemonClient().killInstance(id)
   trackClosed(id, 'killed')
   return result
 }
 
-export async function removeInstance(id: string): Promise<boolean> {
-  return getDaemonClient().removeInstance(id)
-}
-
-export async function renameInstance(id: string, name: string): Promise<boolean> {
-  return getDaemonClient().renameInstance(id, name)
-}
-
-export async function recolorInstance(id: string, color: string): Promise<boolean> {
-  return getDaemonClient().recolorInstance(id, color)
-}
-
 export async function restartInstance(id: string): Promise<ClaudeInstance | null> {
   const defaultArgs = getDefaultArgs()
   return getDaemonClient().restartInstance(id, defaultArgs)
-}
-
-export async function pinInstance(id: string): Promise<boolean> {
-  return getDaemonClient().pinInstance(id)
-}
-
-export async function unpinInstance(id: string): Promise<boolean> {
-  return getDaemonClient().unpinInstance(id)
 }
 
 export async function getAllInstances(): Promise<ClaudeInstance[]> {
@@ -217,14 +189,6 @@ export async function getAllInstances(): Promise<ClaudeInstance[]> {
   } catch {
     return []
   }
-}
-
-export async function getInstance(id: string): Promise<ClaudeInstance | null> {
-  return getDaemonClient().getInstance(id)
-}
-
-export async function getInstanceBuffer(id: string): Promise<string> {
-  return getDaemonClient().getInstanceBuffer(id)
 }
 
 /**

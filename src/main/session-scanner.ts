@@ -2,18 +2,10 @@ import { readFileSync, existsSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
 import { getRecentSessions } from './recent-sessions'
+import type { CliSession } from '../shared/types'
 
-export interface CliSession {
-  sessionId: string
-  name: string | null
-  display: string
-  lastMessage: string | null
-  messageCount: number
-  project: string
-  timestamp: number
-  projectName: string
-  recentlyOpened: boolean
-}
+// Re-export for existing consumers
+export type { CliSession }
 
 export function scanSessions(limit = 50): CliSession[] {
   const home = app.getPath('home')

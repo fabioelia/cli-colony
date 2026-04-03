@@ -7,7 +7,9 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, watch } from 'fs'
 import { join, basename } from 'path'
 import { colonyPaths } from '../shared/colony-paths'
-import { createInstance, getAllInstances, writeToInstance } from './instance-manager'
+import { createInstance, getAllInstances } from './instance-manager'
+import { getDaemonClient } from './daemon-client'
+import { sendPromptWhenReady } from './send-prompt-when-ready'
 import { broadcast } from './broadcast'
 import type { PersonaInfo } from '../shared/types'
 
@@ -356,38 +358,33 @@ ${permissions}
 // ---- Send trigger when CLI is ready ----
 
 function sendTriggerWhenReady(instanceId: string, message: string): void {
-  const { getDaemonClient } = require('./daemon-client') as typeof import('./daemon-client')
-  const client = getDaemonClient()
+  // Use the shared sendPromptWhenReady, then watch for persona completion
+  sendPromptWhenReady(instanceId, {
+    prompt: message,
+    onSent: () => {
+      console.log(`[persona] sent trigger to ${instanceId}`)
 
-  let sent = false
+      // After sending, watch for the next 'waiting' = persona finished its work
+      const client = getDaemonClient()
+      const onFinished = (id: string, activity: string) => {
+        if (id !== instanceId || activity !== 'waiting') return
+        client.removeListener('activity', onFinished)
+        console.log(`[persona] session ${instanceId} finished, killing in 5s`)
+        setTimeout(async () => {
+          try {
+            const { killInstance } = await import('./instance-manager')
+            await killInstance(instanceId)
+          } catch { /* already gone */ }
+        }, 5000)
+      }
+      client.on('activity', onFinished)
 
-  const onActivity = (id: string, activity: string) => {
-    if (id !== instanceId) return
-
-    if (!sent && activity === 'waiting') {
-      // First 'waiting' = CLI is ready for input → send the trigger
-      sent = true
-      writeToInstance(instanceId, message + '\r').then(() => {
-        console.log(`[persona] sent trigger to ${instanceId}`)
-      }).catch(() => {})
-    } else if (sent && activity === 'waiting') {
-      // Second 'waiting' = persona finished its work → kill the session
-      client.removeListener('activity', onActivity)
-      console.log(`[persona] session ${instanceId} finished, killing in 5s`)
-      setTimeout(async () => {
-        try {
-          const { killInstance } = await import('./instance-manager')
-          await killInstance(instanceId)
-        } catch { /* already gone */ }
-      }, 5000)
-    }
-  }
-  client.on('activity', onActivity)
-
-  // Safety cleanup after 10 minutes
-  setTimeout(() => {
-    client.removeListener('activity', onActivity)
-  }, 600_000)
+      // Safety cleanup after 10 minutes
+      setTimeout(() => {
+        client.removeListener('activity', onFinished)
+      }, 600_000)
+    },
+  })
 }
 
 // ---- Run / Stop ----
@@ -485,8 +482,7 @@ export async function onSessionExit(instanceId: string): Promise<void> {
     if (state.activeSessionId === instanceId) {
       // Capture the session's output buffer before clearing
       try {
-        const { getInstanceBuffer } = await import('./instance-manager')
-        const buffer = await getInstanceBuffer(instanceId)
+        const buffer = await getDaemonClient().getInstanceBuffer(instanceId)
         if (buffer) {
           // Strip ANSI codes and keep last ~5000 chars
           const clean = buffer.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '')
@@ -562,12 +558,31 @@ export function startScheduler(): void {
   if (schedulerInterval) return
   console.log('[persona] scheduler started')
 
-  schedulerInterval = setInterval(() => {
+  schedulerInterval = setInterval(async () => {
+    // Reconcile stale activeSessionId — clear if the session no longer exists
+    const personas = getPersonaList()
+    try {
+      const instances = await getAllInstances()
+      let reconciled = false
+      for (const persona of personas) {
+        if (!persona.activeSessionId) continue
+        const exists = instances.find(i => i.id === persona.activeSessionId && i.status === 'running')
+        if (!exists) {
+          const state = getState(persona.name)
+          state.activeSessionId = null
+          reconciled = true
+        }
+      }
+      if (reconciled) {
+        saveState()
+        broadcastStatus()
+      }
+    } catch { /* daemon may be down */ }
+
     const currentMinute = new Date().getMinutes()
     if (currentMinute === lastCronMinute) return // only check once per minute
     lastCronMinute = currentMinute
 
-    const personas = getPersonaList()
     for (const persona of personas) {
       if (!persona.enabled || !persona.schedule) continue
       if (persona.activeSessionId) continue // already running

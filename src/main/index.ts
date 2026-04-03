@@ -13,6 +13,7 @@ process.on('uncaughtException', (err) => {
   // Re-throw everything else so the crash dialog still works
   throw err
 })
+import * as fs from 'fs'
 import { join } from 'path'
 
 // Enable Chrome DevTools Protocol on a fixed port for Playwright recording
@@ -350,13 +351,11 @@ app.whenReady().then(() => {
     console.log('[app] colony context initialized')
     // Install colony CLI script
     try {
-      const { mkdirSync, writeFileSync, chmodSync } = require('fs') as typeof import('fs')
-      const { join: pathJoin } = require('path') as typeof import('path')
-      const binDir = pathJoin(app.getPath('home'), '.claude-colony', 'bin')
-      mkdirSync(binDir, { recursive: true })
-      const cliDst = pathJoin(binDir, 'colony')
-      writeFileSync(cliDst, COLONY_CLI_SCRIPT, 'utf-8')
-      chmodSync(cliDst, 0o755)
+      const binDir = join(app.getPath('home'), '.claude-colony', 'bin')
+      fs.mkdirSync(binDir, { recursive: true })
+      const cliDst = join(binDir, 'colony')
+      fs.writeFileSync(cliDst, COLONY_CLI_SCRIPT, 'utf-8')
+      fs.chmodSync(cliDst, 0o755)
     } catch { /* ignore */ }
     // Ensure all repos have bare clones, then pre-warm .colony/ config cache
     try {

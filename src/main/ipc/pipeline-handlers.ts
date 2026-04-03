@@ -1,4 +1,5 @@
 import { ipcMain, app } from 'electron'
+import * as fs from 'fs'
 import { join } from 'path'
 import { colonyPaths } from '../../shared/colony-paths'
 import {
@@ -17,16 +18,15 @@ export function registerPipelineHandlers(): void {
 
   // Pipeline outputs
   ipcMain.handle('pipeline:listOutputs', (_e, outputDir: string) => {
-    const { readdirSync, statSync, existsSync } = require('fs') as typeof import('fs')
     const resolved = outputDir.replace(/^~/, app.getPath('home'))
-    if (!existsSync(resolved)) return []
+    if (!fs.existsSync(resolved)) return []
     try {
       const scanDir = (dir: string, prefix = ''): Array<{ name: string; path: string; size: number; modified: number }> => {
         const results: Array<{ name: string; path: string; size: number; modified: number }> = []
-        for (const entry of readdirSync(dir)) {
+        for (const entry of fs.readdirSync(dir)) {
           const full = join(dir, entry)
           try {
-            const stat = statSync(full)
+            const stat = fs.statSync(full)
             if (stat.isDirectory()) {
               results.push(...scanDir(full, prefix ? `${prefix}/${entry}` : entry))
             } else {
@@ -48,15 +48,13 @@ export function registerPipelineHandlers(): void {
   // Pipeline memory
   const PIPELINES_DIR_MEM = colonyPaths.pipelines
   ipcMain.handle('pipeline:getMemory', (_e, fileName: string) => {
-    const { readFileSync, existsSync } = require('fs') as typeof import('fs')
     const memPath = join(PIPELINES_DIR_MEM, `${fileName.replace(/\.(yaml|yml)$/, '')}.memory.md`)
-    return existsSync(memPath) ? readFileSync(memPath, 'utf-8') : ''
+    return fs.existsSync(memPath) ? fs.readFileSync(memPath, 'utf-8') : ''
   })
   ipcMain.handle('pipeline:saveMemory', (_e, fileName: string, content: string) => {
-    const { writeFileSync, existsSync, mkdirSync } = require('fs') as typeof import('fs')
-    if (!existsSync(PIPELINES_DIR_MEM)) mkdirSync(PIPELINES_DIR_MEM, { recursive: true })
+    if (!fs.existsSync(PIPELINES_DIR_MEM)) fs.mkdirSync(PIPELINES_DIR_MEM, { recursive: true })
     const memPath = join(PIPELINES_DIR_MEM, `${fileName.replace(/\.(yaml|yml)$/, '')}.memory.md`)
-    writeFileSync(memPath, content, 'utf-8')
+    fs.writeFileSync(memPath, content, 'utf-8')
     return true
   })
 }

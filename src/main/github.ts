@@ -7,69 +7,10 @@ import { execFile } from 'child_process'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import { app } from 'electron'
+import type { PRComment, GitHubPR, FeedbackFile, QuickPrompt, GitHubRepo } from '../shared/types'
 
-export interface PRComment {
-  author: string
-  body: string
-  createdAt: string
-  path?: string  // file path for review comments, undefined for general comments
-}
-
-export interface GitHubPR {
-  number: number
-  title: string
-  body: string
-  author: string
-  assignees: string[]
-  reviewers: string[]
-  branch: string
-  baseBranch: string
-  state: string
-  draft: boolean
-  url: string
-  createdAt: string
-  updatedAt: string
-  additions: number
-  deletions: number
-  reviewDecision: string
-  labels: string[]
-  comments: PRComment[]
-  /** HEAD commit SHA of the PR branch */
-  headSha: string
-}
-
-/** Feedback file from the colony-feedback branch */
-export interface FeedbackFile {
-  /** PR number this feedback is for */
-  pr: number
-  /** GitHub login of the reviewer who wrote the feedback */
-  reviewer: string
-  /** ISO timestamp when the feedback was created */
-  createdAt: string
-  /** PR HEAD SHA at the time of review — compare to current headSha to check if addressed */
-  headSha: string
-  /** Repo slug (owner/name) */
-  repo: string
-  /** PR branch name */
-  branch: string
-  /** Raw markdown content of the feedback */
-  content: string
-  /** File path on the colony-feedback branch */
-  path: string
-}
-
-export interface QuickPrompt {
-  id: string
-  label: string
-  prompt: string // {{pr.number}}, {{pr.branch}}, {{pr.title}}, {{pr.url}} are replaced
-  scope: 'pr' | 'global' // pr = per-PR action, global = prefills ask bar
-}
-
-export interface GitHubRepo {
-  owner: string
-  name: string
-  localPath?: string // optional local checkout path for working directory
-}
+// Re-export for existing consumers
+export type { PRComment, GitHubPR, FeedbackFile, QuickPrompt, GitHubRepo }
 
 interface GitHubConfig {
   repos: GitHubRepo[]
