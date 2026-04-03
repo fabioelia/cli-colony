@@ -69,11 +69,13 @@ export interface PipelineDef {
 
 interface PipelineState {
   lastPollAt: string | null
+  lastMatchAt: string | null
   firedKeys: Record<string, number> // dedup key -> timestamp ms
   contentHashes: Record<string, string> // dedup key -> last seen content SHA
   fireCount: number
   lastFiredAt: string | null
   lastError: string | null
+  debugLog: string[]
 }
 
 export interface PipelineInfo {
@@ -87,10 +89,14 @@ export interface PipelineInfo {
   running: boolean
   outputsDir: string | null
   lastPollAt: string | null
+  lastMatchAt: string | null
   lastFiredAt: string | null
   lastError: string | null
   fireCount: number
+  debugLog: string[]
 }
+
+const MAX_DEBUG_LOG = 50
 
 interface TriggerContext {
   repo?: GitHubRepo
@@ -175,6 +181,20 @@ function log(msg: string): void {
     const ts = new Date().toISOString()
     appendFileSync(join(COLONY_DIR, 'pipeline-debug.log'), `[${ts}] ${msg}\n`)
   } catch { /* ignore */ }
+}
+
+/** Log to both console and a pipeline's in-memory debug buffer */
+function plog(name: string, msg: string): void {
+  const ts = new Date().toISOString().slice(11, 19)
+  const entry = `[${ts}] ${msg}`
+  log(`${name}: ${msg}`)
+  const p = pipelines.get(name)
+  if (p) {
+    p.state.debugLog.push(entry)
+    if (p.state.debugLog.length > MAX_DEBUG_LOG) {
+      p.state.debugLog = p.state.debugLog.slice(-MAX_DEBUG_LOG)
+    }
+  }
 }
 
 import { broadcast } from './broadcast'
@@ -288,16 +308,23 @@ function parseYaml(content: string): PipelineDef | null {
 function loadState(): Record<string, PipelineState> {
   try {
     if (existsSync(STATE_PATH)) {
-      return JSON.parse(readFileSync(STATE_PATH, 'utf-8'))
+      const raw = JSON.parse(readFileSync(STATE_PATH, 'utf-8'))
+      // Ensure debugLog exists on all loaded states (it's ephemeral, not persisted)
+      for (const key of Object.keys(raw)) {
+        if (!raw[key].debugLog) raw[key].debugLog = []
+      }
+      return raw
     }
   } catch { /* ignore */ }
   return {}
 }
 
 function saveState(): void {
-  const state: Record<string, PipelineState> = {}
+  const state: Record<string, any> = {}
   for (const [name, p] of pipelines) {
-    state[name] = p.state
+    // Don't persist debugLog to disk — it's in-memory only
+    const { debugLog, ...rest } = p.state
+    state[name] = rest
   }
   try {
     writeFileSync(STATE_PATH, JSON.stringify(state, null, 2), 'utf-8')
@@ -307,7 +334,7 @@ function saveState(): void {
 }
 
 function freshState(): PipelineState {
-  return { lastPollAt: null, firedKeys: {}, contentHashes: {}, fireCount: 0, lastFiredAt: null, lastError: null }
+  return { lastPollAt: null, lastMatchAt: null, firedKeys: {}, contentHashes: {}, fireCount: 0, lastFiredAt: null, lastError: null, debugLog: [] }
 }
 
 // ---- Template Resolution ----
@@ -773,8 +800,16 @@ async function evaluateBranchFileExists(condition: ConditionDef, ctx: TriggerCon
 
   const slug = `${ctx.repo.owner}/${ctx.repo.name}`
   try {
-    const response = await gh(['api', `repos/${slug}/contents/${filePath}?ref=${branch}`, '--jq', '.sha'])
-    ctx.contentSha = response.trim() || undefined
+    const response = await gh(['api', `repos/${slug}/contents/${filePath}?ref=${branch}`])
+    const parsed = JSON.parse(response)
+    if (Array.isArray(parsed)) {
+      // Directory — compute composite SHA from all file SHAs
+      const shas = parsed.map((f: any) => f.sha).filter(Boolean).sort().join('|')
+      ctx.contentSha = shas ? require('crypto').createHash('sha256').update(shas).digest('hex').slice(0, 12) : undefined
+    } else {
+      // Single file
+      ctx.contentSha = parsed.sha || undefined
+    }
     return true
   } catch {
     return false
@@ -880,12 +915,12 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
       prNumber: ctx.pr?.number,
     }
 
-    log(`Routing: looking for session matching branch=${resolvedMatch.gitBranch} dir=${resolvedMatch.workingDirectory} repo=${resolvedMatch.repoName} pr=#${resolvedMatch.prNumber}`)
+    plog(name, `route-to-session: looking for branch=${resolvedMatch.gitBranch} dir=${resolvedMatch.workingDirectory} repo=${resolvedMatch.repoName} pr=#${resolvedMatch.prNumber}`)
     const route = await findBestRoute(resolvedMatch)
 
     if (route?.type === 'running') {
       const existing = route.instance
-      log(`Routing: found running session "${existing.name}" (${existing.id}) activity=${existing.activity}`)
+      plog(name, `route: found running session "${existing.name}" (${existing.id}) activity=${existing.activity}`)
 
       if (existing.activity === 'waiting') {
         const filePath = writePromptFile(prompt)
@@ -895,7 +930,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
       }
 
       if (action.busyStrategy === 'launch-new') {
-        log(`Routing: session busy, busyStrategy=launch-new, launching new session`)
+        plog(name, `route: session busy, busyStrategy=launch-new → launching new`)
       } else {
         log(`Routing: session busy, waiting for idle (60s timeout)...`)
         const sent = await sendPromptToExistingSession(existing.id, prompt)
@@ -906,7 +941,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
         log(`Routing: timed out waiting for session, falling through to launch new`)
       }
     } else if (route?.type === 'resume') {
-      log(`Routing: resuming history session "${route.name}" (${route.sessionId})`)
+      plog(name, `route: resuming history session "${route.name}" (${route.sessionId})`)
       const promptFile = writePromptFile(prompt)
       const inst = await createInstance({
         name: name,
@@ -918,7 +953,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
       broadcast('pipeline:fired', { pipeline: name, instanceId: inst.id, routed: true, resumed: true })
       return
     } else {
-      log(`Routing: no matching session found, launching new`)
+      plog(name, `route: no matching session found → launching new`)
     }
   }
 
@@ -943,7 +978,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
     }
   }
 
-  log(`Firing action: launching "${name}" in ${resolvedCwd || '$HOME'}`)
+  plog(name, `launching session "${name}" in ${resolvedCwd || '$HOME (no cwd resolved!)'}`)
 
   const promptFile = writePromptFile(prompt)
   const inst = await createInstance({
@@ -977,30 +1012,55 @@ async function runPoll(pipelineName: string): Promise<void> {
     let contexts: TriggerContext[] = []
 
     if (p.def.trigger.type === 'git-poll') {
+      plog(pipelineName, `polling (git-poll, ${p.def.trigger.repos === 'auto' ? 'auto repos' : 'custom repos'})`)
       contexts = await executeGitPollTrigger(p.def.trigger)
+      plog(pipelineName, `found ${contexts.length} repo/PR contexts to evaluate`)
     } else if (p.def.trigger.type === 'cron') {
+      plog(pipelineName, `cron triggered`)
       contexts = [{
         githubUser: githubUser || undefined,
         timestamp: new Date().toISOString(),
       }]
     }
 
+    if (contexts.length === 0) {
+      plog(pipelineName, `no contexts — check: repos configured? PRs open? gh auth ok?`)
+    }
+
     for (const ctx of contexts) {
+      const prLabel = ctx.pr ? `PR #${ctx.pr.number} (${ctx.pr.branch})` : 'no PR'
+      const repoLabel = ctx.repo ? `${ctx.repo.owner}/${ctx.repo.name}` : 'no repo'
+      plog(pipelineName, `evaluating: ${repoLabel} ${prLabel}`)
+
+      if (ctx.repo && !ctx.repo.localPath) {
+        plog(pipelineName, `⚠ repo ${repoLabel} has no localPath — session launch will use fallback cwd`)
+      }
+
       const matched = await evaluateCondition(p.def.condition, ctx)
-      if (!matched) continue
+      if (!matched) {
+        plog(pipelineName, `condition not met for ${prLabel} (${p.def.condition.type}: ${p.def.condition.path || p.def.condition.branch || ''})`)
+        continue
+      }
+      p.state.lastMatchAt = new Date().toISOString()
+      plog(pipelineName, `✓ condition matched for ${prLabel} (sha=${ctx.contentSha || 'none'})`)
 
       const dedupKey = resolveTemplate(p.def.dedup.key, ctx)
-      if (isDuplicate(pipelineName, dedupKey, p.def.dedup.ttl || 3600, ctx.contentSha)) continue
+      if (isDuplicate(pipelineName, dedupKey, p.def.dedup.ttl || 3600, ctx.contentSha)) {
+        plog(pipelineName, `⊘ dedup: already processed ${dedupKey} with same content`)
+        continue
+      }
 
+      plog(pipelineName, `→ firing action: ${p.def.action.type} for ${prLabel}`)
       await fireAction(p.def.action, ctx, p.def.name)
       recordFired(pipelineName, dedupKey, ctx.contentSha)
       fired = true
+      plog(pipelineName, `✓ action fired successfully`)
     }
 
     p.state.lastError = null
   } catch (err) {
     p.state.lastError = String(err)
-    log(`Poll error for ${pipelineName}: ${err}`)
+    plog(pipelineName, `✗ error: ${err}`)
   }
 
   runningPolls.delete(pipelineName)
@@ -1145,8 +1205,10 @@ export function getPipelineList(): PipelineInfo[] {
       outputsDir: p.def.action.outputs || null,
       lastPollAt: p.state.lastPollAt,
       lastFiredAt: p.state.lastFiredAt,
+      lastMatchAt: p.state.lastMatchAt,
       lastError: p.state.lastError,
       fireCount: p.state.fireCount,
+      debugLog: p.state.debugLog || [],
     })
   }
   return result
@@ -1244,7 +1306,7 @@ trigger:
 condition:
   type: branch-file-exists
   branch: colony-feedback
-  path: "reviews/{{pr.number}}/feedback.md"
+  path: "reviews/{{pr.number}}"
   match:
     pr.author: "{{github.user}}"
 
@@ -1259,15 +1321,14 @@ action:
   workingDirectory: "{{repo.localPath}}"
   color: "#f59e0b"
   prompt: |
-    A reviewer left feedback on PR #{{pr.number}} ({{pr.title}}) on branch {{pr.branch}}.
+    A reviewer left feedback on your PR #{{pr.number}} ({{pr.title}}) on branch {{pr.branch}}.
 
-    The feedback file is at: reviews/{{pr.number}}/feedback.md on the colony-feedback branch.
-
-    1. Read the feedback: git show colony-feedback:reviews/{{pr.number}}/feedback.md
-    2. You should already be on the PR branch, if not: git checkout {{pr.branch}}
-    3. Address each piece of feedback
-    4. Commit and push your changes
-    5. Write a response to the feedback file summarizing what you changed
+    Read all feedback files:
+    1. List them: git show colony-feedback:reviews/{{pr.number}}/ 2>/dev/null || echo "No feedback directory"
+    2. For each .md file, read it: git show colony-feedback:reviews/{{pr.number}}/<filename>
+    3. Check the YAML frontmatter — if headSha matches the current HEAD of your branch, the feedback is for the latest code
+    4. Address each piece of feedback (Critical items first, then Suggestions)
+    5. Commit and push your changes to {{pr.branch}}
 
 dedup:
   key: "{{repo.owner}}/{{repo.name}}/{{pr.number}}"

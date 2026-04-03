@@ -231,6 +231,11 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
         <div className="instance-meta">
           {inst.parentId && <span className="instance-child-indicator" title="Child session">↳ </span>}
           {dirName(inst.workingDirectory)}
+          {inst.gitBranch && (
+            <span className="instance-branch-badge" title={`Branch: ${inst.gitBranch}${inst.gitRepo ? ` · ${inst.gitRepo}` : ''}`}>
+              <GitPullRequest size={9} /> {inst.gitBranch}
+            </span>
+          )}
           {inst.childIds?.length > 0 && <span className="instance-parent-badge" title={`${inst.childIds.length} child session${inst.childIds.length > 1 ? 's' : ''}`}> · {inst.childIds.length} child{inst.childIds.length > 1 ? 'ren' : ''}</span>}
         </div>
       </div>

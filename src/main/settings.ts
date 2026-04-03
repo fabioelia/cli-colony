@@ -54,6 +54,18 @@ export function setSetting(key: string, value: string): void {
   console.log(`[settings] saved ${key}=${value} to ${path}`)
 }
 
+/**
+ * Build a git remote URL for a GitHub repo based on the user's protocol preference.
+ * Setting: gitProtocol = 'ssh' (default) | 'https'
+ */
+export function gitRemoteUrl(owner: string, name: string): string {
+  const protocol = getSetting('gitProtocol') || 'ssh'
+  if (protocol === 'https') {
+    return `https://github.com/${owner}/${name}.git`
+  }
+  return `git@github.com:${owner}/${name}.git`
+}
+
 export function getDefaultArgs(): string[] {
   const raw = getSetting('defaultArgs').trim()
   if (!raw) return []

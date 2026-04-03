@@ -11,6 +11,7 @@ export default function SettingsPanel({ onBack }: Props) {
   const [defaultCliBackend, setDefaultCliBackend] = useState<'claude' | 'cursor-agent'>('claude')
   const [syncClaudeSlashCommands, setSyncClaudeSlashCommands] = useState(true)
   const [shellProfile, setShellProfile] = useState('')
+  const [gitProtocol, setGitProtocol] = useState<'ssh' | 'https'>('ssh')
   const [soundOnFinish, setSoundOnFinish] = useState(true)
   const [autoCleanupMinutes, setAutoCleanupMinutes] = useState('5')
   const [globalHotkey, setGlobalHotkey] = useState('CommandOrControl+Shift+Space')
@@ -30,6 +31,7 @@ export default function SettingsPanel({ onBack }: Props) {
       setDefaultCliBackend(s.defaultCliBackend === 'cursor-agent' ? 'cursor-agent' : 'claude')
       setSyncClaudeSlashCommands(s.syncClaudeSlashCommands !== 'false')
       setShellProfile(s.shellProfile || '')
+      setGitProtocol((s.gitProtocol === 'https' ? 'https' : 'ssh') as 'ssh' | 'https')
       setSoundOnFinish(s.soundOnFinish !== 'false')
       setAutoCleanupMinutes(s.autoCleanupMinutes || '5')
       setGlobalHotkey(s.globalHotkey || 'CommandOrControl+Shift+Space')
@@ -63,6 +65,7 @@ export default function SettingsPanel({ onBack }: Props) {
       window.api.settings.set('defaultCliBackend', defaultCliBackend),
       window.api.settings.set('syncClaudeSlashCommands', syncClaudeSlashCommands ? 'true' : 'false'),
       window.api.settings.set('shellProfile', shellProfile),
+      window.api.settings.set('gitProtocol', gitProtocol),
       window.api.settings.set('soundOnFinish', soundOnFinish ? 'true' : 'false'),
       window.api.settings.set('autoCleanupMinutes', autoCleanupMinutes),
       window.api.settings.set('globalHotkey', globalHotkey),
@@ -149,6 +152,20 @@ export default function SettingsPanel({ onBack }: Props) {
               <option key={shell} value={shell}>{shell}</option>
             ))}
             <option value="login">Login shell (loads profile)</option>
+          </select>
+        </div>
+        <div className="settings-field">
+          <label>Git Protocol</label>
+          <p className="settings-help">
+            Protocol for cloning GitHub repos (environments, bare repos, colony feedback).
+          </p>
+          <select
+            value={gitProtocol}
+            onChange={(e) => setGitProtocol(e.target.value as 'ssh' | 'https')}
+            className="settings-select"
+          >
+            <option value="ssh">SSH (git@github.com:owner/repo.git)</option>
+            <option value="https">HTTPS (https://github.com/owner/repo.git)</option>
           </select>
         </div>
         <div className="settings-field">

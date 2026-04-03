@@ -155,7 +155,8 @@ function resolveGitBranch(cwd: string): string | null {
   try {
     return execSync('git rev-parse --abbrev-ref HEAD', { cwd, encoding: 'utf-8', timeout: 2000 }).trim() || null
   } catch {
-    return null
+    // Not a git repo — try subdirectories (e.g., environment roots contain repo dirs)
+    return resolveGitInSubdir(cwd, 'branch')
   }
 }
 
@@ -163,17 +164,43 @@ function resolveGitRepo(cwd: string): string | null {
   try {
     const url = execSync('git config --get remote.origin.url', { cwd, encoding: 'utf-8', timeout: 2000 }).trim()
     if (!url) return null
-    // Parse owner/repo from SSH or HTTPS URLs
     const match = url.match(/[/:]([\w.-]+)\/([\w.-]+?)(?:\.git)?$/)
     return match ? `${match[1]}/${match[2]}` : null
   } catch {
-    return null
+    return resolveGitInSubdir(cwd, 'repo')
   }
 }
 
+/** Walk one level into subdirectories to find a git repo */
+function resolveGitInSubdir(cwd: string, type: 'branch' | 'repo'): string | null {
+  try {
+    const entries = fs.readdirSync(cwd, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === 'logs') continue
+      const subdir = path.join(cwd, entry.name)
+      try {
+        if (type === 'branch') {
+          return execSync('git rev-parse --abbrev-ref HEAD', { cwd: subdir, encoding: 'utf-8', timeout: 2000 }).trim() || null
+        } else {
+          const url = execSync('git config --get remote.origin.url', { cwd: subdir, encoding: 'utf-8', timeout: 2000 }).trim()
+          if (!url) continue
+          const match = url.match(/[/:]([\w.-]+)\/([\w.-]+?)(?:\.git)?$/)
+          return match ? `${match[1]}/${match[2]}` : null
+        }
+      } catch { /* not a git repo, try next */ }
+    }
+  } catch { /* can't read dir */ }
+  return null
+}
+
 function toSerializable(inst: InternalInstance): ClaudeInstance {
-  // Lazily resolve missing git info (e.g., instances from before gitRepo was added)
-  if (!inst.gitBranch) inst.gitBranch = resolveGitBranch(inst.workingDirectory)
+  // Always re-resolve branch (it changes when sessions checkout branches)
+  // Only resolve repo once (it doesn't change)
+  if (inst.status === 'running') {
+    inst.gitBranch = resolveGitBranch(inst.workingDirectory)
+  } else if (!inst.gitBranch) {
+    inst.gitBranch = resolveGitBranch(inst.workingDirectory)
+  }
   if (!inst.gitRepo) inst.gitRepo = resolveGitRepo(inst.workingDirectory)
 
   return {

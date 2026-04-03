@@ -636,6 +636,26 @@ input, select {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.instance-branch-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: var(--text-muted);
+  opacity: 0.7;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.instance-branch-badge::before {
+  content: '·';
+  margin-right: 1px;
 }
 
 .instance-child-indicator {
@@ -7343,6 +7363,35 @@ input, select {
 .pipeline-error-text {
   word-break: break-word;
   opacity: 0.9;
+}
+
+.pipeline-debug-log {
+  margin-top: 4px;
+  font-size: 10px;
+}
+.pipeline-debug-log summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 10px;
+  padding: 3px 0;
+  user-select: none;
+}
+.pipeline-debug-log summary:hover {
+  color: var(--text-secondary);
+}
+.pipeline-debug-log-content {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  background: var(--bg-primary);
+  border-radius: 6px;
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .pipeline-card-actions {
