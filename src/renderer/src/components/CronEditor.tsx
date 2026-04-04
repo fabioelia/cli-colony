@@ -19,10 +19,11 @@ const PRESETS = [
   { label: 'Weekdays 9am', value: '0 9 * * 1-5' },
 ]
 
-function isValidCron(expr: string): boolean {
-  if (!expr.trim()) return true
+function validateCron(expr: string): string | null {
+  if (!expr.trim()) return null
   const fields = expr.trim().split(/\s+/)
-  return fields.length === 5
+  if (fields.length !== 5) return `Needs 5 fields (got ${fields.length}): min hour dom month dow`
+  return null
 }
 
 export default function CronEditor({ value, onSave, onClose }: Props) {
@@ -30,8 +31,9 @@ export default function CronEditor({ value, onSave, onClose }: Props) {
   const [saving, setSaving] = useState(false)
 
   const trimmed = draft.trim()
-  const valid = isValidCron(trimmed)
-  const description = valid ? describeCron(trimmed) : 'Invalid expression'
+  const error = validateCron(trimmed)
+  const valid = !error
+  const description = error ?? describeCron(trimmed)
   const runs = valid && trimmed ? nextRuns(trimmed, 3) : []
 
   // Select preset chip matching current draft
