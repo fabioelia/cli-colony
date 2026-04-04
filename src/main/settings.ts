@@ -1,7 +1,6 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
 import { execSync } from 'child_process'
 import { join } from 'path'
-import { app } from 'electron'
 import type { CliBackend } from '../shared/types'
 
 interface AppSettings {
