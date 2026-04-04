@@ -126,6 +126,7 @@ export interface ClaudeManagerAPI {
     addRepo: (repo: GitHubRepo) => Promise<GitHubRepo[]>
     cloneRepo: (repo: GitHubRepo) => Promise<boolean>
     removeRepo: (owner: string, name: string) => Promise<GitHubRepo[]>
+    getRemovalImpact: (owner: string, name: string) => Promise<any>
     updateRepoPath: (owner: string, name: string, localPath: string) => Promise<GitHubRepo[]>
     getPrompts: () => Promise<QuickPrompt[]>
     savePrompts: (prompts: QuickPrompt[]) => Promise<QuickPrompt[]>
@@ -381,6 +382,7 @@ const api: ClaudeManagerAPI = {
     addRepo: (repo) => ipcRenderer.invoke('github:addRepo', repo),
     cloneRepo: (repo) => ipcRenderer.invoke('github:cloneRepo', repo),
     removeRepo: (owner, name) => ipcRenderer.invoke('github:removeRepo', owner, name),
+    getRemovalImpact: (owner, name) => ipcRenderer.invoke('github:getRemovalImpact', owner, name),
     updateRepoPath: (owner, name, localPath) => ipcRenderer.invoke('github:updateRepoPath', owner, name, localPath),
     getPrompts: () => ipcRenderer.invoke('github:getPrompts'),
     savePrompts: (prompts) => ipcRenderer.invoke('github:savePrompts', prompts),

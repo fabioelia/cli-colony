@@ -4,7 +4,7 @@
  */
 
 import { execFile, execSync } from 'child_process'
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'fs'
 import { JsonFile } from '../shared/json-file'
 import { join } from 'path'
 import { app } from 'electron'
@@ -428,6 +428,92 @@ export function removeRepo(owner: string, name: string): GitHubRepo[] {
   config.repos = config.repos.filter((r) => !(r.owner === owner && r.name === name))
   saveConfig(config)
   return config.repos
+}
+
+export interface RepoRemovalImpact {
+  slug: string
+  pipelineFiles: Array<{ fileName: string; filePath: string; matchingLines: string[] }>
+  personaFiles: Array<{ fileName: string; filePath: string; matchingLines: string[] }>
+  environments: Array<{ name: string; branch: string; status: string }>
+  repoPipelines: Array<{ name: string; enabled: boolean }>
+  prCommentFiles: number
+  bareCloneExists: boolean
+  bareClonePath: string
+}
+
+/** Scan all Colony data for references to a repo before removing it. */
+export function getRemovalImpact(owner: string, name: string): RepoRemovalImpact {
+  const slug = `${owner}/${name}`
+  const bareClonePath = colonyPaths.bareRepoDir(owner, name)
+
+  // Scan a directory of text files for lines containing any of the search terms
+  function scanDir(dir: string, ext: string, terms: string[]): Array<{ fileName: string; filePath: string; matchingLines: string[] }> {
+    if (!existsSync(dir)) return []
+    const results: Array<{ fileName: string; filePath: string; matchingLines: string[] }> = []
+    for (const file of readdirSync(dir)) {
+      if (!file.endsWith(ext)) continue
+      const filePath = join(dir, file)
+      try {
+        const content = readFileSync(filePath, 'utf-8')
+        const matchingLines = content.split('\n')
+          .filter(line => terms.some(t => line.includes(t)))
+          .map(l => l.trim()).filter(Boolean).slice(0, 5)
+        if (matchingLines.length > 0) results.push({ fileName: file, filePath, matchingLines })
+      } catch { /* skip unreadable files */ }
+    }
+    return results
+  }
+
+  // Search terms: full slug and bare clone path fragment
+  const terms = [slug, `/${owner}/${name}`, `${owner}-${name}`]
+
+  // 1. Pipeline YAMLs
+  const pipelineFiles = [
+    ...scanDir(colonyPaths.pipelines, '.yaml', terms),
+    ...scanDir(colonyPaths.pipelines, '.yml', terms),
+  ]
+
+  // 2. Persona markdown files
+  const personaFiles = scanDir(colonyPaths.personas, '.md', terms)
+
+  // 3. Environments whose manifest paths reference this repo
+  const environments: RepoRemovalImpact['environments'] = []
+  if (existsSync(colonyPaths.environments)) {
+    for (const envName of readdirSync(colonyPaths.environments)) {
+      const manifestPath = join(colonyPaths.environments, envName, 'manifest.json')
+      if (!existsSync(manifestPath)) continue
+      try {
+        const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'))
+        const pathValues = Object.values(manifest.paths || {}) as string[]
+        if (pathValues.some(p => terms.some(t => p.includes(t)))) {
+          environments.push({
+            name: manifest.displayName || manifest.name || envName,
+            branch: manifest.git?.branch || '',
+            status: manifest.setup?.status || 'unknown',
+          })
+        }
+      } catch { /* skip */ }
+    }
+  }
+
+  // 4. Pipelines sourced from this repo's .colony/
+  const repoPipelines: RepoRemovalImpact['repoPipelines'] = []
+  try {
+    for (const rc of getAllRepoConfigs()) {
+      if (rc.repoSlug === slug) {
+        for (const p of rc.pipelines) repoPipelines.push({ name: p.name, enabled: !!(p as any).enabled })
+      }
+    }
+  } catch { /* non-fatal */ }
+
+  // 5. PR comment files
+  let prCommentFiles = 0
+  if (existsSync(colonyPaths.prComments)) {
+    const safeSlug = slug.replace(/\//g, '-')
+    prCommentFiles = readdirSync(colonyPaths.prComments).filter(f => f.startsWith(safeSlug)).length
+  }
+
+  return { slug, pipelineFiles, personaFiles, environments, repoPipelines, prCommentFiles, bareCloneExists: existsSync(bareClonePath), bareClonePath }
 }
 
 export function updateRepoPath(owner: string, name: string, localPath: string): GitHubRepo[] {

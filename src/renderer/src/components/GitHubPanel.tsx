@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { ArrowLeft, Plus, Trash2, RefreshCw, GitPullRequest, ExternalLink, Play, Pencil, ChevronDown, ChevronRight, MessageSquare, Send, User, Users, Eye, GitBranch, Clock, FileDiff, ShieldCheck, ShieldAlert, ShieldQuestion, Brain, Save, X, FileText, File, Filter, Search, CheckCircle, XCircle, Loader, CircleDot, Wrench, Download } from 'lucide-react'
+import RepoRemovalModal, { type RemovalImpact } from './RepoRemovalModal'
 import { marked } from 'marked'
 import type { GitHubPR, GitHubRepo, QuickPrompt, PRChecks, FeedbackFile } from '../types'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
@@ -53,6 +54,11 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   // Add repo form
   const [showAddRepo, setShowAddRepo] = useState(false)
   const [repoInput, setRepoInput] = useState('')
+
+  // Removal impact modal
+  const [removalTarget, setRemovalTarget] = useState<{ owner: string; name: string } | null>(null)
+  const [removalImpact, setRemovalImpact] = useState<RemovalImpact | null>(null)
+  const [scanningRemoval, setScanningRemoval] = useState(false)
 
   // Filters
   const [filterText, setFilterText] = useState('')
@@ -272,14 +278,38 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   }
 
   const handleRemoveRepo = async (repo: GitHubRepo) => {
-    const updated = await window.api.github.removeRepo(repo.owner, repo.name)
+    setScanningRemoval(true)
+    setRemovalTarget(repo)
+    try {
+      const impact = await window.api.github.getRemovalImpact(repo.owner, repo.name)
+      setRemovalImpact(impact)
+    } finally {
+      setScanningRemoval(false)
+    }
+  }
+
+  const confirmRemoveRepo = async () => {
+    if (!removalTarget) return
+    const { owner, name } = removalTarget
+    const updated = await window.api.github.removeRepo(owner, name)
     setRepos(updated)
-    const slug = `${repo.owner}/${repo.name}`
+    const slug = `${owner}/${name}`
     setPrsByRepo((prev) => {
       const next = { ...prev }
       delete next[slug]
       return next
     })
+    setRemovalTarget(null)
+    setRemovalImpact(null)
+  }
+
+  const handleRemovalLaunchSession = async (prompt: string) => {
+    const id = await onLaunchInstance({
+      name: `Cleanup: ${removalTarget?.owner}/${removalTarget?.name}`,
+      workingDirectory: workspacePath || undefined,
+    })
+    onFocusInstance(id)
+    sendPromptToInstance(id, prompt, 'Repo cleanup')
   }
 
   const handleSetLocalPath = async (repo: GitHubRepo) => {
@@ -740,8 +770,17 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                       <RefreshCw size={13} className={isLoading ? 'spinning' : ''} />
                     </button>
                   </Tooltip>
-                  <Tooltip text="Remove Repository" detail="Stop tracking this repository">
-                    <button className="danger" onClick={() => handleRemoveRepo(repo)}><Trash2 size={13} /></button>
+                  <Tooltip text="Remove Repository" detail="Scan for references then confirm removal">
+                    <button
+                      className="danger"
+                      onClick={() => handleRemoveRepo(repo)}
+                      disabled={scanningRemoval}
+                      title={scanningRemoval ? 'Scanning…' : 'Remove repository'}
+                    >
+                      {scanningRemoval && removalTarget?.owner === repo.owner && removalTarget?.name === repo.name
+                        ? <RefreshCw size={13} className="spinning" />
+                        : <Trash2 size={13} />}
+                    </button>
                   </Tooltip>
                 </div>
               </div>
@@ -1179,6 +1218,17 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
             </div>
           </div>
         </div>
+      )}
+
+      {/* Repo removal impact modal */}
+      {removalTarget && removalImpact && (
+        <RepoRemovalModal
+          repo={removalTarget}
+          impact={removalImpact}
+          onConfirm={confirmRemoveRepo}
+          onCancel={() => { setRemovalTarget(null); setRemovalImpact(null) }}
+          onLaunchSession={handleRemovalLaunchSession}
+        />
       )}
 
       {/* Check log viewer */}

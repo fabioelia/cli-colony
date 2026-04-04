@@ -3,7 +3,7 @@ import * as fs from 'fs'
 import { join } from 'path'
 import { colonyPaths } from '../../shared/colony-paths'
 import {
-  checkGhAuth, fetchPRs, getRepos, addRepo, removeRepo,
+  checkGhAuth, fetchPRs, getRepos, addRepo, removeRepo, getRemovalImpact,
   updateRepoPath, getPrompts, savePrompts, resolvePrompt, writePrContext,
   getPrMemory, savePrMemory, getPrMemoryPath, getPrWorkspacePath,
   fetchChecks, fetchCheckLogs, shallowCloneRepo,
@@ -21,6 +21,7 @@ export function registerGitHubHandlers(): void {
     return true
   })
   ipcMain.handle('github:removeRepo', (_e, owner: string, name: string) => removeRepo(owner, name))
+  ipcMain.handle('github:getRemovalImpact', (_e, owner: string, name: string) => getRemovalImpact(owner, name))
   ipcMain.handle('github:updateRepoPath', (_e, owner: string, name: string, localPath: string) => updateRepoPath(owner, name, localPath))
   ipcMain.handle('github:getPrompts', () => getPrompts())
   ipcMain.handle('github:savePrompts', (_e, prompts: QuickPrompt[]) => savePrompts(prompts))
