@@ -10203,12 +10203,26 @@ input, select {
 .persona-card {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
+  border-left: 3px solid #4b5563;
   border-radius: 8px;
   overflow: hidden;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, opacity 0.15s;
 }
 .persona-card:hover {
   border-color: var(--text-muted);
+}
+.persona-card.enabled {
+  border-left-color: #10b981;
+}
+.persona-card.running {
+  border-left-color: #10b981;
+}
+.persona-card.disabled {
+  opacity: 0.55;
+  border-left-color: #374151;
+}
+.persona-card.disabled .persona-card-name {
+  color: var(--text-muted);
 }
 
 .persona-card-header {
@@ -10343,6 +10357,58 @@ input, select {
 }
 .persona-action-btn.danger:hover {
   color: #ef4444;
+}
+
+/* Pill toggle switch for enabled/disabled */
+.persona-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+.persona-toggle:hover {
+  background: var(--bg-hover);
+}
+.persona-toggle-track {
+  position: relative;
+  width: 28px;
+  height: 15px;
+  border-radius: 999px;
+  background: #374151;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.persona-toggle-track.enabled {
+  background: #10b981;
+}
+.persona-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: white;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+.persona-toggle-track.enabled .persona-toggle-thumb {
+  transform: translateX(13px);
+}
+.persona-toggle-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+  min-width: 16px;
+}
+.persona-toggle:has(.persona-toggle-track.enabled) .persona-toggle-label {
+  color: #10b981;
 }
 
 .persona-card-preview {

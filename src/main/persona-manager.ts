@@ -4,7 +4,7 @@
  * and self-managed sections (Active Situations, Learnings, Session Log).
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, watch } from 'fs'
+import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, watch } from 'fs'
 import { join, basename } from 'path'
 import { colonyPaths } from '../shared/colony-paths'
 import { createInstance, getAllInstances, killInstance } from './instance-manager'
@@ -552,12 +552,18 @@ function broadcastStatus(): void {
 // ---- Cron Scheduling ----
 // Cron matching imported from src/shared/cron.ts
 
+function schedulerLog(msg: string): void {
+  const line = `[${new Date().toISOString()}] ${msg}\n`
+  try { appendFileSync(colonyPaths.schedulerLog, line, 'utf-8') } catch { /* non-fatal */ }
+  console.log(`[persona] ${msg}`)
+}
+
 let schedulerInterval: ReturnType<typeof setInterval> | null = null
 let lastCronMinute = -1
 
 export function startScheduler(): void {
   if (schedulerInterval) return
-  console.log('[persona] scheduler started')
+  schedulerLog('scheduler started')
 
   schedulerInterval = setInterval(async () => {
     // Reconcile stale activeSessionId — clear if the session no longer exists
@@ -586,12 +592,16 @@ export function startScheduler(): void {
 
     for (const persona of personas) {
       if (!persona.enabled || !persona.schedule) continue
-      if (persona.activeSessionId) continue // already running
+
+      if (persona.activeSessionId) {
+        schedulerLog(`skip "${persona.name}" — already running (session ${persona.activeSessionId})`)
+        continue
+      }
 
       if (cronMatches(persona.schedule)) {
-        console.log(`[persona] cron matched for "${persona.name}", launching`)
+        schedulerLog(`cron matched "${persona.name}" (${persona.schedule}) — launching`)
         runPersona(persona.id).catch(err => {
-          console.error(`[persona] scheduled run failed for "${persona.name}":`, err.message)
+          schedulerLog(`launch failed for "${persona.name}": ${err.message}`)
         })
       }
     }
@@ -602,6 +612,7 @@ export function stopScheduler(): void {
   if (schedulerInterval) {
     clearInterval(schedulerInterval)
     schedulerInterval = null
+    schedulerLog('scheduler stopped')
   }
 }
 

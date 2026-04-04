@@ -88,6 +88,7 @@ export interface ClaudeManagerAPI {
   logs: {
     get: () => Promise<string>
     clear: () => Promise<boolean>
+    getScheduler: () => Promise<string[]>
   }
   shell: {
     openExternal: (url: string) => Promise<void>
@@ -344,6 +345,7 @@ const api: ClaudeManagerAPI = {
   logs: {
     get: () => ipcRenderer.invoke('logs:get'),
     clear: () => ipcRenderer.invoke('logs:clear'),
+    getScheduler: () => ipcRenderer.invoke('logs:getScheduler'),
   },
   shell: {
     openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),

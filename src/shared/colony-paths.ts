@@ -18,6 +18,7 @@ export const colonyPaths = {
   settingsJson: path.join(ROOT, 'settings.json'),
   githubJson: path.join(ROOT, 'github.json'),
   daemonLog: path.join(ROOT, 'daemon.log'),
+  schedulerLog: path.join(ROOT, 'scheduler.log'),
   colonyContext: path.join(ROOT, 'colony-context.md'),
 
   // Daemon sockets / PIDs

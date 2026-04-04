@@ -70,6 +70,13 @@ export function registerIpcHandlers(): void {
     } catch { /* */ }
     return daemonLogs ? `${appLogs}\n\n--- Daemon Logs ---\n${daemonLogs}` : appLogs
   })
+  ipcMain.handle('logs:getScheduler', () => {
+    try {
+      if (!fs.existsSync(colonyPaths.schedulerLog)) return []
+      const lines = fs.readFileSync(colonyPaths.schedulerLog, 'utf-8').split('\n').filter(Boolean)
+      return lines.slice(-20)
+    } catch { return [] }
+  })
   ipcMain.handle('logs:clear', () => {
     clearLogs()
     try { fs.writeFileSync(colonyPaths.daemonLog, '', 'utf-8') } catch { /* */ }

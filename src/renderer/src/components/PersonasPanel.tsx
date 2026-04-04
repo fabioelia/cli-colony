@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
-  ChevronDown, ChevronRight, Clock, Hash,
-  ToggleLeft, ToggleRight, Pencil
+  ChevronDown, ChevronRight, Clock, Hash, Pencil
 } from 'lucide-react'
 import { marked } from 'marked'
 import HelpPopover from './HelpPopover'
@@ -390,7 +389,7 @@ function PersonaCard({
     .slice(-3).reverse() // last 3 entries, newest first
 
   return (
-    <div className="persona-card">
+    <div className={`persona-card ${isRunning ? 'running' : persona.enabled ? 'enabled' : 'disabled'}`}>
       <div className="persona-card-header" onClick={onToggleExpand}>
         <span className="persona-card-expand">
           {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
@@ -434,14 +433,16 @@ function PersonaCard({
               </button>
             </Tooltip>
           )}
-          <Tooltip text={persona.enabled ? 'Disable scheduled runs' : 'Enable scheduled runs'}>
-            <button
-              className="persona-action-btn"
-              onClick={(e) => { e.stopPropagation(); onToggle(!persona.enabled) }}
-            >
-              {persona.enabled ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
-            </button>
-          </Tooltip>
+          <button
+            className="persona-toggle"
+            onClick={(e) => { e.stopPropagation(); onToggle(!persona.enabled) }}
+            title={persona.enabled ? 'Disable scheduled runs' : 'Enable scheduled runs'}
+          >
+            <div className={`persona-toggle-track${persona.enabled ? ' enabled' : ''}`}>
+              <div className="persona-toggle-thumb" />
+            </div>
+            <span className="persona-toggle-label">{persona.enabled ? 'On' : 'Off'}</span>
+          </button>
           <Tooltip text="Delete persona">
             <button
               className="persona-action-btn danger"

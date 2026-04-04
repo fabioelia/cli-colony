@@ -22,9 +22,12 @@ export default function SettingsPanel({ onBack }: Props) {
   const [showRestartConfirm, setShowRestartConfirm] = useState(false)
   const [logs, setLogs] = useState('')
   const [showLogs, setShowLogs] = useState(false)
+  const [showSchedulerLogs, setShowSchedulerLogs] = useState(false)
+  const [schedulerLogs, setSchedulerLogs] = useState<string[]>([])
   const [daemonVersion, setDaemonVersion] = useState<{ running: number; expected: number } | null>(null)
   const logsRef = useRef<HTMLPreElement>(null)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const schedulerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     window.api.settings.getAll().then((s) => {
@@ -60,6 +63,19 @@ export default function SettingsPanel({ onBack }: Props) {
       logsRef.current.scrollTop = logsRef.current.scrollHeight
     }
   }, [logs])
+
+  useEffect(() => {
+    if (!showSchedulerLogs) {
+      if (schedulerIntervalRef.current) clearInterval(schedulerIntervalRef.current)
+      return
+    }
+    const refresh = () => window.api.logs.getScheduler().then(setSchedulerLogs)
+    refresh()
+    schedulerIntervalRef.current = setInterval(refresh, 5000)
+    return () => {
+      if (schedulerIntervalRef.current) clearInterval(schedulerIntervalRef.current)
+    }
+  }, [showSchedulerLogs])
 
   const handleSave = async () => {
     await Promise.all([
@@ -328,6 +344,28 @@ export default function SettingsPanel({ onBack }: Props) {
         {showLogs && (
           <pre className="settings-logs" ref={logsRef}>
             {logs || 'No logs yet.'}
+          </pre>
+        )}
+      </div>
+
+      {/* Scheduler Log */}
+      <div className={`settings-section settings-logs-section ${showSchedulerLogs ? '' : 'collapsed'}`}>
+        <div className="settings-section-title">
+          <ScrollText size={12} />
+          Scheduler Log
+          <div className="settings-logs-actions">
+            <button
+              className="settings-logs-toggle"
+              onClick={() => setShowSchedulerLogs(!showSchedulerLogs)}
+              title={showSchedulerLogs ? 'Hide scheduler log' : 'Show scheduler log'}
+            >
+              {showSchedulerLogs ? 'Hide' : 'Show'}
+            </button>
+          </div>
+        </div>
+        {showSchedulerLogs && (
+          <pre className="settings-logs">
+            {schedulerLogs.length > 0 ? schedulerLogs.join('\n') : 'No scheduler log entries yet.'}
           </pre>
         )}
       </div>
