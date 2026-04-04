@@ -199,11 +199,15 @@ function parsePipelineYaml(content: string): PipelineDef | null {
 
 // ---- State Persistence ----
 
+function debugLogPath(name: string): string {
+  const safe = name.replace(/[^a-zA-Z0-9._-]/g, '-')
+  return join(PIPELINES_DIR, `${safe}.debug.json`)
+}
+
 function loadState(): Record<string, PipelineState> {
   try {
     if (existsSync(STATE_PATH)) {
       const raw = JSON.parse(readFileSync(STATE_PATH, 'utf-8'))
-      // Ensure debugLog exists on all loaded states (it's ephemeral, not persisted)
       for (const key of Object.keys(raw)) {
         if (!raw[key].debugLog) raw[key].debugLog = []
       }
@@ -216,7 +220,6 @@ function loadState(): Record<string, PipelineState> {
 function saveState(): void {
   const state: Record<string, any> = {}
   for (const [name, p] of pipelines) {
-    // Don't persist debugLog to disk — it's in-memory only
     const { debugLog, ...rest } = p.state
     state[name] = rest
   }
@@ -224,6 +227,19 @@ function saveState(): void {
     writeFileSync(STATE_PATH, JSON.stringify(state, null, 2), 'utf-8')
   } catch (err) {
     log(`Failed to save state: ${err}`)
+  }
+}
+
+/** Persist the last 50 debug log entries per pipeline to disk. */
+function saveDebugLogs(): void {
+  for (const [name, p] of pipelines) {
+    if (p.state.debugLog.length === 0) continue
+    const entries = p.state.debugLog.slice(-50)
+    try {
+      writeFileSync(debugLogPath(name), JSON.stringify({ entries, savedAt: new Date().toISOString() }, null, 2), 'utf-8')
+    } catch (err) {
+      log(`Failed to save debug log for ${name}: ${err}`)
+    }
   }
 }
 
@@ -673,7 +689,8 @@ async function runPoll(pipelineName: string): Promise<void> {
     p.state.debugLog = p.state.debugLog.slice(cutAt)
   }
 
-  if (fired) saveState() // only write to disk if something fired
+  saveDebugLogs() // persist debug logs after every poll
+  if (fired) saveState()
   broadcast('pipeline:status', getPipelineList())
 }
 
@@ -698,6 +715,13 @@ export function loadPipelines(): void {
         continue
       }
       const state = savedState[def.name] || freshState()
+      try {
+        const lp = debugLogPath(def.name)
+        if (existsSync(lp)) {
+          const { entries } = JSON.parse(readFileSync(lp, 'utf-8'))
+          if (Array.isArray(entries)) state.debugLog = entries
+        }
+      } catch { /* ignore */ }
       pipelines.set(def.name, { def, state, fileName: file })
       userNames.add(def.name)
       log(`Loaded pipeline: ${def.name} (${def.enabled ? 'enabled' : 'disabled'})`)
@@ -717,6 +741,13 @@ export function loadPipelines(): void {
         const def = repoPipeline as unknown as PipelineDef
         def.enabled = enablement?.enabled ?? false
         const state = enablement || freshState()
+        try {
+          const lp = debugLogPath(repoPipeline.name)
+          if (existsSync(lp)) {
+            const { entries } = JSON.parse(readFileSync(lp, 'utf-8'))
+            if (Array.isArray(entries)) state.debugLog = entries
+          }
+        } catch { /* ignore */ }
         pipelines.set(repoPipeline.name, {
           def,
           state,

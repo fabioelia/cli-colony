@@ -587,6 +587,100 @@ dedup:
   })
 })
 
+describe('pipeline-engine: debug log persistence', () => {
+  let mod: typeof import('../pipeline-engine')
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  it('loads persisted debug log entries from disk on startup', async () => {
+    const debugPath = `${PIPELINES_DIR}/My-Pipeline.debug.json`
+    const entries = ['[12:00:00] poll started', '---', '[12:00:01] condition not met']
+    const fs = buildFsMock(['my.yaml'], { 'my.yaml': VALID_YAML })
+    fs.existsSync.mockImplementation((p: string) => {
+      if (p === PIPELINES_DIR) return true
+      if (p === debugPath) return true
+      return false
+    })
+    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+      if (p.endsWith('my.yaml')) return VALID_YAML
+      if (p === debugPath) return JSON.stringify({ entries, savedAt: new Date().toISOString() })
+      throw new Error(`Unexpected readFileSync: ${p}`)
+    })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    mod.loadPipelines()
+
+    const list = mod.getPipelineList()
+    expect(list).toHaveLength(1)
+    expect(list[0].debugLog).toEqual(entries)
+  })
+
+  it('starts with empty debugLog when no persisted file exists', async () => {
+    const fs = buildFsMock(['my.yaml'], { 'my.yaml': VALID_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    mod.loadPipelines()
+
+    const list = mod.getPipelineList()
+    expect(list[0].debugLog).toEqual([])
+  })
+
+  it('falls back to empty debugLog when the debug file is malformed JSON', async () => {
+    const debugPath = `${PIPELINES_DIR}/My-Pipeline.debug.json`
+    const fs = buildFsMock(['my.yaml'], { 'my.yaml': VALID_YAML })
+    fs.existsSync.mockImplementation((p: string) => {
+      if (p === PIPELINES_DIR) return true
+      if (p === debugPath) return true
+      return false
+    })
+    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+      if (p.endsWith('my.yaml')) return VALID_YAML
+      if (p === debugPath) return 'not valid json{'
+      throw new Error(`Unexpected readFileSync: ${p}`)
+    })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    expect(() => mod.loadPipelines()).not.toThrow()
+    const list = mod.getPipelineList()
+    expect(list[0].debugLog).toEqual([])
+  })
+
+  it('falls back to empty debugLog when entries field is not an array', async () => {
+    const debugPath = `${PIPELINES_DIR}/My-Pipeline.debug.json`
+    const fs = buildFsMock(['my.yaml'], { 'my.yaml': VALID_YAML })
+    fs.existsSync.mockImplementation((p: string) => {
+      if (p === PIPELINES_DIR) return true
+      if (p === debugPath) return true
+      return false
+    })
+    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+      if (p.endsWith('my.yaml')) return VALID_YAML
+      if (p === debugPath) return JSON.stringify({ entries: 'oops', savedAt: '' })
+      throw new Error(`Unexpected readFileSync: ${p}`)
+    })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    mod.loadPipelines()
+    const list = mod.getPipelineList()
+    expect(list[0].debugLog).toEqual([])
+  })
+})
+
 describe('pipeline-engine: stopPipelines', () => {
   let mod: typeof import('../pipeline-engine')
 

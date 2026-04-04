@@ -370,7 +370,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
 
             <details className="pipeline-debug-log">
               <summary>
-                Debug Log {p.debugLog?.length ? `(${p.debugLog.filter(l => l === '---').length} polls)` : '(empty — click Poll Now to generate)'}
+                Debug Log {p.debugLog?.length ? `(${p.debugLog.filter(l => l === '---').length} polls)` : '(empty)'}
               </summary>
               {p.debugLog?.length ? (
                 <pre className="pipeline-debug-log-content">
@@ -378,7 +378,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                 </pre>
               ) : (
                 <div className="pipeline-debug-log-content" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                  No logs yet. Debug logs are in-memory only — they reset when the app restarts. Click "Poll Now" to generate entries.
+                  No logs yet. Click "Poll Now" to generate the first entries.
                 </div>
               )}
             </details>
