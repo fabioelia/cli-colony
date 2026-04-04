@@ -209,7 +209,7 @@ export function buildDiagnosePrompt(ctx: DiagnoseContext): { systemPrompt: strin
     '- Name: ' + env.name,
     '- ID: ' + env.id,
     '- Project Type: ' + (env.projectType || 'unknown'),
-    '- Branch: ' + env.branch,
+    '- Upstream Branch: ' + env.branch + ' (for fetching updates — run `git branch` to see current branch)',
     '- Status: ' + env.status,
     '- Root Path: ' + (env.paths.root || 'unknown'),
     '- Services: ' + svcList,
