@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
+import type { ActivityEvent } from '../../../shared/types'
 import Tooltip from './Tooltip'
 import HelpPopover from './HelpPopover'
 import ExternalSessionPopover from './ExternalSessionPopover'
@@ -74,10 +75,28 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
   const [extPopover, setExtPopover] = useState<{ session: { pid: number; name: string; cwd: string; sessionId: string | null; args: string }; rect: { top: number; left: number; bottom: number; right: number } } | null>(null)
   const [childProcesses, setChildProcesses] = useState<Array<{ pid: number; name: string; command: string; cpu: string; mem: string }>>([])
   const [childProcessesId, setChildProcessesId] = useState<string | null>(null)
+  const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([])
+  const [activityUnread, setActivityUnread] = useState(0)
+  const [showActivityPopover, setShowActivityPopover] = useState(false)
 
   useEffect(() => {
     window.api.sessions.list(100).then(setSessions)
     window.api.sessions.external().then(setExternalSessions)
+  }, [])
+
+  useEffect(() => {
+    window.api.activity.list().then(events => {
+      setActivityEvents(events.slice(-20).reverse())
+    }).catch(() => {})
+    window.api.activity.unreadCount().then(setActivityUnread).catch(() => {})
+    const unsubNew = window.api.activity.onNew(({ event, unreadCount }) => {
+      setActivityEvents(prev => [event, ...prev].slice(0, 20))
+      setActivityUnread(unreadCount)
+    })
+    const unsubUnread = window.api.activity.onUnread(({ count }) => {
+      setActivityUnread(count)
+    })
+    return () => { unsubNew(); unsubUnread() }
   }, [])
 
   // Close popovers when clicking outside
@@ -87,6 +106,13 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
     window.addEventListener('click', handler)
     return () => window.removeEventListener('click', handler)
   }, [popoverId])
+
+  useEffect(() => {
+    if (!showActivityPopover) return
+    const handler = () => setShowActivityPopover(false)
+    window.addEventListener('click', handler)
+    return () => window.removeEventListener('click', handler)
+  }, [showActivityPopover])
 
   const startRename = (inst: ClaudeInstance) => {
     setRenamingId(inst.id)
@@ -124,6 +150,14 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
         }
       }
     }
+  }
+
+  const formatActivityTime = (iso: string) => {
+    const diff = Date.now() - new Date(iso).getTime()
+    if (diff < 60000) return 'now'
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
+    return `${Math.floor(diff / 86400000)}d ago`
   }
 
   const dirName = (path: string) => {
@@ -625,6 +659,50 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
 
       <div className="sidebar-footer">
         <HelpPopover topic="sessions" align="right" position="above" />
+        <div className="sidebar-footer-activity" style={{ position: 'relative' }}>
+          <Tooltip text="Activity Feed" detail="Recent automation events from personas, pipelines, and environments" position="top">
+            <button
+              className={`sidebar-footer-btn ${showActivityPopover ? 'active' : ''}`}
+              onClick={() => {
+                setShowActivityPopover(v => {
+                  if (!v) {
+                    window.api.activity.markRead().catch(() => {})
+                    setActivityUnread(0)
+                  }
+                  return !v
+                })
+              }}
+            >
+              <Bell size={14} />
+              {activityUnread > 0 && (
+                <span className="sidebar-activity-badge">{activityUnread > 99 ? '99+' : activityUnread}</span>
+              )}
+            </button>
+          </Tooltip>
+          {showActivityPopover && (
+            <div className="activity-popover" onClick={e => e.stopPropagation()}>
+              <div className="activity-popover-header">
+                <span>Activity</span>
+                <button onClick={() => setShowActivityPopover(false)} title="Close">✕</button>
+              </div>
+              <div className="activity-popover-list">
+                {activityEvents.length === 0 && (
+                  <div className="activity-popover-empty">No activity yet</div>
+                )}
+                {activityEvents.map(ev => (
+                  <div key={ev.id} className={`activity-event activity-event-${ev.level}`}>
+                    <div className="activity-event-header">
+                      <span className={`activity-event-source activity-source-${ev.source}`}>{ev.source}</span>
+                      <span className="activity-event-name">{ev.name}</span>
+                      <span className="activity-event-time">{formatActivityTime(ev.timestamp)}</span>
+                    </div>
+                    <div className="activity-event-summary">{ev.summary}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
         <Tooltip text="Settings" position="top">
           <button className={`sidebar-footer-btn ${view === 'settings' ? 'active' : ''}`} onClick={() => onViewChange(view === 'settings' ? 'instances' : 'settings')}>
             <Settings size={14} />

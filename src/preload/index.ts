@@ -2,14 +2,14 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
-  FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus,
+  FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
 export type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
-  FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus,
+  FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent,
 }
 
 
@@ -247,6 +247,13 @@ export interface ClaudeManagerAPI {
     onPromptRequest: (cb: (data: { requestId: string; envId: string; hookName: string; prompt: string; promptType: string; defaultPath?: string; options?: string[] }) => void) => () => void
     respondToPrompt: (data: { requestId: string; filePath?: string; selectedValue?: string; cancelled?: boolean }) => void
     pickFile: (opts: { title?: string; defaultPath?: string; message?: string }) => Promise<string | null>
+  }
+  activity: {
+    list: () => Promise<ActivityEvent[]>
+    markRead: () => Promise<boolean>
+    unreadCount: () => Promise<number>
+    onNew: (cb: (data: { event: ActivityEvent; unreadCount: number }) => void) => () => void
+    onUnread: (cb: (data: { count: number }) => void) => () => void
   }
 }
 
@@ -510,6 +517,21 @@ const api: ClaudeManagerAPI = {
     },
     respondToPrompt: (data) => { ipcRenderer.send('env:prompt-response', data) },
     pickFile: (opts) => ipcRenderer.invoke('env:pick-file', opts),
+  },
+  activity: {
+    list: () => ipcRenderer.invoke('activity:list'),
+    markRead: () => ipcRenderer.invoke('activity:markRead'),
+    unreadCount: () => ipcRenderer.invoke('activity:unreadCount'),
+    onNew: (cb) => {
+      const l = (_e: any, data: { event: ActivityEvent; unreadCount: number }) => cb(data)
+      ipcRenderer.on('activity:new', l)
+      return () => ipcRenderer.removeListener('activity:new', l)
+    },
+    onUnread: (cb) => {
+      const l = (_e: any, data: { count: number }) => cb(data)
+      ipcRenderer.on('activity:unread', l)
+      return () => ipcRenderer.removeListener('activity:unread', l)
+    },
   },
 }
 

@@ -164,6 +164,16 @@ export interface EnvironmentTemplate {
   source?: string
 }
 
+export interface ActivityEvent {
+  id: string
+  timestamp: string
+  source: 'persona' | 'pipeline' | 'env'
+  name: string
+  summary: string
+  level: 'info' | 'warn' | 'error'
+  sessionId?: string
+}
+
 export interface PersonaInfo {
   /** File name (without .md extension) */
   id: string

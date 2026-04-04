@@ -19,6 +19,7 @@ import { getAllRepoConfigs } from './repo-config-loader'
 import { cronMatches } from '../shared/cron'
 import { resolveMustacheTemplate } from '../shared/utils'
 import type { GitHubRepo, GitHubPR, PRChecks } from '../shared/types'
+import { appendActivity } from './activity-manager'
 
 // ---- Types ----
 
@@ -669,12 +670,17 @@ async function runPoll(pipelineName: string): Promise<void> {
       recordFired(pipelineName, dedupKey, ctx.contentSha)
       fired = true
       plog(pipelineName, `✓ action fired successfully`)
+      const firedSummary = ctx.pr
+        ? `Pipeline "${pipelineName}" fired for PR #${ctx.pr.number} (${ctx.pr.branch})`
+        : `Pipeline "${pipelineName}" fired`
+      appendActivity({ source: 'pipeline', name: pipelineName, summary: firedSummary, level: 'info' })
     }
 
     p.state.lastError = null
   } catch (err) {
     p.state.lastError = String(err)
     plog(pipelineName, `✗ error: ${err}`)
+    appendActivity({ source: 'pipeline', name: pipelineName, summary: `Pipeline "${pipelineName}" failed: ${String(err).slice(0, 120)}`, level: 'error' })
   }
 
   runningPolls.delete(pipelineName)

@@ -16,6 +16,7 @@ import { cronMatches } from '../shared/cron'
 import { slugify, parseFrontmatter as parseRawFrontmatter } from '../shared/utils'
 import type { PersonaInfo } from '../shared/types'
 import { JsonFile } from '../shared/json-file'
+import { appendActivity } from './activity-manager'
 
 const PERSONAS_DIR = colonyPaths.personas
 const STATE_PATH = colonyPaths.personaState
@@ -535,6 +536,7 @@ export async function onSessionExit(instanceId: string): Promise<void> {
       state.activeSessionId = null
       changed = true
       console.log(`[persona] session exited for "${name}"`)
+      appendActivity({ source: 'persona', name, summary: `Persona "${name}" completed session`, level: 'info', sessionId: instanceId })
     }
   }
   if (changed) {

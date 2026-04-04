@@ -15,6 +15,7 @@ import { buildContext, resolveTemplate as resolveTemplateVars, findUnresolved } 
 import { readAndReconcileState, emptyState, writeState } from '../shared/env-state'
 import { addToIndex, removeFromIndex, allEnvDirs } from '../shared/env-index'
 import { broadcast } from './broadcast'
+import { appendActivity } from './activity-manager'
 import { runSetup } from './env-setup'
 import { gitRemoteUrl } from './settings'
 import { getAllRepoConfigs, getRepoConfig, clearRepoConfigCache } from './repo-config-loader'
@@ -51,6 +52,7 @@ export function wireEnvDaemonEvents(): void {
 
   client.on('service-crashed', (envId: string, service: string, exitCode: number) => {
     broadcast('env:service-crashed', { envId, service, exitCode })
+    appendActivity({ source: 'env', name: envId, summary: `Service "${service}" crashed (exit ${exitCode}) in environment "${envId}"`, level: 'error' })
   })
 
   client.on('connected', () => {
