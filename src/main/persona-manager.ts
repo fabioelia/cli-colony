@@ -15,6 +15,7 @@ import { broadcast } from './broadcast'
 import { cronMatches } from '../shared/cron'
 import { slugify, parseFrontmatter as parseRawFrontmatter } from '../shared/utils'
 import type { PersonaInfo } from '../shared/types'
+import { JsonFile } from '../shared/json-file'
 
 const PERSONAS_DIR = colonyPaths.personas
 const STATE_PATH = colonyPaths.personaState
