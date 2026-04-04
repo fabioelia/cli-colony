@@ -13,6 +13,8 @@
     "preview": "electron-vite preview",
     "package": "electron-vite build && electron-builder --mac --config electron-builder.yml",
     "rebuild": "electron-rebuild -f -w node-pty",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
     "test:e2e": "electron-vite build && npx playwright test",
     "test:e2e:headed": "electron-vite build && npx playwright test --headed",
     "test:e2e:debug": "electron-vite build && npx playwright test --debug"
@@ -45,7 +47,8 @@
     "electron-vite": "^2.3.0",
     "playwright-core": "^1.58.2",
     "typescript": "^5.7.2",
-    "vite": "^5.4.11"
+    "vite": "^5.4.11",
+    "vitest": "^3.2.4"
   },
   "packageManager": "yarn@3.6.4+sha512.e70835d4d6d62c07be76b3c1529cb640c7443f0fe434ef4b6478a5a399218cbaf1511b396b3c56eb03bc86424cff2320f6167ad2fde273aa0df6e60b7754029f"
 }
