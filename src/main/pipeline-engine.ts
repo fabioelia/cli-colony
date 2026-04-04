@@ -896,6 +896,24 @@ export function savePipelineContent(fileName: string, content: string): boolean 
   }
 }
 
+/** Surgically update the cron field in a pipeline YAML file without touching the rest. */
+export function setPipelineCron(fileName: string, cron: string | null): boolean {
+  const content = getPipelineContent(fileName)
+  if (!content) return false
+  let updated: string
+  if (cron) {
+    if (/^\s*cron:/m.test(content)) {
+      updated = content.replace(/^(\s*cron:\s*).*$/m, `$1"${cron}"`)
+    } else {
+      // Insert after the interval line
+      updated = content.replace(/^(\s*interval:\s*\d+.*)$/m, `$1\n  cron: "${cron}"`)
+    }
+  } else {
+    updated = content.replace(/^\s*cron:\s*.*\n?/m, '')
+  }
+  return savePipelineContent(fileName, updated)
+}
+
 // ---- Seed Default Pipeline ----
 
 export function seedDefaultPipelines(): void {

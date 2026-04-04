@@ -174,6 +174,7 @@ export interface ClaudeManagerAPI {
     listOutputs: (outputDir: string) => Promise<Array<{ name: string; path: string; size: number; modified: number }>>
     getMemory: (fileName: string) => Promise<string>
     saveMemory: (fileName: string, content: string) => Promise<boolean>
+    setCron: (fileName: string, cron: string | null) => Promise<boolean>
   }
   persona: {
     list: () => Promise<PersonaInfo[]>
@@ -185,6 +186,7 @@ export interface ClaudeManagerAPI {
     stop: (fileName: string) => Promise<boolean>
     toggle: (fileName: string, enabled: boolean) => Promise<boolean>
     getDir: () => Promise<string>
+    setSchedule: (fileName: string, schedule: string) => Promise<boolean>
     onStatus: (cb: (personas: PersonaInfo[]) => void) => () => void
     onRun: (cb: (data: { persona: string; instanceId: string }) => void) => () => void
   }
@@ -435,6 +437,7 @@ const api: ClaudeManagerAPI = {
     listOutputs: (outputDir) => ipcRenderer.invoke('pipeline:listOutputs', outputDir),
     getMemory: (fileName) => ipcRenderer.invoke('pipeline:getMemory', fileName),
     saveMemory: (fileName, content) => ipcRenderer.invoke('pipeline:saveMemory', fileName, content),
+    setCron: (fileName, cron) => ipcRenderer.invoke('pipeline:setCron', fileName, cron),
   },
   persona: {
     list: () => ipcRenderer.invoke('persona:list'),
@@ -446,6 +449,7 @@ const api: ClaudeManagerAPI = {
     stop: (fileName) => ipcRenderer.invoke('persona:stop', fileName),
     toggle: (fileName, enabled) => ipcRenderer.invoke('persona:toggle', fileName, enabled),
     getDir: () => ipcRenderer.invoke('persona:getDir'),
+    setSchedule: (fileName, schedule) => ipcRenderer.invoke('persona:setSchedule', fileName, schedule),
     onStatus: (cb) => {
       const l = (_e: any, data: PersonaInfo[]) => cb(data)
       ipcRenderer.on('persona:status', l)

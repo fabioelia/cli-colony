@@ -1,5 +1,5 @@
 /**
- * Cron expression matching.
+ * Cron expression matching and description.
  * Supports: "min hour dom month dow" (5 fields)
  * Each field: number, *, N step, N-M range, comma-separated, named days (mon-sun)
  */
@@ -48,4 +48,62 @@ export function cronMatches(expression: string, date?: Date): boolean {
     cronFieldMatches(month, d.getMonth() + 1) &&
     cronFieldMatches(dow, d.getDay())
   )
+}
+
+function fmtTime(h: number, m: number): string {
+  const period = h >= 12 ? 'PM' : 'AM'
+  const displayH = h % 12 || 12
+  const displayM = m.toString().padStart(2, '0')
+  return `${displayH}:${displayM} ${period}`
+}
+
+/** Human-readable description of a cron expression. Returns "Manual only" for empty string. */
+export function describeCron(expr: string): string {
+  if (!expr || !expr.trim()) return 'Manual only'
+  const fields = expr.trim().split(/\s+/)
+  if (fields.length !== 5) return expr
+  const [min, hour, dom, month, dow] = fields
+
+  if (min === '*' && hour === '*' && dom === '*' && month === '*' && dow === '*') return 'Every minute'
+
+  if (min.startsWith('*/') && hour === '*' && dom === '*' && month === '*' && dow === '*') {
+    const n = parseInt(min.slice(2))
+    if (!isNaN(n)) return `Every ${n} minute${n === 1 ? '' : 's'}`
+  }
+  if (min === '0' && hour === '*' && dom === '*' && month === '*' && dow === '*') return 'Every hour'
+  if (min === '0' && hour.startsWith('*/') && dom === '*' && month === '*' && dow === '*') {
+    const n = parseInt(hour.slice(2))
+    if (!isNaN(n)) return `Every ${n} hours`
+  }
+  // Specific time, all days
+  if (dom === '*' && month === '*' && dow === '*') {
+    const h = parseInt(hour), m = parseInt(min)
+    if (!isNaN(h) && !isNaN(m)) return `Daily at ${fmtTime(h, m)}`
+  }
+  // Specific time, weekdays
+  if (dow === '1-5' && dom === '*' && month === '*') {
+    const h = parseInt(hour), m = parseInt(min)
+    if (!isNaN(h) && !isNaN(m)) return `Weekdays at ${fmtTime(h, m)}`
+  }
+  // Specific time, weekends
+  if ((dow === '0,6' || dow === '6,0') && dom === '*' && month === '*') {
+    const h = parseInt(hour), m = parseInt(min)
+    if (!isNaN(h) && !isNaN(m)) return `Weekends at ${fmtTime(h, m)}`
+  }
+  return expr
+}
+
+/** Returns the next N timestamps when this cron expression will fire, starting from `from` (default now). */
+export function nextRuns(expr: string, count: number, from?: Date): Date[] {
+  if (!expr?.trim()) return []
+  const results: Date[] = []
+  const cursor = from ? new Date(from) : new Date()
+  cursor.setSeconds(0, 0)
+  cursor.setMinutes(cursor.getMinutes() + 1)
+  const limit = new Date(cursor.getTime() + 8 * 24 * 60 * 60 * 1000)
+  while (results.length < count && cursor < limit) {
+    if (cronMatches(expr, cursor)) results.push(new Date(cursor))
+    cursor.setMinutes(cursor.getMinutes() + 1)
+  }
+  return results
 }

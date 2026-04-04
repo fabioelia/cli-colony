@@ -3,9 +3,11 @@ import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import {
   Zap, ZapOff, Play, RefreshCw, ChevronDown, ChevronRight,
   FileText, Clock, CheckCircle, XCircle, AlertTriangle, Save, BookOpen,
-  MessageSquare, Send, Plus, Search
+  MessageSquare, Send, Plus, Search, Pencil
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
+import CronEditor from './CronEditor'
+import { describeCron } from '../../../shared/cron'
 
 interface PipelineInfo {
   name: string
@@ -106,6 +108,9 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [outputFiles, setOutputFiles] = useState<Array<{ name: string; path: string; size: number; modified: number }>>([])
   const [outputPreview, setOutputPreview] = useState<{ name: string; content: string } | null>(null)
   const [expandedTab, setExpandedTab] = useState<'yaml' | 'docs' | 'memory' | 'outputs'>('yaml')
+
+  // Cron editor — tracks which pipeline's cron is being edited
+  const [cronEditingPipeline, setCronEditingPipeline] = useState<string | null>(null)
 
   // Pipeline assistant
   const [askInput, setAskInput] = useState('')
@@ -307,11 +312,15 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
               </div>
               <div className="pipeline-card-right">
                 <span className="pipeline-card-trigger">{p.triggerType}</span>
-                {p.cron ? (
-                  <span className="pipeline-card-cron" title={`Cron: ${p.cron}`}><Clock size={10} /> {p.cron}</span>
-                ) : (
-                  <span className="pipeline-card-interval">{p.interval}s</span>
-                )}
+                <button
+                  className="pipeline-cron-badge"
+                  title={p.cron ? `Cron: ${p.cron} — click to edit` : 'Click to set cron schedule'}
+                  onClick={(e) => { e.stopPropagation(); setCronEditingPipeline(cronEditingPipeline === p.name ? null : p.name) }}
+                >
+                  <Clock size={10} />
+                  {p.cron ? describeCron(p.cron) : `${p.interval}s`}
+                  <Pencil size={9} className="cron-badge-edit-icon" />
+                </button>
                 {p.fireCount > 0 && (
                   <span className="pipeline-card-fires">
                     <Zap size={10} /> {p.fireCount}
@@ -319,6 +328,17 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                 )}
               </div>
             </div>
+
+            {cronEditingPipeline === p.name && (
+              <CronEditor
+                value={p.cron ?? ''}
+                onSave={async (val) => {
+                  await window.api.pipeline.setCron(p.fileName, val || null)
+                  setCronEditingPipeline(null)
+                }}
+                onClose={() => setCronEditingPipeline(null)}
+              />
+            )}
 
             {p.description && (
               <div className="pipeline-card-desc">{p.description}</div>
@@ -348,14 +368,20 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
               )}
             </div>
 
-            {p.debugLog && p.debugLog.length > 0 && (
-              <details className="pipeline-debug-log">
-                <summary>Debug Log ({p.debugLog.length} entries)</summary>
+            <details className="pipeline-debug-log">
+              <summary>
+                Debug Log {p.debugLog?.length ? `(${p.debugLog.filter(l => l === '---').length} polls)` : '(empty — click Poll Now to generate)'}
+              </summary>
+              {p.debugLog?.length ? (
                 <pre className="pipeline-debug-log-content">
-                  {p.debugLog.slice().reverse().join('\n')}
+                  {p.debugLog.slice().reverse().map(l => l === '---' ? '────────────────────────' : l).join('\n')}
                 </pre>
-              </details>
-            )}
+              ) : (
+                <div className="pipeline-debug-log-content" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  No logs yet. Debug logs are in-memory only — they reset when the app restarts. Click "Poll Now" to generate entries.
+                </div>
+              )}
+            </details>
 
             <div className="pipeline-card-actions">
               <button

@@ -246,6 +246,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Main area — expandable cards',
         items: [
           { label: 'Pipeline card', detail: 'Shows name, trigger type (git-poll/cron/file-poll), and enabled/disabled toggle.' },
+          { label: 'Schedule badge', detail: 'Shows the current cron schedule as a human-readable label (e.g. "Weekdays 9am"). Click it to open the schedule editor with presets and next-run preview.', icon: 'Clock' },
           { label: 'Running indicator', detail: 'Pulsing amber dot when the pipeline is actively polling.' },
           { label: 'Error display', detail: 'Red block with error message if the last run failed.' },
           { label: 'Repo pipelines', detail: 'Pipelines from .colony/pipelines/ in tracked repos appear here (disabled by default).' },
@@ -397,7 +398,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Main area',
         items: [
           { label: 'Status dot', detail: 'Green pulsing = running a session. Gray = idle. Dimmed = disabled.' },
-          { label: 'Schedule', detail: 'Cron expression showing when the persona runs automatically (e.g., every 2 hours during work hours).' },
+          { label: 'Schedule', detail: 'Shows when the persona runs automatically as a human-readable label (e.g. "Every 2 hours"). Click to open the schedule editor with presets and next-run times.', icon: 'Clock' },
           { label: 'Run count', detail: 'How many sessions this persona has completed.' },
           { label: 'Run button', detail: 'Manually trigger a persona session now.', icon: 'Play' },
           { label: 'Stop button', detail: 'Stop the currently running persona session.', icon: 'Square' },
@@ -442,6 +443,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Git branch badge', detail: 'Shows the current git branch and repo name.', icon: 'GitBranch' },
           { label: 'Info button', detail: 'Opens a popover with launch command, PID, working directory, MCP servers, token usage, and child processes.', icon: 'Info' },
+          { label: 'Reset terminal', detail: 'Destroy the terminal and create a fresh one. On the Session tab, clears and re-replays the buffer. On the Shell tab, kills the shell and spawns a new one.', icon: 'RotateCcw' },
           { label: 'Spawn child', detail: 'Create a child session that reports back via a handoff document when done.', icon: 'GitFork' },
         ],
       },

@@ -151,6 +151,14 @@ export function getPersonaContent(fileName: string): string | null {
   }
 }
 
+/** Surgically update the schedule field in a persona frontmatter without touching the rest. */
+export function setPersonaSchedule(fileName: string, schedule: string): boolean {
+  const content = getPersonaContent(fileName)
+  if (!content) return false
+  const updated = content.replace(/^(schedule:\s*).*$/m, `$1"${schedule}"`)
+  return savePersonaContent(fileName, updated)
+}
+
 export function savePersonaContent(fileName: string, content: string): boolean {
   ensureDir()
   const filePath = join(PERSONAS_DIR, fileName.endsWith('.md') ? fileName : `${fileName}.md`)

@@ -2,12 +2,14 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
   ChevronDown, ChevronRight, Clock, Hash,
-  ToggleLeft, ToggleRight
+  ToggleLeft, ToggleRight, Pencil
 } from 'lucide-react'
 import { marked } from 'marked'
 import HelpPopover from './HelpPopover'
 import Tooltip from './Tooltip'
+import CronEditor from './CronEditor'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
+import { describeCron } from '../../../shared/cron'
 
 import type { PersonaInfo, ClaudeInstance } from '../../../shared/types'
 
@@ -295,6 +297,9 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
             onDelete={() => handleDelete(persona.id)}
             onFocusInstance={onFocusInstance}
             onViewFile={() => setViewingPersona(persona)}
+            onScheduleSave={async (schedule) => {
+              await window.api.persona.setSchedule(persona.id, schedule)
+            }}
           />
         ))}
       </div>
@@ -365,12 +370,14 @@ interface PersonaCardProps {
   onDelete: () => void
   onFocusInstance: (id: string) => void
   onViewFile: () => void
+  onScheduleSave: (schedule: string) => Promise<void>
 }
 
 function PersonaCard({
   persona, expanded, instances, onToggleExpand,
-  onRun, onStop, onToggle, onDelete, onFocusInstance, onViewFile
+  onRun, onStop, onToggle, onDelete, onFocusInstance, onViewFile, onScheduleSave
 }: PersonaCardProps) {
+  const [editingSchedule, setEditingSchedule] = useState(false)
   const isRunning = persona.activeSessionId !== null
   const statusClass = isRunning ? 'running' : persona.enabled ? 'idle' : 'disabled'
   const allSections = parseSections(persona.content)
@@ -380,7 +387,7 @@ function PersonaCard({
   const sessionLogLines = (allSections['Session Log'] || '')
     .split('\n')
     .filter(l => l.trim().startsWith('- ['))
-    .slice(-3) // last 3 entries
+    .slice(-3).reverse() // last 3 entries, newest first
 
   return (
     <div className="persona-card">
@@ -392,11 +399,15 @@ function PersonaCard({
         <div className="persona-card-info">
           <span className="persona-card-name">{persona.name}</span>
           <div className="persona-card-meta">
-            {persona.schedule && (
-              <span title={`Schedule: ${persona.schedule}`}>
-                <Clock size={10} /> {persona.schedule}
-              </span>
-            )}
+            <button
+              className="persona-schedule-btn"
+              title={persona.schedule ? `Schedule: ${persona.schedule} — click to edit` : 'Click to set schedule'}
+              onClick={(e) => { e.stopPropagation(); setEditingSchedule(!editingSchedule) }}
+            >
+              <Clock size={10} />
+              {persona.schedule ? describeCron(persona.schedule) : 'Manual only'}
+              <Pencil size={9} className="cron-badge-edit-icon" />
+            </button>
             <span title={`${persona.runCount} completed runs`}>
               <Hash size={10} /> {persona.runCount}
             </span>
@@ -441,6 +452,17 @@ function PersonaCard({
           </Tooltip>
         </div>
       </div>
+
+      {editingSchedule && (
+        <CronEditor
+          value={persona.schedule}
+          onSave={async (val) => {
+            await onScheduleSave(val)
+            setEditingSchedule(false)
+          }}
+          onClose={() => setEditingSchedule(false)}
+        />
+      )}
 
       {/* Recent activity preview — always visible */}
       {!expanded && sessionLogLines.length > 0 && (
