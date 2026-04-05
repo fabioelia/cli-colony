@@ -5,6 +5,10 @@
 
 export type CliBackend = 'claude' | 'cursor-agent'
 
+export type SessionRole = 'Orchestrator' | 'Planner' | 'Coder' | 'Tester' | 'Reviewer' | 'Researcher'
+
+export const SESSION_ROLES: SessionRole[] = ['Orchestrator', 'Planner', 'Coder', 'Tester', 'Reviewer', 'Researcher']
+
 export interface ClaudeInstance {
   id: string
   name: string
@@ -24,6 +28,7 @@ export interface ClaudeInstance {
   mcpServers: string[]
   parentId: string | null
   childIds: string[]
+  roleTag: SessionRole | null
 }
 
 export interface AgentDef {

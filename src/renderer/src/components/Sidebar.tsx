@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, FileDown } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
+import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest } from '../../../shared/types'
 import Tooltip from './Tooltip'
 import HelpPopover from './HelpPopover'
@@ -343,6 +344,11 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
             {(inst.tokenUsage?.cost ?? 0) > 0.001 && (
               <span className="instance-cost-badge" title={`API cost: $${inst.tokenUsage.cost.toFixed(4)}`}>
                 ${inst.tokenUsage.cost.toFixed(2)}
+              </span>
+            )}
+            {inst.roleTag && (
+              <span className={`instance-role-badge role-${inst.roleTag.toLowerCase()}`} title={`Role: ${inst.roleTag}`}>
+                {inst.roleTag}
               </span>
             )}
             {inst.mcpServers.length > 0 && (
@@ -770,6 +776,28 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
             >
               Rename
             </button>
+            <div className="context-menu-section">
+              <div className="context-menu-label">Role</div>
+              <div className="context-menu-roles">
+                {SESSION_ROLES.map(role => {
+                  const inst = instances.find((i) => i.id === contextMenu.id)
+                  const active = inst?.roleTag === role
+                  return (
+                    <button
+                      key={role}
+                      className={`role-chip${active ? ' active' : ''}`}
+                      title={`Tag as ${role}`}
+                      onClick={() => {
+                        window.api.instance.setRole(contextMenu.id, active ? null : role)
+                        setContextMenu(null)
+                      }}
+                    >
+                      {role}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
             <button
               className="context-menu-item danger"
               onClick={() => {

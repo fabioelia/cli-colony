@@ -156,6 +156,7 @@ function toSerializable(inst: InternalInstance): ClaudeInstance {
     mcpServers: inst.mcpServers,
     parentId: inst.parentId,
     childIds: inst.childIds,
+    roleTag: inst.roleTag,
   }
 }
 
@@ -239,7 +240,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
       exitCode: -1, pid: null, args: argv, cliBackend,
       gitBranch: resolveGitBranch(cwd), gitRepo: resolveGitRepo(cwd),
       tokenUsage: { input: 0, output: 0, cost: 0 },
-      pinned: false, mcpServers: [],
+      pinned: false, mcpServers: [], roleTag: null,
       parentId: opts.parentId || null, childIds: [],
       pty: null, outputBuffer: [`Failed to spawn ${command}: ${err}\r\n`],
       cleanupTimer: null, _lastSnapshot: '', _activityInterval: null, _handoffRequested: false, _userInputReceived: false,
@@ -255,7 +256,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
     exitCode: null, pid: ptyProcess.pid,
     args: argv, cliBackend, gitBranch: resolveGitBranch(cwd), gitRepo: resolveGitRepo(cwd),
     tokenUsage: { input: 0, output: 0, cost: 0 },
-    pinned: false, mcpServers: [],
+    pinned: false, mcpServers: [], roleTag: null,
     parentId: opts.parentId || null, childIds: [],
     pty: ptyProcess, outputBuffer: [],
     cleanupTimer: null, _lastSnapshot: '', _activityInterval: null, _handoffRequested: false, _userInputReceived: false,
@@ -481,6 +482,14 @@ function unpinInstance(id: string): boolean {
   return true
 }
 
+function setRoleTag(id: string, role: string | null): boolean {
+  const inst = instances.get(id)
+  if (!inst) return false
+  inst.roleTag = role as typeof inst.roleTag
+  notifyListChanged()
+  return true
+}
+
 function restartInstance(id: string, defaultArgs?: string[]): ClaudeInstance | null {
   const inst = instances.get(id)
   if (!inst) return null
@@ -574,6 +583,11 @@ function handleRequest(req: DaemonRequest, socket: net.Socket): void {
       }
       case 'unpin': {
         const ok = unpinInstance(req.instanceId)
+        send({ type: 'ok', reqId: req.reqId, data: ok })
+        break
+      }
+      case 'set-role': {
+        const ok = setRoleTag(req.instanceId, req.role)
         send({ type: 'ok', reqId: req.reqId, data: ok })
         break
       }

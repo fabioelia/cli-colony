@@ -59,6 +59,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Export Handoff Doc', detail: 'Generates a markdown snapshot of the session — git commits, terminal output, metadata — ready to paste into a new session to restore context.', icon: 'FileDown' },
           { label: 'Context budget badge', detail: 'Amber "ctx" badge when a session has generated significant output (context building up). Red when near the limit. Click to open the Handoff Doc export — the suggested action when context is running low.' },
           { label: 'Cost badge', detail: 'Running API cost estimate (e.g. "$0.12") parsed from Claude CLI output. Appears once cost exceeds $0.001. Hover for the exact figure to 4 decimal places.' },
+          { label: 'Role badge', detail: 'Purple tag (Orchestrator, Planner, Coder, Tester, Reviewer, Researcher) set via right-click. Helps coordinate multi-agent workflows at a glance.' },
           { label: 'Split indicator', detail: 'A columns icon appears on sessions that have a split partner.', icon: 'Columns2' },
           { label: 'Shortcut numbers', detail: 'Numbers 1-9 shown next to sessions for quick Cmd+N jumping.' },
         ],

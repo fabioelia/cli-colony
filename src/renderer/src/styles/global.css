@@ -1037,6 +1037,27 @@ input, select {
   color: #34d399;
 }
 
+.instance-role-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 5px;
+  font-size: 9px;
+  font-weight: 600;
+  border-radius: 3px;
+  vertical-align: middle;
+  line-height: 16px;
+  background: rgba(139, 92, 246, 0.15);
+  color: #a78bfa;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.instance-role-badge.role-orchestrator { background: rgba(99, 102, 241, 0.15); color: #818cf8; }
+.instance-role-badge.role-planner      { background: rgba(14, 165, 233, 0.15); color: #38bdf8; }
+.instance-role-badge.role-coder        { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+.instance-role-badge.role-tester       { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+.instance-role-badge.role-reviewer     { background: rgba(239, 68, 68, 0.15);  color: #f87171; }
+.instance-role-badge.role-researcher   { background: rgba(139, 92, 246, 0.15); color: #a78bfa; }
+
 .instance-item-right {
   display: flex;
   align-items: center;
@@ -3169,6 +3190,45 @@ input, select {
 .context-menu-item.danger:hover {
   background: rgba(239, 68, 68, 0.1);
 }
+
+.context-menu-section {
+  padding: 6px 8px 8px;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  margin: 4px 0;
+}
+
+.context-menu-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+
+.context-menu-roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.role-chip {
+  padding: 2px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 3px;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 16px;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.role-chip:hover { background: var(--bg-surface); color: var(--text-primary); }
+.role-chip.active { background: rgba(139, 92, 246, 0.15); color: #a78bfa; border-color: rgba(139, 92, 246, 0.3); }
 
 /* Split picker */
 .split-picker-list {
