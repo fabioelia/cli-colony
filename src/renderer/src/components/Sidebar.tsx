@@ -424,39 +424,46 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
         <div className="sidebar-nav">
           <Tooltip text="Sessions" detail={`${instances.filter(i => i.status === 'running').length} running, ${instances.length} total`} shortcut="Cmd+1-9" position="bottom">
             <button className={`sidebar-nav-btn ${view === 'instances' ? 'active' : ''}`} onClick={() => onViewChange('instances')}>
-              <TerminalSquare size={16} />
+              <TerminalSquare size={15} />
               {instances.length > 0 && <span className="sidebar-nav-badge">{instances.length}</span>}
+              <span className="sidebar-nav-label">Sessions</span>
             </button>
           </Tooltip>
           <Tooltip text="Agents" detail="Browse and create agent definitions" position="bottom">
             <button className={`sidebar-nav-btn ${view === 'agents' ? 'active' : ''}`} onClick={() => onViewChange('agents')}>
-              <Bot size={16} />
+              <Bot size={15} />
+              <span className="sidebar-nav-label">Agents</span>
             </button>
           </Tooltip>
           <Tooltip text="Pull Requests" detail="GitHub PRs, reviews, comments" position="bottom">
             <button className={`sidebar-nav-btn ${view === 'github' ? 'active' : ''}`} onClick={() => onViewChange('github')}>
-              <GitPullRequest size={16} />
+              <GitPullRequest size={15} />
+              <span className="sidebar-nav-label">PRs</span>
             </button>
           </Tooltip>
           <Tooltip text="Tasks" detail="Task queue and batch execution" position="bottom">
             <button className={`sidebar-nav-btn ${view === 'tasks' ? 'active' : ''}`} onClick={() => onViewChange('tasks')}>
-              <ListChecks size={16} />
+              <ListChecks size={15} />
+              <span className="sidebar-nav-label">Tasks</span>
             </button>
           </Tooltip>
           <Tooltip text="Pipelines" detail="Automated triggers and actions" position="bottom">
             <button className={`sidebar-nav-btn ${view === 'pipelines' ? 'active' : ''}`} onClick={() => onViewChange('pipelines')}>
-              <Zap size={16} />
+              <Zap size={15} />
+              <span className="sidebar-nav-label">Pipes</span>
             </button>
           </Tooltip>
           <Tooltip text="Environments" detail={runningEnvCount > 0 ? `${runningEnvCount} running` : 'Dev environment management'} position="bottom">
             <button className={`sidebar-nav-btn ${view === 'environments' ? 'active' : ''}`} onClick={() => onViewChange('environments')}>
-              <Server size={16} />
+              <Server size={15} />
               {runningEnvCount > 0 && <span className="sidebar-nav-badge">{runningEnvCount}</span>}
+              <span className="sidebar-nav-label">Envs</span>
             </button>
           </Tooltip>
           <Tooltip text="Personas" detail="Autonomous AI agents with identity, goals, and memory" position="bottom">
             <button className={`sidebar-nav-btn ${view === 'personas' ? 'active' : ''}`} onClick={() => onViewChange('personas')}>
-              <User size={16} />
+              <User size={15} />
+              <span className="sidebar-nav-label">Personas</span>
             </button>
           </Tooltip>
         </div>

@@ -150,14 +150,26 @@ input, select {
 
 .sidebar-nav-btn {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 28px;
+  gap: 2px;
+  width: 36px;
+  height: 40px;
   border-radius: 6px;
   color: var(--text-muted);
   transition: all 0.15s;
   position: relative;
+}
+
+.sidebar-nav-label {
+  font-size: 7.5px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: inherit;
+  user-select: none;
+  text-transform: uppercase;
 }
 
 .sidebar-nav-btn:hover {
