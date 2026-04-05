@@ -9812,6 +9812,54 @@ input, select {
   color: var(--text-secondary);
 }
 
+.env-purpose-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+.env-purpose-interactive {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+.env-purpose-background {
+  background: rgba(99, 102, 241, 0.15);
+  color: #6366f1;
+}
+.env-purpose-nightly {
+  background: rgba(148, 163, 184, 0.15);
+  color: #94a3b8;
+}
+
+.env-purpose-selector {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.env-purpose-btn {
+  padding: 2px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.env-purpose-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.env-purpose-btn.active {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .env-detail-label {
   font-size: 10px;
   font-weight: 600;

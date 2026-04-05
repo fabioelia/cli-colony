@@ -66,6 +66,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
   const [fixMenuOpen, setFixMenuOpen] = useState<string | null>(null)
   const [fixMenuRect, setFixMenuRect] = useState<DOMRect | null>(null)
   const [restartPolicies, setRestartPolicies] = useState<Record<string, 'manual' | 'on-crash'>>({})
+  const [purposeTags, setPurposeTags] = useState<Record<string, 'interactive' | 'background' | 'nightly' | null>>({})
 
   const loadEnvironments = useCallback(async () => {
     try {
@@ -194,12 +195,14 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
     }
   }
 
-  // Load restart policy when an environment card is expanded
+  // Load restart policy and purpose tag when an environment card is expanded
   useEffect(() => {
     if (!expandedId) return
     window.api.env.manifest(expandedId).then((m: any) => {
       const policy = (m?.meta?.restartPolicy as 'manual' | 'on-crash') || 'manual'
       setRestartPolicies(prev => ({ ...prev, [expandedId]: policy }))
+      const tag = (m?.meta?.purposeTag as 'interactive' | 'background' | 'nightly') || null
+      setPurposeTags(prev => ({ ...prev, [expandedId]: tag }))
     }).catch(() => {})
   }, [expandedId])
 
@@ -493,7 +496,14 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                 <div className="env-card-status-dot" style={{ backgroundColor: statusColor(env.status) }} />
 
                 <div className="env-card-info">
-                  <div className="env-card-name">{env.displayName || env.name}</div>
+                  <div className="env-card-name">
+                    {env.displayName || env.name}
+                    {purposeTags[env.id] && (
+                      <span className={`env-purpose-badge env-purpose-${purposeTags[env.id]}`}>
+                        {purposeTags[env.id]}
+                      </span>
+                    )}
+                  </div>
                   <div className="env-card-meta">
                     <span className="env-card-branch">{env.branch}</span>
                     <span className="env-card-type">{env.projectType}</span>
@@ -744,6 +754,25 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                       />
                       <span className="env-restart-toggle-label">Auto-restart crashed services</span>
                     </label>
+                  </div>
+
+                  {/* Purpose tag */}
+                  <div className="env-detail-section env-detail-section-row">
+                    <span className="env-restart-toggle-label" style={{ marginRight: 8 }}>Purpose:</span>
+                    <div className="env-purpose-selector">
+                      {(['interactive', 'background', 'nightly', null] as const).map(tag => (
+                        <button
+                          key={tag ?? 'none'}
+                          className={`env-purpose-btn${(purposeTags[env.id] || null) === tag ? ' active' : ''}`}
+                          onClick={async () => {
+                            setPurposeTags(prev => ({ ...prev, [env.id]: tag }))
+                            await window.api.env.setPurposeTag(env.id, tag)
+                          }}
+                        >
+                          {tag ?? 'none'}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   {/* Ports */}

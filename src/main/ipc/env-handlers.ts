@@ -3,7 +3,7 @@ import {
   listEnvironments, getEnvironment, createEnvironment, setupEnvironment,
   startEnvironment, stopEnvironment, teardownEnvironment,
   getEnvironmentLogs, restartServiceInEnv, getManifest, saveManifest,
-  fixEnvironment, setRestartPolicy,
+  fixEnvironment, setRestartPolicy, setPurposeTag, type PurposeTag,
   listTemplates, getTemplate, saveTemplate, deleteTemplate,
   refreshRepoConfigs,
 } from '../env-manager'
@@ -33,6 +33,7 @@ export function registerEnvHandlers(): void {
   ipcMain.handle('env:saveManifest', (_e, envId: string, manifest: any) => saveManifest(envId, manifest))
   ipcMain.handle('env:fix', async (_e, envId: string) => fixEnvironment(envId))
   ipcMain.handle('env:setRestartPolicy', (_e, envId: string, policy: 'manual' | 'on-crash') => setRestartPolicy(envId, policy))
+  ipcMain.handle('env:setPurposeTag', (_e, envId: string, tag: PurposeTag | null) => setPurposeTag(envId, tag))
   ipcMain.handle('env:retrySetup', async (_e, envId: string) => {
     setupEnvironment(envId).catch((err) => {
       console.error('[ipc] environment retry setup failed:', err)

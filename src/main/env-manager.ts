@@ -797,6 +797,22 @@ export function setRestartPolicy(envId: string, policy: 'manual' | 'on-crash'): 
   saveManifest(envId, manifest)
 }
 
+// ---- Purpose Tag ----
+
+export type PurposeTag = 'interactive' | 'background' | 'nightly'
+
+export function getPurposeTag(envId: string): PurposeTag | null {
+  const manifest = getManifest(envId)
+  return (manifest?.meta?.purposeTag as PurposeTag) || null
+}
+
+export function setPurposeTag(envId: string, tag: PurposeTag | null): void {
+  const manifest = getManifest(envId)
+  if (!manifest) throw new Error(`Environment ${envId} not found`)
+  manifest.meta = { ...manifest.meta, purposeTag: tag ?? undefined }
+  saveManifest(envId, manifest)
+}
+
 export function saveManifest(envId: string, manifest: InstanceManifest): void {
   // Validate required fields to prevent malformed data on disk
   if (!manifest || typeof manifest !== 'object') throw new Error('Invalid manifest: not an object')

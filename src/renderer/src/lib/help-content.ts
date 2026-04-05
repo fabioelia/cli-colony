@@ -315,6 +315,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Service list', detail: 'Each service row shows status, uptime, port, restart count, and start/stop/restart controls.' },
           { label: 'URLs section', detail: 'Clickable URLs for accessible service endpoints.' },
           { label: 'Auto-restart toggle', detail: 'When enabled, any crashed service in this environment is automatically restarted after 5 seconds. Off by default.' },
+          { label: 'Purpose tag', detail: 'Tag an environment as interactive (sprint work), background (parallel tasks), or nightly (overnight batch jobs). Shows as a colored badge on the card. Optional — helps you filter and understand at a glance what each environment is for.' },
           { label: 'Ports section', detail: 'Allocated ports per service — unique across environments to avoid conflicts.' },
           { label: 'Paths section', detail: 'Root path, backend path, frontend path, etc. for the environment.' },
         ],
