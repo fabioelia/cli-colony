@@ -713,3 +713,237 @@ describe('pipeline-engine: stopPipelines', () => {
     expect(mod.getPipelineList()).toEqual([])
   })
 })
+
+// ---- CRON pipeline YAML used for runPoll tests ----
+const CRON_YAML = `
+name: Cron Pipe
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: launch-session
+  prompt: Do work
+dedup:
+  key: daily
+`
+
+// Flush all pending microtasks (handles nested promise chains)
+async function flushPromises() {
+  for (let i = 0; i < 10; i++) await Promise.resolve()
+}
+
+describe('pipeline-engine: auto-pause on consecutive failures', () => {
+  let mod: typeof import('../pipeline-engine')
+  let mockCreateInstance: ReturnType<typeof vi.fn>
+  let mockAppendActivity: ReturnType<typeof vi.fn>
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+    mockCreateInstance = vi.fn().mockRejectedValue(new Error('simulated launch failure'))
+    mockAppendActivity = vi.fn()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  function setupAutoMocks(fsMock: ReturnType<typeof buildFsMock>) {
+    vi.doMock('electron', () => ({
+      app: { getPath: vi.fn().mockReturnValue('/mock/home') },
+    }))
+    vi.doMock('../../shared/colony-paths', () => ({
+      colonyPaths: {
+        root: MOCK_ROOT,
+        pipelines: PIPELINES_DIR,
+        schedulerLog: `${MOCK_ROOT}/scheduler.log`,
+      },
+    }))
+    vi.doMock('fs', () => fsMock)
+    vi.doMock('../broadcast', () => ({ broadcast: mockBroadcast }))
+    vi.doMock('../repo-config-loader', () => ({ getAllRepoConfigs: mockGetAllRepoConfigs }))
+    vi.doMock('../instance-manager', () => ({
+      createInstance: mockCreateInstance,
+      getAllInstances: vi.fn().mockResolvedValue([]),
+    }))
+    vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
+    vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
+    vi.doMock('../github', () => ({
+      getRepos: vi.fn().mockReturnValue([]),
+      fetchPRs: vi.fn().mockResolvedValue([]),
+      fetchChecks: vi.fn().mockResolvedValue({ checks: [] }),
+      gh: vi.fn().mockResolvedValue('{}'),
+    }))
+    vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
+    vi.doMock('../activity-manager', () => ({ appendActivity: mockAppendActivity }))
+  }
+
+  it('starts with consecutiveFailures = 0', async () => {
+    const fs = buildFsMock(['cron.yaml'], { 'cron.yaml': CRON_YAML })
+    setupAutoMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+    expect(mod.getPipelineList()[0].consecutiveFailures).toBe(0)
+  })
+
+  it('increments consecutiveFailures after each failed poll', async () => {
+    const fs = buildFsMock(['cron.yaml'], { 'cron.yaml': CRON_YAML })
+    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+      if (p === STATE_PATH) return '{}'
+      if (p.endsWith('cron.yaml')) return CRON_YAML
+      throw new Error(`Unexpected: ${p}`)
+    })
+    setupAutoMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Cron Pipe')
+    await flushPromises()
+    expect(mod.getPipelineList()[0].consecutiveFailures).toBe(1)
+
+    mod.triggerPollNow('Cron Pipe')
+    await flushPromises()
+    expect(mod.getPipelineList()[0].consecutiveFailures).toBe(2)
+  })
+
+  it('auto-pauses pipeline after 3 consecutive failures', async () => {
+    const fs = buildFsMock(['cron.yaml'], { 'cron.yaml': CRON_YAML })
+    let capturedWrite = ''
+    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+      if (p === STATE_PATH) return '{}'
+      if (p.endsWith('cron.yaml')) return CRON_YAML
+      throw new Error(`Unexpected: ${p}`)
+    })
+    fs.writeFileSync.mockImplementation((_p: string, data: string) => {
+      if (typeof data === 'string' && data.includes('enabled:')) capturedWrite = data
+    })
+    setupAutoMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    for (let i = 0; i < 3; i++) {
+      mod.triggerPollNow('Cron Pipe')
+      await flushPromises()
+    }
+
+    const p = mod.getPipelineList()[0]
+    expect(p.enabled).toBe(false)
+    expect(p.consecutiveFailures).toBe(3)
+  })
+
+  it('emits a warn activity event when auto-pausing', async () => {
+    const fs = buildFsMock(['cron.yaml'], { 'cron.yaml': CRON_YAML })
+    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+      if (p === STATE_PATH) return '{}'
+      if (p.endsWith('cron.yaml')) return CRON_YAML
+      throw new Error(`Unexpected: ${p}`)
+    })
+    setupAutoMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    for (let i = 0; i < 3; i++) {
+      mod.triggerPollNow('Cron Pipe')
+      await flushPromises()
+    }
+
+    const warnCall = mockAppendActivity.mock.calls.find(
+      (c: any[]) => c[0].level === 'warn',
+    )
+    expect(warnCall).toBeDefined()
+    expect(warnCall[0].summary).toContain('auto-paused')
+    expect(warnCall[0].summary).toContain('Cron Pipe')
+  })
+
+  it('resets consecutiveFailures to 0 on successful poll', async () => {
+    // Two failures then success — counter should go back to 0
+    const fs = buildFsMock(['cron.yaml'], { 'cron.yaml': CRON_YAML })
+    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+      if (p === STATE_PATH) return '{}'
+      if (p.endsWith('cron.yaml')) return CRON_YAML
+      throw new Error(`Unexpected: ${p}`)
+    })
+    setupAutoMocks(fs)
+
+    // Fail twice
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Cron Pipe')
+    await flushPromises()
+    mod.triggerPollNow('Cron Pipe')
+    await flushPromises()
+    expect(mod.getPipelineList()[0].consecutiveFailures).toBe(2)
+
+    // Now make createInstance succeed
+    mockCreateInstance.mockResolvedValueOnce({ id: 'inst-1' })
+    // Also need sendPromptWhenReady to succeed — already mocked as vi.fn() returning undefined
+    mod.triggerPollNow('Cron Pipe')
+    await flushPromises()
+    expect(mod.getPipelineList()[0].consecutiveFailures).toBe(0)
+  })
+
+  it('restores consecutiveFailures from saved state', async () => {
+    const savedState = JSON.stringify({
+      'Cron Pipe': {
+        lastPollAt: null,
+        lastMatchAt: null,
+        firedKeys: {},
+        contentHashes: {},
+        fireCount: 2,
+        lastFiredAt: null,
+        lastError: 'prior error',
+        consecutiveFailures: 2,
+      },
+    })
+    const fs = buildFsMock(['cron.yaml'], { 'cron.yaml': CRON_YAML }, savedState)
+    setupAutoMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    expect(mod.getPipelineList()[0].consecutiveFailures).toBe(2)
+  })
+
+  it('does not auto-pause on non-consecutive failures (reset between)', async () => {
+    // Use a timestamp-based dedup key so each poll evaluates independently
+    const uniqueKeyYaml = CRON_YAML.replace('key: daily', 'key: "{{timestamp}}"')
+    const fs = buildFsMock(['cron.yaml'], { 'cron.yaml': uniqueKeyYaml })
+    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+      if (p === STATE_PATH) return '{}'
+      if (p.endsWith('cron.yaml')) return uniqueKeyYaml
+      throw new Error(`Unexpected: ${p}`)
+    })
+    setupAutoMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    // Two failures
+    mod.triggerPollNow('Cron Pipe')
+    await flushPromises()
+    mod.triggerPollNow('Cron Pipe')
+    await flushPromises()
+    expect(mod.getPipelineList()[0].consecutiveFailures).toBe(2)
+
+    // One success — resets counter
+    mockCreateInstance.mockResolvedValueOnce({ id: 'inst-1' })
+    mod.triggerPollNow('Cron Pipe')
+    await flushPromises()
+    expect(mod.getPipelineList()[0].consecutiveFailures).toBe(0)
+
+    // Two more failures — still below threshold, should NOT auto-pause
+    mockCreateInstance.mockRejectedValue(new Error('fail again'))
+    mod.triggerPollNow('Cron Pipe')
+    await flushPromises()
+    mod.triggerPollNow('Cron Pipe')
+    await flushPromises()
+    // Counter is back to 2 but pipeline should NOT be auto-paused (threshold is 3)
+    expect(mod.getPipelineList()[0].enabled).toBe(true)
+  })
+})

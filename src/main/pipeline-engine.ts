@@ -77,6 +77,7 @@ interface PipelineState {
   fireCount: number
   lastFiredAt: string | null
   lastError: string | null
+  consecutiveFailures: number
   debugLog: string[]
 }
 
@@ -95,11 +96,13 @@ export interface PipelineInfo {
   lastFiredAt: string | null
   lastError: string | null
   fireCount: number
+  consecutiveFailures: number
   debugLog: string[]
 }
 
 const MAX_DEBUG_ITERATIONS = 20
 const DEBUG_ITERATION_SEP = '---'
+const CONSECUTIVE_FAILURE_THRESHOLD = 3
 
 interface TriggerContext {
   repo?: GitHubRepo
@@ -211,6 +214,7 @@ function loadState(): Record<string, PipelineState> {
       const raw = JSON.parse(readFileSync(STATE_PATH, 'utf-8'))
       for (const key of Object.keys(raw)) {
         if (!raw[key].debugLog) raw[key].debugLog = []
+        if (!raw[key].consecutiveFailures) raw[key].consecutiveFailures = 0
       }
       return raw
     }
@@ -245,7 +249,7 @@ function saveDebugLogs(): void {
 }
 
 function freshState(): PipelineState {
-  return { lastPollAt: null, lastMatchAt: null, firedKeys: {}, contentHashes: {}, fireCount: 0, lastFiredAt: null, lastError: null, debugLog: [] }
+  return { lastPollAt: null, lastMatchAt: null, firedKeys: {}, contentHashes: {}, fireCount: 0, lastFiredAt: null, lastError: null, consecutiveFailures: 0, debugLog: [] }
 }
 
 // ---- Template Resolution ----
@@ -783,10 +787,36 @@ async function runPoll(pipelineName: string): Promise<void> {
     }
 
     p.state.lastError = null
+    p.state.consecutiveFailures = 0
   } catch (err) {
     p.state.lastError = String(err)
+    p.state.consecutiveFailures = (p.state.consecutiveFailures || 0) + 1
     plog(pipelineName, `✗ error: ${err}`)
     appendActivity({ source: 'pipeline', name: pipelineName, summary: `Pipeline "${pipelineName}" failed: ${String(err).slice(0, 120)}`, level: 'error' })
+
+    if (p.state.consecutiveFailures >= CONSECUTIVE_FAILURE_THRESHOLD) {
+      p.def.enabled = false
+      const timer = timers.get(pipelineName)
+      if (timer) {
+        clearInterval(timer)
+        timers.delete(pipelineName)
+      }
+      const filePath = join(PIPELINES_DIR, p.fileName)
+      try {
+        let content = readFileSync(filePath, 'utf-8')
+        content = content.replace(/^enabled:\s*(true|false)/m, `enabled: false`)
+        writeFileSync(filePath, content, 'utf-8')
+      } catch (writeErr) {
+        log(`Failed to update ${p.fileName} after auto-pause: ${writeErr}`)
+      }
+      plog(pipelineName, `Auto-paused after ${CONSECUTIVE_FAILURE_THRESHOLD} consecutive failures`)
+      appendActivity({
+        source: 'pipeline',
+        name: pipelineName,
+        summary: `Pipeline "${pipelineName}" auto-paused after ${CONSECUTIVE_FAILURE_THRESHOLD} consecutive failures`,
+        level: 'warn',
+      })
+    }
   }
 
   runningPolls.delete(pipelineName)
@@ -960,6 +990,7 @@ export function getPipelineList(): PipelineInfo[] {
       lastMatchAt: p.state.lastMatchAt,
       lastError: p.state.lastError,
       fireCount: p.state.fireCount,
+      consecutiveFailures: p.state.consecutiveFailures || 0,
       debugLog: p.state.debugLog || [],
     })
   }
