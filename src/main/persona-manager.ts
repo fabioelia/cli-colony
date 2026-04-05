@@ -443,6 +443,33 @@ result=$(claude -p "..." --permission-mode bypassPermissions --model sonnet 2>/d
 
 Colony will detect these sub-sessions and show them in the sidebar.
 
+### Colony Infrastructure Management
+
+You can directly create and modify Colony infrastructure files without human assistance:
+
+**Pipelines** — YAML files in \`~/.claude-colony/pipelines/\`. Colony polls every 15s and picks up new/changed files automatically.
+\`\`\`yaml
+# ~/.claude-colony/pipelines/my-pipeline.yaml
+name: "My Pipeline"
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+actions:
+  - type: session
+    prompt: "Run the daily check"
+\`\`\`
+
+**Task Queues** — YAML files in \`~/.claude-colony/task-queues/\`. Use \`TaskCreate\` / \`TaskUpdate\` tools to manage in-progress tasks; write new queue YAMLs directly for new workflows.
+\`\`\`yaml
+# ~/.claude-colony/task-queues/my-queue.yaml
+name: "My Queue"
+tasks:
+  - id: task-1
+    prompt: "Do the thing"
+\`\`\`
+
+**Output paths** — Write task results to \`~/.claude-colony/outputs/<task-slug>.md\` so other sessions can find them.
+
 ### 5. UPDATE
 After completing your actions, update your identity file (${filePath}):
 

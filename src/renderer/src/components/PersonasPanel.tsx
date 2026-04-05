@@ -79,6 +79,23 @@ Format: \`- [ISO timestamp] one-line summary\`. Initially empty.
 - **Code Reviewer**: watches for new PRs, reviews code, pushes colony feedback. can_push: true, can_create_sessions: true
 - **DevOps**: monitors CI/CD, fixes broken builds, manages environments. can_push: true, schedule: every 30 min
 
+## on_complete_run (Completion Triggers)
+
+The \`on_complete_run\` field chains personas: when persona A completes, it automatically triggers personas B and C.
+
+\`\`\`yaml
+on_complete_run: ["colony-qa", "colony-product"]  # file slugs (no .md), not display names
+\`\`\`
+
+Use the file slug (filename without .md extension). Only enabled personas are triggered. Avoid A→B→A cycles.
+
+## Colony Infrastructure
+
+Personas can create/update pipelines and task queues by writing YAML files directly:
+- Pipelines: \`~/.claude-colony/pipelines/<name>.yaml\` (Colony auto-detects new files)
+- Task queues: \`~/.claude-colony/task-queues/<name>.yaml\`
+- Outputs: \`~/.claude-colony/outputs/<task-slug>.md\`
+
 When the user describes what they want, write the persona .md file directly to ~/.claude-colony/personas/. Ask clarifying questions about the role, objectives, and permissions if the user's request is ambiguous.`
 
 /** Parse `## Section` blocks from persona markdown content */
