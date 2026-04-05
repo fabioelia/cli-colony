@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Play, X, MessageSquare, User, Bot, Loader2, ExternalLink } from 'lucide-react'
+import { Play, X, MessageSquare, User, Bot, Loader2, Terminal } from 'lucide-react'
 
 interface ExternalSession {
   pid: number
@@ -114,7 +114,7 @@ export default function ExternalSessionPopover({ session, anchorRect, onClose, o
       {/* Header */}
       <div className="ext-session-popover-header">
         <div className="ext-session-popover-title">
-          <ExternalLink size={14} />
+          <Terminal size={14} />
           <span>{session.name}</span>
         </div>
         <button className="ext-session-popover-close" onClick={onClose} aria-label="Close">
@@ -150,7 +150,7 @@ export default function ExternalSessionPopover({ session, anchorRect, onClose, o
         ) : messages.length === 0 ? (
           <div className="ext-session-popover-empty">
             <MessageSquare size={16} />
-            <span>{session.sessionId ? 'No messages found' : 'No session ID detected -- cannot preview messages'}</span>
+            <span>{session.sessionId ? 'No messages found' : 'No session ID detected — cannot preview messages'}</span>
           </div>
         ) : (
           <>

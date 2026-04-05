@@ -64,7 +64,6 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
         cliBackend,
       })
     } catch (err) {
-      console.error(err)
       const message = err instanceof Error ? err.message : String(err)
       window.alert(`Could not create session: ${message}`)
       setCreating(false)
