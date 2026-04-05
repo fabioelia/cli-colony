@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Loader, MessageSquare, GitBranch, FolderOpen, Send, Plus, FileText } from 'lucide-react'
+import { X, Loader2, MessageSquare, GitBranch, FolderOpen, Send, Plus, FileText } from 'lucide-react'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import { buildTemplateAgentPrompt } from '../../../shared/env-prompts'
 
@@ -138,7 +138,7 @@ export default function NewEnvironmentDialog({ onClose, onCreated, onLaunchInsta
     <div className="env-dialog-overlay" onClick={onClose}>
       <div className="env-dialog env-dialog-create" onClick={e => e.stopPropagation()}>
         <div className="env-dialog-header">
-          <h3>{mode === 'template' ? 'New Template' : 'New Instance'}</h3>
+          <h3>{mode === 'template' ? 'New Template' : 'New Environment'}</h3>
           <button className="env-btn env-btn-ghost" onClick={onClose}><X size={16} /></button>
         </div>
 
@@ -146,7 +146,7 @@ export default function NewEnvironmentDialog({ onClose, onCreated, onLaunchInsta
         {!preselectedTemplate && (
           <div className="env-dialog-mode-tabs">
             <button className={mode === 'instance' ? 'active' : ''} onClick={() => { setMode('instance'); setError(null) }}>
-              From Template
+              New Environment
             </button>
             <button className={mode === 'template' ? 'active' : ''} onClick={() => { setMode('template'); setError(null) }}>
               New Template
@@ -156,8 +156,9 @@ export default function NewEnvironmentDialog({ onClose, onCreated, onLaunchInsta
 
         {creating ? (
           <div className="env-setup-progress">
-            <Loader size={24} className="spinning" />
+            <Loader2 size={24} className="spinning" />
             <p>{mode === 'template' ? 'Launching Template Agent...' : `Creating "${instanceName}"...`}</p>
+            <button className="env-btn env-btn-secondary" onClick={onClose}>Cancel</button>
           </div>
         ) : mode === 'template' ? (
           <>
@@ -215,7 +216,7 @@ export default function NewEnvironmentDialog({ onClose, onCreated, onLaunchInsta
               </div>
             )}
             <div className="env-form-group">
-              <label>Instance Name</label>
+              <label>Environment Name</label>
               <input type="text" value={instanceName} onChange={e => setInstanceName(e.target.value)}
                 placeholder="e.g., my-feature, bugfix-123" autoFocus
                 onKeyDown={e => e.key === 'Enter' && handleCreateInstance()} />

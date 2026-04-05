@@ -3054,6 +3054,21 @@ input, select {
   border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
 }
 
+.mcp-form-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+  margin-bottom: 2px;
+}
+
+.mcp-form-error {
+  font-size: 11px;
+  color: #ef4444;
+  margin-top: 2px;
+}
+
 .mcp-form-actions {
   display: flex;
   gap: 8px;

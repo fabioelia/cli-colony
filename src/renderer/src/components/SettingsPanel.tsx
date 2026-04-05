@@ -35,6 +35,8 @@ export default function SettingsPanel({ onBack }: Props) {
   const [showMcpSection, setShowMcpSection] = useState(false)
   const [mcpForm, setMcpForm] = useState<McpServer | null>(null)
   const [mcpFormType, setMcpFormType] = useState<'command' | 'sse'>('command')
+  const [mcpFormError, setMcpFormError] = useState<string | null>(null)
+  const [mcpOriginalName, setMcpOriginalName] = useState<string | null>(null)
 
   useEffect(() => {
     window.api.settings.getAll().then((s) => {
@@ -313,6 +315,8 @@ export default function SettingsPanel({ onBack }: Props) {
                         onClick={() => {
                           setMcpFormType(s.url ? 'sse' : 'command')
                           setMcpForm({ ...s })
+                          setMcpOriginalName(s.name)
+                          setMcpFormError(null)
                         }}
                       >
                         <Pencil size={11} /> Edit
@@ -335,13 +339,17 @@ export default function SettingsPanel({ onBack }: Props) {
             )}
             {mcpForm !== null ? (
               <div className="mcp-catalog-form">
+                <div className="mcp-form-header">
+                  {mcpOriginalName !== null ? `Edit: ${mcpOriginalName}` : 'Add Server'}
+                </div>
                 <div className="mcp-form-row">
                   <label>Name</label>
                   <input
                     value={mcpForm.name}
-                    onChange={(e) => setMcpForm({ ...mcpForm, name: e.target.value })}
+                    onChange={(e) => { setMcpForm({ ...mcpForm, name: e.target.value }); setMcpFormError(null) }}
                     placeholder="e.g. filesystem"
                   />
+                  {mcpFormError && <span className="mcp-form-error">{mcpFormError}</span>}
                 </div>
                 <div className="mcp-form-row">
                   <label>Type</label>
@@ -393,17 +401,19 @@ export default function SettingsPanel({ onBack }: Props) {
                 <div className="mcp-form-actions">
                   <button
                     className="settings-logs-toggle"
-                    onClick={() => setMcpForm(null)}
+                    onClick={() => { setMcpForm(null); setMcpFormError(null); setMcpOriginalName(null) }}
                   >
                     Cancel
                   </button>
                   <button
                     className="panel-header-btn primary"
                     onClick={async () => {
-                      if (!mcpForm.name.trim()) return
+                      if (!mcpForm.name.trim()) { setMcpFormError('Name is required'); return }
                       const updated = await window.api.mcp.save(mcpForm)
                       setMcpServers(updated)
                       setMcpForm(null)
+                      setMcpFormError(null)
+                      setMcpOriginalName(null)
                     }}
                   >
                     Save
@@ -416,6 +426,8 @@ export default function SettingsPanel({ onBack }: Props) {
                 onClick={() => {
                   setMcpFormType('command')
                   setMcpForm({ name: '', command: '', args: [] })
+                  setMcpOriginalName(null)
+                  setMcpFormError(null)
                 }}
                 title="Add MCP server"
               >
