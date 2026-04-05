@@ -422,7 +422,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
     <div className="sidebar" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <div className="sidebar-header">
         <div className="sidebar-nav">
-          <Tooltip text="Sessions" detail={`${instances.length} active`} shortcut="Cmd+1-9" position="bottom">
+          <Tooltip text="Sessions" detail={`${instances.filter(i => i.status === 'running').length} running, ${instances.length} total`} shortcut="Cmd+1-9" position="bottom">
             <button className={`sidebar-nav-btn ${view === 'instances' ? 'active' : ''}`} onClick={() => onViewChange('instances')}>
               <TerminalSquare size={16} />
               {instances.length > 0 && <span className="sidebar-nav-badge">{instances.length}</span>}
