@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 
 interface Props {
@@ -315,7 +315,7 @@ export default function SettingsPanel({ onBack }: Props) {
                           setMcpForm({ ...s })
                         }}
                       >
-                        Edit
+                        <Pencil size={11} /> Edit
                       </button>
                       <button
                         className="mcp-catalog-delete"

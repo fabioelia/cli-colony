@@ -2975,6 +2975,9 @@ input, select {
 }
 
 .mcp-catalog-edit {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: 11px;
   color: var(--text-secondary);
   padding: 2px 8px;
