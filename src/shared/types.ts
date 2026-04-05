@@ -181,6 +181,7 @@ export interface ApprovalRequest {
   summary: string
   resolvedVars: Record<string, string>
   createdAt: string
+  expiresAt?: string
 }
 
 export interface PersonaInfo {

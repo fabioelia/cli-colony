@@ -782,6 +782,12 @@ input, select {
   -webkit-box-orient: vertical;
 }
 
+.activity-approval-expiry {
+  font-size: 10px;
+  color: var(--amber, #f59e0b);
+  margin-top: 2px;
+}
+
 .activity-approval-actions {
   display: flex;
   gap: 6px;

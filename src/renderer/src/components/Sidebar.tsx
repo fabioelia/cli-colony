@@ -214,6 +214,15 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
     return `${Math.floor(diff / 86400000)}d ago`
   }
 
+  const formatApprovalExpiry = (expiresAt: string | undefined) => {
+    if (!expiresAt) return null
+    const remaining = new Date(expiresAt).getTime() - Date.now()
+    if (remaining <= 0) return 'expiring'
+    if (remaining < 3600000) return `expires in ${Math.ceil(remaining / 60000)}m`
+    if (remaining < 86400000) return `expires in ${Math.ceil(remaining / 3600000)}h`
+    return `expires in ${Math.ceil(remaining / 86400000)}d`
+  }
+
   const formatDuration = (sec: number) => {
     if (sec < 60) return `${sec}s`
     if (sec < 3600) return `${Math.floor(sec / 60)}m ${sec % 60}s`
@@ -817,6 +826,9 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
                         <span className="activity-approval-time">{formatActivityTime(req.createdAt)}</span>
                       </div>
                       <div className="activity-approval-summary">{req.summary}</div>
+                      {formatApprovalExpiry(req.expiresAt) && (
+                        <div className="activity-approval-expiry">{formatApprovalExpiry(req.expiresAt)}</div>
+                      )}
                       <div className="activity-approval-actions">
                         <button
                           className="activity-approval-btn approve"

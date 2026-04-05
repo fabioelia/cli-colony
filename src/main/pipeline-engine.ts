@@ -64,6 +64,7 @@ export interface PipelineDef {
   description?: string
   enabled: boolean
   requireApproval?: boolean
+  approvalTtl?: number // hours; overrides global default
   trigger: TriggerDef
   condition: ConditionDef
   action: ActionDef
@@ -111,6 +112,7 @@ export interface PipelineInfo {
 const MAX_DEBUG_ITERATIONS = 20
 const DEBUG_ITERATION_SEP = '---'
 const CONSECUTIVE_FAILURE_THRESHOLD = 3
+const APPROVAL_DEFAULT_TTL_HOURS = 24
 
 interface TriggerContext {
   repo?: GitHubRepo
@@ -141,6 +143,7 @@ const timers = new Map<string, ReturnType<typeof setInterval>>()
 const runningPolls = new Set<string>()
 let githubUser: string | null = null
 let started = false
+let approvalSweepTimer: ReturnType<typeof setInterval> | null = null
 
 function log(msg: string): void {
   console.log(`[pipeline] ${msg}`)
@@ -808,7 +811,9 @@ async function runPoll(pipelineName: string): Promise<void> {
           resolvedVars['repo.owner'] = ctx.repo.owner
           resolvedVars['repo.name'] = ctx.repo.name
         }
-        const request: ApprovalRequest = { id: approvalId, pipelineName, summary, resolvedVars, createdAt: new Date().toISOString() }
+        const ttlHours = p.def.approvalTtl ?? APPROVAL_DEFAULT_TTL_HOURS
+        const expiresAt = new Date(Date.now() + ttlHours * 3600 * 1000).toISOString()
+        const request: ApprovalRequest = { id: approvalId, pipelineName, summary, resolvedVars, createdAt: new Date().toISOString(), expiresAt }
         pendingApprovals.set(approvalId, { request, action: p.def.action, ctx, dedupKey })
         pendingApprovalKeys.add(dedupKey)
         broadcast('pipeline:approval:new', request)
@@ -961,6 +966,9 @@ export async function startPipelines(): Promise<void> {
     if (!p.def.enabled) continue
     schedulePipeline(name, p.def)
   }
+
+  // Sweep expired approvals every 60 seconds
+  approvalSweepTimer = setInterval(() => sweepExpiredApprovals(), 60_000)
 }
 
 function schedulePipeline(name: string, def: PipelineDef): void {
@@ -1010,6 +1018,10 @@ export function stopPipelines(): void {
     clearInterval(timer)
   }
   timers.clear()
+  if (approvalSweepTimer) {
+    clearInterval(approvalSweepTimer)
+    approvalSweepTimer = null
+  }
   started = false
   log('All pipelines stopped')
 }
@@ -1128,6 +1140,28 @@ export function setPipelineCron(fileName: string, cron: string | null): boolean 
     updated = content.replace(/^\s*cron:\s*.*\n?/m, '')
   }
   return savePipelineContent(fileName, updated)
+}
+
+// ---- Approval Sweep ----
+
+/** Auto-expire pending approvals whose `expiresAt` has passed. */
+export function sweepExpiredApprovals(): void {
+  const now = Date.now()
+  for (const [id, entry] of pendingApprovals) {
+    const { request, dedupKey } = entry
+    if (request.expiresAt && new Date(request.expiresAt).getTime() <= now) {
+      pendingApprovals.delete(id)
+      pendingApprovalKeys.delete(dedupKey)
+      appendActivity({
+        source: 'pipeline',
+        name: request.pipelineName,
+        summary: `Pipeline "${request.pipelineName}" approval expired — ${request.summary}`,
+        level: 'warn',
+      })
+      broadcast('pipeline:approval:update', { id, status: 'expired' })
+      log(`Approval ${id} for "${request.pipelineName}" expired`)
+    }
+  }
 }
 
 // ---- Approval Gate API ----

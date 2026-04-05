@@ -1180,3 +1180,197 @@ describe('pipeline-engine: approval gates', () => {
     expect(mod.dismissAction('unknown-id')).toBe(false)
   })
 })
+
+// ---- Approval Gate TTL YAML (with custom TTL) ----
+const APPROVAL_TTL_YAML = `
+name: Ttl Pipe
+enabled: true
+requireApproval: true
+approvalTtl: 2
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: launch-session
+  prompt: Do ttl work
+dedup:
+  key: "{{timestamp}}"
+`
+
+describe('pipeline-engine: approval expiry (sweepExpiredApprovals)', () => {
+  let mod: typeof import('../pipeline-engine')
+  let mockCreateInstance: ReturnType<typeof vi.fn>
+  let mockAppendActivity: ReturnType<typeof vi.fn>
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+    mockCreateInstance = vi.fn().mockResolvedValue({ id: 'inst-ttl' })
+    mockAppendActivity = vi.fn()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  function setupTtlMocks(fsMock: ReturnType<typeof buildFsMock>) {
+    vi.doMock('electron', () => ({
+      app: { getPath: vi.fn().mockReturnValue('/mock/home') },
+    }))
+    vi.doMock('../../shared/colony-paths', () => ({
+      colonyPaths: {
+        root: MOCK_ROOT,
+        pipelines: PIPELINES_DIR,
+        schedulerLog: `${MOCK_ROOT}/scheduler.log`,
+      },
+    }))
+    vi.doMock('fs', () => fsMock)
+    vi.doMock('../broadcast', () => ({ broadcast: mockBroadcast }))
+    vi.doMock('../repo-config-loader', () => ({ getAllRepoConfigs: mockGetAllRepoConfigs }))
+    vi.doMock('../instance-manager', () => ({
+      createInstance: mockCreateInstance,
+      getAllInstances: vi.fn().mockResolvedValue([]),
+    }))
+    vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
+    vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
+    vi.doMock('../github', () => ({
+      getRepos: vi.fn().mockReturnValue([]),
+      fetchPRs: vi.fn().mockResolvedValue([]),
+      fetchChecks: vi.fn().mockResolvedValue({ checks: [] }),
+      gh: vi.fn().mockResolvedValue('{}'),
+    }))
+    vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
+    vi.doMock('../activity-manager', () => ({ appendActivity: mockAppendActivity }))
+  }
+
+  it('approval request includes expiresAt set to now + approvalTtl hours', async () => {
+    const fs = buildFsMock(['ttl.yaml'], { 'ttl.yaml': APPROVAL_TTL_YAML })
+    setupTtlMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    const before = Date.now()
+    mod.triggerPollNow('Ttl Pipe')
+    await flushPromises()
+
+    const [approval] = mod.listApprovals()
+    expect(approval.expiresAt).toBeTruthy()
+    const expiresMs = new Date(approval.expiresAt!).getTime()
+    // approvalTtl is 2 hours — expiresAt should be ~2h after createdAt
+    const createdMs = new Date(approval.createdAt).getTime()
+    expect(expiresMs).toBeGreaterThanOrEqual(createdMs + 2 * 3600 * 1000 - 1000)
+    expect(expiresMs).toBeLessThanOrEqual(createdMs + 2 * 3600 * 1000 + 1000)
+  })
+
+  it('approval request uses default 24h TTL when approvalTtl not set', async () => {
+    const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': APPROVAL_YAML })
+    setupTtlMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Guarded Pipe')
+    await flushPromises()
+
+    const [approval] = mod.listApprovals()
+    expect(approval.expiresAt).toBeTruthy()
+    const expiresMs = new Date(approval.expiresAt!).getTime()
+    const createdMs = new Date(approval.createdAt).getTime()
+    expect(expiresMs).toBeGreaterThanOrEqual(createdMs + 24 * 3600 * 1000 - 1000)
+    expect(expiresMs).toBeLessThanOrEqual(createdMs + 24 * 3600 * 1000 + 1000)
+  })
+
+  it('sweepExpiredApprovals removes an expired approval and broadcasts expired status', async () => {
+    const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': APPROVAL_YAML })
+    setupTtlMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Guarded Pipe')
+    await flushPromises()
+
+    const [approval] = mod.listApprovals()
+    expect(approval).toBeTruthy()
+
+    // Advance time past the expiry (default 24h)
+    vi.advanceTimersByTime(25 * 3600 * 1000)
+
+    mod.sweepExpiredApprovals()
+
+    expect(mod.listApprovals()).toHaveLength(0)
+    const expiredCall = mockBroadcast.mock.calls.find(([ch, data]) => ch === 'pipeline:approval:update' && data.status === 'expired')
+    expect(expiredCall).toBeTruthy()
+    expect(expiredCall![1]).toEqual({ id: approval.id, status: 'expired' })
+  })
+
+  it('sweepExpiredApprovals does not remove a non-expired approval', async () => {
+    const fs = buildFsMock(['ttl.yaml'], { 'ttl.yaml': APPROVAL_TTL_YAML })
+    setupTtlMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Ttl Pipe')
+    await flushPromises()
+
+    // Only 1 hour has passed — TTL is 2h, so not yet expired
+    vi.advanceTimersByTime(1 * 3600 * 1000)
+    mod.sweepExpiredApprovals()
+
+    expect(mod.listApprovals()).toHaveLength(1)
+    const expiredCalls = mockBroadcast.mock.calls.filter(([ch, data]) => ch === 'pipeline:approval:update' && data.status === 'expired')
+    expect(expiredCalls).toHaveLength(0)
+  })
+
+  it('sweepExpiredApprovals emits a warn activity event on expiry', async () => {
+    const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': APPROVAL_YAML })
+    setupTtlMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Guarded Pipe')
+    await flushPromises()
+
+    vi.advanceTimersByTime(25 * 3600 * 1000)
+    mod.sweepExpiredApprovals()
+
+    const warnCall = mockAppendActivity.mock.calls.find(([ev]) => ev.level === 'warn' && ev.summary.includes('expired'))
+    expect(warnCall).toBeTruthy()
+    expect(warnCall![0].summary).toContain('Guarded Pipe')
+  })
+
+  it('allows re-queuing after expiry (dedupKey cleared)', async () => {
+    const fixedKeyYaml = APPROVAL_YAML.replace('key: "{{timestamp}}"', 'key: expire-requeue-key')
+    const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': fixedKeyYaml })
+    setupTtlMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Guarded Pipe')
+    await flushPromises()
+    expect(mod.listApprovals()).toHaveLength(1)
+
+    // Expire it
+    vi.advanceTimersByTime(25 * 3600 * 1000)
+    mod.sweepExpiredApprovals()
+    expect(mod.listApprovals()).toHaveLength(0)
+
+    // Poll again — should be re-queued since dedupKey was cleared
+    mod.triggerPollNow('Guarded Pipe')
+    await flushPromises()
+    expect(mod.listApprovals()).toHaveLength(1)
+  })
+
+  it('sweepExpiredApprovals is a no-op when there are no pending approvals', async () => {
+    const fs = buildFsMock([], {})
+    setupTtlMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    expect(() => mod.sweepExpiredApprovals()).not.toThrow()
+    expect(mod.listApprovals()).toHaveLength(0)
+  })
+})
