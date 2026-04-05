@@ -28,6 +28,7 @@ interface Props {
   onRestoreAll: () => void
   restorableCount: number
   unreadIds: Set<string>
+  outputBytes: Map<string, number>
   splitId: string | null
   splitPairs: Map<string, string>
   focusedPane: 'left' | 'right'
@@ -36,7 +37,7 @@ interface Props {
   onDrop?: (e: React.DragEvent) => void
 }
 
-export default function Sidebar({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onRestoreAll, restorableCount, unreadIds, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop }: Props) {
+export default function Sidebar({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onRestoreAll, restorableCount, unreadIds, outputBytes, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop }: Props) {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [runningEnvCount, setRunningEnvCount] = useState(0)
@@ -246,6 +247,12 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
     }
   }
 
+  const ctxLevel = (bytes: number): 'amber' | 'red' | null => {
+    if (bytes >= 600_000) return 'red'
+    if (bytes >= 250_000) return 'amber'
+    return null
+  }
+
   const renderInstance = (inst: ClaudeInstance) => (
     <div
       key={inst.id}
@@ -307,6 +314,19 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
             {unreadIds.has(inst.id) && (
               <span className="instance-unread-badge" title="New output you haven't seen">new</span>
             )}
+            {inst.status === 'running' && (() => {
+              const level = ctxLevel(outputBytes.get(inst.id) || 0)
+              if (!level) return null
+              return (
+                <button
+                  className={`instance-ctx-badge ${level}`}
+                  title={level === 'red' ? 'Context near limit · Click to export handoff doc' : 'Context building up · Click to export handoff doc'}
+                  onClick={(e) => { e.stopPropagation(); setHandoffInst(inst); setHandoffCopied(false) }}
+                >
+                  ctx
+                </button>
+              )
+            })()}
             {inst.mcpServers.length > 0 && (
               <span className="instance-mcp-badge" title={inst.mcpServers.join(', ')}>
                 MCP {inst.mcpServers.length}

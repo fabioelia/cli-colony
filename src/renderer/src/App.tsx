@@ -43,6 +43,8 @@ export default function App() {
   const [quickPromptOpen, setQuickPromptOpen] = useState(false)
   const [quickPromptHistory, setQuickPromptHistory] = useState<string[]>([])
   const pendingPromptRef = useRef<{ id: string; prompt: string } | null>(null)
+  const [outputBytes, setOutputBytes] = useState<Map<string, number>>(new Map())
+  const outputBytesAccRef = useRef<Map<string, number>>(new Map())
   const [resourceUsage, setResourceUsage] = useState<{
     perInstance: Record<string, { cpu: number; memory: number }>
     total: { cpu: number; memory: number }
@@ -165,6 +167,27 @@ export default function App() {
     })
     return unsub
   }, [])
+
+  // Track total PTY bytes per session as a proxy for context budget consumption
+  useEffect(() => {
+    const unsub = window.api.instance.onOutput(({ id, data }) => {
+      const acc = outputBytesAccRef.current
+      acc.set(id, (acc.get(id) || 0) + data.length)
+    })
+    // Flush accumulated bytes to state every 15s so renders stay infrequent
+    const timer = setInterval(() => {
+      setOutputBytes(new Map(outputBytesAccRef.current))
+    }, 15_000)
+    return () => { unsub(); clearInterval(timer) }
+  }, [])
+
+  // Remove stale entries when sessions are removed
+  useEffect(() => {
+    const ids = new Set(instances.map(i => i.id))
+    outputBytesAccRef.current.forEach((_, id) => {
+      if (!ids.has(id)) outputBytesAccRef.current.delete(id)
+    })
+  }, [instances])
 
   // Write pending quick-prompts when the target session becomes ready
   useEffect(() => {
@@ -737,6 +760,7 @@ export default function App() {
         activeId={activeId}
         view={sidebarView}
         unreadIds={unreadIds}
+        outputBytes={outputBytes}
         onSelect={handleSelect}
         onNew={() => { agentToLaunchRef.current = null; setShowNewDialog(true) }}
         onKill={handleKill}

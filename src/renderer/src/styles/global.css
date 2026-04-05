@@ -995,6 +995,29 @@ input, select {
   vertical-align: middle;
 }
 
+.instance-ctx-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 5px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border-radius: 3px;
+  vertical-align: middle;
+  cursor: pointer;
+  border: none;
+  line-height: 16px;
+}
+.instance-ctx-badge.amber {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warning);
+}
+.instance-ctx-badge.red {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--error);
+}
+
 .instance-item-right {
   display: flex;
   align-items: center;
