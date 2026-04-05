@@ -218,7 +218,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
   const formatApprovalExpiry = (expiresAt: string | undefined) => {
     if (!expiresAt) return null
     const remaining = new Date(expiresAt).getTime() - Date.now()
-    if (remaining <= 0) return 'expiring'
+    if (remaining <= 0) return 'expired'
     if (remaining < 3600000) return `expires in ${Math.ceil(remaining / 60000)}m`
     if (remaining < 86400000) return `expires in ${Math.ceil(remaining / 3600000)}h`
     return `expires in ${Math.ceil(remaining / 86400000)}d`
@@ -341,7 +341,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
                 </button>
               )
             })()}
-            {(inst.tokenUsage?.cost ?? 0) > 0.001 && (
+            {(inst.tokenUsage?.cost ?? 0) > 0.01 && (
               <span className="instance-cost-badge" title={`API cost: $${inst.tokenUsage.cost.toFixed(4)}`}>
                 ${inst.tokenUsage.cost.toFixed(2)}
               </span>
@@ -459,7 +459,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
 
       <div className="sidebar-instance-actions">
         <button className="sidebar-new-btn" onClick={onNew} title="Launch a new Claude CLI terminal (Cmd+T)"><Plus size={14} /> New Session</button>
-        {view === 'instances' && restorableCount > 0 && instances.length === 0 && (
+        {view === 'instances' && restorableCount > 0 && (
           <button className="sidebar-restore-btn" onClick={onRestoreAll} title="Restore previous sessions">
             Restore {restorableCount} from last run
           </button>
@@ -484,7 +484,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
         )}
         {exited.map(renderInstance)}
         {instances.length === 0 && (
-          <div className="instance-list-empty">No sessions</div>
+          <div className="instance-list-empty">No sessions · press Cmd+T or click New Session to start</div>
         )}
       </div>
 
@@ -841,7 +841,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
           {showActivityPopover && (
             <div className="activity-popover" onClick={e => e.stopPropagation()}>
               <div className="activity-popover-header">
-                <span>Activity</span>
+                <span>{pendingApprovals.length > 0 ? 'Activity · Action Required' : 'Activity'}</span>
                 <button onClick={() => setShowActivityPopover(false)} title="Close">✕</button>
               </div>
               {pendingApprovals.length > 0 && (

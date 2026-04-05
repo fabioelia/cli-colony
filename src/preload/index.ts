@@ -44,6 +44,7 @@ export interface ClaudeManagerAPI {
     list: () => Promise<ClaudeInstance[]>
     get: (id: string) => Promise<ClaudeInstance | null>
     buffer: (id: string) => Promise<string>
+    saveCheckpoint: (id: string) => Promise<boolean>
     processes: (id: string) => Promise<Array<{ pid: number; name: string; command: string; cpu: string; mem: string }>>
     killProcess: (pid: number) => Promise<boolean>
     gitLog: (cwd: string) => Promise<string>
@@ -302,6 +303,7 @@ const api: ClaudeManagerAPI = {
     list: () => ipcRenderer.invoke('instance:list'),
     get: (id) => ipcRenderer.invoke('instance:get', id),
     buffer: (id) => ipcRenderer.invoke('instance:buffer', id),
+    saveCheckpoint: (id) => ipcRenderer.invoke('instance:saveCheckpoint', id),
     processes: (id) => ipcRenderer.invoke('instance:processes', id),
     killProcess: (pid) => ipcRenderer.invoke('instance:killProcess', pid),
     gitLog: (cwd) => ipcRenderer.invoke('instance:gitLog', cwd),

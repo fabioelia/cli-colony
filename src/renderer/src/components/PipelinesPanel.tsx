@@ -463,7 +463,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                       className={`pipeline-tab ${expandedTab === 'memory' ? 'active' : ''}`}
                       onClick={() => setExpandedTab('memory')}
                     >
-                      <Zap size={11} /> Memory
+                      <BookOpen size={11} /> Memory
                     </button>
                     {p.outputsDir && (
                       <button

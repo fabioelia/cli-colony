@@ -1,5 +1,7 @@
 import { ipcMain } from 'electron'
 import { execSync } from 'child_process'
+import { join } from 'path'
+import { existsSync, writeFileSync, readFileSync } from 'fs'
 import { createShell, writeShell, resizeShell, killShell } from '../shell-pty'
 import {
   createInstance,
@@ -10,6 +12,7 @@ import {
   getDaemonVersion,
 } from '../instance-manager'
 import { getDaemonClient } from '../daemon-client'
+import { sendPromptWhenReady } from '../send-prompt-when-ready'
 
 export interface ChildProcess {
   pid: number
@@ -20,7 +23,19 @@ export interface ChildProcess {
 }
 
 export function registerInstanceHandlers(): void {
-  ipcMain.handle('instance:create', (_e, opts) => createInstance(opts || {}))
+  ipcMain.handle('instance:create', async (_e, opts) => {
+    const inst = await createInstance(opts || {})
+    // Inject checkpoint preamble if one exists in the working directory
+    const checkpointPath = join(inst.workingDirectory, '.colony-checkpoint.md')
+    if (existsSync(checkpointPath)) {
+      try {
+        const content = readFileSync(checkpointPath, 'utf-8')
+        const preamble = `The following checkpoint was auto-saved from your previous session in this directory. Resume your work from where you left off:\n\n${content}`
+        sendPromptWhenReady(inst.id, { prompt: preamble }).catch(() => {})
+      } catch { /* ignore read errors */ }
+    }
+    return inst
+  })
   const client = getDaemonClient()
   ipcMain.handle('instance:write', async (_e, id: string, data: string) => {
     try { return await client.writeToInstance(id, data) } catch { return false }
@@ -126,6 +141,58 @@ export function registerInstanceHandlers(): void {
       return execSync('git diff --stat HEAD', { encoding: 'utf-8', timeout: 5000, cwd })
     } catch {
       return ''
+    }
+  })
+
+  // Auto-save context checkpoint when the amber threshold fires in the renderer.
+  // Writes .colony-checkpoint.md to the instance's working directory.
+  ipcMain.handle('instance:saveCheckpoint', async (_e, id: string): Promise<boolean> => {
+    const client = getDaemonClient()
+    let inst
+    try { inst = await client.getInstance(id) } catch { return false }
+    if (!inst) return false
+
+    const rawBuf = await client.getInstanceBuffer(id).catch(() => '')
+    const clean = rawBuf.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '')
+    const lines = clean.split('\n').filter(l => l.trim())
+    const tail = lines.slice(-100).join('\n')
+
+    const parts: string[] = [
+      `# Context Checkpoint: ${inst.name}`,
+      '',
+      `**Saved:** ${new Date().toLocaleString()}`,
+      `**Directory:** ${inst.workingDirectory}`,
+      `**Status:** ${inst.status} · ${inst.activity}`,
+    ]
+    if (inst.gitBranch) {
+      parts.push(`**Git:** ${inst.gitBranch}${inst.gitRepo ? ` on ${inst.gitRepo}` : ''}`)
+    }
+
+    try {
+      const gitLog = execSync('git log --oneline -10', { encoding: 'utf-8', timeout: 5000, cwd: inst.workingDirectory })
+      if (gitLog.trim()) parts.push('', '## Recent Commits', '```', gitLog.trim(), '```')
+    } catch { /* not a git repo */ }
+    try {
+      const gitDiff = execSync('git diff --stat HEAD', { encoding: 'utf-8', timeout: 5000, cwd: inst.workingDirectory })
+      if (gitDiff.trim()) parts.push('', '## Uncommitted Changes', '```', gitDiff.trim(), '```')
+    } catch { /* not a git repo */ }
+
+    parts.push(
+      '',
+      '## Terminal Context (last 100 lines)',
+      '```',
+      tail || '(empty)',
+      '```',
+      '',
+      '---',
+      '*Auto-saved when context budget reached amber threshold. Injected as preamble on next session start in this directory.*',
+    )
+
+    try {
+      writeFileSync(join(inst.workingDirectory, '.colony-checkpoint.md'), parts.join('\n'), 'utf-8')
+      return true
+    } catch {
+      return false
     }
   })
 

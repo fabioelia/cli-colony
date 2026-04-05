@@ -45,6 +45,7 @@ export default function App() {
   const pendingPromptRef = useRef<{ id: string; prompt: string } | null>(null)
   const [outputBytes, setOutputBytes] = useState<Map<string, number>>(new Map())
   const outputBytesAccRef = useRef<Map<string, number>>(new Map())
+  const checkpointedSessionsRef = useRef<Set<string>>(new Set())
   const [resourceUsage, setResourceUsage] = useState<{
     perInstance: Record<string, { cpu: number; memory: number }>
     total: { cpu: number; memory: number }
@@ -176,7 +177,15 @@ export default function App() {
     })
     // Flush accumulated bytes to state every 15s so renders stay infrequent
     const timer = setInterval(() => {
-      setOutputBytes(new Map(outputBytesAccRef.current))
+      const newBytes = new Map(outputBytesAccRef.current)
+      setOutputBytes(newBytes)
+      // Auto-checkpoint sessions crossing the amber threshold (once per session)
+      newBytes.forEach((bytes, id) => {
+        if (bytes >= 250_000 && !checkpointedSessionsRef.current.has(id)) {
+          checkpointedSessionsRef.current.add(id)
+          window.api.instance.saveCheckpoint(id).catch(() => {})
+        }
+      })
     }, 15_000)
     return () => { unsub(); clearInterval(timer) }
   }, [])
@@ -185,7 +194,10 @@ export default function App() {
   useEffect(() => {
     const ids = new Set(instances.map(i => i.id))
     outputBytesAccRef.current.forEach((_, id) => {
-      if (!ids.has(id)) outputBytesAccRef.current.delete(id)
+      if (!ids.has(id)) {
+        outputBytesAccRef.current.delete(id)
+        checkpointedSessionsRef.current.delete(id)
+      }
     })
   }, [instances])
 
