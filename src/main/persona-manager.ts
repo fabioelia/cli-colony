@@ -97,7 +97,7 @@ function parseFrontmatter(content: string): PersonaFrontmatter | null {
 // ---- Section Extractor ----
 
 function extractSection(content: string, heading: string): string {
-  const regex = new RegExp(`^## ${heading}\\s*\\n([\\s\\S]*?)(?=^## |$)`, 'm')
+  const regex = new RegExp(`^## ${heading}\\s*\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, 'm')
   const match = content.match(regex)
   return match ? match[1].trim() : ''
 }
@@ -140,6 +140,7 @@ export function getPersonaList(): PersonaInfo[] {
         content,
         filePath,
         lastRunOutput: state.lastRunOutput || null,
+        whispers: parseWhispers(content),
       })
     } catch { /* skip invalid files */ }
   }
@@ -154,6 +155,41 @@ export function getPersonaContent(fileName: string): string | null {
   } catch {
     return null
   }
+}
+
+/** Parse note entries from a ## Notes section (also reads legacy ## Whispers). */
+function parseWhispers(content: string): Array<{ createdAt: string; text: string }> {
+  // Support both ## Notes (new) and ## Whispers (legacy)
+  const section = extractSection(content, 'Notes') || extractSection(content, 'Whispers')
+  if (!section) return []
+  return section
+    .split('\n')
+    .filter(l => l.trim().startsWith('- ['))
+    .map(line => {
+      const m = line.match(/^-\s*\[([^\]]+)\]\s*(.+)/)
+      return m ? { createdAt: m[1], text: m[2].trim() } : null
+    })
+    .filter(Boolean) as Array<{ createdAt: string; text: string }>
+}
+
+/** Append a note to the persona's ## Notes section (creates it if absent). */
+export function addWhisper(id: string, text: string): boolean {
+  const filePath = join(PERSONAS_DIR, id.endsWith('.md') ? id : `${id}.md`)
+  if (!existsSync(filePath)) return false
+  const content = readFileSync(filePath, 'utf-8')
+  const entry = `- [${new Date().toISOString()}] ${text.trim()}`
+  let updated: string
+  if (/\n## Notes\n/.test(content)) {
+    updated = content.replace(/(\n## Notes\n)/, `$1${entry}\n`)
+  } else if (/\n## Whispers\n/.test(content)) {
+    // Migrate legacy section on first new write
+    updated = content.replace(/(\n## Whispers\n)/, `$1${entry}\n`)
+  } else {
+    updated = content.trimEnd() + `\n\n## Notes\n${entry}\n`
+  }
+  writeFileSync(filePath, updated, 'utf-8')
+  broadcastStatus()
+  return true
 }
 
 /** Surgically update the schedule field in a persona frontmatter without touching the rest. */
@@ -265,6 +301,19 @@ async function buildPlanningPrompt(fm: PersonaFrontmatter, state: PersonaState, 
   const timestamp = new Date().toISOString()
   const runCount = state.runCount + 1
 
+  const whispers = parseWhispers(readFileSync(filePath, 'utf-8'))
+  const whispersSection = whispers.length > 0
+    ? `## User Notes
+
+The user has sent you the following notes to consider this session:
+${whispers.map(w => `- [${w.createdAt}] ${w.text}`).join('\n')}
+
+For each note you address this session, remove its line from the \`## Notes\` section of your file.
+If a note requires ongoing work, track it as an Active Situation instead of leaving it as a note.
+
+`
+    : ''
+
   let permissions = ''
   if (fm.can_push) {
     permissions += '- You MAY push to git remotes\n'
@@ -299,7 +348,7 @@ Active Situations, Learnings, and Session Log.
 
 ${await getColonySnapshot()}
 
-## Planning Loop
+${whispersSection}## Planning Loop
 
 Execute this cycle every session:
 
@@ -392,6 +441,7 @@ IMPORTANT: Write the complete file back, preserving the YAML frontmatter exactly
 ## Permissions
 
 ${permissions}
+
 
 ## Session Metadata
 

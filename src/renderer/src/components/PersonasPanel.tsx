@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react'
 import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
-  ChevronDown, ChevronRight, Clock, Hash, Pencil
+  ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote
 } from 'lucide-react'
 import { marked } from 'marked'
 import HelpPopover from './HelpPopover'
@@ -299,6 +299,9 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
             onScheduleSave={async (schedule) => {
               await window.api.persona.setSchedule(persona.id, schedule)
             }}
+            onWhisper={async (text) => {
+              await window.api.persona.whisper(persona.id, text)
+            }}
           />
         ))}
       </div>
@@ -370,15 +373,32 @@ interface PersonaCardProps {
   onFocusInstance: (id: string) => void
   onViewFile: () => void
   onScheduleSave: (schedule: string) => Promise<void>
+  onWhisper: (text: string) => Promise<void>
 }
 
 function PersonaCard({
   persona, expanded, instances, onToggleExpand,
-  onRun, onStop, onToggle, onDelete, onFocusInstance, onViewFile, onScheduleSave
+  onRun, onStop, onToggle, onDelete, onFocusInstance, onViewFile, onScheduleSave, onWhisper
 }: PersonaCardProps) {
   const [editingSchedule, setEditingSchedule] = useState(false)
+  const [whisperOpen, setWhisperOpen] = useState(false)
+  const [whisperText, setWhisperText] = useState('')
+  const whisperRef = useRef<HTMLInputElement>(null)
+
+  useLayoutEffect(() => {
+    if (whisperOpen) whisperRef.current?.focus()
+  }, [whisperOpen])
+
+  const handleWhisperSubmit = async () => {
+    const text = whisperText.trim()
+    if (!text) return
+    setWhisperText('')
+    setWhisperOpen(false)
+    await onWhisper(text)
+  }
   const isRunning = persona.activeSessionId !== null
   const statusClass = isRunning ? 'running' : persona.enabled ? 'idle' : 'disabled'
+  const whispers = persona.whispers ?? []
   const allSections = parseSections(persona.content)
   const sections = expanded ? allSections : {}
 
@@ -433,6 +453,18 @@ function PersonaCard({
               </button>
             </Tooltip>
           )}
+          <Tooltip text="Add a note for this persona's next run">
+            <button
+              className={`persona-action-btn${whispers.length > 0 ? ' whisper-active' : ''}`}
+              aria-label="Add note"
+              onClick={(e) => { e.stopPropagation(); setWhisperOpen(v => !v) }}
+            >
+              <StickyNote size={12} />
+              {whispers.length > 0 && (
+                <span className="persona-whisper-badge">{whispers.length}</span>
+              )}
+            </button>
+          </Tooltip>
           <button
             className="persona-toggle"
             onClick={(e) => { e.stopPropagation(); onToggle(!persona.enabled) }}
@@ -463,6 +495,45 @@ function PersonaCard({
           }}
           onClose={() => setEditingSchedule(false)}
         />
+      )}
+
+      {whisperOpen && (
+        <div className="persona-whisper-bar" onClick={(e) => e.stopPropagation()}>
+          <StickyNote size={13} className="persona-whisper-icon" />
+          <input
+            ref={whisperRef}
+            className="persona-whisper-input"
+            placeholder="Leave a note for next time it runs..."
+            value={whisperText}
+            onChange={(e) => setWhisperText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleWhisperSubmit() }
+              if (e.key === 'Escape') { setWhisperOpen(false); setWhisperText('') }
+            }}
+          />
+          <button
+            className="persona-whisper-send"
+            disabled={!whisperText.trim()}
+            onClick={handleWhisperSubmit}
+          >
+            <Send size={12} />
+          </button>
+        </div>
+      )}
+
+      {/* Pending notes preview — visible when collapsed */}
+      {!expanded && !whisperOpen && whispers.length > 0 && (
+        <div className="persona-whispers-preview" onClick={onToggleExpand}>
+          {whispers.slice(0, 2).map((w, i) => (
+            <div key={i} className="persona-whisper-entry">
+              <StickyNote size={10} className="persona-whisper-entry-icon" />
+              <span className="persona-whisper-entry-text">{w.text}</span>
+            </div>
+          ))}
+          {whispers.length > 2 && (
+            <span className="persona-whisper-more">+{whispers.length - 2} more</span>
+          )}
+        </div>
       )}
 
       {/* Recent activity preview — always visible */}
@@ -516,6 +587,25 @@ function PersonaCard({
               </button>
             </div>
           </div>
+
+          {/* Queued notes */}
+          {whispers.length > 0 && (
+            <div className="persona-whispers-list">
+              <div className="persona-whispers-list-header">
+                <StickyNote size={11} />
+                <span>Queued Notes</span>
+                <span className="persona-whispers-count">{whispers.length} pending</span>
+              </div>
+              {whispers.map((w, i) => (
+                <div key={i} className="persona-whisper-item">
+                  <span className="persona-whisper-item-time">
+                    {new Date(w.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                  </span>
+                  <span className="persona-whisper-item-text">{w.text}</span>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Collapsible sections — dynamic ones open, static ones collapsed */}
           <PersonaSection title="Active Situations" content={sections['Active Situations']} defaultOpen={true} />

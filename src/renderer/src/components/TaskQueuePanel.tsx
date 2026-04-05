@@ -308,7 +308,7 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
               <div className="task-queue-file-card-header">
                 <FileText size={12} />
                 <span className="task-queue-file-card-name">{q?.name || f.name}</span>
-                <button className="task-queue-file-delete" onClick={(e) => { e.stopPropagation(); handleDelete(f.name) }} title="Delete"><Trash2 size={10} /></button>
+                <button className="task-queue-file-delete" onClick={(e) => { e.stopPropagation(); if (confirm(`Delete "${f.name}"? This cannot be undone.`)) handleDelete(f.name) }} title="Delete"><Trash2 size={10} /></button>
               </div>
               {q && (
                 <div className="task-queue-file-card-meta">
@@ -335,7 +335,7 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
             {!editingNew && selectedFile && (
               <div className="task-queue-editor-tabs">
                 <button className={`task-queue-tab ${editorTab === 'yaml' ? 'active' : ''}`} onClick={() => setEditorTab('yaml')}><FileText size={11} /> Config</button>
-                <button className={`task-queue-tab ${editorTab === 'memory' ? 'active' : ''}`} onClick={() => setEditorTab('memory')}><Zap size={11} /> Memory</button>
+                <button className={`task-queue-tab ${editorTab === 'memory' ? 'active' : ''}`} onClick={() => setEditorTab('memory')}><BookOpen size={11} /> Memory</button>
                 {outputRuns.length > 0 && (
                   <button className={`task-queue-tab ${editorTab === 'outputs' ? 'active' : ''}`} onClick={() => setEditorTab('outputs')}>
                     <FolderOpen size={11} /> Outputs ({outputRuns.reduce((n, r) => n + r.files.length, 0)})
