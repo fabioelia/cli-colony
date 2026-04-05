@@ -3,7 +3,7 @@ import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import {
   Zap, ZapOff, Play, RefreshCw, ChevronDown, ChevronRight,
   FileText, Clock, CheckCircle, XCircle, AlertTriangle, Save, BookOpen,
-  MessageSquare, Send, Plus, Search, Pencil
+  MessageSquare, Send, Plus, Search, Pencil, Eye, X
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import CronEditor from './CronEditor'
@@ -112,6 +112,17 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   // Cron editor — tracks which pipeline's cron is being edited
   const [cronEditingPipeline, setCronEditingPipeline] = useState<string | null>(null)
 
+  // Pipeline preview (dry-run)
+  type PreviewResult = {
+    wouldFire: boolean
+    matches: Array<{ description: string; resolvedVars: Record<string, string>; wouldBeDeduped: boolean }>
+    conditionLog: string[]
+    error?: string
+  }
+  const [previewResult, setPreviewResult] = useState<PreviewResult | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewPipelineName, setPreviewPipelineName] = useState<string | null>(null)
+
   // Pipeline assistant
   const [askInput, setAskInput] = useState('')
   const [assistantId, setAssistantId] = useState<string | null>(null)
@@ -182,6 +193,15 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
 
   const handleTriggerNow = async (name: string) => {
     await window.api.pipeline.triggerNow(name)
+  }
+
+  const handlePreview = async (p: PipelineInfo) => {
+    setPreviewPipelineName(p.name)
+    setPreviewResult(null)
+    setPreviewLoading(true)
+    const result = await window.api.pipeline.preview(p.fileName)
+    setPreviewResult(result)
+    setPreviewLoading(false)
   }
 
   const handleExpand = async (p: PipelineInfo) => {
@@ -402,6 +422,13 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
               )}
               <button
                 className="pipeline-trigger-btn"
+                onClick={(e) => { e.stopPropagation(); handlePreview(p) }}
+                title="Dry-run: evaluate conditions without firing"
+              >
+                <Eye size={11} /> Preview
+              </button>
+              <button
+                className="pipeline-trigger-btn"
                 onClick={async (e) => {
                   e.stopPropagation()
                   const content = await window.api.pipeline.getContent(p.fileName)
@@ -562,6 +589,64 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
           </div>
         ))}
       </div>
+
+      {/* Pipeline Preview Modal */}
+      {(previewLoading || previewResult) && previewPipelineName && (
+        <div className="pipeline-preview-overlay" onClick={() => { setPreviewResult(null); setPreviewPipelineName(null) }}>
+          <div className="pipeline-preview-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="pipeline-preview-header">
+              <Eye size={14} />
+              <span>Preview: {previewPipelineName}</span>
+              <button className="pipeline-preview-close" onClick={() => { setPreviewResult(null); setPreviewPipelineName(null) }}>
+                <X size={14} />
+              </button>
+            </div>
+
+            {previewLoading ? (
+              <div className="pipeline-preview-loading">Evaluating conditions…</div>
+            ) : previewResult ? (
+              <div className="pipeline-preview-body">
+                {previewResult.error ? (
+                  <div className="pipeline-preview-error"><XCircle size={13} /> {previewResult.error}</div>
+                ) : (
+                  <div className={`pipeline-preview-verdict ${previewResult.wouldFire ? 'would-fire' : 'no-fire'}`}>
+                    {previewResult.wouldFire
+                      ? <><CheckCircle size={13} /> Would fire for {previewResult.matches.filter(m => !m.wouldBeDeduped).length} match(es)</>
+                      : <><XCircle size={13} /> Would not fire</>}
+                  </div>
+                )}
+
+                {previewResult.matches.length > 0 && (
+                  <div className="pipeline-preview-matches">
+                    <div className="pipeline-preview-section-title">Matches</div>
+                    {previewResult.matches.map((m, i) => (
+                      <div key={i} className={`pipeline-preview-match ${m.wouldBeDeduped ? 'deduped' : 'active'}`}>
+                        <div className="pipeline-preview-match-desc">
+                          {m.wouldBeDeduped ? <span className="pipeline-preview-dedup-badge">deduped</span> : null}
+                          {m.description}
+                        </div>
+                        <div className="pipeline-preview-vars">
+                          {Object.entries(m.resolvedVars).map(([k, v]) => (
+                            <div key={k} className="pipeline-preview-var">
+                              <span className="pipeline-preview-var-key">{k}</span>
+                              <span className="pipeline-preview-var-val">{v}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <details className="pipeline-preview-log">
+                  <summary>Condition log ({previewResult.conditionLog.length} entries)</summary>
+                  <pre>{previewResult.conditionLog.join('\n')}</pre>
+                </details>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

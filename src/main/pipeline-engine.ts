@@ -608,6 +608,112 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
   broadcast('pipeline:fired', { pipeline: name, instanceId: inst.id })
 }
 
+// ---- Preview (Dry-Run) ----
+
+export interface PreviewMatch {
+  description: string
+  resolvedVars: Record<string, string>
+  wouldBeDeduped: boolean
+}
+
+export interface PreviewResult {
+  wouldFire: boolean
+  matches: PreviewMatch[]
+  conditionLog: string[]
+  error?: string
+}
+
+/**
+ * Dry-run a pipeline: evaluate trigger + conditions without launching any sessions.
+ * Accepts a fileName (e.g. "ci-auto-fix.yaml") or pipeline name.
+ */
+export async function previewPipeline(fileNameOrName: string): Promise<PreviewResult> {
+  // Find by fileName or name
+  let entry = [...pipelines.values()].find(p => p.fileName === fileNameOrName)
+  if (!entry) entry = [...pipelines.values()].find(p => p.def.name === fileNameOrName)
+
+  if (!entry) {
+    return { wouldFire: false, matches: [], conditionLog: [`Pipeline not found: ${fileNameOrName}`], error: 'Pipeline not found' }
+  }
+
+  const { def } = entry
+  const conditionLog: string[] = []
+  const matches: PreviewMatch[] = []
+
+  function plog(msg: string) {
+    const ts = new Date().toISOString().slice(11, 19)
+    conditionLog.push(`[${ts}] ${msg}`)
+  }
+
+  try {
+    let contexts: TriggerContext[] = []
+
+    if (def.trigger.type === 'git-poll') {
+      plog(`Fetching PRs (git-poll, ${def.trigger.repos === 'auto' ? 'auto repos' : 'custom repos'})`)
+      contexts = await executeGitPollTrigger(def.trigger)
+      plog(`Found ${contexts.length} repo/PR context(s) to evaluate`)
+    } else if (def.trigger.type === 'cron') {
+      plog(`Cron trigger — creating single context`)
+      contexts = [{ githubUser: githubUser || undefined, timestamp: new Date().toISOString() }]
+    } else {
+      plog(`Trigger type "${def.trigger.type}" not supported for preview`)
+    }
+
+    if (contexts.length === 0) {
+      plog(`No contexts — check: repos configured? PRs open? gh auth ok?`)
+    }
+
+    for (const ctx of contexts) {
+      const prLabel = ctx.pr ? `PR #${ctx.pr.number} (${ctx.pr.branch})` : 'cron'
+      const repoLabel = ctx.repo ? `${ctx.repo.owner}/${ctx.repo.name}` : ''
+      plog(`Evaluating: ${[repoLabel, prLabel].filter(Boolean).join(' ')}`)
+
+      const matched = await evaluateCondition(def.condition, ctx)
+      if (!matched) {
+        plog(`  condition not met (${def.condition.type}: ${def.condition.path || def.condition.branch || ''})`)
+        continue
+      }
+      plog(`  ✓ condition matched (sha=${ctx.contentSha || 'none'})`)
+
+      const dedupKey = resolveTemplate(def.dedup.key, ctx)
+      const wouldBeDeduped = isDuplicate(def.name, dedupKey, def.dedup.ttl || 3600, ctx.contentSha)
+      if (wouldBeDeduped) {
+        plog(`  ⊘ would be deduped (key=${dedupKey})`)
+      } else {
+        plog(`  → would fire action: ${def.action.type}`)
+      }
+
+      // Collect resolved template vars for this context
+      const resolvedVars: Record<string, string> = {
+        'action.name': resolveTemplate(def.action.name || 'Pipeline Session', ctx),
+        'dedup.key': dedupKey,
+      }
+      if (def.action.workingDirectory) resolvedVars['action.workingDirectory'] = resolveTemplate(def.action.workingDirectory, ctx)
+      if (ctx.pr) {
+        resolvedVars['pr.number'] = String(ctx.pr.number)
+        resolvedVars['pr.branch'] = ctx.pr.branch
+        resolvedVars['pr.title'] = ctx.pr.title || ''
+      }
+      if (ctx.repo) {
+        resolvedVars['repo.owner'] = ctx.repo.owner
+        resolvedVars['repo.name'] = ctx.repo.name
+      }
+
+      const description = ctx.pr
+        ? `PR #${ctx.pr.number}: ${ctx.pr.branch} (${repoLabel})`
+        : `cron context (${new Date().toISOString().slice(0, 10)})`
+
+      matches.push({ description, resolvedVars, wouldBeDeduped })
+    }
+  } catch (err) {
+    plog(`✗ Error: ${err}`)
+    return { wouldFire: false, matches, conditionLog, error: String(err) }
+  }
+
+  const wouldFire = matches.some(m => !m.wouldBeDeduped)
+  return { wouldFire, matches, conditionLog }
+}
+
 // ---- Poll Loop ----
 
 async function runPoll(pipelineName: string): Promise<void> {

@@ -177,6 +177,16 @@ export interface ClaudeManagerAPI {
     getMemory: (fileName: string) => Promise<string>
     saveMemory: (fileName: string, content: string) => Promise<boolean>
     setCron: (fileName: string, cron: string | null) => Promise<boolean>
+    preview: (fileName: string) => Promise<{
+      wouldFire: boolean
+      matches: Array<{
+        description: string
+        resolvedVars: Record<string, string>
+        wouldBeDeduped: boolean
+      }>
+      conditionLog: string[]
+      error?: string
+    }>
   }
   persona: {
     list: () => Promise<PersonaInfo[]>
@@ -449,6 +459,7 @@ const api: ClaudeManagerAPI = {
     getMemory: (fileName) => ipcRenderer.invoke('pipeline:getMemory', fileName),
     saveMemory: (fileName, content) => ipcRenderer.invoke('pipeline:saveMemory', fileName, content),
     setCron: (fileName, cron) => ipcRenderer.invoke('pipeline:setCron', fileName, cron),
+    preview: (fileName) => ipcRenderer.invoke('pipeline:preview', fileName),
   },
   persona: {
     list: () => ipcRenderer.invoke('persona:list'),

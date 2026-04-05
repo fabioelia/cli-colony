@@ -5,6 +5,7 @@ import { colonyPaths } from '../../shared/colony-paths'
 import {
   getPipelineList, togglePipeline, triggerPollNow, getPipelinesDir,
   getPipelineContent, savePipelineContent, loadPipelines, setPipelineCron,
+  previewPipeline,
 } from '../pipeline-engine'
 
 export function registerPipelineHandlers(): void {
@@ -16,6 +17,7 @@ export function registerPipelineHandlers(): void {
   ipcMain.handle('pipeline:saveContent', (_e, fileName: string, content: string) => savePipelineContent(fileName, content))
   ipcMain.handle('pipeline:reload', () => { loadPipelines(); return getPipelineList() })
   ipcMain.handle('pipeline:setCron', (_e, fileName: string, cron: string | null) => setPipelineCron(fileName, cron))
+  ipcMain.handle('pipeline:preview', (_e, fileName: string) => previewPipeline(fileName))
 
   // Pipeline outputs
   ipcMain.handle('pipeline:listOutputs', (_e, outputDir: string) => {
