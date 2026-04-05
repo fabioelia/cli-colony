@@ -153,9 +153,9 @@ input, select {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  width: 36px;
-  height: 40px;
+  gap: 3px;
+  width: 38px;
+  height: 46px;
   border-radius: 6px;
   color: var(--text-muted);
   transition: all 0.15s;
@@ -163,7 +163,7 @@ input, select {
 }
 
 .sidebar-nav-label {
-  font-size: 7.5px;
+  font-size: 8px;
   font-weight: 500;
   line-height: 1;
   letter-spacing: 0.02em;
