@@ -16,9 +16,13 @@ import { DAEMON_VERSION } from '../daemon/protocol'
 import type { CliBackend } from '../shared/types'
 import { trackOpened, trackClosed } from './recent-sessions'
 import { broadcast } from './broadcast'
+import { buildMcpConfig, cleanMcpConfigFile } from './mcp-catalog'
 
 export type { ClaudeInstance } from '../daemon/protocol'
 import type { ClaudeInstance } from '../daemon/protocol'
+
+// Track MCP config files by instance ID so we can clean them up on exit
+const _mcpConfigPaths = new Map<string, string>()
 
 // Tray update callback
 let onInstanceListChanged: (() => void) | null = null
@@ -87,6 +91,11 @@ export function wireDaemonEvents(): void {
     broadcast('instance:exited', { id: instanceId, exitCode })
     trackClosed(instanceId, 'exited')
     onSessionExitCallback?.(instanceId)
+    const mcpPath = _mcpConfigPaths.get(instanceId)
+    if (mcpPath) {
+      cleanMcpConfigFile(mcpPath)
+      _mcpConfigPaths.delete(instanceId)
+    }
 
     // Auto-cleanup (skip persona sessions — they're kept for review)
     const cleanupMins = parseInt(getSetting('autoCleanupMinutes') || '5', 10)
@@ -131,6 +140,7 @@ export async function createInstance(opts: {
   args?: string[]
   parentId?: string
   cliBackend?: CliBackend
+  mcpServers?: string[]
 }): Promise<ClaudeInstance> {
   const defaultArgs = getDefaultArgs()
   const home = app.getPath('home')
@@ -140,12 +150,29 @@ export async function createInstance(opts: {
   }
   const cliBackend = opts.cliBackend ?? getDefaultCliBackend()
 
+  // Build MCP config file if servers are requested
+  let mcpConfigPath: string | null = null
+  const baseArgs = opts.args ?? []
+  let finalArgs = baseArgs
+  if (opts.mcpServers && opts.mcpServers.length > 0) {
+    const configId = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    mcpConfigPath = buildMcpConfig(opts.mcpServers, configId)
+    if (mcpConfigPath) {
+      finalArgs = [...baseArgs, '--mcp-config', mcpConfigPath]
+    }
+  }
+
   const inst = await getDaemonClient().createInstance({
     ...opts,
+    args: finalArgs,
     workingDirectory: cwd,
     defaultArgs,
     cliBackend,
   })
+
+  if (mcpConfigPath) {
+    _mcpConfigPaths.set(inst.id, mcpConfigPath)
+  }
 
   // Track in recent sessions
   const allArgs = inst.args || []

@@ -52,6 +52,7 @@ export interface ActionDef {
     workingDirectory?: string
   }
   busyStrategy?: 'wait' | 'launch-new' // default: 'launch-new'
+  mcpServers?: string[] // named MCP servers from catalog to inject via --mcp-config
   outputs?: string
   // maker-checker specific fields
   makerPrompt?: string
@@ -742,6 +743,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
         workingDirectory: route.project,
         color: action.color,
         args: ['--resume', route.sessionId, '--append-system-prompt-file', promptFile],
+        mcpServers: action.mcpServers,
       })
       await sendPromptWhenReady(inst.id, { prompt: 'Execute the instructions in your system prompt. Begin now.' })
       broadcast('pipeline:fired', { pipeline: name, instanceId: inst.id, routed: true, resumed: true })
@@ -780,6 +782,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
     workingDirectory: resolvedCwd,
     color: action.color,
     args: ['--append-system-prompt-file', promptFile],
+    mcpServers: action.mcpServers,
   })
 
   // Full prompt is in the system prompt file — just send a trigger

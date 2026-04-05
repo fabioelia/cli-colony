@@ -2928,6 +2928,136 @@ input, select {
   border-radius: 6px;
 }
 
+/* ===== MCP Catalog ===== */
+.mcp-catalog {
+  margin-top: 8px;
+}
+
+.mcp-catalog-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.mcp-catalog-item {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+  position: relative;
+}
+
+.mcp-catalog-item-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.mcp-catalog-item-detail {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: Menlo, Monaco, "Courier New", monospace;
+  word-break: break-all;
+}
+
+.mcp-catalog-item-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.mcp-catalog-item-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  align-items: center;
+}
+
+.mcp-catalog-edit {
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--bg-surface);
+}
+
+.mcp-catalog-edit:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.mcp-catalog-delete {
+  color: var(--color-danger, #f87171);
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.mcp-catalog-delete:hover {
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.mcp-catalog-add {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  padding: 5px 10px;
+  border-radius: 5px;
+  background: var(--bg-surface);
+  margin-top: 4px;
+}
+
+.mcp-catalog-add:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.mcp-catalog-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  margin-top: 8px;
+}
+
+.mcp-form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.mcp-form-row label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.mcp-form-row input,
+.mcp-form-row select {
+  font-size: 11px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+}
+
+.mcp-form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
 /* ===== Sessions List ===== */
 .sessions-list {
   flex: 1;

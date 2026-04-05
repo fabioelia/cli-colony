@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings } from 'lucide-react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 
 interface Props {
@@ -30,6 +30,12 @@ export default function SettingsPanel({ onBack }: Props) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const schedulerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  type McpServer = { name: string; command?: string; args?: string[]; url?: string; description?: string }
+  const [mcpServers, setMcpServers] = useState<McpServer[]>([])
+  const [showMcpSection, setShowMcpSection] = useState(false)
+  const [mcpForm, setMcpForm] = useState<McpServer | null>(null)
+  const [mcpFormType, setMcpFormType] = useState<'command' | 'sse'>('command')
+
   useEffect(() => {
     window.api.settings.getAll().then((s) => {
       setDefaultArgs(s.defaultArgs || '')
@@ -45,6 +51,7 @@ export default function SettingsPanel({ onBack }: Props) {
     window.api.settings.getShells().then(setAvailableShells)
     window.api.daemon.getVersion().then(setDaemonVersion).catch(() => {})
     window.api.settings.detectGitProtocol().then(setDetectedProtocol).catch(() => {})
+    window.api.mcp.list().then(setMcpServers).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -268,6 +275,155 @@ export default function SettingsPanel({ onBack }: Props) {
           </div>
         </div>
         <p className="settings-help settings-help-bottom">Set to 0 to keep stopped sessions indefinitely.</p>
+      </div>
+
+      {/* MCP Server Catalog */}
+      <div className={`settings-section settings-logs-section ${showMcpSection ? '' : 'collapsed'}`}>
+        <div className="settings-section-title">
+          <Network size={12} />
+          MCP Server Catalog
+          <div className="settings-logs-actions">
+            <button
+              className="settings-logs-toggle"
+              onClick={() => setShowMcpSection(!showMcpSection)}
+              title={showMcpSection ? 'Hide' : 'Show'}
+            >
+              {showMcpSection ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            </button>
+          </div>
+        </div>
+        {showMcpSection && (
+          <div className="mcp-catalog">
+            <p className="settings-help">
+              Named MCP servers available for sessions and pipeline stages. Reference them by name using <code>mcpServers: ["name"]</code> in pipeline YAML or when creating a session.
+            </p>
+            {mcpServers.length > 0 && (
+              <div className="mcp-catalog-list">
+                {mcpServers.map((s) => (
+                  <div key={s.name} className="mcp-catalog-item">
+                    <div className="mcp-catalog-item-name">{s.name}</div>
+                    <div className="mcp-catalog-item-detail">
+                      {s.url ? `SSE: ${s.url}` : `${s.command ?? ''} ${(s.args ?? []).join(' ')}`.trim()}
+                    </div>
+                    {s.description && <div className="mcp-catalog-item-desc">{s.description}</div>}
+                    <div className="mcp-catalog-item-actions">
+                      <button
+                        className="mcp-catalog-edit"
+                        title="Edit"
+                        onClick={() => {
+                          setMcpFormType(s.url ? 'sse' : 'command')
+                          setMcpForm({ ...s })
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="mcp-catalog-delete"
+                        title="Delete"
+                        onClick={async () => {
+                          if (!confirm(`Delete MCP server "${s.name}"?`)) return
+                          const updated = await window.api.mcp.delete(s.name)
+                          setMcpServers(updated)
+                        }}
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {mcpForm !== null ? (
+              <div className="mcp-catalog-form">
+                <div className="mcp-form-row">
+                  <label>Name</label>
+                  <input
+                    value={mcpForm.name}
+                    onChange={(e) => setMcpForm({ ...mcpForm, name: e.target.value })}
+                    placeholder="e.g. filesystem"
+                  />
+                </div>
+                <div className="mcp-form-row">
+                  <label>Type</label>
+                  <select
+                    value={mcpFormType}
+                    onChange={(e) => setMcpFormType(e.target.value as 'command' | 'sse')}
+                  >
+                    <option value="command">Command (stdio)</option>
+                    <option value="sse">SSE (URL)</option>
+                  </select>
+                </div>
+                {mcpFormType === 'command' ? (
+                  <>
+                    <div className="mcp-form-row">
+                      <label>Command</label>
+                      <input
+                        value={mcpForm.command ?? ''}
+                        onChange={(e) => setMcpForm({ ...mcpForm, command: e.target.value, url: undefined })}
+                        placeholder="e.g. npx"
+                      />
+                    </div>
+                    <div className="mcp-form-row">
+                      <label>Args</label>
+                      <input
+                        value={(mcpForm.args ?? []).join(' ')}
+                        onChange={(e) => setMcpForm({ ...mcpForm, args: e.target.value.split(' ').filter(Boolean) })}
+                        placeholder="e.g. -y @modelcontextprotocol/server-filesystem /path"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="mcp-form-row">
+                    <label>URL</label>
+                    <input
+                      value={mcpForm.url ?? ''}
+                      onChange={(e) => setMcpForm({ ...mcpForm, url: e.target.value, command: undefined, args: undefined })}
+                      placeholder="e.g. http://localhost:3000/sse"
+                    />
+                  </div>
+                )}
+                <div className="mcp-form-row">
+                  <label>Description</label>
+                  <input
+                    value={mcpForm.description ?? ''}
+                    onChange={(e) => setMcpForm({ ...mcpForm, description: e.target.value || undefined })}
+                    placeholder="Optional"
+                  />
+                </div>
+                <div className="mcp-form-actions">
+                  <button
+                    className="settings-logs-toggle"
+                    onClick={() => setMcpForm(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="panel-header-btn primary"
+                    onClick={async () => {
+                      if (!mcpForm.name.trim()) return
+                      const updated = await window.api.mcp.save(mcpForm)
+                      setMcpServers(updated)
+                      setMcpForm(null)
+                    }}
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                className="mcp-catalog-add"
+                onClick={() => {
+                  setMcpFormType('command')
+                  setMcpForm({ name: '', command: '', args: [] })
+                }}
+                title="Add MCP server"
+              >
+                <Plus size={12} /> Add Server
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Daemon */}

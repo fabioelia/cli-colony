@@ -30,6 +30,7 @@ export interface ClaudeManagerAPI {
       args?: string[]
       parentId?: string
       cliBackend?: CliBackend
+      mcpServers?: string[]
     }) => Promise<ClaudeInstance>
     write: (id: string, data: string) => Promise<boolean>
     resize: (id: string, cols: number, rows: number) => Promise<boolean>
@@ -278,6 +279,11 @@ export interface ClaudeManagerAPI {
     unreadCount: () => Promise<number>
     onNew: (cb: (data: { event: ActivityEvent; unreadCount: number }) => void) => () => void
     onUnread: (cb: (data: { count: number }) => void) => () => void
+  }
+  mcp: {
+    list: () => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string }>>
+    save: (server: { name: string; command?: string; args?: string[]; url?: string; description?: string }) => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string }>>
+    delete: (name: string) => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string }>>
   }
 }
 
@@ -579,6 +585,11 @@ const api: ClaudeManagerAPI = {
       ipcRenderer.on('activity:unread', l)
       return () => ipcRenderer.removeListener('activity:unread', l)
     },
+  },
+  mcp: {
+    list: () => ipcRenderer.invoke('mcp:list'),
+    save: (server) => ipcRenderer.invoke('mcp:save', server),
+    delete: (name) => ipcRenderer.invoke('mcp:delete', name),
   },
 }
 
