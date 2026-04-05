@@ -3,6 +3,11 @@ import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, P
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest } from '../../../shared/types'
+
+const ROLE_ABBREV: Record<string, string> = {
+  Orchestrator: 'Orch', Planner: 'Plan', Coder: 'Code',
+  Tester: 'Test', Reviewer: 'Rev', Researcher: 'Res',
+}
 import Tooltip from './Tooltip'
 import HelpPopover from './HelpPopover'
 import ExternalSessionPopover from './ExternalSessionPopover'
@@ -348,7 +353,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
             )}
             {inst.roleTag && (
               <span className={`instance-role-badge role-${inst.roleTag.toLowerCase()}`} title={`Role: ${inst.roleTag}`}>
-                {inst.roleTag}
+                {ROLE_ABBREV[inst.roleTag] ?? inst.roleTag.slice(0, 4)}
               </span>
             )}
             {inst.mcpServers.length > 0 && (
