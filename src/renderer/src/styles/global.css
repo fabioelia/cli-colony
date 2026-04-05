@@ -9657,6 +9657,31 @@ input, select {
   gap: 4px;
 }
 
+.env-detail-section-row {
+  flex-direction: row;
+  align-items: center;
+}
+
+.env-restart-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.env-restart-toggle input[type="checkbox"] {
+  accent-color: var(--accent);
+  cursor: pointer;
+  width: 13px;
+  height: 13px;
+}
+
+.env-restart-toggle-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
 .env-detail-label {
   font-size: 10px;
   font-weight: 600;

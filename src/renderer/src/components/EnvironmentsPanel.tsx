@@ -65,6 +65,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
   const [fixResult, setFixResult] = useState<{ envId: string; lines: string[]; isError?: boolean } | null>(null)
   const [fixMenuOpen, setFixMenuOpen] = useState<string | null>(null)
   const [fixMenuRect, setFixMenuRect] = useState<DOMRect | null>(null)
+  const [restartPolicies, setRestartPolicies] = useState<Record<string, 'manual' | 'on-crash'>>({})
 
   const loadEnvironments = useCallback(async () => {
     try {
@@ -192,6 +193,15 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
       })
     }
   }
+
+  // Load restart policy when an environment card is expanded
+  useEffect(() => {
+    if (!expandedId) return
+    window.api.env.manifest(expandedId).then((m: any) => {
+      const policy = (m?.meta?.restartPolicy as 'manual' | 'on-crash') || 'manual'
+      setRestartPolicies(prev => ({ ...prev, [expandedId]: policy }))
+    }).catch(() => {})
+  }, [expandedId])
 
   // Poll setup progress for environments in creating/error state
   // Close fix dropdown when clicking outside
@@ -718,6 +728,22 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                         </div>
                       ))}
                     </div>
+                  </div>
+
+                  {/* Auto-restart policy */}
+                  <div className="env-detail-section env-detail-section-row">
+                    <label className="env-restart-toggle" title="When enabled, crashed services automatically restart after 5 seconds">
+                      <input
+                        type="checkbox"
+                        checked={(restartPolicies[env.id] || 'manual') === 'on-crash'}
+                        onChange={async (e) => {
+                          const policy = e.target.checked ? 'on-crash' : 'manual'
+                          setRestartPolicies(prev => ({ ...prev, [env.id]: policy }))
+                          await window.api.env.setRestartPolicy(env.id, policy)
+                        }}
+                      />
+                      <span className="env-restart-toggle-label">Auto-restart crashed services</span>
+                    </label>
                   </div>
 
                   {/* Ports */}

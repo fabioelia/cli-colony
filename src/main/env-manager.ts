@@ -53,6 +53,15 @@ export function wireEnvDaemonEvents(): void {
   client.on('service-crashed', (envId: string, service: string, exitCode: number) => {
     broadcast('env:service-crashed', { envId, service, exitCode })
     appendActivity({ source: 'env', name: envId, summary: `Service "${service}" crashed (exit ${exitCode}) in environment "${envId}"`, level: 'error' })
+
+    // Auto-restart crashed service if policy is 'on-crash'
+    if (getRestartPolicy(envId) === 'on-crash') {
+      setTimeout(() => {
+        getEnvDaemonClient().restartService(envId, service).catch(err => {
+          console.warn(`[env-manager] auto-restart of ${service} in ${envId} failed:`, err)
+        })
+      }, 5000)
+    }
   })
 
   client.on('connected', () => {
@@ -772,6 +781,20 @@ export async function fixEnvironment(envId: string): Promise<{ fixed: string[] }
   if (fixed.length === 0) fixed.push('no changes needed')
   console.log(`[env-manager:fix] ${manifest.name}: ${fixed.join(', ')}`)
   return { fixed }
+}
+
+// ---- Restart Policy ----
+
+function getRestartPolicy(envId: string): 'manual' | 'on-crash' {
+  const manifest = getManifest(envId)
+  return (manifest?.meta?.restartPolicy as 'manual' | 'on-crash') || 'manual'
+}
+
+export function setRestartPolicy(envId: string, policy: 'manual' | 'on-crash'): void {
+  const manifest = getManifest(envId)
+  if (!manifest) throw new Error(`Environment ${envId} not found`)
+  manifest.meta = { ...manifest.meta, restartPolicy: policy }
+  saveManifest(envId, manifest)
 }
 
 export function saveManifest(envId: string, manifest: InstanceManifest): void {
