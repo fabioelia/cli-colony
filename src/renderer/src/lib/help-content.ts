@@ -75,7 +75,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Bottom of sidebar',
         items: [
           { label: 'Help icon', detail: 'Opens this help popover.', icon: 'HelpCircle' },
-          { label: 'Activity bell', detail: 'Shows recent automation events from personas, pipelines, and environments. Persona completion events include outcome stats: duration, commits made, and files changed.', icon: 'Bell' },
+          { label: 'Activity bell', detail: 'Shows recent automation events from personas, pipelines, and environments. Persona completion events include outcome stats: duration, commits made, and files changed. Turns amber when pipeline actions are waiting for approval.', icon: 'Bell' },
           { label: 'Settings gear', detail: 'Opens the Settings panel for CLI defaults, shell profile, daemon management, and more.', icon: 'Settings' },
         ],
       },
@@ -265,6 +265,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Content-hash dedup', detail: 'Tracks Git SHA — only re-fires when matched file content actually changes.' },
           { label: 'Poll Now', detail: 'Run a full poll cycle immediately. Evaluates conditions and fires actions if matched. Use Preview first to check before committing.', icon: 'Play' },
           { label: 'Preview', detail: 'Dry-run the pipeline — evaluates trigger and conditions without firing any actions. Shows which PRs/contexts would match, resolved template variables, and whether dedup would suppress the fire.', icon: 'Eye' },
+          { label: 'Approval gate', detail: 'Add requireApproval: true to a pipeline YAML to require human approval before it fires. Matched actions queue in the Activity bell — you approve or dismiss from there.' },
         ],
       },
       {

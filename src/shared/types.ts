@@ -175,6 +175,14 @@ export interface ActivityEvent {
   details?: Record<string, unknown>
 }
 
+export interface ApprovalRequest {
+  id: string
+  pipelineName: string
+  summary: string
+  resolvedVars: Record<string, string>
+  createdAt: string
+}
+
 export interface PersonaInfo {
   /** File name (without .md extension) */
   id: string

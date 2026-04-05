@@ -2,14 +2,14 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
-  FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent,
+  FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
 export type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
-  FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent,
+  FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
 }
 
 
@@ -189,6 +189,11 @@ export interface ClaudeManagerAPI {
       conditionLog: string[]
       error?: string
     }>
+    listApprovals: () => Promise<ApprovalRequest[]>
+    approve: (id: string) => Promise<boolean>
+    dismiss: (id: string) => Promise<boolean>
+    onApprovalNew: (cb: (request: ApprovalRequest) => void) => () => void
+    onApprovalUpdate: (cb: (data: { id: string; status: 'approved' | 'dismissed' }) => void) => () => void
   }
   persona: {
     list: () => Promise<PersonaInfo[]>
@@ -465,6 +470,19 @@ const api: ClaudeManagerAPI = {
     saveMemory: (fileName, content) => ipcRenderer.invoke('pipeline:saveMemory', fileName, content),
     setCron: (fileName, cron) => ipcRenderer.invoke('pipeline:setCron', fileName, cron),
     preview: (fileName) => ipcRenderer.invoke('pipeline:preview', fileName),
+    listApprovals: () => ipcRenderer.invoke('pipeline:listApprovals'),
+    approve: (id) => ipcRenderer.invoke('pipeline:approve', id),
+    dismiss: (id) => ipcRenderer.invoke('pipeline:dismiss', id),
+    onApprovalNew: (cb) => {
+      const l = (_e: any, data: ApprovalRequest) => cb(data)
+      ipcRenderer.on('pipeline:approval:new', l)
+      return () => ipcRenderer.removeListener('pipeline:approval:new', l)
+    },
+    onApprovalUpdate: (cb) => {
+      const l = (_e: any, data: { id: string; status: 'approved' | 'dismissed' }) => cb(data)
+      ipcRenderer.on('pipeline:approval:update', l)
+      return () => ipcRenderer.removeListener('pipeline:approval:update', l)
+    },
   },
   persona: {
     list: () => ipcRenderer.invoke('persona:list'),

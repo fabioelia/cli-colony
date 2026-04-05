@@ -722,6 +722,97 @@ input, select {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.sidebar-footer-btn.has-approvals {
+  color: var(--warning);
+}
+
+.sidebar-activity-badge.approval-badge {
+  background: var(--warning);
+}
+
+.activity-approvals-section {
+  border-bottom: 1px solid var(--border);
+  padding: 6px 4px 4px;
+  flex-shrink: 0;
+}
+
+.activity-approvals-title {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--warning);
+  padding: 0 8px 4px;
+}
+
+.activity-approval-card {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+}
+
+.activity-approval-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 3px;
+}
+
+.activity-approval-pipeline {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--warning);
+}
+
+.activity-approval-time {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.activity-approval-summary {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin-bottom: 8px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.activity-approval-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.activity-approval-btn {
+  flex: 1;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.activity-approval-btn:hover {
+  opacity: 0.85;
+}
+
+.activity-approval-btn.approve {
+  background: rgba(52, 211, 153, 0.2);
+  color: var(--success);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+}
+
+.activity-approval-btn.dismiss {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
 /* ===== Instance items ===== */
 .instance-item {
   display: flex;

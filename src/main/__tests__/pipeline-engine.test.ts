@@ -947,3 +947,236 @@ describe('pipeline-engine: auto-pause on consecutive failures', () => {
     expect(mod.getPipelineList()[0].enabled).toBe(true)
   })
 })
+
+// ---- Approval Gate YAML ----
+
+const APPROVAL_YAML = `
+name: Guarded Pipe
+enabled: true
+requireApproval: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: launch-session
+  prompt: Do guarded work
+dedup:
+  key: "{{timestamp}}"
+`
+
+describe('pipeline-engine: approval gates', () => {
+  let mod: typeof import('../pipeline-engine')
+  let mockCreateInstance: ReturnType<typeof vi.fn>
+  let mockAppendActivity: ReturnType<typeof vi.fn>
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+    mockCreateInstance = vi.fn().mockResolvedValue({ id: 'inst-approval' })
+    mockAppendActivity = vi.fn()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  function setupApprovalMocks(fsMock: ReturnType<typeof buildFsMock>) {
+    vi.doMock('electron', () => ({
+      app: { getPath: vi.fn().mockReturnValue('/mock/home') },
+    }))
+    vi.doMock('../../shared/colony-paths', () => ({
+      colonyPaths: {
+        root: MOCK_ROOT,
+        pipelines: PIPELINES_DIR,
+        schedulerLog: `${MOCK_ROOT}/scheduler.log`,
+      },
+    }))
+    vi.doMock('fs', () => fsMock)
+    vi.doMock('../broadcast', () => ({ broadcast: mockBroadcast }))
+    vi.doMock('../repo-config-loader', () => ({ getAllRepoConfigs: mockGetAllRepoConfigs }))
+    vi.doMock('../instance-manager', () => ({
+      createInstance: mockCreateInstance,
+      getAllInstances: vi.fn().mockResolvedValue([]),
+    }))
+    vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
+    vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
+    vi.doMock('../github', () => ({
+      getRepos: vi.fn().mockReturnValue([]),
+      fetchPRs: vi.fn().mockResolvedValue([]),
+      fetchChecks: vi.fn().mockResolvedValue({ checks: [] }),
+      gh: vi.fn().mockResolvedValue('{}'),
+    }))
+    vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
+    vi.doMock('../activity-manager', () => ({ appendActivity: mockAppendActivity }))
+  }
+
+  it('queues an approval request instead of firing when requireApproval is true', async () => {
+    const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': APPROVAL_YAML })
+    setupApprovalMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Guarded Pipe')
+    await flushPromises()
+
+    // createInstance should NOT have been called
+    expect(mockCreateInstance).not.toHaveBeenCalled()
+
+    // An approval request should be queued
+    const approvals = mod.listApprovals()
+    expect(approvals).toHaveLength(1)
+    expect(approvals[0].pipelineName).toBe('Guarded Pipe')
+    expect(approvals[0].id).toBeTruthy()
+    expect(approvals[0].createdAt).toBeTruthy()
+  })
+
+  it('broadcasts pipeline:approval:new when a request is queued', async () => {
+    const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': APPROVAL_YAML })
+    setupApprovalMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Guarded Pipe')
+    await flushPromises()
+
+    const newCall = mockBroadcast.mock.calls.find(([ch]) => ch === 'pipeline:approval:new')
+    expect(newCall).toBeTruthy()
+    expect(newCall![1].pipelineName).toBe('Guarded Pipe')
+  })
+
+  it('emits a warn activity event when queuing an approval', async () => {
+    const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': APPROVAL_YAML })
+    setupApprovalMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Guarded Pipe')
+    await flushPromises()
+
+    const warnCall = mockAppendActivity.mock.calls.find(([ev]) => ev.level === 'warn' && ev.summary.includes('waiting for approval'))
+    expect(warnCall).toBeTruthy()
+  })
+
+  it('does not re-queue the same approval if dedupKey is already pending', async () => {
+    // Use a fixed dedup key so both polls produce the same key
+    const fixedKeyYaml = APPROVAL_YAML.replace('key: "{{timestamp}}"', 'key: fixed-key')
+    const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': fixedKeyYaml })
+    setupApprovalMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Guarded Pipe')
+    await flushPromises()
+    mod.triggerPollNow('Guarded Pipe')
+    await flushPromises()
+
+    expect(mod.listApprovals()).toHaveLength(1)
+  })
+
+  it('fires the action and removes approval when approveAction is called', async () => {
+    const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': APPROVAL_YAML })
+    setupApprovalMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Guarded Pipe')
+    await flushPromises()
+
+    const [approval] = mod.listApprovals()
+    const result = await mod.approveAction(approval.id)
+    await flushPromises()
+
+    expect(result).toBe(true)
+    expect(mockCreateInstance).toHaveBeenCalledOnce()
+    expect(mod.listApprovals()).toHaveLength(0)
+  })
+
+  it('broadcasts pipeline:approval:update with status approved', async () => {
+    const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': APPROVAL_YAML })
+    setupApprovalMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Guarded Pipe')
+    await flushPromises()
+
+    const [approval] = mod.listApprovals()
+    await mod.approveAction(approval.id)
+
+    const updateCall = mockBroadcast.mock.calls.find(([ch]) => ch === 'pipeline:approval:update')
+    expect(updateCall).toBeTruthy()
+    expect(updateCall![1]).toEqual({ id: approval.id, status: 'approved' })
+  })
+
+  it('dismisses approval and removes it from the queue', async () => {
+    const fixedKeyYaml = APPROVAL_YAML.replace('key: "{{timestamp}}"', 'key: dismiss-key')
+    const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': fixedKeyYaml })
+    setupApprovalMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Guarded Pipe')
+    await flushPromises()
+
+    const [approval] = mod.listApprovals()
+    const result = mod.dismissAction(approval.id)
+
+    expect(result).toBe(true)
+    expect(mod.listApprovals()).toHaveLength(0)
+    expect(mockCreateInstance).not.toHaveBeenCalled()
+  })
+
+  it('broadcasts pipeline:approval:update with status dismissed', async () => {
+    const fixedKeyYaml = APPROVAL_YAML.replace('key: "{{timestamp}}"', 'key: dismiss-broadcast-key')
+    const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': fixedKeyYaml })
+    setupApprovalMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Guarded Pipe')
+    await flushPromises()
+
+    const [approval] = mod.listApprovals()
+    mod.dismissAction(approval.id)
+
+    const updateCall = mockBroadcast.mock.calls.find(([ch]) => ch === 'pipeline:approval:update')
+    expect(updateCall).toBeTruthy()
+    expect(updateCall![1]).toEqual({ id: approval.id, status: 'dismissed' })
+  })
+
+  it('allows re-queuing after dismiss (dedupKey cleared)', async () => {
+    const fixedKeyYaml = APPROVAL_YAML.replace('key: "{{timestamp}}"', 'key: requeue-key')
+    const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': fixedKeyYaml })
+    setupApprovalMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Guarded Pipe')
+    await flushPromises()
+
+    const [approval] = mod.listApprovals()
+    mod.dismissAction(approval.id)
+    expect(mod.listApprovals()).toHaveLength(0)
+
+    // Poll again — should re-queue since dedupKey was cleared
+    mod.triggerPollNow('Guarded Pipe')
+    await flushPromises()
+    expect(mod.listApprovals()).toHaveLength(1)
+  })
+
+  it('returns false for approveAction / dismissAction on unknown id', async () => {
+    const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': APPROVAL_YAML })
+    setupApprovalMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    expect(await mod.approveAction('unknown-id')).toBe(false)
+    expect(mod.dismissAction('unknown-id')).toBe(false)
+  })
+})

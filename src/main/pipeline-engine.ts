@@ -18,7 +18,7 @@ import { findBestRoute } from './session-router'
 import { getAllRepoConfigs } from './repo-config-loader'
 import { cronMatches } from '../shared/cron'
 import { resolveMustacheTemplate } from '../shared/utils'
-import type { GitHubRepo, GitHubPR, PRChecks } from '../shared/types'
+import type { GitHubRepo, GitHubPR, PRChecks, ApprovalRequest } from '../shared/types'
 import { appendActivity } from './activity-manager'
 
 // ---- Types ----
@@ -63,10 +63,18 @@ export interface PipelineDef {
   name: string
   description?: string
   enabled: boolean
+  requireApproval?: boolean
   trigger: TriggerDef
   condition: ConditionDef
   action: ActionDef
   dedup: DedupDef
+}
+
+interface PendingApproval {
+  request: ApprovalRequest
+  action: ActionDef
+  ctx: TriggerContext
+  dedupKey: string
 }
 
 interface PipelineState {
@@ -127,6 +135,8 @@ const STATE_PATH = join(COLONY_DIR, 'pipeline-state.json')
 // ---- Engine ----
 
 const pipelines = new Map<string, { def: PipelineDef; state: PipelineState; fileName: string }>()
+const pendingApprovals = new Map<string, PendingApproval>()
+const pendingApprovalKeys = new Set<string>() // dedup keys with a queued approval
 const timers = new Map<string, ReturnType<typeof setInterval>>()
 const runningPolls = new Set<string>()
 let githubUser: string | null = null
@@ -774,6 +784,38 @@ async function runPoll(pipelineName: string): Promise<void> {
         plog(pipelineName, `⊘ dedup: already processed ${dedupKey} with same content`)
         continue
       }
+      if (pendingApprovalKeys.has(dedupKey)) {
+        plog(pipelineName, `⊘ approval already queued for ${dedupKey}`)
+        continue
+      }
+
+      if (p.def.requireApproval) {
+        const approvalId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+        const summary = ctx.pr
+          ? `PR #${ctx.pr.number}: ${ctx.pr.branch}${ctx.repo ? ` (${ctx.repo.owner}/${ctx.repo.name})` : ''}`
+          : `${pipelineName} (${ctx.timestamp.slice(0, 10)})`
+        const resolvedVars: Record<string, string> = {
+          'action.name': resolveTemplate(p.def.action.name || 'Pipeline Session', ctx),
+          'dedup.key': dedupKey,
+        }
+        if (p.def.action.workingDirectory) resolvedVars['action.workingDirectory'] = resolveTemplate(p.def.action.workingDirectory, ctx)
+        if (ctx.pr) {
+          resolvedVars['pr.number'] = String(ctx.pr.number)
+          resolvedVars['pr.branch'] = ctx.pr.branch
+          resolvedVars['pr.title'] = ctx.pr.title || ''
+        }
+        if (ctx.repo) {
+          resolvedVars['repo.owner'] = ctx.repo.owner
+          resolvedVars['repo.name'] = ctx.repo.name
+        }
+        const request: ApprovalRequest = { id: approvalId, pipelineName, summary, resolvedVars, createdAt: new Date().toISOString() }
+        pendingApprovals.set(approvalId, { request, action: p.def.action, ctx, dedupKey })
+        pendingApprovalKeys.add(dedupKey)
+        broadcast('pipeline:approval:new', request)
+        plog(pipelineName, `→ approval required, queued request ${approvalId} for ${prLabel}`)
+        appendActivity({ source: 'pipeline', name: pipelineName, summary: `Pipeline "${pipelineName}" waiting for approval — ${summary}`, level: 'warn' })
+        continue
+      }
 
       plog(pipelineName, `→ firing action: ${p.def.action.type} for ${prLabel}`)
       await fireAction(p.def.action, ctx, p.def.name)
@@ -1086,6 +1128,40 @@ export function setPipelineCron(fileName: string, cron: string | null): boolean 
     updated = content.replace(/^\s*cron:\s*.*\n?/m, '')
   }
   return savePipelineContent(fileName, updated)
+}
+
+// ---- Approval Gate API ----
+
+export function listApprovals(): ApprovalRequest[] {
+  return [...pendingApprovals.values()].map(a => a.request)
+}
+
+export async function approveAction(id: string): Promise<boolean> {
+  const entry = pendingApprovals.get(id)
+  if (!entry) return false
+  const { request, action, ctx, dedupKey } = entry
+  pendingApprovals.delete(id)
+  pendingApprovalKeys.delete(dedupKey)
+  try {
+    await fireAction(action, ctx, request.pipelineName)
+    recordFired(request.pipelineName, dedupKey, ctx.contentSha)
+    appendActivity({ source: 'pipeline', name: request.pipelineName, summary: `Pipeline "${request.pipelineName}" approved and fired — ${request.summary}`, level: 'info' })
+  } catch (err) {
+    appendActivity({ source: 'pipeline', name: request.pipelineName, summary: `Pipeline "${request.pipelineName}" failed after approval: ${String(err).slice(0, 100)}`, level: 'error' })
+  }
+  broadcast('pipeline:approval:update', { id, status: 'approved' })
+  return true
+}
+
+export function dismissAction(id: string): boolean {
+  const entry = pendingApprovals.get(id)
+  if (!entry) return false
+  const { request, dedupKey } = entry
+  pendingApprovals.delete(id)
+  pendingApprovalKeys.delete(dedupKey)
+  appendActivity({ source: 'pipeline', name: request.pipelineName, summary: `Pipeline "${request.pipelineName}" action dismissed — ${request.summary}`, level: 'warn' })
+  broadcast('pipeline:approval:update', { id, status: 'dismissed' })
+  return true
 }
 
 // ---- Seed Default Pipeline ----

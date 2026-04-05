@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, FileDown } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
-import type { ActivityEvent } from '../../../shared/types'
+import type { ActivityEvent, ApprovalRequest } from '../../../shared/types'
 import Tooltip from './Tooltip'
 import HelpPopover from './HelpPopover'
 import ExternalSessionPopover from './ExternalSessionPopover'
@@ -78,6 +78,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([])
   const [activityUnread, setActivityUnread] = useState(0)
   const [showActivityPopover, setShowActivityPopover] = useState(false)
+  const [pendingApprovals, setPendingApprovals] = useState<ApprovalRequest[]>([])
   const [handoffInst, setHandoffInst] = useState<ClaudeInstance | null>(null)
   const [handoffDoc, setHandoffDoc] = useState('')
   const [handoffLoading, setHandoffLoading] = useState(false)
@@ -100,7 +101,14 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
     const unsubUnread = window.api.activity.onUnread(({ count }) => {
       setActivityUnread(count)
     })
-    return () => { unsubNew(); unsubUnread() }
+    window.api.pipeline.listApprovals().then(setPendingApprovals).catch(() => {})
+    const unsubApprovalNew = window.api.pipeline.onApprovalNew(req => {
+      setPendingApprovals(prev => [...prev, req])
+    })
+    const unsubApprovalUpdate = window.api.pipeline.onApprovalUpdate(({ id }) => {
+      setPendingApprovals(prev => prev.filter(r => r.id !== id))
+    })
+    return () => { unsubNew(); unsubUnread(); unsubApprovalNew(); unsubApprovalUpdate() }
   }, [])
 
   useEffect(() => {
@@ -743,9 +751,9 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
       <div className="sidebar-footer">
         <HelpPopover topic="sessions" align="right" position="above" />
         <div className="sidebar-footer-activity" style={{ position: 'relative' }}>
-          <Tooltip text="Activity Feed" detail="Recent automation events from personas, pipelines, and environments" position="top">
+          <Tooltip text="Activity Feed" detail="Recent automation events from personas, pipelines, and environments. Amber badge when pipeline actions are waiting for your approval." position="top">
             <button
-              className={`sidebar-footer-btn ${showActivityPopover ? 'active' : ''}`}
+              className={`sidebar-footer-btn ${showActivityPopover ? 'active' : ''} ${pendingApprovals.length > 0 ? 'has-approvals' : ''}`}
               onClick={() => {
                 setShowActivityPopover(v => {
                   if (!v) {
@@ -757,9 +765,11 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
               }}
             >
               <Bell size={14} />
-              {activityUnread > 0 && (
+              {pendingApprovals.length > 0 ? (
+                <span className="sidebar-activity-badge approval-badge">{pendingApprovals.length}</span>
+              ) : activityUnread > 0 ? (
                 <span className="sidebar-activity-badge">{activityUnread > 99 ? '99+' : activityUnread}</span>
-              )}
+              ) : null}
             </button>
           </Tooltip>
           {showActivityPopover && (
@@ -768,6 +778,34 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
                 <span>Activity</span>
                 <button onClick={() => setShowActivityPopover(false)} title="Close">✕</button>
               </div>
+              {pendingApprovals.length > 0 && (
+                <div className="activity-approvals-section">
+                  <div className="activity-approvals-title">Pending Approval</div>
+                  {pendingApprovals.map(req => (
+                    <div key={req.id} className="activity-approval-card">
+                      <div className="activity-approval-header">
+                        <span className="activity-approval-pipeline">{req.pipelineName}</span>
+                        <span className="activity-approval-time">{formatActivityTime(req.createdAt)}</span>
+                      </div>
+                      <div className="activity-approval-summary">{req.summary}</div>
+                      <div className="activity-approval-actions">
+                        <button
+                          className="activity-approval-btn approve"
+                          onClick={() => window.api.pipeline.approve(req.id).catch(() => {})}
+                        >
+                          Approve
+                        </button>
+                        <button
+                          className="activity-approval-btn dismiss"
+                          onClick={() => window.api.pipeline.dismiss(req.id).catch(() => {})}
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="activity-popover-list">
                 {activityEvents.length === 0 && (
                   <div className="activity-popover-empty">No activity yet</div>
