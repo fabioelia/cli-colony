@@ -1006,6 +1006,8 @@ export default function App() {
         onToggleSplit={handleToggleSplit}
         onResumeSession={handleResumeSession}
         sessions={cmdPaletteSessions}
+        onRunPersona={(id) => { window.api.persona.run(id); setView('personas') }}
+        onLaunchAgent={handleLaunchAgent}
       />
 
       {/* Environment prompt modal — rendered at app root so it works on any panel */}

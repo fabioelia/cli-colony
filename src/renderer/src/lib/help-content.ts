@@ -85,7 +85,7 @@ export const helpContent: Record<string, HelpEntry> = {
       { keys: 'Cmd+1–9', action: 'Jump to session by position' },
       { keys: 'Alt+Tab', action: 'Cycle through sessions' },
       { keys: 'Cmd+\\', action: 'Toggle split view' },
-      { keys: 'Cmd+K', action: 'Command palette + cross-session search' },
+      { keys: 'Cmd+K', action: 'Command palette — switch sessions, run personas, launch agents, navigate panels, search session history' },
     ],
   },
 

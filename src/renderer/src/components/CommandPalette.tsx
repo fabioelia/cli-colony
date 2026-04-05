@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import {
   Plus, Settings, GitPullRequest, Users, Square, Play, Columns2,
-  MonitorPlay, History, Search, ArrowRight, Terminal,
+  MonitorPlay, History, Search, ArrowRight, Terminal, Server, User, Bot,
 } from 'lucide-react'
-import type { ClaudeInstance, CliSession } from '../types'
+import type { ClaudeInstance, CliSession, AgentDef } from '../types'
+import type { PersonaInfo } from '../../../shared/types'
 import { cliBackendLabel } from '../lib/constants'
 
 export interface CommandPaletteAction {
@@ -34,17 +35,22 @@ interface Props {
   onToggleSplit: () => void
   onResumeSession: (session: CliSession) => void
   sessions: CliSession[]
+  onRunPersona: (id: string) => void
+  onLaunchAgent: (agent: AgentDef) => void
 }
 
 export default function CommandPalette({
   open, onClose, instances, activeId, onSelect, onNew,
   onKill, onRestart, onViewChange, onToggleSplit, onResumeSession, sessions,
+  onRunPersona, onLaunchAgent,
 }: Props) {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [terminalMatches, setTerminalMatches] = useState<CommandPaletteAction[]>([])
   const [searchMode, setSearchMode] = useState<'commands' | 'sessions'>('commands')
   const [allSessions, setAllSessions] = useState<CliSession[]>([])
+  const [personas, setPersonas] = useState<PersonaInfo[]>([])
+  const [agents, setAgents] = useState<AgentDef[]>([])
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -149,6 +155,56 @@ export default function CommandPalette({
       keywords: 'pipeline automation trigger cron',
       onExecute: () => onViewChange('pipelines'),
     })
+    items.push({
+      id: 'nav-environments',
+      label: 'Open Environments',
+      detail: 'Manage dev environments and services',
+      icon: <Server size={14} />,
+      section: 'Navigate',
+      keywords: 'environment docker service start stop',
+      onExecute: () => onViewChange('environments'),
+    })
+    items.push({
+      id: 'nav-personas',
+      label: 'Open Personas',
+      detail: 'Autonomous scheduled agents',
+      icon: <User size={14} />,
+      section: 'Navigate',
+      keywords: 'persona agent schedule autonomous',
+      onExecute: () => onViewChange('personas'),
+    })
+
+    // Persona quick-run
+    for (const p of personas) {
+      const isRunning = p.activeSessionId !== null
+      items.push({
+        id: `run-persona-${p.id}`,
+        label: `Run: ${p.name}`,
+        detail: isRunning ? 'Already running' : p.schedule ? `Schedule: ${p.schedule}` : 'Manual only',
+        icon: <User size={14} />,
+        section: 'Personas',
+        keywords: `persona ${p.id} ${p.model}`,
+        onExecute: () => {
+          onRunPersona(p.id)
+          onViewChange('personas')
+        },
+      })
+    }
+
+    // Agent quick-launch
+    for (const a of agents) {
+      items.push({
+        id: `launch-agent-${a.id}`,
+        label: `Launch: ${a.name}`,
+        detail: a.description || (a.scope === 'personal' ? 'Personal agent' : `Project: ${a.projectName}`),
+        icon: <Bot size={14} />,
+        section: 'Agents',
+        keywords: `agent ${a.scope} ${a.projectName || ''} ${a.model || ''}`,
+        onExecute: () => {
+          onLaunchAgent(a)
+        },
+      })
+    }
 
     items.push({
       id: 'search-sessions',
@@ -179,7 +235,7 @@ export default function CommandPalette({
     }
 
     return items
-  }, [instances, activeId, sessions, onSelect, onNew, onKill, onRestart, onViewChange, onToggleSplit, onResumeSession])
+  }, [instances, activeId, sessions, personas, agents, onSelect, onNew, onKill, onRestart, onViewChange, onToggleSplit, onResumeSession, onRunPersona, onLaunchAgent])
 
   // Search terminal output buffers when query is 3+ chars
   useEffect(() => {
@@ -304,6 +360,13 @@ export default function CommandPalette({
   useEffect(() => {
     setSelectedIndex(0)
   }, [query])
+
+  // Load personas and agents when palette opens
+  useEffect(() => {
+    if (!open) return
+    window.api.persona.list().then(setPersonas).catch(() => {})
+    window.api.agents.list().then(setAgents).catch(() => {})
+  }, [open])
 
   // Focus input when opened
   useEffect(() => {
