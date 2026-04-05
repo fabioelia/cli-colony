@@ -223,6 +223,11 @@ function buildAppMenu(): void {
           click: () => broadcast('shortcut:command-palette'),
         },
         {
+          label: 'Quick Prompt',
+          accelerator: 'CmdOrCtrl+Shift+Return',
+          click: () => broadcast('shortcut:quick-prompt'),
+        },
+        {
           label: 'Find in Terminal',
           accelerator: 'CmdOrCtrl+F',
           click: () => broadcast('shortcut:search'),

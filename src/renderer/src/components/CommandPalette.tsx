@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import {
   Plus, Settings, GitPullRequest, Users, Square, Play, Columns2,
-  MonitorPlay, History, Search, ArrowRight, Terminal, Server, User, Bot,
+  MonitorPlay, History, Search, ArrowRight, Terminal, Server, User, Bot, Zap,
 } from 'lucide-react'
 import type { ClaudeInstance, CliSession, AgentDef } from '../types'
 import type { PersonaInfo } from '../../../shared/types'
@@ -37,12 +37,13 @@ interface Props {
   sessions: CliSession[]
   onRunPersona: (id: string) => void
   onLaunchAgent: (agent: AgentDef) => void
+  onOpenQuickPrompt: () => void
 }
 
 export default function CommandPalette({
   open, onClose, instances, activeId, onSelect, onNew,
   onKill, onRestart, onViewChange, onToggleSplit, onResumeSession, sessions,
-  onRunPersona, onLaunchAgent,
+  onRunPersona, onLaunchAgent, onOpenQuickPrompt,
 }: Props) {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -81,6 +82,15 @@ export default function CommandPalette({
       icon: <Plus size={14} />,
       section: 'Actions',
       onExecute: onNew,
+    })
+    items.push({
+      id: 'quick-prompt',
+      label: 'New Session with Prompt…',
+      detail: 'Launch a session and pre-fill a prompt (⌘⇧↵)',
+      icon: <Zap size={14} />,
+      section: 'Actions',
+      keywords: 'quick prompt pre-fill ask task run',
+      onExecute: onOpenQuickPrompt,
     })
 
     const active = instances.find((i) => i.id === activeId)
@@ -235,7 +245,7 @@ export default function CommandPalette({
     }
 
     return items
-  }, [instances, activeId, sessions, personas, agents, onSelect, onNew, onKill, onRestart, onViewChange, onToggleSplit, onResumeSession, onRunPersona, onLaunchAgent])
+  }, [instances, activeId, sessions, personas, agents, onSelect, onNew, onKill, onRestart, onViewChange, onToggleSplit, onResumeSession, onRunPersona, onLaunchAgent, onOpenQuickPrompt])
 
   // Search terminal output buffers when query is 3+ chars
   useEffect(() => {

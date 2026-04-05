@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import type { ClaudeInstance, AgentDef, CliSession, RecentSession, CliBackend } from './types'
 import Sidebar, { SidebarView } from './components/Sidebar'
@@ -13,6 +13,7 @@ import TaskQueuePanel from './components/TaskQueuePanel'
 import PipelinesPanel from './components/PipelinesPanel'
 import EnvironmentsPanel from './components/EnvironmentsPanel'
 import PersonasPanel from './components/PersonasPanel'
+import QuickPromptDialog from './components/QuickPromptDialog'
 
 type View = SidebarView | 'agent-editor'
 
@@ -39,6 +40,9 @@ export default function App() {
   const [fontSize, setFontSize] = useState(13)
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
   const [cmdPaletteSessions, setCmdPaletteSessions] = useState<import('./types').CliSession[]>([])
+  const [quickPromptOpen, setQuickPromptOpen] = useState(false)
+  const [quickPromptHistory, setQuickPromptHistory] = useState<string[]>([])
+  const pendingPromptRef = useRef<{ id: string; prompt: string } | null>(null)
   const [resourceUsage, setResourceUsage] = useState<{
     perInstance: Record<string, { cpu: number; memory: number }>
     total: { cpu: number; memory: number }
@@ -63,6 +67,9 @@ export default function App() {
     window.api.settings.getAll().then((s) => {
       if (s.fontSize) {
         setFontSize(parseInt(s.fontSize, 10) || 13)
+      }
+      if (s.quickPromptHistory) {
+        try { setQuickPromptHistory(JSON.parse(s.quickPromptHistory)) } catch { /* ignore */ }
       }
     })
     // Check daemon version on mount (the push event may have fired before we loaded)
@@ -159,6 +166,17 @@ export default function App() {
     return unsub
   }, [])
 
+  // Write pending quick-prompts when the target session becomes ready
+  useEffect(() => {
+    return window.api.instance.onActivity(({ id, activity }) => {
+      if (activity === 'waiting' && pendingPromptRef.current?.id === id) {
+        const prompt = pendingPromptRef.current.prompt
+        pendingPromptRef.current = null
+        window.api.instance.write(id, prompt + '\n')
+      }
+    })
+  }, [])
+
   // Keyboard shortcuts from main process menu — subscribe once, use refs for fresh values
   useEffect(() => {
     const unsubs = [
@@ -250,6 +268,9 @@ export default function App() {
         setCmdPaletteOpen((prev) => !prev)
         // Refresh sessions list for the palette
         window.api.sessions.list(50).then(setCmdPaletteSessions)
+      }),
+      window.api.shortcuts.onQuickPrompt(() => {
+        setQuickPromptOpen(true)
       }),
     ]
     return () => unsubs.forEach((u) => u())
@@ -469,6 +490,28 @@ export default function App() {
 
   const regularInstances = instances.filter((i) => i.id !== editorInstanceId)
 
+  // Unique recent working directories from current instances (for quick prompt dir picker)
+  const recentDirs = useMemo(() => {
+    return [...new Set(instances.map((i) => i.workingDirectory).filter(Boolean))]
+  }, [instances])
+
+  const handleQuickPromptLaunch = useCallback(async (prompt: string, workingDirectory: string) => {
+    // Save to history (deduplicated, max 20)
+    setQuickPromptHistory((prev) => {
+      const next = [prompt, ...prev.filter((h) => h !== prompt)].slice(0, 20)
+      window.api.settings.set('quickPromptHistory', JSON.stringify(next))
+      return next
+    })
+    const inst = await window.api.instance.create({
+      workingDirectory: workingDirectory || undefined,
+    })
+    // Queue the prompt to be written once the session signals it's ready
+    pendingPromptRef.current = { id: inst.id, prompt }
+    setActiveId(inst.id)
+    setView('instances')
+    setQuickPromptOpen(false)
+  }, [])
+
   // Open split with a specific instance as the right pane
   const handleSplitWith = useCallback((id: string) => {
     if (!activeId || id === activeId) return
@@ -612,13 +655,14 @@ export default function App() {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (cmdPaletteOpen) { setCmdPaletteOpen(false); e.stopPropagation(); return }
+        if (quickPromptOpen) { setQuickPromptOpen(false); e.stopPropagation(); return }
         if (showSplitPicker) { setShowSplitPicker(false); e.stopPropagation() }
         if (showNewDialog) { setShowNewDialog(false); e.stopPropagation() }
       }
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [showSplitPicker, showNewDialog, cmdPaletteOpen])
+  }, [showSplitPicker, showNewDialog, cmdPaletteOpen, quickPromptOpen])
 
   const active = instances.find((i) => i.id === activeId) || null
   const showTerminal = view === 'instances' && active
@@ -967,6 +1011,14 @@ export default function App() {
           prefill={agentToLaunchRef.current || undefined}
         />
       )}
+      {quickPromptOpen && (
+        <QuickPromptDialog
+          onClose={() => setQuickPromptOpen(false)}
+          onLaunch={handleQuickPromptLaunch}
+          recentDirs={recentDirs}
+          promptHistory={quickPromptHistory}
+        />
+      )}
       {showSplitPicker && (
         <div className="dialog-overlay" onClick={() => setShowSplitPicker(false)}>
           <div className="dialog" onClick={(e) => e.stopPropagation()}>
@@ -1008,6 +1060,7 @@ export default function App() {
         sessions={cmdPaletteSessions}
         onRunPersona={(id) => { window.api.persona.run(id); setView('personas') }}
         onLaunchAgent={handleLaunchAgent}
+        onOpenQuickPrompt={() => { setCmdPaletteOpen(false); setQuickPromptOpen(true) }}
       />
 
       {/* Environment prompt modal — rendered at app root so it works on any panel */}
