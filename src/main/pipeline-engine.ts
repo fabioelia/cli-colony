@@ -40,18 +40,23 @@ export interface ConditionDef {
 }
 
 export interface ActionDef {
-  type: 'launch-session' | 'route-to-session' // route-to-session is deprecated, normalized to launch-session + reuse:true
+  type: 'launch-session' | 'route-to-session' | 'maker-checker' // route-to-session is deprecated, normalized to launch-session + reuse:true
   reuse?: boolean // try to find/resume a matching session before launching new
   name?: string
   workingDirectory?: string
   color?: string
-  prompt: string
+  prompt?: string // required for launch-session; omitted for maker-checker
   match?: {
     gitBranch?: string
     workingDirectory?: string
   }
   busyStrategy?: 'wait' | 'launch-new' // default: 'launch-new'
   outputs?: string
+  // maker-checker specific fields
+  makerPrompt?: string
+  checkerPrompt?: string
+  approvedKeyword?: string // keyword to detect approval in checker output (default: 'APPROVED')
+  maxIterations?: number   // max maker retries (default: 3)
 }
 
 export interface DedupDef {
@@ -193,7 +198,12 @@ function parsePipelineYaml(content: string): PipelineDef | null {
     const watchArr = parseYamlArray(content, 'watch')
     if (watchArr && result.trigger) result.trigger.watch = watchArr
 
-    if (!result.name || !result.trigger?.type || !result.action?.prompt) return null
+    if (!result.name || !result.trigger?.type) return null
+    if (result.action?.type === 'maker-checker') {
+      if (!result.action?.makerPrompt || !result.action?.checkerPrompt) return null
+    } else if (!result.action?.prompt) {
+      return null
+    }
     if (result.enabled === undefined) result.enabled = true
 
     // Normalize: route-to-session -> launch-session + reuse:true
@@ -501,14 +511,167 @@ async function evaluateCondition(condition: ConditionDef, ctx: TriggerContext): 
   }
 }
 
+// ---- Maker-Checker Support ----
+
+/**
+ * Wait for an instance to go busy then idle, indicating it has finished
+ * processing the last prompt. Returns true on completion, false on timeout.
+ */
+async function waitForSessionCompletion(instanceId: string, timeoutMs = 600000): Promise<boolean> {
+  const client = getDaemonClient()
+  return new Promise((resolve) => {
+    let done = false
+    let seenBusy = false
+
+    const cleanup = () => {
+      done = true
+      client.removeListener('activity', handler)
+      clearTimeout(timeoutId)
+    }
+
+    const handler = (id: string, activity: string) => {
+      if (id !== instanceId || done) return
+      if (activity === 'busy') {
+        seenBusy = true
+      } else if (activity === 'waiting' && seenBusy) {
+        cleanup()
+        resolve(true)
+      }
+    }
+
+    client.on('activity', handler)
+    const timeoutId = setTimeout(() => { cleanup(); resolve(false) }, timeoutMs)
+  })
+}
+
+/**
+ * Execute a maker-checker loop: maker produces output, checker reviews it.
+ * Iterates up to maxIterations times. Completes when checker says APPROVED
+ * or iterations are exhausted.
+ */
+async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<void> {
+  const { makerPrompt, checkerPrompt, approvedKeyword = 'APPROVED', maxIterations = 3 } = action
+  if (!makerPrompt || !checkerPrompt) {
+    log(`maker-checker: missing makerPrompt or checkerPrompt for "${pipelineName}"`)
+    return
+  }
+
+  const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const safeName = pipelineName.replace(/[^a-zA-Z0-9]/g, '-')
+  const runDir = join(COLONY_DIR, 'maker-checker', safeName, runId)
+  mkdirSync(runDir, { recursive: true })
+
+  const makerOutputFile = join(runDir, 'maker-output.md')
+  const verdictFile = join(runDir, 'checker-verdict.md')
+  const cwd = resolveTemplate(action.workingDirectory || '', ctx) || undefined
+  const baseName = resolveTemplate(action.name || pipelineName, ctx)
+
+  let prevFeedback = ''
+
+  for (let iteration = 1; iteration <= maxIterations; iteration++) {
+    plog(pipelineName, `maker-checker: iteration ${iteration}/${maxIterations}`)
+
+    // ---- Maker ----
+    let makerFullPrompt = resolveTemplate(makerPrompt, ctx)
+    if (prevFeedback) {
+      makerFullPrompt += `\n\n--- Checker Feedback (iteration ${iteration - 1}) ---\n${prevFeedback}\n\nPlease address this feedback in your implementation.`
+    }
+    makerFullPrompt += `\n\n--- Required Output Step ---\nWhen you are done, write a comprehensive summary of what you did (including relevant file paths, test results, and key decisions) to:\n${makerOutputFile}\nThis MUST be written before you finish — the checker agent depends on it.`
+
+    // Inject pipeline memory
+    const p = [...pipelines.values()].find(pp => pp.def.name === pipelineName)
+    if (p) {
+      const memPath = join(PIPELINES_DIR, `${p.fileName.replace(/\.(yaml|yml)$/, '')}.memory.md`)
+      if (existsSync(memPath)) {
+        const memory = readFileSync(memPath, 'utf-8').trim()
+        if (memory) {
+          makerFullPrompt += `\n\n--- Pipeline Memory ---\n${memory}`
+        }
+      }
+    }
+
+    const makerPromptFile = writePromptFile(makerFullPrompt)
+    const makerInst = await createInstance({
+      name: `${baseName} [Maker ${iteration}]`,
+      workingDirectory: cwd,
+      color: action.color,
+      args: ['--append-system-prompt-file', makerPromptFile],
+    })
+
+    const completionPromise = waitForSessionCompletion(makerInst.id)
+    await sendPromptWhenReady(makerInst.id, { prompt: 'Execute the instructions in your system prompt. Begin now.' })
+    const makerDone = await completionPromise
+
+    if (!makerDone) {
+      plog(pipelineName, `maker-checker: maker timed out on iteration ${iteration}`)
+      appendActivity({ source: 'pipeline', name: pipelineName, summary: `Maker-checker "${pipelineName}" maker timed out (iteration ${iteration})`, level: 'error' })
+      return
+    }
+
+    // Read maker output file
+    let makerOutput = ''
+    try {
+      makerOutput = existsSync(makerOutputFile) ? readFileSync(makerOutputFile, 'utf-8') : '(maker did not write output file)'
+    } catch { makerOutput = '(error reading maker output)' }
+    plog(pipelineName, `maker-checker: maker output: ${makerOutput.slice(0, 120)}${makerOutput.length > 120 ? '...' : ''}`)
+
+    // ---- Checker ----
+    let checkerFullPrompt = `--- Maker Output (iteration ${iteration}) ---\n${makerOutput}\n\n--- End Maker Output ---\n\n`
+    checkerFullPrompt += resolveTemplate(checkerPrompt, ctx)
+    checkerFullPrompt += `\n\n--- Required Verdict Step ---\nAfter your evaluation, write one of the following to:\n${verdictFile}\n\n- Work is complete and acceptable → write exactly: APPROVED\n- Changes needed → write: NEEDS REVISION: <your specific feedback>\n\nThis file MUST be written before you finish.`
+
+    // Clear any previous verdict
+    try { writeFileSync(verdictFile, '', 'utf-8') } catch {}
+
+    const checkerPromptFile = writePromptFile(checkerFullPrompt)
+    const checkerInst = await createInstance({
+      name: `${baseName} [Checker ${iteration}]`,
+      workingDirectory: cwd,
+      color: action.color,
+      args: ['--append-system-prompt-file', checkerPromptFile],
+    })
+
+    const checkerCompletionPromise = waitForSessionCompletion(checkerInst.id)
+    await sendPromptWhenReady(checkerInst.id, { prompt: 'Execute the instructions in your system prompt. Begin now.' })
+    const checkerDone = await checkerCompletionPromise
+
+    if (!checkerDone) {
+      plog(pipelineName, `maker-checker: checker timed out on iteration ${iteration}`)
+      appendActivity({ source: 'pipeline', name: pipelineName, summary: `Maker-checker "${pipelineName}" checker timed out (iteration ${iteration})`, level: 'error' })
+      return
+    }
+
+    // Read verdict
+    let verdict = ''
+    try { verdict = existsSync(verdictFile) ? readFileSync(verdictFile, 'utf-8').trim() : '' } catch {}
+    plog(pipelineName, `maker-checker: checker verdict: ${verdict.slice(0, 120)}`)
+
+    if (verdict.includes(approvedKeyword)) {
+      plog(pipelineName, `maker-checker: APPROVED after ${iteration} iteration(s)`)
+      appendActivity({ source: 'pipeline', name: pipelineName, summary: `Maker-checker "${pipelineName}" APPROVED after ${iteration} iteration(s)`, level: 'info' })
+      return
+    }
+
+    prevFeedback = verdict || 'Checker did not write a verdict — please review your work carefully.'
+    plog(pipelineName, `maker-checker: not approved (${maxIterations - iteration} retries left)`)
+  }
+
+  plog(pipelineName, `maker-checker: exhausted ${maxIterations} iterations without approval`)
+  appendActivity({ source: 'pipeline', name: pipelineName, summary: `Maker-checker "${pipelineName}" exhausted ${maxIterations} iterations without approval`, level: 'warn' })
+}
+
 // ---- Action Execution ----
 
 async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<void> {
+  if (action.type === 'maker-checker') {
+    return runMakerChecker(action, ctx, pipelineName)
+  }
+
   const rawName = resolveTemplate(action.name || 'Pipeline Session', ctx)
   // Prefix with "Pipe" so pipeline-launched sessions are identifiable
   const name = rawName.startsWith('Pipe') ? rawName : `Pipe (${rawName})`
   const cwd = resolveTemplate(action.workingDirectory || '', ctx) || undefined
-  let prompt = resolveTemplate(action.prompt, ctx)
+  let prompt = resolveTemplate(action.prompt || '', ctx)
 
   // Inject timestamped output directory when action.outputs is configured
   if (action.outputs) {

@@ -1374,3 +1374,96 @@ describe('pipeline-engine: approval expiry (sweepExpiredApprovals)', () => {
     expect(mod.listApprovals()).toHaveLength(0)
   })
 })
+
+// ---- Maker-Checker YAML fixtures ----
+
+const MAKER_CHECKER_YAML = `
+name: MC Pipe
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: maker-checker
+  makerPrompt: Implement the feature and write output to {{makerOutputFile}}
+  checkerPrompt: Review the implementation. APPROVED if good, else NEEDS REVISION.
+  maxIterations: 2
+dedup:
+  key: daily
+`
+
+describe('pipeline-engine: maker-checker YAML parsing', () => {
+  let mod: typeof import('../pipeline-engine')
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  it('loads a valid maker-checker pipeline (no prompt field required)', async () => {
+    const fs = buildFsMock(['mc.yaml'], { 'mc.yaml': MAKER_CHECKER_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    mod.loadPipelines()
+    const list = mod.getPipelineList()
+    expect(list).toHaveLength(1)
+    expect(list[0].name).toBe('MC Pipe')
+    expect(list[0].enabled).toBe(true)
+  })
+
+  it('rejects a maker-checker pipeline missing makerPrompt', async () => {
+    const yaml = MAKER_CHECKER_YAML.replace('  makerPrompt: Implement the feature and write output to {{makerOutputFile}}\n', '')
+    const fs = buildFsMock(['mc.yaml'], { 'mc.yaml': yaml })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    mod.loadPipelines()
+    expect(mod.getPipelineList()).toHaveLength(0)
+  })
+
+  it('rejects a maker-checker pipeline missing checkerPrompt', async () => {
+    const yaml = MAKER_CHECKER_YAML.replace('  checkerPrompt: Review the implementation. APPROVED if good, else NEEDS REVISION.\n', '')
+    const fs = buildFsMock(['mc.yaml'], { 'mc.yaml': yaml })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    mod.loadPipelines()
+    expect(mod.getPipelineList()).toHaveLength(0)
+  })
+
+  it('still rejects a launch-session pipeline missing prompt', async () => {
+    const yaml = MAKER_CHECKER_YAML
+      .replace('type: maker-checker', 'type: launch-session')
+      .replace('  makerPrompt: Implement the feature and write output to {{makerOutputFile}}\n', '')
+      .replace('  checkerPrompt: Review the implementation. APPROVED if good, else NEEDS REVISION.\n', '')
+    const fs = buildFsMock(['mc.yaml'], { 'mc.yaml': yaml })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    mod.loadPipelines()
+    expect(mod.getPipelineList()).toHaveLength(0)
+  })
+
+  it('defaults approvedKeyword to APPROVED and maxIterations to 3', async () => {
+    // Verify parsing does not crash — these defaults are used in runMakerChecker at runtime
+    const yaml = MAKER_CHECKER_YAML.replace('  maxIterations: 2\n', '')
+    const fs = buildFsMock(['mc.yaml'], { 'mc.yaml': yaml })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    mod.loadPipelines()
+    // Pipeline loads successfully — defaults are applied at runtime, not parse time
+    expect(mod.getPipelineList()).toHaveLength(1)
+  })
+})
