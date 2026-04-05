@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, FileDown } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import type { ActivityEvent } from '../../../shared/types'
 import Tooltip from './Tooltip'
@@ -78,6 +78,10 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([])
   const [activityUnread, setActivityUnread] = useState(0)
   const [showActivityPopover, setShowActivityPopover] = useState(false)
+  const [handoffInst, setHandoffInst] = useState<ClaudeInstance | null>(null)
+  const [handoffDoc, setHandoffDoc] = useState('')
+  const [handoffLoading, setHandoffLoading] = useState(false)
+  const [handoffCopied, setHandoffCopied] = useState(false)
 
   useEffect(() => {
     window.api.sessions.list(100).then(setSessions)
@@ -98,6 +102,43 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
     })
     return () => { unsubNew(); unsubUnread() }
   }, [])
+
+  useEffect(() => {
+    if (!handoffInst) { setHandoffDoc(''); return }
+    setHandoffLoading(true)
+    Promise.all([
+      window.api.instance.buffer(handoffInst.id),
+      window.api.instance.gitLog(handoffInst.workingDirectory),
+    ]).then(([buf, gitLog]) => {
+      const clean = buf.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '')
+      const lines = clean.split('\n').filter(l => l.trim())
+      const tail = lines.slice(-50).join('\n')
+      const parts: string[] = [
+        `# Session Handoff: ${handoffInst.name}`,
+        '',
+        `**Generated:** ${new Date().toLocaleString()}`,
+        `**Directory:** ${handoffInst.workingDirectory}`,
+        `**Status:** ${handoffInst.status}${handoffInst.status === 'running' ? ` · ${handoffInst.activity}` : ''}`,
+      ]
+      if (handoffInst.gitBranch) {
+        parts.push(`**Git:** ${handoffInst.gitBranch}${handoffInst.gitRepo ? ` on ${handoffInst.gitRepo}` : ''}`)
+      }
+      parts.push(
+        `**CLI:** ${handoffInst.cliBackend}${handoffInst.args.length ? ' ' + handoffInst.args.join(' ') : ''}`,
+        `**Started:** ${new Date(handoffInst.createdAt).toLocaleString()}`,
+        '',
+      )
+      if (gitLog.trim()) {
+        parts.push('## Recent Git Commits', '```', gitLog.trim(), '```', '')
+      }
+      parts.push('## Terminal Snapshot (last 50 lines)', '```', tail || '(empty)', '```', '', '---', '*Paste this into a new session to restore context.*')
+      setHandoffDoc(parts.join('\n'))
+      setHandoffLoading(false)
+    }).catch(() => {
+      setHandoffDoc('Error generating handoff doc.')
+      setHandoffLoading(false)
+    })
+  }, [handoffInst])
 
   // Close popovers when clicking outside
   useEffect(() => {
@@ -278,6 +319,9 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
           {inst.status === 'running' ? 'live' : `exit ${inst.exitCode ?? '?'}`}
         </span>
         <div className="instance-item-actions">
+          <Tooltip text="Export Handoff Doc" detail="Generate a markdown snapshot to paste into a new session and restore context">
+            <button aria-label="Export Handoff Doc" onClick={(e) => { e.stopPropagation(); setHandoffInst(inst); setHandoffCopied(false) }}><FileDown size={13} /></button>
+          </Tooltip>
           <Tooltip text="Session Info" detail="View command, directory, PID, and MCP servers">
             <button aria-label="Info" onClick={(e) => { e.stopPropagation(); togglePopover(inst.id, 'info', e) }}><Info size={13} /></button>
           </Tooltip>
@@ -597,6 +641,39 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
           )}
         </div>
       </div>
+
+      {handoffInst && (
+        <div className="handoff-overlay" onClick={() => setHandoffInst(null)}>
+          <div className="handoff-modal" onClick={e => e.stopPropagation()}>
+            <div className="handoff-modal-header">
+              <span>Handoff Doc — {handoffInst.name}</span>
+              <button className="handoff-modal-close" onClick={() => setHandoffInst(null)}>✕</button>
+            </div>
+            <div className="handoff-modal-body">
+              <div className="handoff-modal-hint">Paste into a new Claude session to restore context.</div>
+              {handoffLoading ? (
+                <div className="handoff-modal-loading">Generating...</div>
+              ) : (
+                <textarea className="handoff-doc-textarea" value={handoffDoc} readOnly />
+              )}
+            </div>
+            <div className="handoff-modal-footer">
+              <button
+                className="handoff-copy-btn"
+                disabled={handoffLoading}
+                onClick={() => {
+                  navigator.clipboard.writeText(handoffDoc).then(() => {
+                    setHandoffCopied(true)
+                    setTimeout(() => setHandoffCopied(false), 2000)
+                  })
+                }}
+              >
+                {handoffCopied ? 'Copied!' : 'Copy to Clipboard'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {contextMenu && (
         <div

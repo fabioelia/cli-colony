@@ -56,6 +56,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Active sessions', detail: 'Pulsing dot = Claude is working. Solid dot = waiting for input. Click to open.' },
           { label: 'Stopped sessions', detail: 'Dimmed with exit code. Auto-cleaned after 5 minutes (configurable in Settings).' },
           { label: 'Pin to top', detail: 'Right-click a session to pin it. Pinned sessions stay at the top and are restored on launch.', icon: 'Pin' },
+          { label: 'Export Handoff Doc', detail: 'Generates a markdown snapshot of the session — git commits, terminal output, metadata — ready to paste into a new session to restore context.', icon: 'FileDown' },
           { label: 'Split indicator', detail: 'A columns icon appears on sessions that have a split partner.', icon: 'Columns2' },
           { label: 'Shortcut numbers', detail: 'Numbers 1-9 shown next to sessions for quick Cmd+N jumping.' },
         ],

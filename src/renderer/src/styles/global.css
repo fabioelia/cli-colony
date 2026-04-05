@@ -11240,3 +11240,106 @@ input, select {
   max-height: 200px;
   overflow-y: auto;
 }
+
+/* ===== Session Handoff Modal ===== */
+.handoff-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+}
+
+.handoff-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 640px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.handoff-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.handoff-modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.handoff-modal-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.handoff-modal-body {
+  flex: 1;
+  overflow: hidden;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.handoff-modal-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.handoff-modal-loading {
+  padding: 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.handoff-doc-textarea {
+  flex: 1;
+  width: 100%;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: var(--text-primary);
+  resize: none;
+  min-height: 300px;
+  box-sizing: border-box;
+}
+
+.handoff-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.handoff-copy-btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.handoff-copy-btn:hover { opacity: 0.9; }
+.handoff-copy-btn:disabled { opacity: 0.5; cursor: default; }
