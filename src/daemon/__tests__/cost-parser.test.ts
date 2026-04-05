@@ -5,9 +5,8 @@
  * (it creates real PTY processes), so we replicate the exact regex here.
  * If the regex in the daemon changes, these tests MUST be updated to match.
  *
- * Open bug: bare `$0.04` format is not matched by the current regex.
- * Filed: qa-report.md — MEDIUM — "Daemon cost regex too narrow"
- * Backlog: [ready] UX: Cost Badge Threshold Mismatch + Parsing Regex
+ * Fixed in b4dd43f: bare `$0.04` format now matched via last-line fallback.
+ * DAEMON_VERSION bumped to 9.
  */
 
 import { describe, it, expect } from 'vitest'
@@ -17,11 +16,17 @@ import { describe, it, expect } from 'vitest'
 const PATTERN_DOLLAR_KEYWORD = /\$(\d+\.?\d*)\s*(?:cost|spent|total)/i
 // Pattern 2: "cost: $X.XX" / "cost $X.XX"
 const PATTERN_KEYWORD_DOLLAR = /cost[:\s]*\$(\d+\.?\d*)/i
+// Pattern 3 (fallback): bare "$X.XX" on last non-empty line (≥2 decimal places)
+const PATTERN_BARE_LAST_LINE = /\$(\d+\.\d{2,4})(?:\s|$)/
 
-/** Mimic the daemon's two-pattern OR lookup */
+/** Mimic the daemon's full cost-parsing logic (primary + last-line fallback) */
 function parseCost(data: string): number | null {
   const m = data.match(PATTERN_DOLLAR_KEYWORD) || data.match(PATTERN_KEYWORD_DOLLAR)
-  return m ? parseFloat(m[1]) : null
+  if (m) return parseFloat(m[1])
+  // Fallback: bare dollar amount on last non-empty line
+  const lastLine = data.split('\n').map(l => l.trim()).filter(Boolean).at(-1) ?? ''
+  const bare = lastLine.match(PATTERN_BARE_LAST_LINE)
+  return bare ? parseFloat(bare[1]) : null
 }
 
 // ---- Formats that currently work ----
@@ -85,29 +90,30 @@ describe('cost-parser: no match cases', () => {
   })
 })
 
-// ---- Known failing case (open bug) ----
+// ---- Bare dollar amount (fixed in b4dd43f) ----
 // Claude CLI sometimes emits just a bare dollar amount with no adjacent keyword,
-// e.g. a final status line that reads:  "$0.04"
-// The current two-pattern regex does NOT match this format.
-// The fix (from backlog spec): broaden to /\$(\d+\.\d{2,4})/ on the LAST line of a chunk.
-//
-// This test is marked `it.fails` to:
-//  (a) document the known gap
-//  (b) keep the suite green while the bug is open
-//  (c) automatically surface "this test now passes unexpectedly" when the fix lands
-//     → developer should remove `it.fails` and drop it into the normal describe block
+// e.g. a final status line that reads: "$0.04"
+// Fixed by: last-line fallback regex /\$(\d+\.\d{2,4})(?:\s|$)/ in pty-daemon.ts
+// DAEMON_VERSION bumped to 9.
 
-describe('cost-parser: bare dollar amount (known bug — pty-daemon.ts:289)', () => {
-  it.fails('does NOT match bare "$0.04" — fix: broaden regex or split last-line check', () => {
-    // This assertion currently fails (parseCost returns null).
-    // After the fix, it should return 0.04 — remove `it.fails` at that point.
+describe('cost-parser: bare dollar amount on last line (fixed b4dd43f)', () => {
+  it('matches bare "$0.04" on a single-line chunk', () => {
     expect(parseCost('$0.04')).toBeCloseTo(0.04)
   })
 
-  it.fails('does NOT match bare "$0.04\\n" at end of chunk', () => {
+  it('matches bare "$0.04" as last line of a multi-line chunk', () => {
     const chunk = `Tool call: read_file\nReading src/index.ts\n$0.04\n`
-    const lastLine = chunk.split('\n').filter(l => l.trim()).pop() || ''
-    // Current parseCost(lastLine) returns null because neither pattern matches "$0.04"
-    expect(parseCost(lastLine)).toBeCloseTo(0.04)
+    expect(parseCost(chunk)).toBeCloseTo(0.04)
+  })
+
+  it('does NOT match bare "$0.04" when it is not the last line', () => {
+    // Guard: only the last line is checked for bare dollar amounts
+    const chunk = `$0.04\nsome more output\n`
+    expect(parseCost(chunk)).toBeNull()
+  })
+
+  it('requires ≥2 decimal places — does not match "$1" or "$1.5"', () => {
+    expect(parseCost('$1')).toBeNull()
+    expect(parseCost('$1.5')).toBeNull()
   })
 })
