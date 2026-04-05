@@ -118,7 +118,8 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
     Promise.all([
       window.api.instance.buffer(handoffInst.id),
       window.api.instance.gitLog(handoffInst.workingDirectory),
-    ]).then(([buf, gitLog]) => {
+      window.api.instance.gitDiff(handoffInst.workingDirectory),
+    ]).then(([buf, gitLog, gitDiff]) => {
       const clean = buf.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '')
       const lines = clean.split('\n').filter(l => l.trim())
       const tail = lines.slice(-50).join('\n')
@@ -139,6 +140,9 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
       )
       if (gitLog.trim()) {
         parts.push('## Recent Git Commits', '```', gitLog.trim(), '```', '')
+      }
+      if (gitDiff.trim()) {
+        parts.push('## Uncommitted Changes', '```', gitDiff.trim(), '```', '')
       }
       parts.push('## Terminal Snapshot (last 50 lines)', '```', tail || '(empty)', '```', '', '---', '*Paste this into a new session to restore context.*')
       setHandoffDoc(parts.join('\n'))

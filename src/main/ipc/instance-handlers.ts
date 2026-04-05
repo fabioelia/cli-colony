@@ -118,6 +118,14 @@ export function registerInstanceHandlers(): void {
     }
   })
 
+  ipcMain.handle('instance:gitDiff', (_e, cwd: string): string => {
+    try {
+      return execSync('git diff --stat HEAD', { encoding: 'utf-8', timeout: 5000, cwd })
+    } catch {
+      return ''
+    }
+  })
+
   // Shell PTY — real shell terminals per instance
   ipcMain.handle('shell-pty:create', async (_e, instanceId: string, cwd: string) => {
     return createShell(instanceId, cwd)

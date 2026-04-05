@@ -67,6 +67,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
   const [fixMenuRect, setFixMenuRect] = useState<DOMRect | null>(null)
   const [restartPolicies, setRestartPolicies] = useState<Record<string, 'manual' | 'on-crash'>>({})
   const [purposeTags, setPurposeTags] = useState<Record<string, 'interactive' | 'background' | 'nightly' | null>>({})
+  const [tagFilter, setTagFilter] = useState<'interactive' | 'background' | 'nightly' | null>(null)
 
   const loadEnvironments = useCallback(async () => {
     try {
@@ -194,6 +195,17 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
       })
     }
   }
+
+  // Bulk-load purpose tags when environment list changes (for filtering)
+  useEffect(() => {
+    if (environments.length === 0) return
+    environments.forEach(env => {
+      window.api.env.manifest(env.id).then((m: any) => {
+        const tag = (m?.meta?.purposeTag as 'interactive' | 'background' | 'nightly') || null
+        setPurposeTags(prev => ({ ...prev, [env.id]: tag }))
+      }).catch(() => {})
+    })
+  }, [environments])
 
   // Load restart policy and purpose tag when an environment card is expanded
   useEffect(() => {
@@ -391,6 +403,16 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
             {running > 0 && <span className="env-badge env-badge-running">{running} running</span>}
             {stopped > 0 && <span className="env-badge env-badge-stopped">{stopped} stopped</span>}
             {partial > 0 && <span className="env-badge env-badge-partial">{partial} partial</span>}
+            {(['interactive', 'background', 'nightly'] as const).filter(t => Object.values(purposeTags).includes(t)).map(t => (
+              <button
+                key={t}
+                className={`env-purpose-filter-btn env-purpose-${t}${tagFilter === t ? ' active' : ''}`}
+                onClick={() => setTagFilter(prev => prev === t ? null : t)}
+                title={tagFilter === t ? `Clear ${t} filter` : `Show only ${t} environments`}
+              >
+                {t}
+              </button>
+            ))}
           </div>
         )}
         {environments.length === 0 && (
@@ -404,7 +426,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
           </div>
         )}
 
-        {environments.map(env => {
+        {environments.filter(env => !tagFilter || purposeTags[env.id] === tagFilter).map(env => {
           const isExpanded = expandedId === env.id
           const isLoading = actionInProgress.has(env.id)
 

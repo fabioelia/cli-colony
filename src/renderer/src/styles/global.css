@@ -9836,6 +9836,28 @@ input, select {
   color: #94a3b8;
 }
 
+.env-purpose-filter-btn {
+  display: inline-block;
+  padding: 0 6px;
+  height: 20px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  background: transparent;
+  opacity: 0.6;
+}
+.env-purpose-filter-btn:hover {
+  opacity: 1;
+}
+.env-purpose-filter-btn.active {
+  opacity: 1;
+  border-color: currentColor;
+}
+
 .env-purpose-selector {
   display: flex;
   gap: 4px;

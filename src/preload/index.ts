@@ -46,6 +46,7 @@ export interface ClaudeManagerAPI {
     processes: (id: string) => Promise<Array<{ pid: number; name: string; command: string; cpu: string; mem: string }>>
     killProcess: (pid: number) => Promise<boolean>
     gitLog: (cwd: string) => Promise<string>
+    gitDiff: (cwd: string) => Promise<string>
     onOutput: (callback: (data: { id: string; data: string }) => void) => () => void
     onExited: (callback: (data: { id: string; exitCode: number }) => void) => () => void
     onListUpdate: (callback: (instances: ClaudeInstance[]) => void) => () => void
@@ -302,6 +303,7 @@ const api: ClaudeManagerAPI = {
     processes: (id) => ipcRenderer.invoke('instance:processes', id),
     killProcess: (pid) => ipcRenderer.invoke('instance:killProcess', pid),
     gitLog: (cwd) => ipcRenderer.invoke('instance:gitLog', cwd),
+    gitDiff: (cwd) => ipcRenderer.invoke('instance:gitDiff', cwd),
     onOutput: (callback) => {
       const listener = (_e: any, data: { id: string; data: string }) => callback(data)
       ipcRenderer.on('instance:output', listener)
