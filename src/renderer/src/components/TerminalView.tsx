@@ -4,7 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText } from 'lucide-react'
 import type { EnvStatus, EnvServiceStatus } from '../../../shared/types'
 import { buildDiagnosePrompt } from '../../../shared/env-prompts'
 import '@xterm/xterm/css/xterm.css'
@@ -1495,10 +1495,10 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               </button>
               <button
                 className={`logs-action-btn ${logsAutoScroll.current ? 'active' : ''}`}
-                title="Auto-scroll"
+                title="Follow latest output"
                 onClick={() => { logsAutoScroll.current = !logsAutoScroll.current }}
               >
-                <ChevronDown size={12} />
+                <ChevronsDown size={12} />
               </button>
             </div>
           </div>
