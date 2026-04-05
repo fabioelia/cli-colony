@@ -20,6 +20,7 @@ import { cronMatches } from '../shared/cron'
 import { resolveMustacheTemplate } from '../shared/utils'
 import type { GitHubRepo, GitHubPR, PRChecks, ApprovalRequest } from '../shared/types'
 import { appendActivity } from './activity-manager'
+import { notify } from './notifications'
 
 // ---- Types ----
 
@@ -982,6 +983,7 @@ async function runPoll(pipelineName: string): Promise<void> {
         broadcast('pipeline:approval:new', request)
         plog(pipelineName, `→ approval required, queued request ${approvalId} for ${prLabel}`)
         appendActivity({ source: 'pipeline', name: pipelineName, summary: `Pipeline "${pipelineName}" waiting for approval — ${summary}`, level: 'warn' })
+        notify(`Colony: Approval needed`, `Pipeline "${pipelineName}" — ${summary}`, 'pipelines')
         continue
       }
 
@@ -994,6 +996,7 @@ async function runPoll(pipelineName: string): Promise<void> {
         ? `Pipeline "${pipelineName}" fired for PR #${ctx.pr.number} (${ctx.pr.branch})`
         : `Pipeline "${pipelineName}" fired`
       appendActivity({ source: 'pipeline', name: pipelineName, summary: firedSummary, level: 'info' })
+      notify(`Colony: Pipeline fired`, firedSummary, 'pipelines')
     }
 
     p.state.lastError = null

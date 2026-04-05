@@ -13,6 +13,7 @@ import { getDaemonClient } from './daemon-client'
 import { sendPromptWhenReady } from './send-prompt-when-ready'
 import { updateColonyContext } from './colony-context'
 import { broadcast } from './broadcast'
+import { notify } from './notifications'
 import { cronMatches } from '../shared/cron'
 import { slugify, parseFrontmatter as parseRawFrontmatter } from '../shared/utils'
 import type { PersonaInfo } from '../shared/types'
@@ -551,6 +552,7 @@ export async function runPersona(fileName: string): Promise<string> {
 
   broadcast('persona:run', { persona: fm.name, instanceId: inst.id })
   broadcastStatus()
+  notify(`Colony: Persona started`, `${fm.name} run #${state.runCount} started`, 'personas')
 
   console.log(`[persona] launched "${fm.name}" as session ${inst.id}`)
   return inst.id
@@ -633,6 +635,7 @@ export async function onSessionExit(instanceId: string): Promise<void> {
         sessionId: instanceId,
         details: { type: 'session-outcome', duration: durationSec, commitsCount, filesChanged },
       })
+      notify(`Colony: ${name} run complete`, `Session finished${commitLabel}`, 'personas')
 
       // Collect on_complete_run triggers from the persona's frontmatter
       const personaFile = readdirSync(PERSONAS_DIR).find(f => {

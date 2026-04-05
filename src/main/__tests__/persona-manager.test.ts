@@ -125,6 +125,7 @@ function setupMocks(fsMock: ReturnType<typeof buildFsMock>) {
   vi.doMock('../../shared/cron', () => ({ cronMatches: mockCronMatches }))
   vi.doMock('child_process', () => ({ execSync: mockExecSync }))
   vi.doMock('../activity-manager', () => ({ appendActivity: mockAppendActivity }))
+  vi.doMock('../notifications', () => ({ notify: vi.fn() }))
 }
 
 // ---- Test suites ----

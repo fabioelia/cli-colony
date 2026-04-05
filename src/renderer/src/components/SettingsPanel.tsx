@@ -13,6 +13,7 @@ export default function SettingsPanel({ onBack }: Props) {
   const [shellProfile, setShellProfile] = useState('')
   const [gitProtocol, setGitProtocol] = useState<'ssh' | 'https'>('ssh')
   const [detectedProtocol, setDetectedProtocol] = useState<'ssh' | 'https' | null>(null)
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   const [soundOnFinish, setSoundOnFinish] = useState(true)
   const [autoCleanupMinutes, setAutoCleanupMinutes] = useState('5')
   const [globalHotkey, setGlobalHotkey] = useState('CommandOrControl+Shift+Space')
@@ -36,6 +37,7 @@ export default function SettingsPanel({ onBack }: Props) {
       setSyncClaudeSlashCommands(s.syncClaudeSlashCommands !== 'false')
       setShellProfile(s.shellProfile || '')
       setGitProtocol((s.gitProtocol === 'https' ? 'https' : 'ssh') as 'ssh' | 'https')
+      setNotificationsEnabled(s.notificationsEnabled !== 'false')
       setSoundOnFinish(s.soundOnFinish !== 'false')
       setAutoCleanupMinutes(s.autoCleanupMinutes || '5')
       setGlobalHotkey(s.globalHotkey || 'CommandOrControl+Shift+Space')
@@ -84,6 +86,7 @@ export default function SettingsPanel({ onBack }: Props) {
       window.api.settings.set('syncClaudeSlashCommands', syncClaudeSlashCommands ? 'true' : 'false'),
       window.api.settings.set('shellProfile', shellProfile),
       window.api.settings.set('gitProtocol', gitProtocol),
+      window.api.settings.set('notificationsEnabled', notificationsEnabled ? 'true' : 'false'),
       window.api.settings.set('soundOnFinish', soundOnFinish ? 'true' : 'false'),
       window.api.settings.set('autoCleanupMinutes', autoCleanupMinutes),
       window.api.settings.set('globalHotkey', globalHotkey),
@@ -216,6 +219,19 @@ export default function SettingsPanel({ onBack }: Props) {
           <Volume2 size={12} />
           Notifications
         </div>
+        <div className="settings-row">
+          <span className="settings-row-label">Desktop notifications</span>
+          <button
+            className={`settings-toggle ${notificationsEnabled ? 'active' : ''}`}
+            onClick={() => setNotificationsEnabled(!notificationsEnabled)}
+            role="switch"
+            aria-checked={notificationsEnabled}
+            title={notificationsEnabled ? 'Disable notifications' : 'Enable notifications'}
+          >
+            <span className="settings-toggle-knob" />
+          </button>
+        </div>
+        <p className="settings-help">Show system notifications for pipeline fires, approval gates, and persona run events.</p>
         <div className="settings-row">
           <span className="settings-row-label">Sound when Claude finishes</span>
           <button

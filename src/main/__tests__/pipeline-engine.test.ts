@@ -111,6 +111,7 @@ function setupMocks(fsMock: ReturnType<typeof buildFsMock>) {
   }))
   vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
   vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
+  vi.doMock('../notifications', () => ({ notify: vi.fn() }))
   vi.doMock('../github', () => ({
     getRepos: vi.fn().mockReturnValue([]),
     fetchPRs: vi.fn().mockResolvedValue([]),
@@ -783,6 +784,7 @@ describe('pipeline-engine: auto-pause on consecutive failures', () => {
     }))
     vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
     vi.doMock('../activity-manager', () => ({ appendActivity: mockAppendActivity }))
+    vi.doMock('../notifications', () => ({ notify: vi.fn() }))
   }
 
   it('starts with consecutiveFailures = 0', async () => {
@@ -1014,6 +1016,7 @@ describe('pipeline-engine: approval gates', () => {
     }))
     vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
     vi.doMock('../activity-manager', () => ({ appendActivity: mockAppendActivity }))
+    vi.doMock('../notifications', () => ({ notify: vi.fn() }))
   }
 
   it('queues an approval request instead of firing when requireApproval is true', async () => {
@@ -1247,6 +1250,7 @@ describe('pipeline-engine: approval expiry (sweepExpiredApprovals)', () => {
     }))
     vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
     vi.doMock('../activity-manager', () => ({ appendActivity: mockAppendActivity }))
+    vi.doMock('../notifications', () => ({ notify: vi.fn() }))
   }
 
   it('approval request includes expiresAt set to now + approvalTtl hours', async () => {

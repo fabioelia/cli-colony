@@ -307,6 +307,14 @@ export default function App() {
       window.api.shortcuts.onQuickPrompt(() => {
         setQuickPromptOpen(true)
       }),
+      window.api.shortcuts.onNavigate((route) => {
+        if (typeof route === 'string') {
+          setView(route as import('./components/Sidebar').SidebarView)
+        } else if (route && typeof route === 'object' && route.type === 'session' && typeof route.id === 'string') {
+          setActiveId(route.id)
+          setView('instances')
+        }
+      }),
     ]
     return () => unsubs.forEach((u) => u())
   }, []) // empty deps — runs once, uses refs for fresh values

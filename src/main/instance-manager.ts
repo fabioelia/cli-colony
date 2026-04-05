@@ -5,12 +5,13 @@
  * need zero changes. All PTY ownership lives in the daemon process.
  */
 
-import { app, BrowserWindow, Notification, shell } from 'electron'
+import { app, BrowserWindow, shell } from 'electron'
 import { exec } from 'child_process'
 import { join } from 'path'
 import { existsSync, statSync } from 'fs'
 import { getDaemonClient, DaemonClient } from './daemon-client'
 import { getDefaultArgs, getSetting, getDefaultCliBackend } from './settings'
+import { notify } from './notifications'
 import { DAEMON_VERSION } from '../daemon/protocol'
 import type { CliBackend } from '../shared/types'
 import { trackOpened, trackClosed } from './recent-sessions'
@@ -74,22 +75,9 @@ export function wireDaemonEvents(): void {
       }
 
       // Show native notification if app is not focused
-      if (!appFocused && Notification.isSupported()) {
-        const iconPath = join(__dirname, '../../resources/icon.png')
-        const notif = new Notification({
-          title: 'Claude is waiting',
-          body: 'A session finished processing and needs your attention.',
-          silent: true, // we already play our own sound
-          icon: iconPath,
-        })
-        notif.on('click', () => {
-          if (win && !win.isDestroyed()) {
-            win.show()
-            win.focus()
-            broadcast('instance:focus', { id: instanceId })
-          }
-        })
-        notif.show()
+      if (!appFocused) {
+        notify('Colony: Claude is waiting', 'A session finished and needs your attention.',
+          { type: 'session', id: instanceId })
       }
     }
   })

@@ -112,6 +112,7 @@ export interface ClaudeManagerAPI {
     onCycleInstance: (cb: (direction: number) => void) => () => void
     onCommandPalette: (cb: () => void) => () => void
     onQuickPrompt: (cb: () => void) => () => void
+    onNavigate: (cb: (route: string | Record<string, unknown>) => void) => () => void
   }
   fs: {
     listDir: (dirPath: string, depth?: number) => Promise<any[]>
@@ -399,6 +400,7 @@ const api: ClaudeManagerAPI = {
     onCycleInstance: (cb) => { const l = (_e: any, dir: number) => cb(dir); ipcRenderer.on('shortcut:cycle-instance', l); return () => ipcRenderer.removeListener('shortcut:cycle-instance', l) },
     onCommandPalette: (cb) => { const l = () => cb(); ipcRenderer.on('shortcut:command-palette', l); return () => ipcRenderer.removeListener('shortcut:command-palette', l) },
     onQuickPrompt: (cb) => { const l = () => cb(); ipcRenderer.on('shortcut:quick-prompt', l); return () => ipcRenderer.removeListener('shortcut:quick-prompt', l) },
+    onNavigate: (cb) => { const l = (_e: any, route: string | Record<string, unknown>) => cb(route); ipcRenderer.on('app:navigate', l); return () => ipcRenderer.removeListener('app:navigate', l) },
   },
   fs: {
     listDir: (dirPath, depth) => ipcRenderer.invoke('fs:listDir', dirPath, depth),
