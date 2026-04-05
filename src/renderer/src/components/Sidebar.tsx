@@ -331,6 +331,11 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
                 </button>
               )
             })()}
+            {(inst.tokenUsage?.cost ?? 0) > 0.001 && (
+              <span className="instance-cost-badge" title={`API cost: $${inst.tokenUsage.cost.toFixed(4)}`}>
+                ${inst.tokenUsage.cost.toFixed(2)}
+              </span>
+            )}
             {inst.mcpServers.length > 0 && (
               <span className="instance-mcp-badge" title={inst.mcpServers.join(', ')}>
                 MCP {inst.mcpServers.length}
