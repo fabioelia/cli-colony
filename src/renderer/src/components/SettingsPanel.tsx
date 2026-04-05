@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Volume2, Cpu, Settings } from 'lucide-react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 
 interface Props {
@@ -216,7 +216,7 @@ export default function SettingsPanel({ onBack }: Props) {
       {/* Notifications */}
       <div className="settings-section">
         <div className="settings-section-title">
-          <Volume2 size={12} />
+          <Bell size={12} />
           Notifications
         </div>
         <div className="settings-row">

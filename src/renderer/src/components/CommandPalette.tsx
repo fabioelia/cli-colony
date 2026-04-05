@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import {
   Plus, Settings, GitPullRequest, Users, Square, Play, Columns2,
-  MonitorPlay, History, Search, ArrowRight, Terminal, Server, User, Bot, Zap,
+  MonitorPlay, History, Search, ArrowRight, Terminal, Server, User, Bot, Zap, ListChecks,
 } from 'lucide-react'
 import type { ClaudeInstance, CliSession, AgentDef } from '../types'
 import type { PersonaInfo } from '../../../shared/types'
@@ -87,7 +87,7 @@ export default function CommandPalette({
       id: 'quick-prompt',
       label: 'New Session with Prompt…',
       detail: 'Launch a session and pre-fill a prompt (⌘⇧↵)',
-      icon: <Zap size={14} />,
+      icon: <Play size={14} />,
       section: 'Actions',
       keywords: 'quick prompt pre-fill ask task run',
       onExecute: onOpenQuickPrompt,
@@ -151,7 +151,7 @@ export default function CommandPalette({
       id: 'nav-tasks',
       label: 'Open Task Queue',
       detail: 'Define and run batch tasks',
-      icon: <Search size={14} />,
+      icon: <ListChecks size={14} />,
       section: 'Navigate',
       keywords: 'batch queue yaml parallel sequential',
       onExecute: () => onViewChange('tasks'),
@@ -160,7 +160,7 @@ export default function CommandPalette({
       id: 'nav-pipelines',
       label: 'Open Pipelines',
       detail: 'Automated triggers and actions',
-      icon: <Search size={14} />,
+      icon: <Zap size={14} />,
       section: 'Navigate',
       keywords: 'pipeline automation trigger cron',
       onExecute: () => onViewChange('pipelines'),

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react'
 import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
-  ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote
+  ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote, ArrowRightCircle
 } from 'lucide-react'
 import { marked } from 'marked'
 import HelpPopover from './HelpPopover'
@@ -290,6 +290,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
             persona={persona}
             expanded={expandedId === persona.id}
             instances={instances}
+            allPersonas={personas}
             onToggleExpand={() => setExpandedId(expandedId === persona.id ? null : persona.id)}
             onRun={() => handleRun(persona.id)}
             onStop={() => handleStop(persona.id)}
@@ -366,6 +367,7 @@ interface PersonaCardProps {
   persona: PersonaInfo
   expanded: boolean
   instances: ClaudeInstance[]
+  allPersonas: PersonaInfo[]
   onToggleExpand: () => void
   onRun: () => void
   onStop: () => void
@@ -378,7 +380,7 @@ interface PersonaCardProps {
 }
 
 function PersonaCard({
-  persona, expanded, instances, onToggleExpand,
+  persona, expanded, instances, allPersonas, onToggleExpand,
   onRun, onStop, onToggle, onDelete, onFocusInstance, onViewFile, onScheduleSave, onWhisper
 }: PersonaCardProps) {
   const [editingSchedule, setEditingSchedule] = useState(false)
@@ -433,7 +435,7 @@ function PersonaCard({
             </span>
             {persona.onCompleteRun.length > 0 && (
               <span className="persona-trigger-badge" title={`Triggers on complete: ${persona.onCompleteRun.join(', ')}`}>
-                → {persona.onCompleteRun.join(', ')}
+                <ArrowRightCircle size={10} /> {persona.onCompleteRun.map(id => allPersonas.find(p => p.id === id)?.name ?? id).join(', ')}
               </span>
             )}
           </div>

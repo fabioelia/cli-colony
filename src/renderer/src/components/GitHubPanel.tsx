@@ -499,8 +499,8 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   if (ghAuth === false) {
     return (
       <div className="github-panel">
-        <div className="settings-header">
-          <button className="settings-back" onClick={onBack} title="Back"><ArrowLeft size={16} /></button>
+        <div className="panel-header">
+          <button className="panel-header-back" onClick={onBack} title="Back"><ArrowLeft size={16} /></button>
           <h2>GitHub</h2>
         </div>
         <div className="github-auth-error">

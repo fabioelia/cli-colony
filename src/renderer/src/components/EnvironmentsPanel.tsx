@@ -487,6 +487,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                         <RefreshCw size={11} /> Retry Setup
                       </button>
                       <button className="env-btn env-btn-secondary env-btn-sm" onClick={async () => {
+                        if (!confirm('Force environment to ready state without re-running setup? Only use this if you\'ve resolved the issue manually.')) return
                         try {
                           const m = await window.api.env.manifest(env.id)
                           if (m?.setup) {
@@ -497,7 +498,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                           loadEnvironments()
                         } catch (err: any) { console.error('Force ready failed:', err) }
                       }}>
-                        Mark as Ready
+                        <CheckCircle size={11} /> Mark as Ready
                       </button>
                       <button className="env-btn env-btn-ghost env-btn-sm" onClick={() => handleTeardown(env.id)}>
                         <Trash2 size={11} /> Teardown
