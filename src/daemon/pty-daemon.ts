@@ -286,7 +286,14 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
 
     // Parse token usage
     const clean = data.replace(ansiRegex, '')
-    const costMatch = clean.match(/\$(\d+\.?\d*)\s*(?:cost|spent|total)/i) || clean.match(/cost[:\s]*\$(\d+\.?\d*)/i)
+    // Primary: context-specific patterns (e.g. "$0.12 cost", "cost: $0.12")
+    let costMatch = clean.match(/\$(\d+\.?\d*)\s*(?:cost|spent|total)/i) || clean.match(/cost[:\s]*\$(\d+\.?\d*)/i)
+    // Fallback: bare dollar amount with ≥2 decimal places on the last non-empty line of the chunk
+    if (!costMatch) {
+      const lastLine = clean.split('\n').map(l => l.trim()).filter(Boolean).at(-1) ?? ''
+      const bare = lastLine.match(/\$(\d+\.\d{2,4})(?:\s|$)/)
+      if (bare) costMatch = bare
+    }
     if (costMatch) instance.tokenUsage.cost = parseFloat(costMatch[1])
     const inputMatch = clean.match(/([\d,]+)\s*input\s*tokens?/i)
     if (inputMatch) instance.tokenUsage.input = parseInt(inputMatch[1].replace(/,/g, ''), 10)

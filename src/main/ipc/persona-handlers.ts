@@ -2,7 +2,7 @@ import { ipcMain } from 'electron'
 import {
   getPersonaList, getPersonaContent, savePersonaContent,
   createPersona, deletePersona, runPersona, stopPersona,
-  togglePersona, getPersonasDir, setPersonaSchedule, addWhisper,
+  togglePersona, getPersonasDir, setPersonaSchedule, addWhisper, deleteNote,
 } from '../persona-manager'
 
 export function registerPersonaHandlers(): void {
@@ -17,4 +17,5 @@ export function registerPersonaHandlers(): void {
   ipcMain.handle('persona:getDir', () => getPersonasDir())
   ipcMain.handle('persona:setSchedule', (_e, fileName: string, schedule: string) => setPersonaSchedule(fileName, schedule))
   ipcMain.handle('persona:whisper', (_e, fileName: string, text: string) => addWhisper(fileName, text))
+  ipcMain.handle('persona:deleteNote', (_e, fileName: string, index: number) => deleteNote(fileName, index))
 }

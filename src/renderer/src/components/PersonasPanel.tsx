@@ -321,6 +321,9 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
             onWhisper={async (text) => {
               await window.api.persona.whisper(persona.id, text)
             }}
+            onDeleteNote={async (index) => {
+              await window.api.persona.deleteNote(persona.id, index)
+            }}
           />
         ))}
       </div>
@@ -394,11 +397,12 @@ interface PersonaCardProps {
   onViewFile: () => void
   onScheduleSave: (schedule: string) => Promise<void>
   onWhisper: (text: string) => Promise<void>
+  onDeleteNote: (index: number) => Promise<void>
 }
 
 function PersonaCard({
   persona, expanded, instances, allPersonas, onToggleExpand,
-  onRun, onStop, onToggle, onDelete, onFocusInstance, onViewFile, onScheduleSave, onWhisper
+  onRun, onStop, onToggle, onDelete, onFocusInstance, onViewFile, onScheduleSave, onWhisper, onDeleteNote
 }: PersonaCardProps) {
   const [editingSchedule, setEditingSchedule] = useState(false)
   const [whisperOpen, setWhisperOpen] = useState(false)
@@ -630,6 +634,13 @@ function PersonaCard({
                     {new Date(w.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                   </span>
                   <span className="persona-whisper-item-text">{w.text}</span>
+                  <button
+                    className="persona-whisper-item-delete"
+                    title="Delete note"
+                    onClick={(e) => { e.stopPropagation(); onDeleteNote(i) }}
+                  >
+                    <X size={10} />
+                  </button>
                 </div>
               ))}
             </div>

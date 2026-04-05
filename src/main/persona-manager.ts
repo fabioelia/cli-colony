@@ -204,6 +204,23 @@ export function addWhisper(id: string, text: string): boolean {
   return true
 }
 
+/** Delete a note by index from the ## Notes section. */
+export function deleteNote(id: string, index: number): boolean {
+  const filePath = join(PERSONAS_DIR, id.endsWith('.md') ? id : `${id}.md`)
+  if (!existsSync(filePath)) return false
+  const content = readFileSync(filePath, 'utf-8')
+  const noteLines = (extractSection(content, 'Notes') || extractSection(content, 'Whispers') || '')
+    .split('\n')
+    .filter((l) => l.trim().startsWith('- ['))
+  if (index < 0 || index >= noteLines.length) return false
+  const lineToRemove = noteLines[index]
+  // Remove exactly this line from the file content
+  const updated = content.split('\n').filter((l) => l !== lineToRemove).join('\n')
+  writeFileSync(filePath, updated, 'utf-8')
+  broadcastStatus()
+  return true
+}
+
 /** Surgically update the schedule field in a persona frontmatter without touching the rest. */
 export function setPersonaSchedule(fileName: string, schedule: string): boolean {
   const content = getPersonaContent(fileName)

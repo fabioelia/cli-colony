@@ -212,6 +212,7 @@ export interface ClaudeManagerAPI {
     getDir: () => Promise<string>
     setSchedule: (fileName: string, schedule: string) => Promise<boolean>
     whisper: (fileName: string, text: string) => Promise<boolean>
+    deleteNote: (fileName: string, index: number) => Promise<boolean>
     onStatus: (cb: (personas: PersonaInfo[]) => void) => () => void
     onRun: (cb: (data: { persona: string; instanceId: string }) => void) => () => void
   }
@@ -512,6 +513,7 @@ const api: ClaudeManagerAPI = {
     getDir: () => ipcRenderer.invoke('persona:getDir'),
     setSchedule: (fileName, schedule) => ipcRenderer.invoke('persona:setSchedule', fileName, schedule),
     whisper: (fileName, text) => ipcRenderer.invoke('persona:whisper', fileName, text),
+    deleteNote: (fileName, index) => ipcRenderer.invoke('persona:deleteNote', fileName, index),
     onStatus: (cb) => {
       const l = (_e: any, data: PersonaInfo[]) => cb(data)
       ipcRenderer.on('persona:status', l)
