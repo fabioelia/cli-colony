@@ -220,4 +220,8 @@ export interface PersonaInfo {
   filePath: string
   /** Output from the last completed run (ANSI-stripped, last ~5000 chars) */
   lastRunOutput: string | null
+  /** Pending whispers from the user */
+  whispers: Array<{ createdAt: string; text: string }>
+  /** Persona IDs to trigger when this persona's session completes */
+  onCompleteRun: string[]
 }

@@ -69,6 +69,7 @@ interface PersonaFrontmatter {
   can_create_sessions: boolean
   working_directory: string
   color: string
+  on_complete_run: string[]
 }
 
 function parseFrontmatter(content: string): PersonaFrontmatter | null {
@@ -88,6 +89,7 @@ function parseFrontmatter(content: string): PersonaFrontmatter | null {
     can_create_sessions: val('can_create_sessions') === 'true',
     working_directory: val('working_directory'),
     color: val('color') || '#a78bfa',
+    on_complete_run: parseStringArray(val('on_complete_run')),
   }
 
   if (!result.name) return null
@@ -100,6 +102,14 @@ function extractSection(content: string, heading: string): string {
   const regex = new RegExp(`^## ${heading}\\s*\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, 'm')
   const match = content.match(regex)
   return match ? match[1].trim() : ''
+}
+
+/** Parse a YAML inline array string like `["a", "b"]` or `[a, b]` into string[]. */
+function parseStringArray(val: string): string[] {
+  if (!val) return []
+  const match = val.match(/^\[(.+)\]$/)
+  if (!match) return []
+  return match[1].split(',').map(s => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean)
 }
 
 // ---- Public API ----
@@ -141,6 +151,7 @@ export function getPersonaList(): PersonaInfo[] {
         filePath,
         lastRunOutput: state.lastRunOutput || null,
         whispers: parseWhispers(content),
+        onCompleteRun: fm.on_complete_run,
       })
     } catch { /* skip invalid files */ }
   }
@@ -576,6 +587,8 @@ export function getPersonasDir(): string {
 /** Called by instance-manager when any session exits — captures output and clears active session */
 export async function onSessionExit(instanceId: string): Promise<void> {
   let changed = false
+  const triggerPersonaIds: string[] = []
+
   for (const [name, state] of Object.entries(stateCache)) {
     if (state.activeSessionId === instanceId) {
       // Capture the session's output buffer before clearing
@@ -620,11 +633,50 @@ export async function onSessionExit(instanceId: string): Promise<void> {
         sessionId: instanceId,
         details: { type: 'session-outcome', duration: durationSec, commitsCount, filesChanged },
       })
+
+      // Collect on_complete_run triggers from the persona's frontmatter
+      const personaFile = readdirSync(PERSONAS_DIR).find(f => {
+        try {
+          const c = readFileSync(join(PERSONAS_DIR, f), 'utf-8')
+          const fm = parseFrontmatter(c)
+          return fm?.name === name
+        } catch { return false }
+      })
+      if (personaFile) {
+        try {
+          const c = readFileSync(join(PERSONAS_DIR, personaFile), 'utf-8')
+          const fm = parseFrontmatter(c)
+          if (fm && fm.on_complete_run.length > 0) {
+            triggerPersonaIds.push(...fm.on_complete_run)
+          }
+        } catch { /* non-fatal */ }
+      }
     }
   }
   if (changed) {
     saveState()
     broadcastStatus()
+  }
+
+  // Dispatch completion triggers after state is saved
+  for (const triggerId of triggerPersonaIds) {
+    const persona = getPersonaList().find(p => p.id === triggerId || p.name === triggerId)
+    if (!persona) {
+      console.log(`[persona] trigger: target "${triggerId}" not found — skipping`)
+      continue
+    }
+    if (!persona.enabled) {
+      console.log(`[persona] trigger: "${triggerId}" is disabled — skipping`)
+      continue
+    }
+    if (persona.activeSessionId) {
+      console.log(`[persona] trigger: "${triggerId}" already running — skipping`)
+      continue
+    }
+    console.log(`[persona] trigger: → "${triggerId}"`)
+    runPersona(persona.id).catch(err => {
+      console.log(`[persona] trigger: launch failed for "${triggerId}": ${err.message}`)
+    })
   }
 }
 

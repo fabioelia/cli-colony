@@ -36,6 +36,7 @@ can_merge: false                   # permission to merge PRs
 can_create_sessions: true          # permission to spawn child sessions
 working_directory: "~/projects/myapp"  # default cwd for sessions
 color: "#a78bfa"                   # session color in sidebar
+on_complete_run: []                # persona IDs to trigger when this run completes
 ---
 
 ## Role
@@ -430,6 +431,11 @@ function PersonaCard({
             <span title={`${persona.runCount} completed runs`}>
               <Hash size={10} /> {persona.runCount}
             </span>
+            {persona.onCompleteRun.length > 0 && (
+              <span className="persona-trigger-badge" title={`Triggers on complete: ${persona.onCompleteRun.join(', ')}`}>
+                → {persona.onCompleteRun.join(', ')}
+              </span>
+            )}
           </div>
         </div>
         <div className="persona-card-actions">

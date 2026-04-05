@@ -10812,6 +10812,16 @@ input, select {
   gap: 3px;
 }
 
+.persona-trigger-badge {
+  font-size: 10px;
+  color: var(--accent);
+  opacity: 0.8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+
 .persona-card-status-dot {
   width: 7px;
   height: 7px;

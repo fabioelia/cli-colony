@@ -903,3 +903,301 @@ describe('persona-manager: onSessionExit outcome stats', () => {
     expect(call.details?.filesChanged).toBe(0)
   })
 })
+
+// ----------------------------------------------------------------
+
+describe('persona-manager: parseWhispers (via getPersonaList)', () => {
+  let mod: typeof import('../persona-manager')
+
+  beforeEach(async () => {
+    vi.resetModules()
+    mockBroadcast.mockReset()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    if (mod) mod.stopScheduler()
+  })
+
+  it('returns empty whispers array when no Whispers section', async () => {
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': FULL_PERSONA_MD },
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+
+    const list = mod.getPersonaList()
+    expect(list[0].whispers).toEqual([])
+  })
+
+  it('returns empty whispers array when Whispers section is empty', async () => {
+    const content = FULL_PERSONA_MD.trimEnd() + '\n\n## Whispers\n'
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': content },
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+
+    const list = mod.getPersonaList()
+    expect(list[0].whispers).toEqual([])
+  })
+
+  it('parses a single whisper entry correctly', async () => {
+    const content = FULL_PERSONA_MD.trimEnd() +
+      '\n\n## Whispers\n- [2026-04-05T10:00:00.000Z] Check the pipeline logs\n'
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': content },
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+
+    const list = mod.getPersonaList()
+    expect(list[0].whispers).toHaveLength(1)
+    expect(list[0].whispers[0]).toEqual({
+      createdAt: '2026-04-05T10:00:00.000Z',
+      text: 'Check the pipeline logs',
+    })
+  })
+
+  it('parses multiple whisper entries', async () => {
+    const content = FULL_PERSONA_MD.trimEnd() +
+      '\n\n## Whispers\n' +
+      '- [2026-04-05T10:00:00.000Z] First whisper\n' +
+      '- [2026-04-05T11:00:00.000Z] Second whisper\n'
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': content },
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+
+    const list = mod.getPersonaList()
+    expect(list[0].whispers).toHaveLength(2)
+    expect(list[0].whispers[0].text).toBe('First whisper')
+    expect(list[0].whispers[1].text).toBe('Second whisper')
+  })
+
+  it('skips malformed lines (no timestamp bracket)', async () => {
+    const content = FULL_PERSONA_MD.trimEnd() +
+      '\n\n## Whispers\n' +
+      '- [2026-04-05T10:00:00.000Z] Valid whisper\n' +
+      '- plain text without brackets\n' +
+      '  indented line\n' +
+      '- [2026-04-05T12:00:00.000Z] Another valid one\n'
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': content },
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+
+    const list = mod.getPersonaList()
+    // plain text and indented lines don't start with "- [" so they're skipped
+    expect(list[0].whispers).toHaveLength(2)
+    expect(list[0].whispers[0].text).toBe('Valid whisper')
+    expect(list[0].whispers[1].text).toBe('Another valid one')
+  })
+})
+
+// ----------------------------------------------------------------
+
+describe('persona-manager: addWhisper', () => {
+  let mod: typeof import('../persona-manager')
+
+  beforeEach(async () => {
+    vi.resetModules()
+    mockBroadcast.mockReset()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    if (mod) mod.stopScheduler()
+  })
+
+  it('returns false when persona file does not exist', async () => {
+    const fs = buildFsMock({ personaContents: {} })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+
+    expect(mod.addWhisper('ghost', 'hello')).toBe(false)
+    expect(fs.writeFileSync).not.toHaveBeenCalled()
+  })
+
+  it('creates ## Notes section when absent and returns true', async () => {
+    const fs = buildFsMock({
+      personaContents: { 'test-persona.md': FULL_PERSONA_MD },
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+
+    const result = mod.addWhisper('test-persona', 'Do the thing')
+    expect(result).toBe(true)
+    expect(fs.writeFileSync).toHaveBeenCalledOnce()
+    const [, written] = fs.writeFileSync.mock.calls[0] as [string, string, string]
+    expect(written).toContain('## Notes\n')
+    expect(written).toContain('Do the thing')
+  })
+
+  it('appends to existing ## Notes section', async () => {
+    const existingContent = FULL_PERSONA_MD.trimEnd() +
+      '\n\n## Notes\n- [2026-04-01T00:00:00.000Z] Old note\n'
+    const fs = buildFsMock({
+      personaContents: { 'test-persona.md': existingContent },
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+
+    mod.addWhisper('test-persona', 'New note')
+    const [, written] = fs.writeFileSync.mock.calls[0] as [string, string, string]
+    // New note injected right after the section header
+    expect(written).toMatch(/## Notes\n- \[.+\] New note\n- \[2026-04-01/)
+    // Old note still present
+    expect(written).toContain('Old note')
+  })
+
+  it('appends to legacy ## Whispers section (backward compat)', async () => {
+    const existingContent = FULL_PERSONA_MD.trimEnd() +
+      '\n\n## Whispers\n- [2026-04-01T00:00:00.000Z] Old whisper\n'
+    const fs = buildFsMock({
+      personaContents: { 'test-persona.md': existingContent },
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+
+    mod.addWhisper('test-persona', 'New note')
+    const [, written] = fs.writeFileSync.mock.calls[0] as [string, string, string]
+    expect(written).toContain('New note')
+    expect(written).toContain('Old whisper')
+  })
+
+  it('trims whitespace from text', async () => {
+    const fs = buildFsMock({
+      personaContents: { 'test-persona.md': FULL_PERSONA_MD },
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+
+    mod.addWhisper('test-persona', '   padded text   ')
+    const [, written] = fs.writeFileSync.mock.calls[0] as [string, string, string]
+    expect(written).toContain('padded text')
+    expect(written).not.toContain('   padded text   ')
+  })
+
+  it('broadcasts status after successful write', async () => {
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': FULL_PERSONA_MD },
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+
+    mod.addWhisper('test-persona', 'hello')
+    expect(mockBroadcast).toHaveBeenCalledWith('persona:status', expect.any(Array))
+  })
+
+  it('accepts fileName with .md extension', async () => {
+    const fs = buildFsMock({
+      personaContents: { 'test-persona.md': FULL_PERSONA_MD },
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+
+    expect(mod.addWhisper('test-persona.md', 'test')).toBe(true)
+    expect(fs.writeFileSync).toHaveBeenCalledOnce()
+  })
+})
+
+// ----------------------------------------------------------------
+
+describe('persona-manager: on_complete_run (completion triggers)', () => {
+  let mod: typeof import('../persona-manager')
+
+  beforeEach(async () => {
+    vi.resetModules()
+    mockBroadcast.mockReset()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    if (mod) mod.stopScheduler()
+  })
+
+  it('returns empty onCompleteRun when field is absent', async () => {
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': FULL_PERSONA_MD },
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+
+    const list = mod.getPersonaList()
+    expect(list[0].onCompleteRun).toEqual([])
+  })
+
+  it('parses inline array with quoted strings', async () => {
+    const content = FULL_PERSONA_MD.replace(
+      'color: "#34d399"',
+      'color: "#34d399"\non_complete_run: ["colony-qa", "colony-product"]'
+    )
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': content },
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+
+    const list = mod.getPersonaList()
+    expect(list[0].onCompleteRun).toEqual(['colony-qa', 'colony-product'])
+  })
+
+  it('parses inline array without quotes', async () => {
+    const content = FULL_PERSONA_MD.replace(
+      'color: "#34d399"',
+      'color: "#34d399"\non_complete_run: [colony-qa, colony-product]'
+    )
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': content },
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+
+    const list = mod.getPersonaList()
+    expect(list[0].onCompleteRun).toEqual(['colony-qa', 'colony-product'])
+  })
+
+  it('parses single-item array', async () => {
+    const content = FULL_PERSONA_MD.replace(
+      'color: "#34d399"',
+      'color: "#34d399"\non_complete_run: ["colony-qa"]'
+    )
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': content },
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+
+    const list = mod.getPersonaList()
+    expect(list[0].onCompleteRun).toEqual(['colony-qa'])
+  })
+
+  it('returns empty array for empty brackets', async () => {
+    const content = FULL_PERSONA_MD.replace(
+      'color: "#34d399"',
+      'color: "#34d399"\non_complete_run: []'
+    )
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': content },
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+
+    const list = mod.getPersonaList()
+    expect(list[0].onCompleteRun).toEqual([])
+  })
+})
