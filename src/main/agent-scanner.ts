@@ -79,12 +79,23 @@ export function scanAgents(projectPaths?: string[]): AgentDef[] {
 
 const AGENT_TEMPLATE = `---
 name: {{name}}
-description: Describe what this agent does
-tools: Read, Edit, Bash, Glob, Grep
+description: One-line description of what this agent does — used to decide when to invoke it
 model: sonnet
 ---
 
-You are a helpful agent. Describe your role and capabilities here.
+## Role
+
+You are a specialist agent. Describe your role, responsibilities, and the kind of tasks you handle here.
+
+## When to use
+
+Explain the conditions under which this agent should be invoked (e.g., specific file types, task patterns, or decision criteria).
+
+## Instructions
+
+1. Step one of how this agent approaches its work.
+2. Step two — include any important constraints or gotchas.
+3. Always write outputs to a predictable path so the caller can find them.
 `
 
 export function createAgent(name: string, scope: 'personal' | 'project', projectPath?: string): AgentDef | null {
