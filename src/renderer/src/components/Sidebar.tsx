@@ -825,14 +825,18 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
           <Tooltip text="Activity Feed" detail="Recent automation events from personas, pipelines, and environments. Amber badge when pipeline actions are waiting for your approval." position="top">
             <button
               className={`sidebar-footer-btn ${showActivityPopover ? 'active' : ''} ${pendingApprovals.length > 0 ? 'has-approvals' : ''}`}
-              onClick={() => {
-                setShowActivityPopover(v => {
-                  if (!v) {
-                    window.api.activity.markRead().catch(() => {})
-                    setActivityUnread(0)
-                  }
-                  return !v
-                })
+              onClick={(e) => {
+                e.stopPropagation()
+                if (showActivityPopover) {
+                  setShowActivityPopover(false)
+                } else {
+                  window.api.activity.list().then(events => {
+                    setActivityEvents(events.slice(-20).reverse())
+                  }).catch(() => {})
+                  window.api.activity.markRead().catch(() => {})
+                  setActivityUnread(0)
+                  setShowActivityPopover(true)
+                }
               }}
             >
               <Bell size={14} />

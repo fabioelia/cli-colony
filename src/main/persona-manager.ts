@@ -309,9 +309,26 @@ async function getColonySnapshot(): Promise<string> {
   return '(Colony context unavailable)'
 }
 
+function readKnowledgeBase(): string {
+  try {
+    if (!existsSync(colonyPaths.knowledgeBase)) return ''
+    const lines = readFileSync(colonyPaths.knowledgeBase, 'utf-8').split('\n')
+    const entries = lines.filter(l => l.trim().startsWith('- ['))
+    const recent = entries.slice(-60)
+    return recent.join('\n')
+  } catch {
+    return ''
+  }
+}
+
 async function buildPlanningPrompt(fm: PersonaFrontmatter, state: PersonaState, filePath: string): Promise<string> {
   const timestamp = new Date().toISOString()
   const runCount = state.runCount + 1
+
+  const knowledgeEntries = readKnowledgeBase()
+  const knowledgeSection = knowledgeEntries
+    ? `## Colony Knowledge\n\n${knowledgeEntries}\n\n`
+    : ''
 
   const whispers = parseWhispers(readFileSync(filePath, 'utf-8'))
   const whispersSection = whispers.length > 0
@@ -360,7 +377,7 @@ Active Situations, Learnings, and Session Log.
 
 ${await getColonySnapshot()}
 
-${whispersSection}## Planning Loop
+${knowledgeSection}${whispersSection}## Planning Loop
 
 Execute this cycle every session:
 

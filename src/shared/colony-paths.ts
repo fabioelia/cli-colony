@@ -44,6 +44,7 @@ export const colonyPaths = {
   personaState: path.join(ROOT, 'persona-state.json'),
   recentSessions: path.join(ROOT, 'recent-sessions.json'),
   activityLog: path.join(ROOT, 'activity.json'),
+  knowledgeBase: path.join(ROOT, 'KNOWLEDGE.md'),
 
   /** Build a repo clone path for a given owner/name (shallow clones for GitHub panel) */
   repoDir: (owner: string, name: string) => path.join(ROOT, 'repos', owner, name),

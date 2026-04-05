@@ -65,18 +65,22 @@ const mockAppendActivity = vi.hoisted(() => vi.fn())
 
 // ---- fs mock builder ----
 
+const KNOWLEDGE_PATH = `${MOCK_ROOT}/KNOWLEDGE.md`
+
 function buildFsMock(options: {
   personaFiles?: string[]
   personaContents?: Record<string, string>  // filename → content
   stateJson?: string
   workingDirs?: string[]  // extra paths existsSync returns true for
+  knowledgeContent?: string  // content for KNOWLEDGE.md; undefined = file absent
 } = {}) {
-  const { personaFiles = [], personaContents = {}, stateJson, workingDirs = [] } = options
+  const { personaFiles = [], personaContents = {}, stateJson, workingDirs = [], knowledgeContent } = options
 
   return {
     existsSync: vi.fn().mockImplementation((p: string) => {
       if (p === PERSONAS_DIR) return true
       if (p === STATE_PATH) return stateJson !== undefined
+      if (p === KNOWLEDGE_PATH) return knowledgeContent !== undefined
       if (workingDirs.includes(p)) return true
       for (const filename of Object.keys(personaContents)) {
         if (p === `${PERSONAS_DIR}/${filename}`) return true
@@ -85,6 +89,7 @@ function buildFsMock(options: {
     }),
     readFileSync: vi.fn().mockImplementation((p: string, _enc?: string) => {
       if (p === STATE_PATH) return stateJson ?? '{}'
+      if (p === KNOWLEDGE_PATH) return knowledgeContent ?? ''
       for (const [filename, content] of Object.entries(personaContents)) {
         if (p === `${PERSONAS_DIR}/${filename}`) return content
       }
@@ -110,6 +115,7 @@ function setupMocks(fsMock: ReturnType<typeof buildFsMock>) {
       personaState: STATE_PATH,
       schedulerLog: SCHEDULER_LOG,
       colonyContext: `${MOCK_ROOT}/colony-context.md`,
+      knowledgeBase: KNOWLEDGE_PATH,
     },
   }))
   vi.doMock('fs', () => fsMock)
@@ -1200,5 +1206,122 @@ describe('persona-manager: on_complete_run (completion triggers)', () => {
 
     const list = mod.getPersonaList()
     expect(list[0].onCompleteRun).toEqual([])
+  })
+})
+
+// ----------------------------------------------------------------
+
+describe('persona-manager: Colony Knowledge Base injection', () => {
+  let mod: typeof import('../persona-manager')
+
+  const MOCK_INSTANCE = {
+    id: 'inst-kb-1', name: 'Persona: Test Persona', status: 'running',
+    activity: 'waiting', workingDirectory: '/mock/projects/test',
+    color: '#34d399', args: [], createdAt: Date.now(), pinned: false,
+    cliBackend: 'claude', gitBranch: null, gitRepo: null,
+    tokenUsage: { inputTokens: 0, outputTokens: 0, cost: 0 },
+    roleTag: null,
+  }
+
+  beforeEach(async () => {
+    vi.resetModules()
+    mockBroadcast.mockReset()
+    mockCreateInstance.mockReset().mockResolvedValue(MOCK_INSTANCE)
+    mockGetAllInstances.mockReset().mockResolvedValue([])
+    mockUpdateColonyContext.mockReset().mockResolvedValue(undefined)
+    mockSendPromptWhenReady.mockReset()
+    mockGetDaemonClient.mockReset().mockReturnValue({ on: vi.fn(), removeListener: vi.fn() })
+    mockAppendActivity.mockReset()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    if (mod) mod.stopScheduler()
+  })
+
+  it('omits Colony Knowledge section when KNOWLEDGE.md does not exist', async () => {
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': FULL_PERSONA_MD },
+      // knowledgeContent absent → file does not exist
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    await mod.runPersona('test-persona.md')
+
+    const writeCalls = fs.writeFileSync.mock.calls
+    const promptWrite = writeCalls.find((c: unknown[]) => String(c[0]).includes('persona-'))
+    expect(promptWrite).toBeDefined()
+    const promptContent = String(promptWrite![1])
+    expect(promptContent).not.toContain('## Colony Knowledge')
+  })
+
+  it('injects Colony Knowledge section when KNOWLEDGE.md has entries', async () => {
+    const knowledge = '# Colony Knowledge\n\n- [2026-04-05 | Developer] The test framework uses vitest\n- [2026-04-05 | QA] Always run tsc before committing\n'
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': FULL_PERSONA_MD },
+      knowledgeContent: knowledge,
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    await mod.runPersona('test-persona.md')
+
+    const writeCalls = fs.writeFileSync.mock.calls
+    const promptWrite = writeCalls.find((c: unknown[]) => String(c[0]).includes('persona-'))
+    expect(promptWrite).toBeDefined()
+    const promptContent = String(promptWrite![1])
+    expect(promptContent).toContain('## Colony Knowledge')
+    expect(promptContent).toContain('The test framework uses vitest')
+    expect(promptContent).toContain('Always run tsc before committing')
+  })
+
+  it('caps knowledge injection at 60 most recent entries', async () => {
+    const entries = Array.from({ length: 80 }, (_, i) =>
+      `- [2026-04-05 | Persona] Entry number ${i + 1}`
+    )
+    const knowledge = entries.join('\n') + '\n'
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': FULL_PERSONA_MD },
+      knowledgeContent: knowledge,
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    await mod.runPersona('test-persona.md')
+
+    const writeCalls = fs.writeFileSync.mock.calls
+    const promptWrite = writeCalls.find((c: unknown[]) => String(c[0]).includes('persona-'))
+    const promptContent = String(promptWrite![1])
+    // Should include last 60 entries (21-80), not first 20
+    expect(promptContent).toContain('Entry number 80')
+    expect(promptContent).toContain('Entry number 21')
+    expect(promptContent).not.toContain('Entry number 1\n')
+    expect(promptContent).not.toContain('Entry number 20\n')
+  })
+
+  it('omits Colony Knowledge section when KNOWLEDGE.md has no entries (header only)', async () => {
+    const knowledge = '# Colony Knowledge\n\nShared knowledge.\n\n'
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': FULL_PERSONA_MD },
+      knowledgeContent: knowledge,
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    await mod.runPersona('test-persona.md')
+
+    const writeCalls = fs.writeFileSync.mock.calls
+    const promptWrite = writeCalls.find((c: unknown[]) => String(c[0]).includes('persona-'))
+    const promptContent = String(promptWrite![1])
+    expect(promptContent).not.toContain('## Colony Knowledge')
   })
 })
