@@ -849,7 +849,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               onClick={(e) => { e.stopPropagation(); setViewTab('session') }}
               title="Claude session"
             >
-              <TerminalSquare size={12} /> Session
+              <MessageSquare size={12} /> Session
             </button>
             <button
               className={`terminal-tab ${viewTab === 'shell' ? 'active' : ''}`}
@@ -985,7 +985,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               <div className="filetree-header">
                 <span className="filetree-root-path">{instance.workingDirectory.split('/').pop()}</span>
                 <button className="filetree-refresh" onClick={() => window.api.shell.openExternal(`file://${instance.workingDirectory}`)} title="Open in Finder">
-                  <ExternalLink size={13} />
+                  <FolderOpen size={13} />
                 </button>
                 <button className="filetree-refresh" onClick={() => setShowIgnoreSettings(!showIgnoreSettings)} title="Ignore rules">
                   <Settings size={13} />
