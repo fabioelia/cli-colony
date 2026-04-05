@@ -1315,8 +1315,9 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                           color: '#ef4444',
                           args: [...promptArgs, '--prompt', initialPrompt],
                         })
-                      } catch (err) {
-                        console.error('[services-panel] diagnose failed:', err)
+                      } catch (err: any) {
+                        setFixResult({ lines: [err.message || String(err)], isError: true })
+                        setTimeout(() => setFixResult(prev => prev?.isError ? null : prev), 8000)
                       }
                     }}>
                       <MessageSquare size={12} />
