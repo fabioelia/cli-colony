@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, ArrowLeft } from 'lucide-react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -245,7 +245,7 @@ export default function AgentEditor({ agent, onBack, onSave, onInstanceCreated }
     <div className="agent-editor">
       <div className="agent-editor-header">
         <div className="agent-editor-header-left">
-          <button className="agent-editor-back" onClick={onBack} title="Back">&larr;</button>
+          <button className="agent-editor-back" onClick={onBack} title="Back"><ArrowLeft size={14} /></button>
           <span className="agent-editor-title">{agent.name}</span>
           <span className="agent-editor-path">{agent.filePath}</span>
         </div>

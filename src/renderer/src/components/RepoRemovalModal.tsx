@@ -233,7 +233,7 @@ export default function RepoRemovalModal({ repo, impact, onConfirm, onCancel, on
           <button className="removal-modal-cancel" onClick={onCancel}>Cancel</button>
           <button className="removal-modal-confirm" onClick={handleConfirm} disabled={confirming}>
             <Trash2 size={12} />
-            {confirming ? 'Removing…' : 'Remove Anyway'}
+            {confirming ? 'Removing…' : totalIssues > 0 ? 'Remove Anyway' : 'Remove'}
           </button>
         </div>
       </div>

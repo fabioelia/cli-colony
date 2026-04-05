@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { ArrowLeft, RefreshCw, Download, Trash2 } from 'lucide-react'
+import { ArrowLeft, RefreshCw, Download } from 'lucide-react'
 
 interface Props {
   envId: string
