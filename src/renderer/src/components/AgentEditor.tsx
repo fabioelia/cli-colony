@@ -243,29 +243,26 @@ export default function AgentEditor({ agent, onBack, onSave, onInstanceCreated }
 
   return (
     <div className="agent-editor">
-      <div className="agent-editor-header">
-        <div className="agent-editor-header-left">
-          <button className="agent-editor-back" onClick={onBack} title="Back"><ArrowLeft size={14} /></button>
-          <span className="agent-editor-title">{agent.name}</span>
+      <div className="agent-editor-header-area">
+        <div className="panel-header">
+          <button className="panel-header-back" onClick={onBack} title="Back"><ArrowLeft size={14} /></button>
+          <h2>{agent.name}</h2>
           <span className="agent-editor-path">{agent.filePath}</span>
-        </div>
-        <div className="agent-editor-header-right">
-          <button
-            className="agent-editor-reload"
-            onClick={reloadFile}
-            title="Reload file from disk"
-          >
-            <RefreshCw size={13} />
-          </button>
+          <div className="panel-header-spacer" />
           {isDirty && <span className="agent-editor-dirty">unsaved</span>}
-          <button
-            className="agent-editor-save"
-            onClick={handleSave}
-            disabled={!isDirty || saving}
-            title="Save changes"
-          >
-            {saving ? 'Saving...' : 'Save'}
-          </button>
+          <div className="panel-header-actions">
+            <button className="panel-header-btn" onClick={reloadFile} title="Reload file from disk">
+              <RefreshCw size={13} />
+            </button>
+            <button
+              className="panel-header-btn primary"
+              onClick={handleSave}
+              disabled={!isDirty || saving}
+              title="Save changes"
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+          </div>
         </div>
       </div>
       <div className="agent-editor-split">

@@ -2304,44 +2304,12 @@ input, select {
   overflow: hidden;
 }
 
-.agent-editor-header {
-  padding: 48px 16px 8px;
-  padding-right: 80px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.agent-editor-header-area {
+  padding: 44px 80px 0 16px;
   background: var(--bg-primary);
   border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
   -webkit-app-region: drag;
-}
-
-.agent-editor-header-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  -webkit-app-region: no-drag;
-}
-
-.agent-editor-back {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 14px;
-  background: var(--bg-surface);
-  color: var(--text-secondary);
-  transition: background 0.15s;
-}
-
-.agent-editor-back:hover {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-
-.agent-editor-title {
-  font-size: 14px;
-  font-weight: 600;
 }
 
 .agent-editor-path {
@@ -2349,52 +2317,10 @@ input, select {
   color: var(--text-muted);
 }
 
-.agent-editor-header-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  -webkit-app-region: no-drag;
-}
-
 .agent-editor-dirty {
   font-size: 11px;
   color: var(--warning);
   font-weight: 500;
-}
-
-.agent-editor-reload {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 5px;
-  color: var(--text-muted);
-  transition: all 0.15s;
-}
-
-.agent-editor-reload:hover {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-
-.agent-editor-save {
-  padding: 4px 14px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  background: var(--accent);
-  color: white;
-  transition: opacity 0.15s;
-}
-
-.agent-editor-save:hover {
-  opacity: 0.85;
-}
-
-.agent-editor-save:disabled {
-  opacity: 0.4;
-  cursor: default;
 }
 
 .agent-editor-split {
@@ -10795,31 +10721,11 @@ input, select {
   overflow: hidden;
 }
 
-.env-log-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 44px 16px 12px;
+.env-log-header-area {
+  padding: 44px 16px 0;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   -webkit-app-region: drag;
-}
-
-.env-log-header * {
-  -webkit-app-region: no-drag;
-}
-
-.env-log-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  flex: 1;
-}
-
-.env-log-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .env-log-autoscroll {

@@ -97,27 +97,27 @@ export default function EnvironmentLogViewer({ envId, envName, serviceNames: pro
   return (
     <div className="env-log-viewer">
       {/* Header */}
-      <div className="env-log-header">
-        <button className="env-btn env-btn-ghost" onClick={onBack}>
-          <ArrowLeft size={16} />
-          Back
-        </button>
-        <span className="env-log-title">{envName} Logs</span>
-        <div className="env-log-actions">
-          <button className="env-btn env-btn-ghost" onClick={loadLogs} title="Refresh">
-            <RefreshCw size={14} className={loading ? 'spinning' : ''} />
-          </button>
-          <button className="env-btn env-btn-ghost" onClick={downloadLog} title="Download">
-            <Download size={14} />
-          </button>
-          <label className="env-log-autoscroll">
-            <input
-              type="checkbox"
-              checked={autoScroll}
-              onChange={e => setAutoScroll(e.target.checked)}
-            />
-            Follow
-          </label>
+      <div className="env-log-header-area">
+        <div className="panel-header">
+          <button className="panel-header-back" onClick={onBack} title="Back"><ArrowLeft size={16} /></button>
+          <h2>{envName} Logs</h2>
+          <div className="panel-header-spacer" />
+          <div className="panel-header-actions">
+            <button className="panel-header-btn" onClick={loadLogs} title="Refresh">
+              <RefreshCw size={14} className={loading ? 'spinning' : ''} />
+            </button>
+            <button className="panel-header-btn" onClick={downloadLog} title="Download log">
+              <Download size={14} />
+            </button>
+            <label className="env-log-autoscroll">
+              <input
+                type="checkbox"
+                checked={autoScroll}
+                onChange={e => setAutoScroll(e.target.checked)}
+              />
+              Follow
+            </label>
+          </div>
         </div>
       </div>
 
