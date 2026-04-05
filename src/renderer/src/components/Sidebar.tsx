@@ -201,6 +201,12 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
     return `${Math.floor(diff / 86400000)}d ago`
   }
 
+  const formatDuration = (sec: number) => {
+    if (sec < 60) return `${sec}s`
+    if (sec < 3600) return `${Math.floor(sec / 60)}m ${sec % 60}s`
+    return `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m`
+  }
+
   const dirName = (path: string) => {
     const parts = path.split('/')
     return parts[parts.length - 1] || path
@@ -774,6 +780,19 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
                       <span className="activity-event-time">{formatActivityTime(ev.timestamp)}</span>
                     </div>
                     <div className="activity-event-summary">{ev.summary}</div>
+                    {ev.details?.type === 'session-outcome' && (
+                      <div className="activity-outcome-stats">
+                        {(ev.details.duration as number) !== null && (
+                          <span>{formatDuration(ev.details.duration as number)}</span>
+                        )}
+                        {(ev.details.commitsCount as number) > 0 && (
+                          <span>{ev.details.commitsCount as number} commit{(ev.details.commitsCount as number) !== 1 ? 's' : ''}</span>
+                        )}
+                        {(ev.details.filesChanged as number) > 0 && (
+                          <span>{ev.details.filesChanged as number} file{(ev.details.filesChanged as number) !== 1 ? 's' : ''} changed</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

@@ -75,7 +75,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Bottom of sidebar',
         items: [
           { label: 'Help icon', detail: 'Opens this help popover.', icon: 'HelpCircle' },
-          { label: 'Activity bell', detail: 'Shows recent automation events from personas, pipelines, and environments. A badge appears when there are unread events.', icon: 'Bell' },
+          { label: 'Activity bell', detail: 'Shows recent automation events from personas, pipelines, and environments. Persona completion events include outcome stats: duration, commits made, and files changed.', icon: 'Bell' },
           { label: 'Settings gear', detail: 'Opens the Settings panel for CLI defaults, shell profile, daemon management, and more.', icon: 'Settings' },
         ],
       },

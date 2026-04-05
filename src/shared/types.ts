@@ -172,6 +172,7 @@ export interface ActivityEvent {
   summary: string
   level: 'info' | 'warn' | 'error'
   sessionId?: string
+  details?: Record<string, unknown>
 }
 
 export interface PersonaInfo {

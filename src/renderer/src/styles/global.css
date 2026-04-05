@@ -706,6 +706,22 @@ input, select {
   -webkit-box-orient: vertical;
 }
 
+.activity-outcome-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 5px;
+}
+
+.activity-outcome-stats span {
+  font-size: 10px;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 /* ===== Instance items ===== */
 .instance-item {
   display: flex;

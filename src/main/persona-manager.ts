@@ -5,6 +5,7 @@
  */
 
 import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, watch } from 'fs'
+import { execSync } from 'child_process'
 import { join, basename } from 'path'
 import { colonyPaths } from '../shared/colony-paths'
 import { createInstance, getAllInstances, killInstance } from './instance-manager'
@@ -29,6 +30,8 @@ interface PersonaState {
   activeSessionId: string | null
   enabled: boolean
   lastRunOutput: string | null
+  sessionStartedAt: string | null
+  sessionWorkingDir: string | null
 }
 
 const stateFile = new JsonFile<Record<string, PersonaState>>(STATE_PATH, {})
@@ -49,7 +52,7 @@ function saveState(): void {
 
 function getState(name: string): PersonaState {
   if (!stateCache[name]) {
-    stateCache[name] = { lastRunAt: null, runCount: 0, activeSessionId: null, enabled: false, lastRunOutput: null }
+    stateCache[name] = { lastRunAt: null, runCount: 0, activeSessionId: null, enabled: false, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null }
   }
   return stateCache[name]
 }
@@ -480,6 +483,8 @@ export async function runPersona(fileName: string): Promise<string> {
   // Update state
   state.activeSessionId = inst.id
   state.lastRunAt = new Date().toISOString()
+  state.sessionStartedAt = state.lastRunAt
+  state.sessionWorkingDir = cwd
   state.runCount++
   saveState()
 
@@ -533,10 +538,38 @@ export async function onSessionExit(instanceId: string): Promise<void> {
         }
       } catch { /* buffer may be gone */ }
 
+      // Compute session outcome stats
+      const startedAt = state.sessionStartedAt
+      const workingDir = state.sessionWorkingDir
+      const durationSec = startedAt ? Math.round((Date.now() - new Date(startedAt).getTime()) / 1000) : null
+
+      let commitsCount = 0
+      let filesChanged = 0
+      if (workingDir && startedAt && existsSync(workingDir)) {
+        try {
+          const logOut = execSync(`git log --oneline --after="${startedAt}"`, { encoding: 'utf-8', timeout: 5000, cwd: workingDir }).trim()
+          commitsCount = logOut ? logOut.split('\n').length : 0
+        } catch { /* not a git repo or no commits */ }
+        if (commitsCount > 0) {
+          try {
+            const filesOut = execSync(`git log --name-only --format="" --after="${startedAt}"`, { encoding: 'utf-8', timeout: 5000, cwd: workingDir }).trim()
+            filesChanged = filesOut ? new Set(filesOut.split('\n').filter(l => l.trim())).size : 0
+          } catch { /* non-fatal */ }
+        }
+      }
+
+      const commitLabel = commitsCount > 0 ? ` · ${commitsCount} commit${commitsCount !== 1 ? 's' : ''}` : ''
       state.activeSessionId = null
       changed = true
       console.log(`[persona] session exited for "${name}"`)
-      appendActivity({ source: 'persona', name, summary: `Persona "${name}" completed session`, level: 'info', sessionId: instanceId })
+      appendActivity({
+        source: 'persona',
+        name,
+        summary: `Persona "${name}" completed session${commitLabel}`,
+        level: 'info',
+        sessionId: instanceId,
+        details: { type: 'session-outcome', duration: durationSec, commitsCount, filesChanged },
+      })
     }
   }
   if (changed) {

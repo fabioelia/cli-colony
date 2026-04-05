@@ -60,6 +60,8 @@ const mockSendPromptWhenReady = vi.hoisted(() => vi.fn())
 const mockUpdateColonyContext = vi.hoisted(() => vi.fn())
 const mockBroadcast = vi.hoisted(() => vi.fn())
 const mockCronMatches = vi.hoisted(() => vi.fn())
+const mockExecSync = vi.hoisted(() => vi.fn())
+const mockAppendActivity = vi.hoisted(() => vi.fn())
 
 // ---- fs mock builder ----
 
@@ -67,13 +69,15 @@ function buildFsMock(options: {
   personaFiles?: string[]
   personaContents?: Record<string, string>  // filename → content
   stateJson?: string
+  workingDirs?: string[]  // extra paths existsSync returns true for
 } = {}) {
-  const { personaFiles = [], personaContents = {}, stateJson } = options
+  const { personaFiles = [], personaContents = {}, stateJson, workingDirs = [] } = options
 
   return {
     existsSync: vi.fn().mockImplementation((p: string) => {
       if (p === PERSONAS_DIR) return true
       if (p === STATE_PATH) return stateJson !== undefined
+      if (workingDirs.includes(p)) return true
       for (const filename of Object.keys(personaContents)) {
         if (p === `${PERSONAS_DIR}/${filename}`) return true
       }
@@ -119,6 +123,8 @@ function setupMocks(fsMock: ReturnType<typeof buildFsMock>) {
   vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: mockSendPromptWhenReady }))
   vi.doMock('../colony-context', () => ({ updateColonyContext: mockUpdateColonyContext }))
   vi.doMock('../../shared/cron', () => ({ cronMatches: mockCronMatches }))
+  vi.doMock('child_process', () => ({ execSync: mockExecSync }))
+  vi.doMock('../activity-manager', () => ({ appendActivity: mockAppendActivity }))
 }
 
 // ---- Test suites ----
@@ -645,6 +651,8 @@ describe('persona-manager: onSessionExit', () => {
     vi.resetModules()
     mockBroadcast.mockReset()
     mockGetDaemonClient.mockReset()
+    mockExecSync.mockReset()
+    mockAppendActivity.mockReset()
   })
 
   afterEach(() => {
@@ -729,5 +737,169 @@ describe('persona-manager: onSessionExit', () => {
 
     const list = mod.getPersonaList()
     expect(list[0].lastRunOutput).toBe('Hello World\nDone')
+  })
+})
+
+// ----------------------------------------------------------------
+
+describe('persona-manager: onSessionExit outcome stats', () => {
+  let mod: typeof import('../persona-manager')
+  const WORK_DIR = '/mock/projects/test'
+  const STARTED_AT = new Date(Date.now() - 120_000).toISOString() // 2 minutes ago
+
+  beforeEach(async () => {
+    vi.resetModules()
+    mockBroadcast.mockReset()
+    mockGetDaemonClient.mockReset()
+    mockExecSync.mockReset()
+    mockAppendActivity.mockReset()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    if (mod) mod.stopScheduler()
+  })
+
+  it('emits session-outcome details with commits and files when git succeeds', async () => {
+    const stateJson = JSON.stringify({
+      'Test Persona': {
+        lastRunAt: STARTED_AT,
+        runCount: 1,
+        activeSessionId: 'sess-abc',
+        enabled: true,
+        lastRunOutput: null,
+        sessionStartedAt: STARTED_AT,
+        sessionWorkingDir: WORK_DIR,
+      },
+    })
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': FULL_PERSONA_MD },
+      stateJson,
+      workingDirs: [WORK_DIR],
+    })
+    mockGetDaemonClient.mockReturnValue({ getInstanceBuffer: vi.fn().mockResolvedValue(null) })
+    // First execSync call: git log → 3 commits
+    // Second execSync call: git log --name-only → 4 unique files
+    mockExecSync
+      .mockReturnValueOnce('abc1234 feat: add foo\ndef5678 fix: bar\n9990000 chore: update')
+      .mockReturnValueOnce('src/foo.ts\nsrc/bar.ts\nsrc/foo.ts\nsrc/baz.ts')
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    await mod.onSessionExit('sess-abc')
+
+    expect(mockAppendActivity).toHaveBeenCalledOnce()
+    const call = mockAppendActivity.mock.calls[0][0]
+    expect(call.source).toBe('persona')
+    expect(call.details?.type).toBe('session-outcome')
+    expect(call.details?.commitsCount).toBe(3)
+    expect(call.details?.filesChanged).toBe(3) // 3 unique: foo.ts, bar.ts, baz.ts
+    expect(typeof call.details?.duration).toBe('number')
+    expect(call.details?.duration as number).toBeGreaterThan(0)
+    expect(call.summary).toContain('3 commits')
+  })
+
+  it('emits session-outcome with duration=null when sessionStartedAt is missing', async () => {
+    const stateJson = JSON.stringify({
+      'Test Persona': {
+        lastRunAt: null,
+        runCount: 1,
+        activeSessionId: 'sess-nostart',
+        enabled: true,
+        lastRunOutput: null,
+        sessionStartedAt: null,
+        sessionWorkingDir: null,
+      },
+    })
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': FULL_PERSONA_MD },
+      stateJson,
+    })
+    mockGetDaemonClient.mockReturnValue({ getInstanceBuffer: vi.fn().mockResolvedValue(null) })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    await mod.onSessionExit('sess-nostart')
+
+    expect(mockAppendActivity).toHaveBeenCalledOnce()
+    const call = mockAppendActivity.mock.calls[0][0]
+    expect(call.details?.type).toBe('session-outcome')
+    expect(call.details?.duration).toBeNull()
+    expect(call.details?.commitsCount).toBe(0)
+    expect(call.details?.filesChanged).toBe(0)
+    // Git commands not attempted when no startedAt/workingDir
+    expect(mockExecSync).not.toHaveBeenCalled()
+  })
+
+  it('handles git failure gracefully — still emits outcome with zeroed stats', async () => {
+    const stateJson = JSON.stringify({
+      'Test Persona': {
+        lastRunAt: STARTED_AT,
+        runCount: 2,
+        activeSessionId: 'sess-gitfail',
+        enabled: true,
+        lastRunOutput: null,
+        sessionStartedAt: STARTED_AT,
+        sessionWorkingDir: WORK_DIR,
+      },
+    })
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': FULL_PERSONA_MD },
+      stateJson,
+      workingDirs: [WORK_DIR],
+    })
+    mockGetDaemonClient.mockReturnValue({ getInstanceBuffer: vi.fn().mockResolvedValue(null) })
+    mockExecSync.mockImplementation(() => { throw new Error('not a git repository') })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    await mod.onSessionExit('sess-gitfail')
+
+    expect(mockAppendActivity).toHaveBeenCalledOnce()
+    const call = mockAppendActivity.mock.calls[0][0]
+    expect(call.details?.commitsCount).toBe(0)
+    expect(call.details?.filesChanged).toBe(0)
+    // Summary should not contain "commits" when count is 0
+    expect(call.summary).not.toContain('commit')
+  })
+
+  it('skips files stat when commit count is zero', async () => {
+    const stateJson = JSON.stringify({
+      'Test Persona': {
+        lastRunAt: STARTED_AT,
+        runCount: 1,
+        activeSessionId: 'sess-nocommits',
+        enabled: true,
+        lastRunOutput: null,
+        sessionStartedAt: STARTED_AT,
+        sessionWorkingDir: WORK_DIR,
+      },
+    })
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': FULL_PERSONA_MD },
+      stateJson,
+      workingDirs: [WORK_DIR],
+    })
+    mockGetDaemonClient.mockReturnValue({ getInstanceBuffer: vi.fn().mockResolvedValue(null) })
+    // git log returns empty string → 0 commits
+    mockExecSync.mockReturnValueOnce('')
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    await mod.onSessionExit('sess-nocommits')
+
+    // Only one execSync call (git log), not two (no files query)
+    expect(mockExecSync).toHaveBeenCalledOnce()
+    const call = mockAppendActivity.mock.calls[0][0]
+    expect(call.details?.commitsCount).toBe(0)
+    expect(call.details?.filesChanged).toBe(0)
   })
 })
