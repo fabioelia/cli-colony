@@ -530,7 +530,7 @@ function PersonaCard({
           <textarea
             ref={whisperRef}
             className={`persona-whisper-input${whisperFlash ? ' flash' : ''}`}
-            placeholder="Leave a note for next time it runs..."
+            placeholder="Leave a note for next run… Enter to save, Shift+↵ for newline"
             rows={2}
             value={whisperText}
             onChange={(e) => setWhisperText(e.target.value)}
