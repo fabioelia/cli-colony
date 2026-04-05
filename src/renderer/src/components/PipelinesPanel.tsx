@@ -108,6 +108,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [outputFiles, setOutputFiles] = useState<Array<{ name: string; path: string; size: number; modified: number }>>([])
   const [outputPreview, setOutputPreview] = useState<{ name: string; content: string } | null>(null)
   const [expandedTab, setExpandedTab] = useState<'yaml' | 'docs' | 'memory' | 'outputs'>('yaml')
+  const [debugLogExpanded, setDebugLogExpanded] = useState<Set<string>>(new Set())
 
   // Cron editor — tracks which pipeline's cron is being edited
   const [cronEditingPipeline, setCronEditingPipeline] = useState<string | null>(null)
@@ -388,20 +389,33 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
               )}
             </div>
 
-            <details className="pipeline-debug-log">
-              <summary>
-                Debug Log {p.debugLog?.length ? `(${p.debugLog.filter(l => l === '---').length} polls)` : '(empty)'}
-              </summary>
-              {p.debugLog?.length ? (
-                <pre className="pipeline-debug-log-content">
-                  {p.debugLog.slice().reverse().map(l => l === '---' ? '────────────────────────' : l).join('\n')}
-                </pre>
-              ) : (
-                <div className="pipeline-debug-log-content" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                  No logs yet. Click "Poll Now" to generate the first entries.
-                </div>
+            <div className="pipeline-debug-log">
+              <div
+                className="pipeline-debug-log-header"
+                onClick={() => setDebugLogExpanded(s => {
+                  const n = new Set(s)
+                  n.has(p.name) ? n.delete(p.name) : n.add(p.name)
+                  return n
+                })}
+              >
+                {debugLogExpanded.has(p.name) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                <span>Debug Log</span>
+                <span className="pipeline-debug-log-count">
+                  {p.debugLog?.filter(l => l !== '---').length ?? 0} entries
+                </span>
+              </div>
+              {debugLogExpanded.has(p.name) && (
+                p.debugLog?.length ? (
+                  <pre className="pipeline-debug-log-content">
+                    {p.debugLog.slice().reverse().map(l => l === '---' ? '────────────────────────' : l).join('\n')}
+                  </pre>
+                ) : (
+                  <div className="pipeline-debug-log-content" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    No logs yet. Click "Poll Now" to generate the first entries.
+                  </div>
+                )
               )}
-            </details>
+            </div>
 
             <div className="pipeline-card-actions">
               <button

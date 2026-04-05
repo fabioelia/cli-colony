@@ -730,6 +730,19 @@ input, select {
   background: var(--warning);
 }
 
+/* Secondary dot shown alongside approval badge when there are also unread events */
+.sidebar-activity-unread-dot {
+  position: absolute;
+  bottom: 2px;
+  left: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  pointer-events: none;
+  box-shadow: 0 0 0 1px var(--bg-secondary);
+}
+
 .activity-approvals-section {
   border-bottom: 1px solid var(--border);
   padding: 6px 4px 4px;
@@ -8225,15 +8238,22 @@ input, select {
   margin-top: 4px;
   font-size: 10px;
 }
-.pipeline-debug-log summary {
+.pipeline-debug-log-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   cursor: pointer;
   color: var(--text-muted);
   font-size: 10px;
   padding: 3px 0;
   user-select: none;
 }
-.pipeline-debug-log summary:hover {
+.pipeline-debug-log-header:hover {
   color: var(--text-secondary);
+}
+.pipeline-debug-log-count {
+  margin-left: auto;
+  opacity: 0.6;
 }
 .pipeline-debug-log-content {
   margin: 4px 0 0;
@@ -10936,6 +10956,127 @@ input, select {
 }
 .persona-toggle:has(.persona-toggle-track.enabled) .persona-toggle-label {
   color: #10b981;
+}
+
+/* Whisper feature */
+.persona-action-btn.whisper-active {
+  color: #a78bfa;
+  position: relative;
+}
+.persona-whisper-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  background: #a78bfa;
+  color: white;
+  font-size: 8px;
+  font-weight: 700;
+  border-radius: 999px;
+  min-width: 13px;
+  height: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 2px;
+  line-height: 1;
+}
+.persona-whisper-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--border);
+  background: rgba(167, 139, 250, 0.05);
+}
+.persona-whisper-icon {
+  color: #a78bfa;
+  flex-shrink: 0;
+}
+.persona-whisper-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+.persona-whisper-input::placeholder {
+  color: var(--text-muted);
+}
+.persona-whisper-send {
+  background: none;
+  border: none;
+  color: #a78bfa;
+  cursor: pointer;
+  padding: 2px 4px;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.persona-whisper-send:not(:disabled) { opacity: 1; }
+.persona-whisper-send:disabled { cursor: default; }
+.persona-whispers-preview {
+  padding: 5px 10px 6px 32px;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+  background: rgba(167, 139, 250, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.persona-whisper-entry {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.persona-whisper-entry-icon { color: #a78bfa; flex-shrink: 0; }
+.persona-whisper-entry-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.persona-whisper-more {
+  font-size: 10px;
+  color: #a78bfa;
+  opacity: 0.7;
+  padding-left: 16px;
+}
+.persona-whispers-list {
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  background: rgba(167, 139, 250, 0.04);
+}
+.persona-whispers-list-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #a78bfa;
+  margin-bottom: 6px;
+}
+.persona-whispers-count {
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+.persona-whisper-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border);
+}
+.persona-whisper-item:last-child { border-bottom: none; }
+.persona-whisper-item-time {
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.persona-whisper-item-text {
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 .persona-card-preview {

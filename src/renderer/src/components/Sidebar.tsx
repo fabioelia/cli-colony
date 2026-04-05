@@ -841,6 +841,9 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
               ) : activityUnread > 0 ? (
                 <span className="sidebar-activity-badge">{activityUnread > 99 ? '99+' : activityUnread}</span>
               ) : null}
+              {pendingApprovals.length > 0 && activityUnread > 0 && (
+                <span className="sidebar-activity-unread-dot" title={`${activityUnread} unread`} />
+              )}
             </button>
           </Tooltip>
           {showActivityPopover && (
