@@ -10992,7 +10992,7 @@ input, select {
 }
 .persona-whisper-bar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   padding: 6px 10px;
   border-top: 1px solid var(--border);
@@ -11001,17 +11001,31 @@ input, select {
 .persona-whisper-icon {
   color: #a78bfa;
   flex-shrink: 0;
+  margin-top: 3px;
 }
 .persona-whisper-input {
   flex: 1;
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
   outline: none;
   color: var(--text-primary);
   font-size: 12px;
+  font-family: inherit;
+  resize: none;
+  line-height: 1.5;
+  padding: 2px 4px;
+  transition: border-color 0.15s;
 }
 .persona-whisper-input::placeholder {
   color: var(--text-muted);
+}
+@keyframes whisper-flash {
+  0% { border-color: var(--success); box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.2); }
+  100% { border-color: transparent; box-shadow: none; }
+}
+.persona-whisper-input.flash {
+  animation: whisper-flash 0.6s ease-out forwards;
 }
 .persona-whisper-send {
   background: none;
@@ -11021,6 +11035,8 @@ input, select {
   padding: 2px 4px;
   opacity: 0.6;
   transition: opacity 0.15s;
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 .persona-whisper-send:not(:disabled) { opacity: 1; }
 .persona-whisper-send:disabled { cursor: default; }

@@ -403,7 +403,8 @@ function PersonaCard({
   const [editingSchedule, setEditingSchedule] = useState(false)
   const [whisperOpen, setWhisperOpen] = useState(false)
   const [whisperText, setWhisperText] = useState('')
-  const whisperRef = useRef<HTMLInputElement>(null)
+  const [whisperFlash, setWhisperFlash] = useState(false)
+  const whisperRef = useRef<HTMLTextAreaElement>(null)
 
   useLayoutEffect(() => {
     if (whisperOpen) whisperRef.current?.focus()
@@ -413,7 +414,8 @@ function PersonaCard({
     const text = whisperText.trim()
     if (!text) return
     setWhisperText('')
-    setWhisperOpen(false)
+    setWhisperFlash(true)
+    setTimeout(() => setWhisperFlash(false), 600)
     await onWhisper(text)
   }
   const isRunning = persona.activeSessionId !== null
@@ -525,10 +527,11 @@ function PersonaCard({
       {whisperOpen && (
         <div className="persona-whisper-bar" onClick={(e) => e.stopPropagation()}>
           <StickyNote size={13} className="persona-whisper-icon" />
-          <input
+          <textarea
             ref={whisperRef}
-            className="persona-whisper-input"
+            className={`persona-whisper-input${whisperFlash ? ' flash' : ''}`}
             placeholder="Leave a note for next time it runs..."
+            rows={2}
             value={whisperText}
             onChange={(e) => setWhisperText(e.target.value)}
             onKeyDown={(e) => {
