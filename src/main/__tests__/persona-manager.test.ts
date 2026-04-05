@@ -1325,3 +1325,174 @@ describe('persona-manager: Colony Knowledge Base injection', () => {
     expect(promptContent).not.toContain('## Colony Knowledge')
   })
 })
+
+// ----------------------------------------------------------------
+
+describe('persona-manager: onSessionExit — completion trigger dispatch', () => {
+  let mod: typeof import('../persona-manager')
+
+  // Persona that exits and has on_complete_run triggers
+  const TRIGGER_PERSONA_MD = `---
+name: "Trigger Persona"
+schedule: "*/30 * * * *"
+model: sonnet
+on_complete_run: ["target-persona"]
+---
+
+## Role
+
+Fires other personas when done.
+`
+
+  // Target persona that should be launched when Trigger Persona exits
+  const TARGET_PERSONA_MD = `---
+name: "Target Persona"
+schedule: "*/30 * * * *"
+model: sonnet
+---
+
+## Role
+
+Gets launched by triggers.
+`
+
+  const MOCK_INSTANCE = {
+    id: 'inst-target-1', name: 'Persona: Target Persona', status: 'running',
+    activity: 'waiting', workingDirectory: '/mock/.claude-colony',
+    color: '#a78bfa', args: [], createdAt: Date.now(), pinned: false,
+    cliBackend: 'claude', gitBranch: null, gitRepo: null,
+    tokenUsage: { inputTokens: 0, outputTokens: 0, cost: 0 },
+    roleTag: null,
+  }
+
+  beforeEach(async () => {
+    vi.resetModules()
+    mockBroadcast.mockReset()
+    mockCreateInstance.mockReset().mockResolvedValue(MOCK_INSTANCE)
+    mockGetAllInstances.mockReset().mockResolvedValue([])
+    mockUpdateColonyContext.mockReset().mockResolvedValue(undefined)
+    mockSendPromptWhenReady.mockReset()
+    mockGetDaemonClient.mockReset().mockReturnValue({ getInstanceBuffer: vi.fn().mockResolvedValue(null) })
+    mockExecSync.mockReset()
+    mockAppendActivity.mockReset()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    if (mod) mod.stopScheduler()
+  })
+
+  it('launches target persona when on_complete_run matches an enabled, idle persona', async () => {
+    const stateJson = JSON.stringify({
+      'Trigger Persona': { lastRunAt: null, runCount: 1, activeSessionId: 'sess-trigger', enabled: true, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null },
+      'Target Persona': { lastRunAt: null, runCount: 0, activeSessionId: null, enabled: true, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null },
+    })
+    const fs = buildFsMock({
+      personaFiles: ['trigger-persona.md', 'target-persona.md'],
+      personaContents: {
+        'trigger-persona.md': TRIGGER_PERSONA_MD,
+        'target-persona.md': TARGET_PERSONA_MD,
+      },
+      stateJson,
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    await mod.onSessionExit('sess-trigger')
+    // Drain the microtask queue so the fire-and-forget runPersona() chain completes
+    await new Promise(resolve => setImmediate(resolve))
+
+    expect(mockCreateInstance).toHaveBeenCalledOnce()
+    const callArg = mockCreateInstance.mock.calls[0][0]
+    expect(callArg.name).toBe('Persona: Target Persona')
+  })
+
+  it('skips trigger when target persona ID is not found', async () => {
+    const UNKNOWN_TRIGGER_MD = TRIGGER_PERSONA_MD.replace(
+      'on_complete_run: ["target-persona"]',
+      'on_complete_run: ["nonexistent-persona"]'
+    )
+    const stateJson = JSON.stringify({
+      'Trigger Persona': { lastRunAt: null, runCount: 1, activeSessionId: 'sess-trigger', enabled: true, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null },
+    })
+    const fs = buildFsMock({
+      personaFiles: ['trigger-persona.md'],
+      personaContents: { 'trigger-persona.md': UNKNOWN_TRIGGER_MD },
+      stateJson,
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    await mod.onSessionExit('sess-trigger')
+    await new Promise(resolve => setImmediate(resolve))
+
+    expect(mockCreateInstance).not.toHaveBeenCalled()
+  })
+
+  it('skips trigger when target persona is disabled', async () => {
+    const stateJson = JSON.stringify({
+      'Trigger Persona': { lastRunAt: null, runCount: 1, activeSessionId: 'sess-trigger', enabled: true, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null },
+      'Target Persona': { lastRunAt: null, runCount: 0, activeSessionId: null, enabled: false, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null },
+    })
+    const fs = buildFsMock({
+      personaFiles: ['trigger-persona.md', 'target-persona.md'],
+      personaContents: {
+        'trigger-persona.md': TRIGGER_PERSONA_MD,
+        'target-persona.md': TARGET_PERSONA_MD,
+      },
+      stateJson,
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    await mod.onSessionExit('sess-trigger')
+    await new Promise(resolve => setImmediate(resolve))
+
+    expect(mockCreateInstance).not.toHaveBeenCalled()
+  })
+
+  it('skips trigger when target persona already has a running session', async () => {
+    const stateJson = JSON.stringify({
+      'Trigger Persona': { lastRunAt: null, runCount: 1, activeSessionId: 'sess-trigger', enabled: true, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null },
+      'Target Persona': { lastRunAt: null, runCount: 1, activeSessionId: 'sess-target-already', enabled: true, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null },
+    })
+    const fs = buildFsMock({
+      personaFiles: ['trigger-persona.md', 'target-persona.md'],
+      personaContents: {
+        'trigger-persona.md': TRIGGER_PERSONA_MD,
+        'target-persona.md': TARGET_PERSONA_MD,
+      },
+      stateJson,
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    await mod.onSessionExit('sess-trigger')
+    await new Promise(resolve => setImmediate(resolve))
+
+    expect(mockCreateInstance).not.toHaveBeenCalled()
+  })
+
+  it('fires no triggers when on_complete_run is empty', async () => {
+    const stateJson = JSON.stringify({
+      'Test Persona': { lastRunAt: null, runCount: 1, activeSessionId: 'sess-abc', enabled: true, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null },
+    })
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': FULL_PERSONA_MD },
+      stateJson,
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    await mod.onSessionExit('sess-abc')
+    await new Promise(resolve => setImmediate(resolve))
+
+    expect(mockCreateInstance).not.toHaveBeenCalled()
+  })
+})
