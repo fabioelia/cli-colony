@@ -562,7 +562,25 @@ function sendTriggerWhenReady(instanceId: string, message: string): void {
 
 // ---- Run / Stop ----
 
-export async function runPersona(fileName: string): Promise<string> {
+export type TriggerSource =
+  | { type: 'manual' }
+  | { type: 'cron'; schedule: string }
+  | { type: 'handoff'; from: string }
+
+function buildKickoff(filePath: string, trigger: TriggerSource): string {
+  const base = `Read your identity file at ${filePath} and the colony context, then assess, decide, and act.`
+  switch (trigger.type) {
+    case 'cron':
+      return `Your scheduled run has fired (schedule: ${trigger.schedule}). ${base}`
+    case 'handoff':
+      return `You've been triggered by "${trigger.from}" completing its run. Check what it accomplished in the colony context or recent session output, then ${base}`
+    case 'manual':
+    default:
+      return `You've been manually triggered. ${base}`
+  }
+}
+
+export async function runPersona(fileName: string, trigger: TriggerSource = { type: 'manual' }): Promise<string> {
   const filePath = join(PERSONAS_DIR, fileName.endsWith('.md') ? fileName : `${fileName}.md`)
   if (!existsSync(filePath)) throw new Error(`Persona file not found: ${fileName}`)
 
@@ -603,7 +621,7 @@ export async function runPersona(fileName: string): Promise<string> {
     args: ['--append-system-prompt-file', promptFile],
   })
 
-  const kickoff = `Begin your planning loop now. Read your identity file at ${filePath} and the colony context, then assess, decide, and act.`
+  const kickoff = buildKickoff(filePath, trigger)
   sendTriggerWhenReady(inst.id, kickoff)
 
   // Update state
@@ -697,7 +715,7 @@ function extractMemoryInBackground(personaName: string, output: string, duration
 /** Called by instance-manager when any session exits — captures output and clears active session */
 export async function onSessionExit(instanceId: string): Promise<void> {
   let changed = false
-  const triggerPersonaIds: string[] = []
+  const triggerPersonas: Array<{ id: string; triggeredBy: string }> = []
 
   for (const [name, state] of Object.entries(stateCache)) {
     if (state.activeSessionId === instanceId) {
@@ -758,7 +776,9 @@ export async function onSessionExit(instanceId: string): Promise<void> {
           const c = readFileSync(join(PERSONAS_DIR, personaFile), 'utf-8')
           const fm = parseFrontmatter(c)
           if (fm && fm.on_complete_run.length > 0) {
-            triggerPersonaIds.push(...fm.on_complete_run)
+            for (const t of fm.on_complete_run) {
+              triggerPersonas.push({ id: t, triggeredBy: name })
+            }
           }
           // Fire memory extraction (fire-and-forget — never blocks)
           if (fm && fm.auto_memory_extraction !== false && state.lastRunOutput && durationSec !== null) {
@@ -774,7 +794,7 @@ export async function onSessionExit(instanceId: string): Promise<void> {
   }
 
   // Dispatch completion triggers after state is saved
-  for (const triggerId of triggerPersonaIds) {
+  for (const { id: triggerId, triggeredBy } of triggerPersonas) {
     const persona = getPersonaList().find(p => p.id === triggerId || p.name === triggerId)
     if (!persona) {
       console.log(`[persona] trigger: target "${triggerId}" not found — skipping`)
@@ -788,8 +808,8 @@ export async function onSessionExit(instanceId: string): Promise<void> {
       console.log(`[persona] trigger: "${triggerId}" already running — skipping`)
       continue
     }
-    console.log(`[persona] trigger: → "${triggerId}"`)
-    runPersona(persona.id).catch(err => {
+    console.log(`[persona] trigger: → "${triggerId}" (from "${triggeredBy}")`)
+    runPersona(persona.id, { type: 'handoff', from: triggeredBy }).catch(err => {
       console.log(`[persona] trigger: launch failed for "${triggerId}": ${err.message}`)
     })
   }
@@ -852,7 +872,7 @@ export function startScheduler(): void {
 
       if (cronMatches(persona.schedule)) {
         schedulerLog(`cron matched "${persona.name}" (${persona.schedule}) — launching`)
-        runPersona(persona.id).catch(err => {
+        runPersona(persona.id, { type: 'cron', schedule: persona.schedule }).catch(err => {
           schedulerLog(`launch failed for "${persona.name}": ${err.message}`)
         })
       }
