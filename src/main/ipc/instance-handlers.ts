@@ -13,6 +13,7 @@ import {
 } from '../instance-manager'
 import { getDaemonClient } from '../daemon-client'
 import { sendPromptWhenReady } from '../send-prompt-when-ready'
+import { stripAnsi } from '../../shared/utils'
 
 export interface ChildProcess {
   pid: number
@@ -153,7 +154,7 @@ export function registerInstanceHandlers(): void {
     if (!inst) return false
 
     const rawBuf = await client.getInstanceBuffer(id).catch(() => '')
-    const clean = rawBuf.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '')
+    const clean = stripAnsi(rawBuf)
     const lines = clean.split('\n').filter(l => l.trim())
     const tail = lines.slice(-100).join('\n')
 

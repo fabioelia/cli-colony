@@ -15,7 +15,7 @@ import { updateColonyContext } from './colony-context'
 import { broadcast } from './broadcast'
 import { notify } from './notifications'
 import { cronMatches } from '../shared/cron'
-import { slugify, parseFrontmatter as parseRawFrontmatter } from '../shared/utils'
+import { slugify, parseFrontmatter as parseRawFrontmatter, stripAnsi } from '../shared/utils'
 import type { PersonaInfo } from '../shared/types'
 import { JsonFile } from '../shared/json-file'
 import { appendActivity } from './activity-manager'
@@ -659,7 +659,7 @@ export async function onSessionExit(instanceId: string): Promise<void> {
         const buffer = await getDaemonClient().getInstanceBuffer(instanceId)
         if (buffer) {
           // Strip ANSI codes and keep last ~5000 chars
-          const clean = buffer.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '')
+          const clean = stripAnsi(buffer)
           state.lastRunOutput = clean.length > 5000 ? clean.slice(-5000) : clean
         }
       } catch { /* buffer may be gone */ }

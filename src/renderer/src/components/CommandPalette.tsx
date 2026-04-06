@@ -6,6 +6,7 @@ import {
 import type { ClaudeInstance, CliSession, AgentDef } from '../types'
 import type { PersonaInfo } from '../../../shared/types'
 import { cliBackendLabel } from '../lib/constants'
+import { stripAnsi } from '../../../shared/utils'
 
 export interface CommandPaletteAction {
   id: string
@@ -262,7 +263,7 @@ export default function CommandPalette({
           const buf = await window.api.instance.buffer(inst.id)
           if (!buf) continue
           // Strip ANSI codes for searching
-          const clean = buf.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '')
+          const clean = stripAnsi(buf)
           const lines = clean.split('\n')
           const matchingLines: string[] = []
           for (const line of lines) {

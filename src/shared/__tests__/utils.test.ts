@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { genId, slugify, resolveMustacheTemplate, parseFrontmatter } from '../utils'
+import { genId, slugify, resolveMustacheTemplate, parseFrontmatter, stripAnsi } from '../utils'
 
 describe('genId', () => {
   it('returns a non-empty string', () => {
@@ -95,6 +95,42 @@ describe('resolveMustacheTemplate', () => {
     expect(
       resolveMustacheTemplate('{{a.b.c}}', { a: null })
     ).toBe('')
+  })
+})
+
+describe('stripAnsi', () => {
+  it('strips standard CSI SGR sequences (colors)', () => {
+    expect(stripAnsi('\x1b[31mred\x1b[0m')).toBe('red')
+  })
+
+  it('strips DEC private sequences like [?2026l and [?2026h', () => {
+    expect(stripAnsi('\x1b[?2026l\x1b[?2026hthinking')).toBe('thinking')
+  })
+
+  it('strips cursor movement CSI sequences', () => {
+    expect(stripAnsi('\x1b[1A\x1b[2Ktext')).toBe('text')
+  })
+
+  it('strips OSC sequences (window title, etc.)', () => {
+    expect(stripAnsi('\x1b]0;window title\x07text')).toBe('text')
+    expect(stripAnsi('\x1b]2;title\x1b\\text')).toBe('text')
+  })
+
+  it('strips bare ESC + letter (DECSC, RIS)', () => {
+    expect(stripAnsi('\x1b7saved\x1b8')).toBe('saved')
+  })
+
+  it('removes carriage returns', () => {
+    expect(stripAnsi('line1\r\nline2')).toBe('line1\nline2')
+  })
+
+  it('returns plain text unchanged', () => {
+    expect(stripAnsi('hello world')).toBe('hello world')
+  })
+
+  it('handles mixed escape sequences with real content', () => {
+    const raw = '\x1b[?2026l\x1b[?2026h⏺\n\x1b[?2026l\x1b[?2026hthinking with high effort'
+    expect(stripAnsi(raw)).toBe('⏺\nthinking with high effort')
   })
 })
 

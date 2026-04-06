@@ -14,6 +14,7 @@ import PipelinesPanel from './components/PipelinesPanel'
 import EnvironmentsPanel from './components/EnvironmentsPanel'
 import PersonasPanel from './components/PersonasPanel'
 import QuickPromptDialog from './components/QuickPromptDialog'
+import { stripAnsi } from '../../shared/utils'
 
 type View = SidebarView | 'agent-editor'
 
@@ -115,8 +116,7 @@ export default function App() {
       }
 
       // Strip ANSI escapes and control chars
-      const clean = data
-        .replace(/\x1B\[[0-9;]*[a-zA-Z]|\x1B\][\s\S]*?(\x07|\x1B\\)|\x1B[()][AB012]|\x1B\[?\??[0-9;]*[hlm]/g, '')
+      const clean = stripAnsi(data)
         .replace(/[\x00-\x1F\x7F]/g, '')
         .trim()
       if (clean.length < 3) return
