@@ -367,9 +367,10 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
                 badges.push({ node: <span key="sr" className={`split-badge ${focusedPane === 'right' ? 'focused' : ''}`} title="Right split pane">R</span>, label: 'R' })
               if (inst.id !== activeId && inst.id !== splitId && splitPairs.has(inst.id))
                 badges.push({ node: <span key="si" className="split-indicator" title="Split with another session"><Columns2 size={11} /></span>, label: 'split' })
+              // "your turn" and "new" both mean "look at this" — show at most one
               if (inst.status === 'running' && inst.activity === 'waiting')
                 badges.push({ node: <span key="at" className="instance-attention-badge" title="Waiting for your input">your turn</span>, label: 'your turn' })
-              if (unreadIds.has(inst.id))
+              else if (unreadIds.has(inst.id))
                 badges.push({ node: <span key="ur" className="instance-unread-badge" title="New output you haven't seen">new</span>, label: 'new' })
               const level = inst.status === 'running' ? ctxLevel(outputBytes.get(inst.id) || 0) : null
               if (level)
