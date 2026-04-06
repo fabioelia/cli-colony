@@ -128,6 +128,23 @@ input, select {
   display: flex;
   flex-direction: column;
   -webkit-app-region: drag;
+  position: relative;
+}
+
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: ew-resize;
+  z-index: 10;
+  -webkit-app-region: no-drag;
+}
+.sidebar-resize-handle:hover,
+.sidebar-resize-handle:active {
+  background: var(--accent);
+  opacity: 0.5;
 }
 
 .sidebar-header {

@@ -78,6 +78,33 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
     }
   }, [renamingId])
 
+  // Restore persisted sidebar width on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('sidebar-width')
+    if (saved) document.documentElement.style.setProperty('--sidebar-width', saved + 'px')
+  }, [])
+
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width'), 10) || 280
+    const onMove = (ev: MouseEvent) => {
+      const newWidth = Math.max(220, Math.min(480, startWidth + ev.clientX - startX))
+      document.documentElement.style.setProperty('--sidebar-width', newWidth + 'px')
+      localStorage.setItem('sidebar-width', String(newWidth))
+    }
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    document.body.style.cursor = 'ew-resize'
+    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
+
   const [externalSessions, setExternalSessions] = useState<Array<{ pid: number; name: string; cwd: string; sessionId: string | null; args: string }>>([])
   const [extPopover, setExtPopover] = useState<{ session: { pid: number; name: string; cwd: string; sessionId: string | null; args: string }; rect: { top: number; left: number; bottom: number; right: number } } | null>(null)
   const [childProcesses, setChildProcesses] = useState<Array<{ pid: number; name: string; command: string; cpu: string; mem: string }>>([])
@@ -420,6 +447,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
 
   return (
     <div className="sidebar" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+      <div className="sidebar-resize-handle" onMouseDown={handleResizeMouseDown} />
       <div className="sidebar-header">
         <div className="sidebar-nav">
           <Tooltip text="Sessions" detail={`${instances.filter(i => i.status === 'running').length} running, ${instances.length} total`} shortcut="Cmd+1-9" position="bottom">
