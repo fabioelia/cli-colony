@@ -13,6 +13,7 @@ import {
   getDaemonVersion,
 } from '../instance-manager'
 import { getDaemonClient } from '../daemon-client'
+import { sendPromptWhenReady } from '../send-prompt-when-ready'
 import { stripAnsi } from '../../shared/utils'
 import { readReplay } from '../replay-manager'
 
@@ -198,6 +199,22 @@ export function registerInstanceHandlers(): void {
   // Read session replay events (tool call audit log)
   ipcMain.handle('session:getReplay', (_e, instanceId: string) => {
     return readReplay(instanceId)
+  })
+
+  // Inter-session message bus — send text to a running session by display name.
+  // Returns true if the target was found and in waiting state (message queued),
+  // false if not running, not waiting, or name not found.
+  ipcMain.handle('session:sendMessage', async (_e, targetName: string, text: string): Promise<boolean> => {
+    const all = await getAllInstances()
+    const target = all.find(
+      inst =>
+        inst.status === 'running' &&
+        inst.name.toLowerCase().includes(targetName.toLowerCase())
+    )
+    if (!target) return false
+    if (target.activity !== 'waiting') return false
+    await sendPromptWhenReady(target.id, { prompt: text })
+    return true
   })
 
   // Shell PTY — real shell terminals per instance

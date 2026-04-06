@@ -297,6 +297,7 @@ export interface ClaudeManagerAPI {
   }
   session: {
     getReplay: (instanceId: string) => Promise<ReplayEvent[]>
+    sendMessage: (targetName: string, text: string) => Promise<boolean>
   }
   audit: {
     runPanel: (panel: string, context: object) => Promise<AuditResult[]>
@@ -621,6 +622,7 @@ const api: ClaudeManagerAPI = {
   },
   session: {
     getReplay: (instanceId) => ipcRenderer.invoke('session:getReplay', instanceId),
+    sendMessage: (targetName, text) => ipcRenderer.invoke('session:sendMessage', targetName, text),
   },
   audit: {
     runPanel: (panel, context) => ipcRenderer.invoke('audit:runPanel', panel, context),

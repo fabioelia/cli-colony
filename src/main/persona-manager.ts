@@ -514,6 +514,12 @@ tasks:
 
 **Output paths** — Write task results to \`~/.claude-colony/outputs/<task-slug>.md\` so other sessions can find them.
 
+**Inter-Session Messages** — To send a message to another running session by display name:
+\`\`\`
+await window.api.session.sendMessage('Colony Developer', 'your message here')
+\`\`\`
+Returns \`true\` if the target was found and in a waiting state (message queued), \`false\` if not running or busy.
+
 ### 5. UPDATE
 After completing your actions, update your identity file (${filePath}):
 
