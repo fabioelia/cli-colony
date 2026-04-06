@@ -48,41 +48,41 @@ describe('replay-manager', () => {
   // ---- parseToolLine ----
   describe('parseToolLine', () => {
     it('parses a simple tool line with parens', () => {
-      const result = mod.parseToolLine('● Read(/path/to/file.ts)')
+      const result = mod.parseToolLine('⏺ Read(/path/to/file.ts)')
       expect(result).not.toBeNull()
       expect(result!.tool).toBe('Read')
       expect(result!.inputSummary).toBe('/path/to/file.ts')
     })
 
     it('parses Edit with multiple args', () => {
-      const result = mod.parseToolLine('● Edit(src/foo.ts, old, new)')
+      const result = mod.parseToolLine('⏺ Edit(src/foo.ts, old, new)')
       expect(result).not.toBeNull()
       expect(result!.tool).toBe('Edit')
       expect(result!.inputSummary).toContain('src/foo.ts')
     })
 
     it('parses Bash with a command', () => {
-      const result = mod.parseToolLine('● Bash(npm test)')
+      const result = mod.parseToolLine('⏺ Bash(npm test)')
       expect(result).not.toBeNull()
       expect(result!.tool).toBe('Bash')
       expect(result!.inputSummary).toBe('npm test')
     })
 
     it('parses a tool with no args', () => {
-      const result = mod.parseToolLine('● Write()')
+      const result = mod.parseToolLine('⏺ Write()')
       expect(result).not.toBeNull()
       expect(result!.tool).toBe('Write')
       expect(result!.inputSummary).toBe('')
     })
 
-    it('returns null for lines without ● prefix', () => {
+    it('returns null for lines without ⏺ prefix', () => {
       expect(mod.parseToolLine('  Read(file.ts)')).toBeNull()
       expect(mod.parseToolLine('normal text')).toBeNull()
     })
 
     it('truncates inputSummary to 200 chars', () => {
       const longArgs = 'x'.repeat(300)
-      const result = mod.parseToolLine(`● Bash(${longArgs})`)
+      const result = mod.parseToolLine(`⏺ Bash(${longArgs})`)
       expect(result).not.toBeNull()
       expect(result!.inputSummary.length).toBeLessThanOrEqual(200)
     })
@@ -96,7 +96,7 @@ describe('replay-manager', () => {
     })
 
     it('returns null for non-output lines', () => {
-      expect(mod.parseOutputLine('● Read(file)')).toBeNull()
+      expect(mod.parseOutputLine('⏺Read(file)')).toBeNull()
       expect(mod.parseOutputLine('regular text')).toBeNull()
     })
 
@@ -198,15 +198,15 @@ describe('replay-manager', () => {
 
   // ---- processOutput ----
   describe('processOutput', () => {
-    it('detects a ● line and stores pending state', () => {
-      // If we send a ● line without a ⎿ follow-up, no event should be written yet
-      mod.processOutput('inst-parse', '● Read(/some/file.ts)\n')
+    it('detects a ⏺ line and stores pending state', () => {
+      // If we send a ⏺ line without a ⎿ follow-up, no event should be written yet
+      mod.processOutput('inst-parse', '⏺ Read(/some/file.ts)\n')
       expect(mockFs.writeFileSync).not.toHaveBeenCalled()
     })
 
-    it('writes a replay event when ● is followed by ⎿', () => {
+    it('writes a replay event when ⏺ is followed by ⎿', () => {
       mockFs.existsSync.mockReturnValue(false)
-      mod.processOutput('inst-flow', '● Bash(npm test)\n⎿ Tests passed\n')
+      mod.processOutput('inst-flow', '⏺ Bash(npm test)\n⎿ Tests passed\n')
       expect(mockFs.writeFileSync).toHaveBeenCalled()
       const written = JSON.parse(mockFs.writeFileSync.mock.calls[0][1] as string)
       expect(written).toHaveLength(1)
@@ -217,7 +217,7 @@ describe('replay-manager', () => {
 
     it('handles multiple tool calls in a single chunk', () => {
       mockFs.existsSync.mockReturnValue(false)
-      const chunk = '● Read(a.ts)\n⎿ content A\n● Edit(b.ts)\n⎿ written\n'
+      const chunk = '⏺ Read(a.ts)\n⎿ content A\n⏺ Edit(b.ts)\n⎿ written\n'
       mod.processOutput('inst-multi', chunk)
       // writeFileSync called twice (one per event)
       expect(mockFs.writeFileSync).toHaveBeenCalledTimes(2)
@@ -225,7 +225,7 @@ describe('replay-manager', () => {
 
     it('strips ANSI escape codes before parsing', () => {
       mockFs.existsSync.mockReturnValue(false)
-      const chunk = '\x1b[32m● Read(ansi-file.ts)\x1b[0m\n\x1b[33m⎿ got content\x1b[0m\n'
+      const chunk = '\x1b[32m⏺ Read(ansi-file.ts)\x1b[0m\n\x1b[33m⎿ got content\x1b[0m\n'
       mod.processOutput('inst-ansi', chunk)
       // After stripping ANSI, should parse correctly
       expect(mockFs.writeFileSync).toHaveBeenCalled()
@@ -238,7 +238,7 @@ describe('replay-manager', () => {
   describe('clearPending', () => {
     it('clears pending state without error', () => {
       // Add a pending entry
-      mod.processOutput('inst-clear', '● Bash(cmd)\n')
+      mod.processOutput('inst-clear', '⏺ Bash(cmd)\n')
       // Clear it — should not throw
       expect(() => mod.clearPending('inst-clear')).not.toThrow()
       // After clearing, a subsequent ⎿ should not produce an event

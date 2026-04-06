@@ -2,10 +2,10 @@
  * Replay Manager — collects tool call events from PTY output and persists them.
  *
  * Claude CLI outputs tool calls in this pattern:
- *   ● ToolName(args...)
+ *   ⏺ ToolName(args...)
  *   ⎿ output...
  *
- * The ● bullet indicates a tool invocation, ⎿ indicates the result/output.
+ * The ⏺ record indicator marks a tool invocation, ⎿ indicates the result/output.
  */
 
 import * as fs from 'fs'
@@ -17,10 +17,10 @@ import type { ReplayEvent } from '../shared/types'
 const MAX_EVENTS = 200
 const MAX_SUMMARY = 200
 
-/** Parse a ● tool-call line and extract the tool name and input summary. */
+/** Parse a ⏺ tool-call line and extract the tool name and input summary. */
 export function parseToolLine(line: string): { tool: string; inputSummary: string } | null {
-  // Match lines starting with ● (may have leading whitespace or ANSI)
-  const match = line.match(/●\s+([A-Za-z][A-Za-z0-9_]*)\s*\(?(.*?)\)?$/)
+  // Match lines starting with ⏺ (may have leading whitespace or ANSI)
+  const match = line.match(/⏺\s+([A-Za-z][A-Za-z0-9_]*)\s*\(?(.*?)\)?$/)
   if (!match) return null
   const tool = match[1]
   const rawInput = match[2] ? match[2].replace(/\)$/, '').trim() : ''
@@ -73,7 +73,7 @@ function replayFilePath(instanceId: string): string {
 }
 
 // ---- Per-instance parse state ----
-// Track pending tool-call state per instance (last seen ● line awaiting ⎿)
+// Track pending tool-call state per instance (last seen ⏺ line awaiting ⎿)
 interface PendingTool {
   tool: string
   inputSummary: string
