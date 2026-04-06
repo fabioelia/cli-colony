@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 
 interface Props {
@@ -20,6 +20,7 @@ export default function SettingsPanel({ onBack }: Props) {
   const [availableShells, setAvailableShells] = useState<string[]>([])
   const [saved, setSaved] = useState(false)
   const [restarting, setRestarting] = useState(false)
+  const [restartError, setRestartError] = useState(false)
   const [showRestartConfirm, setShowRestartConfirm] = useState(false)
   const [logs, setLogs] = useState('')
   const [showLogs, setShowLogs] = useState(false)
@@ -259,7 +260,7 @@ export default function SettingsPanel({ onBack }: Props) {
       {/* Sessions */}
       <div className="settings-section">
         <div className="settings-section-title">
-          <Terminal size={12} />
+          <Clock size={12} />
           Sessions
         </div>
         <div className="settings-row">
@@ -456,6 +457,9 @@ export default function SettingsPanel({ onBack }: Props) {
             )}
           </div>
         )}
+        {restartError && (
+          <p className="settings-help" style={{ color: 'var(--danger)' }}>Restart failed — check logs for details.</p>
+        )}
         {!showRestartConfirm ? (
           <button
             className="settings-daemon-restart"
@@ -487,8 +491,9 @@ export default function SettingsPanel({ onBack }: Props) {
                   try {
                     await window.api.daemon.restart()
                     window.api.daemon.getVersion().then(setDaemonVersion).catch(() => {})
-                  } catch (err) {
-                    console.error('daemon restart failed:', err)
+                  } catch (_err) {
+                    setRestartError(true)
+                    setTimeout(() => setRestartError(false), 4000)
                   }
                   setRestarting(false)
                   setShowRestartConfirm(false)
