@@ -126,7 +126,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
   const [editingPersona, setEditingPersona] = useState<PersonaInfo | null>(null)
   const [editContent, setEditContent] = useState('')
   const [editSaving, setEditSaving] = useState(false)
-  const [listMode, setListMode] = useState(() => localStorage.getItem('personas-list-mode') === '1')
+  const [listMode, setListMode] = useState(() => localStorage.getItem('personas-list-mode') !== '0')
 
   // Ask bar — persona assistant
   const [askInput, setAskInput] = useState('')
@@ -696,8 +696,8 @@ function PersonaCard({
         </div>
       )}
 
-      {/* Pending notes preview — visible when collapsed (card mode only) */}
-      {!listMode && !expanded && !whisperOpen && whispers.length > 0 && (
+      {/* Pending notes preview — visible when collapsed in both card and list mode */}
+      {!expanded && !whisperOpen && whispers.length > 0 && (
         <div className="persona-whispers-preview" onClick={onToggleExpand}>
           {whispers.slice(0, 2).map((w, i) => (
             <div key={i} className="persona-whisper-entry">

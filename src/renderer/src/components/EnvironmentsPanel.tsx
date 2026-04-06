@@ -69,7 +69,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
   const [restartPolicies, setRestartPolicies] = useState<Record<string, 'manual' | 'on-crash'>>({})
   const [purposeTags, setPurposeTags] = useState<Record<string, 'interactive' | 'background' | 'nightly' | null>>({})
   const [tagFilter, setTagFilter] = useState<'interactive' | 'background' | 'nightly' | null>(null)
-  const [listMode, setListMode] = useState(() => localStorage.getItem('envs-list-mode') === '1')
+  const [listMode, setListMode] = useState(() => localStorage.getItem('envs-list-mode') !== '0')
 
   const loadEnvironments = useCallback(async () => {
     try {

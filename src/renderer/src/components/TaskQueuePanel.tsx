@@ -99,7 +99,7 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
 
   const [showConvertModal, setShowConvertModal] = useState(false)
   const [convertCron, setConvertCron] = useState('0 9 * * 1-5')
-  const [listMode, setListMode] = useState(() => localStorage.getItem('tasks-list-mode') === '1')
+  const [listMode, setListMode] = useState(() => localStorage.getItem('tasks-list-mode') !== '0')
   const [convertReuse, setConvertReuse] = useState(true)
   const [convertResult, setConvertResult] = useState<{ count: number; names: string[] } | null>(null)
   const [convertNames, setConvertNames] = useState<string[]>([])

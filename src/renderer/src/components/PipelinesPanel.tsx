@@ -112,7 +112,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [debugLogExpanded, setDebugLogExpanded] = useState<Set<string>>(new Set())
   const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number }>>([])
 
-  const [listMode, setListMode] = useState(() => localStorage.getItem('pipelines-list-mode') === '1')
+  const [listMode, setListMode] = useState(() => localStorage.getItem('pipelines-list-mode') !== '0')
 
   // Cron editor — tracks which pipeline's cron is being edited
   const [cronEditingPipeline, setCronEditingPipeline] = useState<string | null>(null)
