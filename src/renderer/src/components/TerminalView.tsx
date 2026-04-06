@@ -555,6 +555,17 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     })
   }, [viewTab, instance.id])
 
+  // Background poll while replay tab is active and session is running
+  useEffect(() => {
+    if (viewTab !== 'replay' || instance.status !== 'running') return
+    const pollId = setInterval(() => {
+      window.api.session.getReplay(instance.id).then((events) => {
+        setReplayEvents(events)
+      }).catch(() => {})
+    }, 5000)
+    return () => clearInterval(pollId)
+  }, [viewTab, instance.status, instance.id])
+
   const handleTogglePath = useCallback((path: string) => {
     setExpandedPaths((prev) => {
       const next = new Set(prev)
