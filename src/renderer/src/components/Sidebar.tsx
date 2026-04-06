@@ -418,9 +418,11 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
         </div>
       </div>
       <div className="instance-item-right">
-        <span className={`instance-status ${inst.status}`}>
-          {inst.status === 'running' ? 'live' : `exit ${inst.exitCode ?? '?'}`}
-        </span>
+        {inst.status !== 'running' && (
+          <span className={`instance-status ${(inst.exitCode == null || inst.exitCode === 0) ? 'done' : 'exited'}`}>
+            {(inst.exitCode == null || inst.exitCode === 0) ? 'done' : `err ${inst.exitCode}`}
+          </span>
+        )}
         <div className="instance-item-actions">
           <Tooltip text="Export Handoff Doc" detail="Generate a markdown snapshot to paste into a new session and restore context">
             <button aria-label="Export Handoff Doc" onClick={(e) => { e.stopPropagation(); setHandoffInst(inst); setHandoffCopied(false) }}><FileDown size={13} /></button>
