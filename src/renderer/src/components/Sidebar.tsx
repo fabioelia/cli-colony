@@ -468,25 +468,25 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
           </Tooltip>
           <Tooltip text="Agents" detail="Browse and create agent definitions" position="bottom">
             <button className={`sidebar-nav-btn ${view === 'agents' ? 'active' : ''}`} onClick={() => onViewChange('agents')}>
-              <Bot size={17} />
+              <span className="sidebar-nav-icon"><Bot size={17} /></span>
               <span className="sidebar-nav-label">Agents</span>
             </button>
           </Tooltip>
           <Tooltip text="Pull Requests" detail="GitHub PRs, reviews, comments" position="bottom">
             <button className={`sidebar-nav-btn ${view === 'github' ? 'active' : ''}`} onClick={() => onViewChange('github')}>
-              <GitPullRequest size={17} />
+              <span className="sidebar-nav-icon"><GitPullRequest size={17} /></span>
               <span className="sidebar-nav-label">PRs</span>
             </button>
           </Tooltip>
           <Tooltip text="Tasks" detail="Task queue and batch execution" position="bottom">
             <button className={`sidebar-nav-btn ${view === 'tasks' ? 'active' : ''}`} onClick={() => onViewChange('tasks')}>
-              <ListChecks size={17} />
+              <span className="sidebar-nav-icon"><ListChecks size={17} /></span>
               <span className="sidebar-nav-label">Tasks</span>
             </button>
           </Tooltip>
           <Tooltip text="Pipelines" detail="Automated triggers and actions" position="bottom">
             <button className={`sidebar-nav-btn ${view === 'pipelines' ? 'active' : ''}`} onClick={() => onViewChange('pipelines')}>
-              <Zap size={17} />
+              <span className="sidebar-nav-icon"><Zap size={17} /></span>
               <span className="sidebar-nav-label">Pipes</span>
             </button>
           </Tooltip>
@@ -501,7 +501,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
           </Tooltip>
           <Tooltip text="Personas" detail="Autonomous AI agents with identity, goals, and memory" position="bottom">
             <button className={`sidebar-nav-btn ${view === 'personas' ? 'active' : ''}`} onClick={() => onViewChange('personas')}>
-              <User size={17} />
+              <span className="sidebar-nav-icon"><User size={17} /></span>
               <span className="sidebar-nav-label">Personas</span>
             </button>
           </Tooltip>

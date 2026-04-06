@@ -323,7 +323,7 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
                 <span className="task-queue-file-card-name">{q?.name || f.name}</span>
                 {q && listMode && (
                   <span className="task-queue-file-meta-inline panel-list-meta">
-                    <span>{q.tasks.length}t</span>
+                    <span>{q.tasks.length} task{q.tasks.length !== 1 ? 's' : ''}</span>
                     <span>{q.mode}</span>
                   </span>
                 )}
