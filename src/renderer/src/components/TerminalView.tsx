@@ -255,7 +255,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     })
   }, [fileTree, filesSortMode])
   // Shell quick commands
-  const [shellQuickOpen, setShellQuickOpen] = useState(true)
+  const [shellQuickOpen, setShellQuickOpen] = useState(() => localStorage.getItem('shell-quick-open') !== 'false')
   const [shellTermReady, setShellTermReady] = useState(false)
 
   useEffect(() => {
@@ -1052,7 +1052,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 <button
                   className={`filetree-refresh filetree-sort-toggle ${filesSortMode === 'modified' ? 'active' : ''}`}
                   onClick={() => setFilesSortMode(m => m === 'name' ? 'modified' : 'name')}
-                  title={`Sort by ${filesSortMode === 'name' ? 'Modified date' : 'Name'}`}
+                  title={`Sort by ${filesSortMode === 'name' ? 'file type (group by extension)' : 'name (alphabetical)'}`}
                 >
                   <ArrowUpDown size={13} />
                 </button>
@@ -1642,7 +1642,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
         <div className="shell-quick-bar">
           <button
             className={`shell-quick-toggle ${shellQuickOpen ? 'open' : ''}`}
-            onClick={() => setShellQuickOpen(o => !o)}
+            onClick={() => setShellQuickOpen(o => { const next = !o; localStorage.setItem('shell-quick-open', String(next)); return next })}
             tabIndex={-1}
           >
             Quick {shellQuickOpen ? '›' : '‹'}
