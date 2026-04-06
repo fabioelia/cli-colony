@@ -5,7 +5,7 @@ import {
   Plus, RotateCcw, Pin, Columns2, Settings, RefreshCw, Play, Pencil,
   Download, Upload, ArrowLeft, Brain, FileText, MessageSquare, Search,
   Filter, Zap, Square, Terminal, FolderOpen, Stethoscope, Trash2,
-  GitBranch, Info, GitFork, User, Bell, Eye, FileDown, StickyNote, Clock, Network,
+  GitBranch, Info, GitFork, User, Bell, Eye, FileDown, StickyNote, Clock, Network, ArrowUpDown,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { helpContent, type HelpEntry, type HelpZone } from '../lib/help-content'
@@ -16,7 +16,7 @@ const iconMap: Record<string, LucideIcon> = {
   Download, Upload, ArrowLeft, Brain, FileText, MessageSquare, Search,
   Filter, Zap, Square, Terminal, FolderOpen, Stethoscope, Trash2,
   GitBranch, Info, GitFork, HelpCircle, ChevronDown, User, Bell, Eye, FileDown,
-  StickyNote, Clock, Network,
+  StickyNote, Clock, Network, ArrowUpDown,
 }
 
 function HelpIcon({ name }: { name?: string }) {

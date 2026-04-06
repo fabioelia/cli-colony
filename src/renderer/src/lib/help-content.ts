@@ -470,6 +470,17 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Status Strip',
+        position: 'Below tab bar (running sessions only)',
+        items: [
+          { label: 'Activity dot', detail: 'Pulsing green = Running, amber = Waiting for input.' },
+          { label: 'Model', detail: 'The Claude model in use (e.g. sonnet-4-6). Parsed from launch args.' },
+          { label: 'Uptime', detail: 'Time since the session was created.' },
+          { label: 'Cost', detail: 'Cumulative cost in USD. Green < $0.10, amber < $1.00, red ≥ $1.00.' },
+          { label: 'Ctx indicator', detail: 'Amber = context ≥ 250 KB output, red ≥ 600 KB. Consider checkpointing.' },
+        ],
+      },
+      {
         name: 'Terminal',
         position: 'Main area',
         items: [
@@ -499,6 +510,8 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Search icon', detail: 'Switch to content search mode — grep across all files in the project.', icon: 'Search' },
           { label: 'Open in Finder', detail: 'Open the working directory in macOS Finder.', icon: 'FolderOpen' },
           { label: 'Ignore rules', detail: 'Configure patterns to exclude from search (node_modules, .git, etc.).', icon: 'Settings' },
+          { label: 'Refresh', detail: 'Reload the file tree from disk.', icon: 'RefreshCw' },
+          { label: 'Sort toggle', detail: 'Toggle between Name and Modified sort order for the file tree.', icon: 'ArrowUpDown' },
         ],
       },
       {
@@ -525,6 +538,14 @@ export const helpContent: Record<string, HelpEntry> = {
     title: 'Terminal (Shell)',
     description: 'A raw shell terminal in the session\'s working directory. Use it to run git commands, install packages, run tests, or any command-line task alongside Claude.',
     zones: [
+      {
+        name: 'Quick Commands',
+        position: 'Top bar (once shell is initialized)',
+        items: [
+          { label: 'Quick commands bar', detail: 'One-click shortcuts for common commands: git status, git log, ls -la, npm test. Click a chip to run it.' },
+          { label: 'Toggle', detail: 'Click "Quick ›/‹" to collapse or expand the commands bar.' },
+        ],
+      },
       {
         name: 'Shell',
         position: 'Full area',
@@ -582,6 +603,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'All button', detail: 'Show logs from all services (default).' },
           { label: 'Service buttons', detail: 'Click a service name to filter logs to just that service. Color dot shows service status.' },
+          { label: 'Level filter', detail: 'Second row: filter by log level — All levels, Error (ERROR/FATAL/FAIL), or Warn. Combines with the service filter.' },
           { label: 'Clear button', detail: 'Clears the log buffer.', icon: 'Trash2' },
           { label: 'Auto-scroll toggle', detail: 'Toggles auto-scroll. Scrolling up pauses it, scrolling to bottom resumes.', icon: 'ChevronDown' },
         ],

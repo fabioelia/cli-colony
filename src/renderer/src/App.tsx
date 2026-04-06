@@ -851,6 +851,7 @@ export default function App() {
                 fontSize={fontSize}
                 focused={isFocused}
                 onFocusPane={() => setFocusedPane(isLeft ? 'left' : 'right')}
+                outputBytes={outputBytes.get(inst.id) || 0}
               />
             </div>
           )

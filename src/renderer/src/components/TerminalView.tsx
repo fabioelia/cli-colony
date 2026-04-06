@@ -4,7 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown } from 'lucide-react'
 import type { EnvStatus, EnvServiceStatus } from '../../../shared/types'
 import { buildDiagnosePrompt } from '../../../shared/env-prompts'
 import '@xterm/xterm/css/xterm.css'
@@ -35,6 +35,7 @@ interface Props {
   fontSize?: number
   focused?: boolean
   onFocusPane?: () => void
+  outputBytes?: number
 }
 
 function formatUptime(seconds: number): string {
@@ -43,6 +44,12 @@ function formatUptime(seconds: number): string {
   const h = Math.floor(seconds / 3600)
   const m = Math.floor((seconds % 3600) / 60)
   return m > 0 ? `${h}h ${m}m` : `${h}h`
+}
+
+function levelMatches(line: string, filter: 'all' | 'error' | 'warn'): boolean {
+  if (filter === 'all') return true
+  if (filter === 'error') return /error|ERROR|FATAL|FAIL/i.test(line)
+  return /warn|WARN|WARNING/i.test(line)
 }
 
 function escapeHtml(s: string): string {
@@ -181,7 +188,7 @@ function FileTreeNode({ node, depth, selectedPath, expandedPaths, filter, onTogg
 
 type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs'
 
-export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, isSplit, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane }: Props) {
+export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, isSplit, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane, outputBytes = 0 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const initializedRef = useRef(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -227,10 +234,15 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const [fixInProgress, setFixInProgress] = useState(false)
   // Logs tab state
   const [logsFilter, setLogsFilter] = useState<string | null>(null) // null = all services
+  const [logsLevelFilter, setLogsLevelFilter] = useState<'all' | 'error' | 'warn'>('all')
   const [logsContent, setLogsContent] = useState<Array<{ service: string; line: string; ts: number }>>([])
   const logsEndRef = useRef<HTMLDivElement>(null)
   const logsAutoScroll = useRef(true)
   const logsInitialized = useRef(false)
+  // Files tab sort
+  const [filesSortMode, setFilesSortMode] = useState<'name' | 'modified'>('name')
+  // Shell quick commands
+  const [shellQuickOpen, setShellQuickOpen] = useState(true)
 
   useEffect(() => {
     if (!envName) return
@@ -978,6 +990,33 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           )}
         </div>
       </div>
+      {viewTab === 'session' && instance.status === 'running' && (
+        <div className="session-status-strip">
+          <div className="session-status-item">
+            <span className={`session-status-dot ${instance.activity}`} />
+            <span className="session-status-label">{instance.activity === 'waiting' ? 'Waiting' : 'Running'}</span>
+          </div>
+          {(() => {
+            const modelIdx = instance.args.indexOf('--model')
+            const model = modelIdx >= 0 ? instance.args[modelIdx + 1] : null
+            const parts = model ? model.split('-') : []
+            const short = parts.length >= 2 ? parts.slice(-2).join('-') : (model || 'claude')
+            return <span className="session-status-item session-status-model">{short}</span>
+          })()}
+          <span className="session-status-item session-status-uptime" tabIndex={-1}>
+            {formatUptime(Math.max(0, Math.floor((Date.now() - new Date(instance.createdAt).getTime()) / 1000)))}
+          </span>
+          <span className={`session-status-item session-status-cost ${instance.tokenUsage.cost >= 1.0 ? 'red' : instance.tokenUsage.cost >= 0.10 ? 'amber' : 'green'}`} tabIndex={-1}>
+            ${instance.tokenUsage.cost.toFixed(3)}
+          </span>
+          {outputBytes >= 250 * 1024 && (
+            <span className={`session-status-item session-status-ctx ${outputBytes >= 600 * 1024 ? 'red' : 'amber'}`} tabIndex={-1}>
+              <span className={`session-status-dot ${outputBytes >= 600 * 1024 ? 'red' : 'amber'}`} />
+              ctx
+            </span>
+          )}
+        </div>
+      )}
       {viewTab === 'files' && (
         <div className="filetree-panel">
           <div className="filetree-split">
@@ -992,6 +1031,13 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 </button>
                 <button className="filetree-refresh" onClick={() => { setFileTree(null); loadFileTree() }} title="Refresh">
                   <RefreshCw size={13} />
+                </button>
+                <button
+                  className={`filetree-refresh filetree-sort-toggle ${filesSortMode === 'modified' ? 'active' : ''}`}
+                  onClick={() => setFilesSortMode(m => m === 'name' ? 'modified' : 'name')}
+                  title={`Sort: ${filesSortMode === 'name' ? 'Name' : 'Modified'} (click to toggle)`}
+                >
+                  <ArrowUpDown size={13} />
                 </button>
               </div>
               {showIgnoreSettings && (
@@ -1468,23 +1514,36 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
       {viewTab === 'logs' && envStatus && (
         <div className="logs-panel">
           <div className="logs-panel-header">
-            <div className="logs-panel-filters">
-              <button
-                className={`logs-filter-btn ${logsFilter === null ? 'active' : ''}`}
-                onClick={() => setLogsFilter(null)}
-              >
-                All
-              </button>
-              {envStatus.services.map(svc => (
+            <div className="logs-panel-filters-wrap">
+              <div className="logs-panel-filters">
                 <button
-                  key={svc.name}
-                  className={`logs-filter-btn ${logsFilter === svc.name ? 'active' : ''}`}
-                  onClick={() => setLogsFilter(logsFilter === svc.name ? null : svc.name)}
+                  className={`logs-filter-btn ${logsFilter === null ? 'active' : ''}`}
+                  onClick={() => setLogsFilter(null)}
                 >
-                  <span className={`logs-filter-dot ${svc.status}`} />
-                  {svc.name}
+                  All
                 </button>
-              ))}
+                {envStatus.services.map(svc => (
+                  <button
+                    key={svc.name}
+                    className={`logs-filter-btn ${logsFilter === svc.name ? 'active' : ''}`}
+                    onClick={() => setLogsFilter(logsFilter === svc.name ? null : svc.name)}
+                  >
+                    <span className={`logs-filter-dot ${svc.status}`} />
+                    {svc.name}
+                  </button>
+                ))}
+              </div>
+              <div className="logs-level-filters">
+                {(['all', 'error', 'warn'] as const).map(level => (
+                  <button
+                    key={level}
+                    className={`logs-filter-btn logs-level-btn ${logsLevelFilter === level ? 'active' : ''} ${level !== 'all' ? level : ''}`}
+                    onClick={() => setLogsLevelFilter(level)}
+                  >
+                    {level === 'all' ? 'All levels' : level.charAt(0).toUpperCase() + level.slice(1)}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="logs-panel-actions">
               <button
@@ -1509,7 +1568,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
             logsAutoScroll.current = atBottom
           }}>
             {logsContent
-              .filter(entry => logsFilter === null || entry.service === logsFilter)
+              .filter(entry => (logsFilter === null || entry.service === logsFilter) && levelMatches(entry.line, logsLevelFilter))
               .map((entry, i) => (
                 <div key={i} className="logs-line">
                   <span className={`logs-line-service ${entry.service}`}>{entry.service}</span>
@@ -1517,7 +1576,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 </div>
               ))
             }
-            {logsContent.filter(entry => logsFilter === null || entry.service === logsFilter).length === 0 && (
+            {logsContent.filter(entry => (logsFilter === null || entry.service === logsFilter) && levelMatches(entry.line, logsLevelFilter)).length === 0 && (
               <div className="logs-empty">No logs yet. Start services to see output.</div>
             )}
             <div ref={logsEndRef} />
@@ -1560,6 +1619,31 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           <button className="terminal-scroll-btn" onClick={scrollToBottom} title="Scroll to bottom" aria-label="Scroll to bottom"><ChevronDown size={14} /></button>
         </div>
       </div>
+      {viewTab === 'shell' && shellTermRef.current && (
+        <div className="shell-quick-bar">
+          <button
+            className={`shell-quick-toggle ${shellQuickOpen ? 'open' : ''}`}
+            onClick={() => setShellQuickOpen(o => !o)}
+            tabIndex={-1}
+          >
+            Quick {shellQuickOpen ? '›' : '‹'}
+          </button>
+          {shellQuickOpen && (
+            <div className="shell-quick-cmds">
+              {['git status', 'git log --oneline -5', 'ls -la', 'npm test'].map(cmd => (
+                <button
+                  key={cmd}
+                  className="shell-quick-cmd"
+                  tabIndex={-1}
+                  onClick={() => window.api.shellPty.write(instance.id, cmd + '\n')}
+                >
+                  {cmd}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       <div
         className="terminal-container shell-terminal"
         ref={shellContainerRef}

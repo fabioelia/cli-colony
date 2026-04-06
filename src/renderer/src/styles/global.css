@@ -3880,6 +3880,103 @@ input, select {
   white-space: nowrap;
 }
 
+/* ---- Session Status Strip ---- */
+.session-status-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 12px;
+  height: 32px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  font-size: 11px;
+  -webkit-app-region: no-drag;
+}
+.session-status-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+}
+.session-status-label {
+  font-weight: 500;
+}
+.session-status-model {
+  font-family: var(--font-mono, monospace);
+  color: var(--text-secondary);
+}
+.session-status-uptime {
+  color: var(--text-secondary);
+}
+.session-status-cost.green { color: #10b981; }
+.session-status-cost.amber { color: #f59e0b; }
+.session-status-cost.red { color: var(--danger); }
+.session-status-ctx.amber { color: #f59e0b; }
+.session-status-ctx.red { color: var(--danger); }
+.session-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.session-status-dot.busy { background: #10b981; animation: pulse-dot 1.5s infinite; }
+.session-status-dot.waiting { background: #f59e0b; }
+.session-status-dot.amber { background: #f59e0b; }
+.session-status-dot.red { background: var(--danger); }
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ---- Shell Quick Commands Bar ---- */
+.shell-quick-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+.shell-quick-toggle {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.shell-quick-toggle:hover { color: var(--text-primary); background: var(--bg-tertiary); }
+.shell-quick-cmds {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.shell-quick-cmd {
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.1s;
+}
+.shell-quick-cmd:hover {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+  background: var(--bg-primary);
+}
+
 /* ---- Logs Panel (TerminalView tab) ---- */
 .logs-panel {
   display: flex;
@@ -3891,7 +3988,7 @@ input, select {
 
 .logs-panel-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   padding: 6px 12px;
   border-bottom: 1px solid var(--border);
@@ -3899,11 +3996,31 @@ input, select {
   gap: 8px;
   flex-shrink: 0;
 }
-
+.logs-panel-filters-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
 .logs-panel-filters {
   display: flex;
   gap: 3px;
   flex-wrap: wrap;
+}
+.logs-level-filters {
+  display: flex;
+  gap: 3px;
+}
+.logs-level-btn.error.active {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.08);
+}
+.logs-level-btn.warn.active {
+  color: #f59e0b;
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
 }
 
 .logs-filter-btn {
@@ -6013,6 +6130,9 @@ input, select {
 .filetree-refresh:hover {
   background: var(--bg-surface);
   color: var(--text-primary);
+}
+.filetree-sort-toggle.active {
+  color: var(--accent);
 }
 
 /* Ignore rules panel */
