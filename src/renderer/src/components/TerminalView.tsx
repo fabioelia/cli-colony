@@ -899,7 +899,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   // Paste images — Cmd+Shift+V checks clipboard for image via Electron main process
   useEffect(() => {
     const handler = async (e: KeyboardEvent) => {
-      if (viewTab !== 'terminal' || !focused) return
+      if (viewTab !== 'session' || !focused) return
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'v') {
         e.preventDefault()
         const filePath = await window.api.fs.pasteClipboardImage()
