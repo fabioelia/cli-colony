@@ -123,7 +123,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
   const [handoffCopied, setHandoffCopied] = useState(false)
 
   useEffect(() => {
-    window.api.sessions.list(100).then(setSessions)
+    window.api.sessions.list(500).then(setSessions)
     window.api.sessions.external().then(setExternalSessions)
   }, [])
 
@@ -675,7 +675,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
           <span className="sidebar-sessions-count">{filteredSessions.length}</span>
           <button
             className="sidebar-sessions-refresh"
-            onClick={() => { window.api.sessions.list(100).then(setSessions); window.api.sessions.external().then(setExternalSessions) }}
+            onClick={() => { window.api.sessions.list(500).then(setSessions); window.api.sessions.external().then(setExternalSessions) }}
             title="Refresh"
             aria-label="Refresh"
           >
@@ -740,8 +740,8 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
               {sessionSearch ? 'No matches' : 'No sessions'}
             </div>
           )}
-          {sessions.length >= 100 && !sessionSearch && (
-            <div className="sidebar-sessions-cap">Showing most recent 100 sessions</div>
+          {sessions.length >= 500 && !sessionSearch && (
+            <div className="sidebar-sessions-cap">Showing most recent 500 sessions</div>
           )}
         </div>
       </div>
