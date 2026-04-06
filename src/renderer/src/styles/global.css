@@ -4849,6 +4849,146 @@ input, select {
   color: var(--accent);
 }
 
+/* Dispatch button — hover-visible, same dimensions as github-pr-link */
+.github-pr-dispatch {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  color: var(--text-muted);
+  transition: all 0.15s;
+  opacity: 0;
+}
+
+.github-pr-row:hover .github-pr-dispatch,
+.github-pr-dispatch.active {
+  opacity: 1;
+}
+
+.github-pr-dispatch:hover,
+.github-pr-dispatch.active {
+  background: var(--bg-tertiary);
+  color: var(--accent);
+}
+
+/* Dispatch popover */
+.github-dispatch-popover {
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.github-dispatch-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.github-dispatch-close {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+  padding: 2px;
+  border-radius: 3px;
+  transition: all 0.15s;
+}
+
+.github-dispatch-close:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.github-dispatch-personas {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: 8px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.github-dispatch-persona-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.1s;
+}
+
+.github-dispatch-persona-row:hover {
+  background: var(--bg-tertiary);
+}
+
+.github-dispatch-persona-row.selected {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--accent);
+}
+
+.github-dispatch-persona-row input[type="radio"] {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.github-dispatch-persona-name {
+  flex: 1;
+}
+
+.github-dispatch-persona-model {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: Menlo, Monaco, monospace;
+}
+
+.github-dispatch-context {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 6px 8px;
+  resize: none;
+  margin-bottom: 8px;
+  font-family: inherit;
+}
+
+.github-dispatch-context:focus {
+  outline: none;
+  border-color: var(--border-active);
+}
+
+.github-dispatch-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+/* Dispatch confirmation toast */
+.github-dispatch-toast {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--success);
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  z-index: 10;
+}
+
 /* PR expanded actions */
 .github-pr-actions {
   padding: 8px 14px 12px 64px;
@@ -11513,6 +11653,16 @@ input, select {
   letter-spacing: 0.02em;
 }
 
+.persona-pending-trigger {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: #f59e0b;
+  opacity: 0.85;
+  letter-spacing: 0.02em;
+}
+
 /* ---- Audit results panel ---- */
 
 .panel-header-btn--audit-alert {
@@ -12446,6 +12596,14 @@ input, select {
   color: #22c55e;
   border: 1px solid rgba(34, 197, 94, 0.3);
 }
+.persona-list-badge.pending {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
 
 .persona-list-schedule {
   display: flex;
@@ -13006,12 +13164,14 @@ input, select {
 }
 
 /* ── Tasks View wrapper (Queue / Board sub-tabs) ─────────────────────────── */
-.tasks-view-wrapper { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
-.tasks-view-tabs { display: flex; gap: 2px; padding: 6px 12px 0; border-bottom: 1px solid var(--border); background: var(--bg-secondary); flex-shrink: 0; }
+.tasks-view-wrapper { display: flex; flex-direction: column; height: 100%; overflow: hidden; padding-top: 44px; -webkit-app-region: drag; }
+.tasks-view-tabs { display: flex; gap: 2px; padding: 6px 12px 0; border-bottom: 1px solid var(--border); background: var(--bg-secondary); flex-shrink: 0; -webkit-app-region: no-drag; }
 .tasks-view-tab { background: none; border: none; padding: 5px 12px; font-size: 11px; color: var(--text-muted); cursor: pointer; border-radius: 4px 4px 0 0; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .tasks-view-tab:hover { color: var(--text-primary); }
 .tasks-view-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 .tasks-view-wrapper > *:not(.tasks-view-tabs) { flex: 1; min-height: 0; overflow: hidden; }
+/* Remove redundant top padding from child panels — wrapper already provides the 44px titlebar zone */
+.tasks-view-wrapper > .task-queue-panel { padding-top: 0; }
 
 /* ── Task Board Panel ─────────────────────────────────────────────────────── */
 .tasks-board-panel { display: flex; flex-direction: column; height: 100%; overflow: hidden; background: var(--bg-primary); }

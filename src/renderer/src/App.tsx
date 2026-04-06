@@ -956,7 +956,7 @@ export default function App() {
             )}
           </div>
         )}
-        {view === 'pipelines' && (
+        <div style={{ display: view === 'pipelines' ? 'contents' : 'none' }}>
           <PipelinesPanel
             instances={instances}
             onLaunchInstance={async (opts) => {
@@ -970,7 +970,7 @@ export default function App() {
               setView('instances')
             }}
           />
-        )}
+        </div>
         {view === 'environments' && (
           <EnvironmentsPanel
             onLaunchInstance={async (opts) => {

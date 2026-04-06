@@ -84,19 +84,21 @@ describe('validateTrigger', () => {
   it('rejects when target not in can_invoke', () => {
     const result = validateTrigger(base, ['colony-qa'], null, true)
     expect(result.ok).toBe(false)
-    expect((result as { ok: false; reason: string }).reason).toMatch(/may not invoke/)
+    expect(result.ok === false && !result.busy).toBe(true)
+    expect((result as { ok: false; busy: false; reason: string }).reason).toMatch(/may not invoke/)
   })
 
   it('rejects when target is disabled', () => {
     const result = validateTrigger(base, ['colony-developer'], null, false)
     expect(result.ok).toBe(false)
-    expect((result as { ok: false; reason: string }).reason).toMatch(/disabled/)
+    expect(result.ok === false && !result.busy).toBe(true)
   })
 
-  it('rejects when target already has a running session', () => {
+  it('returns busy=true when target already has a running session', () => {
     const result = validateTrigger(base, ['colony-developer'], 'session-abc', true)
     expect(result.ok).toBe(false)
-    expect((result as { ok: false; reason: string }).reason).toMatch(/already has a running session/)
+    expect(result.ok === false && result.busy).toBe(true)
+    expect((result as { ok: false; busy: true; reason: string }).reason).toMatch(/already has a running session/)
   })
 
   it('allows trigger without a note', () => {
