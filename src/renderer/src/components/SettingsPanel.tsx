@@ -689,6 +689,7 @@ export default function SettingsPanel({ onBack }: Props) {
                     {t.description && <div className="session-template-item-desc">{t.description}</div>}
                     <div className="session-template-item-meta">
                       {t.model && <span className="template-popover-model">{t.model}</span>}
+                      {t.role && <span className={`instance-role-badge role-${t.role.toLowerCase()}`}>{t.role}</span>}
                       {t.workingDir && <span className="session-template-item-dir">{t.workingDir}</span>}
                       {t.lastUsed != null && (
                         <span title={new Date(t.lastUsed).toLocaleString()}>

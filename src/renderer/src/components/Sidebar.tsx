@@ -571,6 +571,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
                   <div className="template-popover-name">{t.name}</div>
                   {t.description && <div className="template-popover-desc">{t.description}</div>}
                   {t.model && <span className="template-popover-model">{t.model}</span>}
+                  {t.role && <span className={`instance-role-badge role-${t.role.toLowerCase()}`}>{ROLE_ABBREV[t.role] ?? t.role.slice(0, 4)}</span>}
                 </button>
               ))}
             </div>
