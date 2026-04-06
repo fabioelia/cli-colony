@@ -18,7 +18,7 @@ import { getRepos, fetchPRs, fetchChecks, gh } from './github'
 import { findBestRoute } from './session-router'
 import { getAllRepoConfigs } from './repo-config-loader'
 import { cronMatches } from '../shared/cron'
-import { resolveMustacheTemplate } from '../shared/utils'
+import { resolveMustacheTemplate, slugify } from '../shared/utils'
 import type { GitHubRepo, GitHubPR, PRChecks, ApprovalRequest } from '../shared/types'
 import { appendActivity } from './activity-manager'
 import { notify } from './notifications'
@@ -26,11 +26,15 @@ import { notify } from './notifications'
 // ---- Types ----
 
 export interface TriggerDef {
-  type: 'git-poll' | 'file-poll' | 'cron'
+  type: 'git-poll' | 'file-poll' | 'cron' | 'webhook'
   interval?: number // seconds
   cron?: string // cron expression: "min hour dom month dow" (e.g. "0 9 * * 1-5")
   repos?: 'auto' | GitHubRepo[]
   watch?: string[]
+  // webhook-specific fields
+  secret?: string
+  source?: 'github' | 'generic'
+  event?: string
 }
 
 export interface ConditionDef {
@@ -141,6 +145,7 @@ interface TriggerContext {
   githubUser?: string
   timestamp: string
   contentSha?: string // SHA of matched file — for change detection
+  webhookPayload?: unknown
 }
 
 // Cron matching imported from src/shared/cron.ts
@@ -160,6 +165,8 @@ const pendingApprovals = new Map<string, PendingApproval>()
 const pendingApprovalKeys = new Set<string>() // dedup keys with a queued approval
 const timers = new Map<string, ReturnType<typeof setInterval>>()
 const runningPolls = new Set<string>()
+/** Stores incoming webhook payloads keyed by pipeline name before runPoll is called */
+const webhookPayloads = new Map<string, unknown>()
 /** mtime snapshots for file-poll pipelines: pipelineName → (path → mtime-ms) */
 const filePollSnapshots = new Map<string, Map<string, number>>()
 let githubUser: string | null = null
@@ -370,9 +377,20 @@ function freshState(): PipelineState {
 function resolveTemplate(template: string, ctx: TriggerContext): string {
   // Build a flat context that exposes aliases the pipeline YAML expects:
   // {{github.user}} -> ctx.githubUser, {{timestamp}} -> ctx.timestamp
+  const ghPayload = (ctx.webhookPayload as Record<string, unknown> | null) || {}
+  const prPayload = (ghPayload['pull_request'] as Record<string, unknown> | null) || {}
+  const senderPayload = (ghPayload['sender'] as Record<string, unknown> | null) || {}
+  const ghVars = {
+    pr_title: String(prPayload['title'] || ghPayload['title'] || ''),
+    pr_url: String(prPayload['html_url'] || ghPayload['html_url'] || ''),
+    pr_number: String(prPayload['number'] || ghPayload['number'] || ''),
+    sender: String(senderPayload['login'] || ''),
+  }
   const context: Record<string, unknown> = {
     ...ctx,
     github: { user: ctx.githubUser || '' },
+    webhook_payload: JSON.stringify(ctx.webhookPayload || {}),
+    ...ghVars,
   }
   return resolveMustacheTemplate(template, context)
 }
@@ -1327,6 +1345,15 @@ async function runPoll(pipelineName: string): Promise<void> {
         githubUser: githubUser || undefined,
         timestamp: new Date().toISOString(),
       }]
+    } else if (p.def.trigger.type === 'webhook') {
+      plog(pipelineName, `webhook triggered`)
+      const payload = webhookPayloads.get(pipelineName)
+      webhookPayloads.delete(pipelineName)
+      contexts = [{
+        githubUser: githubUser || undefined,
+        timestamp: new Date().toISOString(),
+        webhookPayload: payload,
+      }]
     }
 
     if (contexts.length === 0) {
@@ -1580,6 +1607,12 @@ export async function startPipelines(): Promise<void> {
 }
 
 function schedulePipeline(name: string, def: PipelineDef): void {
+  // Webhook pipelines are not timer-driven — they are fired externally via fireWebhookPipeline()
+  if (def.trigger.type === 'webhook') {
+    log(`Webhook pipeline ${name} registered — no timer needed`)
+    return
+  }
+
   const cronExpr = def.trigger.cron
 
   if (cronExpr) {
@@ -1863,6 +1896,46 @@ export function dismissAction(id: string): boolean {
   appendActivity({ source: 'pipeline', name: request.pipelineName, summary: `Pipeline "${request.pipelineName}" action dismissed — ${request.summary}`, level: 'warn' })
   broadcast('pipeline:approval:update', { id, status: 'dismissed' })
   return true
+}
+
+// ---- Webhook API ----
+
+/** Returns all enabled pipelines with type === 'webhook', with their slug and trigger info. */
+export function getWebhookTriggers(): Array<{ name: string; slug: string; trigger: TriggerDef }> {
+  const result: Array<{ name: string; slug: string; trigger: TriggerDef }> = []
+  for (const [name, p] of pipelines) {
+    if (p.def.enabled && p.def.trigger.type === 'webhook') {
+      result.push({ name, slug: slugify(name), trigger: p.def.trigger })
+    }
+  }
+  return result
+}
+
+/**
+ * Fire a webhook-triggered pipeline by its slug.
+ * Stores the payload for runPoll to consume, then calls runPoll.
+ */
+export function fireWebhookPipeline(slug: string, payload: unknown): { ok: boolean; error?: string } {
+  // Find pipeline whose slugified name matches
+  let pipelineName: string | null = null
+  for (const [name, p] of pipelines) {
+    if (p.def.enabled && p.def.trigger.type === 'webhook' && slugify(name) === slug) {
+      pipelineName = name
+      break
+    }
+  }
+
+  if (!pipelineName) {
+    return { ok: false, error: `No enabled webhook pipeline found for slug: ${slug}` }
+  }
+
+  // Store payload and trigger runPoll (async, fire-and-forget)
+  webhookPayloads.set(pipelineName, payload)
+  runPoll(pipelineName).catch((err) => {
+    log(`Error running webhook poll for ${pipelineName}: ${err}`)
+  })
+
+  return { ok: true }
 }
 
 // ---- Seed Default Pipeline ----

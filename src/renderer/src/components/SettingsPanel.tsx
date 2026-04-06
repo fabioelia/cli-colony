@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit } from 'lucide-react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import type { McpAuditEntry, CommitAttribution } from '../../../preload'
 
@@ -45,6 +45,9 @@ export default function SettingsPanel({ onBack }: Props) {
   const [mcpFormError, setMcpFormError] = useState<string | null>(null)
   const [mcpOriginalName, setMcpOriginalName] = useState<string | null>(null)
 
+  const [webhookEnabled, setWebhookEnabled] = useState(true)
+  const [webhookPort, setWebhookPort] = useState('7474')
+
   useEffect(() => {
     window.api.settings.getAll().then((s) => {
       setDefaultArgs(s.defaultArgs || '')
@@ -56,6 +59,8 @@ export default function SettingsPanel({ onBack }: Props) {
       setSoundOnFinish(s.soundOnFinish !== 'false')
       setAutoCleanupMinutes(s.autoCleanupMinutes || '5')
       setGlobalHotkey(s.globalHotkey || 'CommandOrControl+Shift+Space')
+      setWebhookEnabled(s.webhookEnabled !== 'false')
+      setWebhookPort(s.webhookPort || '7474')
     })
     window.api.settings.getShells().then(setAvailableShells)
     window.api.daemon.getVersion().then(setDaemonVersion).catch(() => {})
@@ -120,6 +125,8 @@ export default function SettingsPanel({ onBack }: Props) {
       window.api.settings.set('soundOnFinish', soundOnFinish ? 'true' : 'false'),
       window.api.settings.set('autoCleanupMinutes', autoCleanupMinutes),
       window.api.settings.set('globalHotkey', globalHotkey),
+      window.api.settings.set('webhookEnabled', webhookEnabled ? 'true' : 'false'),
+      window.api.settings.set('webhookPort', webhookPort),
     ])
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -600,6 +607,49 @@ export default function SettingsPanel({ onBack }: Props) {
             )}
           </div>
         )}
+      </div>
+
+      {/* Webhook Server */}
+      <div className="settings-section">
+        <div className="settings-section-title">
+          <Globe size={12} />
+          Webhook Server
+        </div>
+        <div className="settings-row">
+          <span className="settings-row-label">Enable webhook server</span>
+          <button
+            className={`settings-toggle ${webhookEnabled ? 'active' : ''}`}
+            onClick={() => setWebhookEnabled(!webhookEnabled)}
+            role="switch"
+            aria-checked={webhookEnabled}
+            title={webhookEnabled ? 'Webhook server is enabled' : 'Webhook server is disabled'}
+          >
+            <span className="settings-toggle-knob" />
+          </button>
+        </div>
+        {webhookEnabled && (
+          <>
+            <div className="settings-field">
+              <label>Port</label>
+              <input
+                type="number"
+                value={webhookPort}
+                onChange={(e) => setWebhookPort(e.target.value)}
+                placeholder="7474"
+                min="1024"
+                max="65535"
+                style={{ width: '100px' }}
+              />
+            </div>
+            <p className="settings-help">
+              Listening at <code>http://localhost:{webhookPort}</code>
+            </p>
+          </>
+        )}
+        <p className="settings-help settings-help-bottom">
+          External webhooks need ngrok or similar to reach this server. Add <code>trigger: &#123;type: webhook&#125;</code> to a pipeline YAML to register a route at <code>/webhook/&lt;slug&gt;</code>.
+          <span className="settings-restart-note">Requires app restart to take effect</span>
+        </p>
       </div>
 
       {/* Daemon */}

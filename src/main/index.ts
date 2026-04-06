@@ -75,6 +75,7 @@ esac
 import { broadcast } from './broadcast'
 import { seedDefaultPipelines, startPipelines, getPipelineList } from './pipeline-engine'
 import { cleanupStaleForkGroups } from './fork-manager'
+import { startWebhookServer, stopWebhookServer } from './webhook-server'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -373,6 +374,11 @@ app.whenReady().then(() => {
       console.log('[app] pipelines started')
       // Broadcast the loaded list so any renderer that subscribed before startup completes gets it
       broadcast('pipeline:status', getPipelineList())
+      // Start webhook server if enabled
+      const webhookPort = parseInt(getSetting('webhookPort') || '7474', 10)
+      if (getSetting('webhookEnabled') !== 'false') {
+        startWebhookServer(webhookPort)
+      }
     }).catch((err) => {
       console.error('[app] pipelines failed to start:', err)
     })
@@ -429,6 +435,8 @@ app.on('before-quit', () => {
   app.isQuitting = true
   // Snapshot running sessions BEFORE disconnect so we know what to restore
   snapshotRunning()
+  // Stop webhook HTTP server
+  stopWebhookServer()
   // Just disconnect — daemon keeps instances alive for reconnection
   disconnectDaemon()
 })

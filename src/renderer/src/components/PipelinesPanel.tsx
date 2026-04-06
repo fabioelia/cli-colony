@@ -5,7 +5,7 @@ import {
   Zap, ZapOff, Play, RefreshCw, ChevronDown, ChevronRight,
   FileText, Clock, CheckCircle, XCircle, AlertTriangle, Save, BookOpen,
   MessageSquare, Send, Plus, Search, Pencil, Eye, X, LayoutList, LayoutGrid,
-  ShieldCheck, List
+  ShieldCheck, List, Globe
 } from 'lucide-react'
 import type { AuditResult } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
@@ -456,15 +456,21 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
               </div>
               <div className="pipeline-card-right">
                 <span className="pipeline-card-trigger">{p.triggerType}</span>
-                <button
-                  className="pipeline-cron-badge"
-                  title={p.cron ? `Cron: ${p.cron} — click to edit` : 'Click to set cron schedule'}
-                  onClick={(e) => { e.stopPropagation(); setCronEditingPipeline(cronEditingPipeline === p.name ? null : p.name) }}
-                >
-                  <Clock size={10} />
-                  {p.cron ? describeCron(p.cron) : `${p.interval}s`}
-                  <Pencil size={9} className="cron-badge-edit-icon" />
-                </button>
+                {p.triggerType === 'webhook' ? (
+                  <span className="pipeline-webhook-badge" title="Triggered by HTTP webhook POST">
+                    <Globe size={10} /> Webhook
+                  </span>
+                ) : (
+                  <button
+                    className="pipeline-cron-badge"
+                    title={p.cron ? `Cron: ${p.cron} — click to edit` : 'Click to set cron schedule'}
+                    onClick={(e) => { e.stopPropagation(); setCronEditingPipeline(cronEditingPipeline === p.name ? null : p.name) }}
+                  >
+                    <Clock size={10} />
+                    {p.cron ? describeCron(p.cron) : `${p.interval}s`}
+                    <Pencil size={9} className="cron-badge-edit-icon" />
+                  </button>
+                )}
                 {p.fireCount > 0 && (
                   <span className="pipeline-card-fires">
                     <Zap size={10} /> {p.fireCount}
