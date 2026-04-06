@@ -560,6 +560,9 @@ function PersonaCard({
             <span className="persona-list-lastrun muted">—</span>
           )}
           <span className="persona-list-model">{persona.model || 'sonnet'}</span>
+          {persona.weeklySpend && persona.weeklySpend > 0.01 && (
+            <span className="persona-cost-badge">${persona.weeklySpend.toFixed(2)}</span>
+          )}
           <div className="persona-list-actions" onClick={(e) => e.stopPropagation()}>
             {!isRunning ? (
               <Tooltip text="Run persona">
@@ -780,6 +783,9 @@ function PersonaCard({
               <span className="persona-status-last-run">
                 Last run: {new Date(persona.lastRun).toLocaleString()}
               </span>
+            )}
+            {persona.weeklySpend && persona.weeklySpend > 0.01 && (
+              <div className="persona-stat">This week: <strong>${persona.weeklySpend.toFixed(2)}</strong></div>
             )}
             <div className="persona-card-footer-inline">
               <span className={`persona-permission-badge ${persona.canPush ? 'allowed' : 'denied'}`}>Push</span>

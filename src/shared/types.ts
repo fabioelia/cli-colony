@@ -250,6 +250,8 @@ export interface PersonaInfo {
   triggeredBy: string | null
   /** Pending trigger queued for this persona (waiting to fire), or null */
   pendingTrigger: { from: string; note?: string } | null
+  /** Sum of session costs in the last 7 days (undefined when no cost data) */
+  weeklySpend?: number
 }
 
 export interface AuditResult {

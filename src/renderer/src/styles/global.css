@@ -12775,6 +12775,19 @@ input, select {
   border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
+.persona-cost-badge {
+  font-size: 9px;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+.persona-stat {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
 .persona-list-schedule {
   display: flex;
   align-items: center;

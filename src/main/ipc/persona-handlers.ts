@@ -1,12 +1,12 @@
 import { ipcMain } from 'electron'
 import {
-  getPersonaList, getPersonaContent, savePersonaContent,
+  listPersonas, getPersonaContent, savePersonaContent,
   createPersona, deletePersona, runPersona, stopPersona,
   togglePersona, getPersonasDir, setPersonaSchedule, addWhisper, deleteNote,
 } from '../persona-manager'
 
 export function registerPersonaHandlers(): void {
-  ipcMain.handle('persona:list', () => getPersonaList())
+  ipcMain.handle('persona:list', () => listPersonas())
   ipcMain.handle('persona:getContent', (_e, fileName: string) => getPersonaContent(fileName))
   ipcMain.handle('persona:saveContent', (_e, fileName: string, content: string) => savePersonaContent(fileName, content))
   ipcMain.handle('persona:create', (_e, name: string) => createPersona(name))
