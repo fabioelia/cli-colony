@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe } from 'lucide-react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import type { McpAuditEntry, CommitAttribution } from '../../../preload'
+import type { SessionTemplate } from '../../../shared/types'
 
 interface Props {
   onBack: () => void
@@ -48,6 +49,9 @@ export default function SettingsPanel({ onBack }: Props) {
   const [webhookEnabled, setWebhookEnabled] = useState(true)
   const [webhookPort, setWebhookPort] = useState('7474')
 
+  const [sessionTemplates, setSessionTemplates] = useState<SessionTemplate[]>([])
+  const [showTemplatesSection, setShowTemplatesSection] = useState(false)
+
   useEffect(() => {
     window.api.settings.getAll().then((s) => {
       setDefaultArgs(s.defaultArgs || '')
@@ -68,6 +72,7 @@ export default function SettingsPanel({ onBack }: Props) {
     window.api.mcp.list().then(setMcpServers).catch(() => {})
     window.api.mcp.getAuditLog().then(setAuditLog).catch(() => {})
     window.api.session.getAttributedCommits().then(setCommitAttributions).catch(() => {})
+    window.api.sessionTemplates.list().then(setSessionTemplates).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -650,6 +655,67 @@ export default function SettingsPanel({ onBack }: Props) {
           External webhooks need ngrok or similar to reach this server. Add <code>trigger: &#123;type: webhook&#125;</code> to a pipeline YAML to register a route at <code>/webhook/&lt;slug&gt;</code>.
           <span className="settings-restart-note">Requires app restart to take effect</span>
         </p>
+      </div>
+
+      {/* Session Templates */}
+      <div className={`settings-section settings-logs-section ${showTemplatesSection ? '' : 'collapsed'}`}>
+        <div className="settings-section-title">
+          <BookTemplate size={12} />
+          Session Templates
+          <div className="settings-logs-actions">
+            <button
+              className="settings-logs-toggle"
+              onClick={() => {
+                if (!showTemplatesSection) {
+                  window.api.sessionTemplates.list().then(setSessionTemplates).catch(() => {})
+                }
+                setShowTemplatesSection(!showTemplatesSection)
+              }}
+              title={showTemplatesSection ? 'Hide' : 'Show'}
+            >
+              {showTemplatesSection ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            </button>
+          </div>
+        </div>
+        {showTemplatesSection && (
+          <div className="session-templates-list">
+            {sessionTemplates.length === 0 ? (
+              <p className="settings-help">No templates yet. Right-click a session and choose "Save as Template" to create one.</p>
+            ) : (
+              sessionTemplates.map((t) => (
+                <div key={t.id} className="session-template-item">
+                  <div className="session-template-item-main">
+                    <div className="session-template-item-name">{t.name}</div>
+                    {t.description && <div className="session-template-item-desc">{t.description}</div>}
+                    <div className="session-template-item-meta">
+                      {t.model && <span className="template-popover-model">{t.model}</span>}
+                      {t.workingDir && <span className="session-template-item-dir">{t.workingDir}</span>}
+                      {t.lastUsed != null && (
+                        <span title={new Date(t.lastUsed).toLocaleString()}>
+                          last used {formatRelTime(t.lastUsed)}
+                        </span>
+                      )}
+                      {t.launchCount != null && t.launchCount > 0 && (
+                        <span>{t.launchCount} launch{t.launchCount !== 1 ? 'es' : ''}</span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    className="mcp-catalog-delete"
+                    title="Delete template"
+                    onClick={async () => {
+                      if (!confirm(`Delete template "${t.name}"?`)) return
+                      await window.api.sessionTemplates.delete(t.id)
+                      setSessionTemplates((prev) => prev.filter((x) => x.id !== t.id))
+                    }}
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {/* Daemon */}

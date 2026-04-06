@@ -14076,3 +14076,135 @@ input, select {
   background: rgba(239,68,68,0.08);
   border-radius: 4px;
 }
+
+/* ---- Session Templates ---- */
+.template-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  z-index: 9000;
+  overflow: hidden;
+}
+
+.template-popover-list {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.template-popover-item {
+  display: block;
+  width: 100%;
+  padding: 7px 12px;
+  font-size: 12px;
+  text-align: left;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.template-popover-item:hover {
+  background: var(--bg-surface);
+}
+
+.template-popover-blank {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.template-popover-divider {
+  padding: 4px 12px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+}
+
+.template-popover-name {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.template-popover-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.template-popover-model {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 3px;
+  background: rgba(99,102,241,0.15);
+  color: #818cf8;
+  letter-spacing: 0.02em;
+}
+
+/* Session template list in settings */
+.session-templates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 0 4px;
+}
+
+.session-template-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+}
+
+.session-template-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.session-template-item-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.session-template-item-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.session-template-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.session-template-item-dir {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}

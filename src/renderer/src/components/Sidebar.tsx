@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, FileDown, GitFork, ChevronDown, ChevronRight, Trophy } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, FileDown, GitFork, ChevronDown, ChevronRight, Trophy, BookTemplate } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
-import type { ActivityEvent, ApprovalRequest, ForkGroup } from '../../../shared/types'
+import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate } from '../../../shared/types'
 import { stripAnsi } from '../../../shared/utils'
 
 const ROLE_ABBREV: Record<string, string> = {
@@ -68,6 +68,10 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
   }, [])
   const [popoverId, setPopoverId] = useState<string | null>(null)
   const [popoverType, setPopoverType] = useState<'color' | 'info' | null>(null)
+  const [templates, setTemplates] = useState<SessionTemplate[]>([])
+  const [showTemplatePopover, setShowTemplatePopover] = useState(false)
+  const [savedTemplateId, setSavedTemplateId] = useState<string | null>(null)
+  const newSessionBtnRef = useRef<HTMLButtonElement>(null)
   const [sessions, setSessions] = useState<CliSession[]>([])
   const [sessionSearch, setSessionSearch] = useState('')
   const [hoveredSessionId, setHoveredSessionId] = useState<string | null>(null)
@@ -132,6 +136,10 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
   useEffect(() => {
     window.api.sessions.list(500).then(setSessions)
     window.api.sessions.external().then(setExternalSessions)
+  }, [])
+
+  useEffect(() => {
+    window.api.sessionTemplates.list().then(setTemplates).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -213,6 +221,13 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
     window.addEventListener('click', handler)
     return () => window.removeEventListener('click', handler)
   }, [showActivityPopover])
+
+  useEffect(() => {
+    if (!showTemplatePopover) return
+    const handler = () => setShowTemplatePopover(false)
+    window.addEventListener('click', handler)
+    return () => window.removeEventListener('click', handler)
+  }, [showTemplatePopover])
 
   const startRename = (inst: ClaudeInstance) => {
     setRenamingId(inst.id)
@@ -510,8 +525,57 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
         </div>
       </div>
 
-      <div className="sidebar-instance-actions">
-        <button className="sidebar-new-btn" onClick={onNew} title="Launch a new Claude CLI terminal (Cmd+T or Cmd+N)"><Plus size={14} /> New Session <span className="sidebar-shortcut-hint">⌘N</span></button>
+      <div className="sidebar-instance-actions" style={{ position: 'relative' }}>
+        <button
+          ref={newSessionBtnRef}
+          className="sidebar-new-btn"
+          onClick={(e) => {
+            if (templates.length === 0) {
+              onNew()
+            } else {
+              e.stopPropagation()
+              setShowTemplatePopover((v) => !v)
+            }
+          }}
+          title="Launch a new Claude CLI terminal (Cmd+T or Cmd+N)"
+        >
+          <Plus size={14} /> New Session <span className="sidebar-shortcut-hint">⌘N</span>
+        </button>
+        {showTemplatePopover && (
+          <div
+            className="template-popover"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="template-popover-item template-popover-blank"
+              onClick={() => {
+                setShowTemplatePopover(false)
+                onNew()
+              }}
+            >
+              <Plus size={12} /> Blank Session
+            </button>
+            <div className="template-popover-divider">Templates</div>
+            <div className="template-popover-list">
+              {templates.map((t) => (
+                <button
+                  key={t.id}
+                  className="template-popover-item"
+                  onClick={() => {
+                    setShowTemplatePopover(false)
+                    window.api.sessionTemplates.launch(t.id).then(() => {
+                      window.api.sessionTemplates.list().then(setTemplates).catch(() => {})
+                    }).catch(console.error)
+                  }}
+                >
+                  <div className="template-popover-name">{t.name}</div>
+                  {t.description && <div className="template-popover-desc">{t.description}</div>}
+                  {t.model && <span className="template-popover-model">{t.model}</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {view === 'instances' && restorableCount > 0 && (
           <button className="sidebar-restore-btn" onClick={onRestoreAll} title="Restore previous sessions">
             Restore {restorableCount} from last run
@@ -986,6 +1050,35 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
                 })}
               </div>
             </div>
+            <button
+              className="context-menu-item"
+              onClick={() => {
+                const inst = instances.find((i) => i.id === contextMenu.id)
+                if (!inst) { setContextMenu(null); return }
+                const id = Date.now().toString(36) + Math.random().toString(36).slice(2)
+                const template: SessionTemplate = {
+                  id,
+                  name: inst.name,
+                  workingDir: inst.workingDirectory,
+                  role: inst.roleTag ?? undefined,
+                  lastUsed: Date.now(),
+                  launchCount: 0,
+                }
+                window.api.sessionTemplates.save(template).then(() => {
+                  window.api.sessionTemplates.list().then(setTemplates).catch(() => {})
+                  setSavedTemplateId(inst.id)
+                  setTimeout(() => setSavedTemplateId(null), 2000)
+                }).catch(console.error)
+                setContextMenu(null)
+              }}
+              title="Save this session's config as a reusable template"
+            >
+              {savedTemplateId === contextMenu.id ? (
+                'Saved!'
+              ) : (
+                <><BookTemplate size={12} /> Save as Template</>
+              )}
+            </button>
             <button
               className="context-menu-item danger"
               onClick={() => {

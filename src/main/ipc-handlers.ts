@@ -27,6 +27,7 @@ import { registerMcpAuditHandlers } from './ipc/mcp-audit-handlers'
 import { registerCommitAttributorHandlers } from './ipc/commit-attributor-handlers'
 import { registerArenaHandlers } from './ipc/arena-handlers'
 import { registerForkHandlers } from './ipc/fork-handlers'
+import { registerSessionTemplateHandlers } from './ipc/session-template-handlers'
 
 export function registerIpcHandlers(): void {
   // Delegated handler modules
@@ -46,6 +47,7 @@ export function registerIpcHandlers(): void {
   registerCommitAttributorHandlers()
   registerArenaHandlers()
   registerForkHandlers()
+  registerSessionTemplateHandlers()
 
   // ---- Temp files ----
   ipcMain.handle('fs:writeTempFile', (_e, prefix: string, content: string) => {

@@ -338,3 +338,15 @@ export interface ForkGroup {
   status: 'active' | 'resolved'
   forks: ForkEntry[]
 }
+
+export interface SessionTemplate {
+  id: string
+  name: string
+  description?: string
+  model?: string
+  workingDir?: string
+  role?: string
+  initialPrompt?: string
+  lastUsed?: number
+  launchCount?: number
+}
