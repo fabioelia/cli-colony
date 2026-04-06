@@ -4,8 +4,10 @@ import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import {
   Zap, ZapOff, Play, RefreshCw, ChevronDown, ChevronRight,
   FileText, Clock, CheckCircle, XCircle, AlertTriangle, Save, BookOpen,
-  MessageSquare, Send, Plus, Search, Pencil, Eye, X, LayoutList, LayoutGrid
+  MessageSquare, Send, Plus, Search, Pencil, Eye, X, LayoutList, LayoutGrid,
+  ShieldCheck
 } from 'lucide-react'
+import type { AuditResult } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
 import CronEditor from './CronEditor'
 import { describeCron } from '../../../shared/cron'
@@ -137,6 +139,11 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   })
   const [pipelinesDir, setPipelinesDir] = useState<string | null>(null)
   const sendingRef = useRef(false)
+
+  // Audit state
+  const [auditResults, setAuditResults] = useState<AuditResult[] | null>(null)
+  const [auditRunning, setAuditRunning] = useState(false)
+  const [auditOpen, setAuditOpen] = useState(false)
 
   const loadPipelines = useCallback(async () => {
     const list = await window.api.pipeline.list()
@@ -271,6 +278,37 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     loadPipelines()
   }
 
+  const handleRunAudit = async () => {
+    setAuditRunning(true)
+    setAuditResults(null)
+    setAuditOpen(true)
+    const context = {
+      pipelines: pipelines.map(p => ({
+        name: p.name,
+        enabled: p.enabled,
+        fileName: p.fileName,
+        yaml: '',
+        lastError: p.lastError,
+        fireCount: p.fireCount,
+      })),
+    }
+    const results = await window.api.audit.runPanel('pipelines', context)
+    setAuditResults(results)
+    setAuditRunning(false)
+  }
+
+  const handleAuditFix = (fixAction: string) => {
+    if (fixAction.startsWith('open-yaml:')) {
+      const fileName = fixAction.slice('open-yaml:'.length)
+      const found = pipelines.find(p => p.fileName === fileName)
+      if (found) handleExpand(found)
+    } else if (fixAction.startsWith('toggle-disable:')) {
+      const fileName = fixAction.slice('toggle-disable:'.length)
+      const found = pipelines.find(p => p.fileName === fileName)
+      if (found) window.api.pipeline.toggle(found.name, false).then(() => loadPipelines())
+    }
+  }
+
   const timeSince = (iso: string) => {
     const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
     if (secs < 60) return `${secs}s ago`
@@ -296,8 +334,55 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
           <button className="panel-header-btn" onClick={handleReload} title="Reload all pipeline files">
             <RefreshCw size={12} /> Reload
           </button>
+          <button
+            className={`panel-header-btn${auditResults && auditResults.length > 0 ? ' panel-header-btn--audit-alert' : ''}`}
+            onClick={handleRunAudit}
+            disabled={auditRunning}
+            title="Run AI audit — identify misconfigured or broken pipelines"
+          >
+            <ShieldCheck size={12} />
+            {auditRunning ? 'Auditing…' : 'Audit'}
+            {auditResults && auditResults.length > 0 && (
+              <span className="audit-badge">{auditResults.length}</span>
+            )}
+          </button>
         </div>
       </div>
+
+      {auditOpen && (auditRunning || auditResults !== null) && (
+        <div className="audit-results-panel">
+          <div className="audit-results-header">
+            <ShieldCheck size={13} />
+            <span>Pipeline Audit</span>
+            {!auditRunning && <span className="audit-results-count">{auditResults?.length ?? 0} issue{auditResults?.length !== 1 ? 's' : ''}</span>}
+            <button className="audit-results-dismiss" onClick={() => { setAuditOpen(false); setAuditResults(null) }} title="Dismiss">
+              <X size={11} />
+            </button>
+          </div>
+          {auditRunning && <div className="audit-results-loading">Running audit with Claude…</div>}
+          {!auditRunning && auditResults !== null && auditResults.length === 0 && (
+            <div className="audit-results-empty">No issues found.</div>
+          )}
+          {!auditRunning && auditResults && auditResults.map((r, i) => (
+            <div key={i} className={`audit-result-row audit-result-row--${r.severity.toLowerCase()}`}>
+              <span className="audit-result-severity">{r.severity}</span>
+              <div className="audit-result-body">
+                <span className="audit-result-item">{r.item}</span>
+                <span className="audit-result-issue">{r.issue}</span>
+              </div>
+              {r.fixAction && (
+                <button
+                  className="audit-result-fix"
+                  onClick={() => handleAuditFix(r.fixAction!)}
+                  title="Apply fix"
+                >
+                  Fix
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       <p className="pipelines-description">
         Pipelines automate trigger → action workflows. Define them as YAML files in <code>~/.claude-colony/pipelines/</code>.
@@ -365,6 +450,16 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                 {p.fireCount > 0 && (
                   <span className="pipeline-card-fires">
                     <Zap size={10} /> {p.fireCount}
+                  </span>
+                )}
+                {listMode && expandedPipeline !== p.name && p.lastFiredAt && (
+                  <span className="pipeline-list-last-fired" title={`Last fired: ${new Date(p.lastFiredAt).toLocaleString()}`}>
+                    {timeSince(p.lastFiredAt)}
+                  </span>
+                )}
+                {listMode && expandedPipeline !== p.name && p.lastError && (
+                  <span className="pipeline-list-error" title={p.lastError}>
+                    <AlertTriangle size={9} />
                   </span>
                 )}
               </div>
