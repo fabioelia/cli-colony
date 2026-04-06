@@ -403,6 +403,13 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'General Section',
+        position: 'Top section',
+        items: [
+          { label: 'Keep running in tray when closed', detail: 'Colony continues running pipelines and persona schedules when the window is closed. Access via the menu bar icon. Disable to quit on window close.' },
+        ],
+      },
+      {
         name: 'Preferences Section',
         position: 'Middle section',
         items: [

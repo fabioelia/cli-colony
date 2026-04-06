@@ -107,8 +107,23 @@ function createWindow(): void {
 
   mainWindow.on('close', (event) => {
     if (process.platform === 'darwin' && !app.isQuitting) {
-      event.preventDefault()
-      mainWindow?.hide()
+      const keepInTray = getSetting('keepInTray') !== 'false'
+      if (keepInTray) {
+        event.preventDefault()
+        mainWindow?.hide()
+      }
+    }
+  })
+
+  mainWindow.on('hide', () => {
+    if (process.platform === 'darwin') {
+      app.dock?.hide()
+    }
+  })
+
+  mainWindow.on('show', () => {
+    if (process.platform === 'darwin') {
+      app.dock?.show()
     }
   })
 

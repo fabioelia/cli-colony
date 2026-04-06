@@ -46,6 +46,7 @@ export default function SettingsPanel({ onBack }: Props) {
   const [mcpFormError, setMcpFormError] = useState<string | null>(null)
   const [mcpOriginalName, setMcpOriginalName] = useState<string | null>(null)
 
+  const [keepInTray, setKeepInTray] = useState(true)
   const [webhookEnabled, setWebhookEnabled] = useState(true)
   const [webhookPort, setWebhookPort] = useState('7474')
 
@@ -63,6 +64,7 @@ export default function SettingsPanel({ onBack }: Props) {
       setSoundOnFinish(s.soundOnFinish !== 'false')
       setAutoCleanupMinutes(s.autoCleanupMinutes || '5')
       setGlobalHotkey(s.globalHotkey || 'CommandOrControl+Shift+Space')
+      setKeepInTray(s.keepInTray !== 'false')
       setWebhookEnabled(s.webhookEnabled !== 'false')
       setWebhookPort(s.webhookPort || '7474')
     })
@@ -130,6 +132,7 @@ export default function SettingsPanel({ onBack }: Props) {
       window.api.settings.set('soundOnFinish', soundOnFinish ? 'true' : 'false'),
       window.api.settings.set('autoCleanupMinutes', autoCleanupMinutes),
       window.api.settings.set('globalHotkey', globalHotkey),
+      window.api.settings.set('keepInTray', keepInTray ? 'true' : 'false'),
       window.api.settings.set('webhookEnabled', webhookEnabled ? 'true' : 'false'),
       window.api.settings.set('webhookPort', webhookPort),
     ])
@@ -253,6 +256,27 @@ export default function SettingsPanel({ onBack }: Props) {
             placeholder="CommandOrControl+Shift+Space"
           />
         </div>
+      </div>
+
+      {/* General */}
+      <div className="settings-section">
+        <div className="settings-section-title">
+          <Settings size={12} />
+          General
+        </div>
+        <div className="settings-row">
+          <span className="settings-row-label">Keep running in tray when closed</span>
+          <button
+            className={`settings-toggle ${keepInTray ? 'active' : ''}`}
+            onClick={() => setKeepInTray(!keepInTray)}
+            role="switch"
+            aria-checked={keepInTray}
+            title={keepInTray ? 'Window close hides to tray' : 'Window close quits the app'}
+          >
+            <span className="settings-toggle-knob" />
+          </button>
+        </div>
+        <p className="settings-help settings-help-bottom">Colony continues running pipelines and persona schedules when the window is closed. Access via the menu bar icon.</p>
       </div>
 
       {/* Notifications */}

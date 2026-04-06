@@ -57,6 +57,18 @@ export async function updateTrayMenu(mainWindow: BrowserWindow | null): Promise<
         ]
       : [{ label: 'No instances running', enabled: false }, { type: 'separator' as const }]),
     {
+      label: 'Show Colony',
+      click: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.show()
+          mainWindow.focus()
+          if (process.platform === 'darwin') {
+            app.dock?.show()
+          }
+        }
+      },
+    },
+    {
       label: 'New Instance',
       click: () => {
         if (mainWindow && !mainWindow.isDestroyed()) {
@@ -68,7 +80,7 @@ export async function updateTrayMenu(mainWindow: BrowserWindow | null): Promise<
     },
     { type: 'separator' },
     {
-      label: 'Quit',
+      label: 'Quit Colony',
       click: () => {
         app.isQuitting = true
         app.quit()
