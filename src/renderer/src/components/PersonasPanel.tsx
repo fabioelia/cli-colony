@@ -3,7 +3,7 @@ import { useFileDrop } from '../hooks/useFileDrop'
 import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
   ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote, ArrowRightCircle, Save, Loader2,
-  LayoutList, LayoutGrid
+  LayoutList, LayoutGrid, Hourglass
 } from 'lucide-react'
 import { marked } from 'marked'
 import HelpPopover from './HelpPopover'
@@ -543,6 +543,11 @@ function PersonaCard({
           <span className={`persona-card-status-dot ${statusClass}`} />
           <span className="persona-list-name">{persona.name}</span>
           {isRunning && <span className="persona-list-badge running">Running</span>}
+          {!isRunning && persona.pendingTrigger && (
+            <span className="persona-list-badge pending" title={`Queued by ${persona.pendingTrigger.from}${persona.pendingTrigger.note ? `: ${persona.pendingTrigger.note}` : ''}`}>
+              <Hourglass size={9} /> queued
+            </span>
+          )}
           <span className="persona-list-schedule">
             <Clock size={9} /> {persona.schedule ? describeCron(persona.schedule) : 'Manual'}
           </span>
@@ -595,6 +600,11 @@ function PersonaCard({
             <span className="persona-card-name">{persona.name}</span>
             {isRunning && persona.triggeredBy && (
               <span className="persona-triggered-by" title={`This run was automatically triggered after "${persona.triggeredBy}" completed`}>↳ by {persona.triggeredBy}</span>
+            )}
+            {!isRunning && persona.pendingTrigger && (
+              <span className="persona-pending-trigger" title={`Queued by ${persona.pendingTrigger.from}${persona.pendingTrigger.note ? `: ${persona.pendingTrigger.note}` : ''}`}>
+                <Hourglass size={9} /> queued by {persona.pendingTrigger.from}
+              </span>
             )}
             <div className="persona-card-meta">
               <button

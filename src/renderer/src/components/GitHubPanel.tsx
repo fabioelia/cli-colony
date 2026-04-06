@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useFileDrop } from '../hooks/useFileDrop'
-import { ArrowLeft, Plus, Trash2, RefreshCw, GitPullRequest, ExternalLink, Play, Pencil, ChevronDown, ChevronRight, MessageSquare, Send, User, Users, Eye, GitBranch, Clock, FileDiff, ShieldCheck, ShieldAlert, ShieldQuestion, Brain, Save, X, FileText, File, Filter, Search, CheckCircle, XCircle, Loader, CircleDot, Wrench, Download, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, RefreshCw, GitPullRequest, ExternalLink, Play, Pencil, ChevronDown, ChevronRight, MessageSquare, Send, User, Users, Eye, GitBranch, Clock, FileDiff, ShieldCheck, ShieldAlert, ShieldQuestion, Brain, Save, X, FileText, File, Filter, Search, CheckCircle, XCircle, Loader, CircleDot, Wrench, Download, AlertCircle, UserPlus } from 'lucide-react'
 import RepoRemovalModal, { type RemovalImpact } from './RepoRemovalModal'
 import { marked } from 'marked'
 import type { GitHubPR, GitHubRepo, QuickPrompt, PRChecks, FeedbackFile } from '../types'
+import type { PersonaInfo } from '../../../shared/types'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import Tooltip from './Tooltip'
 import HelpPopover from './HelpPopover'
@@ -101,6 +102,13 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const [checkLogContent, setCheckLogContent] = useState<string | null>(null)
   const [checkLogName, setCheckLogName] = useState<string | null>(null)
 
+  // Persona dispatch
+  const [personaList, setPersonaList] = useState<PersonaInfo[]>([])
+  const [dispatchingPRKey, setDispatchingPRKey] = useState<string | null>(null)
+  const [dispatchPersonaId, setDispatchPersonaId] = useState('')
+  const [dispatchContext, setDispatchContext] = useState('')
+  const [dispatchToast, setDispatchToast] = useState<string | null>(null)
+
   // GitHub user (for attention badges)
   const [ghUser, setGhUser] = useState<string | null>(null)
 
@@ -188,6 +196,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     window.api.github.getPrMemory().then(setMemory)
     window.api.github.getPrMemoryPath().then(setMemoryPath)
     window.api.github.getPrWorkspacePath().then(setWorkspacePath)
+    window.api.persona.list().then(setPersonaList)
   }, [])
 
   // Reload prompts when panel becomes visible (picks up pipeline-enabled changes)
@@ -201,6 +210,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
+      if (dispatchingPRKey) { setDispatchingPRKey(null); return }
       if (showCommentsViewer) { setShowCommentsViewer(false); return }
       if (showContextFile) { setShowContextFile(false); return }
       if (showMemory) { setShowMemory(false); setEditingMemory(false); return }
@@ -208,7 +218,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [showCommentsViewer, showContextFile, showMemory, showPromptEditor])
+  }, [dispatchingPRKey, showCommentsViewer, showContextFile, showMemory, showPromptEditor])
 
   // Auto-expand first repo and fetch PRs for all repos sequentially
   useEffect(() => {
@@ -359,6 +369,19 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     }
 
     sendPromptWhenReady(id, { onReady: () => void sendNameAndPrompt() })
+  }
+
+  const handleDispatch = async (pr: GitHubPR, repo: GitHubRepo) => {
+    if (!dispatchPersonaId) return
+    const body = pr.body || ''
+    const truncBody = body.slice(0, 400) + (body.length > 400 ? '…' : '')
+    const noteText = `GitHub PR #${pr.number}: **${pr.title}**\n${pr.url}\n\n${truncBody}${dispatchContext.trim() ? '\n\nUser: ' + dispatchContext.trim() : ''}`
+    await window.api.persona.whisper(dispatchPersonaId, noteText)
+    const persona = personaList.find(p => p.id === dispatchPersonaId)
+    setDispatchToast(`Dispatched PR #${pr.number} to ${persona?.name ?? dispatchPersonaId}`)
+    setDispatchingPRKey(null)
+    setDispatchContext('')
+    setTimeout(() => setDispatchToast(null), 3000)
   }
 
   const handleQuickAction = async (prompt: QuickPrompt, pr: GitHubPR, repo: GitHubRepo) => {
@@ -941,6 +964,24 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                               })()}
                             </div>
                           </div>
+                          {personaList.filter(p => p.enabled).length > 0 && (
+                            <button
+                              className={`github-pr-dispatch${dispatchingPRKey === prKey ? ' active' : ''}`}
+                              title="Dispatch to persona"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (dispatchingPRKey === prKey) {
+                                  setDispatchingPRKey(null)
+                                } else {
+                                  setDispatchingPRKey(prKey)
+                                  setDispatchPersonaId(personaList.filter(p => p.enabled)[0]?.id ?? '')
+                                  setDispatchContext('')
+                                }
+                              }}
+                            >
+                              <UserPlus size={12} />
+                            </button>
+                          )}
                           <button
                             className="github-pr-link"
                             title="Open on GitHub"
@@ -949,6 +990,46 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                             <ExternalLink size={13} />
                           </button>
                         </div>
+                        {dispatchingPRKey === prKey && (
+                          <div className="github-dispatch-popover" onClick={(e) => e.stopPropagation()}>
+                            <div className="github-dispatch-header">
+                              <UserPlus size={11} /> Dispatch to persona
+                              <button className="github-dispatch-close" onClick={() => setDispatchingPRKey(null)} title="Close"><X size={12} /></button>
+                            </div>
+                            <div className="github-dispatch-personas">
+                              {personaList.filter(p => p.enabled).map(p => (
+                                <label key={p.id} className={`github-dispatch-persona-row${dispatchPersonaId === p.id ? ' selected' : ''}`}>
+                                  <input
+                                    type="radio"
+                                    name="dispatch-persona"
+                                    value={p.id}
+                                    checked={dispatchPersonaId === p.id}
+                                    onChange={() => setDispatchPersonaId(p.id)}
+                                  />
+                                  <span className="github-dispatch-persona-name">{p.name}</span>
+                                  <span className="github-dispatch-persona-model">{p.model.includes('-') ? p.model.split('-').slice(1, 3).join('-') : p.model}</span>
+                                </label>
+                              ))}
+                            </div>
+                            <textarea
+                              className="github-dispatch-context"
+                              placeholder="Optional context for the persona..."
+                              value={dispatchContext}
+                              onChange={(e) => setDispatchContext(e.target.value)}
+                              rows={2}
+                            />
+                            <div className="github-dispatch-actions">
+                              <button
+                                className="panel-header-btn primary"
+                                disabled={!dispatchPersonaId}
+                                onClick={() => handleDispatch(pr, repo)}
+                              >
+                                Dispatch
+                              </button>
+                              <button className="panel-header-btn" onClick={() => setDispatchingPRKey(null)}>Cancel</button>
+                            </div>
+                          </div>
+                        )}
                         {isOpen && (
                           <div className="github-pr-actions">
                             {pr.body && (
@@ -1303,6 +1384,13 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
           onCancel={() => { setRemovalTarget(null); setRemovalImpact(null) }}
           onLaunchSession={handleRemovalLaunchSession}
         />
+      )}
+
+      {/* Dispatch toast */}
+      {dispatchToast && (
+        <div className="github-dispatch-toast">
+          <CheckCircle size={12} /> {dispatchToast}
+        </div>
       )}
 
       {/* Check log viewer */}
