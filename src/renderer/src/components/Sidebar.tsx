@@ -552,7 +552,6 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
                   >
                     {isExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
                     <span className="fork-group-label"><GitFork size={11} /> {group.label}</span>
-                    <span className="fork-group-status">{group.status}</span>
                   </div>
                   {isExpanded && (
                     <div className="fork-group-forks">
@@ -562,7 +561,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
                             <span className={`fork-entry-dot ${fork.status}`} />
                             <div className="fork-entry-info">
                               <span className="fork-entry-label">{fork.label}</span>
-                              <span className="fork-entry-branch">{fork.branch.replace('colony-fork-', '').slice(0, 16)}</span>
+                              <span className="fork-entry-branch">{(() => { const b = fork.branch.replace('colony-fork-', ''); return b.length > 16 ? b.slice(0, 16) + '…' : b })()}</span>
                             </div>
                           </div>
                           <div className="fork-entry-actions">
@@ -576,7 +575,9 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
                                   title="Pick this fork as the winner"
                                   onClick={(e) => {
                                     e.stopPropagation()
-                                    window.api.fork.pickWinner(group.id, fork.id).catch(console.error)
+                                    if (confirm(`Pick "${fork.label}" as winner? All other forks will be discarded.`)) {
+                                      window.api.fork.pickWinner(group.id, fork.id).catch(console.error)
+                                    }
                                   }}
                                 >
                                   <Trophy size={10} /> Pick
@@ -586,7 +587,9 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
                                   title="Discard this fork"
                                   onClick={(e) => {
                                     e.stopPropagation()
-                                    window.api.fork.discard(group.id, fork.id).catch(console.error)
+                                    if (confirm(`Discard "${fork.label}"? This cannot be undone.`)) {
+                                      window.api.fork.discard(group.id, fork.id).catch(console.error)
+                                    }
                                   }}
                                 >
                                   <Trash2 size={10} />
