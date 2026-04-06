@@ -81,6 +81,25 @@ interface FileNode {
   children?: FileNode[]
 }
 
+function sortFileNodes(nodes: FileNode[], mode: 'name' | 'modified'): FileNode[] {
+  return [...nodes]
+    .sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'directory' ? -1 : 1
+      if (mode === 'modified') {
+        const extA = a.name.split('.').pop() || ''
+        const extB = b.name.split('.').pop() || ''
+        const extCmp = extA.localeCompare(extB)
+        if (extCmp !== 0) return extCmp
+      }
+      return a.name.localeCompare(b.name)
+    })
+    .map((n) =>
+      n.type === 'directory' && n.children
+        ? { ...n, children: sortFileNodes(n.children, mode) }
+        : n
+    )
+}
+
 interface FileTreeNodeProps {
   node: FileNode
   depth: number
@@ -243,17 +262,15 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const [filesSortMode, setFilesSortMode] = useState<'name' | 'modified'>('name')
   const sortedFileTree = useMemo(() => {
     if (!fileTree) return null
-    return [...fileTree].sort((a, b) => {
-      if (a.type !== b.type) return a.type === 'directory' ? -1 : 1
-      if (filesSortMode === 'modified') {
-        const extA = a.name.split('.').pop() || ''
-        const extB = b.name.split('.').pop() || ''
-        const extCmp = extA.localeCompare(extB)
-        if (extCmp !== 0) return extCmp
-      }
-      return a.name.localeCompare(b.name)
-    })
+    return sortFileNodes(fileTree, filesSortMode)
   }, [fileTree, filesSortMode])
+
+  const sortedLazyChildren = useMemo(() => {
+    if (!lazyChildren.size) return lazyChildren
+    const next = new Map<string, FileNode[]>()
+    for (const [k, v] of lazyChildren) next.set(k, sortFileNodes(v, filesSortMode))
+    return next
+  }, [lazyChildren, filesSortMode])
   // Shell quick commands
   const [shellQuickOpen, setShellQuickOpen] = useState(() => localStorage.getItem('shell-quick-open') !== 'false')
   const [shellTermReady, setShellTermReady] = useState(false)
@@ -1052,10 +1069,11 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 <button
                   className={`filetree-refresh filetree-sort-toggle ${filesSortMode === 'modified' ? 'active' : ''}`}
                   onClick={() => setFilesSortMode(m => m === 'name' ? 'modified' : 'name')}
-                  title={filesSortMode === 'name' ? 'Sort: Name — click for Type (group by extension)' : 'Sort: Type (grouped by extension) — click for Name'}
+                  title={filesSortMode === 'name' ? 'Currently: Name — click to group by file type' : 'Currently: Type (grouped by extension) — click for Name'}
                   aria-label={filesSortMode === 'name' ? 'Sort by name' : 'Sort by type'}
                 >
                   <ArrowUpDown size={13} />
+                  <span style={{ fontSize: '10px', marginLeft: '2px' }}>{filesSortMode === 'name' ? 'Name' : 'Type'}</span>
                 </button>
               </div>
               {showIgnoreSettings && (
@@ -1217,7 +1235,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                     onExpandAll={handleExpandAll}
                     onCollapseAll={handleCollapseAll}
                     onSelectFile={handleSelectFile}
-                    lazyChildren={lazyChildren}
+                    lazyChildren={sortedLazyChildren}
                     onLoadChildren={handleLoadChildren}
                   />
                 )}
