@@ -325,7 +325,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Main area — Instances tab',
         items: [
           { label: 'Status dot', detail: 'Green = all services running. Yellow = partial. Red = crashed. Gray = stopped.' },
-          { label: 'Service dots', detail: 'Small colored dots for each service\'s individual status.' },
+          { label: 'Service dots', detail: 'Colored dot + status label (running/stopped/crashed) for each service in the environment.' },
           { label: 'Start', detail: 'Launch all services in the environment.', icon: 'Play' },
           { label: 'Stop', detail: 'Halt all running services.', icon: 'Square' },
           { label: 'Terminal', detail: 'Open a Claude session in the environment directory.', icon: 'Terminal' },
