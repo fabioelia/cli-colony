@@ -9721,6 +9721,14 @@ input, select {
   cursor: default;
 }
 
+.pipeline-history-stage-delta {
+  color: var(--warning);
+  font-size: 9px;
+  font-weight: 600;
+  cursor: default;
+  flex-shrink: 0;
+}
+
 /* ===== Session Deps / Orchestrate Panel ===== */
 .session-deps-panel {
   flex: 1;

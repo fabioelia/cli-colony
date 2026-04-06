@@ -687,6 +687,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                         {historyEntries.map((entry, i) => {
                           const hasStages = (entry.stages?.length ?? 0) > 1
                           const isExpanded = expandedHistoryRows.has(i)
+                          const prevEntry = i > 0 ? historyEntries[i - 1] : null
                           const toggleExpand = () => setExpandedHistoryRows(prev => {
                             const next = new Set(prev)
                             if (next.has(i)) next.delete(i); else next.add(i)
@@ -718,18 +719,24 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                               </div>
                               {hasStages && isExpanded && (
                                 <div className="pipeline-history-stages">
-                                  {entry.stages!.map((stage) => (
+                                  {entry.stages!.map((stage, si) => {
+                                    const prevStage = prevEntry?.stages?.[si]
+                                    const statusChanged = prevStage !== undefined && prevStage.success !== stage.success
+                                    const prevStatus = prevStage?.success ? 'PASS' : 'FAIL'
+                                    return (
                                     <div key={stage.index} className={`pipeline-history-stage-row ${stage.success ? '' : 'error'}`}>
                                       <span className={`pipeline-history-icon ${stage.success ? 'success' : 'failure'}`}>
                                         {stage.success ? <CheckCircle size={10} /> : <XCircle size={10} />}
                                       </span>
                                       <span className="pipeline-history-stage-type">{stageTypeLabel(stage.actionType)}</span>
+                                      {statusChanged && <span className="pipeline-history-stage-delta" title={`Changed from ${prevStatus} in prior run`}>△</span>}
                                       {stage.sessionName && <span className="pipeline-history-stage-name">{stage.sessionName}</span>}
                                       {stage.responseSnippet && <span className="pipeline-history-stage-snippet" title={stage.responseSnippet}>{stage.responseSnippet.length > 60 ? stage.responseSnippet.slice(0, 60) + '…' : stage.responseSnippet}</span>}
                                       <span className="pipeline-history-duration">{stage.durationMs < 1000 ? `${stage.durationMs}ms` : `${(stage.durationMs / 1000).toFixed(1)}s`}</span>
                                       {stage.error && <span className="pipeline-history-stage-error" title={stage.error}>err</span>}
                                     </div>
-                                  ))}
+                                    )
+                                  })}
                                 </div>
                               )}
                             </div>
