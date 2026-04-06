@@ -443,6 +443,9 @@ function PersonaCard({
         <span className={`persona-card-status-dot ${statusClass}`} />
         <div className="persona-card-info">
           <span className="persona-card-name">{persona.name}</span>
+          {isRunning && persona.triggeredBy && (
+            <span className="persona-triggered-by" title={`This run was automatically triggered after "${persona.triggeredBy}" completed`}>↳ by {persona.triggeredBy}</span>
+          )}
           <div className="persona-card-meta">
             <button
               className="persona-schedule-btn"

@@ -33,6 +33,7 @@ interface PersonaState {
   lastRunOutput: string | null
   sessionStartedAt: string | null
   sessionWorkingDir: string | null
+  triggeredBy: string | null
 }
 
 const stateFile = new JsonFile<Record<string, PersonaState>>(STATE_PATH, {})
@@ -53,7 +54,7 @@ function saveState(): void {
 
 function getState(name: string): PersonaState {
   if (!stateCache[name]) {
-    stateCache[name] = { lastRunAt: null, runCount: 0, activeSessionId: null, enabled: false, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null }
+    stateCache[name] = { lastRunAt: null, runCount: 0, activeSessionId: null, enabled: false, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null, triggeredBy: null }
   }
   return stateCache[name]
 }
@@ -156,6 +157,7 @@ export function getPersonaList(): PersonaInfo[] {
         lastRunOutput: state.lastRunOutput || null,
         whispers: parseWhispers(content),
         onCompleteRun: fm.on_complete_run,
+        triggeredBy: state.triggeredBy ?? null,
       })
     } catch { /* skip invalid files */ }
   }
@@ -629,6 +631,7 @@ export async function runPersona(fileName: string, trigger: TriggerSource = { ty
   state.lastRunAt = new Date().toISOString()
   state.sessionStartedAt = state.lastRunAt
   state.sessionWorkingDir = cwd
+  state.triggeredBy = trigger.type === 'handoff' ? (trigger.from ?? null) : null
   state.runCount++
   saveState()
 
@@ -751,6 +754,7 @@ export async function onSessionExit(instanceId: string): Promise<void> {
 
       const commitLabel = commitsCount > 0 ? ` · ${commitsCount} commit${commitsCount !== 1 ? 's' : ''}` : ''
       state.activeSessionId = null
+      state.triggeredBy = null
       changed = true
       console.log(`[persona] session exited for "${name}"`)
       appendActivity({

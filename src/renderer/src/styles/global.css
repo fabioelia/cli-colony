@@ -11210,6 +11210,12 @@ input, select {
   max-width: 150px;
 }
 
+.persona-triggered-by {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
 .persona-card-status-dot {
   width: 7px;
   height: 7px;
