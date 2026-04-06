@@ -881,7 +881,6 @@ action:
                                       {stage.startedAt != null && (
                                         <div className="stage-duration-bar-row">
                                           <div className="stage-duration-bar" style={{ width: barWidth }} />
-                                          <span className="stage-duration-label">{formatDuration(stage.durationMs)}</span>
                                         </div>
                                       )}
                                       {stage.subStages && stage.subStages.length > 0 && (

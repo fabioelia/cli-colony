@@ -9884,12 +9884,6 @@ input, select {
   flex-shrink: 0;
 }
 
-.stage-duration-label {
-  font-size: 9px;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
 .stage-timing-total {
   font-size: 10px;
   color: var(--text-muted);
