@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock } from 'lucide-react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList } from 'lucide-react'
 import HelpPopover from './HelpPopover'
+import type { McpAuditEntry } from '../../../preload'
 
 interface Props {
   onBack: () => void
@@ -34,6 +35,9 @@ export default function SettingsPanel({ onBack }: Props) {
   type McpServer = { name: string; command?: string; args?: string[]; url?: string; description?: string }
   const [mcpServers, setMcpServers] = useState<McpServer[]>([])
   const [showMcpSection, setShowMcpSection] = useState(false)
+
+  const [auditLog, setAuditLog] = useState<McpAuditEntry[]>([])
+  const [showAuditSection, setShowAuditSection] = useState(false)
   const [mcpForm, setMcpForm] = useState<McpServer | null>(null)
   const [mcpFormType, setMcpFormType] = useState<'command' | 'sse'>('command')
   const [mcpFormError, setMcpFormError] = useState<string | null>(null)
@@ -55,6 +59,7 @@ export default function SettingsPanel({ onBack }: Props) {
     window.api.daemon.getVersion().then(setDaemonVersion).catch(() => {})
     window.api.settings.detectGitProtocol().then(setDetectedProtocol).catch(() => {})
     window.api.mcp.list().then(setMcpServers).catch(() => {})
+    window.api.mcp.getAuditLog().then(setAuditLog).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -88,6 +93,18 @@ export default function SettingsPanel({ onBack }: Props) {
       if (schedulerIntervalRef.current) clearInterval(schedulerIntervalRef.current)
     }
   }, [showSchedulerLogs])
+
+  function formatRelTime(ts: number): string {
+    const diffMs = Date.now() - ts
+    const diffSec = Math.floor(diffMs / 1000)
+    if (diffSec < 60) return `${diffSec}s ago`
+    const diffMin = Math.floor(diffSec / 60)
+    if (diffMin < 60) return `${diffMin}m ago`
+    const diffHr = Math.floor(diffMin / 60)
+    if (diffHr < 24) return `${diffHr}h ago`
+    const diffDay = Math.floor(diffHr / 24)
+    return `${diffDay}d ago`
+  }
 
   const handleSave = async () => {
     await Promise.all([
@@ -434,6 +451,78 @@ export default function SettingsPanel({ onBack }: Props) {
               >
                 <Plus size={12} /> Add Server
               </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* MCP Audit Log */}
+      <div className={`settings-section settings-logs-section ${showAuditSection ? '' : 'collapsed'}`}>
+        <div className="settings-section-title">
+          <ClipboardList size={12} />
+          MCP Audit
+          <div className="settings-logs-actions">
+            <button
+              className="settings-logs-toggle"
+              onClick={() => {
+                if (!showAuditSection) {
+                  window.api.mcp.getAuditLog().then(setAuditLog).catch(() => {})
+                }
+                setShowAuditSection(!showAuditSection)
+              }}
+              title={showAuditSection ? 'Hide' : 'Show'}
+            >
+              {showAuditSection ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            </button>
+            {showAuditSection && auditLog.length > 0 && (
+              <button
+                className="settings-logs-toggle"
+                onClick={async () => {
+                  await window.api.mcp.clearAuditLog()
+                  setAuditLog([])
+                }}
+                title="Clear audit log"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+        {showAuditSection && (
+          <div className="mcp-audit-log">
+            {auditLog.length === 0 ? (
+              <p className="settings-help">No MCP calls recorded yet.</p>
+            ) : (
+              <table className="mcp-audit-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Session</th>
+                    <th>Server</th>
+                    <th>Tool</th>
+                    <th>Outcome</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditLog.map((entry, i) => {
+                    const date = new Date(entry.ts)
+                    const relTime = formatRelTime(entry.ts)
+                    return (
+                      <tr key={i} title={date.toLocaleString()}>
+                        <td className="mcp-audit-ts">{relTime}</td>
+                        <td className="mcp-audit-session">{entry.sessionName}</td>
+                        <td className="mcp-audit-server">{entry.serverName}</td>
+                        <td className="mcp-audit-tool">{entry.toolName}</td>
+                        <td>
+                          <span className={`mcp-audit-outcome mcp-audit-outcome--${entry.outcome}`}>
+                            {entry.outcome}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
             )}
           </div>
         )}

@@ -259,3 +259,13 @@ export interface AuditResult {
   issue: string
   fixAction?: string
 }
+
+export interface McpAuditEntry {
+  ts: number
+  sessionId: string
+  sessionName: string
+  serverName: string
+  toolName: string
+  outcome: 'approved' | 'denied' | 'auto'
+  args?: string
+}

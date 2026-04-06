@@ -399,6 +399,14 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'MCP Audit Section',
+        position: 'Below MCP Catalog',
+        items: [
+          { label: 'MCP Audit', detail: 'Persistent log of MCP tool call approval events. Shows the last 100 entries with timestamp, session name, MCP server, tool name, and outcome (approved / denied / auto). Stored in ~/.claude-colony/mcp-audit.json.', icon: 'ClipboardList' },
+          { label: 'Clear button', detail: 'Delete all entries from the audit log. The log is automatically trimmed to the last 500 entries to prevent unbounded growth.' },
+        ],
+      },
+      {
         name: 'Daemon Section',
         position: 'Lower section',
         items: [

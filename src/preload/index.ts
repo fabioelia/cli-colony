@@ -3,7 +3,7 @@ import type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
-  ReplayEvent, TaskBoardItem, AuditResult,
+  ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -11,7 +11,7 @@ export type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
-  ReplayEvent, TaskBoardItem, AuditResult,
+  ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry,
 }
 
 
@@ -294,6 +294,8 @@ export interface ClaudeManagerAPI {
     list: () => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string }>>
     save: (server: { name: string; command?: string; args?: string[]; url?: string; description?: string }) => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string }>>
     delete: (name: string) => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string }>>
+    getAuditLog: () => Promise<McpAuditEntry[]>
+    clearAuditLog: () => Promise<void>
   }
   session: {
     getReplay: (instanceId: string) => Promise<ReplayEvent[]>
@@ -619,6 +621,8 @@ const api: ClaudeManagerAPI = {
     list: () => ipcRenderer.invoke('mcp:list'),
     save: (server) => ipcRenderer.invoke('mcp:save', server),
     delete: (name) => ipcRenderer.invoke('mcp:delete', name),
+    getAuditLog: () => ipcRenderer.invoke('mcp:getAuditLog'),
+    clearAuditLog: () => ipcRenderer.invoke('mcp:clearAuditLog'),
   },
   session: {
     getReplay: (instanceId) => ipcRenderer.invoke('session:getReplay', instanceId),
