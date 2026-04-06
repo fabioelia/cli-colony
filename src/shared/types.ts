@@ -189,6 +189,19 @@ export interface ApprovalRequest {
   expiresAt?: string
 }
 
+export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'blocked'
+
+export interface TaskBoardItem {
+  id: string
+  title: string
+  status: TaskStatus
+  assignee?: string
+  notes?: string
+  created?: string
+  updated?: string
+  tags?: string[]
+}
+
 export interface ReplayEvent {
   ts: string           // ISO timestamp
   tool: string         // e.g. "Read", "Edit", "Bash"

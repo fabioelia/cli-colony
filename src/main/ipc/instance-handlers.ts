@@ -1,7 +1,5 @@
 import { ipcMain } from 'electron'
 import { execSync, spawn } from 'child_process'
-import { join } from 'path'
-import { existsSync, writeFileSync, readFileSync } from 'fs'
 import { createShell, writeShell, resizeShell, killShell } from '../shell-pty'
 import {
   createInstance,
@@ -12,7 +10,6 @@ import {
   getDaemonVersion,
 } from '../instance-manager'
 import { getDaemonClient } from '../daemon-client'
-import { sendPromptWhenReady } from '../send-prompt-when-ready'
 import { stripAnsi } from '../../shared/utils'
 import { readReplay } from '../replay-manager'
 
@@ -26,17 +23,7 @@ export interface ChildProcess {
 
 export function registerInstanceHandlers(): void {
   ipcMain.handle('instance:create', async (_e, opts) => {
-    const inst = await createInstance(opts || {})
-    // Inject checkpoint preamble if one exists in the working directory
-    const checkpointPath = join(inst.workingDirectory, '.colony-checkpoint.md')
-    if (existsSync(checkpointPath)) {
-      try {
-        const content = readFileSync(checkpointPath, 'utf-8')
-        const preamble = `The following checkpoint was auto-saved from your previous session in this directory. Resume your work from where you left off:\n\n${content}`
-        sendPromptWhenReady(inst.id, { prompt: preamble }).catch(() => {})
-      } catch { /* ignore read errors */ }
-    }
-    return inst
+    return createInstance(opts || {})
   })
   const client = getDaemonClient()
   ipcMain.handle('instance:write', async (_e, id: string, data: string) => {
@@ -146,58 +133,6 @@ export function registerInstanceHandlers(): void {
     }
   })
 
-  // Auto-save context checkpoint when the amber threshold fires in the renderer.
-  // Writes .colony-checkpoint.md to the instance's working directory.
-  ipcMain.handle('instance:saveCheckpoint', async (_e, id: string): Promise<boolean> => {
-    const client = getDaemonClient()
-    let inst
-    try { inst = await client.getInstance(id) } catch { return false }
-    if (!inst) return false
-
-    const rawBuf = await client.getInstanceBuffer(id).catch(() => '')
-    const clean = stripAnsi(rawBuf)
-    const lines = clean.split('\n').filter(l => l.trim())
-    const tail = lines.slice(-100).join('\n')
-
-    const parts: string[] = [
-      `# Context Checkpoint: ${inst.name}`,
-      '',
-      `**Saved:** ${new Date().toLocaleString()}`,
-      `**Directory:** ${inst.workingDirectory}`,
-      `**Status:** ${inst.status} · ${inst.activity}`,
-    ]
-    if (inst.gitBranch) {
-      parts.push(`**Git:** ${inst.gitBranch}${inst.gitRepo ? ` on ${inst.gitRepo}` : ''}`)
-    }
-
-    try {
-      const gitLog = execSync('git log --oneline -10', { encoding: 'utf-8', timeout: 5000, cwd: inst.workingDirectory })
-      if (gitLog.trim()) parts.push('', '## Recent Commits', '```', gitLog.trim(), '```')
-    } catch { /* not a git repo */ }
-    try {
-      const gitDiff = execSync('git diff --stat HEAD', { encoding: 'utf-8', timeout: 5000, cwd: inst.workingDirectory })
-      if (gitDiff.trim()) parts.push('', '## Uncommitted Changes', '```', gitDiff.trim(), '```')
-    } catch { /* not a git repo */ }
-
-    parts.push(
-      '',
-      '## Terminal Context (last 100 lines)',
-      '```',
-      tail || '(empty)',
-      '```',
-      '',
-      '---',
-      '*Auto-saved when context budget reached amber threshold. Injected as preamble on next session start in this directory.*',
-    )
-
-    try {
-      writeFileSync(join(inst.workingDirectory, '.colony-checkpoint.md'), parts.join('\n'), 'utf-8')
-      return true
-    } catch {
-      return false
-    }
-  })
-
   // AI-generated summary of a session's terminal snapshot.
   // Uses three sources in priority order:
   //   1. Replay log — tool call timeline, unaffected by context compaction
@@ -215,21 +150,7 @@ export function registerInstanceHandlers(): void {
       contextText = lines.join('\n')
     }
 
-    // Source 2: checkpoint file (saved before compaction occurs)
-    if (!contextText) {
-      try {
-        const inst = await client.getInstance(id)
-        if (inst?.workingDirectory) {
-          const cpPath = join(inst.workingDirectory, '.colony-checkpoint.md')
-          if (existsSync(cpPath)) {
-            const cpContent = readFileSync(cpPath, 'utf-8')
-            if (cpContent.length > 200) contextText = cpContent.slice(0, 6000)
-          }
-        }
-      } catch { /* ignore — instance may not be reachable */ }
-    }
-
-    // Source 3: terminal buffer — broader window, skip compaction header lines
+    // Source 2: terminal buffer — broader window, skip compaction header lines
     if (!contextText) {
       const COMPACTION_RE = /context.*(?:compacted|summarized)|conversation.*continued.*previous.*context/i
       const rawBuf = await client.getInstanceBuffer(id).catch(() => '')

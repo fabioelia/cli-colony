@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react
 import { useFileDrop } from '../hooks/useFileDrop'
 import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
-  ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote, ArrowRightCircle, Save, Loader2
+  ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote, ArrowRightCircle, Save, Loader2,
+  LayoutList, LayoutGrid
 } from 'lucide-react'
 import { marked } from 'marked'
 import HelpPopover from './HelpPopover'
@@ -125,6 +126,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
   const [editingPersona, setEditingPersona] = useState<PersonaInfo | null>(null)
   const [editContent, setEditContent] = useState('')
   const [editSaving, setEditSaving] = useState(false)
+  const [listMode, setListMode] = useState(() => localStorage.getItem('personas-list-mode') === '1')
 
   // Ask bar — persona assistant
   const [askInput, setAskInput] = useState('')
@@ -260,6 +262,17 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
         <div className="panel-header-spacer" />
         <HelpPopover topic="personas" align="right" />
         <div className="panel-header-actions">
+          <button
+            className={`panel-header-btn${listMode ? ' active' : ''}`}
+            title={listMode ? 'Switch to card view' : 'Switch to list view'}
+            onClick={() => {
+              const next = !listMode
+              setListMode(next)
+              localStorage.setItem('personas-list-mode', next ? '1' : '0')
+            }}
+          >
+            {listMode ? <LayoutGrid size={13} /> : <LayoutList size={13} />}
+          </button>
           <button className="panel-header-btn primary" onClick={() => setShowNewDialog(true)}>
             <Plus size={13} /> New Persona
           </button>
@@ -321,7 +334,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
         </div>
       )}
 
-      <div className="personas-list">
+      <div className={`personas-list${listMode ? ' list-mode' : ''}`}>
         {personas.map((persona) => (
           <PersonaCard
             key={persona.id}
@@ -329,6 +342,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
             expanded={expandedId === persona.id}
             instances={instances}
             allPersonas={personas}
+            listMode={listMode}
             onToggleExpand={() => setExpandedId(expandedId === persona.id ? null : persona.id)}
             onRun={() => handleRun(persona.id)}
             onStop={() => handleStop(persona.id)}
@@ -441,6 +455,7 @@ interface PersonaCardProps {
   expanded: boolean
   instances: ClaudeInstance[]
   allPersonas: PersonaInfo[]
+  listMode?: boolean
   onToggleExpand: () => void
   onRun: () => void
   onStop: () => void
@@ -455,8 +470,8 @@ interface PersonaCardProps {
 }
 
 function PersonaCard({
-  persona, expanded, instances, allPersonas, onToggleExpand,
-  onRun, onStop, onToggle, onDelete, onFocusInstance, onViewFile, onEditFile, onScheduleSave, onWhisper, onDeleteNote
+  persona, expanded, instances, allPersonas, listMode,
+  onToggleExpand, onRun, onStop, onToggle, onDelete, onFocusInstance, onViewFile, onEditFile, onScheduleSave, onWhisper, onDeleteNote
 }: PersonaCardProps) {
   const [editingSchedule, setEditingSchedule] = useState(false)
   const [whisperOpen, setWhisperOpen] = useState(false)
@@ -502,90 +517,146 @@ function PersonaCard({
     .slice(-3).reverse() // last 3 entries, newest first
 
   return (
-    <div className={`persona-card ${isRunning ? 'running' : persona.enabled ? 'enabled' : 'disabled'}`}>
-      <div className="persona-card-header" onClick={onToggleExpand}>
-        <span className="persona-card-expand">
-          {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-        </span>
-        <span className={`persona-card-status-dot ${statusClass}`} />
-        <div className="persona-card-info">
-          <span className="persona-card-name">{persona.name}</span>
-          {isRunning && persona.triggeredBy && (
-            <span className="persona-triggered-by" title={`This run was automatically triggered after "${persona.triggeredBy}" completed`}>↳ by {persona.triggeredBy}</span>
-          )}
-          <div className="persona-card-meta">
-            <button
-              className="persona-schedule-btn"
-              title={persona.schedule ? `Schedule: ${persona.schedule} — click to edit` : 'Click to set schedule'}
-              onClick={(e) => { e.stopPropagation(); setEditingSchedule(!editingSchedule) }}
-            >
-              <Clock size={10} />
-              {persona.schedule ? describeCron(persona.schedule) : 'Manual only'}
-              <Pencil size={9} className="cron-badge-edit-icon" />
-            </button>
-            <span title={`${persona.runCount} completed runs`}>
-              <Hash size={10} /> {persona.runCount}
+    <div className={listMode
+      ? `persona-list-row ${isRunning ? 'running' : persona.enabled ? 'enabled' : 'disabled'}`
+      : `persona-card ${isRunning ? 'running' : persona.enabled ? 'enabled' : 'disabled'}`
+    }>
+      {listMode ? (
+        /* List mode — compact single-line row */
+        <div className="persona-list-row-main" onClick={onToggleExpand}>
+          <span className="persona-list-expand">
+            {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+          </span>
+          <span className={`persona-card-status-dot ${statusClass}`} />
+          <span className="persona-list-name">{persona.name}</span>
+          {isRunning && <span className="persona-list-badge running">Running</span>}
+          <span className="persona-list-schedule">
+            <Clock size={9} /> {persona.schedule ? describeCron(persona.schedule) : 'Manual'}
+          </span>
+          {persona.lastRun ? (
+            <span className="persona-list-lastrun">
+              {new Date(persona.lastRun).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
             </span>
-            {persona.onCompleteRun.length > 0 && (
-              <span className="persona-trigger-badge" title={`After each run, automatically triggers: ${persona.onCompleteRun.map(id => allPersonas.find(p => p.id === id)?.name ?? id).join(', ')}`}>
-                <ArrowRightCircle size={10} /> {persona.onCompleteRun.map(id => allPersonas.find(p => p.id === id)?.name ?? id).join(', ')}
-              </span>
+          ) : (
+            <span className="persona-list-lastrun muted">—</span>
+          )}
+          <span className="persona-list-model">{persona.model || 'sonnet'}</span>
+          <div className="persona-list-actions" onClick={(e) => e.stopPropagation()}>
+            {!isRunning ? (
+              <Tooltip text="Run persona">
+                <button className="persona-action-btn" onClick={onRun}><Play size={11} /></button>
+              </Tooltip>
+            ) : (
+              <Tooltip text="Stop persona">
+                <button className="persona-action-btn running" onClick={onStop}><Square size={11} /></button>
+              </Tooltip>
             )}
+            <Tooltip text="Add a note for this persona's next run">
+              <button className={`persona-action-btn${whispers.length > 0 ? ' whisper-active' : ''}`} onClick={() => setWhisperOpen(v => !v)}>
+                <StickyNote size={11} />
+                {whispers.length > 0 && <span className="persona-whisper-badge">{whispers.length}</span>}
+              </button>
+            </Tooltip>
+            <button
+              className="persona-toggle"
+              onClick={() => onToggle(!persona.enabled)}
+              title={persona.enabled ? 'Disable scheduled runs' : 'Enable scheduled runs'}
+            >
+              <div className={`persona-toggle-track${persona.enabled ? ' enabled' : ''}`}>
+                <div className="persona-toggle-thumb" />
+              </div>
+            </button>
+            <Tooltip text="Delete persona">
+              <button className="persona-action-btn danger" onClick={onDelete}><Trash2 size={11} /></button>
+            </Tooltip>
           </div>
         </div>
-        <div className="persona-card-actions">
-          {!isRunning && (
-            <Tooltip text="Run persona" detail="⌘⇧P runs the first enabled persona from anywhere">
+      ) : (
+        /* Card mode — existing header */
+        <div className="persona-card-header" onClick={onToggleExpand}>
+          <span className="persona-card-expand">
+            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          </span>
+          <span className={`persona-card-status-dot ${statusClass}`} />
+          <div className="persona-card-info">
+            <span className="persona-card-name">{persona.name}</span>
+            {isRunning && persona.triggeredBy && (
+              <span className="persona-triggered-by" title={`This run was automatically triggered after "${persona.triggeredBy}" completed`}>↳ by {persona.triggeredBy}</span>
+            )}
+            <div className="persona-card-meta">
               <button
-                className="persona-action-btn"
-                onClick={(e) => { e.stopPropagation(); onRun() }}
+                className="persona-schedule-btn"
+                title={persona.schedule ? `Schedule: ${persona.schedule} — click to edit` : 'Click to set schedule'}
+                onClick={(e) => { e.stopPropagation(); setEditingSchedule(!editingSchedule) }}
               >
-                <Play size={12} />
+                <Clock size={10} />
+                {persona.schedule ? describeCron(persona.schedule) : 'Manual only'}
+                <Pencil size={9} className="cron-badge-edit-icon" />
               </button>
-            </Tooltip>
-          )}
-          {isRunning && (
-            <Tooltip text="Stop persona">
-              <button
-                className="persona-action-btn running"
-                onClick={(e) => { e.stopPropagation(); onStop() }}
-              >
-                <Square size={12} />
-              </button>
-            </Tooltip>
-          )}
-          <Tooltip text="Add a note for this persona's next run">
-            <button
-              className={`persona-action-btn${whispers.length > 0 ? ' whisper-active' : ''}`}
-              aria-label="Add note"
-              onClick={(e) => { e.stopPropagation(); setWhisperOpen(v => !v) }}
-            >
-              <StickyNote size={12} />
-              {whispers.length > 0 && (
-                <span className="persona-whisper-badge">{whispers.length}</span>
+              <span title={`${persona.runCount} completed runs`}>
+                <Hash size={10} /> {persona.runCount}
+              </span>
+              {persona.onCompleteRun.length > 0 && (
+                <span className="persona-trigger-badge" title={`After each run, automatically triggers: ${persona.onCompleteRun.map(id => allPersonas.find(p => p.id === id)?.name ?? id).join(', ')}`}>
+                  <ArrowRightCircle size={10} /> {persona.onCompleteRun.map(id => allPersonas.find(p => p.id === id)?.name ?? id).join(', ')}
+                </span>
               )}
-            </button>
-          </Tooltip>
-          <button
-            className="persona-toggle"
-            onClick={(e) => { e.stopPropagation(); onToggle(!persona.enabled) }}
-            title={persona.enabled ? 'Disable scheduled runs' : 'Enable scheduled runs'}
-          >
-            <div className={`persona-toggle-track${persona.enabled ? ' enabled' : ''}`}>
-              <div className="persona-toggle-thumb" />
             </div>
-            <span className="persona-toggle-label">{persona.enabled ? 'On' : 'Off'}</span>
-          </button>
-          <Tooltip text="Delete persona">
+          </div>
+          <div className="persona-card-actions">
+            {!isRunning && (
+              <Tooltip text="Run persona" detail="⌘⇧P runs the first enabled persona from anywhere">
+                <button
+                  className="persona-action-btn"
+                  onClick={(e) => { e.stopPropagation(); onRun() }}
+                >
+                  <Play size={12} />
+                </button>
+              </Tooltip>
+            )}
+            {isRunning && (
+              <Tooltip text="Stop persona">
+                <button
+                  className="persona-action-btn running"
+                  onClick={(e) => { e.stopPropagation(); onStop() }}
+                >
+                  <Square size={12} />
+                </button>
+              </Tooltip>
+            )}
+            <Tooltip text="Add a note for this persona's next run">
+              <button
+                className={`persona-action-btn${whispers.length > 0 ? ' whisper-active' : ''}`}
+                aria-label="Add note"
+                onClick={(e) => { e.stopPropagation(); setWhisperOpen(v => !v) }}
+              >
+                <StickyNote size={12} />
+                {whispers.length > 0 && (
+                  <span className="persona-whisper-badge">{whispers.length}</span>
+                )}
+              </button>
+            </Tooltip>
             <button
-              className="persona-action-btn danger"
-              onClick={(e) => { e.stopPropagation(); onDelete() }}
+              className="persona-toggle"
+              onClick={(e) => { e.stopPropagation(); onToggle(!persona.enabled) }}
+              title={persona.enabled ? 'Disable scheduled runs' : 'Enable scheduled runs'}
             >
-              <Trash2 size={12} />
+              <div className={`persona-toggle-track${persona.enabled ? ' enabled' : ''}`}>
+                <div className="persona-toggle-thumb" />
+              </div>
+              <span className="persona-toggle-label">{persona.enabled ? 'On' : 'Off'}</span>
             </button>
-          </Tooltip>
+            <Tooltip text="Delete persona">
+              <button
+                className="persona-action-btn danger"
+                onClick={(e) => { e.stopPropagation(); onDelete() }}
+              >
+                <Trash2 size={12} />
+              </button>
+            </Tooltip>
+          </div>
         </div>
-      </div>
+      )}
 
       {editingSchedule && (
         <CronEditor
@@ -623,8 +694,8 @@ function PersonaCard({
         </div>
       )}
 
-      {/* Pending notes preview — visible when collapsed */}
-      {!expanded && !whisperOpen && whispers.length > 0 && (
+      {/* Pending notes preview — visible when collapsed (card mode only) */}
+      {!listMode && !expanded && !whisperOpen && whispers.length > 0 && (
         <div className="persona-whispers-preview" onClick={onToggleExpand}>
           {whispers.slice(0, 2).map((w, i) => (
             <div key={i} className="persona-whisper-entry">
@@ -638,8 +709,8 @@ function PersonaCard({
         </div>
       )}
 
-      {/* Recent activity preview — always visible */}
-      {!expanded && sessionLogLines.length > 0 && (
+      {/* Recent activity preview — card mode only */}
+      {!listMode && !expanded && sessionLogLines.length > 0 && (
         <div className="persona-card-preview" onClick={onToggleExpand}>
           {sessionLogLines.map((line, i) => {
             // Parse "- [2026-04-02T21:15:00Z] summary text"

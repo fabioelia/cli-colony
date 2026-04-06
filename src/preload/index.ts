@@ -3,7 +3,7 @@ import type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
-  ReplayEvent,
+  ReplayEvent, TaskBoardItem,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -11,7 +11,7 @@ export type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
-  ReplayEvent,
+  ReplayEvent, TaskBoardItem,
 }
 
 
@@ -47,7 +47,6 @@ export interface ClaudeManagerAPI {
     list: () => Promise<ClaudeInstance[]>
     get: (id: string) => Promise<ClaudeInstance | null>
     buffer: (id: string) => Promise<string>
-    saveCheckpoint: (id: string) => Promise<boolean>
     summarize: (id: string) => Promise<string>
     processes: (id: string) => Promise<Array<{ pid: number; name: string; command: string; cpu: string; mem: string }>>
     killProcess: (pid: number) => Promise<boolean>
@@ -220,6 +219,12 @@ export interface ClaudeManagerAPI {
     onStatus: (cb: (personas: PersonaInfo[]) => void) => () => void
     onRun: (cb: (data: { persona: string; instanceId: string }) => void) => () => void
   }
+  tasksBoard: {
+    list: () => Promise<TaskBoardItem[]>
+    save: (item: TaskBoardItem) => Promise<void>
+    delete: (id: string) => Promise<void>
+    onUpdated: (cb: (items: TaskBoardItem[]) => void) => () => void
+  }
   taskQueue: {
     list: () => Promise<Array<{ name: string; path: string; content: string }>>
     save: (name: string, content: string) => Promise<string>
@@ -319,7 +324,6 @@ const api: ClaudeManagerAPI = {
     list: () => ipcRenderer.invoke('instance:list'),
     get: (id) => ipcRenderer.invoke('instance:get', id),
     buffer: (id) => ipcRenderer.invoke('instance:buffer', id),
-    saveCheckpoint: (id) => ipcRenderer.invoke('instance:saveCheckpoint', id),
     summarize: (id) => ipcRenderer.invoke('session:summarize', id),
     processes: (id) => ipcRenderer.invoke('instance:processes', id),
     killProcess: (pid) => ipcRenderer.invoke('instance:killProcess', pid),
@@ -457,6 +461,16 @@ const api: ClaudeManagerAPI = {
     getContextPath: () => ipcRenderer.invoke('colony:getContextPath'),
     getContextInstruction: () => ipcRenderer.invoke('colony:getContextInstruction'),
     writePromptFile: (content) => ipcRenderer.invoke('colony:writePromptFile', content),
+  },
+  tasksBoard: {
+    list: () => ipcRenderer.invoke('tasks:board:list'),
+    save: (item) => ipcRenderer.invoke('tasks:board:save', item),
+    delete: (id) => ipcRenderer.invoke('tasks:board:delete', id),
+    onUpdated: (cb) => {
+      const handler = (_e: Electron.IpcRendererEvent, items: TaskBoardItem[]) => cb(items)
+      ipcRenderer.on('tasks:board:updated', handler)
+      return () => ipcRenderer.removeListener('tasks:board:updated', handler)
+    },
   },
   taskQueue: {
     list: () => ipcRenderer.invoke('taskQueue:list'),

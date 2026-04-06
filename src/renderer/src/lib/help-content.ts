@@ -420,6 +420,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Top bar',
         items: [
           { label: 'New button', detail: 'Create a new persona from a blank template with a name.', icon: 'Plus' },
+          { label: 'List view toggle', detail: 'Switch between card view (expanded cards with session previews) and list view (compact one-row-per-persona table showing schedule, last run, and model at a glance). Preference is persisted.', icon: 'LayoutList' },
         ],
       },
       {
@@ -638,6 +639,42 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Log lines', detail: 'Each line shows the service name (left column) and the log text. Color-coded by service.' },
           { label: 'Buffer limit', detail: 'Keeps the last 2,000 lines to prevent memory issues.' },
           { label: 'Live streaming', detail: 'New output appears in real time as services write to stdout/stderr.' },
+        ],
+      },
+    ],
+  },
+
+  tasksBoard: {
+    title: 'Shared Task Board',
+    description: 'A shared coordination board backed by ~/.claude-colony/colony-tasks.json. All Colony personas and sessions can read and write tasks, making it a lightweight shared primitive for multi-agent workflows.',
+    zones: [
+      {
+        name: 'Header',
+        position: 'Top bar',
+        items: [
+          { label: 'Active count', detail: 'Badge showing the number of tasks not yet Done.' },
+          { label: 'Refresh', detail: 'Re-read the task board from disk.', icon: 'RefreshCw' },
+          { label: 'Add task', detail: 'Open the new-task form. Fill in title, status, assignee, and optional tags/notes, then click Save.', icon: 'Plus' },
+        ],
+      },
+      {
+        name: 'Columns',
+        position: 'Main area',
+        items: [
+          { label: 'To Do', detail: 'Tasks not yet started.' },
+          { label: 'In Progress', detail: 'Tasks currently being worked on.' },
+          { label: 'Blocked', detail: 'Tasks that are stuck and waiting on something.' },
+          { label: 'Done', detail: 'Completed tasks. Only shown when at least one task is done.' },
+          { label: 'Task card', detail: 'Click a card to expand it. Expanded cards show notes, last-updated time, and quick status-change buttons.' },
+          { label: 'Delete task', detail: 'Trash icon on each card removes the task immediately (no confirmation).', icon: 'Trash2' },
+        ],
+      },
+      {
+        name: 'File Format',
+        position: 'Background',
+        items: [
+          { label: 'colony-tasks.json', detail: 'Stored at ~/.claude-colony/colony-tasks.json. Can be written by any persona or external script. Supports an array of task objects or { tasks: [...] }.' },
+          { label: 'Live updates', detail: 'The board watches the file for external changes and refreshes automatically when another agent writes to it.' },
         ],
       },
     ],

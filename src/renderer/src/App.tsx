@@ -11,6 +11,7 @@ import SettingsPanel from './components/SettingsPanel'
 import GitHubPanel from './components/GitHubPanel'
 import CommandPalette from './components/CommandPalette'
 import TaskQueuePanel from './components/TaskQueuePanel'
+import TaskBoardPanel from './components/TaskBoardPanel'
 import PipelinesPanel from './components/PipelinesPanel'
 import EnvironmentsPanel from './components/EnvironmentsPanel'
 import PersonasPanel from './components/PersonasPanel'
@@ -30,6 +31,7 @@ export default function App() {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [showNewDialog, setShowNewDialog] = useState(false)
   const [view, setView] = useState<View>('instances')
+  const [tasksTab, setTasksTab] = useState<'queue' | 'board'>('queue')
   const [editingAgent, setEditingAgent] = useState<AgentDef | null>(null)
   const [editorInstanceId, setEditorInstanceId] = useState<string | null>(null)
   const [restorableSessions, setRestorableSessions] = useState<RecentSession[]>([])
@@ -47,7 +49,6 @@ export default function App() {
   const pendingPromptRef = useRef<{ id: string; prompt: string } | null>(null)
   const [outputBytes, setOutputBytes] = useState<Map<string, number>>(new Map())
   const outputBytesAccRef = useRef<Map<string, number>>(new Map())
-  const checkpointedSessionsRef = useRef<Set<string>>(new Set())
   const [resourceUsage, setResourceUsage] = useState<{
     perInstance: Record<string, { cpu: number; memory: number }>
     total: { cpu: number; memory: number }
@@ -178,15 +179,7 @@ export default function App() {
     })
     // Flush accumulated bytes to state every 15s so renders stay infrequent
     const timer = setInterval(() => {
-      const newBytes = new Map(outputBytesAccRef.current)
-      setOutputBytes(newBytes)
-      // Auto-checkpoint sessions crossing the amber threshold (once per session)
-      newBytes.forEach((bytes, id) => {
-        if (bytes >= 250_000 && !checkpointedSessionsRef.current.has(id)) {
-          checkpointedSessionsRef.current.add(id)
-          window.api.instance.saveCheckpoint(id).catch(() => {})
-        }
-      })
+      setOutputBytes(new Map(outputBytesAccRef.current))
     }, 15_000)
     return () => { unsub(); clearInterval(timer) }
   }, [])
@@ -195,10 +188,7 @@ export default function App() {
   useEffect(() => {
     const ids = new Set(instances.map(i => i.id))
     outputBytesAccRef.current.forEach((_, id) => {
-      if (!ids.has(id)) {
-        outputBytesAccRef.current.delete(id)
-        checkpointedSessionsRef.current.delete(id)
-      }
+      if (!ids.has(id)) outputBytesAccRef.current.delete(id)
     })
   }, [instances])
 
@@ -935,16 +925,36 @@ export default function App() {
         )}
         {view === 'agents' && <AgentsPanel onLaunchAgent={handleLaunchAgent} onEditAgent={handleEditAgent} />}
         {view === 'tasks' && (
-          <TaskQueuePanel
-            instances={instances}
-            onFocusInstance={(id) => { setActiveId(id); setView('instances') }}
-            onLaunchInstance={async (opts) => {
-              const inst = await window.api.instance.create(opts)
-              setActiveId(inst.id)
-              setView('instances')
-              return inst.id
-            }}
-          />
+          <div className="tasks-view-wrapper">
+            <div className="tasks-view-tabs">
+              <button
+                className={`tasks-view-tab${tasksTab === 'queue' ? ' active' : ''}`}
+                onClick={() => setTasksTab('queue')}
+              >
+                Queue
+              </button>
+              <button
+                className={`tasks-view-tab${tasksTab === 'board' ? ' active' : ''}`}
+                onClick={() => setTasksTab('board')}
+              >
+                Board
+              </button>
+            </div>
+            {tasksTab === 'queue' ? (
+              <TaskQueuePanel
+                instances={instances}
+                onFocusInstance={(id) => { setActiveId(id); setView('instances') }}
+                onLaunchInstance={async (opts) => {
+                  const inst = await window.api.instance.create(opts)
+                  setActiveId(inst.id)
+                  setView('instances')
+                  return inst.id
+                }}
+              />
+            ) : (
+              <TaskBoardPanel />
+            )}
+          </div>
         )}
         {view === 'pipelines' && (
           <PipelinesPanel

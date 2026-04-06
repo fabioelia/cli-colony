@@ -529,7 +529,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                   </div>
                   <div className="env-card-meta">
                     <span className="env-card-branch">{env.branch}</span>
-                    <span className="env-card-type">{env.projectType}</span>
+                    {env.projectType && <span className="env-card-type">{env.projectType}</span>}
                   </div>
                 </div>
 
@@ -852,7 +852,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                   {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                   <div className="env-tpl-title">
                     <span className="env-tpl-name">{t.name}</span>
-                    <span className="env-tpl-type">{t.projectType}</span>
+                    {t.projectType && <span className="env-tpl-type">{t.projectType}</span>}
                     {t.source && t.source !== 'user' && (
                       <span className="env-tpl-source" title={`From ${t.source}`}>{t.source.replace('repo:', '')}</span>
                     )}
@@ -937,6 +937,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                           value={editingTemplateJson.content}
                           onChange={(e) => setEditingTemplateJson({ ...editingTemplateJson, content: e.target.value, dirty: true })}
                           spellCheck={false}
+                          placeholder="Paste or edit template JSON here..."
                         />
                         {editingTemplateJson.dirty && (
                           <button className="env-btn env-btn-primary env-btn-sm" onClick={async () => {

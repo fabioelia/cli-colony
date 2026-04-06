@@ -1719,11 +1719,11 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                   {expanded && (
                     <div className="replay-event-body">
                       <div className="replay-event-section">
-                        <span className="replay-event-label">Input</span>
+                        <span className="replay-event-label">Input (preview)</span>
                         <pre className="replay-event-pre">{event.inputSummary || '(none)'}</pre>
                       </div>
                       <div className="replay-event-section">
-                        <span className="replay-event-label">Output</span>
+                        <span className="replay-event-label">Output (preview)</span>
                         <pre className="replay-event-pre">{event.outputSummary || '(none)'}</pre>
                       </div>
                       <div className="replay-event-section">
