@@ -359,6 +359,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
+          <>
           <div className="instance-name">
             {inst.pinned && <span className="instance-pin-icon" title="Pinned"><Pin size={11} /></span>}
             {inst.name}
@@ -397,6 +398,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
               </div>
             )
           })()}
+          </>
         )}
         <div className="instance-meta">
           {inst.parentId && <span className="instance-child-indicator" title="Child session">↳ </span>}

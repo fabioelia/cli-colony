@@ -813,6 +813,130 @@ export function getPersonasDir(): string {
   return PERSONAS_DIR
 }
 
+/** Surgically update one or more frontmatter fields without touching section content. */
+export function updatePersonaMeta(fileName: string, updates: Record<string, string | boolean | number>): boolean {
+  const { content } = getPersonaContent(fileName)
+  if (!content) return false
+  let updated = content
+  for (const [key, value] of Object.entries(updates)) {
+    const strValue = typeof value === 'string' ? `"${value}"` : String(value)
+    const regex = new RegExp(`^(${key}:\\s*).*$`, 'm')
+    if (regex.test(updated)) {
+      updated = updated.replace(regex, `$1${strValue}`)
+    } else {
+      // Append field inside frontmatter block before closing ---
+      updated = updated.replace(/^(---\n[\s\S]*?)\n---/, (_m, body) => `${body}\n${key}: ${strValue}\n---`)
+    }
+  }
+  return savePersonaContent(fileName, updated)
+}
+
+/** List output artifacts for a persona (brief + outputs/<id>/ files), newest first. */
+export function getPersonaArtifacts(personaId: string): import('../shared/types').PersonaArtifact[] {
+  const safeId = basename(personaId)
+  const outputsDir = join(colonyPaths.root, 'outputs', safeId)
+  const artifacts: import('../shared/types').PersonaArtifact[] = []
+
+  // Brief first
+  const briefPath = join(PERSONAS_DIR, `${safeId}.brief.md`)
+  if (existsSync(briefPath)) {
+    try {
+      const s = statSync(briefPath)
+      artifacts.push({ name: `${safeId}.brief.md`, sizeBytes: s.size, modifiedAt: s.mtimeMs, isBrief: true })
+    } catch { /* skip */ }
+  }
+
+  // Output files
+  if (existsSync(outputsDir)) {
+    try {
+      const files = readdirSync(outputsDir)
+      for (const file of files) {
+        try {
+          const s = statSync(join(outputsDir, file))
+          if (s.isFile()) {
+            artifacts.push({ name: file, sizeBytes: s.size, modifiedAt: s.mtimeMs, isBrief: false })
+          }
+        } catch { /* skip */ }
+      }
+    } catch { /* dir unreadable */ }
+  }
+
+  // Sort outputs newest first (brief always leads)
+  const brief = artifacts.filter(a => a.isBrief)
+  const others = artifacts.filter(a => !a.isBrief).sort((a, b) => b.modifiedAt - a.modifiedAt)
+  return [...brief, ...others]
+}
+
+/** Read content of a persona artifact (brief or output file). Cap at 50KB. */
+export function readPersonaArtifact(personaId: string, filename: string): string | null {
+  const safeId = basename(personaId)
+  const safeFile = basename(filename)
+  let filePath: string
+  if (safeFile === `${safeId}.brief.md`) {
+    filePath = join(PERSONAS_DIR, safeFile)
+  } else {
+    filePath = join(colonyPaths.root, 'outputs', safeId, safeFile)
+  }
+  if (!existsSync(filePath)) return null
+  const content = readFileSync(filePath, 'utf-8')
+  const MAX = 50 * 1024
+  return content.length > MAX ? content.slice(0, MAX) + '\n\n[truncated]' : content
+}
+
+/** Query persona activity data via claude -p haiku. */
+export async function askPersonas(query: string): Promise<string> {
+  ensureDir()
+  const files = readdirSync(PERSONAS_DIR).filter(f => f.endsWith('.md') && !f.includes('.brief'))
+  const MAX_TOTAL = 8000
+  let totalChars = 0
+  const contextParts: string[] = []
+
+  for (const file of files) {
+    const id = file.replace(/\.md$/, '')
+    const filePath = join(PERSONAS_DIR, file)
+    let content = ''
+    try { content = readFileSync(filePath, 'utf-8') } catch { continue }
+
+    // Extract session log lines
+    const logMatch = content.match(/## Session Log\n([\s\S]*?)(?=\n## [^#]|$)/)
+    const logLines = logMatch
+      ? logMatch[1].split('\n').filter(l => l.trim().startsWith('- [')).slice(-20).join('\n')
+      : ''
+
+    // Read brief (first 2KB)
+    let briefText = ''
+    const briefPath = join(PERSONAS_DIR, `${id}.brief.md`)
+    if (existsSync(briefPath)) {
+      try { briefText = readFileSync(briefPath, 'utf-8').slice(0, 2048) } catch { /* skip */ }
+    }
+
+    const nameMatch = content.match(/^name:\s*"?([^"\n]+)"?/m)
+    const displayName = nameMatch ? nameMatch[1].trim() : id
+    const block = `=== Persona: ${displayName} ===\n${logLines}${briefText ? `\nBrief:\n${briefText}` : ''}`
+
+    if (totalChars + block.length > MAX_TOTAL) break
+    contextParts.push(block)
+    totalChars += block.length
+  }
+
+  const context = contextParts.join('\n\n')
+  const contextPrompt = `Given the following Colony persona activity data, answer this question concisely: ${query}\n\n${context}`
+
+  try {
+    const { stdout } = await execFileAsync(
+      'claude',
+      ['-p', contextPrompt, '--model', 'claude-haiku-4-5-20251001', '--permission-mode', 'bypassPermissions'],
+      { timeout: 30000 }
+    )
+    return stdout.trim() || 'No response.'
+  } catch (err: any) {
+    if (err.killed || (err as NodeJS.ErrnoException).code === 'ETIMEDOUT') {
+      return 'Request timed out — try a more specific question'
+    }
+    return `Error: ${err.message ?? 'Unknown error'}`
+  }
+}
+
 // ---- Memory Extraction ----
 
 /**

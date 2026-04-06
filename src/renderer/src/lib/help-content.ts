@@ -467,9 +467,10 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Ask Bar',
         position: 'Below header',
         items: [
+          { label: 'Ask about personas', detail: 'Type a question about what your personas have been doing — e.g. "what did Colony Developer ship yesterday?" Reads all persona session logs and briefs, then answers inline via Claude Haiku. Clears when you click ✕.', icon: 'ArrowRight' },
           { label: 'Persona Assistant', detail: 'Describe a persona and the assistant will create or modify the .md file for you. It knows the file format, section conventions, and permission scopes.', icon: 'MessageSquare' },
           { label: 'View button', detail: 'Focus the running Persona Assistant session to continue the conversation.' },
-          { label: 'File drag & drop', detail: 'Drag files from Finder onto the ask bar to append their absolute paths to your message.' },
+          { label: 'File drag & drop', detail: 'Drag files from Finder onto the assistant bar to append their absolute paths to your message.' },
         ],
       },
       {
@@ -499,6 +500,8 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Learnings', detail: 'Facts and patterns the persona has discovered. It adds and prunes these itself.' },
           { label: 'Session Log', detail: 'Recent session summaries. Auto-pruned to the last 20 entries.' },
           { label: 'Permissions', detail: 'What the persona can and cannot do: push code, merge PRs, create sessions. conflict_group serializes two can_push personas so they never run simultaneously (same group = one at a time; different groups = concurrent). run_condition: new_commits skips a run if no new commits have landed since the last run.' },
+          { label: 'Outputs tab', detail: 'Switch to the Outputs tab in an expanded card to browse files the persona wrote to ~/.claude-colony/outputs/<persona>/. Click any file to open a read-only viewer. Session Brief is always listed first.', icon: 'FolderOpen' },
+          { label: 'Edit persona settings', detail: 'Click the Pencil icon (list view) to open a quick-edit modal for schedule, model, max sessions, and enabled state — without touching the raw markdown.', icon: 'Pencil' },
           { label: 'View File', detail: 'Open a read-only preview of the persona\'s raw markdown file.', icon: 'FileText' },
           { label: 'Edit File', detail: 'Open the persona\'s markdown file in a text editor. Edit any section and save — useful for updating Role, Objectives, or manually fixing the Active Situations block.', icon: 'Pencil' },
         ],

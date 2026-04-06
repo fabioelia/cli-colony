@@ -4,7 +4,7 @@ import type {
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
-  ForkGroup, GitDiffEntry,
+  ForkGroup, GitDiffEntry, PersonaArtifact,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -13,7 +13,7 @@ export type {
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
-  ForkGroup, GitDiffEntry,
+  ForkGroup, GitDiffEntry, PersonaArtifact,
 }
 
 
@@ -218,6 +218,10 @@ export interface ClaudeManagerAPI {
     setSchedule: (fileName: string, schedule: string) => Promise<boolean>
     whisper: (fileName: string, text: string) => Promise<boolean>
     deleteNote: (fileName: string, index: number) => Promise<boolean>
+    updateMeta: (fileName: string, updates: Record<string, string | boolean | number>) => Promise<boolean>
+    getArtifacts: (personaId: string) => Promise<PersonaArtifact[]>
+    readArtifact: (personaId: string, filename: string) => Promise<string | null>
+    ask: (query: string) => Promise<string>
     onStatus: (cb: (personas: PersonaInfo[]) => void) => () => void
     onRun: (cb: (data: { persona: string; instanceId: string }) => void) => () => void
   }
@@ -566,6 +570,10 @@ const api: ClaudeManagerAPI = {
     setSchedule: (fileName, schedule) => ipcRenderer.invoke('persona:setSchedule', fileName, schedule),
     whisper: (fileName, text) => ipcRenderer.invoke('persona:whisper', fileName, text),
     deleteNote: (fileName, index) => ipcRenderer.invoke('persona:deleteNote', fileName, index),
+    updateMeta: (fileName, updates) => ipcRenderer.invoke('persona:updateMeta', fileName, updates),
+    getArtifacts: (personaId) => ipcRenderer.invoke('persona:getArtifacts', personaId),
+    readArtifact: (personaId, filename) => ipcRenderer.invoke('persona:readArtifact', personaId, filename),
+    ask: (query) => ipcRenderer.invoke('persona:ask', query),
     onStatus: (cb) => {
       const l = (_e: any, data: PersonaInfo[]) => cb(data)
       ipcRenderer.on('persona:status', l)

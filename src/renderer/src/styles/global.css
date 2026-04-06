@@ -13838,3 +13838,221 @@ input, select {
   font-size: 10px; padding: 1px 5px; border-radius: 3px; color: var(--text-muted);
   opacity: 0.6;
 }
+
+/* ===== Persona Chat Bar ===== */
+.personas-ask-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.personas-ask-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 12px;
+  color: var(--text-primary);
+  min-width: 0;
+}
+.personas-ask-input::placeholder { color: var(--text-muted); }
+.personas-ask-input:disabled { opacity: 0.5; }
+.personas-ask-send {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.personas-ask-send:hover:not(:disabled) { color: var(--accent); background: var(--bg-hover); }
+.personas-ask-send:disabled { opacity: 0.3; cursor: default; }
+.personas-ask-response {
+  position: relative;
+  margin: 0 10px 8px;
+  padding: 8px 28px 8px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  flex-shrink: 0;
+}
+.personas-ask-response pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  font-family: inherit;
+  color: var(--text-primary);
+}
+.personas-ask-response-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+}
+.personas-ask-response-close:hover { color: var(--text-primary); background: var(--bg-hover); }
+
+/* ===== Persona Cron Chip (list view) ===== */
+.persona-list-cron-chip {
+  font-family: var(--font-mono, monospace);
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ===== Persona Card Tabs ===== */
+.persona-card-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px 0;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.persona-card-tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.persona-card-tab:hover { color: var(--text-primary); background: var(--bg-hover); }
+.persona-card-tab.active { color: var(--text-primary); border-bottom-color: var(--accent); }
+
+/* ===== Persona Outputs Tab ===== */
+.persona-outputs-tab {
+  padding: 4px 0;
+}
+.persona-outputs-loading,
+.persona-outputs-empty {
+  padding: 16px 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.persona-artifact-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  gap: 8px;
+}
+.persona-artifact-row:hover { background: var(--bg-hover); }
+.persona-artifact-name {
+  font-size: 12px;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.persona-artifact-meta {
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.persona-artifact-content {
+  flex: 1;
+  padding: 12px;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-y: auto;
+  margin: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 200px;
+  border-top: 1px solid var(--border);
+}
+
+/* ===== Persona Edit Meta Modal ===== */
+.persona-edit-meta-modal {
+  max-width: 420px;
+}
+.persona-edit-meta-body {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.persona-edit-meta-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+.persona-edit-meta-field > span {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.persona-edit-meta-toggle {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+.persona-edit-meta-input {
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: var(--font-mono, monospace);
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-primary);
+  outline: none;
+}
+.persona-edit-meta-input:focus { border-color: var(--accent); }
+.persona-edit-meta-select {
+  padding: 6px 8px;
+  font-size: 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-primary);
+  outline: none;
+  cursor: pointer;
+}
+.persona-edit-meta-select:focus { border-color: var(--accent); }
+.persona-edit-meta-error {
+  font-size: 11px;
+  color: #ef4444;
+  padding: 4px 8px;
+  background: rgba(239,68,68,0.08);
+  border-radius: 4px;
+}

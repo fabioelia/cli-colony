@@ -3,6 +3,7 @@ import {
   listPersonas, getPersonaContent, savePersonaContent,
   createPersona, deletePersona, runPersona, stopPersona,
   togglePersona, getPersonasDir, setPersonaSchedule, addWhisper, deleteNote,
+  updatePersonaMeta, getPersonaArtifacts, readPersonaArtifact, askPersonas,
 } from '../persona-manager'
 
 export function registerPersonaHandlers(): void {
@@ -18,4 +19,8 @@ export function registerPersonaHandlers(): void {
   ipcMain.handle('persona:setSchedule', (_e, fileName: string, schedule: string) => setPersonaSchedule(fileName, schedule))
   ipcMain.handle('persona:whisper', (_e, fileName: string, text: string) => addWhisper(fileName, text))
   ipcMain.handle('persona:deleteNote', (_e, fileName: string, index: number) => deleteNote(fileName, index))
+  ipcMain.handle('persona:updateMeta', (_e, fileName: string, updates: Record<string, string | boolean | number>) => updatePersonaMeta(fileName, updates))
+  ipcMain.handle('persona:getArtifacts', (_e, personaId: string) => getPersonaArtifacts(personaId))
+  ipcMain.handle('persona:readArtifact', (_e, personaId: string, filename: string) => readPersonaArtifact(personaId, filename))
+  ipcMain.handle('persona:ask', (_e, query: string) => askPersonas(query))
 }

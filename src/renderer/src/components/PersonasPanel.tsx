@@ -3,7 +3,7 @@ import { useFileDrop } from '../hooks/useFileDrop'
 import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
   ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote, ArrowRightCircle, Save, Loader2,
-  LayoutList, LayoutGrid, Hourglass
+  LayoutList, LayoutGrid, Hourglass, ArrowRight, FolderOpen,
 } from 'lucide-react'
 import { marked } from 'marked'
 import HelpPopover from './HelpPopover'
@@ -12,7 +12,7 @@ import CronEditor from './CronEditor'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import { describeCron } from '../../../shared/cron'
 
-import type { PersonaInfo, ClaudeInstance } from '../../../shared/types'
+import type { PersonaInfo, ClaudeInstance, PersonaArtifact } from '../../../shared/types'
 
 interface Props {
   onBack: () => void
@@ -151,6 +151,29 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
   })
   const [personasDir, setPersonasDir] = useState<string | null>(null)
   const sendingRef = useRef(false)
+
+  // Persona Chat — inline query over session logs + briefs
+  const [chatQuery, setChatQuery] = useState('')
+  const [chatResponse, setChatResponse] = useState<string | null>(null)
+  const [chatLoading, setChatLoading] = useState(false)
+
+  // Persona Edit Modal state
+  const [editMetaPersona, setEditMetaPersona] = useState<PersonaInfo | null>(null)
+
+  const handleChat = useCallback(async () => {
+    const q = chatQuery.trim()
+    if (!q || chatLoading) return
+    setChatLoading(true)
+    setChatResponse(null)
+    try {
+      const result = await window.api.persona.ask(q)
+      setChatResponse(result)
+    } catch {
+      setChatResponse('Failed to get response.')
+    } finally {
+      setChatLoading(false)
+    }
+  }, [chatQuery, chatLoading])
 
   const loadPersonas = useCallback(async () => {
     try {
@@ -294,6 +317,34 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
         </div>
       </div>
 
+      {/* Persona Chat — ask about session logs and briefs */}
+      <div className="personas-ask-bar">
+        <input
+          className="personas-ask-input"
+          placeholder="Ask what's been happening across personas…"
+          value={chatQuery}
+          onChange={(e) => setChatQuery(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChat() } }}
+          disabled={chatLoading}
+        />
+        <button
+          className="personas-ask-send"
+          onClick={handleChat}
+          disabled={!chatQuery.trim() || chatLoading}
+          title="Ask about persona activity"
+        >
+          {chatLoading ? <Loader2 size={13} className="spin" /> : <ArrowRight size={13} />}
+        </button>
+      </div>
+      {chatResponse !== null && (
+        <div className="personas-ask-response">
+          <button className="personas-ask-response-close" onClick={() => { setChatResponse(null); setChatQuery('') }} title="Dismiss">
+            <X size={11} />
+          </button>
+          <pre>{chatResponse}</pre>
+        </div>
+      )}
+
       {/* Ask bar — always visible */}
       <div ref={askBarRef} className={`panel-ask-bar${askBarDragging ? ' dragging' : ''}`}>
         <MessageSquare size={14} className="panel-ask-icon" />
@@ -366,6 +417,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
             onFocusInstance={onFocusInstance}
             onViewFile={() => setViewingPersona(persona)}
             onEditFile={() => { setEditingPersona(persona); setEditContent(persona.content) }}
+            onEditMeta={() => setEditMetaPersona(persona)}
             onScheduleSave={async (schedule) => {
               await window.api.persona.setSchedule(persona.id, schedule)
             }}
@@ -429,6 +481,15 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
           </div>
         </div>
       )}
+
+      {/* Edit Meta Modal — schedule, model, enabled, max sessions */}
+      {editMetaPersona && (
+        <EditPersonaModal
+          persona={editMetaPersona}
+          onClose={() => setEditMetaPersona(null)}
+          onSaved={loadPersonas}
+        />
+      )}
     </div>
   )
 }
@@ -479,6 +540,7 @@ interface PersonaCardProps {
   onFocusInstance: (id: string) => void
   onViewFile: () => void
   onEditFile: () => void
+  onEditMeta: () => void
   onScheduleSave: (schedule: string) => Promise<void>
   onWhisper: (text: string) => Promise<void>
   onDeleteNote: (index: number) => Promise<void>
@@ -486,11 +548,14 @@ interface PersonaCardProps {
 
 function PersonaCard({
   persona, expanded, instances, allPersonas, listMode,
-  onToggleExpand, onRun, onStop, onToggle, onDelete, onFocusInstance, onViewFile, onEditFile, onScheduleSave, onWhisper, onDeleteNote
+  onToggleExpand, onRun, onStop, onToggle, onDelete, onFocusInstance, onViewFile, onEditFile, onEditMeta, onScheduleSave, onWhisper, onDeleteNote
 }: PersonaCardProps) {
   const [editingSchedule, setEditingSchedule] = useState(false)
   const [whisperOpen, setWhisperOpen] = useState(false)
   const [whisperText, setWhisperText] = useState('')
+  const [activeTab, setActiveTab] = useState<'content' | 'outputs'>('content')
+  const [artifacts, setArtifacts] = useState<PersonaArtifact[] | null>(null)
+  const [viewingArtifact, setViewingArtifact] = useState<{ name: string; content: string } | null>(null)
   const whisperRef = useRef<HTMLTextAreaElement>(null)
   const { ref: whisperBarRef, isDragging: whisperDragging } = useFileDrop(paths => {
     const pathText = paths.join('\n')
@@ -514,6 +579,16 @@ function PersonaCard({
       setBriefMtime(mtime)
     })
   }, [expanded, persona.id, briefContent])
+
+  useEffect(() => {
+    if (!expanded || activeTab !== 'outputs' || artifacts !== null) return
+    window.api.persona.getArtifacts(persona.id).then(setArtifacts)
+  }, [expanded, activeTab, persona.id, artifacts])
+
+  const handleViewArtifact = async (artifact: PersonaArtifact) => {
+    const content = await window.api.persona.readArtifact(persona.id, artifact.name)
+    if (content !== null) setViewingArtifact({ name: artifact.name, content })
+  }
 
   const handleWhisperSubmit = async () => {
     const text = whisperText.trim()
@@ -563,6 +638,9 @@ function PersonaCard({
           ) : (
             <span className="persona-list-lastrun muted">—</span>
           )}
+          {persona.schedule && (
+            <span className="persona-list-cron-chip" title="Schedule cron expression">{persona.schedule}</span>
+          )}
           <span className="persona-list-model">{persona.model || 'sonnet'}</span>
           {persona.weeklySpend && persona.weeklySpend > 0.01 && (
             <span className="persona-cost-badge" title="Weekly spend">${persona.weeklySpend.toFixed(2)}</span>
@@ -577,6 +655,9 @@ function PersonaCard({
                 <button className="persona-action-btn running" onClick={onStop}><Square size={11} /></button>
               </Tooltip>
             )}
+            <Tooltip text="Edit schedule, model, and settings">
+              <button className="persona-action-btn" onClick={onEditMeta}><Pencil size={11} /></button>
+            </Tooltip>
             <Tooltip text="Add a note for this persona's next run">
               <button className={`persona-action-btn${whispers.length > 0 ? ' whisper-active' : ''}`} onClick={() => setWhisperOpen(v => !v)}>
                 <StickyNote size={11} />
@@ -767,8 +848,57 @@ function PersonaCard({
         </div>
       )}
 
+      {viewingArtifact && (
+        <div className="persona-modal-overlay" onClick={() => setViewingArtifact(null)}>
+          <div className="persona-modal persona-edit-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="persona-modal-header">
+              <h3><FolderOpen size={14} /> {viewingArtifact.name}</h3>
+              <button className="persona-modal-close" onClick={() => setViewingArtifact(null)}><X size={16} /></button>
+            </div>
+            <pre className="persona-artifact-content">{viewingArtifact.content}</pre>
+          </div>
+        </div>
+      )}
+
       {expanded && (
         <div className="persona-card-body">
+          {/* Content / Outputs tab bar */}
+          <div className="persona-card-tabs">
+            <button
+              className={`persona-card-tab${activeTab === 'content' ? ' active' : ''}`}
+              onClick={() => setActiveTab('content')}
+            >Content</button>
+            <button
+              className={`persona-card-tab${activeTab === 'outputs' ? ' active' : ''}`}
+              onClick={() => setActiveTab('outputs')}
+            ><FolderOpen size={10} /> Outputs</button>
+          </div>
+
+          {activeTab === 'outputs' && (
+            <div className="persona-outputs-tab">
+              {artifacts === null ? (
+                <div className="persona-outputs-loading"><Loader2 size={13} className="spin" /> Loading…</div>
+              ) : artifacts.length === 0 ? (
+                <div className="persona-outputs-empty">No outputs yet</div>
+              ) : (
+                artifacts.map((a) => {
+                  const kb = (a.sizeBytes / 1024).toFixed(1)
+                  const secs = (Date.now() - a.modifiedAt) / 1000
+                  const ago = secs < 60 ? 'just now' : secs < 3600 ? `${Math.floor(secs / 60)}m ago` : `${Math.floor(secs / 3600)}h ago`
+                  return (
+                    <button key={a.name} className="persona-artifact-row" onClick={() => handleViewArtifact(a)}>
+                      <span className="persona-artifact-name">
+                        {a.isBrief ? '📋 Session Brief' : a.name}
+                      </span>
+                      <span className="persona-artifact-meta">{kb} KB · {ago}</span>
+                    </button>
+                  )
+                })
+              )}
+            </div>
+          )}
+
+          {activeTab === 'content' && <>
           {/* Status bar */}
           <div className="persona-card-status-bar">
             {isRunning && persona.activeSessionId ? (
@@ -886,8 +1016,120 @@ function PersonaCard({
           )}
           <PersonaSection title="Role" content={sections['Role']} defaultOpen={false} />
           <PersonaSection title="Objectives" content={sections['Objectives']} defaultOpen={false} />
+          </>}
         </div>
       )}
+    </div>
+  )
+}
+
+const MODEL_OPTIONS = [
+  { label: 'Opus 4.6', value: 'claude-opus-4-6' },
+  { label: 'Sonnet 4.6', value: 'claude-sonnet-4-6' },
+  { label: 'Haiku 4.5', value: 'claude-haiku-4-5-20251001' },
+]
+
+function EditPersonaModal({ persona, onClose, onSaved }: {
+  persona: PersonaInfo
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [schedule, setSchedule] = useState(persona.schedule ?? '')
+  const [model, setModel] = useState(() => {
+    if (persona.model.includes('opus')) return 'claude-opus-4-6'
+    if (persona.model.includes('haiku')) return 'claude-haiku-4-5-20251001'
+    return 'claude-sonnet-4-6'
+  })
+  const [enabled, setEnabled] = useState(persona.enabled)
+  const [maxSessions, setMaxSessions] = useState(persona.maxSessions ?? 1)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSave = async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      const updates: Record<string, string | boolean | number> = {
+        model,
+        enabled,
+        max_sessions: maxSessions,
+      }
+      if (schedule.trim()) {
+        updates.schedule = schedule.trim()
+      } else {
+        updates.schedule = 'null'
+      }
+      const ok = await window.api.persona.updateMeta(persona.id, updates)
+      if (ok) {
+        await onSaved()
+        onClose()
+      } else {
+        setError('Save failed.')
+      }
+    } catch (err: any) {
+      setError(err?.message ?? 'Unknown error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="persona-modal-overlay" onClick={onClose}>
+      <div className="persona-modal persona-edit-meta-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="persona-modal-header">
+          <h3><Pencil size={14} /> Edit {persona.name}</h3>
+          <button className="persona-modal-close" onClick={onClose}><X size={16} /></button>
+        </div>
+        <div className="persona-edit-meta-body">
+          <label className="persona-edit-meta-field">
+            <span>Schedule</span>
+            <input
+              className="persona-edit-meta-input"
+              value={schedule}
+              onChange={(e) => setSchedule(e.target.value)}
+              placeholder="e.g. */30 * * * * — clear to disable"
+              spellCheck={false}
+            />
+          </label>
+          <label className="persona-edit-meta-field">
+            <span>Model</span>
+            <select className="persona-edit-meta-select" value={model} onChange={(e) => setModel(e.target.value)}>
+              {MODEL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </label>
+          <label className="persona-edit-meta-field">
+            <span>Max Sessions</span>
+            <input
+              className="persona-edit-meta-input"
+              type="number"
+              min={1}
+              max={10}
+              value={maxSessions}
+              onChange={(e) => setMaxSessions(Number(e.target.value))}
+            />
+          </label>
+          <label className="persona-edit-meta-field persona-edit-meta-toggle">
+            <span>Enabled</span>
+            <button
+              className="persona-toggle"
+              onClick={() => setEnabled(v => !v)}
+              type="button"
+            >
+              <div className={`persona-toggle-track${enabled ? ' enabled' : ''}`}>
+                <div className="persona-toggle-thumb" />
+              </div>
+              <span className="persona-toggle-label">{enabled ? 'On' : 'Off'}</span>
+            </button>
+          </label>
+          {error && <div className="persona-edit-meta-error">{error}</div>}
+        </div>
+        <div className="persona-edit-footer">
+          <button className="persona-edit-cancel" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="persona-edit-save" onClick={handleSave} disabled={saving}>
+            {saving ? <><Loader2 size={13} className="spin" /> Saving…</> : <><Save size={13} /> Save</>}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

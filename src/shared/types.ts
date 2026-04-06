@@ -265,6 +265,13 @@ export interface PersonaInfo {
   lastSkipped?: number | null
 }
 
+export interface PersonaArtifact {
+  name: string
+  sizeBytes: number
+  modifiedAt: number
+  isBrief: boolean
+}
+
 export interface AuditResult {
   severity: 'HIGH' | 'MEDIUM' | 'LOW'
   panel: string
