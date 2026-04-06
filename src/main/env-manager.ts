@@ -7,7 +7,7 @@
 import { app } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
-import { execFile } from 'child_process'
+import { execFile, execFileSync } from 'child_process'
 import { promisify } from 'util'
 const execFileAsync = promisify(execFile)
 import { getEnvDaemonClient, EnvDaemonClient } from './env-daemon-client'
@@ -549,7 +549,7 @@ function listEnvironmentsFromDisk(): EnvStatus[] {
           if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === 'logs') continue
           const subdir = path.join(envDir, entry.name)
           try {
-            liveBranch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: subdir, encoding: 'utf-8', timeout: 2000 }).trim()
+            liveBranch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: subdir, encoding: 'utf-8', timeout: 2000 }).trim()
             break
           } catch { /* not a git repo, try next */ }
         }

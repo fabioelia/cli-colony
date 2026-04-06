@@ -63,17 +63,18 @@ describe('activity-manager: appendActivity', () => {
 
   it('appends an event with generated id and timestamp', () => {
     const before = Date.now()
-    mod.appendActivity({ type: 'persona', label: 'Colony Developer fired', color: 'green' })
+    mod.appendActivity({ source: 'persona', name: 'Colony Developer', summary: 'Colony Developer fired', level: 'info' })
     const after = Date.now()
 
     expect(fsMock.writeFileSync).toHaveBeenCalledOnce()
     const written = JSON.parse(fsMock.writeFileSync.mock.calls[0][1]) as Array<{
-      id: string; timestamp: string; type: string; label: string; color: string
+      id: string; timestamp: string; source: string; name: string; summary: string; level: string
     }>
     expect(written).toHaveLength(1)
-    expect(written[0].type).toBe('persona')
-    expect(written[0].label).toBe('Colony Developer fired')
-    expect(written[0].color).toBe('green')
+    expect(written[0].source).toBe('persona')
+    expect(written[0].name).toBe('Colony Developer')
+    expect(written[0].summary).toBe('Colony Developer fired')
+    expect(written[0].level).toBe('info')
     expect(written[0].id).toMatch(/^\d+-[a-z0-9]+$/)
     const ts = new Date(written[0].timestamp).getTime()
     expect(ts).toBeGreaterThanOrEqual(before)
@@ -81,27 +82,27 @@ describe('activity-manager: appendActivity', () => {
   })
 
   it('writes only the new event when starting from empty log', () => {
-    mod.appendActivity({ type: 'pipeline', label: 'Solo', color: 'blue' })
+    mod.appendActivity({ source: 'pipeline', name: 'Solo', summary: 'Solo fired', level: 'info' })
     const written = JSON.parse(fsMock.writeFileSync.mock.calls[0][1])
     expect(written).toHaveLength(1)
-    expect(written[0].type).toBe('pipeline')
-    expect(written[0].label).toBe('Solo')
+    expect(written[0].source).toBe('pipeline')
+    expect(written[0].name).toBe('Solo')
   })
 
   it('increments unreadCount on each append', () => {
     expect(mod.getUnreadCount()).toBe(0)
-    mod.appendActivity({ type: 'pipeline', label: 'Fired', color: 'blue' })
+    mod.appendActivity({ source: 'pipeline', name: 'Pipe', summary: 'Fired', level: 'info' })
     expect(mod.getUnreadCount()).toBe(1)
-    mod.appendActivity({ type: 'env', label: 'Started', color: 'purple' })
+    mod.appendActivity({ source: 'env', name: 'work', summary: 'Started', level: 'info' })
     expect(mod.getUnreadCount()).toBe(2)
   })
 
   it('broadcasts activity:new with event and unreadCount', () => {
-    mod.appendActivity({ type: 'persona', label: 'Test', color: 'green' })
+    mod.appendActivity({ source: 'persona', name: 'Test', summary: 'Test ran', level: 'info' })
     expect(mockBroadcast).toHaveBeenCalledWith(
       'activity:new',
       expect.objectContaining({
-        event: expect.objectContaining({ type: 'persona', label: 'Test' }),
+        event: expect.objectContaining({ source: 'persona', name: 'Test' }),
         unreadCount: 1,
       })
     )
@@ -112,9 +113,10 @@ describe('activity-manager: appendActivity', () => {
     const hundredEvents = Array.from({ length: 100 }, (_, i) => ({
       id: `${i}-old`,
       timestamp: '2026-01-01T00:00:00.000Z',
-      type: 'pipeline',
-      label: `Event ${i}`,
-      color: 'blue',
+      source: 'pipeline',
+      name: `Pipe ${i}`,
+      summary: `Event ${i}`,
+      level: 'info',
     }))
     fsMock = buildFsMock(hundredEvents)
     vi.resetModules()
@@ -129,8 +131,8 @@ describe('activity-manager: appendActivity with pre-existing events', () => {
   let mod: typeof import('../activity-manager')
   let fsMock: ReturnType<typeof buildFsMock>
   const existing = [
-    { id: '1-abc', timestamp: '2026-01-01T00:00:00.000Z', type: 'pipeline', label: 'Old event', color: 'blue' },
-    { id: '2-def', timestamp: '2026-01-02T00:00:00.000Z', type: 'persona', label: 'Another', color: 'green' },
+    { id: '1-abc', timestamp: '2026-01-01T00:00:00.000Z', source: 'pipeline', name: 'Old Pipe', summary: 'Old event', level: 'info' },
+    { id: '2-def', timestamp: '2026-01-02T00:00:00.000Z', source: 'persona', name: 'Colony Dev', summary: 'Another', level: 'info' },
   ]
 
   beforeEach(async () => {
@@ -146,13 +148,13 @@ describe('activity-manager: appendActivity with pre-existing events', () => {
   })
 
   it('appends to existing events', () => {
-    mod.appendActivity({ type: 'env', label: 'New event', color: 'purple' })
+    mod.appendActivity({ source: 'env', name: 'work', summary: 'New event', level: 'info' })
     const written = JSON.parse(fsMock.writeFileSync.mock.calls[0][1])
     expect(written).toHaveLength(3)
     expect(written[0].id).toBe('1-abc')
     expect(written[1].id).toBe('2-def')
-    expect(written[2].type).toBe('env')
-    expect(written[2].label).toBe('New event')
+    expect(written[2].source).toBe('env')
+    expect(written[2].summary).toBe('New event')
   })
 
 })
@@ -168,9 +170,10 @@ describe('activity-manager: appendActivity ring-buffer trimming', () => {
     const full = Array.from({ length: 100 }, (_, i) => ({
       id: `${i}-old`,
       timestamp: '2026-01-01T00:00:00.000Z',
-      type: 'pipeline',
-      label: `Old ${i}`,
-      color: 'blue',
+      source: 'pipeline',
+      name: `Pipe ${i}`,
+      summary: `Old ${i}`,
+      level: 'info',
     }))
     fsMock = buildFsMock(full)
     setupMocks(fsMock)
@@ -182,23 +185,23 @@ describe('activity-manager: appendActivity ring-buffer trimming', () => {
   })
 
   it('keeps exactly 100 events when adding one to a full log', () => {
-    mod.appendActivity({ type: 'persona', label: 'New', color: 'green' })
+    mod.appendActivity({ source: 'persona', name: 'Colony Dev', summary: 'New', level: 'info' })
     const written = JSON.parse(fsMock.writeFileSync.mock.calls[0][1])
     expect(written).toHaveLength(100)
   })
 
   it('evicts oldest events from the front', () => {
-    mod.appendActivity({ type: 'persona', label: 'Latest', color: 'green' })
+    mod.appendActivity({ source: 'persona', name: 'Colony Dev', summary: 'Latest', level: 'info' })
     const written = JSON.parse(fsMock.writeFileSync.mock.calls[0][1])
     // oldest event (id '0-old') should be removed
     expect(written[0].id).toBe('1-old')
     // newest event should be last
-    expect(written[99].label).toBe('Latest')
+    expect(written[99].summary).toBe('Latest')
   })
 
   it('still increments unreadCount even when trimming', () => {
     expect(mod.getUnreadCount()).toBe(0)
-    mod.appendActivity({ type: 'env', label: 'X', color: 'blue' })
+    mod.appendActivity({ source: 'env', name: 'work', summary: 'X', level: 'warn' })
     expect(mod.getUnreadCount()).toBe(1)
   })
 })
@@ -228,7 +231,7 @@ describe('activity-manager: listActivity', () => {
 
   it('returns parsed events from log file', async () => {
     const events = [
-      { id: '1-abc', timestamp: '2026-01-01T00:00:00.000Z', type: 'pipeline', label: 'Test', color: 'blue' },
+      { id: '1-abc', timestamp: '2026-01-01T00:00:00.000Z', source: 'pipeline', name: 'Pipe', summary: 'Test', level: 'info' },
     ]
     const fsMock = buildFsMock(events)
     setupMocks(fsMock)
@@ -249,17 +252,17 @@ describe('activity-manager: listActivity', () => {
 
   it('returns multiple events in order', async () => {
     const events = [
-      { id: '1-a', timestamp: '2026-01-01T00:00:00.000Z', type: 'persona', label: 'First', color: 'green' },
-      { id: '2-b', timestamp: '2026-01-02T00:00:00.000Z', type: 'pipeline', label: 'Second', color: 'blue' },
-      { id: '3-c', timestamp: '2026-01-03T00:00:00.000Z', type: 'env', label: 'Third', color: 'purple' },
+      { id: '1-a', timestamp: '2026-01-01T00:00:00.000Z', source: 'persona', name: 'ColDev', summary: 'First', level: 'info' },
+      { id: '2-b', timestamp: '2026-01-02T00:00:00.000Z', source: 'pipeline', name: 'Pipe', summary: 'Second', level: 'info' },
+      { id: '3-c', timestamp: '2026-01-03T00:00:00.000Z', source: 'env', name: 'work', summary: 'Third', level: 'warn' },
     ]
     const fsMock = buildFsMock(events)
     setupMocks(fsMock)
     mod = await import('../activity-manager')
     const result = mod.listActivity()
     expect(result).toHaveLength(3)
-    expect(result[0].label).toBe('First')
-    expect(result[2].label).toBe('Third')
+    expect(result[0].summary).toBe('First')
+    expect(result[2].summary).toBe('Third')
   })
 })
 
@@ -283,15 +286,15 @@ describe('activity-manager: getUnreadCount', () => {
   })
 
   it('returns correct count after multiple appends', () => {
-    mod.appendActivity({ type: 'pipeline', label: 'A', color: 'blue' })
-    mod.appendActivity({ type: 'pipeline', label: 'B', color: 'blue' })
-    mod.appendActivity({ type: 'pipeline', label: 'C', color: 'blue' })
+    mod.appendActivity({ source: 'pipeline', name: 'Pipe', summary: 'A', level: 'info' })
+    mod.appendActivity({ source: 'pipeline', name: 'Pipe', summary: 'B', level: 'info' })
+    mod.appendActivity({ source: 'pipeline', name: 'Pipe', summary: 'C', level: 'info' })
     expect(mod.getUnreadCount()).toBe(3)
   })
 
   it('returns 0 after markRead resets counter', () => {
-    mod.appendActivity({ type: 'persona', label: 'X', color: 'green' })
-    mod.appendActivity({ type: 'persona', label: 'Y', color: 'green' })
+    mod.appendActivity({ source: 'persona', name: 'ColDev', summary: 'X', level: 'info' })
+    mod.appendActivity({ source: 'persona', name: 'ColDev', summary: 'Y', level: 'info' })
     expect(mod.getUnreadCount()).toBe(2)
     mod.markRead()
     expect(mod.getUnreadCount()).toBe(0)
@@ -314,14 +317,14 @@ describe('activity-manager: markRead', () => {
   })
 
   it('resets unreadCount to 0', () => {
-    mod.appendActivity({ type: 'env', label: 'Env started', color: 'purple' })
-    mod.appendActivity({ type: 'env', label: 'Env stopped', color: 'purple' })
+    mod.appendActivity({ source: 'env', name: 'work', summary: 'Env started', level: 'info' })
+    mod.appendActivity({ source: 'env', name: 'work', summary: 'Env stopped', level: 'warn' })
     mod.markRead()
     expect(mod.getUnreadCount()).toBe(0)
   })
 
   it('broadcasts activity:unread with count 0', () => {
-    mod.appendActivity({ type: 'pipeline', label: 'Fired', color: 'blue' })
+    mod.appendActivity({ source: 'pipeline', name: 'Pipe', summary: 'Fired', level: 'info' })
     mockBroadcast.mockReset()
     mod.markRead()
     expect(mockBroadcast).toHaveBeenCalledOnce()
@@ -336,9 +339,9 @@ describe('activity-manager: markRead', () => {
   })
 
   it('after markRead, new appends increment from 0 again', () => {
-    mod.appendActivity({ type: 'persona', label: 'Before', color: 'green' })
+    mod.appendActivity({ source: 'persona', name: 'ColDev', summary: 'Before', level: 'info' })
     mod.markRead()
-    mod.appendActivity({ type: 'persona', label: 'After', color: 'green' })
+    mod.appendActivity({ source: 'persona', name: 'ColDev', summary: 'After', level: 'info' })
     expect(mod.getUnreadCount()).toBe(1)
   })
 })
@@ -366,17 +369,17 @@ describe('activity-manager: appendActivity with fs write failure', () => {
 
   it('does not throw when writeFileSync fails', () => {
     expect(() =>
-      mod.appendActivity({ type: 'pipeline', label: 'Test', color: 'blue' })
+      mod.appendActivity({ source: 'pipeline', name: 'Pipe', summary: 'Test', level: 'info' })
     ).not.toThrow()
   })
 
   it('still increments unreadCount even if write fails', () => {
-    mod.appendActivity({ type: 'pipeline', label: 'Test', color: 'blue' })
+    mod.appendActivity({ source: 'pipeline', name: 'Pipe', summary: 'Test', level: 'info' })
     expect(mod.getUnreadCount()).toBe(1)
   })
 
   it('still broadcasts activity:new even if write fails', () => {
-    mod.appendActivity({ type: 'pipeline', label: 'Test', color: 'blue' })
+    mod.appendActivity({ source: 'pipeline', name: 'Pipe', summary: 'Test', level: 'info' })
     expect(mockBroadcast).toHaveBeenCalledWith('activity:new', expect.any(Object))
   })
 })
