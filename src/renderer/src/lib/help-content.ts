@@ -442,7 +442,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Status dot', detail: 'Green pulsing = running a session. Gray = idle. Dimmed = disabled.' },
           { label: 'Schedule', detail: 'Shows when the persona runs automatically as a human-readable label (e.g. "Every 2 hours"). Click to open the schedule editor with presets and next-run times.', icon: 'Clock' },
           { label: 'Run count', detail: 'How many sessions this persona has completed.' },
-          { label: 'Trigger label', detail: '"→ colony-qa" — set via on_complete_run in persona frontmatter. When this persona\'s session ends, those listed personas auto-launch (if enabled and not already running).' },
+          { label: 'Trigger label', detail: '"→ colony-qa" (accent color) — set via on_complete_run; those personas auto-launch when this session ends. Muted "→ x" — set via can_invoke; personas this one may trigger dynamically via a trigger file, but never fires automatically.' },
           { label: 'Run button', detail: 'Manually trigger a persona session now.', icon: 'Play' },
           { label: 'Stop button', detail: 'Stop the currently running persona session.', icon: 'Square' },
           { label: 'Notes button', detail: 'Queue a note for the persona\'s next session. Notes are injected into the planning prompt, then removed after use.', icon: 'StickyNote' },

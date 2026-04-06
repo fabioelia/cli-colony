@@ -38,7 +38,8 @@ can_merge: false                   # permission to merge PRs
 can_create_sessions: true          # permission to spawn child sessions
 working_directory: "~/projects/myapp"  # default cwd for sessions
 color: "#a78bfa"                   # session color in sidebar
-on_complete_run: []                # persona IDs to trigger when this run completes
+on_complete_run: []                # persona IDs to ALWAYS trigger when this run completes
+can_invoke: []                     # persona IDs this persona MAY trigger dynamically (via trigger file)
 ---
 
 ## Role
@@ -81,13 +82,25 @@ Format: \`- [ISO timestamp] one-line summary\`. Initially empty.
 - **Code Reviewer**: watches for new PRs, reviews code, pushes colony feedback. can_push: true, can_create_sessions: true
 - **DevOps**: monitors CI/CD, fixes broken builds, manages environments. can_push: true, schedule: every 30 min
 
-## on_complete_run (Completion Triggers)
+## Completion Triggers
 
-The \`on_complete_run\` field chains personas: when persona A completes, it automatically triggers personas B and C.
+There are two ways to chain personas:
 
+**\`on_complete_run\`** — always fires when this persona's session ends:
 \`\`\`yaml
 on_complete_run: ["colony-qa", "colony-product"]  # file slugs (no .md), not display names
 \`\`\`
+
+**\`can_invoke\`** — declares which personas this one MAY trigger dynamically. Nothing fires automatically; the persona decides at runtime by writing a trigger file before exiting:
+\`\`\`yaml
+can_invoke: ["colony-developer", "colony-product"]
+\`\`\`
+
+To use dynamic triggers, write \`~/.claude-colony/personas/<your-id>.triggers.json\` before ending:
+\`\`\`json
+{"triggers": [{"persona": "colony-developer", "message": "Optional context for the triggered persona."}]}
+\`\`\`
+Empty \`triggers: []\` suppresses all completion triggers for the session. File is deleted after reading.
 
 Use the file slug (filename without .md extension). Only enabled personas are triggered. Avoid A→B→A cycles.
 
@@ -599,6 +612,11 @@ function PersonaCard({
               {persona.onCompleteRun.length > 0 && (
                 <span className="persona-trigger-badge" title={`After each run, automatically triggers: ${persona.onCompleteRun.map(id => allPersonas.find(p => p.id === id)?.name ?? id).join(', ')}`}>
                   <ArrowRightCircle size={10} /> {persona.onCompleteRun.map(id => allPersonas.find(p => p.id === id)?.name ?? id).join(', ')}
+                </span>
+              )}
+              {persona.canInvoke.length > 0 && (
+                <span className="persona-trigger-badge persona-trigger-badge--dynamic" title={`Can dynamically invoke (via trigger file): ${persona.canInvoke.map(id => allPersonas.find(p => p.id === id)?.name ?? id).join(', ')}`}>
+                  <ArrowRightCircle size={10} /> {persona.canInvoke.map(id => allPersonas.find(p => p.id === id)?.name ?? id).join(', ')}
                 </span>
               )}
             </div>

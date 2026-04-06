@@ -72,6 +72,8 @@ interface PersonaFrontmatter {
   working_directory: string
   color: string
   on_complete_run: string[]
+  /** Personas this persona may dynamically invoke via trigger file (does not auto-fire) */
+  can_invoke: string[]
   /** Set false to disable automatic memory extraction after each run */
   auto_memory_extraction: boolean
 }
@@ -94,6 +96,7 @@ function parseFrontmatter(content: string): PersonaFrontmatter | null {
     working_directory: val('working_directory'),
     color: val('color') || '#a78bfa',
     on_complete_run: parseStringArray(val('on_complete_run')),
+    can_invoke: parseStringArray(val('can_invoke')),
     auto_memory_extraction: val('auto_memory_extraction') !== 'false',
   }
 
@@ -157,6 +160,7 @@ export function getPersonaList(): PersonaInfo[] {
         lastRunOutput: state.lastRunOutput || null,
         whispers: parseWhispers(content),
         onCompleteRun: fm.on_complete_run,
+        canInvoke: fm.can_invoke,
         triggeredBy: state.triggeredBy ?? null,
       })
     } catch { /* skip invalid files */ }
@@ -569,20 +573,27 @@ export type TriggerSource =
   | { type: 'cron'; schedule: string }
   | { type: 'handoff'; from: string }
 
-function buildKickoff(filePath: string, trigger: TriggerSource): string {
+function buildKickoff(filePath: string, trigger: TriggerSource, customMessage?: string): string {
+  if (customMessage) {
+    return `${customMessage}\n\nRead your identity file at ${filePath} and the colony context, then assess, decide, and act.`
+  }
+
   const base = `Read your identity file at ${filePath} and the colony context, then assess, decide, and act.`
+
+  const dynamicTriggerDoc = `\n\n## Dynamic Trigger Override\n\nBy default, your \`on_complete_run\` list fires when your session exits. To override it for this session only, write \`~/.claude-colony/personas/<your-id>.triggers.json\` before ending:\n\n\`\`\`json\n{"triggers": [{"persona": "colony-developer", "message": "Optional custom context for triggered persona."}]}\n\`\`\`\n\n- Empty \`triggers: []\` = suppress all completion triggers this run\n- Omit the file = \`on_complete_run\` fires as usual\n- Include \`message\` to give the triggered persona specific context\n\nYour persona ID is the filename without \`.md\` (e.g. \`colony-research\` for \`colony-research.md\`).`
+
   switch (trigger.type) {
     case 'cron':
-      return `Your scheduled run has fired (schedule: ${trigger.schedule}). ${base}`
+      return `Your scheduled run has fired (schedule: ${trigger.schedule}). ${base}${dynamicTriggerDoc}`
     case 'handoff':
-      return `You've been triggered by "${trigger.from}" completing its run. Check what it accomplished in the colony context or recent session output, then ${base}`
+      return `You've been triggered by "${trigger.from}" completing its run. Check what it accomplished in the colony context or recent session output, then ${base}${dynamicTriggerDoc}`
     case 'manual':
     default:
       return `You've been manually triggered. ${base}`
   }
 }
 
-export async function runPersona(fileName: string, trigger: TriggerSource = { type: 'manual' }): Promise<string> {
+export async function runPersona(fileName: string, trigger: TriggerSource = { type: 'manual' }, customMessage?: string): Promise<string> {
   const filePath = join(PERSONAS_DIR, fileName.endsWith('.md') ? fileName : `${fileName}.md`)
   if (!existsSync(filePath)) throw new Error(`Persona file not found: ${fileName}`)
 
@@ -623,7 +634,7 @@ export async function runPersona(fileName: string, trigger: TriggerSource = { ty
     args: ['--append-system-prompt-file', promptFile],
   })
 
-  const kickoff = buildKickoff(filePath, trigger)
+  const kickoff = buildKickoff(filePath, trigger, customMessage)
   sendTriggerWhenReady(inst.id, kickoff)
 
   // Update state
@@ -718,7 +729,7 @@ function extractMemoryInBackground(personaName: string, output: string, duration
 /** Called by instance-manager when any session exits — captures output and clears active session */
 export async function onSessionExit(instanceId: string): Promise<void> {
   let changed = false
-  const triggerPersonas: Array<{ id: string; triggeredBy: string }> = []
+  const triggerPersonas: Array<{ id: string; triggeredBy: string; customMessage?: string }> = []
 
   for (const [name, state] of Object.entries(stateCache)) {
     if (state.activeSessionId === instanceId) {
@@ -776,14 +787,38 @@ export async function onSessionExit(instanceId: string): Promise<void> {
         } catch { return false }
       })
       if (personaFile) {
+        // Check for dynamic trigger override file
+        const personaId = personaFile.replace('.md', '')
+        const overridePath = join(PERSONAS_DIR, `${personaId}.triggers.json`)
+        let dynamicTriggers: Array<{ persona: string; message?: string }> | null = null
+
+        if (existsSync(overridePath)) {
+          try {
+            const raw = readFileSync(overridePath, 'utf-8')
+            const parsed = JSON.parse(raw)
+            if (Array.isArray(parsed.triggers)) {
+              dynamicTriggers = parsed.triggers
+            }
+          } catch { /* malformed — fall back to on_complete_run */ }
+          try { unlinkSync(overridePath) } catch { /* best effort */ }
+        }
+
         try {
           const c = readFileSync(join(PERSONAS_DIR, personaFile), 'utf-8')
           const fm = parseFrontmatter(c)
-          if (fm && fm.on_complete_run.length > 0) {
+
+          if (dynamicTriggers !== null) {
+            // Dynamic override: use file contents (empty array = suppress all triggers)
+            console.log(`[persona] trigger: dynamic override for "${name}" — ${dynamicTriggers.length} trigger(s)`)
+            for (const t of dynamicTriggers) {
+              triggerPersonas.push({ id: t.persona, triggeredBy: name, customMessage: t.message })
+            }
+          } else if (fm && fm.on_complete_run.length > 0) {
             for (const t of fm.on_complete_run) {
-              triggerPersonas.push({ id: t, triggeredBy: name })
+              triggerPersonas.push({ id: t, triggeredBy: name, customMessage: undefined })
             }
           }
+
           // Fire memory extraction (fire-and-forget — never blocks)
           if (fm && fm.auto_memory_extraction !== false && state.lastRunOutput && durationSec !== null) {
             extractMemoryInBackground(name, state.lastRunOutput, durationSec)
@@ -798,7 +833,7 @@ export async function onSessionExit(instanceId: string): Promise<void> {
   }
 
   // Dispatch completion triggers after state is saved
-  for (const { id: triggerId, triggeredBy } of triggerPersonas) {
+  for (const { id: triggerId, triggeredBy, customMessage } of triggerPersonas) {
     const persona = getPersonaList().find(p => p.id === triggerId || p.name === triggerId)
     if (!persona) {
       console.log(`[persona] trigger: target "${triggerId}" not found — skipping`)
@@ -813,7 +848,7 @@ export async function onSessionExit(instanceId: string): Promise<void> {
       continue
     }
     console.log(`[persona] trigger: → "${triggerId}" (from "${triggeredBy}")`)
-    runPersona(persona.id, { type: 'handoff', from: triggeredBy }).catch(err => {
+    runPersona(persona.id, { type: 'handoff', from: triggeredBy }, customMessage).catch(err => {
       console.log(`[persona] trigger: launch failed for "${triggerId}": ${err.message}`)
     })
   }

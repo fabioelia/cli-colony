@@ -244,6 +244,8 @@ export interface PersonaInfo {
   whispers: Array<{ createdAt: string; text: string }>
   /** Persona IDs to trigger when this persona's session completes */
   onCompleteRun: string[]
+  /** Persona IDs this persona may dynamically invoke via trigger file (does not auto-fire on completion) */
+  canInvoke: string[]
   /** Display name of the persona that triggered this run (handoff trigger only), null otherwise */
   triggeredBy: string | null
 }

@@ -11475,6 +11475,11 @@ input, select {
   max-width: 150px;
 }
 
+.persona-trigger-badge--dynamic {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
 .persona-triggered-by {
   font-size: 10px;
   color: var(--text-muted);
