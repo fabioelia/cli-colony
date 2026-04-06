@@ -211,6 +211,14 @@ export interface ReplayEvent {
   outputSummary: string // truncated to 200 chars
 }
 
+/** Inline code annotation emitted by a review agent via COLONY_COMMENT sentinel */
+export interface ColonyComment {
+  file: string
+  line: number
+  severity: 'error' | 'warn' | 'info'
+  message: string
+}
+
 export interface PersonaInfo {
   /** File name (without .md extension) */
   id: string

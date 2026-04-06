@@ -4,7 +4,7 @@ import type {
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
-  ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate,
+  ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -13,7 +13,7 @@ export type {
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
-  ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate,
+  ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment,
 }
 
 
@@ -312,6 +312,7 @@ export interface ClaudeManagerAPI {
     clearCommitAttributions: () => Promise<void>
     gitChanges: (dir: string) => Promise<GitDiffEntry[]>
     gitRevert: (dir: string, file: string) => Promise<boolean>
+    getComments: (instanceId: string) => Promise<ColonyComment[]>
   }
   audit: {
     runPanel: (panel: string, context: object) => Promise<AuditResult[]>
@@ -671,6 +672,7 @@ const api: ClaudeManagerAPI = {
     clearCommitAttributions: () => ipcRenderer.invoke('session:clearCommitAttributions'),
     gitChanges: (dir) => ipcRenderer.invoke('session:gitChanges', dir),
     gitRevert: (dir, file) => ipcRenderer.invoke('session:gitRevert', dir, file),
+    getComments: (instanceId) => ipcRenderer.invoke('session:getComments', instanceId),
   },
   audit: {
     runPanel: (panel, context) => ipcRenderer.invoke('audit:runPanel', panel, context),

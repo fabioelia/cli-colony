@@ -4,8 +4,8 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, History, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation } from 'lucide-react'
-import type { EnvStatus, EnvServiceStatus, ReplayEvent, GitDiffEntry } from '../../../shared/types'
+import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, History, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation, MessageCircleWarning } from 'lucide-react'
+import type { EnvStatus, EnvServiceStatus, ReplayEvent, GitDiffEntry, ColonyComment } from '../../../shared/types'
 import { buildDiagnosePrompt } from '../../../shared/env-prompts'
 import '@xterm/xterm/css/xterm.css'
 import type { ClaudeInstance } from '../types'
@@ -270,6 +270,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   // Changes tab state
   const [gitChanges, setGitChanges] = useState<GitDiffEntry[]>([])
   const [gitChangesLoading, setGitChangesLoading] = useState(false)
+  const [colonyComments, setColonyComments] = useState<ColonyComment[]>([])
   const [reverting, setReverting] = useState<Set<string>>(new Set())
   const [revertingAll, setRevertingAll] = useState(false)
 
@@ -605,6 +606,20 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     const pollId = setInterval(loadGitChanges, 10000)
     return () => clearInterval(pollId)
   }, [viewTab, instance.dir, loadGitChanges])
+
+  // Load and poll colony comments when Changes tab active and session running
+  useEffect(() => {
+    if (viewTab !== 'changes' || instance.status !== 'running') {
+      if (viewTab !== 'changes') setColonyComments([])
+      return
+    }
+    const loadComments = () => {
+      window.api.session.getComments(instance.id).then(setColonyComments).catch(() => {})
+    }
+    loadComments()
+    const pollId = setInterval(loadComments, 3000)
+    return () => clearInterval(pollId)
+  }, [viewTab, instance.id, instance.status])
 
   const handleRevert = useCallback(async (file: string) => {
     if (!instance.dir) return
@@ -1925,38 +1940,78 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
             {!gitChangesLoading && gitChanges.length === 0 && (
               <div className="replay-empty">No uncommitted changes.</div>
             )}
-            {!gitChangesLoading && gitChanges.map((entry) => (
-              <div key={entry.file} className="replay-event" style={{ cursor: 'default' }}>
-                <div className="replay-event-header" style={{ alignItems: 'center' }}>
-                  <span className="replay-event-tool" title={entry.status === 'A' ? 'Added' : entry.status === 'D' ? 'Deleted' : entry.status === 'R' ? 'Renamed' : 'Modified'} style={{
-                    color: entry.status === 'A' ? 'var(--color-success, #22c55e)'
-                      : entry.status === 'D' ? 'var(--color-danger, #ef4444)'
-                      : 'var(--color-amber, #f59e0b)',
-                    minWidth: '12px',
-                    cursor: 'default',
-                  }}>
-                    {entry.status}
-                  </span>
-                  <span className="replay-event-input" style={{ flex: 1, fontFamily: 'monospace', fontSize: '11px' }}>
-                    {entry.file}
-                  </span>
-                  <span className="replay-event-time" style={{ fontSize: '10px', opacity: 0.7 }}>
-                    {entry.insertions > 0 && <span style={{ color: 'var(--color-success, #22c55e)' }}>+{entry.insertions}</span>}
-                    {entry.insertions > 0 && entry.deletions > 0 && ' '}
-                    {entry.deletions > 0 && <span style={{ color: 'var(--color-danger, #ef4444)' }}>-{entry.deletions}</span>}
-                  </span>
-                  <button
-                    className="replay-refresh-btn"
-                    title={`Revert ${entry.file}`}
-                    disabled={reverting.has(entry.file)}
-                    onClick={() => handleRevert(entry.file)}
-                    style={{ marginLeft: '4px', color: 'var(--color-danger, #ef4444)' }}
-                  >
-                    {reverting.has(entry.file) ? <RotateCw size={11} className="spinning" /> : <Undo2 size={11} />}
-                  </button>
+            {!gitChangesLoading && gitChanges.map((entry) => {
+              const fileComments = colonyComments.filter(c => {
+                const normalised = c.file.replace(/^b\//, '')
+                return normalised === entry.file || normalised.endsWith('/' + entry.file) || entry.file.endsWith('/' + normalised)
+              })
+              return (
+                <div key={entry.file} className="replay-event" style={{ cursor: 'default' }}>
+                  <div className="replay-event-header" style={{ alignItems: 'center' }}>
+                    <span className="replay-event-tool" title={entry.status === 'A' ? 'Added' : entry.status === 'D' ? 'Deleted' : entry.status === 'R' ? 'Renamed' : 'Modified'} style={{
+                      color: entry.status === 'A' ? 'var(--color-success, #22c55e)'
+                        : entry.status === 'D' ? 'var(--color-danger, #ef4444)'
+                        : 'var(--color-amber, #f59e0b)',
+                      minWidth: '12px',
+                      cursor: 'default',
+                    }}>
+                      {entry.status}
+                    </span>
+                    <span className="replay-event-input" style={{ flex: 1, fontFamily: 'monospace', fontSize: '11px' }}>
+                      {entry.file}
+                    </span>
+                    <span className="replay-event-time" style={{ fontSize: '10px', opacity: 0.7 }}>
+                      {entry.insertions > 0 && <span style={{ color: 'var(--color-success, #22c55e)' }}>+{entry.insertions}</span>}
+                      {entry.insertions > 0 && entry.deletions > 0 && ' '}
+                      {entry.deletions > 0 && <span style={{ color: 'var(--color-danger, #ef4444)' }}>-{entry.deletions}</span>}
+                    </span>
+                    {fileComments.length > 0 && (
+                      <span style={{ marginLeft: '4px', fontSize: '10px', color: 'var(--color-amber, #f59e0b)', opacity: 0.85 }}>
+                        <MessageCircleWarning size={11} />
+                      </span>
+                    )}
+                    <button
+                      className="replay-refresh-btn"
+                      title={`Revert ${entry.file}`}
+                      disabled={reverting.has(entry.file)}
+                      onClick={() => handleRevert(entry.file)}
+                      style={{ marginLeft: '4px', color: 'var(--color-danger, #ef4444)' }}
+                    >
+                      {reverting.has(entry.file) ? <RotateCw size={11} className="spinning" /> : <Undo2 size={11} />}
+                    </button>
+                  </div>
+                  {fileComments.map((comment, i) => (
+                    <div key={i} style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '6px',
+                      padding: '4px 8px 4px 24px',
+                      borderLeft: `2px solid ${comment.severity === 'error' ? 'var(--color-danger, #ef4444)' : comment.severity === 'warn' ? 'var(--color-amber, #f59e0b)' : 'var(--color-primary, #3b82f6)'}`,
+                      marginTop: '2px',
+                      background: 'var(--bg-secondary, rgba(255,255,255,0.03))',
+                    }}>
+                      <span style={{
+                        fontSize: '9px',
+                        fontWeight: 600,
+                        letterSpacing: '0.04em',
+                        color: comment.severity === 'error' ? 'var(--color-danger, #ef4444)' : comment.severity === 'warn' ? 'var(--color-amber, #f59e0b)' : 'var(--color-primary, #3b82f6)',
+                        textTransform: 'uppercase',
+                        minWidth: '28px',
+                        paddingTop: '1px',
+                      }}>
+                        {comment.severity}
+                      </span>
+                      <span style={{ fontSize: '10px', opacity: 0.7, minWidth: '30px', fontFamily: 'monospace' }}>
+                        L{comment.line}
+                      </span>
+                      <span style={{ fontSize: '11px', flex: 1, lineHeight: 1.4 }}>
+                        {comment.message}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}

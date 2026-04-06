@@ -245,10 +245,15 @@ export function registerInstanceHandlers(): void {
     return readReplay(instanceId)
   })
 
+  // Inline code annotations emitted by a session via COLONY_COMMENT sentinels
+  ipcMain.handle('session:getComments', async (_e, instanceId: string) => {
+    return getDaemonClient().getInstanceComments(instanceId)
+  })
+
   // Session steering — queue or immediately deliver a redirect message to a session.
   // If the session is waiting: delivers immediately. If busy: queues for next waiting transition.
   ipcMain.handle('session:steer', async (_e, instanceId: string, message: string): Promise<boolean> => {
-    return daemonClient.steerInstance(instanceId, message)
+    return getDaemonClient().steerInstance(instanceId, message)
   })
 
   // Inter-session message bus — send text to a running session by display name.

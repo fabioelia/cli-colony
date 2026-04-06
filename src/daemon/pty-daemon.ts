@@ -21,6 +21,7 @@ import type {
   DaemonResponse,
   DaemonEvent,
 } from './protocol'
+import type { ColonyComment } from '../shared/types'
 
 // ---- Paths ----
 
@@ -48,6 +49,10 @@ interface InternalInstance extends ClaudeInstance {
   _handoffRequested: boolean
   _userInputReceived: boolean
   _sessionIdTimer: ReturnType<typeof setTimeout> | null
+  /** Inline code annotations emitted by review agents via COLONY_COMMENT sentinels */
+  comments: ColonyComment[]
+  /** Partial line buffer for sentinel detection across PTY data chunks */
+  _lineBuffer: string
 }
 
 const instances = new Map<string, InternalInstance>()
@@ -252,7 +257,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
       parentId: opts.parentId || null, childIds: [],
       pty: null, outputBuffer: [`Failed to spawn ${command}: ${err}\r\n`],
       cleanupTimer: null, _lastSnapshot: '', _activityInterval: null, _handoffRequested: false, _userInputReceived: false,
-      _sessionIdTimer: null,
+      _sessionIdTimer: null, comments: [], _lineBuffer: '',
     }
     instances.set(id, instance)
     notifyListChanged()
@@ -269,7 +274,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
     parentId: opts.parentId || null, childIds: [],
     pty: ptyProcess, outputBuffer: [],
     cleanupTimer: null, _lastSnapshot: '', _activityInterval: null, _handoffRequested: false, _userInputReceived: false,
-    _sessionIdTimer: null,
+    _sessionIdTimer: null, comments: [], _lineBuffer: '',
   }
 
   // Register this child with its parent
@@ -285,14 +290,49 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
 
   // Stream output
   const ansiRegex = /\x1B\[[0-9;]*[a-zA-Z]|\x1B\][\s\S]*?(\x07|\x1B\\)/g
+  const SENTINEL_PREFIX = 'COLONY_COMMENT:'
   ptyProcess.onData((data) => {
-    instance.outputBuffer.push(data)
-    if (instance.outputBuffer.length > 10000) {
-      instance.outputBuffer.splice(0, instance.outputBuffer.length - 5000)
+    // Sentinel detection: buffer across chunks, split on newlines
+    instance._lineBuffer += data
+    const rawLines = instance._lineBuffer.split('\n')
+    instance._lineBuffer = rawLines.pop()! // last element is partial (or empty if trailing \n)
+    const filteredLines: string[] = []
+    for (const line of rawLines) {
+      const stripped = line.replace(ansiRegex, '').trim()
+      if (stripped.startsWith(SENTINEL_PREFIX)) {
+        const rest = stripped.slice(SENTINEL_PREFIX.length)
+        const colonIdx1 = rest.indexOf(':')
+        const colonIdx2 = colonIdx1 >= 0 ? rest.indexOf(':', colonIdx1 + 1) : -1
+        const colonIdx3 = colonIdx2 >= 0 ? rest.indexOf(':', colonIdx2 + 1) : -1
+        if (colonIdx1 > 0 && colonIdx2 > colonIdx1 && colonIdx3 > colonIdx2) {
+          const file = rest.slice(0, colonIdx1)
+          const lineNum = parseInt(rest.slice(colonIdx1 + 1, colonIdx2), 10)
+          const sev = rest.slice(colonIdx2 + 1, colonIdx3)
+          const message = rest.slice(colonIdx3 + 1)
+          if (!isNaN(lineNum) && ['error', 'warn', 'info'].includes(sev) && message) {
+            instance.comments.push({
+              file,
+              line: lineNum,
+              severity: sev as ColonyComment['severity'],
+              message,
+            })
+          }
+        }
+        // Sentinel line stripped — not forwarded to terminal
+      } else {
+        filteredLines.push(line)
+      }
     }
+    const filteredData = filteredLines.length > 0 ? filteredLines.join('\n') + '\n' : ''
 
-    // Broadcast to subscribers as base64
-    broadcastEvent({ type: 'output', instanceId: id, data: Buffer.from(data).toString('base64') })
+    if (filteredData) {
+      instance.outputBuffer.push(filteredData)
+      if (instance.outputBuffer.length > 10000) {
+        instance.outputBuffer.splice(0, instance.outputBuffer.length - 5000)
+      }
+      // Broadcast to subscribers as base64
+      broadcastEvent({ type: 'output', instanceId: id, data: Buffer.from(filteredData).toString('base64') })
+    }
 
     // Parse token usage
     const clean = data.replace(ansiRegex, '')
@@ -419,6 +459,8 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
     instance.exitCode = exitCode
     instance.pty = null
     instance.pendingSteer = undefined
+    instance.comments = []
+    instance._lineBuffer = ''
     broadcastEvent({ type: 'exited', instanceId: id, exitCode })
     notifyListChanged()
   })
@@ -676,6 +718,11 @@ function handleRequest(req: DaemonRequest, socket: net.Socket): void {
       case 'get': {
         const inst = instances.get(req.instanceId)
         send({ type: 'ok', reqId: req.reqId, data: inst ? toSerializable(inst) : null })
+        break
+      }
+      case 'get-comments': {
+        const inst = instances.get(req.instanceId)
+        send({ type: 'ok', reqId: req.reqId, data: inst ? [...inst.comments] : [] })
         break
       }
       case 'buffer': {

@@ -4,6 +4,7 @@
  */
 
 import type { ClaudeInstance, CreateOpts } from '../daemon/protocol'
+import type { ColonyComment } from '../shared/types'
 import { colonyPaths } from '../shared/colony-paths'
 import { BaseDaemonClient } from './base-daemon-client'
 
@@ -96,6 +97,10 @@ export class DaemonClient extends BaseDaemonClient {
   async getInstanceBuffer(id: string): Promise<string> {
     const data = await this.request({ type: 'buffer', reqId: this.nextReqId(), instanceId: id })
     return data ? Buffer.from(data as string, 'base64').toString() : ''
+  }
+
+  async getInstanceComments(id: string): Promise<ColonyComment[]> {
+    return (await this.request({ type: 'get-comments', reqId: this.nextReqId(), instanceId: id }) as ColonyComment[]) || []
   }
 
   async shutdownDaemon(): Promise<void> {

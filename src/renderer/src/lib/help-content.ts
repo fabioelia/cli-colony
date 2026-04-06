@@ -771,7 +771,7 @@ export const helpContent: Record<string, HelpEntry> = {
   },
   changesTab: {
     title: 'Changes (Git Diff)',
-    description: 'Shows uncommitted file changes in the session\'s working directory (`git diff HEAD`). Each file can be reverted individually or all at once. Only visible when the session has a git repository.',
+    description: 'Shows uncommitted file changes in the session\'s working directory (`git diff HEAD`). Each file can be reverted individually or all at once. Review agents can annotate specific lines via COLONY_COMMENT sentinels — annotations appear inline below the file they reference.',
     zones: [
       {
         name: 'Header',
@@ -791,6 +791,15 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: '+/- counts', detail: 'Number of inserted lines (green) and deleted lines (red) in the diff.' },
           { label: 'Revert button', detail: 'Reverts that single file to HEAD via `git checkout HEAD -- <file>`. Confirmation required.', icon: 'Undo2' },
           { label: 'Empty state', detail: 'Shows "No uncommitted changes" when the working tree is clean.' },
+        ],
+      },
+      {
+        name: 'Inline Annotations',
+        position: 'Below each file entry',
+        items: [
+          { label: 'COLONY_COMMENT sentinel', detail: 'Review agents emit `COLONY_COMMENT:<file>:<line>:<severity>:<message>` lines. The daemon strips these from terminal output and stores them. Polled every 3 seconds while the session is running.' },
+          { label: 'Severity chips', detail: 'ERROR (red), WARN (amber), INFO (blue) — color-coded left border and label next to the line number.' },
+          { label: 'Line number', detail: 'L<N> shows which source line the comment refers to.' },
         ],
       },
     ],
