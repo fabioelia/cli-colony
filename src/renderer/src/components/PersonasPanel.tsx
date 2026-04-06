@@ -1083,13 +1083,18 @@ function EditPersonaModal({ persona, onClose, onSaved }: {
         <div className="persona-edit-meta-body">
           <label className="persona-edit-meta-field">
             <span>Schedule</span>
-            <input
-              className="persona-edit-meta-input"
-              value={schedule}
-              onChange={(e) => setSchedule(e.target.value)}
-              placeholder="e.g. */30 * * * * — clear to disable"
-              spellCheck={false}
-            />
+            <div className="persona-edit-meta-schedule-wrap">
+              <input
+                className="persona-edit-meta-input"
+                value={schedule}
+                onChange={(e) => setSchedule(e.target.value)}
+                placeholder="e.g. */30 * * * * — clear to disable"
+                spellCheck={false}
+              />
+              {schedule.trim() && (
+                <span className="persona-edit-meta-cron-hint">{describeCron(schedule.trim())}</span>
+              )}
+            </div>
           </label>
           <label className="persona-edit-meta-field">
             <span>Model</span>

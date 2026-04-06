@@ -14041,6 +14041,19 @@ input, select {
   outline: none;
 }
 .persona-edit-meta-input:focus { border-color: var(--accent); }
+.persona-edit-meta-schedule-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+.persona-edit-meta-schedule-wrap .persona-edit-meta-input { width: 100%; box-sizing: border-box; }
+.persona-edit-meta-cron-hint {
+  font-size: 10px;
+  color: var(--accent);
+  opacity: 0.8;
+  padding-left: 2px;
+}
 .persona-edit-meta-select {
   padding: 6px 8px;
   font-size: 12px;
