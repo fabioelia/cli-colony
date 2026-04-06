@@ -1,5 +1,8 @@
 import { ipcMain } from 'electron'
-import { execSync, spawn } from 'child_process'
+import { execFile, spawn } from 'child_process'
+import { promisify } from 'util'
+
+const execFileAsync = promisify(execFile)
 import { createShell, writeShell, resizeShell, killShell } from '../shell-pty'
 import {
   createInstance,
@@ -79,7 +82,7 @@ export function registerInstanceHandlers(): void {
     const dir = inst.workingDirectory
 
     try {
-      const psOutput = execSync('ps aux', { encoding: 'utf-8', timeout: 5000 })
+      const { stdout: psOutput } = await execFileAsync('ps', ['aux'], { encoding: 'utf-8', timeout: 5000 })
       const allInstances = await getAllInstances()
       const managedPids = new Set(allInstances.map(i => i.pid).filter(Boolean))
 
@@ -117,17 +120,19 @@ export function registerInstanceHandlers(): void {
     }
   })
 
-  ipcMain.handle('instance:gitLog', (_e, cwd: string): string => {
+  ipcMain.handle('instance:gitLog', async (_e, cwd: string): Promise<string> => {
     try {
-      return execSync('git log --oneline -10', { encoding: 'utf-8', timeout: 5000, cwd })
+      const { stdout } = await execFileAsync('git', ['log', '--oneline', '-10'], { encoding: 'utf-8', timeout: 5000, cwd })
+      return stdout
     } catch {
       return ''
     }
   })
 
-  ipcMain.handle('instance:gitDiff', (_e, cwd: string): string => {
+  ipcMain.handle('instance:gitDiff', async (_e, cwd: string): Promise<string> => {
     try {
-      return execSync('git diff --stat HEAD', { encoding: 'utf-8', timeout: 5000, cwd })
+      const { stdout } = await execFileAsync('git', ['diff', '--stat', 'HEAD'], { encoding: 'utf-8', timeout: 5000, cwd })
+      return stdout
     } catch {
       return ''
     }

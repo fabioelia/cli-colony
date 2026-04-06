@@ -5,8 +5,11 @@
  */
 
 import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, watch } from 'fs'
-import { execSync, spawn } from 'child_process'
+import { execFile, spawn } from 'child_process'
+import { promisify } from 'util'
 import { basename, join } from 'path'
+
+const execFileAsync = promisify(execFile)
 import { getPendingTriggers } from './persona-triggers'
 import { colonyPaths } from '../shared/colony-paths'
 import { createInstance, getAllInstances, killInstance } from './instance-manager'
@@ -23,6 +26,12 @@ import { appendActivity } from './activity-manager'
 
 const PERSONAS_DIR = colonyPaths.personas
 const STATE_PATH = colonyPaths.personaState
+
+/** Returns a safe absolute path for a persona file, rejecting any path traversal. */
+function resolvedPersonaPath(fileName: string): string {
+  const safe = basename(fileName.endsWith('.md') ? fileName : `${fileName}.md`)
+  return join(PERSONAS_DIR, safe)
+}
 
 // ---- State ----
 
@@ -174,7 +183,7 @@ export function getPersonaList(): PersonaInfo[] {
 }
 
 export function getPersonaContent(fileName: string): string | null {
-  const filePath = join(PERSONAS_DIR, fileName.endsWith('.md') ? fileName : `${fileName}.md`)
+  const filePath = resolvedPersonaPath(fileName)
   try {
     return existsSync(filePath) ? readFileSync(filePath, 'utf-8') : null
   } catch {
@@ -199,7 +208,7 @@ function parseWhispers(content: string): Array<{ createdAt: string; text: string
 
 /** Append a note to the persona's ## Notes section (creates it if absent). */
 export function addWhisper(id: string, text: string): boolean {
-  const filePath = join(PERSONAS_DIR, id.endsWith('.md') ? id : `${id}.md`)
+  const filePath = resolvedPersonaPath(id)
   if (!existsSync(filePath)) return false
   const content = readFileSync(filePath, 'utf-8')
   const entry = `- [${new Date().toISOString()}] ${text.trim()}`
@@ -219,7 +228,7 @@ export function addWhisper(id: string, text: string): boolean {
 
 /** Delete a note by index from the ## Notes section. */
 export function deleteNote(id: string, index: number): boolean {
-  const filePath = join(PERSONAS_DIR, id.endsWith('.md') ? id : `${id}.md`)
+  const filePath = resolvedPersonaPath(id)
   if (!existsSync(filePath)) return false
   const content = readFileSync(filePath, 'utf-8')
   const noteLines = (extractSection(content, 'Notes') || extractSection(content, 'Whispers') || '')
@@ -248,7 +257,7 @@ export function setPersonaSchedule(fileName: string, schedule: string): boolean 
 
 export function savePersonaContent(fileName: string, content: string): boolean {
   ensureDir()
-  const filePath = join(PERSONAS_DIR, fileName.endsWith('.md') ? fileName : `${fileName}.md`)
+  const filePath = resolvedPersonaPath(fileName)
   try {
     writeFileSync(filePath, content, 'utf-8')
     broadcastStatus()
@@ -304,7 +313,7 @@ color: "#a78bfa"
 }
 
 export function deletePersona(fileName: string): boolean {
-  const filePath = join(PERSONAS_DIR, fileName.endsWith('.md') ? fileName : `${fileName}.md`)
+  const filePath = resolvedPersonaPath(fileName)
   try {
     if (existsSync(filePath)) {
       unlinkSync(filePath)
@@ -318,7 +327,7 @@ export function deletePersona(fileName: string): boolean {
 }
 
 export function togglePersona(fileName: string, enabled: boolean): boolean {
-  const filePath = join(PERSONAS_DIR, fileName.endsWith('.md') ? fileName : `${fileName}.md`)
+  const filePath = resolvedPersonaPath(fileName)
   if (!existsSync(filePath)) return false
   const content = readFileSync(filePath, 'utf-8')
   const fm = parseFrontmatter(content)
@@ -619,7 +628,7 @@ function buildKickoff(filePath: string, trigger: TriggerSource, customMessage?: 
 }
 
 export async function runPersona(fileName: string, trigger: TriggerSource = { type: 'manual' }, customMessage?: string): Promise<string> {
-  const filePath = join(PERSONAS_DIR, fileName.endsWith('.md') ? fileName : `${fileName}.md`)
+  const filePath = resolvedPersonaPath(fileName)
   if (!existsSync(filePath)) throw new Error(`Persona file not found: ${fileName}`)
 
   const content = readFileSync(filePath, 'utf-8')
@@ -680,7 +689,7 @@ export async function runPersona(fileName: string, trigger: TriggerSource = { ty
 }
 
 export async function stopPersona(fileName: string): Promise<boolean> {
-  const filePath = join(PERSONAS_DIR, fileName.endsWith('.md') ? fileName : `${fileName}.md`)
+  const filePath = resolvedPersonaPath(fileName)
   if (!existsSync(filePath)) return false
 
   const content = readFileSync(filePath, 'utf-8')
@@ -777,13 +786,13 @@ export async function onSessionExit(instanceId: string): Promise<void> {
       let filesChanged = 0
       if (workingDir && startedAt && existsSync(workingDir)) {
         try {
-          const logOut = execSync(`git log --oneline --after="${startedAt}"`, { encoding: 'utf-8', timeout: 5000, cwd: workingDir }).trim()
-          commitsCount = logOut ? logOut.split('\n').length : 0
+          const { stdout: logOut } = await execFileAsync('git', ['log', '--oneline', `--after=${startedAt}`], { encoding: 'utf-8', timeout: 5000, cwd: workingDir })
+          commitsCount = logOut.trim() ? logOut.trim().split('\n').length : 0
         } catch { /* not a git repo or no commits */ }
         if (commitsCount > 0) {
           try {
-            const filesOut = execSync(`git log --name-only --format="" --after="${startedAt}"`, { encoding: 'utf-8', timeout: 5000, cwd: workingDir }).trim()
-            filesChanged = filesOut ? new Set(filesOut.split('\n').filter(l => l.trim())).size : 0
+            const { stdout: filesOut } = await execFileAsync('git', ['log', '--name-only', '--format=', `--after=${startedAt}`], { encoding: 'utf-8', timeout: 5000, cwd: workingDir })
+            filesChanged = filesOut.trim() ? new Set(filesOut.trim().split('\n').filter(l => l.trim())).size : 0
           } catch { /* non-fatal */ }
         }
       }

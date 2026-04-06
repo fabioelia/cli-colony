@@ -1,7 +1,23 @@
 import { ipcMain, dialog, app } from 'electron'
 import * as fs from 'fs'
+import * as path from 'path'
 import { basename, join as pathJoin } from 'path'
+import archiver from 'archiver'
+import * as unzipper from 'unzipper'
 import { scanAgents, createAgent } from '../agent-scanner'
+
+/** Validate that filePath is within a .claude/agents/ directory under home. */
+function assertAgentPath(filePath: string): void {
+  const home = app.getPath('home')
+  const resolved = path.resolve(filePath)
+  if (!resolved.startsWith(home + path.sep)) {
+    throw new Error(`Agent path outside home directory: ${filePath}`)
+  }
+  const marker = path.sep + path.join('.claude', 'agents') + path.sep
+  if (!resolved.includes(marker) || !resolved.endsWith('.md')) {
+    throw new Error(`Invalid agent file path: ${filePath}`)
+  }
+}
 
 export function registerAgentHandlers(): void {
   ipcMain.handle('agents:list', () => scanAgents())
@@ -10,7 +26,6 @@ export function registerAgentHandlers(): void {
   )
 
   ipcMain.handle('agents:export', async (_e, agentPaths: string[]) => {
-    const archiver = require('archiver') as any
     const result = await dialog.showSaveDialog({
       defaultPath: 'agents.zip',
       filters: [{ name: 'ZIP', extensions: ['zip'] }],
@@ -32,7 +47,6 @@ export function registerAgentHandlers(): void {
   })
 
   ipcMain.handle('agents:import', async (_e, targetDir: string) => {
-    const unzipper = require('unzipper') as any
     const result = await dialog.showOpenDialog({
       filters: [{ name: 'ZIP', extensions: ['zip'] }],
       properties: ['openFile'],
@@ -59,6 +73,7 @@ export function registerAgentHandlers(): void {
   })
 
   ipcMain.handle('agents:read', (_e, filePath: string) => {
+    assertAgentPath(filePath)
     try {
       return fs.readFileSync(filePath, 'utf-8')
     } catch {
@@ -67,6 +82,7 @@ export function registerAgentHandlers(): void {
   })
 
   ipcMain.handle('agents:write', (_e, filePath: string, content: string) => {
+    assertAgentPath(filePath)
     try {
       fs.writeFileSync(filePath, content, 'utf-8')
       return true

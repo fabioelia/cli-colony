@@ -60,7 +60,12 @@ const mockSendPromptWhenReady = vi.hoisted(() => vi.fn())
 const mockUpdateColonyContext = vi.hoisted(() => vi.fn())
 const mockBroadcast = vi.hoisted(() => vi.fn())
 const mockCronMatches = vi.hoisted(() => vi.fn())
-const mockExecSync = vi.hoisted(() => vi.fn())
+/** Default: call callback with empty success (so promisify resolves immediately). */
+const mockExecFile = vi.hoisted(() => vi.fn().mockImplementation(
+  (_cmd: string, _args: string[], _opts: unknown, cb: (err: Error | null, result: { stdout: string; stderr: string }) => void) => {
+    cb(null, { stdout: '', stderr: '' })
+  }
+))
 const mockAppendActivity = vi.hoisted(() => vi.fn())
 
 /** Creates a fake ChildProcess-like object with controllable stdout/close */
@@ -158,7 +163,7 @@ function setupMocks(fsMock: ReturnType<typeof buildFsMock>) {
   vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: mockSendPromptWhenReady }))
   vi.doMock('../colony-context', () => ({ updateColonyContext: mockUpdateColonyContext }))
   vi.doMock('../../shared/cron', () => ({ cronMatches: mockCronMatches }))
-  vi.doMock('child_process', () => ({ execSync: mockExecSync, spawn: mockSpawn }))
+  vi.doMock('child_process', () => ({ execFile: mockExecFile, spawn: mockSpawn }))
   vi.doMock('../activity-manager', () => ({ appendActivity: mockAppendActivity }))
   vi.doMock('../notifications', () => ({ notify: vi.fn() }))
 }
@@ -687,7 +692,11 @@ describe('persona-manager: onSessionExit', () => {
     vi.resetModules()
     mockBroadcast.mockReset()
     mockGetDaemonClient.mockReset()
-    mockExecSync.mockReset()
+    mockExecFile.mockReset().mockImplementation(
+      (_cmd: string, _args: string[], _opts: unknown, cb: (err: Error | null, result: { stdout: string; stderr: string }) => void) => {
+        cb(null, { stdout: '', stderr: '' })
+      }
+    )
     mockAppendActivity.mockReset()
   })
 
@@ -787,7 +796,11 @@ describe('persona-manager: onSessionExit outcome stats', () => {
     vi.resetModules()
     mockBroadcast.mockReset()
     mockGetDaemonClient.mockReset()
-    mockExecSync.mockReset()
+    mockExecFile.mockReset().mockImplementation(
+      (_cmd: string, _args: string[], _opts: unknown, cb: (err: Error | null, result: { stdout: string; stderr: string }) => void) => {
+        cb(null, { stdout: '', stderr: '' })
+      }
+    )
     mockAppendActivity.mockReset()
   })
 
@@ -815,11 +828,14 @@ describe('persona-manager: onSessionExit outcome stats', () => {
       workingDirs: [WORK_DIR],
     })
     mockGetDaemonClient.mockReturnValue({ getInstanceBuffer: vi.fn().mockResolvedValue(null) })
-    // First execSync call: git log → 3 commits
-    // Second execSync call: git log --name-only → 4 unique files
-    mockExecSync
-      .mockReturnValueOnce('abc1234 feat: add foo\ndef5678 fix: bar\n9990000 chore: update')
-      .mockReturnValueOnce('src/foo.ts\nsrc/bar.ts\nsrc/foo.ts\nsrc/baz.ts')
+    // First execFile call: git log → 3 commits
+    // Second execFile call: git log --name-only → 4 unique files (3 unique)
+    type ExecFileCb = (err: Error | null, result: { stdout: string; stderr: string }) => void
+    mockExecFile
+      .mockImplementationOnce((_c: unknown, _a: unknown, _o: unknown, cb: ExecFileCb) =>
+        cb(null, { stdout: 'abc1234 feat: add foo\ndef5678 fix: bar\n9990000 chore: update', stderr: '' }))
+      .mockImplementationOnce((_c: unknown, _a: unknown, _o: unknown, cb: ExecFileCb) =>
+        cb(null, { stdout: 'src/foo.ts\nsrc/bar.ts\nsrc/foo.ts\nsrc/baz.ts', stderr: '' }))
     setupMocks(fs)
     mod = await import('../persona-manager')
     mod.loadPersonas()
@@ -868,7 +884,7 @@ describe('persona-manager: onSessionExit outcome stats', () => {
     expect(call.details?.commitsCount).toBe(0)
     expect(call.details?.filesChanged).toBe(0)
     // Git commands not attempted when no startedAt/workingDir
-    expect(mockExecSync).not.toHaveBeenCalled()
+    expect(mockExecFile).not.toHaveBeenCalled()
   })
 
   it('handles git failure gracefully — still emits outcome with zeroed stats', async () => {
@@ -890,7 +906,9 @@ describe('persona-manager: onSessionExit outcome stats', () => {
       workingDirs: [WORK_DIR],
     })
     mockGetDaemonClient.mockReturnValue({ getInstanceBuffer: vi.fn().mockResolvedValue(null) })
-    mockExecSync.mockImplementation(() => { throw new Error('not a git repository') })
+    type ExecFileCb = (err: Error | null, result: { stdout: string; stderr: string }) => void
+    mockExecFile.mockImplementation((_c: unknown, _a: unknown, _o: unknown, cb: ExecFileCb) =>
+      cb(new Error('not a git repository'), { stdout: '', stderr: '' }))
     setupMocks(fs)
     mod = await import('../persona-manager')
     mod.loadPersonas()
@@ -924,16 +942,15 @@ describe('persona-manager: onSessionExit outcome stats', () => {
       workingDirs: [WORK_DIR],
     })
     mockGetDaemonClient.mockReturnValue({ getInstanceBuffer: vi.fn().mockResolvedValue(null) })
-    // git log returns empty string → 0 commits
-    mockExecSync.mockReturnValueOnce('')
+    // git log returns empty string → 0 commits (default mock returns empty stdout)
     setupMocks(fs)
     mod = await import('../persona-manager')
     mod.loadPersonas()
 
     await mod.onSessionExit('sess-nocommits')
 
-    // Only one execSync call (git log), not two (no files query)
-    expect(mockExecSync).toHaveBeenCalledOnce()
+    // Only one execFile call (git log), not two (no files query when 0 commits)
+    expect(mockExecFile).toHaveBeenCalledOnce()
     const call = mockAppendActivity.mock.calls[0][0]
     expect(call.details?.commitsCount).toBe(0)
     expect(call.details?.filesChanged).toBe(0)
@@ -1402,7 +1419,11 @@ Gets launched by triggers.
     mockUpdateColonyContext.mockReset().mockResolvedValue(undefined)
     mockSendPromptWhenReady.mockReset()
     mockGetDaemonClient.mockReset().mockReturnValue({ getInstanceBuffer: vi.fn().mockResolvedValue(null) })
-    mockExecSync.mockReset()
+    mockExecFile.mockReset().mockImplementation(
+      (_cmd: string, _args: string[], _opts: unknown, cb: (err: Error | null, result: { stdout: string; stderr: string }) => void) => {
+        cb(null, { stdout: '', stderr: '' })
+      }
+    )
     mockAppendActivity.mockReset()
   })
 
@@ -1538,7 +1559,11 @@ describe('persona-manager: memory extraction (onSessionExit)', () => {
     vi.resetModules()
     mockBroadcast.mockReset()
     mockGetDaemonClient.mockReset()
-    mockExecSync.mockReset()
+    mockExecFile.mockReset().mockImplementation(
+      (_cmd: string, _args: string[], _opts: unknown, cb: (err: Error | null, result: { stdout: string; stderr: string }) => void) => {
+        cb(null, { stdout: '', stderr: '' })
+      }
+    )
     mockAppendActivity.mockReset()
     mockSpawn.mockReset()
   })

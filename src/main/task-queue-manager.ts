@@ -4,7 +4,7 @@
  */
 
 import * as fs from 'fs'
-import { join } from 'path'
+import { basename, join } from 'path'
 import { app } from 'electron'
 import { colonyPaths } from '../shared/colony-paths'
 import { slugify } from '../shared/utils'
@@ -129,13 +129,13 @@ export function listQueues(): QueueDef[] {
 
 export function saveQueue(name: string, content: string): string {
   ensureDir(QUEUE_DIR)
-  const filePath = join(QUEUE_DIR, name)
+  const filePath = join(QUEUE_DIR, basename(name))
   fs.writeFileSync(filePath, content, 'utf-8')
   return filePath
 }
 
 export function deleteQueue(name: string): boolean {
-  const filePath = join(QUEUE_DIR, name)
+  const filePath = join(QUEUE_DIR, basename(name))
   if (fs.existsSync(filePath)) { fs.unlinkSync(filePath); return true }
   return false
 }

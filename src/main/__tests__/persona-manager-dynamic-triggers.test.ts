@@ -59,7 +59,11 @@ const mockSendPromptWhenReady = vi.hoisted(() => vi.fn())
 const mockUpdateColonyContext = vi.hoisted(() => vi.fn())
 const mockBroadcast = vi.hoisted(() => vi.fn())
 const mockCronMatches = vi.hoisted(() => vi.fn())
-const mockExecSync = vi.hoisted(() => vi.fn())
+const mockExecFile = vi.hoisted(() => vi.fn().mockImplementation(
+  (_cmd: string, _args: string[], _opts: unknown, cb: (err: Error | null, result: { stdout: string; stderr: string }) => void) => {
+    cb(null, { stdout: '', stderr: '' })
+  }
+))
 const mockSpawn = vi.hoisted(() => vi.fn())
 const mockAppendActivity = vi.hoisted(() => vi.fn())
 
@@ -146,7 +150,7 @@ function setupMocks(fsMock: ReturnType<typeof buildFsMock>) {
   vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: mockSendPromptWhenReady }))
   vi.doMock('../colony-context', () => ({ updateColonyContext: mockUpdateColonyContext }))
   vi.doMock('../../shared/cron', () => ({ cronMatches: mockCronMatches }))
-  vi.doMock('child_process', () => ({ execSync: mockExecSync, spawn: mockSpawn }))
+  vi.doMock('child_process', () => ({ execFile: mockExecFile, spawn: mockSpawn }))
   vi.doMock('../activity-manager', () => ({ appendActivity: mockAppendActivity }))
   vi.doMock('../notifications', () => ({ notify: vi.fn() }))
 }
@@ -164,7 +168,11 @@ describe('persona-manager: dynamic trigger override', () => {
     mockUpdateColonyContext.mockReset().mockResolvedValue(undefined)
     mockSendPromptWhenReady.mockReset()
     mockGetDaemonClient.mockReset().mockReturnValue({ getInstanceBuffer: vi.fn().mockResolvedValue(null) })
-    mockExecSync.mockReset()
+    mockExecFile.mockReset().mockImplementation(
+      (_cmd: string, _args: string[], _opts: unknown, cb: (err: Error | null, result: { stdout: string; stderr: string }) => void) => {
+        cb(null, { stdout: '', stderr: '' })
+      }
+    )
     mockAppendActivity.mockReset()
   })
 
