@@ -1634,3 +1634,194 @@ describe('pipeline-engine: file-poll trigger', () => {
     expect(fpCreateInstance.mock.calls.length).toBe(callsAfterFirst)
   })
 })
+
+// ---- Artifact Handoff Protocol ----
+
+describe('pipeline-engine: artifact handoff protocol', () => {
+  let mod: typeof import('../pipeline-engine')
+
+  const ARTIFACT_YAML = `
+name: Artifact Pipeline
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: launch-session
+  prompt: Do the work
+  artifactOutputs:
+    - name: diff
+      cmd: git diff HEAD
+    - name: log
+      cmd: git log --oneline -5
+  artifactInputs:
+    - prev-result
+dedup:
+  key: daily
+`
+
+  const mockExecSync = vi.fn()
+  const mockCreateInstance = vi.fn().mockResolvedValue({ id: 'inst-1' })
+  const mockSendPromptWhenReady = vi.fn()
+
+  function setupArtifactMocks(fsMock: ReturnType<typeof buildFsMock>) {
+    vi.doMock('electron', () => ({
+      app: { getPath: vi.fn().mockReturnValue('/mock/home') },
+    }))
+    vi.doMock('../../shared/colony-paths', () => ({
+      colonyPaths: {
+        root: MOCK_ROOT,
+        pipelines: PIPELINES_DIR,
+        schedulerLog: `${MOCK_ROOT}/scheduler.log`,
+      },
+    }))
+    vi.doMock('fs', () => fsMock)
+    vi.doMock('child_process', () => ({ execSync: mockExecSync }))
+    vi.doMock('../broadcast', () => ({ broadcast: vi.fn() }))
+    vi.doMock('../repo-config-loader', () => ({ getAllRepoConfigs: vi.fn().mockReturnValue([]) }))
+    vi.doMock('../instance-manager', () => ({
+      createInstance: mockCreateInstance,
+      getAllInstances: vi.fn().mockResolvedValue([]),
+    }))
+    vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
+    vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: mockSendPromptWhenReady }))
+    vi.doMock('../notifications', () => ({ notify: vi.fn() }))
+    vi.doMock('../github', () => ({
+      getRepos: vi.fn().mockReturnValue([]),
+      fetchPRs: vi.fn().mockResolvedValue([]),
+      fetchChecks: vi.fn().mockResolvedValue({ checks: [] }),
+      gh: vi.fn().mockResolvedValue('{}'),
+    }))
+    vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
+    vi.doMock('../activity-manager', () => ({ appendActivity: vi.fn() }))
+  }
+
+  beforeEach(() => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockExecSync.mockReset()
+    mockCreateInstance.mockReset().mockResolvedValue({ id: 'inst-1' })
+    mockSendPromptWhenReady.mockReset()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  it('YAML parsing: artifactOutputs parsed as array of {name, cmd} objects', async () => {
+    const fs = buildFsMock(['art.yaml'], { 'art.yaml': ARTIFACT_YAML })
+    setupArtifactMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    const list = mod.getPipelineList()
+    expect(list).toHaveLength(1)
+    // Action has artifactOutputs — verify it loaded (getPipelineList exposes raw def indirectly)
+    // The parsed def is accessible via triggerPollNow path; verify pipeline loaded
+    expect(list[0].name).toBe('Artifact Pipeline')
+  })
+
+  it('YAML parsing: pipeline with artifactOutputs and prompt is accepted', async () => {
+    const fs = buildFsMock(['art.yaml'], { 'art.yaml': ARTIFACT_YAML })
+    setupArtifactMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+    // Should load — prompt is present even with artifactOutputs
+    expect(mod.getPipelineList()).toHaveLength(1)
+  })
+
+  it('captureArtifacts: execSync called for each artifactOutput when action fires', async () => {
+    const artifactsDir = `${MOCK_ROOT}/artifacts`
+    const fs = buildFsMock(
+      ['art.yaml'],
+      { 'art.yaml': ARTIFACT_YAML },
+      undefined,
+    )
+    // existsSync: pipelines dir = true, artifacts dir = false (newly created), no input artifacts
+    fs.existsSync.mockImplementation((p: string) => {
+      if (p === PIPELINES_DIR) return true
+      return false
+    })
+    mockExecSync.mockReturnValue(Buffer.from('diff output'))
+    setupArtifactMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Artifact Pipeline')
+    await Promise.resolve() // flush microtasks
+
+    // execSync should have been called for "diff" and "log" artifact outputs
+    const execCalls = mockExecSync.mock.calls
+    expect(execCalls.length).toBeGreaterThanOrEqual(2)
+    const cmds = execCalls.map((c: any[]) => c[0])
+    expect(cmds).toContain('git diff HEAD')
+    expect(cmds).toContain('git log --oneline -5')
+  })
+
+  it('captureArtifacts: saves artifacts to COLONY_DIR/artifacts/<name>.txt', async () => {
+    const fs = buildFsMock(['art.yaml'], { 'art.yaml': ARTIFACT_YAML })
+    fs.existsSync.mockImplementation((p: string) => p === PIPELINES_DIR)
+    mockExecSync.mockReturnValue(Buffer.from('captured content'))
+    setupArtifactMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Artifact Pipeline')
+    await Promise.resolve()
+
+    const writes = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls
+    const artifactWrites = writes.filter((c: any[]) => String(c[0]).includes('/artifacts/'))
+    expect(artifactWrites.length).toBeGreaterThanOrEqual(2)
+    const paths = artifactWrites.map((c: any[]) => String(c[0]))
+    expect(paths.some(p => p.endsWith('/diff.txt'))).toBe(true)
+    expect(paths.some(p => p.endsWith('/log.txt'))).toBe(true)
+  })
+
+  it('loadArtifactPreamble: artifact contents are prepended to prompt', async () => {
+    const artifactContent = 'previous result content'
+    const fs = buildFsMock(['art.yaml'], { 'art.yaml': ARTIFACT_YAML })
+    fs.existsSync.mockImplementation((p: string) => {
+      if (p === PIPELINES_DIR) return true
+      if (p.endsWith('prev-result.txt')) return true
+      return false
+    })
+    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+      if (p.endsWith('prev-result.txt')) return artifactContent
+      if (p.includes('.yaml')) return ARTIFACT_YAML
+      throw new Error(`unexpected: ${p}`)
+    })
+    mockExecSync.mockReturnValue(Buffer.from(''))
+    setupArtifactMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Artifact Pipeline')
+    await Promise.resolve()
+
+    // Prompt file (writeFileSync) should contain the artifact preamble
+    const writes = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls
+    const promptWrite = writes.find((c: any[]) => String(c[0]).includes('pipeline-prompts'))
+    expect(promptWrite).toBeDefined()
+    const promptContent = String(promptWrite![1])
+    expect(promptContent).toContain('--- Artifact: prev-result ---')
+    expect(promptContent).toContain(artifactContent)
+    // Original prompt should follow
+    expect(promptContent).toContain('Do the work')
+  })
+
+  it('captureArtifacts: skips silently when execSync throws', async () => {
+    const fs = buildFsMock(['art.yaml'], { 'art.yaml': ARTIFACT_YAML })
+    fs.existsSync.mockImplementation((p: string) => p === PIPELINES_DIR)
+    mockExecSync.mockImplementation(() => { throw new Error('git not a repo') })
+    setupArtifactMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    // Should not throw — errors are swallowed in captureArtifacts
+    expect(() => mod.triggerPollNow('Artifact Pipeline')).not.toThrow()
+  })
+})

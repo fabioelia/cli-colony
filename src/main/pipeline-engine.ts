@@ -7,6 +7,7 @@
  */
 
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync } from 'fs'
+import { execSync } from 'child_process'
 import { join, basename } from 'path'
 import { createHash } from 'crypto'
 import { app } from 'electron'
@@ -54,6 +55,8 @@ export interface ActionDef {
   busyStrategy?: 'wait' | 'launch-new' // default: 'launch-new'
   mcpServers?: string[] // named MCP servers from catalog to inject via --mcp-config
   outputs?: string
+  artifactOutputs?: Array<{ name: string; cmd: string }> // capture commands run at fire time; saved to <COLONY_DIR>/artifacts/<name>.txt
+  artifactInputs?: string[] // artifact names to inject into prompt preamble (from prior captures)
   // maker-checker specific fields
   makerPrompt?: string
   checkerPrompt?: string
@@ -548,6 +551,37 @@ async function waitForSessionCompletion(instanceId: string, timeoutMs = 600000):
   })
 }
 
+/** Run artifact capture commands and save stdout to the shared artifacts directory. Never throws. */
+function captureArtifacts(outputs: Array<{ name: string; cmd: string }>, cwd: string | undefined): void {
+  const artifactsDir = join(COLONY_DIR, 'artifacts')
+  mkdirSync(artifactsDir, { recursive: true })
+  for (const { name, cmd } of outputs) {
+    try {
+      const result = execSync(cmd, { cwd, timeout: 30_000, maxBuffer: 1024 * 1024 }).toString().trim()
+      writeFileSync(join(artifactsDir, `${name}.txt`), result, 'utf-8')
+      log(`[artifacts] captured "${name}": ${result.length} bytes`)
+    } catch (err: any) {
+      log(`[artifacts] warn: capture failed for "${name}" (cmd: ${cmd}): ${err?.message ?? err}`)
+    }
+  }
+}
+
+/** Read artifact files and build a preamble block to prepend to the prompt. */
+function loadArtifactPreamble(inputs: string[]): string {
+  const artifactsDir = join(COLONY_DIR, 'artifacts')
+  const sections: string[] = []
+  for (const name of inputs) {
+    const filePath = join(artifactsDir, `${name}.txt`)
+    if (existsSync(filePath)) {
+      const content = readFileSync(filePath, 'utf-8').trim()
+      sections.push(`--- Artifact: ${name} ---\n${content}`)
+    } else {
+      log(`[artifacts] input "${name}" not found at ${filePath} — skipping`)
+    }
+  }
+  return sections.length > 0 ? sections.join('\n\n') + '\n\n' : ''
+}
+
 /**
  * Execute a maker-checker loop: maker produces output, checker reviews it.
  * Iterates up to maxIterations times. Completes when checker says APPROVED
@@ -677,6 +711,12 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
   const cwd = resolveTemplate(action.workingDirectory || '', ctx) || undefined
   let prompt = resolveTemplate(action.prompt || '', ctx)
 
+  // Inject artifact preamble when action.artifactInputs is configured
+  if (action.artifactInputs?.length) {
+    const preamble = loadArtifactPreamble(action.artifactInputs)
+    if (preamble) prompt = preamble + prompt
+  }
+
   // Inject timestamped output directory when action.outputs is configured
   if (action.outputs) {
     const resolvedBase = resolveTemplate(action.outputs, ctx).replace(/^~/, app.getPath('home'))
@@ -774,6 +814,11 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
       resolvedCwd = match.workingDirectory.slice(0, idx + 1 + repoLower.length)
       log(`Inferred working directory from session "${match.name}": ${resolvedCwd}`)
     }
+  }
+
+  // Capture artifact outputs before launching (captures current env state)
+  if (action.artifactOutputs?.length) {
+    captureArtifacts(action.artifactOutputs, resolvedCwd)
   }
 
   plog(name, `launching session "${name}" in ${resolvedCwd || '$HOME (no cwd resolved!)'}`)
