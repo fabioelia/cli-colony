@@ -168,6 +168,11 @@ input, select {
   width: 100%;
 }
 
+.sidebar-nav > .tooltip-wrapper {
+  flex: 1;
+  min-width: 0;
+}
+
 .sidebar-nav-btn {
   display: flex;
   flex-direction: column;
