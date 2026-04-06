@@ -6,6 +6,7 @@ import {
   FileText, Clock, CheckCircle, XCircle, AlertTriangle, Save, BookOpen,
   MessageSquare, Send, Plus, Search, Pencil, Eye, X, LayoutList, LayoutGrid,
   ShieldCheck, List, Globe, Wand2, ArrowRight, Hourglass,
+  GitPullRequest, GitMerge, GitBranch,
 } from 'lucide-react'
 import type { AuditResult, GitHubRepo } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
@@ -147,6 +148,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [wizardPrompt, setWizardPrompt] = useState('')
   const [wizardName, setWizardName] = useState('')
   const [wizardSubmitting, setWizardSubmitting] = useState(false)
+  const [wizardError, setWizardError] = useState('')
 
   // Pipeline preview (dry-run)
   type PreviewResult = {
@@ -371,6 +373,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     setWizardPrompt('')
     setWizardName('')
     setWizardSubmitting(false)
+    setWizardError('')
     setShowAutomationWizard(true)
   }
 
@@ -425,6 +428,8 @@ action:
     if (ok) {
       setShowAutomationWizard(false)
       loadPipelines()
+    } else {
+      setWizardError('Failed to create automation — check the pipelines directory is writable.')
     }
   }
 
@@ -931,10 +936,10 @@ action:
                   <p className="automation-wizard-section-label">When should this automation run?</p>
                   <div className="automation-wizard-options">
                     {([
-                      { value: 'pr-opened', label: 'GitHub PR opened', icon: <Globe size={13} /> },
-                      { value: 'pr-merged', label: 'GitHub PR merged', icon: <Globe size={13} /> },
+                      { value: 'pr-opened', label: 'GitHub PR opened', icon: <GitPullRequest size={13} /> },
+                      { value: 'pr-merged', label: 'GitHub PR merged', icon: <GitMerge size={13} /> },
                       { value: 'cron', label: 'Cron schedule', icon: <Clock size={13} /> },
-                      { value: 'git-push', label: 'Git push to branch', icon: <ArrowRight size={13} /> },
+                      { value: 'git-push', label: 'Git push to branch', icon: <GitBranch size={13} /> },
                     ] as const).map(opt => (
                       <label key={opt.value} className={`automation-wizard-option${wizardTrigger === opt.value ? ' selected' : ''}`}>
                         <input
@@ -1061,6 +1066,7 @@ action:
                 </button>
               )}
               <div style={{ flex: 1 }} />
+              {wizardError && <span style={{ fontSize: 11, color: 'var(--danger, #f87171)', marginRight: 8 }}>{wizardError}</span>}
               {wizardStep < 3 ? (
                 <button
                   className="panel-header-btn primary"
