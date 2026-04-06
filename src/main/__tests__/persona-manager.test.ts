@@ -1707,3 +1707,132 @@ Opted out.
     )
   })
 })
+
+// ---- Helper to build a minimal ClaudeInstance stub ----
+function makeInstance(overrides: {
+  name: string
+  status?: 'running' | 'exited'
+  createdAt: string
+  cost?: number
+}): import('../../shared/types').ClaudeInstance {
+  return {
+    id: 'inst-' + Math.random().toString(36).slice(2),
+    name: overrides.name,
+    status: overrides.status ?? 'exited',
+    pid: 1234,
+    createdAt: overrides.createdAt,
+    args: [],
+    tokenUsage: { input: 0, output: 0, cost: overrides.cost ?? 0 },
+    cwd: '/tmp',
+  }
+}
+
+describe('persona-manager: listPersonas (weeklySpend enrichment)', () => {
+  let mod: typeof import('../persona-manager')
+  const NOW = new Date('2026-04-06T12:00:00.000Z').getTime()
+  const RECENT = new Date('2026-04-04T10:00:00.000Z').toISOString() // 2 days ago — within 7
+  const OLD = new Date('2026-03-29T10:00:00.000Z').toISOString()   // 8 days ago — outside 7
+
+  beforeEach(async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+    vi.resetModules()
+    mockGetAllInstances.mockReset()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    if (mod) mod.stopScheduler()
+  })
+
+  it('sets weeklySpend from recent exited instances matching persona name', async () => {
+    mockGetAllInstances.mockResolvedValue([
+      makeInstance({ name: 'Persona: Test Persona', status: 'exited', createdAt: RECENT, cost: 0.50 }),
+    ])
+    const fs = buildFsMock({ personaFiles: ['test-persona.md'], personaContents: { 'test-persona.md': FULL_PERSONA_MD } })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    const personas = await mod.listPersonas()
+    expect(personas[0].weeklySpend).toBeCloseTo(0.50, 5)
+  })
+
+  it('accumulates cost from multiple recent instances', async () => {
+    mockGetAllInstances.mockResolvedValue([
+      makeInstance({ name: 'Persona: Test Persona', status: 'exited', createdAt: RECENT, cost: 0.30 }),
+      makeInstance({ name: 'Persona: Test Persona', status: 'exited', createdAt: RECENT, cost: 0.20 }),
+    ])
+    const fs = buildFsMock({ personaFiles: ['test-persona.md'], personaContents: { 'test-persona.md': FULL_PERSONA_MD } })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    const personas = await mod.listPersonas()
+    expect(personas[0].weeklySpend).toBeCloseTo(0.50, 5)
+  })
+
+  it('excludes instances older than 7 days', async () => {
+    mockGetAllInstances.mockResolvedValue([
+      makeInstance({ name: 'Persona: Test Persona', status: 'exited', createdAt: OLD, cost: 1.00 }),
+    ])
+    const fs = buildFsMock({ personaFiles: ['test-persona.md'], personaContents: { 'test-persona.md': FULL_PERSONA_MD } })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    const personas = await mod.listPersonas()
+    expect(personas[0].weeklySpend).toBeUndefined()
+  })
+
+  it('excludes running (non-exited) instances', async () => {
+    mockGetAllInstances.mockResolvedValue([
+      makeInstance({ name: 'Persona: Test Persona', status: 'running', createdAt: RECENT, cost: 0.80 }),
+    ])
+    const fs = buildFsMock({ personaFiles: ['test-persona.md'], personaContents: { 'test-persona.md': FULL_PERSONA_MD } })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    const personas = await mod.listPersonas()
+    expect(personas[0].weeklySpend).toBeUndefined()
+  })
+
+  it('excludes instances whose name does not include the persona name', async () => {
+    mockGetAllInstances.mockResolvedValue([
+      makeInstance({ name: 'Persona: Other Persona', status: 'exited', createdAt: RECENT, cost: 0.50 }),
+    ])
+    const fs = buildFsMock({ personaFiles: ['test-persona.md'], personaContents: { 'test-persona.md': FULL_PERSONA_MD } })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    const personas = await mod.listPersonas()
+    expect(personas[0].weeklySpend).toBeUndefined()
+  })
+
+  it('excludes instances without the "Persona: " prefix', async () => {
+    mockGetAllInstances.mockResolvedValue([
+      makeInstance({ name: 'Test Persona', status: 'exited', createdAt: RECENT, cost: 0.50 }),
+    ])
+    const fs = buildFsMock({ personaFiles: ['test-persona.md'], personaContents: { 'test-persona.md': FULL_PERSONA_MD } })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    const personas = await mod.listPersonas()
+    expect(personas[0].weeklySpend).toBeUndefined()
+  })
+
+  it('returns personas without weeklySpend when getAllInstances throws (non-fatal)', async () => {
+    mockGetAllInstances.mockRejectedValue(new Error('daemon offline'))
+    const fs = buildFsMock({ personaFiles: ['test-persona.md'], personaContents: { 'test-persona.md': FULL_PERSONA_MD } })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    const personas = await mod.listPersonas()
+    expect(personas).toHaveLength(1)
+    expect(personas[0].weeklySpend).toBeUndefined()
+  })
+})
