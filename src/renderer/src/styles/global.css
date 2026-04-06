@@ -3276,6 +3276,103 @@ input, select {
   opacity: 0.5;
 }
 
+/* Arena mode toggle button on split divider */
+.arena-toggle-btn {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  z-index: 2;
+  line-height: 1;
+  padding: 0;
+}
+
+.split-divider:hover .arena-toggle-btn,
+.arena-toggle-btn.active {
+  opacity: 1;
+}
+
+.arena-toggle-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+/* Arena input bar — full-width row below both split panes */
+.arena-input-bar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  flex-basis: 100%;
+  align-items: flex-end;
+}
+
+.arena-textarea {
+  flex: 1;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: inherit;
+  padding: 6px 8px;
+  resize: none;
+  min-height: 32px;
+  max-height: 120px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.arena-textarea:focus {
+  border-color: var(--accent);
+}
+
+.arena-send-btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+  height: 32px;
+}
+
+.arena-send-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Arena chip in terminal header */
+.arena-chip {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  padding: 1px 4px;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+}
+
 /* Focus styles for split panes */
 .terminal-header.unfocused {
   opacity: 0.7;

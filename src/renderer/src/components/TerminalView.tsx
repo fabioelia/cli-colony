@@ -29,6 +29,7 @@ interface Props {
   onCloseSplit?: () => void
   onSpawnChild?: () => void
   isSplit?: boolean
+  arenaMode?: boolean
   terminalsRef: MutableRefObject<Map<string, TerminalEntry>>
   searchOpen?: boolean
   onSearchClose?: () => void
@@ -207,7 +208,7 @@ function FileTreeNode({ node, depth, selectedPath, expandedPaths, filter, onTogg
 
 type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'replay'
 
-export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, isSplit, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane, outputBytes = 0 }: Props) {
+export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, isSplit, arenaMode, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane, outputBytes = 0 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const initializedRef = useRef(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -1055,6 +1056,9 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 <Columns2 size={14} /> Split
               </button>
             </Tooltip>
+          )}
+          {isSplit && arenaMode && (
+            <span className="arena-chip">[Arena]</span>
           )}
           {isSplit && onCloseSplit && (
             <Tooltip text="Close Split" detail="Return to single session view" shortcut="Cmd+Shift+W">

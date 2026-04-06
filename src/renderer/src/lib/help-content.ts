@@ -497,6 +497,16 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Info button', detail: 'Opens a popover with launch command, PID, working directory, MCP servers, token usage, and child processes.', icon: 'Info' },
           { label: 'Reset terminal', detail: 'Destroy the terminal and create a fresh one. On the Session tab, clears and re-replays the buffer. On the Shell tab, kills the shell and spawns a new one.', icon: 'RotateCcw' },
           { label: 'Spawn child', detail: 'Create a child session that reports back via a handoff document when done.', icon: 'GitFork' },
+          { label: 'Arena chip', detail: 'Shown in both split pane headers when Arena mode is active — confirms that the shared input bar below is routing to this session.' },
+        ],
+      },
+      {
+        name: 'Arena Mode',
+        position: 'Split divider + bottom bar (split view only)',
+        items: [
+          { label: 'Arena toggle', detail: 'The "A" button on the split divider enables Arena mode. Hover the divider to reveal it. Click again to disable.' },
+          { label: 'Shared input bar', detail: 'When Arena mode is on, a shared textarea appears below both panes. Type a prompt and press Enter (or "Send to both") to send identical input to both sessions simultaneously. Shift+Enter adds a newline.' },
+          { label: 'Use case', detail: 'Compare two models or personas on the same task — evaluate quality, speed, and approach side-by-side without typing twice.' },
         ],
       },
       {

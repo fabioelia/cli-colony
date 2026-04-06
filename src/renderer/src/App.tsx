@@ -40,6 +40,8 @@ export default function App() {
   const [focusedPane, setFocusedPane] = useState<'left' | 'right'>('left')
   const [showSplitPicker, setShowSplitPicker] = useState(false)
   const [splitRatio, setSplitRatio] = useState(0.5)
+  const [arenaMode, setArenaMode] = useState(false)
+  const [arenaText, setArenaText] = useState('')
   const [unreadIds, setUnreadIds] = useState<Set<string>>(new Set())
   const [fontSize, setFontSize] = useState(13)
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
@@ -583,6 +585,8 @@ export default function App() {
         return next
       })
       setFocusedPane('left')
+      setArenaMode(false)
+      setArenaText('')
     } else {
       // Open split — auto-pick if 2 instances, show picker if more
       const others = regularInstances.filter((i) => i.id !== activeId)
@@ -616,6 +620,8 @@ export default function App() {
       return next
     })
     setFocusedPane('left')
+    setArenaMode(false)
+    setArenaText('')
   }, [splitId, activeId])
 
   const handlePickSplit = useCallback((id: string) => {
@@ -842,6 +848,7 @@ export default function App() {
                   setActiveId(child.id)
                 }}
                 isSplit={isSplit}
+                arenaMode={isSplit && arenaMode}
                 terminalsRef={terminalsRef}
                 searchOpen={isFocused && searchOpen}
                 onSearchClose={() => setSearchOpen(false)}
@@ -859,6 +866,7 @@ export default function App() {
           <div
             className="split-divider"
             style={{ order: 1 }}
+            title={arenaMode ? 'Arena mode active — shared input bar below' : 'Drag to resize | Double-click to reset'}
             onMouseDown={(e) => {
               e.preventDefault()
               const startX = e.clientX
@@ -901,7 +909,50 @@ export default function App() {
               document.addEventListener('mouseup', onUp)
             }}
             onDoubleClick={() => setSplitRatio(0.5)}
-          />
+          >
+            <button
+              className={`arena-toggle-btn${arenaMode ? ' active' : ''}`}
+              onClick={(e) => { e.stopPropagation(); setArenaMode((m) => !m) }}
+              title={arenaMode ? 'Disable Arena mode' : 'Enable Arena mode — shared input bar'}
+              aria-label="Toggle Arena mode"
+            >
+              A
+            </button>
+          </div>
+        )}
+
+        {/* Arena input bar — full-width row below both panes when active */}
+        {isSplit && arenaMode && (
+          <div className="arena-input-bar" style={{ order: 100 }}>
+            <textarea
+              className="arena-textarea"
+              value={arenaText}
+              onChange={(e) => setArenaText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  if (!arenaText.trim() || !activeId || !splitId) return
+                  window.api.instance.write(activeId, arenaText + '\n')
+                  window.api.instance.write(splitId, arenaText + '\n')
+                  setArenaText('')
+                }
+              }}
+              placeholder="Send to both sessions... (Enter to send, Shift+Enter for newline)"
+              rows={1}
+            />
+            <button
+              className="arena-send-btn"
+              disabled={!arenaText.trim()}
+              onClick={() => {
+                if (!arenaText.trim() || !activeId || !splitId) return
+                window.api.instance.write(activeId, arenaText + '\n')
+                window.api.instance.write(splitId, arenaText + '\n')
+                setArenaText('')
+              }}
+            >
+              Send to both
+            </button>
+          </div>
         )}
 
         {/* Agent editor */}
