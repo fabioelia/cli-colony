@@ -78,10 +78,13 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
     }
   }, [renamingId])
 
-  // Restore persisted sidebar width on mount
+  // Restore persisted sidebar width on mount, clamped to minimum
   useEffect(() => {
     const saved = localStorage.getItem('sidebar-width')
-    if (saved) document.documentElement.style.setProperty('--sidebar-width', saved + 'px')
+    if (saved) {
+      const width = Math.max(298, parseInt(saved, 10))
+      document.documentElement.style.setProperty('--sidebar-width', width + 'px')
+    }
   }, [])
 
   const handleResizeMouseDown = (e: React.MouseEvent) => {
@@ -89,7 +92,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
     const startX = e.clientX
     const startWidth = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width'), 10) || 280
     const onMove = (ev: MouseEvent) => {
-      const newWidth = Math.max(220, Math.min(480, startWidth + ev.clientX - startX))
+      const newWidth = Math.max(298, Math.min(480, startWidth + ev.clientX - startX))
       document.documentElement.style.setProperty('--sidebar-width', newWidth + 'px')
       localStorage.setItem('sidebar-width', String(newWidth))
     }

@@ -18,7 +18,7 @@
   --success: #10b981;
   --warning: #f59e0b;
   --danger: #ef4444;
-  --sidebar-width: 280px;
+  --sidebar-width: 300px;
 }
 
 html, body, #root {
@@ -148,8 +148,9 @@ input, select {
 }
 
 .sidebar-header {
-  padding: 44px 6px 0;
+  padding: 44px 8px 8px;
   -webkit-app-region: drag;
+  border-bottom: 1px solid var(--border);
 }
 
 .sidebar-header .sidebar-nav {
@@ -163,6 +164,7 @@ input, select {
   padding: 3px 4px;
   background: var(--bg-primary);
   border-radius: 8px;
+  width: 100%;
 }
 
 .sidebar-nav-btn {
@@ -171,7 +173,7 @@ input, select {
   align-items: center;
   justify-content: center;
   gap: 3px;
-  width: 38px;
+  flex: 1;
   height: 46px;
   border-radius: 6px;
   color: var(--text-muted);
