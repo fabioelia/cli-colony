@@ -9148,6 +9148,31 @@ input, select {
   user-select: none;
 }
 
+.pipeline-budget-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  font-weight: 600;
+}
+
+.pipeline-budget-bar {
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  width: 60px;
+  flex-shrink: 0;
+}
+
+.pipeline-budget-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
 /* CronEditor inline widget */
 .cron-editor {
   background: var(--bg-secondary);

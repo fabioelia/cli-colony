@@ -89,6 +89,11 @@ export interface DedupDef {
   ttl?: number // seconds
 }
 
+export interface BudgetDef {
+  max_cost_usd: number
+  warn_at?: number
+}
+
 export interface PipelineDef {
   name: string
   description?: string
@@ -99,6 +104,7 @@ export interface PipelineDef {
   condition: ConditionDef
   action: ActionDef
   dedup: DedupDef
+  budget?: BudgetDef
 }
 
 interface PendingApproval {
@@ -121,6 +127,7 @@ interface PipelineState {
   lastError: string | null
   consecutiveFailures: number
   debugLog: string[]
+  lastRunStoppedBudget?: boolean
 }
 
 export interface PipelineInfo {
@@ -140,6 +147,8 @@ export interface PipelineInfo {
   fireCount: number
   consecutiveFailures: number
   debugLog: string[]
+  budget?: { maxCostUsd: number; warnAt: number } | null
+  lastRunStoppedBudget?: boolean
 }
 
 const MAX_DEBUG_ITERATIONS = 20
@@ -297,6 +306,7 @@ export interface PipelineRunEntry {
   durationMs: number
   stages?: PipelineStageTrace[]
   totalCost?: number
+  stoppedBudget?: boolean
 }
 
 const MAX_HISTORY_ENTRIES = 20
@@ -1524,6 +1534,8 @@ async function runPoll(pipelineName: string): Promise<void> {
   let pollError = false
   const stages: PipelineStageTrace[] = []
   let totalCost = 0
+  let stoppedBudget = false
+  let budgetWarnSent = false
 
   try {
     let contexts: TriggerContext[] = []
@@ -1645,6 +1657,22 @@ async function runPoll(pipelineName: string): Promise<void> {
         })
       }
       totalCost += stageCost
+
+      // Budget check
+      if (p.def.budget) {
+        const warnAt = p.def.budget.warn_at ?? p.def.budget.max_cost_usd * 0.75
+        if (!budgetWarnSent && totalCost >= warnAt) {
+          budgetWarnSent = true
+          notify(`Colony: Budget warning`, `Pipeline "${pipelineName}" has spent $${totalCost.toFixed(2)} (warn threshold: $${warnAt.toFixed(2)})`, 'pipelines')
+        }
+        if (totalCost >= p.def.budget.max_cost_usd) {
+          plog(pipelineName, `⚠ budget limit reached ($${totalCost.toFixed(2)} >= $${p.def.budget.max_cost_usd.toFixed(2)}) — stopping run`)
+          notify(`Colony: Budget limit reached`, `Pipeline "${pipelineName}" stopped after spending $${totalCost.toFixed(2)}`, 'pipelines')
+          stoppedBudget = true
+          break
+        }
+      }
+
       recordFired(pipelineName, dedupKey, ctx.contentSha)
       fired = true
       plog(pipelineName, `✓ action fired successfully`)
@@ -1691,6 +1719,8 @@ async function runPoll(pipelineName: string): Promise<void> {
 
   runningPolls.delete(pipelineName)
 
+  p.state.lastRunStoppedBudget = stoppedBudget
+
   // Record run history
   appendHistory(pipelineName, {
     ts: new Date().toISOString(),
@@ -1700,6 +1730,7 @@ async function runPoll(pipelineName: string): Promise<void> {
     durationMs: Date.now() - pollStartedAt,
     stages: stages.length > 0 ? stages : undefined,
     totalCost: totalCost > 0 ? totalCost : undefined,
+    stoppedBudget: stoppedBudget || undefined,
   })
 
   // Trim debug log to the last N iterations
@@ -1945,6 +1976,8 @@ export function getPipelineList(): PipelineInfo[] {
       fireCount: p.state.fireCount,
       consecutiveFailures: p.state.consecutiveFailures || 0,
       debugLog: p.state.debugLog || [],
+      budget: p.def.budget ? { maxCostUsd: p.def.budget.max_cost_usd, warnAt: p.def.budget.warn_at ?? p.def.budget.max_cost_usd * 0.75 } : null,
+      lastRunStoppedBudget: p.state.lastRunStoppedBudget ?? false,
     })
   }
   return result

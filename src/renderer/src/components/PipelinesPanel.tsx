@@ -30,6 +30,8 @@ interface PipelineInfo {
   lastError: string | null
   fireCount: number
   debugLog: string[]
+  budget?: { maxCostUsd: number; warnAt: number } | null
+  lastRunStoppedBudget?: boolean
 }
 
 interface Props {
@@ -556,6 +558,7 @@ action:
                 <span className={`pipeline-status-dot ${p.running ? 'running' : p.enabled ? 'active' : 'inactive'}`} />
                 <span className="pipeline-card-name">{p.name}</span>
                 {p.running && <span className="pipeline-running-badge">Running</span>}
+                {p.lastRunStoppedBudget && <span className="pipeline-budget-badge" title="Last run stopped: budget limit reached">Budget</span>}
               </div>
               <div className="pipeline-card-right">
                 {p.triggerType !== 'webhook' && <span className="pipeline-card-trigger">{p.triggerType}</span>}
@@ -827,6 +830,14 @@ action:
                                 </span>
                                 <span className="pipeline-history-duration">{entry.durationMs < 1000 ? `${entry.durationMs}ms` : `${(entry.durationMs / 1000).toFixed(1)}s`}</span>
                                 {entry.totalCost && entry.totalCost >= 0.01 && <span className="run-cost-badge" title="Total cost of this pipeline run">${entry.totalCost.toFixed(2)}</span>}
+                                {p.budget && entry.totalCost != null && (
+                                  <div className="pipeline-budget-bar" title={`$${entry.totalCost.toFixed(2)} of $${p.budget.maxCostUsd.toFixed(2)} budget`}>
+                                    <div
+                                      className="pipeline-budget-bar-fill"
+                                      style={{ width: `${Math.min(100, (entry.totalCost / p.budget.maxCostUsd) * 100).toFixed(1)}%`, background: entry.totalCost >= p.budget.maxCostUsd ? 'var(--error)' : entry.totalCost >= p.budget.warnAt ? 'var(--warning)' : 'var(--accent)' }}
+                                    />
+                                  </div>
+                                )}
                               </div>
                               {hasStages && isExpanded && (
                                 <div className="pipeline-history-stages">

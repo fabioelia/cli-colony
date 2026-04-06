@@ -2930,3 +2930,226 @@ describe('pipeline-engine: wait_for_session behavior', () => {
     expect(artifactCall![1]).toContain('exited cleanly')
   })
 })
+
+// ---- Budget Tests ----
+
+describe('pipeline-engine: per-run cost budget', () => {
+  let mod: typeof import('../pipeline-engine')
+  let mockNotify: ReturnType<typeof vi.fn>
+  let mockCreateInstance: ReturnType<typeof vi.fn>
+  let mockSendPromptWhenReady: ReturnType<typeof vi.fn>
+  let mockGetInstance: ReturnType<typeof vi.fn>
+  let activityHandlers: Array<(id: string, activity: string) => void>
+
+  const BUDGET_PLAN_YAML = `
+name: Budget Pipe
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: plan
+  prompt: Produce a plan.
+  require_approval: false
+dedup:
+  key: "{{timestamp}}"
+budget:
+  max_cost_usd: 0.50
+  warn_at: 0.38
+`
+
+  const BUDGET_NO_WARN_AT_YAML = `
+name: Budget Default Warn Pipe
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: plan
+  prompt: Produce a plan.
+  require_approval: false
+dedup:
+  key: "{{timestamp}}"
+budget:
+  max_cost_usd: 0.40
+`
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+    activityHandlers = []
+    mockNotify = vi.fn()
+    mockCreateInstance = vi.fn().mockResolvedValue({ id: 'inst-budget-1' })
+    mockSendPromptWhenReady = vi.fn().mockResolvedValue(undefined)
+    mockGetInstance = vi.fn().mockResolvedValue({ tokenUsage: { cost: 0.40 } })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  function buildBudgetFsMock(yaml: string) {
+    const base = buildFsMock(['budget.yaml'], { 'budget.yaml': yaml })
+    base.existsSync = vi.fn().mockImplementation((p: string) => {
+      if (p === PIPELINES_DIR) return true
+      if (p === STATE_PATH) return false
+      return false
+    })
+    base.readFileSync = vi.fn().mockImplementation((p: string) => {
+      if (p.endsWith('budget.yaml')) return yaml
+      if (p === STATE_PATH) return '{}'
+      throw new Error(`Unexpected readFileSync: ${p}`)
+    })
+    return base
+  }
+
+  function setupBudgetMocks(fsMock: ReturnType<typeof buildFsMock>) {
+    vi.doMock('electron', () => ({
+      app: { getPath: vi.fn().mockReturnValue('/mock/home') },
+    }))
+    vi.doMock('../../shared/colony-paths', () => ({
+      colonyPaths: { root: MOCK_ROOT, pipelines: PIPELINES_DIR, schedulerLog: `${MOCK_ROOT}/scheduler.log` },
+    }))
+    vi.doMock('fs', () => fsMock)
+    vi.doMock('../broadcast', () => ({ broadcast: mockBroadcast }))
+    vi.doMock('../repo-config-loader', () => ({ getAllRepoConfigs: mockGetAllRepoConfigs }))
+    vi.doMock('../instance-manager', () => ({
+      createInstance: mockCreateInstance,
+      getAllInstances: vi.fn().mockResolvedValue([]),
+    }))
+    vi.doMock('../daemon-client', () => ({
+      getDaemonClient: vi.fn().mockReturnValue({
+        on: vi.fn().mockImplementation((event: string, handler: (id: string, act: string) => void) => {
+          if (event === 'activity') activityHandlers.push(handler)
+        }),
+        removeListener: vi.fn(),
+        getInstance: mockGetInstance,
+        writeToInstance: vi.fn(),
+      }),
+    }))
+    vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: mockSendPromptWhenReady }))
+    vi.doMock('../github', () => ({
+      getRepos: vi.fn().mockReturnValue([]),
+      fetchPRs: vi.fn().mockResolvedValue([]),
+      fetchChecks: vi.fn().mockResolvedValue({ checks: [] }),
+      gh: vi.fn().mockResolvedValue('{}'),
+    }))
+    vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
+    vi.doMock('../activity-manager', () => ({ appendActivity: vi.fn() }))
+    vi.doMock('../notifications', () => ({ notify: mockNotify }))
+  }
+
+  function firePlanComplete(instanceId = 'inst-budget-1') {
+    for (const h of activityHandlers) {
+      h(instanceId, 'busy')
+      h(instanceId, 'waiting')
+    }
+  }
+
+  it('exposes budget in getPipelineList when YAML has budget block', async () => {
+    const fs = buildBudgetFsMock(BUDGET_PLAN_YAML)
+    setupBudgetMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    const p = mod.getPipelineList()[0]
+    expect(p.budget).not.toBeNull()
+    expect(p.budget?.maxCostUsd).toBe(0.50)
+    expect(p.budget?.warnAt).toBe(0.38)
+    expect(p.lastRunStoppedBudget).toBe(false)
+  })
+
+  it('defaults warn_at to 75% of max_cost_usd when not specified', async () => {
+    const fs = buildBudgetFsMock(BUDGET_NO_WARN_AT_YAML)
+    setupBudgetMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    const p = mod.getPipelineList()[0]
+    expect(p.budget?.maxCostUsd).toBe(0.40)
+    expect(p.budget?.warnAt).toBeCloseTo(0.30, 5)  // 75% of 0.40
+  })
+
+  it('sends warn notification when totalCost >= warn_at', async () => {
+    // Cost = 0.40, warn_at = 0.38 → warn should fire
+    mockGetInstance.mockResolvedValue({ tokenUsage: { cost: 0.40 } })
+
+    const fs = buildBudgetFsMock(BUDGET_PLAN_YAML)
+    setupBudgetMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Budget Pipe')
+    await flushPromises()
+    firePlanComplete()
+    await flushPromises()
+
+    const warnCall = mockNotify.mock.calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('Budget warning')
+    )
+    expect(warnCall).toBeDefined()
+    expect(warnCall![0]).toContain('Budget warning')
+  })
+
+  it('stops run and sets stoppedBudget=true in history when totalCost >= max_cost_usd', async () => {
+    // Cost = 0.55, max_cost_usd = 0.50 → budget limit reached
+    mockGetInstance.mockResolvedValue({ tokenUsage: { cost: 0.55 } })
+
+    const fs = buildBudgetFsMock(BUDGET_PLAN_YAML)
+    setupBudgetMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Budget Pipe')
+    await flushPromises()
+    firePlanComplete()
+    await flushPromises()
+
+    // Check history written to fs
+    const writeCalls = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls
+    const histCall = writeCalls.find(([p]: [string]) => typeof p === 'string' && p.includes('Budget-Pipe.history.json'))
+    expect(histCall).toBeDefined()
+    const history = JSON.parse(histCall![1] as string)
+    const entry = history[history.length - 1]
+    expect(entry.stoppedBudget).toBe(true)
+
+    // Check budget limit notification was sent
+    const limitCall = mockNotify.mock.calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('Budget limit reached')
+    )
+    expect(limitCall).toBeDefined()
+  })
+
+  it('does not send warn notification when totalCost < warn_at', async () => {
+    // Cost = 0.10, warn_at = 0.38 → no warn
+    mockGetInstance.mockResolvedValue({ tokenUsage: { cost: 0.10 } })
+
+    const fs = buildBudgetFsMock(BUDGET_PLAN_YAML)
+    setupBudgetMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Budget Pipe')
+    await flushPromises()
+    firePlanComplete()
+    await flushPromises()
+
+    const warnCall = mockNotify.mock.calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('Budget warning')
+    )
+    expect(warnCall).toBeUndefined()
+
+    const limitCall = mockNotify.mock.calls.find(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('Budget limit reached')
+    )
+    expect(limitCall).toBeUndefined()
+  })
+})
