@@ -78,6 +78,7 @@ export default function TaskBoardPanel() {
   }
 
   const handleDelete = async (id: string) => {
+    if (!confirm('Delete this task?')) return
     await window.api.tasksBoard.delete(id)
   }
 
