@@ -844,7 +844,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     setDragOver(false)
   }, [])
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = useCallback((e: React.DragEvent, tab: 'session' | 'shell' = 'session') => {
     e.preventDefault()
     setDragOver(false)
     const files = e.dataTransfer.files
@@ -855,11 +855,13 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
         return p.includes(' ') ? `"${p}"` : p
       }).filter(Boolean)
       if (paths.length > 0) {
-        // Write each path character by character to the PTY input
-        // so the CLI's input handler picks it up naturally
         const text = paths.join(' ') + ' '
-        for (const ch of text) {
-          window.api.instance.write(instance.id, ch)
+        if (tab === 'shell') {
+          window.api.shellPty.write(instance.id, text)
+        } else {
+          for (const ch of text) {
+            window.api.instance.write(instance.id, ch)
+          }
         }
       }
     }
@@ -1685,14 +1687,21 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
         </div>
       )}
       <div
-        className="terminal-container shell-terminal"
+        className={`terminal-container shell-terminal${dragOver ? ' drag-over' : ''}`}
         ref={shellContainerRef}
         onClick={() => {
           onFocusPane?.()
           shellTermRef.current?.term.focus()
         }}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={(e) => handleDrop(e, 'shell')}
         style={{ display: viewTab === 'shell' ? undefined : 'none' }}
-      />
+      >
+        {dragOver && (
+          <div className="terminal-drop-overlay">Drop to paste path</div>
+        )}
+      </div>
     </>
   )
 }
