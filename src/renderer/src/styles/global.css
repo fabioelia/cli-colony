@@ -10832,14 +10832,28 @@ input, select {
 
 .env-card-services {
   display: flex;
-  gap: 4px;
+  gap: 6px;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.env-service-dot-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.env-service-status-label {
+  font-size: 10px;
+  color: var(--text-muted);
 }
 
 .env-service-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
+  flex-shrink: 0;
 }
 .env-service-dot-running {
   box-shadow: 0 0 4px rgba(16, 185, 129, 0.5);
@@ -10871,6 +10885,13 @@ input, select {
 .env-action-btn:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
+}
+
+.env-action-labeled {
+  width: auto;
+  padding: 0 8px;
+  gap: 5px;
+  font-size: 11px;
 }
 
 .env-action-btn:disabled {

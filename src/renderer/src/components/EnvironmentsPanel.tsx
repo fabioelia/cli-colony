@@ -40,7 +40,7 @@ function statusColor(status: string): string {
   }
 }
 
-function serviceStatusDot(status: string): string {
+function serviceStatusColor(status: string): string {
   switch (status) {
     case 'running': return '#10b981'
     case 'starting': return '#3b82f6'
@@ -427,10 +427,10 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
         {environments.length === 0 && (
           <div className="env-empty">
             <Server size={48} style={{ opacity: 0.3 }} />
-            <p>No environments yet</p>
-            <p className="env-empty-detail">Create an environment to run your project's services</p>
+            <p>No environments yet.</p>
+            <p className="env-empty-detail">Create one to run a full Newton stack.</p>
             <button className="env-btn env-btn-primary" onClick={() => setShowCreateDialog(true)}>
-              <Plus size={14} /> Create Environment
+              <Plus size={14} /> New Environment
             </button>
           </div>
         )}
@@ -548,12 +548,15 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                     <Tooltip
                       key={svc.name}
                       text={svc.name}
-                      detail={`${svc.status}${svc.port ? ` · port ${svc.port}` : ''}${svc.restarts > 0 ? ` · ${svc.restarts} restart${svc.restarts > 1 ? 's' : ''}` : ''}`}
+                      detail={`${svc.port ? `port ${svc.port}` : ''}${svc.restarts > 0 ? ` · ${svc.restarts} restart${svc.restarts > 1 ? 's' : ''}` : ''}`}
                     >
-                    <div
-                      className={`env-service-dot env-service-dot-${svc.status}`}
-                      style={{ backgroundColor: serviceStatusDot(svc.status) }}
-                    />
+                      <span className="env-service-dot-row">
+                        <div
+                          className={`env-service-dot env-service-dot-${svc.status}`}
+                          style={{ backgroundColor: serviceStatusColor(svc.status) }}
+                        />
+                        <span className="env-service-status-label">{svc.status}</span>
+                      </span>
                     </Tooltip>
                   ))}
                 </div>
@@ -561,24 +564,26 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                 {/* Actions */}
                 <div className="env-card-actions" onClick={e => e.stopPropagation()}>
                   {(env.status === 'stopped' || env.status === 'partial') && (
-                    <Tooltip text="Start" detail="Launch all services">
+                    <Tooltip text={isLoading ? 'Starting…' : 'Start'} detail="Launch all services">
                       <button
-                        className="env-action-btn env-action-start"
+                        className="env-action-btn env-action-start env-action-labeled"
                         onClick={() => handleStart(env.id)}
                         disabled={isLoading}
                       >
-                        <Play size={14} />
+                        <Play size={13} />
+                        {isLoading ? 'Starting…' : 'Start'}
                       </button>
                     </Tooltip>
                   )}
                   {(env.status === 'running' || env.status === 'partial') && (
-                    <Tooltip text="Stop" detail="Halt all services">
+                    <Tooltip text={isLoading ? 'Stopping…' : 'Stop'} detail="Halt all services">
                       <button
-                        className="env-action-btn env-action-stop"
+                        className="env-action-btn env-action-stop env-action-labeled"
                         onClick={() => handleStop(env.id)}
                         disabled={isLoading}
                       >
-                        <Square size={14} />
+                        <Square size={13} />
+                        {isLoading ? 'Stopping…' : 'Stop'}
                       </button>
                     </Tooltip>
                   )}
@@ -734,8 +739,8 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                         <div key={svc.name} className="env-service-row">
                           <Circle
                             size={8}
-                            fill={serviceStatusDot(svc.status)}
-                            color={serviceStatusDot(svc.status)}
+                            fill={serviceStatusColor(svc.status)}
+                            color={serviceStatusColor(svc.status)}
                           />
                           <span className="env-service-name">{svc.name}</span>
                           <span className="env-service-status">{svc.status}</span>
