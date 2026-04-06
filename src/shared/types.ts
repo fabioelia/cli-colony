@@ -271,3 +271,15 @@ export interface McpAuditEntry {
   outcome: 'approved' | 'denied' | 'auto'
   args?: string
 }
+
+export interface CommitAttribution {
+  commitHash: string
+  shortMsg: string
+  sessionId: string
+  sessionName: string
+  personaName?: string
+  cost?: number
+  startedAt: number
+  stoppedAt: number
+  dir: string
+}

@@ -3,7 +3,7 @@ import type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
-  ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry,
+  ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -11,7 +11,7 @@ export type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
-  ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry,
+  ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution,
 }
 
 
@@ -300,6 +300,8 @@ export interface ClaudeManagerAPI {
   session: {
     getReplay: (instanceId: string) => Promise<ReplayEvent[]>
     sendMessage: (targetName: string, text: string) => Promise<boolean>
+    getAttributedCommits: (dir?: string) => Promise<CommitAttribution[]>
+    clearCommitAttributions: () => Promise<void>
   }
   audit: {
     runPanel: (panel: string, context: object) => Promise<AuditResult[]>
@@ -627,6 +629,8 @@ const api: ClaudeManagerAPI = {
   session: {
     getReplay: (instanceId) => ipcRenderer.invoke('session:getReplay', instanceId),
     sendMessage: (targetName, text) => ipcRenderer.invoke('session:sendMessage', targetName, text),
+    getAttributedCommits: (dir) => ipcRenderer.invoke('session:getAttributedCommits', dir),
+    clearCommitAttributions: () => ipcRenderer.invoke('session:clearCommitAttributions'),
   },
   audit: {
     runPanel: (panel, context) => ipcRenderer.invoke('audit:runPanel', panel, context),

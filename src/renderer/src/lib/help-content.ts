@@ -407,6 +407,14 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Commit Attribution Section',
+        position: 'Below MCP Audit',
+        items: [
+          { label: 'Commit Attribution', detail: 'Links git commits to the Colony session that made them. When any session exits, Colony scans the working directory for commits made since the session started and records them in ~/.claude-colony/commit-attribution.json. Shows hash, message, session name, and API cost.', icon: 'GitCommit' },
+          { label: 'Clear button', detail: 'Delete all attribution records. The log is automatically capped at 200 entries.' },
+        ],
+      },
+      {
         name: 'Daemon Section',
         position: 'Lower section',
         items: [

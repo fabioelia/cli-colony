@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList } from 'lucide-react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit } from 'lucide-react'
 import HelpPopover from './HelpPopover'
-import type { McpAuditEntry } from '../../../preload'
+import type { McpAuditEntry, CommitAttribution } from '../../../preload'
 
 interface Props {
   onBack: () => void
@@ -38,6 +38,8 @@ export default function SettingsPanel({ onBack }: Props) {
 
   const [auditLog, setAuditLog] = useState<McpAuditEntry[]>([])
   const [showAuditSection, setShowAuditSection] = useState(false)
+  const [commitAttributions, setCommitAttributions] = useState<CommitAttribution[]>([])
+  const [showCommitSection, setShowCommitSection] = useState(false)
   const [mcpForm, setMcpForm] = useState<McpServer | null>(null)
   const [mcpFormType, setMcpFormType] = useState<'command' | 'sse'>('command')
   const [mcpFormError, setMcpFormError] = useState<string | null>(null)
@@ -60,6 +62,7 @@ export default function SettingsPanel({ onBack }: Props) {
     window.api.settings.detectGitProtocol().then(setDetectedProtocol).catch(() => {})
     window.api.mcp.list().then(setMcpServers).catch(() => {})
     window.api.mcp.getAuditLog().then(setAuditLog).catch(() => {})
+    window.api.session.getAttributedCommits().then(setCommitAttributions).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -519,6 +522,76 @@ export default function SettingsPanel({ onBack }: Props) {
                             {entry.outcome}
                           </span>
                         </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Commit Attribution */}
+      <div className={`settings-section settings-logs-section ${showCommitSection ? '' : 'collapsed'}`}>
+        <div className="settings-section-title">
+          <GitCommit size={12} />
+          Commit Attribution
+          <div className="settings-logs-actions">
+            <button
+              className="settings-logs-toggle"
+              onClick={() => {
+                if (!showCommitSection) {
+                  window.api.session.getAttributedCommits().then(setCommitAttributions).catch(() => {})
+                }
+                setShowCommitSection(!showCommitSection)
+              }}
+              title={showCommitSection ? 'Hide' : 'Show'}
+            >
+              {showCommitSection ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            </button>
+            {showCommitSection && commitAttributions.length > 0 && (
+              <button
+                className="settings-logs-toggle"
+                onClick={async () => {
+                  if (!confirm('Clear all commit attribution records?')) return
+                  await window.api.session.clearCommitAttributions()
+                  setCommitAttributions([])
+                }}
+                title="Clear"
+              >
+                <Trash2 size={12} />
+              </button>
+            )}
+          </div>
+        </div>
+        {showCommitSection && (
+          <div className="mcp-audit-log">
+            {commitAttributions.length === 0 ? (
+              <p className="settings-help">No attributed commits yet. Colony links commits to sessions when sessions exit.</p>
+            ) : (
+              <table className="mcp-audit-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Hash</th>
+                    <th>Message</th>
+                    <th>Session</th>
+                    <th>Cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {commitAttributions.map((entry, i) => {
+                    const date = new Date(entry.stoppedAt)
+                    const relTime = formatRelTime(entry.stoppedAt)
+                    const shortHash = entry.commitHash.slice(0, 7)
+                    return (
+                      <tr key={i} title={date.toLocaleString()}>
+                        <td className="mcp-audit-ts">{relTime}</td>
+                        <td className="mcp-audit-server"><code>{shortHash}</code></td>
+                        <td className="mcp-audit-tool" title={entry.shortMsg}>{entry.shortMsg.slice(0, 60)}{entry.shortMsg.length > 60 ? '…' : ''}</td>
+                        <td className="mcp-audit-session">{entry.sessionName}</td>
+                        <td>{entry.cost != null ? `$${entry.cost.toFixed(3)}` : '—'}</td>
                       </tr>
                     )
                   })}

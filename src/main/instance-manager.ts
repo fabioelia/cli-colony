@@ -18,6 +18,7 @@ import { trackOpened, trackClosed } from './recent-sessions'
 import { broadcast } from './broadcast'
 import { buildMcpConfig, cleanMcpConfigFile } from './mcp-catalog'
 import { processOutput, clearPending } from './replay-manager'
+import { scanNewCommits } from './commit-attributor'
 
 export type { ClaudeInstance } from '../daemon/protocol'
 import type { ClaudeInstance } from '../daemon/protocol'
@@ -94,6 +95,23 @@ export function wireDaemonEvents(): void {
     clearPending(instanceId)
     trackClosed(instanceId, 'exited')
     onSessionExitCallback?.(instanceId)
+
+    // Fire-and-forget: attribute any commits made during this session
+    client.getInstance(instanceId).then(inst => {
+      if (inst?.workingDirectory) {
+        const personaName = inst.name.startsWith('Persona: ')
+          ? inst.name.slice('Persona: '.length)
+          : undefined
+        scanNewCommits(
+          instanceId,
+          inst.name,
+          inst.workingDirectory,
+          new Date(inst.createdAt).getTime(),
+          personaName,
+          inst.tokenUsage?.cost
+        ).catch(() => {})
+      }
+    }).catch(() => {})
     const mcpPath = _mcpConfigPaths.get(instanceId)
     if (mcpPath) {
       cleanMcpConfigFile(mcpPath)
