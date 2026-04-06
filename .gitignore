@@ -13,6 +13,9 @@ playwright.config.ts
 test-results/
 playwright-report/
 
+# Colony session files
+.colony-checkpoint.md
+
 # Planning / review artifacts
 .orchestrator/
 plans/
