@@ -63,6 +63,35 @@ const mockCronMatches = vi.hoisted(() => vi.fn())
 const mockExecSync = vi.hoisted(() => vi.fn())
 const mockAppendActivity = vi.hoisted(() => vi.fn())
 
+/** Creates a fake ChildProcess-like object with controllable stdout/close */
+function makeSpawnResult(stdoutChunks: string[] = [], emitClose = true) {
+  const stdoutHandlers: Record<string, ((...args: unknown[]) => void)[]> = {}
+  const procHandlers: Record<string, ((...args: unknown[]) => void)[]> = {}
+  const fake = {
+    stdout: {
+      on(event: string, cb: (...args: unknown[]) => void) {
+        stdoutHandlers[event] = stdoutHandlers[event] || []
+        stdoutHandlers[event].push(cb)
+      },
+    },
+    on(event: string, cb: (...args: unknown[]) => void) {
+      procHandlers[event] = procHandlers[event] || []
+      procHandlers[event].push(cb)
+    },
+    _flush() {
+      for (const chunk of stdoutChunks) {
+        for (const cb of stdoutHandlers['data'] || []) cb(Buffer.from(chunk))
+      }
+      if (emitClose) {
+        for (const cb of procHandlers['close'] || []) cb()
+      }
+    },
+  }
+  return fake
+}
+
+const mockSpawn = vi.hoisted(() => vi.fn())
+
 // ---- fs mock builder ----
 
 const KNOWLEDGE_PATH = `${MOCK_ROOT}/KNOWLEDGE.md`
@@ -129,7 +158,7 @@ function setupMocks(fsMock: ReturnType<typeof buildFsMock>) {
   vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: mockSendPromptWhenReady }))
   vi.doMock('../colony-context', () => ({ updateColonyContext: mockUpdateColonyContext }))
   vi.doMock('../../shared/cron', () => ({ cronMatches: mockCronMatches }))
-  vi.doMock('child_process', () => ({ execSync: mockExecSync }))
+  vi.doMock('child_process', () => ({ execSync: mockExecSync, spawn: mockSpawn }))
   vi.doMock('../activity-manager', () => ({ appendActivity: mockAppendActivity }))
   vi.doMock('../notifications', () => ({ notify: vi.fn() }))
 }
@@ -1494,5 +1523,162 @@ Gets launched by triggers.
     await new Promise(resolve => setImmediate(resolve))
 
     expect(mockCreateInstance).not.toHaveBeenCalled()
+  })
+})
+
+// ----------------------------------------------------------------
+
+describe('persona-manager: memory extraction (onSessionExit)', () => {
+  let mod: typeof import('../persona-manager')
+  const LONG_OUTPUT = 'a'.repeat(300)
+  const STARTED_LONG_AGO = new Date(Date.now() - 120_000).toISOString()
+  const STARTED_JUST_NOW = new Date(Date.now() - 10_000).toISOString()
+
+  beforeEach(async () => {
+    vi.resetModules()
+    mockBroadcast.mockReset()
+    mockGetDaemonClient.mockReset()
+    mockExecSync.mockReset()
+    mockAppendActivity.mockReset()
+    mockSpawn.mockReset()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    if (mod) mod.stopScheduler()
+  })
+
+  it('spawns claude -p with haiku model when output is long enough and duration >= 60s', async () => {
+    const stateJson = JSON.stringify({
+      'Test Persona': {
+        lastRunAt: null, runCount: 1, activeSessionId: 'sess-mem', enabled: true,
+        lastRunOutput: null, sessionStartedAt: STARTED_LONG_AGO, sessionWorkingDir: null,
+      },
+    })
+    const spawnResult = makeSpawnResult([])
+    mockSpawn.mockReturnValue(spawnResult)
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': FULL_PERSONA_MD },
+      stateJson,
+    })
+    mockGetDaemonClient.mockReturnValue({ getInstanceBuffer: vi.fn().mockResolvedValue(LONG_OUTPUT) })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    await mod.onSessionExit('sess-mem')
+
+    expect(mockSpawn).toHaveBeenCalledOnce()
+    const [cmd, args] = mockSpawn.mock.calls[0]
+    expect(cmd).toBe('claude')
+    expect(args).toContain('--model')
+    expect(args).toContain('claude-haiku-4-5-20251001')
+  })
+
+  it('skips extraction when output < 200 chars', async () => {
+    const stateJson = JSON.stringify({
+      'Test Persona': {
+        lastRunAt: null, runCount: 1, activeSessionId: 'sess-short', enabled: true,
+        lastRunOutput: null, sessionStartedAt: STARTED_LONG_AGO, sessionWorkingDir: null,
+      },
+    })
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': FULL_PERSONA_MD },
+      stateJson,
+    })
+    mockGetDaemonClient.mockReturnValue({ getInstanceBuffer: vi.fn().mockResolvedValue('short output') })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    await mod.onSessionExit('sess-short')
+
+    expect(mockSpawn).not.toHaveBeenCalled()
+  })
+
+  it('skips extraction when session duration < 60s', async () => {
+    const stateJson = JSON.stringify({
+      'Test Persona': {
+        lastRunAt: null, runCount: 1, activeSessionId: 'sess-fast', enabled: true,
+        lastRunOutput: null, sessionStartedAt: STARTED_JUST_NOW, sessionWorkingDir: null,
+      },
+    })
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': FULL_PERSONA_MD },
+      stateJson,
+    })
+    mockGetDaemonClient.mockReturnValue({ getInstanceBuffer: vi.fn().mockResolvedValue(LONG_OUTPUT) })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    await mod.onSessionExit('sess-fast')
+
+    expect(mockSpawn).not.toHaveBeenCalled()
+  })
+
+  it('skips extraction when auto_memory_extraction: false', async () => {
+    const optOutPersona = `---
+name: "Opt Out Persona"
+schedule: "0 9 * * 1-5"
+auto_memory_extraction: false
+---
+
+## Role
+Opted out.
+`
+    const stateJson = JSON.stringify({
+      'Opt Out Persona': {
+        lastRunAt: null, runCount: 1, activeSessionId: 'sess-optout', enabled: true,
+        lastRunOutput: null, sessionStartedAt: STARTED_LONG_AGO, sessionWorkingDir: null,
+      },
+    })
+    const fs = buildFsMock({
+      personaFiles: ['opt-out.md'],
+      personaContents: { 'opt-out.md': optOutPersona },
+      stateJson,
+    })
+    mockGetDaemonClient.mockReturnValue({ getInstanceBuffer: vi.fn().mockResolvedValue(LONG_OUTPUT) })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    await mod.onSessionExit('sess-optout')
+
+    expect(mockSpawn).not.toHaveBeenCalled()
+  })
+
+  it('appends extracted lines to KNOWLEDGE.md when claude returns valid output', async () => {
+    const stateJson = JSON.stringify({
+      'Test Persona': {
+        lastRunAt: null, runCount: 1, activeSessionId: 'sess-extract', enabled: true,
+        lastRunOutput: null, sessionStartedAt: STARTED_LONG_AGO, sessionWorkingDir: null,
+      },
+    })
+    const knowledgeLine = '[2026-04-06 | Test Persona] some useful codebase fact'
+    const spawnResult = makeSpawnResult([knowledgeLine + '\n'])
+    mockSpawn.mockReturnValue(spawnResult)
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': FULL_PERSONA_MD },
+      stateJson,
+    })
+    mockGetDaemonClient.mockReturnValue({ getInstanceBuffer: vi.fn().mockResolvedValue(LONG_OUTPUT) })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    await mod.onSessionExit('sess-extract')
+    // Trigger the simulated spawn output+close
+    spawnResult._flush()
+
+    expect(fs.appendFileSync).toHaveBeenCalledWith(
+      KNOWLEDGE_PATH,
+      expect.stringContaining(knowledgeLine),
+      'utf-8',
+    )
   })
 })
