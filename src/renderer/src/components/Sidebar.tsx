@@ -459,8 +459,10 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
         <div className="sidebar-nav">
           <Tooltip text="Sessions" detail={`${instances.filter(i => i.status === 'running').length} running, ${instances.length} total`} shortcut="Cmd+1-9" position="bottom">
             <button className={`sidebar-nav-btn ${view === 'instances' ? 'active' : ''}`} onClick={() => onViewChange('instances')}>
-              <TerminalSquare size={17} />
-              {instances.length > 0 && <span className="sidebar-nav-badge">{instances.length}</span>}
+              <span className="sidebar-nav-icon">
+                <TerminalSquare size={17} />
+                {instances.length > 0 && <span className="sidebar-nav-badge">{instances.length}</span>}
+              </span>
               <span className="sidebar-nav-label">Sessions</span>
             </button>
           </Tooltip>
@@ -490,8 +492,10 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
           </Tooltip>
           <Tooltip text="Environments" detail={runningEnvCount > 0 ? `${runningEnvCount} running` : 'Dev environment management'} position="bottom">
             <button className={`sidebar-nav-btn ${view === 'environments' ? 'active' : ''}`} onClick={() => onViewChange('environments')}>
-              <Server size={17} />
-              {runningEnvCount > 0 && <span className="sidebar-nav-badge">{runningEnvCount}</span>}
+              <span className="sidebar-nav-icon">
+                <Server size={17} />
+                {runningEnvCount > 0 && <span className="sidebar-nav-badge">{runningEnvCount}</span>}
+              </span>
               <span className="sidebar-nav-label">Envs</span>
             </button>
           </Tooltip>

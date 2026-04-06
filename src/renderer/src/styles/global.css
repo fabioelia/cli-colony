@@ -201,13 +201,20 @@ input, select {
   background: var(--bg-tertiary);
 }
 
+.sidebar-nav-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .sidebar-nav-badge {
   position: absolute;
-  top: -3px;
-  right: -3px;
-  min-width: 14px;
-  height: 14px;
-  line-height: 14px;
+  top: -5px;
+  right: -7px;
+  min-width: 13px;
+  height: 13px;
+  line-height: 13px;
   text-align: center;
   font-size: 8px;
   font-weight: 700;
@@ -216,7 +223,7 @@ input, select {
   color: white;
   padding: 0 3px;
   pointer-events: none;
-  box-shadow: 0 0 0 2px var(--bg-secondary);
+  box-shadow: 0 0 0 1.5px var(--bg-secondary);
 }
 
 
