@@ -362,49 +362,41 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
           <div className="instance-name">
             {inst.pinned && <span className="instance-pin-icon" title="Pinned"><Pin size={11} /></span>}
             {inst.name}
-            {(() => {
-              // Build ordered badge list; cap at MAX_VISIBLE, collapse remainder into "+N"
-              const badges: Array<{ node: React.ReactNode; label: string }> = []
-              if (splitId && inst.id === activeId)
-                badges.push({ node: <span key="sl" className={`split-badge ${focusedPane === 'left' ? 'focused' : ''}`} title="Left split pane">L</span>, label: 'L' })
-              if (splitId && inst.id === splitId)
-                badges.push({ node: <span key="sr" className={`split-badge ${focusedPane === 'right' ? 'focused' : ''}`} title="Right split pane">R</span>, label: 'R' })
-              if (inst.id !== activeId && inst.id !== splitId && splitPairs.has(inst.id))
-                badges.push({ node: <span key="si" className="split-indicator" title="Split with another session"><Columns2 size={11} /></span>, label: 'split' })
-              // "your turn" and "new" both mean "look at this" — show at most one
-              if (inst.status === 'running' && inst.activity === 'waiting')
-                badges.push({ node: <span key="at" className="instance-attention-badge" title="Waiting for your input">your turn</span>, label: 'your turn' })
-              else if (unreadIds.has(inst.id))
-                badges.push({ node: <span key="ur" className="instance-unread-badge" title="New output you haven't seen">new</span>, label: 'new' })
-              const level = inst.status === 'running' ? ctxLevel(outputBytes.get(inst.id) || 0) : null
-              if (level)
-                badges.push({ node: <button key="cx" className={`instance-ctx-badge ${level}`} title={level === 'red' ? 'Context near limit · Click to export handoff doc' : 'Context building up · Click to export handoff doc'} onClick={(e) => { e.stopPropagation(); setHandoffInst(inst); setHandoffCopied(false) }}>ctx</button>, label: `ctx (${level})` })
-              if ((inst.tokenUsage?.cost ?? 0) >= 0.01)
-                badges.push({ node: <span key="co" className="instance-cost-badge" title={`API cost: $${inst.tokenUsage.cost.toFixed(4)}`}>${inst.tokenUsage.cost.toFixed(2)}</span>, label: `$${inst.tokenUsage.cost.toFixed(2)}` })
-              if (inst.roleTag)
-                badges.push({ node: <span key="ro" className={`instance-role-badge role-${inst.roleTag.toLowerCase()}`} title={`Role: ${inst.roleTag}`}>{ROLE_ABBREV[inst.roleTag] ?? inst.roleTag.slice(0, 4)}</span>, label: inst.roleTag })
-              if (inst.mcpServers.length > 0)
-                badges.push({ node: <span key="mc" className="instance-mcp-badge" title={inst.mcpServers.join(', ')}>MCP {inst.mcpServers.length}</span>, label: `MCP ${inst.mcpServers.length}` })
-              if (inst.cliBackend === 'cursor-agent')
-                badges.push({ node: <span key="cl" className="instance-cli-badge" title="CLI for this session">{cliBackendLabel(inst.cliBackend)}</span>, label: cliBackendLabel(inst.cliBackend) })
-              if (inst.pendingSteer)
-                badges.push({ node: <span key="ps" className="instance-steer-badge" title="Steering message queued — will be delivered when session is next idle">Steer</span>, label: 'Steer' })
-
-              const MAX_VISIBLE = 5
-              const visible = badges.slice(0, MAX_VISIBLE)
-              const overflow = badges.slice(MAX_VISIBLE)
-              return (
-                <>
-                  {visible.map(b => b.node)}
-                  {overflow.length > 0 && (
-                    <span className="instance-badge-overflow" title={overflow.map(b => b.label).join(', ')}>
-                      +{overflow.length}
-                    </span>
-                  )}
-                </>
-              )
-            })()}
           </div>
+          {(() => {
+            // Build ordered badge list for the dedicated badge row
+            const badges: Array<{ node: React.ReactNode; label: string }> = []
+            if (splitId && inst.id === activeId)
+              badges.push({ node: <span key="sl" className={`split-badge ${focusedPane === 'left' ? 'focused' : ''}`} title="Left split pane">L</span>, label: 'L' })
+            if (splitId && inst.id === splitId)
+              badges.push({ node: <span key="sr" className={`split-badge ${focusedPane === 'right' ? 'focused' : ''}`} title="Right split pane">R</span>, label: 'R' })
+            if (inst.id !== activeId && inst.id !== splitId && splitPairs.has(inst.id))
+              badges.push({ node: <span key="si" className="split-indicator" title="Split with another session"><Columns2 size={11} /></span>, label: 'split' })
+            // "your turn" and "new" both mean "look at this" — show at most one
+            if (inst.status === 'running' && inst.activity === 'waiting')
+              badges.push({ node: <span key="at" className="instance-attention-badge" title="Waiting for your input">your turn</span>, label: 'your turn' })
+            else if (unreadIds.has(inst.id))
+              badges.push({ node: <span key="ur" className="instance-unread-badge" title="New output you haven't seen">new</span>, label: 'new' })
+            const level = inst.status === 'running' ? ctxLevel(outputBytes.get(inst.id) || 0) : null
+            if (level)
+              badges.push({ node: <button key="cx" className={`instance-ctx-badge ${level}`} title={level === 'red' ? 'Context near limit · Click to export handoff doc' : 'Context building up · Click to export handoff doc'} onClick={(e) => { e.stopPropagation(); setHandoffInst(inst); setHandoffCopied(false) }}>ctx</button>, label: `ctx (${level})` })
+            if ((inst.tokenUsage?.cost ?? 0) >= 0.01)
+              badges.push({ node: <span key="co" className="instance-cost-badge" title={`API cost: $${inst.tokenUsage.cost.toFixed(4)}`}>${inst.tokenUsage.cost.toFixed(2)}</span>, label: `$${inst.tokenUsage.cost.toFixed(2)}` })
+            if (inst.roleTag)
+              badges.push({ node: <span key="ro" className={`instance-role-badge role-${inst.roleTag.toLowerCase()}`} title={`Role: ${inst.roleTag}`}>{ROLE_ABBREV[inst.roleTag] ?? inst.roleTag.slice(0, 4)}</span>, label: inst.roleTag })
+            if (inst.mcpServers.length > 0)
+              badges.push({ node: <span key="mc" className="instance-mcp-badge" title={inst.mcpServers.join(', ')}>MCP {inst.mcpServers.length}</span>, label: `MCP ${inst.mcpServers.length}` })
+            if (inst.cliBackend === 'cursor-agent')
+              badges.push({ node: <span key="cl" className="instance-cli-badge" title="CLI for this session">{cliBackendLabel(inst.cliBackend)}</span>, label: cliBackendLabel(inst.cliBackend) })
+            if (inst.pendingSteer)
+              badges.push({ node: <span key="ps" className="instance-steer-badge" title="Steering message queued — will be delivered when session is next idle">Steer</span>, label: 'Steer' })
+            if (badges.length === 0) return null
+            return (
+              <div className="instance-badges">
+                {badges.map(b => b.node)}
+              </div>
+            )
+          })()}
         )}
         <div className="instance-meta">
           {inst.parentId && <span className="instance-child-indicator" title="Child session">↳ </span>}

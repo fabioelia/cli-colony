@@ -997,6 +997,13 @@ input, select {
   text-overflow: ellipsis;
 }
 
+.instance-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 2px;
+}
+
 .instance-meta {
   font-size: 11px;
   color: var(--text-muted);
