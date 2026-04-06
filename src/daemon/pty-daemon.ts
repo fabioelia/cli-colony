@@ -202,9 +202,11 @@ function buildSpawn(
   if (cliBackend === 'cursor-agent') {
     return { command: 'agent', argv: [...defaultArgs, ...userArgs] }
   }
+  const agentsMd = path.join(cwd, 'AGENTS.md')
+  const agentsArgs = fs.existsSync(agentsMd) ? ['--append-system-prompt-file', agentsMd] : []
   return {
     command: 'claude',
-    argv: ['--dangerously-skip-permissions', '--add-dir', cwd, '--name', name, ...defaultArgs, ...userArgs],
+    argv: ['--dangerously-skip-permissions', '--add-dir', cwd, '--name', name, ...agentsArgs, ...defaultArgs, ...userArgs],
   }
 }
 
