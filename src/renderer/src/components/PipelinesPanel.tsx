@@ -5,7 +5,7 @@ import {
   Zap, ZapOff, Play, RefreshCw, ChevronDown, ChevronRight,
   FileText, Clock, CheckCircle, XCircle, AlertTriangle, Save, BookOpen,
   MessageSquare, Send, Plus, Search, Pencil, Eye, X, LayoutList, LayoutGrid,
-  ShieldCheck
+  ShieldCheck, List
 } from 'lucide-react'
 import type { AuditResult } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
@@ -110,8 +110,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [memoryDirty, setMemoryDirty] = useState(false)
   const [outputFiles, setOutputFiles] = useState<Array<{ name: string; path: string; size: number; modified: number }>>([])
   const [outputPreview, setOutputPreview] = useState<{ name: string; content: string } | null>(null)
-  const [expandedTab, setExpandedTab] = useState<'yaml' | 'docs' | 'memory' | 'outputs' | 'history'>('yaml')
-  const [debugLogExpanded, setDebugLogExpanded] = useState<Set<string>>(new Set())
+  const [expandedTab, setExpandedTab] = useState<'yaml' | 'docs' | 'memory' | 'outputs' | 'history' | 'debug'>('yaml')
   const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; stages?: Array<{ index: number; actionType: string; sessionName?: string; durationMs: number; success: boolean; error?: string }> }>>([])
   const [expandedHistoryRows, setExpandedHistoryRows] = useState<Set<number>>(new Set())
 
@@ -144,6 +143,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [auditResults, setAuditResults] = useState<AuditResult[] | null>(null)
   const [auditRunning, setAuditRunning] = useState(false)
   const [auditOpen, setAuditOpen] = useState(false)
+  const [previewLogOpen, setPreviewLogOpen] = useState(false)
 
   const loadPipelines = useCallback(async () => {
     const list = await window.api.pipeline.list()
@@ -215,6 +215,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     setPreviewPipelineName(p.name)
     setPreviewResult(null)
     setPreviewLoading(true)
+    setPreviewLogOpen(false)
     const result = await window.api.pipeline.preview(p.fileName)
     setPreviewResult(result)
     setPreviewLoading(false)
@@ -504,34 +505,6 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
               )}
             </div>
 
-            <div className="pipeline-debug-log">
-              <div
-                className="pipeline-debug-log-header"
-                onClick={() => setDebugLogExpanded(s => {
-                  const n = new Set(s)
-                  n.has(p.name) ? n.delete(p.name) : n.add(p.name)
-                  return n
-                })}
-              >
-                {debugLogExpanded.has(p.name) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                <span>Debug Log</span>
-                <span className="pipeline-debug-log-count">
-                  {p.debugLog?.filter(l => l !== '---').length ?? 0} entries
-                </span>
-              </div>
-              {debugLogExpanded.has(p.name) && (
-                p.debugLog?.length ? (
-                  <pre className="pipeline-debug-log-content">
-                    {p.debugLog.slice().reverse().map(l => l === '---' ? '────────────────────────' : l).join('\n')}
-                  </pre>
-                ) : (
-                  <div className="pipeline-debug-log-content" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                    No logs yet. Click "Poll Now" to generate the first entries.
-                  </div>
-                )
-              )}
-            </div>
-
             <div className="pipeline-card-actions">
               <button
                 className={`pipeline-toggle-btn ${p.enabled ? 'enabled' : ''}`}
@@ -555,26 +528,6 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                 title="Dry-run: evaluate conditions without firing"
               >
                 <Eye size={11} /> Preview
-              </button>
-              <button
-                className="pipeline-trigger-btn"
-                onClick={async (e) => {
-                  e.stopPropagation()
-                  const content = await window.api.pipeline.getContent(p.fileName)
-                  const mem = await window.api.pipeline.getMemory(p.fileName)
-                  const memContent = mem ? `\nPipeline memory (learnings):\n${mem}\n` : ''
-                  const context = `You are editing the pipeline: ${p.name}\nFile: ~/.claude-colony/pipelines/${p.fileName}\n\nCurrent YAML:\n\`\`\`yaml\n${content}\n\`\`\`\n${memContent}\n${PIPELINE_SYSTEM_PROMPT}\n\nHelp the user modify this pipeline. Write the updated YAML to ~/.claude-colony/pipelines/${p.fileName}`
-                  const promptFile = await window.api.colony.writePromptFile(context)
-                  onLaunchInstance({
-                    name: `Edit: ${p.name}`,
-                    workingDirectory: pipelinesDir || undefined,
-                    color: '#8b5cf6',
-                    args: ['--append-system-prompt-file', promptFile],
-                  })
-                }}
-                title="Edit this pipeline with AI"
-              >
-                <MessageSquare size={11} /> Edit with AI
               </button>
             </div>
 
@@ -615,6 +568,12 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                       onClick={() => setExpandedTab('history')}
                     >
                       <Clock size={11} /> History {historyEntries.length > 0 && `(${historyEntries.length})`}
+                    </button>
+                    <button
+                      className={`pipeline-tab ${expandedTab === 'debug' ? 'active' : ''}`}
+                      onClick={() => setExpandedTab('debug')}
+                    >
+                      <List size={11} /> Logs {(p.debugLog?.filter(l => l !== '---').length ?? 0) > 0 && `(${p.debugLog!.filter(l => l !== '---').length})`}
                     </button>
                   </div>
                   {expandedTab === 'yaml' && dirty && (
@@ -763,6 +722,16 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                       </div>
                     )}
                   </div>
+                ) : expandedTab === 'debug' ? (
+                  <div className="pipeline-debug-tab">
+                    {p.debugLog?.length ? (
+                      <pre className="pipeline-debug-log-content">
+                        {p.debugLog.slice().reverse().map(l => l === '---' ? '────────────────────────' : l).join('\n')}
+                      </pre>
+                    ) : (
+                      <p className="pipeline-memory-hint">No logs yet. Click "Poll Now" to generate the first entries.</p>
+                    )}
+                  </div>
                 ) : (
                   <div className="pipeline-readme" dangerouslySetInnerHTML={{
                     __html: readmeContent!
@@ -831,10 +800,13 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                   </div>
                 )}
 
-                <details className="pipeline-preview-log">
-                  <summary>Condition log ({previewResult.conditionLog.length} entries)</summary>
-                  <pre>{previewResult.conditionLog.join('\n')}</pre>
-                </details>
+                <div className="pipeline-preview-log">
+                  <button className="pipeline-preview-log-toggle" onClick={() => setPreviewLogOpen(o => !o)}>
+                    {previewLogOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                    Condition log ({previewResult.conditionLog.length} entries)
+                  </button>
+                  {previewLogOpen && <pre>{previewResult.conditionLog.join('\n')}</pre>}
+                </div>
               </div>
             ) : null}
           </div>

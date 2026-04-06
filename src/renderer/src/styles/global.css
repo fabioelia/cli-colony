@@ -9219,6 +9219,15 @@ input, select {
   line-height: 1.4;
 }
 
+.pipeline-debug-tab {
+  flex: 1;
+  overflow: hidden;
+}
+.pipeline-debug-tab .pipeline-debug-log-content {
+  max-height: none;
+  flex: 1;
+}
+
 .pipeline-readme {
   background: var(--bg-primary);
   border: 1px solid var(--border);
@@ -12738,6 +12747,17 @@ input, select {
   gap: 6px;
 }
 
+/* pipeline card mode: hide meta when collapsed; hover-reveal secondary actions */
+.pipelines-list:not(.list-mode) .pipeline-card:not(.expanded) .pipeline-card-meta {
+  display: none;
+}
+.pipelines-list:not(.list-mode) .pipeline-card:not(.expanded) .pipeline-trigger-btn {
+  visibility: hidden;
+}
+.pipelines-list:not(.list-mode) .pipeline-card:not(.expanded):hover .pipeline-trigger-btn {
+  visibility: visible;
+}
+
 /* pipeline list mode */
 .pipelines-list.list-mode {
   gap: 0;
@@ -12760,14 +12780,12 @@ input, select {
 .pipelines-list.list-mode .pipeline-card-header:hover { background: var(--bg-hover); }
 .pipelines-list.list-mode .pipeline-card-desc,
 .pipelines-list.list-mode .pipeline-card-meta,
-.pipelines-list.list-mode .pipeline-debug-log,
 .pipelines-list.list-mode .pipeline-card-actions,
 .pipelines-list.list-mode .cron-editor {
   display: none;
 }
 .pipelines-list.list-mode .pipeline-card.expanded .pipeline-card-desc,
 .pipelines-list.list-mode .pipeline-card.expanded .pipeline-card-meta,
-.pipelines-list.list-mode .pipeline-card.expanded .pipeline-debug-log,
 .pipelines-list.list-mode .pipeline-card.expanded .pipeline-card-actions,
 .pipelines-list.list-mode .pipeline-card.expanded .cron-editor {
   display: revert;
@@ -13008,14 +13026,23 @@ input, select {
 
 .pipeline-preview-log {
   font-size: 11px;
-  color: var(--text-muted);
 }
 
-.pipeline-preview-log summary {
+.pipeline-preview-log-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 11px;
   cursor: pointer;
   padding: 4px 0;
   user-select: none;
+  width: 100%;
+  text-align: left;
 }
+.pipeline-preview-log-toggle:hover { color: var(--text-primary); }
 
 .pipeline-preview-log pre {
   margin: 6px 0 0;
