@@ -9,6 +9,7 @@ import * as net from 'net'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as pty from 'node-pty'
+import { execSync } from 'child_process'
 import {
   DAEMON_VERSION,
 } from './protocol'
@@ -46,6 +47,7 @@ interface InternalInstance extends ClaudeInstance {
   _activityInterval: ReturnType<typeof setInterval> | null
   _handoffRequested: boolean
   _userInputReceived: boolean
+  _sessionIdTimer: ReturnType<typeof setTimeout> | null
 }
 
 const instances = new Map<string, InternalInstance>()
@@ -157,6 +159,7 @@ function toSerializable(inst: InternalInstance): ClaudeInstance {
     parentId: inst.parentId,
     childIds: inst.childIds,
     roleTag: inst.roleTag,
+    lastSessionId: inst.lastSessionId,
   }
 }
 
@@ -244,6 +247,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
       parentId: opts.parentId || null, childIds: [],
       pty: null, outputBuffer: [`Failed to spawn ${command}: ${err}\r\n`],
       cleanupTimer: null, _lastSnapshot: '', _activityInterval: null, _handoffRequested: false, _userInputReceived: false,
+      _sessionIdTimer: null,
     }
     instances.set(id, instance)
     notifyListChanged()
@@ -260,6 +264,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
     parentId: opts.parentId || null, childIds: [],
     pty: ptyProcess, outputBuffer: [],
     cleanupTimer: null, _lastSnapshot: '', _activityInterval: null, _handoffRequested: false, _userInputReceived: false,
+    _sessionIdTimer: null,
   }
 
   // Register this child with its parent
@@ -394,6 +399,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
   // Handle exit
   ptyProcess.onExit(({ exitCode }) => {
     if (instance._activityInterval) clearInterval(instance._activityInterval)
+    if (instance._sessionIdTimer) clearTimeout(instance._sessionIdTimer)
     log(`instance ${id} (${name}) exited with code ${exitCode}`)
     instance.status = 'exited'
     instance.activity = 'waiting'
@@ -402,6 +408,23 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
     broadcastEvent({ type: 'exited', instanceId: id, exitCode })
     notifyListChanged()
   })
+
+  // Discover Claude session ID via lsof ~5s after startup (used for --resume on restart)
+  if (cliBackend === 'claude') {
+    instance._sessionIdTimer = setTimeout(() => {
+      instance._sessionIdTimer = null
+      if (instance.lastSessionId || !instance.pid) return
+      try {
+        const lsofOut = execSync(`lsof -p ${instance.pid}`, { encoding: 'utf-8', timeout: 3000 })
+        const m = lsofOut.match(/\.claude\/projects\/[^\s]+\/([a-f0-9-]{36})\.jsonl/i)
+        if (m?.[1]) {
+          instance.lastSessionId = m[1]
+          log(`instance ${id}: discovered sessionId=${m[1]}`)
+          notifyListChanged()
+        }
+      } catch { /* lsof unavailable or process already exited */ }
+    }, 5000)
+  }
 
   notifyListChanged()
   return toSerializable(instance)
@@ -430,6 +453,7 @@ function killInstance(id: string): boolean {
     try { inst.pty.kill() } catch { /* already dead */ }
   }
   if (inst._activityInterval) clearInterval(inst._activityInterval)
+  if (inst._sessionIdTimer) clearTimeout(inst._sessionIdTimer)
   inst.status = 'exited'
   inst.exitCode = -1
   inst.pty = null
@@ -444,6 +468,7 @@ function removeInstance(id: string): boolean {
     try { inst.pty.kill() } catch { /* already dead */ }
   }
   if (inst._activityInterval) clearInterval(inst._activityInterval)
+  if (inst._sessionIdTimer) clearTimeout(inst._sessionIdTimer)
   if (inst.cleanupTimer) clearTimeout(inst.cleanupTimer)
   instances.delete(id)
   notifyListChanged()
@@ -504,15 +529,21 @@ function restartInstance(id: string, defaultArgs?: string[]): ClaudeInstance | n
     try { inst.pty.kill() } catch { /* already dead */ }
   }
   if (inst._activityInterval) clearInterval(inst._activityInterval)
+  if (inst._sessionIdTimer) clearTimeout(inst._sessionIdTimer)
 
-  // Filter out internal args (--add-dir, --name) that createInstance will re-add
+  // Filter out internal args (--add-dir, --name, --resume) that we re-add as needed
   const userArgs = inst.args.filter((arg, i, arr) => {
-    if (arg === '--add-dir' || arg === '--name') return false
-    if (i > 0 && (arr[i - 1] === '--add-dir' || arr[i - 1] === '--name')) return false
+    if (arg === '--add-dir' || arg === '--name' || arg === '--resume') return false
+    if (i > 0 && (arr[i - 1] === '--add-dir' || arr[i - 1] === '--name' || arr[i - 1] === '--resume')) return false
     return true
   })
   const dArgs = defaultArgs || []
   const filteredArgs = userArgs.filter((arg) => !dArgs.includes(arg))
+
+  // Inject --resume when we have a session ID and this is a claude backend
+  const resumeArgs = (inst.lastSessionId && inst.cliBackend === 'claude')
+    ? ['--resume', inst.lastSessionId]
+    : []
 
   const cliBackend = inst.cliBackend
   instances.delete(id)
@@ -520,7 +551,7 @@ function restartInstance(id: string, defaultArgs?: string[]): ClaudeInstance | n
     name: inst.name,
     workingDirectory: inst.workingDirectory,
     color: inst.color,
-    args: filteredArgs.length > 0 ? filteredArgs : undefined,
+    args: [...resumeArgs, ...filteredArgs].length > 0 ? [...resumeArgs, ...filteredArgs] : undefined,
     defaultArgs: dArgs,
     cliBackend,
   })

@@ -29,6 +29,7 @@ export interface ClaudeInstance {
   parentId: string | null
   childIds: string[]
   roleTag: SessionRole | null
+  lastSessionId?: string
 }
 
 export interface AgentDef {
