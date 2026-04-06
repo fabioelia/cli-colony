@@ -261,7 +261,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const [logsLevelFilter, setLogsLevelFilter] = useState<'all' | 'error' | 'warn'>('all')
   const [logsContent, setLogsContent] = useState<Array<{ service: string; line: string; ts: number }>>([])
   const logsEndRef = useRef<HTMLDivElement>(null)
-  const logsAutoScroll = useRef(true)
+  const [logsAutoScroll, setLogsAutoScroll] = useState(true)
   const logsInitialized = useRef(false)
   // Replay tab state
   const [replayEvents, setReplayEvents] = useState<ReplayEvent[]>([])
@@ -349,10 +349,17 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
 
   // Auto-scroll logs
   useEffect(() => {
-    if (logsAutoScroll.current && logsEndRef.current) {
+    if (logsAutoScroll && logsEndRef.current) {
       logsEndRef.current.scrollIntoView({ behavior: 'smooth' })
     }
-  }, [logsContent])
+  }, [logsContent, logsAutoScroll])
+
+  // Scroll to bottom when switching to the Logs tab
+  useEffect(() => {
+    if (viewTab === 'logs' && logsEndRef.current) {
+      logsEndRef.current.scrollIntoView()
+    }
+  }, [viewTab])
   // Shell terminal — lazy init when tab is first opened, re-init on shellResetKey
   useEffect(() => {
     if (viewTab !== 'shell') return
@@ -984,6 +991,31 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
   }, [instance.id, viewTab, focused])
+
+  // Session tab keyboard navigation — Cmd+Shift+{ (prev) / Cmd+Shift+} (next)
+  useEffect(() => {
+    if (!focused) return
+    const handler = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey) return
+      if (e.key !== '{' && e.key !== '}') return
+      e.preventDefault()
+      e.stopPropagation()
+      const visibleTabs: ViewTab[] = [
+        'session', 'shell', 'files',
+        ...(envName ? ['services' as ViewTab, 'logs' as ViewTab] : []),
+        'replay',
+        ...(instance.dir ? ['changes' as ViewTab] : []),
+      ]
+      const currentIndex = visibleTabs.indexOf(viewTab)
+      if (currentIndex === -1) return
+      const nextIndex = e.key === '}'
+        ? (currentIndex + 1) % visibleTabs.length
+        : (currentIndex - 1 + visibleTabs.length) % visibleTabs.length
+      setViewTab(visibleTabs[nextIndex])
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [focused, viewTab, envName, instance.dir])
 
   return (
     <>
@@ -1794,9 +1826,9 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 <Trash2 size={12} />
               </button>
               <button
-                className={`logs-action-btn ${logsAutoScroll.current ? 'active' : ''}`}
+                className={`logs-action-btn ${logsAutoScroll ? 'active' : ''}`}
                 title="Follow latest output"
-                onClick={() => { logsAutoScroll.current = !logsAutoScroll.current }}
+                onClick={() => { setLogsAutoScroll(v => !v) }}
               >
                 <ChevronsDown size={12} />
               </button>
@@ -1805,7 +1837,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           <div className="logs-panel-content" onScroll={(e) => {
             const el = e.currentTarget
             const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40
-            logsAutoScroll.current = atBottom
+            setLogsAutoScroll(atBottom)
           }}>
             {logsContent
               .filter(entry => (logsFilter === null || entry.service === logsFilter) && levelMatches(entry.line, logsLevelFilter))
