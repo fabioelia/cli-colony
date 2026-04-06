@@ -4,8 +4,8 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, History, Clock, Trophy } from 'lucide-react'
-import type { EnvStatus, EnvServiceStatus, ReplayEvent } from '../../../shared/types'
+import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, History, Clock, Trophy, GitCommit, RotateCw, Undo2 } from 'lucide-react'
+import type { EnvStatus, EnvServiceStatus, ReplayEvent, GitDiffEntry } from '../../../shared/types'
 import { buildDiagnosePrompt } from '../../../shared/env-prompts'
 import '@xterm/xterm/css/xterm.css'
 import type { ClaudeInstance } from '../types'
@@ -210,7 +210,7 @@ function FileTreeNode({ node, depth, selectedPath, expandedPaths, filter, onTogg
   )
 }
 
-type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'replay'
+type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'replay' | 'changes'
 
 export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane, outputBytes = 0 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -267,6 +267,11 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const [replayEvents, setReplayEvents] = useState<ReplayEvent[]>([])
   const [replayLoading, setReplayLoading] = useState(false)
   const [replayExpanded, setReplayExpanded] = useState<Set<number>>(new Set())
+  // Changes tab state
+  const [gitChanges, setGitChanges] = useState<GitDiffEntry[]>([])
+  const [gitChangesLoading, setGitChangesLoading] = useState(false)
+  const [reverting, setReverting] = useState<Set<string>>(new Set())
+  const [revertingAll, setRevertingAll] = useState(false)
   // Files tab sort
   const [filesSortMode, setFilesSortMode] = useState<'name' | 'modified'>('name')
   const sortedFileTree = useMemo(() => {
@@ -570,6 +575,49 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     }, 5000)
     return () => clearInterval(pollId)
   }, [viewTab, instance.status, instance.id])
+
+  // Load git changes when switching to changes tab
+  const loadGitChanges = useCallback(() => {
+    if (!instance.dir) return
+    setGitChangesLoading(true)
+    window.api.session.gitChanges(instance.dir).then((entries) => {
+      setGitChanges(entries)
+      setGitChangesLoading(false)
+    }).catch(() => {
+      setGitChanges([])
+      setGitChangesLoading(false)
+    })
+  }, [instance.dir])
+
+  useEffect(() => {
+    if (viewTab !== 'changes') return
+    loadGitChanges()
+  }, [viewTab, instance.dir, loadGitChanges])
+
+  // Poll changes every 10s while tab is active
+  useEffect(() => {
+    if (viewTab !== 'changes' || !instance.dir) return
+    const pollId = setInterval(loadGitChanges, 10000)
+    return () => clearInterval(pollId)
+  }, [viewTab, instance.dir, loadGitChanges])
+
+  const handleRevert = useCallback(async (file: string) => {
+    if (!instance.dir) return
+    if (!window.confirm(`Revert "${file}"? This cannot be undone.`)) return
+    setReverting(prev => new Set(prev).add(file))
+    await window.api.session.gitRevert(instance.dir, file).catch(() => {})
+    setReverting(prev => { const n = new Set(prev); n.delete(file); return n })
+    loadGitChanges()
+  }, [instance.dir, loadGitChanges])
+
+  const handleRevertAll = useCallback(async () => {
+    if (!instance.dir || gitChanges.length === 0) return
+    if (!window.confirm(`Revert all ${gitChanges.length} changed file(s)? This cannot be undone.`)) return
+    setRevertingAll(true)
+    await Promise.all(gitChanges.map(e => window.api.session.gitRevert(instance.dir!, e.file).catch(() => {})))
+    setRevertingAll(false)
+    loadGitChanges()
+  }, [instance.dir, gitChanges, loadGitChanges])
 
   const handleTogglePath = useCallback((path: string) => {
     setExpandedPaths((prev) => {
@@ -978,6 +1026,18 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
             >
               <History size={12} /> Replay
             </button>
+            {instance.dir && (
+              <button
+                className={`terminal-tab ${viewTab === 'changes' ? 'active' : ''}`}
+                onClick={(e) => { e.stopPropagation(); setViewTab('changes') }}
+                title="Git changes"
+              >
+                <GitCommit size={12} /> Changes
+                {viewTab !== 'changes' && gitChanges.length > 0 && (
+                  <span className="services-tab-badge" style={{ background: 'var(--color-amber, #f59e0b)' }}>{gitChanges.length}</span>
+                )}
+              </button>
+            )}
           </div>
           {viewTab === 'session' && <HelpPopover topic="sessionTab" />}
           {viewTab === 'files' && <HelpPopover topic="filesTab" />}
@@ -985,6 +1045,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           {viewTab === 'services' && <HelpPopover topic="servicesTab" />}
           {viewTab === 'logs' && <HelpPopover topic="logsTab" />}
           {viewTab === 'replay' && <HelpPopover topic="replayTab" />}
+          {viewTab === 'changes' && <HelpPopover topic="changesTab" />}
           {(instance.gitRepo || instance.gitBranch) && (
             <div className="terminal-header-repo-info">
               {instance.gitRepo && (
@@ -1775,6 +1836,72 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 </div>
               )
             })}
+          </div>
+        </div>
+      )}
+      {viewTab === 'changes' && (
+        <div className="replay-panel">
+          <div className="replay-panel-header">
+            <span className="replay-panel-title">
+              <GitCommit size={13} /> Git Changes
+            </span>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              {gitChanges.length > 0 && (
+                <button
+                  className="replay-refresh-btn"
+                  title="Revert all changes"
+                  disabled={revertingAll}
+                  onClick={handleRevertAll}
+                  style={{ color: 'var(--color-danger, #ef4444)' }}
+                >
+                  <Undo2 size={12} />
+                </button>
+              )}
+              <button
+                className="replay-refresh-btn"
+                title="Refresh"
+                onClick={loadGitChanges}
+              >
+                <RefreshCw size={12} />
+              </button>
+            </div>
+          </div>
+          <div className="replay-panel-content">
+            {gitChangesLoading && <div className="replay-empty">Loading...</div>}
+            {!gitChangesLoading && gitChanges.length === 0 && (
+              <div className="replay-empty">No uncommitted changes.</div>
+            )}
+            {!gitChangesLoading && gitChanges.map((entry) => (
+              <div key={entry.file} className="replay-event" style={{ cursor: 'default' }}>
+                <div className="replay-event-header" style={{ alignItems: 'center' }}>
+                  <span className="replay-event-tool" style={{
+                    color: entry.status === 'A' ? 'var(--color-success, #22c55e)'
+                      : entry.status === 'D' ? 'var(--color-danger, #ef4444)'
+                      : 'var(--color-amber, #f59e0b)',
+                    minWidth: '12px',
+                  }}>
+                    {entry.status}
+                  </span>
+                  <span className="replay-event-input" style={{ flex: 1, fontFamily: 'monospace', fontSize: '11px' }}>
+                    {entry.file}
+                  </span>
+                  <span className="replay-event-time" style={{ fontSize: '10px', opacity: 0.7 }}>
+                    {entry.insertions > 0 && <span style={{ color: 'var(--color-success, #22c55e)' }}>+{entry.insertions}</span>}
+                    {entry.insertions > 0 && entry.deletions > 0 && ' '}
+                    {entry.deletions > 0 && <span style={{ color: 'var(--color-danger, #ef4444)' }}>-{entry.deletions}</span>}
+                  </span>
+                  <button
+                    className="replay-refresh-btn"
+                    title={`Revert ${entry.file}`}
+                    disabled={reverting.has(entry.file)}
+                    onClick={() => handleRevert(entry.file)}
+                    style={{ marginLeft: '4px', color: 'var(--color-danger, #ef4444)' }}
+                  >
+                    {reverting.has(entry.file) ? <RotateCw size={11} className="spinning" /> : <Undo2 size={11} />}
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

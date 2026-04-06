@@ -282,6 +282,13 @@ export interface McpAuditEntry {
   args?: string
 }
 
+export interface GitDiffEntry {
+  file: string
+  insertions: number
+  deletions: number
+  status: 'M' | 'A' | 'D' | 'R' | '?'
+}
+
 export interface CommitAttribution {
   commitHash: string
   shortMsg: string

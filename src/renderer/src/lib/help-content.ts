@@ -760,4 +760,30 @@ export const helpContent: Record<string, HelpEntry> = {
       },
     ],
   },
+  changesTab: {
+    title: 'Changes (Git Diff)',
+    description: 'Shows uncommitted file changes in the session\'s working directory (`git diff HEAD`). Each file can be reverted individually or all at once. Only visible when the session has a git repository.',
+    zones: [
+      {
+        name: 'Header',
+        position: 'Top bar',
+        items: [
+          { label: 'Refresh', detail: 'Reload the change list from git.', icon: 'RefreshCw' },
+          { label: 'Revert All', detail: 'Revert every changed file to HEAD. A confirmation dialog appears first — this cannot be undone.', icon: 'Undo2' },
+          { label: 'Auto-refresh', detail: 'The change list refreshes automatically every 10 seconds while this tab is open.' },
+        ],
+      },
+      {
+        name: 'File List',
+        position: 'Main area',
+        items: [
+          { label: 'Status letter', detail: 'M = modified, A = added, D = deleted, R = renamed. Color-coded: amber for M, green for A, red for D.' },
+          { label: 'File path', detail: 'Relative path of the changed file within the working directory.' },
+          { label: '+/- counts', detail: 'Number of inserted lines (green) and deleted lines (red) in the diff.' },
+          { label: 'Revert button', detail: 'Reverts that single file to HEAD via `git checkout HEAD -- <file>`. Confirmation required.', icon: 'Undo2' },
+          { label: 'Empty state', detail: 'Shows "No uncommitted changes" when the working tree is clean.' },
+        ],
+      },
+    ],
+  },
 }

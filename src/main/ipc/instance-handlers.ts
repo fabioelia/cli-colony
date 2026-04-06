@@ -4,6 +4,7 @@ import { promisify } from 'util'
 
 const execFileAsync = promisify(execFile)
 import { createShell, writeShell, resizeShell, killShell } from '../shell-pty'
+import type { GitDiffEntry } from '../../shared/types'
 import {
   createInstance,
   killInstance,
@@ -136,6 +137,50 @@ export function registerInstanceHandlers(): void {
       return stdout
     } catch {
       return ''
+    }
+  })
+
+  ipcMain.handle('session:gitChanges', async (_e, dir: string): Promise<GitDiffEntry[]> => {
+    try {
+      // --numstat gives: <insertions>\t<deletions>\t<file>
+      const { stdout: numStat } = await execFileAsync('git', ['diff', '--numstat', 'HEAD'], { encoding: 'utf-8', timeout: 5000, cwd: dir })
+      // --name-status gives: <status>\t<file>
+      const { stdout: nameStat } = await execFileAsync('git', ['diff', '--name-status', 'HEAD'], { encoding: 'utf-8', timeout: 5000, cwd: dir })
+
+      const statusMap = new Map<string, string>()
+      for (const line of nameStat.split('\n')) {
+        const parts = line.split('\t')
+        if (parts.length >= 2) {
+          const statusChar = parts[0].trim().charAt(0)
+          const file = parts[parts.length - 1].trim()
+          if (file) statusMap.set(file, statusChar)
+        }
+      }
+
+      const entries: GitDiffEntry[] = []
+      for (const line of numStat.split('\n')) {
+        const parts = line.split('\t')
+        if (parts.length < 3) continue
+        const file = parts[2].trim()
+        if (!file) continue
+        const ins = parts[0] === '-' ? 0 : parseInt(parts[0], 10)
+        const del = parts[1] === '-' ? 0 : parseInt(parts[1], 10)
+        const rawStatus = statusMap.get(file) ?? 'M'
+        const status = (['M', 'A', 'D', 'R'].includes(rawStatus) ? rawStatus : 'M') as GitDiffEntry['status']
+        entries.push({ file, insertions: ins, deletions: del, status })
+      }
+      return entries
+    } catch {
+      return []
+    }
+  })
+
+  ipcMain.handle('session:gitRevert', async (_e, dir: string, file: string): Promise<boolean> => {
+    try {
+      await execFileAsync('git', ['checkout', 'HEAD', '--', file], { encoding: 'utf-8', timeout: 10000, cwd: dir })
+      return true
+    } catch {
+      return false
     }
   })
 
