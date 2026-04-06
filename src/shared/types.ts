@@ -358,3 +358,12 @@ export interface SessionTemplate {
   lastUsed?: number
   launchCount?: number
 }
+
+export interface OutputEntry {
+  path: string
+  name: string
+  agentId: string
+  mtime: number
+  sizeBytes: number
+  type: 'brief' | 'artifact'
+}

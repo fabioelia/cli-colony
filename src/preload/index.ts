@@ -4,7 +4,7 @@ import type {
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
-  ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment,
+  ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -13,7 +13,7 @@ export type {
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
-  ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment,
+  ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
 }
 
 
@@ -338,6 +338,10 @@ export interface ClaudeManagerAPI {
     save: (template: SessionTemplate) => Promise<boolean>
     delete: (id: string) => Promise<boolean>
     launch: (id: string) => Promise<ClaudeInstance | null>
+  }
+  outputs: {
+    list: () => Promise<OutputEntry[]>
+    read: (filePath: string) => Promise<{ content: string } | { error: string }>
   }
 }
 
@@ -698,6 +702,10 @@ const api: ClaudeManagerAPI = {
     save: (template) => ipcRenderer.invoke('sessionTemplates:save', template),
     delete: (id) => ipcRenderer.invoke('sessionTemplates:delete', id),
     launch: (id) => ipcRenderer.invoke('sessionTemplates:launch', id),
+  },
+  outputs: {
+    list: () => ipcRenderer.invoke('outputs:list'),
+    read: (filePath) => ipcRenderer.invoke('outputs:read', filePath),
   },
 }
 

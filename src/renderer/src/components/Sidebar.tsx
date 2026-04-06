@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, FileDown, GitFork, ChevronDown, ChevronRight, Trophy, BookTemplate } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, FileDown, GitFork, ChevronDown, ChevronRight, Trophy, BookTemplate, FolderOpen } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate } from '../../../shared/types'
@@ -14,7 +14,7 @@ import HelpPopover from './HelpPopover'
 import ExternalSessionPopover from './ExternalSessionPopover'
 import { COLORS, formatTime, cliBackendLabel, formatInstanceCmd } from '../lib/constants'
 
-export type SidebarView = 'instances' | 'agents' | 'github' | 'sessions' | 'settings' | 'logs' | 'tasks' | 'pipelines' | 'environments' | 'personas'
+export type SidebarView = 'instances' | 'agents' | 'github' | 'sessions' | 'settings' | 'logs' | 'tasks' | 'pipelines' | 'environments' | 'personas' | 'outputs'
 
 interface Props {
   instances: ClaudeInstance[]
@@ -520,6 +520,12 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
             <button className={`sidebar-nav-btn ${view === 'personas' ? 'active' : ''}`} onClick={() => onViewChange('personas')}>
               <span className="sidebar-nav-icon"><User size={17} /></span>
               <span className="sidebar-nav-label">Personas</span>
+            </button>
+          </Tooltip>
+          <Tooltip text="Outputs" detail="Browse artifacts, briefs, and pipeline outputs" position="bottom">
+            <button className={`sidebar-nav-btn ${view === 'outputs' ? 'active' : ''}`} onClick={() => onViewChange('outputs')}>
+              <span className="sidebar-nav-icon"><FolderOpen size={17} /></span>
+              <span className="sidebar-nav-label">Outputs</span>
             </button>
           </Tooltip>
         </div>

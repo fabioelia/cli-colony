@@ -16,6 +16,7 @@ import TaskBoardPanel from './components/TaskBoardPanel'
 import PipelinesPanel from './components/PipelinesPanel'
 import EnvironmentsPanel from './components/EnvironmentsPanel'
 import PersonasPanel from './components/PersonasPanel'
+import OutputsPanel from './components/OutputsPanel'
 import QuickPromptDialog from './components/QuickPromptDialog'
 import ForkModal from './components/ForkModal'
 import { stripAnsi } from '../../shared/utils'
@@ -1163,6 +1164,7 @@ export default function App() {
             instances={instances}
           />
         )}
+        {view === 'outputs' && <OutputsPanel />}
         <div style={{ display: view === 'github' ? 'contents' : 'none' }}>
           <GitHubPanel
             onBack={() => setView('instances')}
