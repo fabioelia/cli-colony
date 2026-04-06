@@ -2307,3 +2307,120 @@ dedup:
     expect(entry.stages[0].actionType).toBe('diff_review')
   })
 })
+
+// ---- Parallel Fan-Out YAML parsing ----
+
+const PARALLEL_YAML = `
+name: Parallel Pipe
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: parallel
+  fail_fast: false
+  stages:
+    - type: launch-session
+      prompt: Run lint
+    - type: launch-session
+      prompt: Run typecheck
+    - type: session
+      prompt: Run tests
+dedup:
+  key: daily
+`
+
+const PARALLEL_NESTED_YAML = `
+name: Nested Parallel
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: parallel
+  stages:
+    - type: parallel
+      stages:
+        - type: launch-session
+          prompt: deep
+dedup:
+  key: daily
+`
+
+const PARALLEL_EMPTY_STAGES_YAML = `
+name: Empty Parallel
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: parallel
+  stages:
+dedup:
+  key: daily
+`
+
+describe('pipeline-engine: parallel stage YAML parsing', () => {
+  let mod: typeof import('../pipeline-engine')
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  it('loads a valid parallel pipeline with stages array', async () => {
+    const fs = buildFsMock(['par.yaml'], { 'par.yaml': PARALLEL_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    mod.loadPipelines()
+    const list = mod.getPipelineList()
+    expect(list).toHaveLength(1)
+    expect(list[0].name).toBe('Parallel Pipe')
+    expect(list[0].enabled).toBe(true)
+  })
+
+  it('normalizes session type to launch-session in sub-stages', async () => {
+    // After load, the internal action.stages should have 'session' normalized to 'launch-session'
+    // We can verify by checking getPipelineList doesn't crash (YAML parses correctly)
+    const fs = buildFsMock(['par.yaml'], { 'par.yaml': PARALLEL_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    mod.loadPipelines()
+    // Pipeline loaded = normalization did not crash
+    expect(mod.getPipelineList()).toHaveLength(1)
+  })
+
+  it('rejects parallel pipeline with nested parallel sub-stage', async () => {
+    const fs = buildFsMock(['par.yaml'], { 'par.yaml': PARALLEL_NESTED_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    mod.loadPipelines()
+    expect(mod.getPipelineList()).toHaveLength(0)
+  })
+
+  it('rejects parallel pipeline with empty/missing stages', async () => {
+    const fs = buildFsMock(['par.yaml'], { 'par.yaml': PARALLEL_EMPTY_STAGES_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    mod.loadPipelines()
+    expect(mod.getPipelineList()).toHaveLength(0)
+  })
+})

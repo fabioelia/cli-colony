@@ -42,7 +42,7 @@ export interface ConditionDef {
 }
 
 export interface ActionDef {
-  type: 'launch-session' | 'route-to-session' | 'maker-checker' | 'diff_review' // route-to-session is deprecated, normalized to launch-session + reuse:true
+  type: 'launch-session' | 'route-to-session' | 'maker-checker' | 'diff_review' | 'parallel' // route-to-session is deprecated, normalized to launch-session + reuse:true
   reuse?: boolean // try to find/resume a matching session before launching new
   name?: string
   workingDirectory?: string
@@ -68,6 +68,9 @@ export interface ActionDef {
   diffBase?: string             // git ref to diff against (default: 'HEAD~1')
   autoFix?: boolean             // on FAIL, launch fixer session and retry (default: false)
   autoFixMaxIterations?: number // max auto-fix retries (default: 2)
+  // parallel specific fields
+  stages?: ActionDef[]    // sub-stages to run concurrently (parallel type only)
+  fail_fast?: boolean     // abort remaining stages on first failure (default: true)
 }
 
 export interface DedupDef {
@@ -214,9 +217,26 @@ function parsePipelineYaml(content: string): PipelineDef | null {
     if (!result.name || !result.trigger?.type) return null
     if (result.action?.type === 'maker-checker') {
       if (!result.action?.makerPrompt || !result.action?.checkerPrompt) return null
-    } else if (result.action?.type !== 'diff_review' && !result.action?.prompt) {
+    } else if (result.action?.type !== 'diff_review' && result.action?.type !== 'parallel' && !result.action?.prompt) {
       return null
     }
+
+    // Parallel: validate stages array, normalize sub-stage types
+    if (result.action?.type === 'parallel') {
+      const rawStages = result.action.stages
+      if (!Array.isArray(rawStages) || rawStages.length === 0) return null
+      // Guard against nested parallel (not supported)
+      if (rawStages.some((s: any) => s?.type === 'parallel')) {
+        log(`Parallel stage: nested parallel not supported — skipping`)
+        return null
+      }
+      // Normalize 'session' -> 'launch-session' in sub-stages
+      result.action.stages = rawStages.map((s: any) => ({
+        ...s,
+        type: s.type === 'session' ? 'launch-session' : (s.type || 'launch-session'),
+      }))
+    }
+
     if (result.enabled === undefined) result.enabled = true
 
     // Normalize: route-to-session -> launch-session + reuse:true
@@ -247,6 +267,7 @@ export interface PipelineStageTrace {
   success: boolean
   error?: string
   responseSnippet?: string // first ~120 chars of reviewer response (diff_review only)
+  subStages?: PipelineStageTrace[] // parallel sub-stage results
 }
 
 export interface PipelineRunEntry {
@@ -949,14 +970,75 @@ async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipelineNam
   return { cost: accumulatedCost, responseSnippet: lastResponseSnippet }
 }
 
+// ---- Parallel Fan-Out Stage ----
+
+/**
+ * Dispatch all sub-stages concurrently (Promise.allSettled or Promise.all).
+ * Returns total cost + per-sub-stage trace for the history record.
+ */
+async function runParallel(
+  action: ActionDef,
+  ctx: TriggerContext,
+  pipelineName: string,
+): Promise<{ cost: number; subStages: PipelineStageTrace[] }> {
+  const { stages = [], fail_fast = true } = action
+  const baseName = resolveTemplate(action.name || pipelineName, ctx)
+  plog(pipelineName, `parallel: dispatching ${stages.length} sub-stage(s)`)
+
+  const subStages: PipelineStageTrace[] = new Array(stages.length)
+
+  const tasks = stages.map((subAction, i) => async (): Promise<{ cost: number; i: number }> => {
+    const start = Date.now()
+    const sessionName = resolveTemplate(subAction.name || `${baseName} [${i + 1}]`, ctx)
+    let stageError: string | undefined
+    let stageCost = 0
+    try {
+      const result = await fireAction(subAction, ctx, pipelineName)
+      stageCost = result.cost
+    } catch (err) {
+      stageError = String(err)
+      throw err
+    } finally {
+      subStages[i] = {
+        index: i,
+        actionType: subAction.type,
+        sessionName,
+        durationMs: Date.now() - start,
+        success: !stageError,
+        error: stageError,
+      }
+    }
+    return { cost: stageCost, i }
+  })
+
+  let totalCost = 0
+
+  if (fail_fast) {
+    // Promise.all semantics: abort on first failure
+    const results = await Promise.all(tasks.map(t => t()))
+    totalCost = results.reduce((sum, r) => sum + r.cost, 0)
+  } else {
+    // Promise.allSettled semantics: run all regardless of failures
+    const settled = await Promise.allSettled(tasks.map(t => t()))
+    for (const r of settled) {
+      if (r.status === 'fulfilled') totalCost += r.value.cost
+    }
+  }
+
+  return { cost: totalCost, subStages }
+}
+
 // ---- Action Execution ----
 
-async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<{ cost: number; responseSnippet?: string }> {
+async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<{ cost: number; responseSnippet?: string; subStages?: PipelineStageTrace[] }> {
   if (action.type === 'maker-checker') {
     return { cost: await runMakerChecker(action, ctx, pipelineName) }
   }
   if (action.type === 'diff_review') {
     return runDiffReview(action, ctx, pipelineName)
+  }
+  if (action.type === 'parallel') {
+    return runParallel(action, ctx, pipelineName)
   }
 
   const rawName = resolveTemplate(action.name || 'Pipeline Session', ctx)
@@ -1315,10 +1397,12 @@ async function runPoll(pipelineName: string): Promise<void> {
       let stageError: string | undefined
       let stageCost = 0
       let stageResponseSnippet: string | undefined
+      let stageSubStages: PipelineStageTrace[] | undefined
       try {
         const result = await fireAction(p.def.action, ctx, p.def.name)
         stageCost = result.cost
         stageResponseSnippet = result.responseSnippet
+        stageSubStages = result.subStages
       } catch (stageErr) {
         stageError = String(stageErr)
         throw stageErr
@@ -1331,6 +1415,7 @@ async function runPoll(pipelineName: string): Promise<void> {
           success: !stageError,
           error: stageError,
           responseSnippet: stageResponseSnippet,
+          subStages: stageSubStages,
         })
       }
       totalCost += stageCost

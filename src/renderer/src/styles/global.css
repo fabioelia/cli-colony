@@ -9729,6 +9729,17 @@ input, select {
   flex-shrink: 0;
 }
 
+.pipeline-history-parallel-group {
+  margin-left: 18px;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  padding-left: 6px;
+}
+
+.pipeline-history-stage-row.sub {
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+
 /* ===== Session Deps / Orchestrate Panel ===== */
 .session-deps-panel {
   flex: 1;

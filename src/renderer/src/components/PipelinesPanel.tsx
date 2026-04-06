@@ -104,6 +104,7 @@ const STAGE_TYPE_LABELS: Record<string, string> = {
   'route-to-session': 'Route',
   'maker-checker': 'Maker-Checker',
   'diff_review': 'Diff Review',
+  'parallel': 'Parallel',
 }
 function stageTypeLabel(type: string): string {
   return STAGE_TYPE_LABELS[type] ?? type
@@ -121,7 +122,8 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [outputFiles, setOutputFiles] = useState<Array<{ name: string; path: string; size: number; modified: number }>>([])
   const [outputPreview, setOutputPreview] = useState<{ name: string; content: string } | null>(null)
   const [expandedTab, setExpandedTab] = useState<'yaml' | 'docs' | 'memory' | 'outputs' | 'history' | 'debug'>('yaml')
-  const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; stages?: Array<{ index: number; actionType: string; sessionName?: string; durationMs: number; success: boolean; error?: string; responseSnippet?: string }> }>>([])
+  type StageTrace = { index: number; actionType: string; sessionName?: string; durationMs: number; success: boolean; error?: string; responseSnippet?: string; subStages?: StageTrace[] }
+  const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; stages?: StageTrace[] }>>([])
   const [expandedHistoryRows, setExpandedHistoryRows] = useState<Set<number>>(new Set())
 
   const [listMode, setListMode] = useState(() => localStorage.getItem('pipelines-list-mode') !== '0')
@@ -724,16 +726,33 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                                     const statusChanged = prevStage !== undefined && prevStage.success !== stage.success
                                     const prevStatus = prevStage?.success ? 'PASS' : 'FAIL'
                                     return (
-                                    <div key={stage.index} className={`pipeline-history-stage-row ${stage.success ? '' : 'error'}`}>
-                                      <span className={`pipeline-history-icon ${stage.success ? 'success' : 'failure'}`}>
-                                        {stage.success ? <CheckCircle size={10} /> : <XCircle size={10} />}
-                                      </span>
-                                      <span className="pipeline-history-stage-type">{stageTypeLabel(stage.actionType)}</span>
-                                      {statusChanged && <span className="pipeline-history-stage-delta" title={`Changed from ${prevStatus} in prior run`}>△</span>}
-                                      {stage.sessionName && <span className="pipeline-history-stage-name">{stage.sessionName}</span>}
-                                      {stage.responseSnippet && <span className="pipeline-history-stage-snippet" title={stage.responseSnippet}>{stage.responseSnippet.length > 60 ? stage.responseSnippet.slice(0, 60) + '…' : stage.responseSnippet}</span>}
-                                      <span className="pipeline-history-duration">{stage.durationMs < 1000 ? `${stage.durationMs}ms` : `${(stage.durationMs / 1000).toFixed(1)}s`}</span>
-                                      {stage.error && <span className="pipeline-history-stage-error" title={stage.error}>err</span>}
+                                    <div key={stage.index}>
+                                      <div className={`pipeline-history-stage-row ${stage.success ? '' : 'error'}`}>
+                                        <span className={`pipeline-history-icon ${stage.success ? 'success' : 'failure'}`}>
+                                          {stage.success ? <CheckCircle size={10} /> : <XCircle size={10} />}
+                                        </span>
+                                        <span className="pipeline-history-stage-type">{stageTypeLabel(stage.actionType)}</span>
+                                        {statusChanged && <span className="pipeline-history-stage-delta" title={`Changed from ${prevStatus} in prior run`}>△</span>}
+                                        {stage.sessionName && <span className="pipeline-history-stage-name">{stage.sessionName}</span>}
+                                        {stage.responseSnippet && <span className="pipeline-history-stage-snippet" title={stage.responseSnippet}>{stage.responseSnippet.length > 60 ? stage.responseSnippet.slice(0, 60) + '…' : stage.responseSnippet}</span>}
+                                        <span className="pipeline-history-duration">{stage.durationMs < 1000 ? `${stage.durationMs}ms` : `${(stage.durationMs / 1000).toFixed(1)}s`}</span>
+                                        {stage.error && <span className="pipeline-history-stage-error" title={stage.error}>err</span>}
+                                      </div>
+                                      {stage.subStages && stage.subStages.length > 0 && (
+                                        <div className="pipeline-history-parallel-group">
+                                          {stage.subStages.map(sub => (
+                                            <div key={sub.index} className={`pipeline-history-stage-row sub ${sub.success ? '' : 'error'}`}>
+                                              <span className={`pipeline-history-icon ${sub.success ? 'success' : 'failure'}`}>
+                                                {sub.success ? <CheckCircle size={9} /> : <XCircle size={9} />}
+                                              </span>
+                                              <span className="pipeline-history-stage-type">{stageTypeLabel(sub.actionType)}</span>
+                                              {sub.sessionName && <span className="pipeline-history-stage-name">{sub.sessionName}</span>}
+                                              <span className="pipeline-history-duration">{sub.durationMs < 1000 ? `${sub.durationMs}ms` : `${(sub.durationMs / 1000).toFixed(1)}s`}</span>
+                                              {sub.error && <span className="pipeline-history-stage-error" title={sub.error}>err</span>}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
                                     </div>
                                     )
                                   })}
