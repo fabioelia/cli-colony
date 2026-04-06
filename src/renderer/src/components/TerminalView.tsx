@@ -1017,7 +1017,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
             const modelIdx = instance.args.indexOf('--model')
             const model = modelIdx >= 0 ? instance.args[modelIdx + 1] : null
             const parts = model ? model.split('-') : []
-            const short = parts.length >= 2 ? parts.slice(-2).join('-') : (model || 'claude')
+            const short = parts.length >= 3 ? parts.slice(1, 3).join('-') : (model || 'claude')
             return <span className="session-status-item session-status-model">{short}</span>
           })()}
           <span className="session-status-item session-status-uptime" tabIndex={-1}>
@@ -1027,7 +1027,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
             ${instance.tokenUsage.cost.toFixed(3)}
           </span>
           {outputBytes >= 250 * 1024 && (
-            <span className={`session-status-item session-status-ctx ${outputBytes >= 600 * 1024 ? 'red' : 'amber'}`} tabIndex={-1}>
+            <span className={`session-status-item session-status-ctx ${outputBytes >= 600 * 1024 ? 'red' : 'amber'}`} tabIndex={-1} title="Context window pressure — terminal output is large, approaching context limit">
               <span className={`session-status-dot ${outputBytes >= 600 * 1024 ? 'red' : 'amber'}`} />
               ctx
             </span>
@@ -1052,7 +1052,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 <button
                   className={`filetree-refresh filetree-sort-toggle ${filesSortMode === 'modified' ? 'active' : ''}`}
                   onClick={() => setFilesSortMode(m => m === 'name' ? 'modified' : 'name')}
-                  title={`Sort: ${filesSortMode === 'name' ? 'Name' : 'Modified'} (click to toggle)`}
+                  title={`Sort by ${filesSortMode === 'name' ? 'Modified date' : 'Name'}`}
                 >
                   <ArrowUpDown size={13} />
                 </button>
@@ -1557,7 +1557,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                     className={`logs-filter-btn logs-level-btn ${logsLevelFilter === level ? 'active' : ''} ${level !== 'all' ? level : ''}`}
                     onClick={() => setLogsLevelFilter(level)}
                   >
-                    {level === 'all' ? 'All levels' : level.charAt(0).toUpperCase() + level.slice(1)}
+                    {level === 'all' ? 'All' : level.charAt(0).toUpperCase() + level.slice(1)}
                   </button>
                 ))}
               </div>
@@ -1594,7 +1594,9 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               ))
             }
             {logsContent.filter(entry => (logsFilter === null || entry.service === logsFilter) && levelMatches(entry.line, logsLevelFilter)).length === 0 && (
-              <div className="logs-empty">No logs yet. Start services to see output.</div>
+              <div className="logs-empty">
+                {logsContent.length === 0 ? 'No logs yet. Start services to see output.' : 'No logs match the current filters.'}
+              </div>
             )}
             <div ref={logsEndRef} />
           </div>
