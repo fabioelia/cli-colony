@@ -3,7 +3,7 @@ import type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
-  ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution,
+  ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -11,7 +11,7 @@ export type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
-  ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution,
+  ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
 }
 
 
@@ -305,6 +305,10 @@ export interface ClaudeManagerAPI {
   }
   audit: {
     runPanel: (panel: string, context: object) => Promise<AuditResult[]>
+  }
+  arena: {
+    recordWinner: (winnerKey: string, loserKey: string) => Promise<boolean>
+    getStats: () => Promise<ArenaStats>
   }
 }
 
@@ -634,6 +638,10 @@ const api: ClaudeManagerAPI = {
   },
   audit: {
     runPanel: (panel, context) => ipcRenderer.invoke('audit:runPanel', panel, context),
+  },
+  arena: {
+    recordWinner: (winnerKey, loserKey) => ipcRenderer.invoke('arena:recordWinner', winnerKey, loserKey),
+    getStats: () => ipcRenderer.invoke('arena:getStats'),
   },
 }
 

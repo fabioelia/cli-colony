@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { Swords } from 'lucide-react'
+import { Swords, BarChart3, X as XIcon } from 'lucide-react'
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
 import { createPortal } from 'react-dom'
-import type { ClaudeInstance, AgentDef, CliSession, RecentSession, CliBackend } from './types'
+import type { ClaudeInstance, AgentDef, CliSession, RecentSession, CliBackend, ArenaStats } from './types'
 import Sidebar, { SidebarView } from './components/Sidebar'
 import TerminalView from './components/TerminalView'
 import NewInstanceDialog from './components/NewInstanceDialog'
@@ -44,6 +44,9 @@ export default function App() {
   const [arenaMode, setArenaMode] = useState(false)
   const [arenaText, setArenaText] = useState('')
   const arenaTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const [arenaWinnerId, setArenaWinnerId] = useState<string | null>(null)
+  const [arenaStatsOpen, setArenaStatsOpen] = useState(false)
+  const [arenaStats, setArenaStats] = useState<ArenaStats>({})
   const [unreadIds, setUnreadIds] = useState<Set<string>>(new Set())
   const [fontSize, setFontSize] = useState(13)
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
@@ -589,6 +592,7 @@ export default function App() {
       setFocusedPane('left')
       setArenaMode(false)
       setArenaText('')
+      setArenaWinnerId(null)
     } else {
       // Open split — auto-pick if 2 instances, show picker if more
       const others = regularInstances.filter((i) => i.id !== activeId)
@@ -624,7 +628,24 @@ export default function App() {
     setFocusedPane('left')
     setArenaMode(false)
     setArenaText('')
+    setArenaWinnerId(null)
   }, [splitId, activeId])
+
+  const handleArenaWin = useCallback(async (winnerInstId: string) => {
+    if (!activeId || !splitId || arenaWinnerId !== null) return
+    const winner = instances.find((i) => i.id === winnerInstId)
+    const loserInstId = winnerInstId === activeId ? splitId : activeId
+    const loser = instances.find((i) => i.id === loserInstId)
+    if (!winner || !loser) return
+    setArenaWinnerId(winnerInstId)
+    await window.api.arena.recordWinner(winner.name, loser.name)
+  }, [activeId, splitId, arenaWinnerId, instances])
+
+  const openArenaStats = useCallback(async () => {
+    const stats = await window.api.arena.getStats()
+    setArenaStats(stats)
+    setArenaStatsOpen(true)
+  }, [])
 
   const handlePickSplit = useCallback((id: string) => {
     if (!activeId) return
@@ -851,6 +872,9 @@ export default function App() {
                 }}
                 isSplit={isSplit}
                 arenaMode={isSplit && arenaMode}
+                arenaVoted={arenaWinnerId !== null}
+                arenaWinnerId={arenaWinnerId}
+                onArenaWin={() => handleArenaWin(inst.id)}
                 terminalsRef={terminalsRef}
                 searchOpen={isFocused && searchOpen}
                 onSearchClose={() => setSearchOpen(false)}
@@ -942,6 +966,7 @@ export default function App() {
                   window.api.instance.write(activeId, arenaText + '\n')
                   window.api.instance.write(splitId, arenaText + '\n')
                   setArenaText('')
+                  setArenaWinnerId(null)
                   if (arenaTextareaRef.current) arenaTextareaRef.current.style.height = ''
                 }
               }}
@@ -955,11 +980,52 @@ export default function App() {
                 window.api.instance.write(activeId, arenaText + '\n')
                 window.api.instance.write(splitId, arenaText + '\n')
                 setArenaText('')
+                setArenaWinnerId(null)
                 if (arenaTextareaRef.current) arenaTextareaRef.current.style.height = ''
               }}
             >
               Send to both
             </button>
+            <div className="arena-stats-container">
+              <button
+                className="arena-stats-btn"
+                onClick={openArenaStats}
+                title="Arena win statistics"
+                aria-label="View arena statistics"
+              >
+                <BarChart3 size={14} />
+              </button>
+              {arenaStatsOpen && (() => {
+                const sorted = Object.entries(arenaStats).sort(([, a], [, b]) => {
+                  const ra = a.totalRuns > 0 ? a.wins / a.totalRuns : 0
+                  const rb = b.totalRuns > 0 ? b.wins / b.totalRuns : 0
+                  return rb - ra
+                })
+                return (
+                  <>
+                    <div className="arena-stats-backdrop" onClick={() => setArenaStatsOpen(false)} />
+                    <div className="arena-stats-popover">
+                      <div className="arena-stats-header">
+                        <span>Arena Stats</span>
+                        <button onClick={() => setArenaStatsOpen(false)} aria-label="Close stats"><XIcon size={12} /></button>
+                      </div>
+                      {sorted.length === 0 ? (
+                        <div className="arena-stats-empty">No rounds recorded yet.</div>
+                      ) : (
+                        sorted.map(([key, s]) => (
+                          <div key={key} className="arena-stats-row">
+                            <span className="arena-stats-name">{key}</span>
+                            <span className="arena-stats-score">
+                              {s.wins}W / {s.losses}L ({s.totalRuns > 0 ? Math.round((s.wins / s.totalRuns) * 100) : 0}%)
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </>
+                )
+              })()}
+            </div>
           </div>
         )}
 

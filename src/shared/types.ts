@@ -290,3 +290,11 @@ export interface CommitAttribution {
   stoppedAt: number
   dir: string
 }
+
+export interface ArenaStatEntry {
+  wins: number
+  losses: number
+  totalRuns: number
+}
+
+export type ArenaStats = Record<string, ArenaStatEntry>

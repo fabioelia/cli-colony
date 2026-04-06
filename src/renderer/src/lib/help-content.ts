@@ -524,6 +524,8 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Arena toggle', detail: 'The "A" button on the split divider enables Arena mode. Hover the divider to reveal it. Click again to disable.' },
           { label: 'Shared input bar', detail: 'When Arena mode is on, a shared textarea appears below both panes. Type a prompt and press Enter (or "Send to both") to send identical input to both sessions simultaneously. Shift+Enter adds a newline.' },
+          { label: 'Pick winner', detail: 'Trophy button in each pane header — click to mark that session as the winner of the current round. Both buttons disable until the next prompt is sent. Win/loss totals are persisted across sessions.', icon: 'Trophy' },
+          { label: 'Stats', detail: 'BarChart3 button in the Arena toolbar — shows win rates per session sorted by win percentage (e.g. "Colony QA: 5W / 2L (71%)").', icon: 'BarChart3' },
           { label: 'Use case', detail: 'Compare two models or personas on the same task — evaluate quality, speed, and approach side-by-side without typing twice.' },
         ],
       },

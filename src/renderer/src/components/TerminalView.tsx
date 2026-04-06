@@ -4,7 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, History, Clock } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, History, Clock, Trophy } from 'lucide-react'
 import type { EnvStatus, EnvServiceStatus, ReplayEvent } from '../../../shared/types'
 import { buildDiagnosePrompt } from '../../../shared/env-prompts'
 import '@xterm/xterm/css/xterm.css'
@@ -30,6 +30,9 @@ interface Props {
   onSpawnChild?: () => void
   isSplit?: boolean
   arenaMode?: boolean
+  arenaVoted?: boolean
+  arenaWinnerId?: string | null
+  onArenaWin?: () => void
   terminalsRef: MutableRefObject<Map<string, TerminalEntry>>
   searchOpen?: boolean
   onSearchClose?: () => void
@@ -208,7 +211,7 @@ function FileTreeNode({ node, depth, selectedPath, expandedPaths, filter, onTogg
 
 type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'replay'
 
-export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, isSplit, arenaMode, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane, outputBytes = 0 }: Props) {
+export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, isSplit, arenaMode, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane, outputBytes = 0 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const initializedRef = useRef(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -1058,7 +1061,21 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
             </Tooltip>
           )}
           {isSplit && arenaMode && (
-            <span className="arena-chip">Arena</span>
+            <>
+              <span className="arena-chip">Arena</span>
+              <Tooltip
+                text={arenaVoted ? (arenaWinnerId === instance.id ? 'Winner!' : 'Round lost') : 'Pick as winner'}
+              >
+                <button
+                  className={`arena-trophy-btn${arenaWinnerId === instance.id ? ' winner' : arenaVoted ? ' loser' : ''}`}
+                  onClick={() => { if (!arenaVoted) onArenaWin?.() }}
+                  disabled={arenaVoted}
+                  aria-label="Pick as arena winner"
+                >
+                  <Trophy size={12} />
+                </button>
+              </Tooltip>
+            </>
           )}
           {isSplit && onCloseSplit && (
             <Tooltip text="Close Split" detail="Return to single session view" shortcut="Cmd+Shift+W">
