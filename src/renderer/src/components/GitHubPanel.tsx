@@ -1234,12 +1234,18 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
         <div className="dialog-overlay" onClick={() => setShowPromptEditor(false)}>
           <div className="github-prompt-editor" onClick={(e) => e.stopPropagation()}>
             <div className="github-prompt-editor-header">
-              <h3>Prompts</h3>
+              <span className="github-prompt-editor-title">
+                <MessageSquare size={14} />
+                Prompts
+              </span>
               <button onClick={() => setShowPromptEditor(false)} title="Close"><X size={14} /></button>
             </div>
-            <p className="github-prompt-help">
-              Per PR prompts use variables: <code>{'{{pr.number}}'}</code> <code>{'{{pr.title}}'}</code> <code>{'{{pr.description}}'}</code> <code>{'{{pr.branch}}'}</code> <code>{'{{pr.url}}'}</code> <code>{'{{pr.author}}'}</code> <code>{'{{pr.status}}'}</code> <code>{'{{pr.reviewDecision}}'}</code> <code>{'{{pr.assignees}}'}</code> <code>{'{{pr.reviewers}}'}</code> <code>{'{{pr.labels}}'}</code> <code>{'{{pr.additions}}'}</code> <code>{'{{pr.deletions}}'}</code> <code>{'{{repo.owner}}'}</code> <code>{'{{repo.name}}'}</code>
-            </p>
+            <div className="github-prompt-vars">
+              <span className="github-prompt-vars-label">Per PR variables</span>
+              {['{{pr.number}}','{{pr.title}}','{{pr.description}}','{{pr.branch}}','{{pr.url}}','{{pr.author}}','{{pr.status}}','{{pr.reviewDecision}}','{{pr.assignees}}','{{pr.reviewers}}','{{pr.labels}}','{{pr.additions}}','{{pr.deletions}}','{{repo.owner}}','{{repo.name}}'].map(v => (
+                <code key={v} className="github-prompt-var-chip">{v}</code>
+              ))}
+            </div>
             <div className="github-prompt-list">
               {editingPrompts.map((p) => (
                 <div key={p.id} className={`github-prompt-item ${p.scope === 'global' ? 'is-global' : ''}`}>
@@ -1256,21 +1262,21 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                           ep.id === p.id ? { ...ep, scope: 'pr' as const } : ep
                         ))}
                         title="Per-PR scope"
-                      >PR</button>
+                      >Per PR</button>
                       <button
                         className={p.scope === 'global' ? 'active' : ''}
                         onClick={() => setEditingPrompts(editingPrompts.map((ep) =>
                           ep.id === p.id ? { ...ep, scope: 'global' as const } : ep
                         ))}
-                        title="Global scope"
+                        title="Global scope — runs across all PRs in the ask bar"
                       >Global</button>
                     </div>
-                    <button className="danger" onClick={() => handleRemovePrompt(p.id)} title="Remove prompt">
+                    <button className="github-prompt-delete" onClick={() => handleRemovePrompt(p.id)} title="Remove prompt">
                       <Trash2 size={13} />
                     </button>
                   </div>
                   <textarea
-                    placeholder={p.scope === 'global' ? 'Question to ask about all PRs...' : 'Prompt template with {{pr.number}} variables...'}
+                    placeholder={p.scope === 'global' ? 'Question to ask about all PRs...' : 'Prompt template — use {{pr.number}}, {{pr.title}}, {{repo.name}}...'}
                     value={p.prompt}
                     onChange={(e) => handleUpdatePrompt(p.id, 'prompt', e.target.value)}
                     rows={2}
@@ -1280,9 +1286,9 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
             </div>
             <div className="github-prompt-actions">
               <button className="github-prompt-add" onClick={handleAddPrompt} title="Add prompt">
-                <Plus size={13} /> Add
+                <Plus size={13} /> Add prompt
               </button>
-              <button className="github-prompt-save" onClick={handleSavePrompts} title="Save prompts">Save</button>
+              <button className="github-prompt-save" onClick={handleSavePrompts}>Save</button>
             </div>
           </div>
         </div>

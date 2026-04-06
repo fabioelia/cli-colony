@@ -5199,18 +5199,23 @@ input, select {
   width: 560px;
   max-height: 80vh;
   overflow-y: auto;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
 }
 
 .github-prompt-editor-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 14px;
 }
 
-.github-prompt-editor-header h3 {
-  font-size: 15px;
+.github-prompt-editor-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
   font-weight: 600;
+  color: var(--text-primary);
 }
 
 .github-prompt-editor-header > button {
@@ -5223,20 +5228,43 @@ input, select {
 
 .github-prompt-editor-header > button:hover {
   color: var(--text-primary);
+  background: var(--bg-hover);
 }
 
-.github-prompt-help {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-bottom: 16px;
-  line-height: 1.6;
+/* Variable chip grid */
+.github-prompt-vars {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
 }
 
-.github-prompt-help code {
-  background: var(--bg-surface);
-  padding: 1px 4px;
-  border-radius: 3px;
+.github-prompt-vars-label {
   font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.github-prompt-var-chip {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 9.5px;
+  color: var(--accent);
+  font-family: var(--font-mono, monospace);
+  white-space: nowrap;
+  cursor: default;
+  user-select: text;
 }
 
 .github-prompt-list {
@@ -5275,7 +5303,7 @@ input, select {
   border-color: var(--accent);
 }
 
-.github-prompt-item-header button {
+.github-prompt-delete {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -5283,10 +5311,12 @@ input, select {
   height: 28px;
   border-radius: 5px;
   color: var(--text-muted);
+  flex-shrink: 0;
+  transition: color 0.12s, background 0.12s;
 }
 
-.github-prompt-item-header button:hover {
-  color: var(--danger);
+.github-prompt-delete:hover {
+  color: var(--danger, #ef4444);
   background: rgba(239, 68, 68, 0.1);
 }
 
@@ -5310,6 +5340,7 @@ input, select {
 
 .github-prompt-item.is-global {
   border-color: rgba(59, 130, 246, 0.3);
+  border-left: 3px solid rgba(59, 130, 246, 0.5);
 }
 
 .github-prompt-actions {
@@ -5345,10 +5376,6 @@ input, select {
   background: var(--accent);
   color: white;
   transition: opacity 0.15s;
-}
-
-.github-prompt-save:hover {
-  opacity: 0.85;
 }
 
 .github-prompt-save:hover {
