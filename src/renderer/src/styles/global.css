@@ -3708,6 +3708,7 @@ input, select {
 .services-panel-row:last-child { border-bottom: none; }
 .services-panel-row:hover { background: var(--bg-hover); }
 .services-panel-row.active { background: rgba(59, 130, 246, 0.04); }
+.services-panel-row.crashed { background: rgba(239, 68, 68, 0.04); }
 
 .services-panel-row-main {
   display: flex;
@@ -10139,6 +10140,12 @@ input, select {
   width: 6px;
   height: 6px;
   border-radius: 50%;
+}
+.env-service-dot-running {
+  box-shadow: 0 0 4px rgba(16, 185, 129, 0.5);
+}
+.env-service-dot-crashed {
+  box-shadow: 0 0 5px rgba(239, 68, 68, 0.6);
 }
 
 .env-card-actions {

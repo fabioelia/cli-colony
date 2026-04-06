@@ -542,7 +542,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                       detail={`${svc.status}${svc.port ? ` · port ${svc.port}` : ''}${svc.restarts > 0 ? ` · ${svc.restarts} restart${svc.restarts > 1 ? 's' : ''}` : ''}`}
                     >
                     <div
-                      className="env-service-dot"
+                      className={`env-service-dot env-service-dot-${svc.status}`}
                       style={{ backgroundColor: serviceStatusDot(svc.status) }}
                     />
                     </Tooltip>

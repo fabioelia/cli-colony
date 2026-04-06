@@ -922,6 +922,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 {envStatus && (() => {
                   const crashed = envStatus.services.filter(s => s.status === 'crashed').length
                   const running = envStatus.services.filter(s => s.status === 'running').length
+                  if (crashed > 0 && running > 0) return <><span className="services-tab-badge danger">{crashed}</span><span className="services-tab-badge success">{running}</span></>
                   if (crashed > 0) return <span className="services-tab-badge danger">{crashed}</span>
                   if (running > 0) return <span className="services-tab-badge success">{running}</span>
                   return null
@@ -1331,12 +1332,16 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
             <span className="services-panel-env-name">{envStatus.displayName || envStatus.name}</span>
             <span className={`services-panel-env-status ${envStatus.status}`}>{envStatus.status}</span>
             <div className="services-panel-actions">
-              <button className="services-panel-btn" onClick={() => window.api.env.start(envStatus.id)} title="Start all services">
-                <Play size={12} /> Start All
-              </button>
-              <button className="services-panel-btn" onClick={() => window.api.env.stop(envStatus.id)} title="Stop all services">
-                <Square size={10} /> Stop All
-              </button>
+              {(envStatus.status === 'stopped' || envStatus.status === 'partial' || envStatus.services.some(s => s.status === 'crashed' || s.status === 'stopped')) && (
+                <button className="services-panel-btn" onClick={() => window.api.env.start(envStatus.id)} title="Start all services">
+                  <Play size={12} /> Start All
+                </button>
+              )}
+              {(envStatus.status === 'running' || envStatus.status === 'partial') && (
+                <button className="services-panel-btn" onClick={() => window.api.env.stop(envStatus.id)} title="Stop all services">
+                  <Square size={10} /> Stop All
+                </button>
+              )}
               {envStatus.paths?.root && (
                 <button className="services-panel-btn" onClick={() => window.api.shell.openExternal(`file://${envStatus.paths.root}`)} title="Open environment folder in Finder">
                   <FolderOpen size={12} />
@@ -1454,7 +1459,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               const matchingUrl = Object.entries(envStatus.urls).find(([k]) => k.toLowerCase() === svc.name.toLowerCase())?.[1]
                 || (svc.port ? `http://localhost:${svc.port}` : null)
               return (
-                <div key={svc.name} className={`services-panel-row ${isActive ? 'active' : ''}`}>
+                <div key={svc.name} className={`services-panel-row ${isActive ? 'active' : ''} ${svc.status === 'crashed' ? 'crashed' : ''}`}>
                   <div className="services-panel-row-main">
                     <div className="services-panel-row-left">
                       <span className={`services-panel-status-dot ${svc.status}`} />
