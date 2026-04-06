@@ -187,6 +187,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Natural language questions', detail: 'Ask about your PRs (e.g., "Which PRs need my review?"). Launches a persistent PR Assistant session.' },
           { label: 'Global prompts', detail: 'Pre-built questions: My PRs, Needs Review, Stale PRs.' },
+          { label: 'File drag & drop', detail: 'Drag files from Finder onto the ask bar to append their absolute paths to your message. The bar highlights with a dashed border on hover.' },
         ],
       },
     ],
@@ -234,6 +235,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Bottom',
         items: [
           { label: 'Task Assistant', detail: 'Ask Claude to help create or modify your task queue YAML.' },
+          { label: 'File drag & drop', detail: 'Drag files from Finder onto the ask bar to append their absolute paths to your message.' },
         ],
       },
     ],
@@ -282,6 +284,14 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Outputs', detail: 'Configurable output directory for pipeline-generated files.' },
           { label: 'History', detail: 'Ring buffer of the last 20 poll runs: timestamp, trigger type, whether an action fired, success/failure, and duration. Useful for auditing pipeline behavior over time.', icon: 'Clock' },
           { label: 'Docs', detail: 'Companion readme if <name>.readme.md exists alongside the pipeline.' },
+        ],
+      },
+      {
+        name: 'Ask Bar',
+        position: 'Below description',
+        items: [
+          { label: 'Pipeline Assistant', detail: 'Ask Claude to create or modify a pipeline YAML. Describe the trigger and action in plain English.', icon: 'MessageSquare' },
+          { label: 'File drag & drop', detail: 'Drag files from Finder onto the ask bar to append their absolute paths to your message.' },
         ],
       },
     ],
@@ -418,6 +428,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Persona Assistant', detail: 'Describe a persona and the assistant will create or modify the .md file for you. It knows the file format, section conventions, and permission scopes.', icon: 'MessageSquare' },
           { label: 'View button', detail: 'Focus the running Persona Assistant session to continue the conversation.' },
+          { label: 'File drag & drop', detail: 'Drag files from Finder onto the ask bar to append their absolute paths to your message.' },
         ],
       },
       {
@@ -445,6 +456,8 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Learnings', detail: 'Facts and patterns the persona has discovered. It adds and prunes these itself.' },
           { label: 'Session Log', detail: 'Recent session summaries. Auto-pruned to the last 20 entries.' },
           { label: 'Permissions', detail: 'What the persona can and cannot do: push code, merge PRs, create sessions.' },
+          { label: 'View File', detail: 'Open a read-only preview of the persona\'s raw markdown file.', icon: 'FileText' },
+          { label: 'Edit File', detail: 'Open the persona\'s markdown file in a text editor. Edit any section and save — useful for updating Role, Objectives, or manually fixing the Active Situations block.', icon: 'Pencil' },
         ],
       },
     ],

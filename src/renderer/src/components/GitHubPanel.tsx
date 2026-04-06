@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useFileDrop } from '../hooks/useFileDrop'
 import { ArrowLeft, Plus, Trash2, RefreshCw, GitPullRequest, ExternalLink, Play, Pencil, ChevronDown, ChevronRight, MessageSquare, Send, User, Users, Eye, GitBranch, Clock, FileDiff, ShieldCheck, ShieldAlert, ShieldQuestion, Brain, Save, X, FileText, File, Filter, Search, CheckCircle, XCircle, Loader, CircleDot, Wrench, Download, AlertCircle } from 'lucide-react'
 import RepoRemovalModal, { type RemovalImpact } from './RepoRemovalModal'
 import { marked } from 'marked'
@@ -76,6 +77,9 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   // Ask bar — persistent PR assistant instance
   const [askInput, setAskInput] = useState('')
   const [assistantId, setAssistantId] = useState<string | null>(null)
+  const { ref: askBarRef, isDragging: askBarDragging } = useFileDrop(paths => {
+    setAskInput(prev => (prev ? prev + '\n' : '') + paths.join('\n'))
+  })
 
   // PR Memory
   const [memory, setMemory] = useState('')
@@ -574,11 +578,11 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
 
       {/* Ask bar */}
       {contextPath && (
-        <div className="panel-ask-bar">
+        <div ref={askBarRef} className={`panel-ask-bar${askBarDragging ? ' dragging' : ''}`}>
           <MessageSquare size={14} className="panel-ask-icon" />
           <input
             className="panel-ask-input"
-            placeholder="Ask about these PRs..."
+            placeholder="Ask about these PRs... or drop files to include paths"
             value={askInput}
             onChange={(e) => setAskInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAsk() } }}
