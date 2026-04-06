@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
 import { createPortal } from 'react-dom'
 import type { ClaudeInstance, AgentDef, CliSession, RecentSession, CliBackend } from './types'
 import Sidebar, { SidebarView } from './components/Sidebar'
@@ -448,6 +449,12 @@ export default function App() {
   const handleViewChange = useCallback((v: SidebarView) => {
     setView(v)
   }, [])
+
+  useGlobalShortcuts({
+    onNewSession: useCallback(() => { agentToLaunchRef.current = null; setShowNewDialog(true) }, []),
+    onNavigate: handleViewChange,
+    currentView: view as SidebarView,
+  })
 
   const handleResumeSession = useCallback(async (session: CliSession) => {
     // If already running with this session, just focus it

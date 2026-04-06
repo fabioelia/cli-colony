@@ -231,6 +231,50 @@ function parsePipelineYaml(content: string): PipelineDef | null {
   }
 }
 
+// ---- Run History ----
+
+export interface PipelineRunEntry {
+  ts: string
+  trigger: string
+  actionExecuted: boolean
+  success: boolean
+  durationMs: number
+}
+
+const MAX_HISTORY_ENTRIES = 20
+
+function historyPath(name: string): string {
+  const safe = name.replace(/[^a-zA-Z0-9._-]/g, '-')
+  return join(PIPELINES_DIR, `${safe}.history.json`)
+}
+
+function appendHistory(pipelineName: string, entry: PipelineRunEntry): void {
+  const path = historyPath(pipelineName)
+  let entries: PipelineRunEntry[] = []
+  try {
+    if (existsSync(path)) {
+      entries = JSON.parse(readFileSync(path, 'utf-8'))
+    }
+  } catch { /* ignore */ }
+  entries.push(entry)
+  if (entries.length > MAX_HISTORY_ENTRIES) {
+    entries = entries.slice(entries.length - MAX_HISTORY_ENTRIES)
+  }
+  try {
+    writeFileSync(path, JSON.stringify(entries, null, 2), 'utf-8')
+  } catch { /* ignore */ }
+}
+
+export function getHistory(pipelineName: string): PipelineRunEntry[] {
+  const path = historyPath(pipelineName)
+  try {
+    if (existsSync(path)) {
+      return JSON.parse(readFileSync(path, 'utf-8'))
+    }
+  } catch { /* ignore */ }
+  return []
+}
+
 // ---- State Persistence ----
 
 function debugLogPath(name: string): string {
@@ -958,7 +1002,9 @@ async function runPoll(pipelineName: string): Promise<void> {
   // Start a new iteration in the debug log
   p.state.debugLog.push(DEBUG_ITERATION_SEP)
   p.state.lastPollAt = new Date().toISOString()
+  const pollStartedAt = Date.now()
   let fired = false
+  let pollError = false
 
   try {
     let contexts: TriggerContext[] = []
@@ -1058,6 +1104,7 @@ async function runPoll(pipelineName: string): Promise<void> {
     p.state.lastError = null
     p.state.consecutiveFailures = 0
   } catch (err) {
+    pollError = true
     p.state.lastError = String(err)
     p.state.consecutiveFailures = (p.state.consecutiveFailures || 0) + 1
     plog(pipelineName, `✗ error: ${err}`)
@@ -1089,6 +1136,15 @@ async function runPoll(pipelineName: string): Promise<void> {
   }
 
   runningPolls.delete(pipelineName)
+
+  // Record run history
+  appendHistory(pipelineName, {
+    ts: new Date().toISOString(),
+    trigger: p.def.trigger.type,
+    actionExecuted: fired,
+    success: !pollError,
+    durationMs: Date.now() - pollStartedAt,
+  })
 
   // Trim debug log to the last N iterations
   const sepIndices: number[] = []

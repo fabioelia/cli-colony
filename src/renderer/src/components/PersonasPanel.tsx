@@ -465,7 +465,7 @@ function PersonaCard({
         </div>
         <div className="persona-card-actions">
           {!isRunning && (
-            <Tooltip text="Run persona">
+            <Tooltip text="Run persona" detail="⌘⇧P runs the first enabled persona from anywhere">
               <button
                 className="persona-action-btn"
                 onClick={(e) => { e.stopPropagation(); onRun() }}

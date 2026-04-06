@@ -45,7 +45,7 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'New Session Button',
         position: 'Below navigation',
         items: [
-          { label: '+ New Session', detail: 'Opens a dialog to create a Claude CLI session. Set a name, color, working directory, and optional CLI args.', icon: 'Plus' },
+          { label: '+ New Session', detail: 'Opens a dialog to create a Claude CLI session. Set a name, color, working directory, and optional CLI args. Keyboard shortcut: Cmd+N.', icon: 'Plus' },
           { label: 'Restore banner', detail: 'After app restart, shows a button to restore sessions that were running when you last quit.', icon: 'RotateCcw' },
         ],
       },
@@ -84,6 +84,7 @@ export const helpContent: Record<string, HelpEntry> = {
       },
     ],
     shortcuts: [
+      { keys: 'Cmd+N', action: 'Open New Session dialog from anywhere' },
       { keys: 'Cmd+T', action: 'New session' },
       { keys: 'Cmd+W', action: 'Kill/remove active session' },
       { keys: 'Cmd+1–9', action: 'Jump to session by position' },
@@ -279,9 +280,13 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Memory', detail: 'Per-pipeline memory file. Sessions are told to append learnings here.' },
           { label: 'Outputs', detail: 'Configurable output directory for pipeline-generated files.' },
+          { label: 'History', detail: 'Ring buffer of the last 20 poll runs: timestamp, trigger type, whether an action fired, success/failure, and duration. Useful for auditing pipeline behavior over time.', icon: 'Clock' },
           { label: 'Docs', detail: 'Companion readme if <name>.readme.md exists alongside the pipeline.' },
         ],
       },
+    ],
+    shortcuts: [
+      { keys: 'Cmd+Shift+F', action: 'Fire the first enabled pipeline from anywhere' },
     ],
   },
 
@@ -442,6 +447,9 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Permissions', detail: 'What the persona can and cannot do: push code, merge PRs, create sessions.' },
         ],
       },
+    ],
+    shortcuts: [
+      { keys: 'Cmd+Shift+P', action: 'Run the first enabled idle persona from anywhere' },
     ],
   },
 

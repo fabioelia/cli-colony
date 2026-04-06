@@ -107,8 +107,9 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [memoryDirty, setMemoryDirty] = useState(false)
   const [outputFiles, setOutputFiles] = useState<Array<{ name: string; path: string; size: number; modified: number }>>([])
   const [outputPreview, setOutputPreview] = useState<{ name: string; content: string } | null>(null)
-  const [expandedTab, setExpandedTab] = useState<'yaml' | 'docs' | 'memory' | 'outputs'>('yaml')
+  const [expandedTab, setExpandedTab] = useState<'yaml' | 'docs' | 'memory' | 'outputs' | 'history'>('yaml')
   const [debugLogExpanded, setDebugLogExpanded] = useState<Set<string>>(new Set())
+  const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number }>>([])
 
   // Cron editor — tracks which pipeline's cron is being edited
   const [cronEditingPipeline, setCronEditingPipeline] = useState<string | null>(null)
@@ -238,6 +239,11 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
       const files = await window.api.pipeline.listOutputs(p.outputsDir)
       setOutputFiles(files)
     }
+
+    // Load run history
+    setHistoryEntries([])
+    const history = await window.api.pipeline.getHistory(p.name)
+    setHistoryEntries(history.slice().reverse()) // most recent first
   }
 
   const handleSaveMemory = async () => {
@@ -429,7 +435,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                 <button
                   className="pipeline-trigger-btn"
                   onClick={(e) => { e.stopPropagation(); handleTriggerNow(p.name) }}
-                  title="Run poll now"
+                  title="Run poll now (⌘⇧F fires the first enabled pipeline from anywhere)"
                 >
                   <Play size={11} /> Poll Now
                 </button>
@@ -495,6 +501,12 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                         <BookOpen size={11} /> Docs
                       </button>
                     )}
+                    <button
+                      className={`pipeline-tab ${expandedTab === 'history' ? 'active' : ''}`}
+                      onClick={() => setExpandedTab('history')}
+                    >
+                      <Clock size={11} /> History {historyEntries.length > 0 && `(${historyEntries.length})`}
+                    </button>
                   </div>
                   {expandedTab === 'yaml' && dirty && (
                     <button className="pipeline-save-btn" onClick={handleSave}>
@@ -583,6 +595,30 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                       placeholder="No memories yet. Learnings will be captured from pipeline runs, or add them manually here."
                       spellCheck={false}
                     />
+                  </div>
+                ) : expandedTab === 'history' ? (
+                  <div className="pipeline-history">
+                    {historyEntries.length === 0 ? (
+                      <p className="pipeline-memory-hint">No runs recorded yet. History is captured after each poll.</p>
+                    ) : (
+                      <div className="pipeline-history-list">
+                        {historyEntries.map((entry, i) => (
+                          <div key={i} className={`pipeline-history-row ${entry.success ? '' : 'error'}`}>
+                            <span className={`pipeline-history-icon ${entry.success ? 'success' : 'failure'}`}>
+                              {entry.success ? <CheckCircle size={11} /> : <XCircle size={11} />}
+                            </span>
+                            <span className="pipeline-history-ts" title={new Date(entry.ts).toLocaleString()}>
+                              {new Date(entry.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {new Date(entry.ts).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                            </span>
+                            <span className="pipeline-history-trigger">{entry.trigger}</span>
+                            <span className={`pipeline-history-action ${entry.actionExecuted ? 'fired' : ''}`}>
+                              {entry.actionExecuted ? 'action fired' : 'no action'}
+                            </span>
+                            <span className="pipeline-history-duration">{entry.durationMs < 1000 ? `${entry.durationMs}ms` : `${(entry.durationMs / 1000).toFixed(1)}s`}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="pipeline-readme" dangerouslySetInnerHTML={{

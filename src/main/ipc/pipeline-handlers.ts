@@ -5,7 +5,7 @@ import { colonyPaths } from '../../shared/colony-paths'
 import {
   getPipelineList, togglePipeline, triggerPollNow, getPipelinesDir,
   getPipelineContent, savePipelineContent, loadPipelines, setPipelineCron,
-  previewPipeline, listApprovals, approveAction, dismissAction,
+  previewPipeline, listApprovals, approveAction, dismissAction, getHistory,
 } from '../pipeline-engine'
 
 export function registerPipelineHandlers(): void {
@@ -21,6 +21,7 @@ export function registerPipelineHandlers(): void {
   ipcMain.handle('pipeline:listApprovals', () => listApprovals())
   ipcMain.handle('pipeline:approve', (_e, id: string) => approveAction(id))
   ipcMain.handle('pipeline:dismiss', (_e, id: string) => dismissAction(id))
+  ipcMain.handle('pipeline:getHistory', (_e, name: string) => getHistory(name))
 
   // Pipeline outputs
   ipcMain.handle('pipeline:listOutputs', (_e, outputDir: string) => {

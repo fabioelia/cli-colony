@@ -199,6 +199,7 @@ export interface ClaudeManagerAPI {
     dismiss: (id: string) => Promise<boolean>
     onApprovalNew: (cb: (request: ApprovalRequest) => void) => () => void
     onApprovalUpdate: (cb: (data: { id: string; status: 'approved' | 'dismissed' | 'expired' }) => void) => () => void
+    getHistory: (name: string) => Promise<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number }>>
   }
   persona: {
     list: () => Promise<PersonaInfo[]>
@@ -500,6 +501,7 @@ const api: ClaudeManagerAPI = {
       ipcRenderer.on('pipeline:approval:update', l)
       return () => ipcRenderer.removeListener('pipeline:approval:update', l)
     },
+    getHistory: (name) => ipcRenderer.invoke('pipeline:getHistory', name),
   },
   persona: {
     list: () => ipcRenderer.invoke('persona:list'),

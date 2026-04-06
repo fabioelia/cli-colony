@@ -241,6 +241,14 @@ input, select {
   color: white;
 }
 
+.sidebar-shortcut-hint {
+  margin-left: 4px;
+  font-size: 9px;
+  opacity: 0.55;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
 .sidebar-instance-actions {
   display: flex;
   flex-direction: column;
@@ -8910,6 +8918,70 @@ input, select {
 
 .pipeline-readme p {
   margin: 6px 0;
+}
+
+.pipeline-history {
+  padding: 4px 0;
+}
+
+.pipeline-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pipeline-history-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  background: var(--bg-secondary);
+}
+
+.pipeline-history-row.error {
+  background: color-mix(in srgb, var(--danger) 8%, var(--bg-secondary));
+}
+
+.pipeline-history-icon.success {
+  color: var(--success);
+  flex-shrink: 0;
+}
+
+.pipeline-history-icon.failure {
+  color: var(--danger);
+  flex-shrink: 0;
+}
+
+.pipeline-history-ts {
+  color: var(--text-muted);
+  min-width: 100px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pipeline-history-trigger {
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-size: 10px;
+}
+
+.pipeline-history-action {
+  color: var(--text-muted);
+  flex: 1;
+}
+
+.pipeline-history-action.fired {
+  color: var(--success);
+}
+
+.pipeline-history-duration {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  margin-left: auto;
 }
 
 /* ===== Session Deps / Orchestrate Panel ===== */
