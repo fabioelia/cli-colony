@@ -455,7 +455,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                 {p.running && <span className="pipeline-running-badge">Running</span>}
               </div>
               <div className="pipeline-card-right">
-                <span className="pipeline-card-trigger">{p.triggerType}</span>
+                {p.triggerType !== 'webhook' && <span className="pipeline-card-trigger">{p.triggerType}</span>}
                 {p.triggerType === 'webhook' ? (
                   <span className="pipeline-webhook-badge" title="Triggered by HTTP webhook POST">
                     <Globe size={10} /> Webhook
