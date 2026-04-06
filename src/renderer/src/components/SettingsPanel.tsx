@@ -574,10 +574,10 @@ export default function SettingsPanel({ onBack }: Props) {
                 <thead>
                   <tr>
                     <th>Date</th>
-                    <th>Hash</th>
                     <th>Message</th>
                     <th>Session</th>
                     <th>Cost</th>
+                    <th>Hash</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -588,10 +588,10 @@ export default function SettingsPanel({ onBack }: Props) {
                     return (
                       <tr key={i} title={date.toLocaleString()}>
                         <td className="mcp-audit-ts">{relTime}</td>
-                        <td className="mcp-audit-server"><code>{shortHash}</code></td>
                         <td className="mcp-audit-tool" title={entry.shortMsg}>{entry.shortMsg.slice(0, 60)}{entry.shortMsg.length > 60 ? '…' : ''}</td>
                         <td className="mcp-audit-session">{entry.sessionName}</td>
                         <td>{entry.cost != null ? `$${entry.cost.toFixed(3)}` : '—'}</td>
+                        <td><code>{shortHash}</code></td>
                       </tr>
                     )
                   })}
