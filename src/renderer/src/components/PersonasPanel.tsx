@@ -473,7 +473,7 @@ function PersonaCard({
     if (!expanded || briefContent !== null) return
     setBriefContent('loading')
     window.api.persona.getContent(persona.id + '.brief').then((content) => {
-      setBriefContent(content)
+      setBriefContent(content ?? '')  // '' = "attempted, not found" — prevents re-fetch loop
     })
   }, [expanded, persona.id, briefContent])
 
