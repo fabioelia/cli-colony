@@ -699,7 +699,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                                   {entry.actionExecuted ? 'action fired' : 'no action'}
                                 </span>
                                 <span className="pipeline-history-duration">{entry.durationMs < 1000 ? `${entry.durationMs}ms` : `${(entry.durationMs / 1000).toFixed(1)}s`}</span>
-                                {entry.totalCost && entry.totalCost > 0 && <span className="run-cost-badge">${entry.totalCost.toFixed(2)}</span>}
+                                {entry.totalCost && entry.totalCost >= 0.01 && <span className="run-cost-badge" title="Total cost of this pipeline run">${entry.totalCost.toFixed(2)}</span>}
                               </div>
                               {hasStages && isExpanded && (
                                 <div className="pipeline-history-stages">
