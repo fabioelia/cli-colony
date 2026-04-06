@@ -307,6 +307,7 @@ export interface ClaudeManagerAPI {
   }
   audit: {
     runPanel: (panel: string, context: object) => Promise<AuditResult[]>
+    getLastRun: (panel: string) => Promise<{ ts: number; issueCount: number } | null>
   }
   arena: {
     recordWinner: (winnerKey: string, loserKey: string) => Promise<boolean>
@@ -651,6 +652,7 @@ const api: ClaudeManagerAPI = {
   },
   audit: {
     runPanel: (panel, context) => ipcRenderer.invoke('audit:runPanel', panel, context),
+    getLastRun: (panel) => ipcRenderer.invoke('audit:getLastRun', panel),
   },
   arena: {
     recordWinner: (winnerKey, loserKey) => ipcRenderer.invoke('arena:recordWinner', winnerKey, loserKey),

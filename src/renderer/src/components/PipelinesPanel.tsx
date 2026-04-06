@@ -153,6 +153,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [auditResults, setAuditResults] = useState<AuditResult[] | null>(null)
   const [auditRunning, setAuditRunning] = useState(false)
   const [auditOpen, setAuditOpen] = useState(false)
+  const [auditLastRun, setAuditLastRun] = useState<{ ts: number; issueCount: number } | null>(null)
   const [previewLogOpen, setPreviewLogOpen] = useState(false)
 
   const loadPipelines = useCallback(async () => {
@@ -166,9 +167,10 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     return unsub
   }, [loadPipelines])
 
-  // Load pipelines dir
+  // Load pipelines dir + last audit run
   useEffect(() => {
     window.api.pipeline.getDir().then(setPipelinesDir)
+    window.api.audit.getLastRun('pipelines').then(setAuditLastRun)
   }, [])
 
   // Track if assistant is still alive
@@ -306,6 +308,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     const results = await window.api.audit.runPanel('pipelines', context)
     setAuditResults(results)
     setAuditRunning(false)
+    window.api.audit.getLastRun('pipelines').then(setAuditLastRun)
   }
 
   const handleAuditFix = (fixAction: string) => {
@@ -349,10 +352,12 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
             className={`panel-header-btn${auditResults && auditResults.length > 0 ? ' panel-header-btn--audit-alert' : ''}`}
             onClick={handleRunAudit}
             disabled={auditRunning}
-            title="Run AI audit — identify misconfigured or broken pipelines"
+            title={auditLastRun ? `Last run: ${new Date(auditLastRun.ts).toLocaleString()}, ${auditLastRun.issueCount} issue${auditLastRun.issueCount !== 1 ? 's' : ''}` : 'Run AI audit — identify misconfigured or broken pipelines'}
           >
             <ShieldCheck size={12} />
-            {auditRunning ? 'Auditing…' : 'Audit'}
+            {auditRunning ? 'Auditing…' : auditLastRun
+              ? (() => { const secs = (Date.now() - auditLastRun.ts) / 1000; const ago = secs < 3600 ? `${Math.floor(secs / 60)}m ago` : `${Math.floor(secs / 3600)}h ago`; return `Audit (${ago}, ${auditLastRun.issueCount} issue${auditLastRun.issueCount !== 1 ? 's' : ''})` })()
+              : 'Audit'}
             {auditResults && auditResults.length > 0 && (
               <span className="audit-badge">{auditResults.length}</span>
             )}

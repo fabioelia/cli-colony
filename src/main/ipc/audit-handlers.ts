@@ -6,6 +6,47 @@ import { colonyPaths } from '../../shared/colony-paths'
 import type { AuditResult } from '../../shared/types'
 
 const AUDIT_MODEL = 'claude-haiku-4-5-20251001'
+const AUDIT_HISTORY_PATH = join(colonyPaths.root, 'audit-history.json')
+const MAX_AUDIT_HISTORY_PER_PANEL = 5
+
+interface AuditHistoryEntry {
+  ts: number
+  issueCount: number
+  findings: AuditResult[]
+}
+interface AuditHistory {
+  [panel: string]: AuditHistoryEntry[]
+}
+
+function loadAuditHistory(): AuditHistory {
+  try {
+    if (fs.existsSync(AUDIT_HISTORY_PATH)) {
+      return JSON.parse(fs.readFileSync(AUDIT_HISTORY_PATH, 'utf-8'))
+    }
+  } catch { /* ignore */ }
+  return {}
+}
+
+function appendAuditHistory(panel: string, results: AuditResult[]): void {
+  try {
+    const history = loadAuditHistory()
+    if (!history[panel]) history[panel] = []
+    history[panel].push({ ts: Date.now(), issueCount: results.length, findings: results })
+    // Keep ring buffer of last MAX_AUDIT_HISTORY_PER_PANEL entries
+    if (history[panel].length > MAX_AUDIT_HISTORY_PER_PANEL) {
+      history[panel] = history[panel].slice(-MAX_AUDIT_HISTORY_PER_PANEL)
+    }
+    fs.writeFileSync(AUDIT_HISTORY_PATH, JSON.stringify(history, null, 2), 'utf-8')
+  } catch { /* ignore */ }
+}
+
+function getLastAuditRun(panel: string): { ts: number; issueCount: number } | null {
+  const history = loadAuditHistory()
+  const entries = history[panel]
+  if (!entries || entries.length === 0) return null
+  const last = entries[entries.length - 1]
+  return { ts: last.ts, issueCount: last.issueCount }
+}
 
 interface AuditContext {
   pipelines?: Array<{ name: string; enabled: boolean; fileName: string; yaml: string; lastError: string | null; fireCount: number }>
@@ -77,8 +118,16 @@ export function registerAuditHandlers(): void {
           return { ...p, yaml: '' }
         }
       })
-      return runAuditPrompt(panelName, { ...context, pipelines: enriched })
+      const results = runAuditPrompt(panelName, { ...context, pipelines: enriched })
+      appendAuditHistory(panelName, results)
+      return results
     }
-    return runAuditPrompt(panelName, context)
+    const results = runAuditPrompt(panelName, context)
+    appendAuditHistory(panelName, results)
+    return results
+  })
+
+  ipcMain.handle('audit:getLastRun', (_e, panel: string): { ts: number; issueCount: number } | null => {
+    return getLastAuditRun(panel)
   })
 }
