@@ -7,7 +7,9 @@
 import { app } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
-import { execSync } from 'child_process'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
+const execFileAsync = promisify(execFile)
 import { getEnvDaemonClient, EnvDaemonClient } from './env-daemon-client'
 import { allocatePorts, isPortInUse } from './port-allocator'
 import { removeWorktree, isWorktree, getBareRepoForWorktree, pruneAllBareRepos, migrateReposToBare } from '../shared/git-worktree'
@@ -101,8 +103,8 @@ export async function initEnvDaemon(): Promise<void> {
     // Register existing environments from disk
     await syncEnvironmentsFromDisk()
 
-    // Load .colony/ configs from all known repos
-    refreshRepoConfigs()
+    // Load .colony/ configs from all known repos (fire-and-forget — non-blocking)
+    void refreshRepoConfigs()
 
     // Broadcast current state to renderer so it doesn't have to wait for polling
     try {
@@ -263,7 +265,7 @@ export function deleteTemplate(id: string): boolean {
 
 /** Scan all known repos for .colony/ directories and cache their configs.
  *  Fetches bare repos first so we read the latest remote state. */
-export function refreshRepoConfigs(): void {
+export async function refreshRepoConfigs(): Promise<void> {
   try {
     clearRepoConfigCache()
     const repos = getRepos()
@@ -273,7 +275,9 @@ export function refreshRepoConfigs(): void {
       if (!localPath || !fs.existsSync(localPath)) continue
       // Fetch latest for bare repos so .colony/ discovery reads current remote state
       if (localPath.endsWith('.git')) {
-        try { execSync('git fetch origin --prune', { cwd: localPath, timeout: 15000, stdio: 'ignore' }) } catch { /* non-fatal */ }
+        try {
+          await execFileAsync('git', ['fetch', 'origin', '--prune'], { cwd: localPath, timeout: 15000 })
+        } catch { /* non-fatal */ }
       }
       const config = getRepoConfig(localPath, `${repo.owner}/${repo.name}`)
       if (config) loaded++

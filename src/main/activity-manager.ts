@@ -13,13 +13,24 @@ import type { ActivityEvent } from '../shared/types'
 const MAX_EVENTS = 100
 let unreadCount = 0
 
-function readLog(): ActivityEvent[] {
-  try {
-    if (!existsSync(colonyPaths.activityLog)) return []
-    return JSON.parse(readFileSync(colonyPaths.activityLog, 'utf-8'))
-  } catch {
-    return []
+// In-memory canonical state — loaded once on first access, never re-read inside
+// appendActivity. This eliminates the read-modify-write race where concurrent
+// callers (pipeline poll + session exit) could overwrite each other's append.
+let _events: ActivityEvent[] | null = null
+
+function getEvents(): ActivityEvent[] {
+  if (_events === null) {
+    try {
+      if (!existsSync(colonyPaths.activityLog)) {
+        _events = []
+      } else {
+        _events = JSON.parse(readFileSync(colonyPaths.activityLog, 'utf-8'))
+      }
+    } catch {
+      _events = []
+    }
   }
+  return _events!
 }
 
 function writeLog(events: ActivityEvent[]): void {
@@ -29,7 +40,7 @@ function writeLog(events: ActivityEvent[]): void {
 }
 
 export function appendActivity(event: Omit<ActivityEvent, 'id' | 'timestamp'>): void {
-  const events = readLog()
+  const events = getEvents()
   const newEvent: ActivityEvent = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     timestamp: new Date().toISOString(),
@@ -43,7 +54,7 @@ export function appendActivity(event: Omit<ActivityEvent, 'id' | 'timestamp'>): 
 }
 
 export function listActivity(): ActivityEvent[] {
-  return readLog()
+  return getEvents()
 }
 
 export function getUnreadCount(): number {

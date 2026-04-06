@@ -363,9 +363,7 @@ app.whenReady().then(() => {
     try {
       ensureRepoClones()
     } catch { /* ignore */ }
-    try {
-      refreshRepoConfigs()
-    } catch { /* ignore */ }
+    refreshRepoConfigs().catch(() => { /* ignore */ })
     // Start pipeline polling
     startPipelines().then(() => {
       console.log('[app] pipelines started')

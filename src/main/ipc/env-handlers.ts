@@ -45,8 +45,8 @@ export function registerEnvHandlers(): void {
   ipcMain.handle('env:getTemplate', (_e, id: string) => getTemplate(id))
   ipcMain.handle('env:saveTemplate', (_e, template: any) => { saveTemplate(template); return true })
   ipcMain.handle('env:deleteTemplate', (_e, id: string) => deleteTemplate(id))
-  ipcMain.handle('env:refreshTemplates', () => {
-    try { refreshRepoConfigs() } catch (err) { console.warn('[env] refreshRepoConfigs failed:', err) }
+  ipcMain.handle('env:refreshTemplates', async () => {
+    await refreshRepoConfigs().catch(err => console.warn('[env] refreshRepoConfigs failed:', err))
     return listTemplates()
   })
 

@@ -22,6 +22,7 @@ export abstract class BaseDaemonClient extends EventEmitter {
   private buffer = ''
   private _connected = false
   private _reconnecting = false
+  private _intentionalDisconnect = false
   private _reqCounter = 0
 
   protected abstract socketPath: string
@@ -39,6 +40,7 @@ export abstract class BaseDaemonClient extends EventEmitter {
   // ---- Connection lifecycle ----
 
   async connect(): Promise<void> {
+    this._intentionalDisconnect = false
     await this.ensureDaemon()
     await this.connectToSocket()
     await this.request({ type: 'subscribe', reqId: this.nextReqId() })
@@ -117,7 +119,7 @@ export abstract class BaseDaemonClient extends EventEmitter {
   }
 
   private scheduleReconnect(): void {
-    if (this._reconnecting) return
+    if (this._reconnecting || this._intentionalDisconnect) return
     this._reconnecting = true
     console.log(`[${this.label}] will attempt reconnect in 2s`)
     setTimeout(async () => {
@@ -132,6 +134,7 @@ export abstract class BaseDaemonClient extends EventEmitter {
   }
 
   disconnect(): void {
+    this._intentionalDisconnect = true
     if (this.socket) {
       this.socket.destroy()
       this.socket = null
