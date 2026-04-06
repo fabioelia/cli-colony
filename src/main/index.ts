@@ -73,7 +73,7 @@ for e in envs:
 esac
 `
 import { broadcast } from './broadcast'
-import { seedDefaultPipelines, startPipelines } from './pipeline-engine'
+import { seedDefaultPipelines, startPipelines, getPipelineList } from './pipeline-engine'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -367,6 +367,8 @@ app.whenReady().then(() => {
     // Start pipeline polling
     startPipelines().then(() => {
       console.log('[app] pipelines started')
+      // Broadcast the loaded list so any renderer that subscribed before startup completes gets it
+      broadcast('pipeline:status', getPipelineList())
     }).catch((err) => {
       console.error('[app] pipelines failed to start:', err)
     })
