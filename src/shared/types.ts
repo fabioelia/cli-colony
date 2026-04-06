@@ -249,3 +249,11 @@ export interface PersonaInfo {
   /** Display name of the persona that triggered this run (handoff trigger only), null otherwise */
   triggeredBy: string | null
 }
+
+export interface AuditResult {
+  severity: 'HIGH' | 'MEDIUM' | 'LOW'
+  panel: string
+  item: string
+  issue: string
+  fixAction?: string
+}

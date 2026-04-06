@@ -22,6 +22,7 @@ import { registerPersonaHandlers } from './ipc/persona-handlers'
 import { registerActivityHandlers } from './ipc/activity-handlers'
 import { registerMcpCatalogHandlers } from './ipc/mcp-catalog-handlers'
 import { registerTasksBoardHandlers } from './ipc/tasks-board-handlers'
+import { registerAuditHandlers } from './ipc/audit-handlers'
 
 export function registerIpcHandlers(): void {
   // Delegated handler modules
@@ -36,6 +37,7 @@ export function registerIpcHandlers(): void {
   registerActivityHandlers()
   registerMcpCatalogHandlers()
   registerTasksBoardHandlers()
+  registerAuditHandlers()
 
   // ---- Temp files ----
   ipcMain.handle('fs:writeTempFile', (_e, prefix: string, content: string) => {

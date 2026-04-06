@@ -3,7 +3,7 @@ import type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
-  ReplayEvent, TaskBoardItem,
+  ReplayEvent, TaskBoardItem, AuditResult,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -11,7 +11,7 @@ export type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
-  ReplayEvent, TaskBoardItem,
+  ReplayEvent, TaskBoardItem, AuditResult,
 }
 
 
@@ -297,6 +297,9 @@ export interface ClaudeManagerAPI {
   }
   session: {
     getReplay: (instanceId: string) => Promise<ReplayEvent[]>
+  }
+  audit: {
+    runPanel: (panel: string, context: object) => Promise<AuditResult[]>
   }
 }
 
@@ -618,6 +621,9 @@ const api: ClaudeManagerAPI = {
   },
   session: {
     getReplay: (instanceId) => ipcRenderer.invoke('session:getReplay', instanceId),
+  },
+  audit: {
+    runPanel: (panel, context) => ipcRenderer.invoke('audit:runPanel', panel, context),
   },
 }
 
