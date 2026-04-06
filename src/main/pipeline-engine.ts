@@ -233,12 +233,22 @@ function parsePipelineYaml(content: string): PipelineDef | null {
 
 // ---- Run History ----
 
+export interface PipelineStageTrace {
+  index: number
+  actionType: string
+  sessionName?: string
+  durationMs: number
+  success: boolean
+  error?: string
+}
+
 export interface PipelineRunEntry {
   ts: string
   trigger: string
   actionExecuted: boolean
   success: boolean
   durationMs: number
+  stages?: PipelineStageTrace[]
 }
 
 const MAX_HISTORY_ENTRIES = 20
@@ -1005,6 +1015,7 @@ async function runPoll(pipelineName: string): Promise<void> {
   const pollStartedAt = Date.now()
   let fired = false
   let pollError = false
+  const stages: PipelineStageTrace[] = []
 
   try {
     let contexts: TriggerContext[] = []
@@ -1090,7 +1101,24 @@ async function runPoll(pipelineName: string): Promise<void> {
       }
 
       plog(pipelineName, `→ firing action: ${p.def.action.type} for ${prLabel}`)
-      await fireAction(p.def.action, ctx, p.def.name)
+      const stageStart = Date.now()
+      const stageSessionName = resolveTemplate(p.def.action.name || 'Pipeline Session', ctx)
+      let stageError: string | undefined
+      try {
+        await fireAction(p.def.action, ctx, p.def.name)
+      } catch (stageErr) {
+        stageError = String(stageErr)
+        throw stageErr
+      } finally {
+        stages.push({
+          index: stages.length,
+          actionType: p.def.action.type,
+          sessionName: stageSessionName,
+          durationMs: Date.now() - stageStart,
+          success: !stageError,
+          error: stageError,
+        })
+      }
       recordFired(pipelineName, dedupKey, ctx.contentSha)
       fired = true
       plog(pipelineName, `✓ action fired successfully`)
@@ -1144,6 +1172,7 @@ async function runPoll(pipelineName: string): Promise<void> {
     actionExecuted: fired,
     success: !pollError,
     durationMs: Date.now() - pollStartedAt,
+    stages: stages.length > 0 ? stages : undefined,
   })
 
   // Trim debug log to the last N iterations

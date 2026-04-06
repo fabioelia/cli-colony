@@ -160,10 +160,11 @@ input, select {
 .sidebar-nav {
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 3px 4px;
-  background: var(--bg-primary);
+  gap: 1px;
+  padding: 3px;
+  background: var(--bg-secondary);
   border-radius: 8px;
+  border: 1px solid var(--border);
   width: 100%;
 }
 
@@ -172,20 +173,20 @@ input, select {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 2px;
   flex: 1;
-  height: 46px;
-  border-radius: 6px;
+  height: 44px;
+  border-radius: 5px;
   color: var(--text-muted);
-  transition: all 0.15s;
+  transition: color 0.12s, background 0.12s;
   position: relative;
 }
 
 .sidebar-nav-label {
-  font-size: 8px;
-  font-weight: 500;
+  font-size: 7.5px;
+  font-weight: 600;
   line-height: 1;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
   color: inherit;
   user-select: none;
   text-transform: uppercase;
@@ -193,12 +194,13 @@ input, select {
 
 .sidebar-nav-btn:hover {
   color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .sidebar-nav-btn.active {
   color: var(--accent);
   background: var(--bg-tertiary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
 .sidebar-nav-icon {
@@ -9181,6 +9183,66 @@ input, select {
   margin-left: auto;
 }
 
+.pipeline-history-row.has-stages {
+  cursor: pointer;
+}
+
+.pipeline-history-row.has-stages:hover {
+  background: var(--bg-tertiary);
+}
+
+.pipeline-history-chevron {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.pipeline-history-stages {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-left: 16px;
+  margin-bottom: 2px;
+}
+
+.pipeline-history-stage-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  background: var(--bg-tertiary);
+  border-left: 2px solid var(--border);
+}
+
+.pipeline-history-stage-row.error {
+  border-left-color: var(--danger);
+}
+
+.pipeline-history-stage-type {
+  color: var(--text-secondary);
+  font-size: 9px;
+  background: var(--bg-secondary);
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.pipeline-history-stage-name {
+  color: var(--text-muted);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipeline-history-stage-error {
+  color: var(--danger);
+  font-size: 9px;
+  cursor: default;
+}
+
 /* ===== Session Deps / Orchestrate Panel ===== */
 .session-deps-panel {
   flex: 1;
@@ -12393,9 +12455,21 @@ input, select {
 .pipelines-list.list-mode .pipeline-card.expanded .pipeline-card-desc,
 .pipelines-list.list-mode .pipeline-card.expanded .pipeline-card-meta,
 .pipelines-list.list-mode .pipeline-card.expanded .pipeline-debug-log,
-.pipelines-list.list-mode .pipeline-card.expanded .pipeline-card-actions {
+.pipelines-list.list-mode .pipeline-card.expanded .pipeline-card-actions,
+.pipelines-list.list-mode .pipeline-card.expanded .cron-editor {
   display: revert;
 }
+/* Cron badge non-interactive in collapsed list rows — editor is hidden there */
+.pipelines-list.list-mode .pipeline-cron-badge {
+  pointer-events: none;
+  cursor: default;
+}
+.pipelines-list.list-mode .pipeline-cron-badge .cron-badge-edit-icon { display: none; }
+.pipelines-list.list-mode .pipeline-card.expanded .pipeline-cron-badge {
+  pointer-events: auto;
+  cursor: pointer;
+}
+.pipelines-list.list-mode .pipeline-card.expanded .pipeline-cron-badge .cron-badge-edit-icon { display: inline; }
 
 /* env list mode */
 .env-list.list-mode .env-card {
@@ -12407,6 +12481,8 @@ input, select {
 .env-list.list-mode .env-card:last-child { border-bottom: none; }
 .env-list.list-mode .env-card-header { padding: 5px 10px; min-height: 34px; }
 .env-list.list-mode .env-card-header:hover { background: var(--bg-hover); }
+/* Hide branch/type meta in list rows — name + service dots + actions are enough */
+.env-list.list-mode .env-card:not(.expanded) .env-card-meta { display: none; }
 .env-list.list-mode .env-card-expanded,
 .env-list.list-mode .env-setup-tracker,
 .env-list.list-mode .env-confirm-teardown,

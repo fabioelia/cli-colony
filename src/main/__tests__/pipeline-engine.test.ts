@@ -1945,4 +1945,32 @@ describe('pipeline-engine: run history', () => {
       success: true,
     })
   })
+
+  it('runPoll includes stage trace when action fires', async () => {
+    const fs = buildFsMock(['cron.yaml'], { 'cron.yaml': CRON_YAML })
+    fs.existsSync.mockImplementation((p: string) => p === PIPELINES_DIR)
+    setupHistoryMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.startPipelines()
+
+    mod.triggerPollNow('Cron Pipe')
+    await flushPromises()
+
+    const historyCalls = fs.writeFileSync.mock.calls.filter(
+      (c: unknown[]) => typeof c[0] === 'string' && c[0].endsWith('Cron-Pipe.history.json')
+    )
+    expect(historyCalls.length).toBeGreaterThan(0)
+
+    const written = JSON.parse(historyCalls[historyCalls.length - 1][1] as string)
+    const entry = written[written.length - 1]
+    expect(entry.stages).toBeDefined()
+    expect(Array.isArray(entry.stages)).toBe(true)
+    expect(entry.stages.length).toBe(1)
+    expect(entry.stages[0]).toMatchObject({
+      index: 0,
+      actionType: 'launch-session',
+      success: true,
+    })
+    expect(typeof entry.stages[0].durationMs).toBe('number')
+  })
 })

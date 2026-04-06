@@ -110,7 +110,8 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [outputPreview, setOutputPreview] = useState<{ name: string; content: string } | null>(null)
   const [expandedTab, setExpandedTab] = useState<'yaml' | 'docs' | 'memory' | 'outputs' | 'history'>('yaml')
   const [debugLogExpanded, setDebugLogExpanded] = useState<Set<string>>(new Set())
-  const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number }>>([])
+  const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; stages?: Array<{ index: number; actionType: string; sessionName?: string; durationMs: number; success: boolean; error?: string }> }>>([])
+  const [expandedHistoryRows, setExpandedHistoryRows] = useState<Set<number>>(new Set())
 
   const [listMode, setListMode] = useState(() => localStorage.getItem('pipelines-list-mode') !== '0')
 
@@ -615,21 +616,55 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                       <p className="pipeline-memory-hint">No runs recorded yet. History is captured after each poll.</p>
                     ) : (
                       <div className="pipeline-history-list">
-                        {historyEntries.map((entry, i) => (
-                          <div key={i} className={`pipeline-history-row ${entry.success ? '' : 'error'}`}>
-                            <span className={`pipeline-history-icon ${entry.success ? 'success' : 'failure'}`}>
-                              {entry.success ? <CheckCircle size={11} /> : <XCircle size={11} />}
-                            </span>
-                            <span className="pipeline-history-ts" title={new Date(entry.ts).toLocaleString()}>
-                              {new Date(entry.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {new Date(entry.ts).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                            </span>
-                            <span className="pipeline-history-trigger">{entry.trigger}</span>
-                            <span className={`pipeline-history-action ${entry.actionExecuted ? 'fired' : ''}`}>
-                              {entry.actionExecuted ? 'action fired' : 'no action'}
-                            </span>
-                            <span className="pipeline-history-duration">{entry.durationMs < 1000 ? `${entry.durationMs}ms` : `${(entry.durationMs / 1000).toFixed(1)}s`}</span>
-                          </div>
-                        ))}
+                        {historyEntries.map((entry, i) => {
+                          const hasStages = (entry.stages?.length ?? 0) > 1
+                          const isExpanded = expandedHistoryRows.has(i)
+                          const toggleExpand = () => setExpandedHistoryRows(prev => {
+                            const next = new Set(prev)
+                            if (next.has(i)) next.delete(i); else next.add(i)
+                            return next
+                          })
+                          return (
+                            <div key={i}>
+                              <div
+                                className={`pipeline-history-row ${entry.success ? '' : 'error'}${hasStages ? ' has-stages' : ''}`}
+                                onClick={hasStages ? toggleExpand : undefined}
+                              >
+                                {hasStages && (
+                                  <span className="pipeline-history-chevron">
+                                    {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                                  </span>
+                                )}
+                                <span className={`pipeline-history-icon ${entry.success ? 'success' : 'failure'}`}>
+                                  {entry.success ? <CheckCircle size={11} /> : <XCircle size={11} />}
+                                </span>
+                                <span className="pipeline-history-ts" title={new Date(entry.ts).toLocaleString()}>
+                                  {new Date(entry.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {new Date(entry.ts).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                </span>
+                                <span className="pipeline-history-trigger">{entry.trigger}</span>
+                                <span className={`pipeline-history-action ${entry.actionExecuted ? 'fired' : ''}`}>
+                                  {entry.actionExecuted ? 'action fired' : 'no action'}
+                                </span>
+                                <span className="pipeline-history-duration">{entry.durationMs < 1000 ? `${entry.durationMs}ms` : `${(entry.durationMs / 1000).toFixed(1)}s`}</span>
+                              </div>
+                              {hasStages && isExpanded && (
+                                <div className="pipeline-history-stages">
+                                  {entry.stages!.map((stage) => (
+                                    <div key={stage.index} className={`pipeline-history-stage-row ${stage.success ? '' : 'error'}`}>
+                                      <span className={`pipeline-history-icon ${stage.success ? 'success' : 'failure'}`}>
+                                        {stage.success ? <CheckCircle size={10} /> : <XCircle size={10} />}
+                                      </span>
+                                      <span className="pipeline-history-stage-type">{stage.actionType}</span>
+                                      {stage.sessionName && <span className="pipeline-history-stage-name">{stage.sessionName}</span>}
+                                      <span className="pipeline-history-duration">{stage.durationMs < 1000 ? `${stage.durationMs}ms` : `${(stage.durationMs / 1000).toFixed(1)}s`}</span>
+                                      {stage.error && <span className="pipeline-history-stage-error" title={stage.error}>err</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
                       </div>
                     )}
                   </div>
