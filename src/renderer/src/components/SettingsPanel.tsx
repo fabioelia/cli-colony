@@ -478,6 +478,7 @@ export default function SettingsPanel({ onBack }: Props) {
               <button
                 className="settings-logs-toggle"
                 onClick={async () => {
+                  if (!confirm('Clear all MCP audit log entries?')) return
                   await window.api.mcp.clearAuditLog()
                   setAuditLog([])
                 }}

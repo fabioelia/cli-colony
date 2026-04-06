@@ -561,7 +561,7 @@ function PersonaCard({
           )}
           <span className="persona-list-model">{persona.model || 'sonnet'}</span>
           {persona.weeklySpend && persona.weeklySpend > 0.01 && (
-            <span className="persona-cost-badge">${persona.weeklySpend.toFixed(2)}</span>
+            <span className="persona-cost-badge" title="Weekly spend">${persona.weeklySpend.toFixed(2)}</span>
           )}
           <div className="persona-list-actions" onClick={(e) => e.stopPropagation()}>
             {!isRunning ? (
