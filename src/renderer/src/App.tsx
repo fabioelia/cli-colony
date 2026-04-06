@@ -1184,7 +1184,7 @@ export default function App() {
           <div className="empty-state">
             <h2>No session selected</h2>
             <p>Create a new Claude session to get started</p>
-            <button onClick={() => setShowNewDialog(true)}>New Instance</button>
+            <button onClick={() => setShowNewDialog(true)}>New Session</button>
           </div>
         )}
 
