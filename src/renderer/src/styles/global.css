@@ -14492,25 +14492,32 @@ input, select {
   overflow: hidden;
 }
 
-.outputs-search-row {
-  padding: 8px;
+.outputs-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
   border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
-.outputs-search {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 4px 8px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--text);
-  font-size: 12px;
+.outputs-search-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.outputs-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
   outline: none;
+  font-size: 12px;
+  color: var(--text-primary);
+  min-width: 0;
 }
 
-.outputs-search:focus {
-  border-color: var(--accent);
+.outputs-search-input::placeholder {
+  color: var(--text-muted);
 }
 
 .outputs-filter-chips {

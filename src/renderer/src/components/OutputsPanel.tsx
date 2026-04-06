@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { FolderOpen, FileText, Clock, RefreshCw } from 'lucide-react'
+import { FolderOpen, FileText, Clock, RefreshCw, Search } from 'lucide-react'
 import { marked } from 'marked'
 import HelpPopover from './HelpPopover'
 import type { OutputEntry } from '../../../shared/types'
@@ -25,6 +25,10 @@ function formatBytes(bytes: number): string {
 
 function isMarkdown(name: string): boolean {
   return name.endsWith('.md')
+}
+
+function formatAgentId(id: string): string {
+  return id.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
 }
 
 export default function OutputsPanel() {
@@ -108,9 +112,10 @@ export default function OutputsPanel() {
       <div className="outputs-body">
         {/* Left column: list */}
         <div className="outputs-list-col">
-          <div className="outputs-search-row">
+          <div className="outputs-search-bar">
+            <Search size={13} className="outputs-search-icon" />
             <input
-              className="outputs-search"
+              className="outputs-search-input"
               placeholder="Search by name or agent…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -147,7 +152,7 @@ export default function OutputsPanel() {
                   <span className="outputs-row-main">
                     <span className="outputs-row-name">{entry.name}</span>
                     <span className="outputs-row-meta">
-                      <span className="outputs-row-agent">{entry.agentId}</span>
+                      <span className="outputs-row-agent">{formatAgentId(entry.agentId)}</span>
                       <span className="outputs-row-time">
                         <Clock size={10} /> {formatRelativeTime(entry.mtime)}
                       </span>
@@ -182,7 +187,7 @@ export default function OutputsPanel() {
               <div className="outputs-viewer-header">
                 <span className="outputs-viewer-title">{selected.name}</span>
                 <span className="outputs-viewer-subtitle">
-                  {selected.agentId} · {formatRelativeTime(selected.mtime)} · {formatBytes(selected.sizeBytes)}
+                  {formatAgentId(selected.agentId)} · {formatRelativeTime(selected.mtime)} · {formatBytes(selected.sizeBytes)}
                 </span>
               </div>
               <div className="outputs-viewer-content">
