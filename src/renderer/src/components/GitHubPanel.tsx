@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { ArrowLeft, Plus, Trash2, RefreshCw, GitPullRequest, ExternalLink, Play, Pencil, ChevronDown, ChevronRight, MessageSquare, Send, User, Users, Eye, GitBranch, Clock, FileDiff, ShieldCheck, ShieldAlert, ShieldQuestion, Brain, Save, X, FileText, File, Filter, Search, CheckCircle, XCircle, Loader, CircleDot, Wrench, Download } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, RefreshCw, GitPullRequest, ExternalLink, Play, Pencil, ChevronDown, ChevronRight, MessageSquare, Send, User, Users, Eye, GitBranch, Clock, FileDiff, ShieldCheck, ShieldAlert, ShieldQuestion, Brain, Save, X, FileText, File, Filter, Search, CheckCircle, XCircle, Loader, CircleDot, Wrench, Download, AlertCircle } from 'lucide-react'
 import RepoRemovalModal, { type RemovalImpact } from './RepoRemovalModal'
 import { marked } from 'marked'
 import type { GitHubPR, GitHubRepo, QuickPrompt, PRChecks, FeedbackFile } from '../types'
@@ -410,6 +410,8 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const allReviewersList = [...new Set(allPRs.flatMap((pr) => pr.reviewers || []))].sort()
   const allBaseBranches = [...new Set(allPRs.map((pr) => pr.baseBranch).filter(Boolean))].sort()
 
+  const prAgeDays = (pr: GitHubPR) => Math.floor((Date.now() - new Date(pr.createdAt).getTime()) / 86_400_000)
+
   const filterPR = (pr: GitHubPR): boolean => {
     const q = filterText.toLowerCase()
     if (q) {
@@ -440,6 +442,23 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   }
 
   const hasActiveFilters = filterText || filterStatus.length > 0 || filterLabels.length > 0 || filterAuthors.length > 0 || filterReviewers.length > 0 || filterBaseBranch.length > 0
+
+  const attentionPRs: Array<{ pr: GitHubPR; slug: string; prKey: string; reason: string }> = []
+  if (ghUser) {
+    for (const repo of repos) {
+      const slug = `${repo.owner}/${repo.name}`
+      for (const pr of (prsByRepo[slug] || []).filter(filterPR)) {
+        const prKey = `${slug}#${pr.number}`
+        if (pr.reviewers.includes(ghUser)) {
+          attentionPRs.push({ pr, slug, prKey, reason: 'Review requested' })
+        } else if (pr.assignees.includes(ghUser)) {
+          attentionPRs.push({ pr, slug, prKey, reason: 'Assigned to you' })
+        } else if (checksByPR[prKey]?.overall === 'failure' && pr.author === ghUser) {
+          attentionPRs.push({ pr, slug, prKey, reason: 'Your PR has failing CI' })
+        }
+      }
+    }
+  }
 
   const clearFilters = () => {
     setFilterText('')
@@ -716,6 +735,25 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
         </div>
       )}
 
+      {ghUser && attentionPRs.length > 0 && (
+        <div className="github-attention-section">
+          <div className="github-attention-header">
+            <AlertCircle size={12} /> Needs Your Attention
+          </div>
+          {attentionPRs.map(({ pr, slug, prKey, reason }) => (
+            <div
+              key={prKey}
+              className="github-attention-row"
+              onClick={() => { setExpandedRepo(slug); setExpandedPR(prKey) }}
+            >
+              <span className="github-attention-repo">{slug}#{pr.number}</span>
+              <span className="github-attention-title">{pr.title}</span>
+              <span className="github-attention-reason">{reason}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="github-repos">
         {repos.map((repo) => {
           const slug = `${repo.owner}/${repo.name}`
@@ -799,7 +837,14 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                     return (
                       <div key={pr.number} className="github-pr-item">
                         <div className="github-pr-row" onClick={() => setExpandedPR(isOpen ? null : prKey)}>
-                          <span className="github-pr-number">#{pr.number}</span>
+                          <span className="github-pr-number">
+                            #{pr.number}
+                            {(() => {
+                              const days = prAgeDays(pr)
+                              const cls = days <= 3 ? '' : days <= 7 ? ' amber' : ' red'
+                              return <span className={`github-pr-age${cls}`} title={`Opened ${new Date(pr.createdAt).toLocaleDateString()}`}>{days}d</span>
+                            })()}
+                          </span>
                           <div className="github-pr-info">
                             <div className="github-pr-title">
                               {pr.draft && <span className="github-pr-draft">draft</span>}
@@ -853,6 +898,17 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                                 )
                                 return <span className="github-pr-ci pending" title="Checks in progress"><CircleDot size={11} /> CI</span>
                               })()}
+                              {/* Merge readiness badge */}
+                              {checksByPR[prKey] && !pr.draft && pr.reviewDecision === 'APPROVED' && checksByPR[prKey].overall === 'success' && (
+                                <span className="github-pr-merge-ready" title="Ready to merge">
+                                  <CheckCircle size={11} /> Ready
+                                </span>
+                              )}
+                              {checksByPR[prKey] && pr.reviewDecision === 'CHANGES_REQUESTED' && (
+                                <span className="github-pr-merge-blocked" title="Changes requested — not mergeable">
+                                  <X size={11} /> Blocked
+                                </span>
+                              )}
                               {/* Attention badges */}
                               {ghUser && pr.reviewers.includes(ghUser) && (
                                 <span className="github-pr-attention review-requested" title="Your review is requested">
@@ -896,6 +952,14 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                                 className="github-pr-body markdown-body"
                                 dangerouslySetInnerHTML={{ __html: renderMarkdown(pr.body, slug, pr.number, pr.branch) }}
                               />
+                            )}
+                            {pr.additions + pr.deletions > 0 && (
+                              <div className="github-pr-diff-stats">
+                                <span className="additions">+{pr.additions}</span>
+                                {' / '}
+                                <span className="deletions">−{pr.deletions}</span>
+                                {' lines'}
+                              </div>
                             )}
                             {pr.labels?.length > 0 && (
                               <div className="github-pr-labels">
