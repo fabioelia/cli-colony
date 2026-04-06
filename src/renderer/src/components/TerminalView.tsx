@@ -1052,7 +1052,8 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 <button
                   className={`filetree-refresh filetree-sort-toggle ${filesSortMode === 'modified' ? 'active' : ''}`}
                   onClick={() => setFilesSortMode(m => m === 'name' ? 'modified' : 'name')}
-                  title={`Sort by ${filesSortMode === 'name' ? 'file type (group by extension)' : 'name (alphabetical)'}`}
+                  title={filesSortMode === 'name' ? 'Sort: Name — click for Type (group by extension)' : 'Sort: Type (grouped by extension) — click for Name'}
+                  aria-label={filesSortMode === 'name' ? 'Sort by name' : 'Sort by type'}
                 >
                   <ArrowUpDown size={13} />
                 </button>

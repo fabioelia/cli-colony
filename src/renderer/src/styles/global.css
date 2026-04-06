@@ -1102,6 +1102,20 @@ input, select {
 .instance-role-badge.role-reviewer     { background: rgba(239, 68, 68, 0.15);  color: #f87171; }
 .instance-role-badge.role-researcher   { background: rgba(139, 92, 246, 0.15); color: #a78bfa; }
 
+.instance-badge-overflow {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 4px;
+  font-size: 9px;
+  font-weight: 600;
+  border-radius: 3px;
+  vertical-align: middle;
+  line-height: 16px;
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text-muted);
+  cursor: default;
+}
+
 .instance-item-right {
   display: flex;
   align-items: center;
