@@ -1826,6 +1826,182 @@ dedup:
   })
 })
 
+// ---- Structured Pipeline Stage Handoff ----
+
+describe('pipeline-engine: structured handoff', () => {
+  let mod: typeof import('../pipeline-engine')
+
+  const HANDOFF_YAML = `
+name: Handoff Pipeline
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: launch-session
+  prompt: Do the work
+  handoffInputs:
+    - review-briefing
+  artifactInputs:
+    - raw-diff
+dedup:
+  key: daily
+`
+
+  const mockExecSync = vi.fn()
+  const mockCreateInstance = vi.fn().mockResolvedValue({ id: 'inst-1' })
+  const mockSendPromptWhenReady = vi.fn()
+
+  function setupHandoffMocks(fsMock: ReturnType<typeof buildFsMock>) {
+    vi.doMock('electron', () => ({
+      app: { getPath: vi.fn().mockReturnValue('/mock/home') },
+    }))
+    vi.doMock('../../shared/colony-paths', () => ({
+      colonyPaths: {
+        root: MOCK_ROOT,
+        pipelines: PIPELINES_DIR,
+        schedulerLog: `${MOCK_ROOT}/scheduler.log`,
+      },
+    }))
+    vi.doMock('fs', () => fsMock)
+    vi.doMock('child_process', () => ({ execSync: mockExecSync }))
+    vi.doMock('../broadcast', () => ({ broadcast: vi.fn() }))
+    vi.doMock('../repo-config-loader', () => ({ getAllRepoConfigs: vi.fn().mockReturnValue([]) }))
+    vi.doMock('../instance-manager', () => ({
+      createInstance: mockCreateInstance,
+      getAllInstances: vi.fn().mockResolvedValue([]),
+    }))
+    vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
+    vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: mockSendPromptWhenReady }))
+    vi.doMock('../notifications', () => ({ notify: vi.fn() }))
+    vi.doMock('../github', () => ({
+      getRepos: vi.fn().mockReturnValue([]),
+      fetchPRs: vi.fn().mockResolvedValue([]),
+      fetchChecks: vi.fn().mockResolvedValue({ checks: [] }),
+      gh: vi.fn().mockResolvedValue('{}'),
+    }))
+    vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
+    vi.doMock('../activity-manager', () => ({ appendActivity: vi.fn() }))
+  }
+
+  beforeEach(() => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockExecSync.mockReset()
+    mockCreateInstance.mockReset().mockResolvedValue({ id: 'inst-1' })
+    mockSendPromptWhenReady.mockReset()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  it('handoffInputs: content wrapped in narrative framing and prepended to prompt', async () => {
+    const handoffContent = 'Decisions Made: Use async handlers\nFocus for Next Stage: auth module only'
+    const fs = buildFsMock(['handoff.yaml'], { 'handoff.yaml': HANDOFF_YAML })
+    fs.existsSync.mockImplementation((p: string) => {
+      if (p === PIPELINES_DIR) return true
+      if (p.endsWith('review-briefing.txt')) return true
+      return false
+    })
+    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+      if (p.endsWith('review-briefing.txt')) return handoffContent
+      if (p.includes('.yaml')) return HANDOFF_YAML
+      throw new Error(`unexpected: ${p}`)
+    })
+    setupHandoffMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Handoff Pipeline')
+    await Promise.resolve()
+
+    const writes = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls
+    const promptWrite = writes.find((c: any[]) => String(c[0]).includes('pipeline-prompts'))
+    expect(promptWrite).toBeDefined()
+    const promptContent = String(promptWrite![1])
+    expect(promptContent).toContain('--- Stage Handoff from Prior Stage ---')
+    expect(promptContent).toContain('--- End of Stage Handoff ---')
+    expect(promptContent).toContain(handoffContent)
+    expect(promptContent).toContain('Do the work')
+  })
+
+  it('handoffInputs: missing file is silently skipped', async () => {
+    const fs = buildFsMock(['handoff.yaml'], { 'handoff.yaml': HANDOFF_YAML })
+    fs.existsSync.mockImplementation((p: string) => p === PIPELINES_DIR)
+    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+      if (p.includes('.yaml')) return HANDOFF_YAML
+      throw new Error(`unexpected: ${p}`)
+    })
+    setupHandoffMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    expect(() => mod.triggerPollNow('Handoff Pipeline')).not.toThrow()
+  })
+
+  it('handoffInputs: framing text includes decision and focus instructions', async () => {
+    const fs = buildFsMock(['handoff.yaml'], { 'handoff.yaml': HANDOFF_YAML })
+    fs.existsSync.mockImplementation((p: string) => {
+      if (p === PIPELINES_DIR) return true
+      if (p.endsWith('review-briefing.txt')) return true
+      return false
+    })
+    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+      if (p.endsWith('review-briefing.txt')) return 'context data'
+      if (p.includes('.yaml')) return HANDOFF_YAML
+      throw new Error(`unexpected: ${p}`)
+    })
+    setupHandoffMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Handoff Pipeline')
+    await Promise.resolve()
+
+    const writes = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls
+    const promptWrite = writes.find((c: any[]) => String(c[0]).includes('pipeline-prompts'))
+    const promptContent = String(promptWrite![1])
+    expect(promptContent).toContain('do not re-litigate them')
+    expect(promptContent).toContain('Focus for Next Stage')
+  })
+
+  it('handoffInputs + artifactInputs: handoff precedes artifact in prompt', async () => {
+    const fs = buildFsMock(['handoff.yaml'], { 'handoff.yaml': HANDOFF_YAML })
+    fs.existsSync.mockImplementation((p: string) => {
+      if (p === PIPELINES_DIR) return true
+      if (p.endsWith('review-briefing.txt')) return true
+      if (p.endsWith('raw-diff.txt')) return true
+      return false
+    })
+    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+      if (p.endsWith('review-briefing.txt')) return 'HANDOFF_CONTENT'
+      if (p.endsWith('raw-diff.txt')) return 'RAW_ARTIFACT_CONTENT'
+      if (p.includes('.yaml')) return HANDOFF_YAML
+      throw new Error(`unexpected: ${p}`)
+    })
+    setupHandoffMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Handoff Pipeline')
+    await Promise.resolve()
+
+    const writes = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls
+    const promptWrite = writes.find((c: any[]) => String(c[0]).includes('pipeline-prompts'))
+    const promptContent = String(promptWrite![1])
+    const handoffPos = promptContent.indexOf('--- Stage Handoff from Prior Stage ---')
+    const artifactPos = promptContent.indexOf('--- Artifact: raw-diff ---')
+    expect(handoffPos).toBeGreaterThanOrEqual(0)
+    expect(artifactPos).toBeGreaterThanOrEqual(0)
+    expect(handoffPos).toBeLessThan(artifactPos)
+  })
+})
+
 // ---- Run History ----
 
 const HISTORY_PATH = `${PIPELINES_DIR}/Cron-Pipe.history.json`

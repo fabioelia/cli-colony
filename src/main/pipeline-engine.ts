@@ -57,6 +57,7 @@ export interface ActionDef {
   outputs?: string
   artifactOutputs?: Array<{ name: string; cmd: string }> // capture commands run at fire time; saved to <COLONY_DIR>/artifacts/<name>.txt
   artifactInputs?: string[] // artifact names to inject into prompt preamble (from prior captures)
+  handoffInputs?: string[] // artifact names to inject with narrative framing (decisions/context from prior stage)
   // maker-checker specific fields
   makerPrompt?: string
   checkerPrompt?: string
@@ -637,6 +638,31 @@ function loadArtifactPreamble(inputs: string[]): string {
 }
 
 /**
+ * Read artifact files and build a structured handoff block with narrative framing.
+ * Used for passing decision metadata and constraints between pipeline stages.
+ */
+function loadHandoffPreamble(inputs: string[]): string {
+  const artifactsDir = join(COLONY_DIR, 'artifacts')
+  const sections: string[] = []
+  for (const name of inputs) {
+    const filePath = join(artifactsDir, `${name}.txt`)
+    if (existsSync(filePath)) {
+      const content = readFileSync(filePath, 'utf-8').trim()
+      sections.push(
+        `--- Stage Handoff from Prior Stage ---\n` +
+        `The previous pipeline stage completed and left this structured briefing. Read it carefully before starting. ` +
+        `Respect all "Decisions Made" constraints — do not re-litigate them. Use "Focus for Next Stage" to prioritize your work.\n\n` +
+        `${content}\n\n` +
+        `--- End of Stage Handoff ---`
+      )
+    } else {
+      log(`[handoff] input "${name}" not found at ${filePath} — skipping`)
+    }
+  }
+  return sections.length > 0 ? sections.join('\n\n') + '\n\n' : ''
+}
+
+/**
  * Execute a maker-checker loop: maker produces output, checker reviews it.
  * Iterates up to maxIterations times. Completes when checker says APPROVED
  * or iterations are exhausted.
@@ -765,10 +791,16 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
   const cwd = resolveTemplate(action.workingDirectory || '', ctx) || undefined
   let prompt = resolveTemplate(action.prompt || '', ctx)
 
-  // Inject artifact preamble when action.artifactInputs is configured
+  // Inject artifact preamble (raw data from prior captures)
   if (action.artifactInputs?.length) {
     const preamble = loadArtifactPreamble(action.artifactInputs)
     if (preamble) prompt = preamble + prompt
+  }
+
+  // Inject structured handoff on top — handoff precedes raw artifacts so context comes first
+  if (action.handoffInputs?.length) {
+    const handoff = loadHandoffPreamble(action.handoffInputs)
+    if (handoff) prompt = handoff + prompt
   }
 
   // Inject timestamped output directory when action.outputs is configured
