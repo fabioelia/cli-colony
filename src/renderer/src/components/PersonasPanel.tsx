@@ -41,6 +41,7 @@ color: "#a78bfa"                   # session color in sidebar
 on_complete_run: []                # persona IDs to ALWAYS trigger when this run completes
 can_invoke: []                     # persona IDs this persona MAY trigger dynamically (via trigger file)
 conflict_group: my-group           # personas in the same group are serialized (default: persona's own slug)
+run_condition: new_commits         # skip run if no new commits since last run in working_directory
 ---
 
 ## Role
@@ -783,6 +784,15 @@ function PersonaCard({
             {persona.lastRun && (
               <span className="persona-status-last-run">
                 Last run: {new Date(persona.lastRun).toLocaleString()}
+              </span>
+            )}
+            {persona.lastSkipped && Date.now() - persona.lastSkipped < 2 * 60 * 60 * 1000 && (
+              <span className="persona-status-last-run" style={{ color: 'var(--text-muted)' }}>
+                No new commits — checked {(() => {
+                  const secs = Math.floor((Date.now() - persona.lastSkipped) / 1000)
+                  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`
+                  return `${Math.floor(secs / 3600)}h ago`
+                })()}
               </span>
             )}
             {persona.weeklySpend && persona.weeklySpend > 0.01 && (
