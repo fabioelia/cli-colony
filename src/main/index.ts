@@ -74,6 +74,7 @@ esac
 `
 import { broadcast } from './broadcast'
 import { seedDefaultPipelines, startPipelines, getPipelineList } from './pipeline-engine'
+import { cleanupStaleForkGroups } from './fork-manager'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -326,6 +327,9 @@ app.whenReady().then(() => {
 
   initLogger()
   console.log('[app] Claude Colony starting up')
+
+  // Clean up fork groups from previous run
+  try { cleanupStaleForkGroups() } catch { /* ignore */ }
 
   // Set dock icon on macOS
   if (process.platform === 'darwin') {

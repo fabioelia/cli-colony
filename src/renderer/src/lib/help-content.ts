@@ -74,6 +74,17 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Fork Groups',
+        position: 'Above session list (when active forks exist)',
+        items: [
+          { label: 'Fork button', detail: 'Click the GitFork button in the session header (or right-click a session tile and choose "Fork session…") to open the Fork modal. Creates parallel git worktrees, each with its own Claude session exploring a different approach.', icon: 'GitFork' },
+          { label: 'Fork modal', detail: 'Set a group label, edit the task summary (pre-populated from terminal output), then configure up to 3 forks — each with a label and directive sent to Claude. Click "Launch Forks" to create the worktrees and sessions.' },
+          { label: 'Pick Winner action', detail: 'When a fork produces the best result, click "Pick" (trophy icon). Losing worktrees are removed, context files are cleaned up, and the parent session receives a whisper to continue.', icon: 'Trophy' },
+          { label: 'Discard action', detail: 'Remove an individual fork (e.g. if it crashes or goes off-track) without affecting the rest of the group.', icon: 'Trash2' },
+          { label: 'Auto-close', detail: 'When all forks in a group are resolved or discarded, the group is automatically removed from the sidebar.' },
+        ],
+      },
+      {
         name: 'Footer',
         position: 'Bottom of sidebar',
         items: [

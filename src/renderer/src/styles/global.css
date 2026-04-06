@@ -13581,3 +13581,126 @@ input, select {
 .status-icon-progress { color: #60a5fa; }
 .status-icon-blocked { color: #f87171; }
 .status-icon-done { color: #4ade80; }
+
+/* ---- Fork Modal ---- */
+.fork-modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center; z-index: 8000;
+}
+.fork-modal {
+  background: var(--bg-primary); border: 1px solid var(--border);
+  border-radius: 10px; width: 540px; max-width: 94vw; max-height: 90vh;
+  display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.fork-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px 12px; border-bottom: 1px solid var(--border);
+}
+.fork-modal-title { display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 600; }
+.fork-modal-close {
+  background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px;
+  display: flex; align-items: center; border-radius: 4px;
+}
+.fork-modal-close:hover { color: var(--text-primary); background: var(--bg-hover); }
+.fork-modal-body { padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+.fork-modal-hint { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.fork-modal-field { display: flex; flex-direction: column; gap: 5px; }
+.fork-modal-label { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
+.fork-modal-input {
+  background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px;
+  padding: 7px 10px; font-size: 13px; color: var(--text-primary); width: 100%; box-sizing: border-box;
+}
+.fork-modal-input:focus { outline: none; border-color: var(--accent); }
+.fork-modal-textarea {
+  background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px;
+  padding: 7px 10px; font-size: 12px; color: var(--text-primary); width: 100%;
+  box-sizing: border-box; resize: vertical; font-family: inherit; line-height: 1.5;
+}
+.fork-modal-textarea:focus { outline: none; border-color: var(--accent); }
+.fork-modal-forks-header { display: flex; align-items: center; justify-content: space-between; }
+.fork-modal-add-btn {
+  display: flex; align-items: center; gap: 5px; background: none; border: 1px solid var(--border);
+  border-radius: 5px; padding: 4px 10px; font-size: 12px; color: var(--text-secondary); cursor: pointer;
+}
+.fork-modal-add-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.fork-modal-add-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.fork-modal-fork-row {
+  background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 7px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
+}
+.fork-modal-fork-header { display: flex; align-items: center; justify-content: space-between; }
+.fork-modal-fork-number { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+.fork-modal-remove-btn {
+  background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px;
+  display: flex; align-items: center; border-radius: 4px;
+}
+.fork-modal-remove-btn:hover { color: #f87171; background: rgba(248,113,113,0.1); }
+.fork-modal-fork-fields { display: flex; flex-direction: column; gap: 6px; }
+.fork-modal-fork-label, .fork-modal-fork-directive { }
+.fork-modal-error { color: #f87171; font-size: 12px; }
+.fork-modal-footer {
+  display: flex; gap: 8px; justify-content: flex-end; padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+.fork-modal-cancel {
+  background: none; border: 1px solid var(--border); border-radius: 6px;
+  padding: 7px 16px; font-size: 13px; color: var(--text-secondary); cursor: pointer;
+}
+.fork-modal-cancel:hover { border-color: var(--text-secondary); color: var(--text-primary); }
+.fork-modal-submit {
+  background: var(--accent); border: none; border-radius: 6px;
+  padding: 7px 16px; font-size: 13px; color: #fff; cursor: pointer; font-weight: 500;
+}
+.fork-modal-submit:hover:not(:disabled) { opacity: 0.85; }
+.fork-modal-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ---- Fork Groups in Sidebar ---- */
+.fork-groups-divider {
+  display: flex; align-items: center; gap: 5px;
+}
+.fork-group { margin: 0 0 2px; }
+.fork-group-header {
+  display: flex; align-items: center; gap: 6px; padding: 5px 10px;
+  cursor: pointer; border-radius: 5px; font-size: 12px;
+  color: var(--text-secondary);
+}
+.fork-group-header:hover { background: var(--bg-hover); }
+.fork-group-label { display: flex; align-items: center; gap: 5px; flex: 1; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fork-group-status { font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
+.fork-group-forks { padding: 0 6px 4px 22px; }
+.fork-entry {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px 8px; border-radius: 5px; gap: 8px; margin-bottom: 2px;
+}
+.fork-entry:hover { background: var(--bg-hover); }
+.fork-entry-left { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.fork-entry-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--text-muted);
+}
+.fork-entry-dot.running { background: #4ade80; animation: pulse 1.5s infinite; }
+.fork-entry-dot.waiting { background: #60a5fa; }
+.fork-entry-dot.crashed { background: #f59e0b; }
+.fork-entry-dot.winner { background: #4ade80; }
+.fork-entry-dot.discarded { background: var(--text-muted); opacity: 0.4; }
+.fork-entry-info { display: flex; flex-direction: column; min-width: 0; }
+.fork-entry-label { font-size: 12px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fork-entry-branch { font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fork-entry-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.fork-entry-btn {
+  display: flex; align-items: center; gap: 3px; background: none; border: 1px solid var(--border);
+  border-radius: 4px; padding: 2px 6px; font-size: 10px; cursor: pointer; color: var(--text-secondary);
+}
+.fork-entry-btn.winner-btn:hover { border-color: #4ade80; color: #4ade80; }
+.fork-entry-btn.discard-btn:hover { border-color: #f87171; color: #f87171; }
+.fork-entry-crashed-badge {
+  font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(245,158,11,0.15);
+  color: #f59e0b; border: 1px solid rgba(245,158,11,0.3);
+}
+.fork-entry-winner-badge {
+  font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(74,222,128,0.15);
+  color: #4ade80; border: 1px solid rgba(74,222,128,0.3);
+}
+.fork-entry-discarded-badge {
+  font-size: 10px; padding: 1px 5px; border-radius: 3px; color: var(--text-muted);
+  opacity: 0.6;
+}

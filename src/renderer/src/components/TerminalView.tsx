@@ -28,6 +28,7 @@ interface Props {
   onSplit?: () => void
   onCloseSplit?: () => void
   onSpawnChild?: () => void
+  onFork?: () => void
   isSplit?: boolean
   arenaMode?: boolean
   arenaVoted?: boolean
@@ -211,7 +212,7 @@ function FileTreeNode({ node, depth, selectedPath, expandedPaths, filter, onTogg
 
 type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'replay'
 
-export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, isSplit, arenaMode, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane, outputBytes = 0 }: Props) {
+export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane, outputBytes = 0 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const initializedRef = useRef(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -1050,6 +1051,13 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
             <Tooltip text="Spawn Child" detail="Create a child session that reports back to this one when done" position="bottom">
               <button onClick={onSpawnChild} aria-label="Spawn child session">
                 <GitFork size={14} />
+              </button>
+            </Tooltip>
+          )}
+          {onFork && (
+            <Tooltip text="Fork Session" detail="Create parallel worktrees to explore multiple approaches simultaneously" position="bottom">
+              <button onClick={onFork} aria-label="Fork session">
+                <GitFork size={14} /> Fork
               </button>
             </Tooltip>
           )}

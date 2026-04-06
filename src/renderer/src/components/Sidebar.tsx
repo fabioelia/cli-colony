@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, FileDown } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, FileDown, GitFork, ChevronDown, ChevronRight, Trophy } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
-import type { ActivityEvent, ApprovalRequest } from '../../../shared/types'
+import type { ActivityEvent, ApprovalRequest, ForkGroup } from '../../../shared/types'
 import { stripAnsi } from '../../../shared/utils'
 
 const ROLE_ABBREV: Record<string, string> = {
@@ -42,12 +42,16 @@ interface Props {
   onSplitWith: (id: string) => void
   onCloseSplit: () => void
   onDrop?: (e: React.DragEvent) => void
+  forkGroups?: ForkGroup[]
+  onForkSession?: (id: string) => void
 }
 
-export default function Sidebar({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onRestoreAll, restorableCount, unreadIds, outputBytes, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop }: Props) {
+export default function Sidebar({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onRestoreAll, restorableCount, unreadIds, outputBytes, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop, forkGroups = [], onForkSession }: Props) {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [runningEnvCount, setRunningEnvCount] = useState(0)
+  const [expandedForkGroups, setExpandedForkGroups] = useState<Set<string>>(new Set())
+  const [forkSectionOpen, setForkSectionOpen] = useState(true)
 
   useEffect(() => {
     const load = () => {
@@ -518,6 +522,89 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
       </div>
 
       <div className="instance-list">
+        {/* Fork Groups section — shown above regular session list */}
+        {forkGroups.filter(g => g.status === 'active').length > 0 && (
+          <>
+            <div
+              className="instance-list-divider fork-groups-divider"
+              style={{ cursor: 'pointer' }}
+              onClick={() => setForkSectionOpen(o => !o)}
+            >
+              <GitFork size={11} /> Fork Groups ({forkGroups.filter(g => g.status === 'active').length})
+              {forkSectionOpen ? <ChevronDown size={11} style={{ marginLeft: 'auto' }} /> : <ChevronRight size={11} style={{ marginLeft: 'auto' }} />}
+            </div>
+            {forkSectionOpen && forkGroups.filter(g => g.status === 'active').map(group => {
+              const isExpanded = expandedForkGroups.has(group.id)
+              const toggleExpanded = () => setExpandedForkGroups(prev => {
+                const next = new Set(prev)
+                if (next.has(group.id)) next.delete(group.id)
+                else next.add(group.id)
+                return next
+              })
+              return (
+                <div key={group.id} className="fork-group">
+                  <div
+                    className="fork-group-header"
+                    role="button"
+                    tabIndex={0}
+                    onClick={toggleExpanded}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpanded() } }}
+                  >
+                    {isExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                    <span className="fork-group-label"><GitFork size={11} /> {group.label}</span>
+                    <span className="fork-group-status">{group.status}</span>
+                  </div>
+                  {isExpanded && (
+                    <div className="fork-group-forks">
+                      {group.forks.map(fork => (
+                        <div key={fork.id} className="fork-entry">
+                          <div className="fork-entry-left">
+                            <span className={`fork-entry-dot ${fork.status}`} />
+                            <div className="fork-entry-info">
+                              <span className="fork-entry-label">{fork.label}</span>
+                              <span className="fork-entry-branch">{fork.branch.replace('colony-fork-', '').slice(0, 16)}</span>
+                            </div>
+                          </div>
+                          <div className="fork-entry-actions">
+                            {fork.status === 'crashed' && (
+                              <span className="fork-entry-crashed-badge">crashed</span>
+                            )}
+                            {(fork.status === 'running' || fork.status === 'waiting' || fork.status === 'crashed') && (
+                              <>
+                                <button
+                                  className="fork-entry-btn winner-btn"
+                                  title="Pick this fork as the winner"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    window.api.fork.pickWinner(group.id, fork.id).catch(console.error)
+                                  }}
+                                >
+                                  <Trophy size={10} /> Pick
+                                </button>
+                                <button
+                                  className="fork-entry-btn discard-btn"
+                                  title="Discard this fork"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    window.api.fork.discard(group.id, fork.id).catch(console.error)
+                                  }}
+                                >
+                                  <Trash2 size={10} />
+                                </button>
+                              </>
+                            )}
+                            {fork.status === 'winner' && <span className="fork-entry-winner-badge">winner</span>}
+                            {fork.status === 'discarded' && <span className="fork-entry-discarded-badge">discarded</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </>
+        )}
         {pinned.length > 0 && (
           <>
             <div className="instance-list-divider">Pinned</div>
@@ -865,6 +952,16 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
               title="Rename session"
             >
               Rename
+            </button>
+            <button
+              className="context-menu-item"
+              onClick={() => {
+                onForkSession?.(contextMenu.id)
+                setContextMenu(null)
+              }}
+              title="Fork this session into parallel worktrees"
+            >
+              <GitFork size={12} /> Fork session...
             </button>
             <div className="context-menu-section">
               <div className="context-menu-label">Role</div>

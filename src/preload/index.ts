@@ -4,6 +4,7 @@ import type {
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
+  ForkGroup,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -12,6 +13,7 @@ export type {
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
+  ForkGroup,
 }
 
 
@@ -309,6 +311,17 @@ export interface ClaudeManagerAPI {
   arena: {
     recordWinner: (winnerKey: string, loserKey: string) => Promise<boolean>
     getStats: () => Promise<ArenaStats>
+  }
+  fork: {
+    create: (parentId: string, opts: {
+      label: string
+      taskSummary: string
+      forks: Array<{ label: string; directive: string }>
+    }) => Promise<ForkGroup>
+    getGroups: () => Promise<ForkGroup[]>
+    pickWinner: (groupId: string, winnerId: string) => Promise<boolean>
+    discard: (groupId: string, forkId: string) => Promise<boolean>
+    onGroups: (cb: (groups: ForkGroup[]) => void) => () => void
   }
 }
 
@@ -642,6 +655,17 @@ const api: ClaudeManagerAPI = {
   arena: {
     recordWinner: (winnerKey, loserKey) => ipcRenderer.invoke('arena:recordWinner', winnerKey, loserKey),
     getStats: () => ipcRenderer.invoke('arena:getStats'),
+  },
+  fork: {
+    create: (parentId, opts) => ipcRenderer.invoke('fork:create', parentId, opts),
+    getGroups: () => ipcRenderer.invoke('fork:getGroups'),
+    pickWinner: (groupId, winnerId) => ipcRenderer.invoke('fork:pickWinner', groupId, winnerId),
+    discard: (groupId, forkId) => ipcRenderer.invoke('fork:discard', groupId, forkId),
+    onGroups: (cb) => {
+      const l = (_e: any, groups: ForkGroup[]) => cb(groups)
+      ipcRenderer.on('fork:groups', l)
+      return () => ipcRenderer.removeListener('fork:groups', l)
+    },
   },
 }
 

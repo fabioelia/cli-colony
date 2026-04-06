@@ -301,3 +301,25 @@ export interface ArenaStatEntry {
 }
 
 export type ArenaStats = Record<string, ArenaStatEntry>
+
+export interface ForkEntry {
+  id: string
+  sessionId: string
+  sessionName: string
+  branch: string
+  worktreePath: string
+  contextFilePath: string
+  label: string
+  directive: string
+  status: 'running' | 'waiting' | 'crashed' | 'winner' | 'discarded'
+}
+
+export interface ForkGroup {
+  id: string
+  parentId: string
+  parentName: string
+  label: string
+  created: string
+  status: 'active' | 'resolved'
+  forks: ForkEntry[]
+}

@@ -17,7 +17,9 @@ import PipelinesPanel from './components/PipelinesPanel'
 import EnvironmentsPanel from './components/EnvironmentsPanel'
 import PersonasPanel from './components/PersonasPanel'
 import QuickPromptDialog from './components/QuickPromptDialog'
+import ForkModal from './components/ForkModal'
 import { stripAnsi } from '../../shared/utils'
+import type { ForkGroup } from '../../shared/types'
 
 type View = SidebarView | 'agent-editor'
 
@@ -62,6 +64,9 @@ export default function App() {
   } | null>(null)
   const [daemonStale, setDaemonStale] = useState(false)
   const [envPromptRequest, setEnvPromptRequest] = useState<{ requestId: string; envId: string; hookName: string; prompt: string; promptType: string; defaultPath?: string; options?: string[] } | null>(null)
+  const [forkModalInst, setForkModalInst] = useState<ClaudeInstance | null>(null)
+  const [forkModalHint, setForkModalHint] = useState('')
+  const [forkGroups, setForkGroups] = useState<ForkGroup[]>([])
   const terminalsRef = useRef<Map<string, any>>(new Map())
   const agentToLaunchRef = useRef<AgentDef | null>(null)
   // Track activeId + view in a ref so the output listener always has fresh values
@@ -100,6 +105,12 @@ export default function App() {
   // so it works regardless of which panel is active
   useEffect(() => {
     return window.api.env.onPromptRequest((data) => setEnvPromptRequest(data))
+  }, [])
+
+  // Fork groups: load on mount, subscribe to updates
+  useEffect(() => {
+    window.api.fork.getGroups().then(setForkGroups).catch(() => {})
+    return window.api.fork.onGroups(setForkGroups)
   }, [])
 
   useEffect(() => {
@@ -827,6 +838,20 @@ export default function App() {
         onSplitWith={handleSplitWith}
         onCloseSplit={handleCloseSplitView}
         onDrop={handleSidebarDrop}
+        forkGroups={forkGroups}
+        onForkSession={async (id) => {
+          const inst = instances.find((i) => i.id === id)
+          if (!inst) return
+          let hint = ''
+          try {
+            const buf = await window.api.instance.buffer(id)
+            const clean = stripAnsi(buf)
+            const lines = clean.split('\n').filter((l) => l.trim()).slice(-3)
+            hint = lines.join('\n')
+          } catch { /* best-effort */ }
+          setForkModalHint(hint)
+          setForkModalInst(inst)
+        }}
       />
       <div className={`main ${isSplit ? 'split' : ''}`}>
         {/* All terminals stay mounted */}
@@ -869,6 +894,18 @@ export default function App() {
                     cliBackend: inst.cliBackend ?? 'claude',
                   })
                   setActiveId(child.id)
+                }}
+                onFork={async () => {
+                  // Pre-populate with last 3 lines of terminal output as hint
+                  let hint = ''
+                  try {
+                    const buf = await window.api.instance.buffer(inst.id)
+                    const clean = stripAnsi(buf)
+                    const lines = clean.split('\n').filter((l) => l.trim()).slice(-3)
+                    hint = lines.join('\n')
+                  } catch { /* best-effort */ }
+                  setForkModalHint(hint)
+                  setForkModalInst(inst)
                 }}
                 isSplit={isSplit}
                 arenaMode={isSplit && arenaMode}
@@ -1196,6 +1233,16 @@ export default function App() {
           onCreate={handleCreate}
           onClose={() => { setShowNewDialog(false); agentToLaunchRef.current = null }}
           prefill={agentToLaunchRef.current || undefined}
+        />
+      )}
+      {forkModalInst && (
+        <ForkModal
+          instance={forkModalInst}
+          bufferHint={forkModalHint}
+          onClose={() => setForkModalInst(null)}
+          onSubmit={async (opts) => {
+            await window.api.fork.create(forkModalInst.id, opts)
+          }}
         />
       )}
       {quickPromptOpen && (
