@@ -2150,3 +2150,160 @@ describe('pipeline-engine: run history', () => {
     expect(typeof entry.stages[0].durationMs).toBe('number')
   })
 })
+
+// ---- Diff Review YAML parsing ----
+
+const DIFF_REVIEW_YAML = `
+name: Diff Review Pipe
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: diff_review
+  workingDirectory: /repo
+  diffBase: HEAD~2
+  prompt: Review this diff carefully.
+  autoFix: true
+  autoFixMaxIterations: 3
+dedup:
+  key: daily
+`
+
+const DIFF_REVIEW_MINIMAL_YAML = `
+name: Diff Review Minimal
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: diff_review
+  workingDirectory: /repo
+dedup:
+  key: daily
+`
+
+describe('pipeline-engine: diff_review YAML parsing', () => {
+  let mod: typeof import('../pipeline-engine')
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  it('loads a valid diff_review pipeline (no prompt field required)', async () => {
+    const fs = buildFsMock(['dr.yaml'], { 'dr.yaml': DIFF_REVIEW_MINIMAL_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    mod.loadPipelines()
+    const list = mod.getPipelineList()
+    expect(list).toHaveLength(1)
+    expect(list[0].name).toBe('Diff Review Minimal')
+    expect(list[0].enabled).toBe(true)
+  })
+
+  it('loads full diff_review pipeline with all optional fields', async () => {
+    const fs = buildFsMock(['dr.yaml'], { 'dr.yaml': DIFF_REVIEW_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    mod.loadPipelines()
+    const list = mod.getPipelineList()
+    expect(list).toHaveLength(1)
+    expect(list[0].name).toBe('Diff Review Pipe')
+  })
+
+  it('rejects diff_review pipeline that is missing trigger type', async () => {
+    const yaml = DIFF_REVIEW_MINIMAL_YAML.replace('type: diff_review', '').replace('type: cron', 'type: cron')
+    const brokenYaml = `
+name: Broken Diff Review
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  workingDirectory: /repo
+dedup:
+  key: daily
+`
+    const fs = buildFsMock(['dr.yaml'], { 'dr.yaml': brokenYaml })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    mod.loadPipelines()
+    // Missing action.type means action.type is undefined, not 'diff_review' — prompt also absent → rejected
+    expect(mod.getPipelineList()).toHaveLength(0)
+  })
+
+  it('stage trace records diff_review actionType', async () => {
+    const mockSpawnSync = vi.fn().mockReturnValue({ status: 0, stdout: Buffer.from(''), stderr: Buffer.from('') })
+    const mockCreateInstance2 = vi.fn().mockResolvedValue({ id: 'dr-inst' })
+    const mockGetDaemon = vi.fn().mockReturnValue({
+      getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0.05 } }),
+    })
+    const mockSendPromptWhenReady2 = vi.fn()
+    const mockWaitForCompletion = vi.fn().mockResolvedValue(true)
+
+    vi.resetModules()
+    vi.useFakeTimers()
+
+    const fs = buildFsMock(['dr.yaml'], { 'dr.yaml': DIFF_REVIEW_MINIMAL_YAML })
+    fs.existsSync.mockImplementation((p: string) => p === PIPELINES_DIR)
+
+    vi.doMock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/home') } }))
+    vi.doMock('../../shared/colony-paths', () => ({
+      colonyPaths: { root: MOCK_ROOT, pipelines: PIPELINES_DIR, schedulerLog: `${MOCK_ROOT}/scheduler.log` },
+    }))
+    vi.doMock('fs', () => fs)
+    vi.doMock('child_process', () => ({ execSync: vi.fn(), spawnSync: mockSpawnSync }))
+    vi.doMock('../broadcast', () => ({ broadcast: mockBroadcast }))
+    vi.doMock('../repo-config-loader', () => ({ getAllRepoConfigs: vi.fn().mockReturnValue([]) }))
+    vi.doMock('../instance-manager', () => ({
+      createInstance: mockCreateInstance2,
+      getAllInstances: vi.fn().mockResolvedValue([]),
+    }))
+    vi.doMock('../daemon-client', () => ({ getDaemonClient: mockGetDaemon }))
+    vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: mockSendPromptWhenReady2 }))
+    vi.doMock('../notifications', () => ({ notify: vi.fn() }))
+    vi.doMock('../github', () => ({
+      getRepos: vi.fn().mockReturnValue([]),
+      fetchPRs: vi.fn().mockResolvedValue([]),
+      fetchChecks: vi.fn().mockResolvedValue({ checks: [] }),
+      gh: vi.fn().mockResolvedValue('{}'),
+    }))
+    vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
+    vi.doMock('../activity-manager', () => ({ appendActivity: vi.fn() }))
+
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Diff Review Minimal')
+    await flushPromises()
+
+    // spawnSync used for git rev-parse validation — should have been called
+    // (no diff found since stdout is empty → stage passes as 'No changes')
+    const historyCalls = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (c: unknown[]) => typeof c[0] === 'string' && c[0].endsWith('Diff-Review-Minimal.history.json')
+    )
+    expect(historyCalls.length).toBeGreaterThan(0)
+    const written = JSON.parse(historyCalls[historyCalls.length - 1][1] as string)
+    const entry = written[written.length - 1]
+    expect(entry.stages).toBeDefined()
+    expect(entry.stages[0].actionType).toBe('diff_review')
+  })
+})

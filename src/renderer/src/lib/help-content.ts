@@ -290,6 +290,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Preview', detail: 'Dry-run the pipeline — evaluates trigger and conditions without firing any actions. Shows which PRs/contexts would match, resolved template variables, and whether dedup would suppress the fire.', icon: 'Eye' },
           { label: 'Approval gate', detail: 'Add requireApproval: true to a pipeline YAML to require human approval before it fires. Matched actions queue in the Activity bell — you approve or dismiss from there. Approvals auto-expire after 24h by default; set approvalTtl (hours) in the pipeline YAML to override.' },
           { label: 'Stage Handoff', detail: 'Inject structured context from a prior pipeline stage. Add handoffInputs: [name] to a pipeline action and list artifact names (from ~/.claude-colony/artifacts/<name>.txt). The content is wrapped in a framing block instructing the agent to respect prior decisions and focus constraints. Injected before artifactInputs so context precedes raw data.' },
+          { label: 'Diff Review stage', detail: 'Add type: diff_review to a pipeline action to automatically review a git diff before proceeding. Runs git diff <diff_base> (default: HEAD~1) in workingDirectory, injects the diff into the prompt, and dispatches to a reviewer session. Replies containing APPROVED or LGTM pass immediately; otherwise an approval gate is created with the review text. Set auto_fix: true to launch a fixer session on failure and retry (up to autoFixMaxIterations, default 2). Diffs larger than 8KB are truncated.' },
         ],
       },
       {
@@ -298,7 +299,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Memory', detail: 'Per-pipeline memory file. Sessions are told to append learnings here.' },
           { label: 'Outputs', detail: 'Configurable output directory for pipeline-generated files.' },
-          { label: 'History', detail: 'Ring buffer of the last 20 poll runs: timestamp, trigger type, whether an action fired, success/failure, duration, and cost (shown as a muted $X.XX badge when non-zero). Click rows with a chevron (▶) to expand per-stage details — stage type, session name, and individual duration.', icon: 'Clock' },
+          { label: 'History', detail: 'Ring buffer of the last 20 poll runs: timestamp, trigger type, whether an action fired, success/failure, duration, and cost (shown as a muted $X.XX badge when non-zero). Click rows with a chevron (▶) to expand per-stage details — stage type, session name, reviewer response snippet (diff_review stages), and individual duration.', icon: 'Clock' },
           { label: 'Docs', detail: 'Companion readme if <name>.readme.md exists alongside the pipeline.' },
         ],
       },

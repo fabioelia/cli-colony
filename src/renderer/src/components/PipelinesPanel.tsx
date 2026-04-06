@@ -99,6 +99,16 @@ Content-hash based: tracks the Git SHA of matched files. Same content = skip. Ch
 
 Help the user design pipelines for their use cases. Write the YAML files directly to ~/.claude-colony/pipelines/. Ask what they want to automate.`
 
+const STAGE_TYPE_LABELS: Record<string, string> = {
+  'launch-session': 'Launch',
+  'route-to-session': 'Route',
+  'maker-checker': 'Maker-Checker',
+  'diff_review': 'Diff Review',
+}
+function stageTypeLabel(type: string): string {
+  return STAGE_TYPE_LABELS[type] ?? type
+}
+
 export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, instances }: Props) {
   const [pipelines, setPipelines] = useState<PipelineInfo[]>([])
   const [expandedPipeline, setExpandedPipeline] = useState<string | null>(null)
@@ -111,7 +121,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [outputFiles, setOutputFiles] = useState<Array<{ name: string; path: string; size: number; modified: number }>>([])
   const [outputPreview, setOutputPreview] = useState<{ name: string; content: string } | null>(null)
   const [expandedTab, setExpandedTab] = useState<'yaml' | 'docs' | 'memory' | 'outputs' | 'history' | 'debug'>('yaml')
-  const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; stages?: Array<{ index: number; actionType: string; sessionName?: string; durationMs: number; success: boolean; error?: string }> }>>([])
+  const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; stages?: Array<{ index: number; actionType: string; sessionName?: string; durationMs: number; success: boolean; error?: string; responseSnippet?: string }> }>>([])
   const [expandedHistoryRows, setExpandedHistoryRows] = useState<Set<number>>(new Set())
 
   const [listMode, setListMode] = useState(() => localStorage.getItem('pipelines-list-mode') !== '0')
@@ -708,8 +718,9 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                                       <span className={`pipeline-history-icon ${stage.success ? 'success' : 'failure'}`}>
                                         {stage.success ? <CheckCircle size={10} /> : <XCircle size={10} />}
                                       </span>
-                                      <span className="pipeline-history-stage-type">{stage.actionType}</span>
+                                      <span className="pipeline-history-stage-type">{stageTypeLabel(stage.actionType)}</span>
                                       {stage.sessionName && <span className="pipeline-history-stage-name">{stage.sessionName}</span>}
+                                      {stage.responseSnippet && <span className="pipeline-history-stage-snippet" title={stage.responseSnippet}>{stage.responseSnippet.length > 60 ? stage.responseSnippet.slice(0, 60) + '…' : stage.responseSnippet}</span>}
                                       <span className="pipeline-history-duration">{stage.durationMs < 1000 ? `${stage.durationMs}ms` : `${(stage.durationMs / 1000).toFixed(1)}s`}</span>
                                       {stage.error && <span className="pipeline-history-stage-error" title={stage.error}>err</span>}
                                     </div>

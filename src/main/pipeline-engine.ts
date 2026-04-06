@@ -7,7 +7,7 @@
  */
 
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync } from 'fs'
-import { execSync } from 'child_process'
+import { execSync, spawnSync } from 'child_process'
 import { join, basename } from 'path'
 import { createHash } from 'crypto'
 import { app } from 'electron'
@@ -42,7 +42,7 @@ export interface ConditionDef {
 }
 
 export interface ActionDef {
-  type: 'launch-session' | 'route-to-session' | 'maker-checker' // route-to-session is deprecated, normalized to launch-session + reuse:true
+  type: 'launch-session' | 'route-to-session' | 'maker-checker' | 'diff_review' // route-to-session is deprecated, normalized to launch-session + reuse:true
   reuse?: boolean // try to find/resume a matching session before launching new
   name?: string
   workingDirectory?: string
@@ -63,6 +63,10 @@ export interface ActionDef {
   checkerPrompt?: string
   approvedKeyword?: string // keyword to detect approval in checker output (default: 'APPROVED')
   maxIterations?: number   // max maker retries (default: 3)
+  // diff_review specific fields
+  diffBase?: string             // git ref to diff against (default: 'HEAD~1')
+  autoFix?: boolean             // on FAIL, launch fixer session and retry (default: false)
+  autoFixMaxIterations?: number // max auto-fix retries (default: 2)
 }
 
 export interface DedupDef {
@@ -209,7 +213,7 @@ function parsePipelineYaml(content: string): PipelineDef | null {
     if (!result.name || !result.trigger?.type) return null
     if (result.action?.type === 'maker-checker') {
       if (!result.action?.makerPrompt || !result.action?.checkerPrompt) return null
-    } else if (!result.action?.prompt) {
+    } else if (result.action?.type !== 'diff_review' && !result.action?.prompt) {
       return null
     }
     if (result.enabled === undefined) result.enabled = true
@@ -241,6 +245,7 @@ export interface PipelineStageTrace {
   durationMs: number
   success: boolean
   error?: string
+  responseSnippet?: string // first ~120 chars of reviewer response (diff_review only)
 }
 
 export interface PipelineRunEntry {
@@ -663,6 +668,12 @@ function loadHandoffPreamble(inputs: string[]): string {
   return sections.length > 0 ? sections.join('\n\n') + '\n\n' : ''
 }
 
+/** Check if a reviewer response signals approval (APPROVED or LGTM, case-insensitive). */
+function isApproved(text: string): boolean {
+  const lower = text.toLowerCase()
+  return lower.includes('approved') || lower.includes('lgtm')
+}
+
 /**
  * Execute a maker-checker loop: maker produces output, checker reviews it.
  * Iterates up to maxIterations times. Completes when checker says APPROVED
@@ -772,7 +783,7 @@ async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pipelineN
     try { verdict = existsSync(verdictFile) ? readFileSync(verdictFile, 'utf-8').trim() : '' } catch {}
     plog(pipelineName, `maker-checker: checker verdict: ${verdict.slice(0, 120)}`)
 
-    if (verdict.includes(approvedKeyword)) {
+    if (isApproved(verdict) || verdict.includes(approvedKeyword)) {
       plog(pipelineName, `maker-checker: APPROVED after ${iteration} iteration(s)`)
       appendActivity({ source: 'pipeline', name: pipelineName, summary: `Maker-checker "${pipelineName}" APPROVED after ${iteration} iteration(s)`, level: 'info' })
       return accumulatedCost
@@ -787,11 +798,164 @@ async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pipelineN
   return accumulatedCost
 }
 
+// ---- Diff Review Stage ----
+
+const MAX_DIFF_BYTES = 8 * 1024
+
+/**
+ * Run a diff-review stage: fetch git diff, dispatch to a reviewer session, check for
+ * APPROVED/LGTM. If not approved and auto_fix is set, launch a fixer session and retry.
+ * On final failure, creates an approval gate with the review text.
+ */
+async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<{ cost: number; responseSnippet?: string }> {
+  const {
+    diffBase = 'HEAD~1',
+    prompt = 'Review this diff for issues. Reply APPROVED if clean, or list issues.',
+    autoFix = false,
+    autoFixMaxIterations = 2,
+  } = action
+  const cwd = (resolveTemplate(action.workingDirectory || '', ctx) || undefined)?.replace(/^~/, app.getPath('home'))
+
+  if (!cwd) {
+    throw new Error(`diff-review: workingDirectory is required for git diff`)
+  }
+
+  // Validate diff_base ref
+  const validateResult = spawnSync('git', ['rev-parse', '--verify', diffBase], { cwd, timeout: 10_000 })
+  if (validateResult.status !== 0) {
+    throw new Error(`diff-review: invalid diff_base ref "${diffBase}": ${validateResult.stderr?.toString().trim() || 'not found'}`)
+  }
+
+  const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const runDir = join(COLONY_DIR, 'diff-reviews', runId)
+  mkdirSync(runDir, { recursive: true })
+  const verdictFile = join(runDir, 'review-verdict.md')
+  const baseName = resolveTemplate(action.name || pipelineName, ctx)
+  let accumulatedCost = 0
+  let lastResponseSnippet: string | undefined
+
+  const maxIterations = autoFix ? autoFixMaxIterations : 0
+
+  for (let iteration = 0; iteration <= maxIterations; iteration++) {
+    // Get diff
+    const diffResult = spawnSync('git', ['diff', diffBase], { cwd, timeout: 30_000, maxBuffer: 10 * 1024 * 1024 })
+    let diff = diffResult.stdout?.toString() || ''
+    if (Buffer.byteLength(diff, 'utf-8') > MAX_DIFF_BYTES) {
+      const truncBytes = Buffer.from(diff).slice(0, MAX_DIFF_BYTES).toString('utf-8')
+      const totalLines = diff.split('\n').length
+      const keptLines = truncBytes.split('\n').length
+      diff = truncBytes + `\n[... ${totalLines - keptLines} lines truncated]`
+    }
+
+    if (!diff.trim()) {
+      plog(pipelineName, `diff-review: no diff found against "${diffBase}" — nothing to review`)
+      return { cost: accumulatedCost, responseSnippet: 'No changes' }
+    }
+
+    const resolvedPrompt = resolveTemplate(prompt, ctx)
+    const fullPrompt =
+      `--- Git Diff (${diffBase}) ---\n\`\`\`diff\n${diff}\n\`\`\`\n--- End Diff ---\n\n` +
+      `${resolvedPrompt}\n\n` +
+      `--- Required Output ---\nWrite your verdict to:\n${verdictFile}\n\n` +
+      `If the diff looks clean, write exactly: APPROVED\n` +
+      `If there are issues, write: NEEDS REVISION: <your specific feedback>\n\n` +
+      `This file MUST be written before you finish.`
+
+    try { writeFileSync(verdictFile, '', 'utf-8') } catch { /* ignore */ }
+
+    const reviewerName = iteration === 0 ? `${baseName} [Diff Review]` : `${baseName} [Diff Review ${iteration + 1}]`
+    plog(pipelineName, `diff-review: launching reviewer "${reviewerName}" (iteration ${iteration + 1}/${maxIterations + 1})`)
+
+    const promptFile = writePromptFile(fullPrompt)
+    const reviewerInst = await createInstance({
+      name: reviewerName,
+      workingDirectory: cwd,
+      color: action.color,
+      args: ['--append-system-prompt-file', promptFile],
+    })
+
+    const completionPromise = waitForSessionCompletion(reviewerInst.id)
+    await sendPromptWhenReady(reviewerInst.id, { prompt: 'Execute the instructions in your system prompt. Begin now.' })
+    const reviewDone = await completionPromise
+
+    if (!reviewDone) {
+      plog(pipelineName, `diff-review: reviewer timed out`)
+      appendActivity({ source: 'pipeline', name: pipelineName, summary: `Diff review "${pipelineName}" reviewer timed out`, level: 'error' })
+      return { cost: accumulatedCost }
+    }
+
+    const reviewerState = await getDaemonClient().getInstance(reviewerInst.id)
+    accumulatedCost += reviewerState?.tokenUsage.cost ?? 0
+
+    let verdict = ''
+    try { verdict = existsSync(verdictFile) ? readFileSync(verdictFile, 'utf-8').trim() : '' } catch { /* ignore */ }
+    plog(pipelineName, `diff-review: verdict: ${verdict.slice(0, 120)}`)
+    lastResponseSnippet = verdict.slice(0, 120)
+
+    if (isApproved(verdict)) {
+      plog(pipelineName, `diff-review: APPROVED`)
+      appendActivity({ source: 'pipeline', name: pipelineName, summary: `Diff review "${pipelineName}" approved`, level: 'info' })
+      return { cost: accumulatedCost, responseSnippet: lastResponseSnippet }
+    }
+
+    // Not approved — auto_fix: launch fixer and loop
+    if (iteration < maxIterations) {
+      plog(pipelineName, `diff-review: not approved — auto_fix ${iteration + 1}/${maxIterations}`)
+      const fixPrompt =
+        `The following code diff was reviewed and needs changes:\n\n\`\`\`diff\n${diff}\n\`\`\`\n\n` +
+        `Reviewer feedback:\n${verdict}\n\n` +
+        `Please address the feedback and make the necessary changes.`
+      const fixerPromptFile = writePromptFile(fixPrompt)
+      const fixerInst = await createInstance({
+        name: `${baseName} [Auto-fix ${iteration + 1}]`,
+        workingDirectory: cwd,
+        color: action.color,
+        args: ['--append-system-prompt-file', fixerPromptFile],
+      })
+      const fixerCompletion = waitForSessionCompletion(fixerInst.id)
+      await sendPromptWhenReady(fixerInst.id, { prompt: 'Execute the instructions in your system prompt. Begin now.' })
+      const fixerDone = await fixerCompletion
+      if (!fixerDone) {
+        plog(pipelineName, `diff-review: fixer timed out on iteration ${iteration + 1}`)
+        break
+      }
+      const fixerState = await getDaemonClient().getInstance(fixerInst.id)
+      accumulatedCost += fixerState?.tokenUsage.cost ?? 0
+      continue
+    }
+  }
+
+  // Failed — create an approval gate with the review text
+  plog(pipelineName, `diff-review: not approved — creating approval gate`)
+  const reviewText = lastResponseSnippet || 'Review failed'
+  const approvalId = `diff-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const summary = `Diff review failed — "${pipelineName}": ${reviewText.slice(0, 100)}`
+  const expiresAt = new Date(Date.now() + APPROVAL_DEFAULT_TTL_HOURS * 3600 * 1000).toISOString()
+  const request: ApprovalRequest = {
+    id: approvalId,
+    pipelineName,
+    summary,
+    resolvedVars: { diffBase, reviewText: reviewText.slice(0, 500) },
+    createdAt: new Date().toISOString(),
+    expiresAt,
+  }
+  pendingApprovals.set(approvalId, { request, action, ctx, dedupKey: approvalId })
+  pendingApprovalKeys.add(approvalId)
+  broadcast('pipeline:approval:new', request)
+  appendActivity({ source: 'pipeline', name: pipelineName, summary: `Diff review "${pipelineName}" needs attention: ${reviewText.slice(0, 100)}`, level: 'warn' })
+  notify(`Colony: Diff Review — ${pipelineName}`, summary, 'pipelines')
+
+  return { cost: accumulatedCost, responseSnippet: lastResponseSnippet }
+}
+
 // ---- Action Execution ----
 
-async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<number> {
+async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<{ cost: number; responseSnippet?: string }> {
   if (action.type === 'maker-checker') {
-    return runMakerChecker(action, ctx, pipelineName)
+    return { cost: await runMakerChecker(action, ctx, pipelineName) }
+  }
+  if (action.type === 'diff_review') {
+    return runDiffReview(action, ctx, pipelineName)
   }
 
   const rawName = resolveTemplate(action.name || 'Pipeline Session', ctx)
@@ -858,7 +1022,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
         const filePath = writePromptFile(prompt)
         getDaemonClient().writeToInstance(existing.id, buildFilePromptTrigger(filePath) + '\r')
         broadcast('pipeline:fired', { pipeline: name, instanceId: existing.id, routed: true })
-        return 0
+        return { cost: 0 }
       }
 
       if (action.busyStrategy === 'launch-new') {
@@ -868,7 +1032,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
         const sent = await sendPromptToExistingSession(existing.id, prompt)
         if (sent) {
           broadcast('pipeline:fired', { pipeline: name, instanceId: existing.id, routed: true })
-          return 0
+          return { cost: 0 }
         }
         log(`Routing: timed out waiting for session, falling through to launch new`)
       }
@@ -884,14 +1048,14 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
       })
       await sendPromptWhenReady(inst.id, { prompt: 'Execute the instructions in your system prompt. Begin now.' })
       broadcast('pipeline:fired', { pipeline: name, instanceId: inst.id, routed: true, resumed: true })
-      return 0
+      return { cost: 0 }
     } else {
       plog(name, `route: no matching session found → launching new`)
     }
   }
 
   // ---- Launch new session (fallback when reuse finds nothing) ----
-  if (action.type !== 'launch-session') return 0
+  if (action.type !== 'launch-session') return { cost: 0 }
 
   // If no working directory resolved, try to infer from running sessions in same repo
   let resolvedCwd = cwd
@@ -932,7 +1096,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
 
   // Notify renderer about pipeline-triggered session
   broadcast('pipeline:fired', { pipeline: name, instanceId: inst.id })
-  return 0
+  return { cost: 0 }
 }
 
 // ---- Preview (Dry-Run) ----
@@ -1148,8 +1312,11 @@ async function runPoll(pipelineName: string): Promise<void> {
       const stageSessionName = resolveTemplate(p.def.action.name || 'Pipeline Session', ctx)
       let stageError: string | undefined
       let stageCost = 0
+      let stageResponseSnippet: string | undefined
       try {
-        stageCost = await fireAction(p.def.action, ctx, p.def.name)
+        const result = await fireAction(p.def.action, ctx, p.def.name)
+        stageCost = result.cost
+        stageResponseSnippet = result.responseSnippet
       } catch (stageErr) {
         stageError = String(stageErr)
         throw stageErr
@@ -1161,6 +1328,7 @@ async function runPoll(pipelineName: string): Promise<void> {
           durationMs: Date.now() - stageStart,
           success: !stageError,
           error: stageError,
+          responseSnippet: stageResponseSnippet,
         })
       }
       totalCost += stageCost
@@ -1589,7 +1757,7 @@ export async function approveAction(id: string): Promise<boolean> {
   pendingApprovals.delete(id)
   pendingApprovalKeys.delete(dedupKey)
   try {
-    await fireAction(action, ctx, request.pipelineName)
+    const { cost: _ } = await fireAction(action, ctx, request.pipelineName)
     recordFired(request.pipelineName, dedupKey, ctx.contentSha)
     appendActivity({ source: 'pipeline', name: request.pipelineName, summary: `Pipeline "${request.pipelineName}" approved and fired — ${request.summary}`, level: 'info' })
   } catch (err) {

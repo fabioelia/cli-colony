@@ -9710,6 +9710,17 @@ input, select {
   cursor: default;
 }
 
+.pipeline-history-stage-snippet {
+  color: var(--text-muted);
+  font-size: 9px;
+  font-style: italic;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+}
+
 /* ===== Session Deps / Orchestrate Panel ===== */
 .session-deps-panel {
   flex: 1;
