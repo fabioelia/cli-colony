@@ -457,7 +457,7 @@ function PersonaCard({
               <Hash size={10} /> {persona.runCount}
             </span>
             {persona.onCompleteRun.length > 0 && (
-              <span className="persona-trigger-badge" title={`Triggers on complete: ${persona.onCompleteRun.join(', ')}`}>
+              <span className="persona-trigger-badge" title={`After each run, automatically triggers: ${persona.onCompleteRun.map(id => allPersonas.find(p => p.id === id)?.name ?? id).join(', ')}`}>
                 <ArrowRightCircle size={10} /> {persona.onCompleteRun.map(id => allPersonas.find(p => p.id === id)?.name ?? id).join(', ')}
               </span>
             )}
