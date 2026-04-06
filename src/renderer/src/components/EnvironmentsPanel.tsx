@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Server, Play, Square, Trash2, RefreshCw, FileText,
   Plus, ExternalLink, ChevronDown, ChevronRight,
-  Circle, AlertTriangle, Clock, X, FolderOpen, Terminal, Loader, CheckCircle, SkipForward, Upload, Download, MessageSquare, Wrench, Stethoscope
+  Circle, AlertTriangle, Clock, X, FolderOpen, Terminal, Loader, CheckCircle, SkipForward, Upload, Download, MessageSquare, Wrench, Stethoscope,
+  LayoutList, LayoutGrid
 } from 'lucide-react'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import { buildTemplateEditPrompt, buildDiagnosePrompt } from '../../../shared/env-prompts'
@@ -68,6 +69,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
   const [restartPolicies, setRestartPolicies] = useState<Record<string, 'manual' | 'on-crash'>>({})
   const [purposeTags, setPurposeTags] = useState<Record<string, 'interactive' | 'background' | 'nightly' | null>>({})
   const [tagFilter, setTagFilter] = useState<'interactive' | 'background' | 'nightly' | null>(null)
+  const [listMode, setListMode] = useState(() => localStorage.getItem('envs-list-mode') === '1')
 
   const loadEnvironments = useCallback(async () => {
     try {
@@ -358,6 +360,13 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
         <div className="panel-header-actions">
           {activeTab === 'instances' && (
             <>
+              <button
+                className={`panel-header-btn${listMode ? ' active' : ''}`}
+                title={listMode ? 'Switch to card view' : 'Switch to list view'}
+                onClick={() => { const next = !listMode; setListMode(next); localStorage.setItem('envs-list-mode', next ? '1' : '0') }}
+              >
+                {listMode ? <LayoutGrid size={13} /> : <LayoutList size={13} />}
+              </button>
               <button className="panel-header-btn primary" onClick={() => { setCreateDialogMode('instance'); setCreateDialogTemplate(null); setShowCreateDialog(true) }}>
                 <Plus size={14} /> New Environment
               </button>
@@ -397,7 +406,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
 
       {activeTab === 'instances' && <>
       {/* Environment list */}
-      <div className="env-list">
+      <div className={`env-list${listMode ? ' list-mode' : ''}`}>
         {environments.length > 0 && (
           <div className="env-panel-badges">
             {running > 0 && <span className="env-badge env-badge-running">{running} running</span>}
@@ -431,7 +440,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
           const isLoading = actionInProgress.has(env.id)
 
           return (
-            <div key={env.id} className={`env-card env-card-${env.status}`}>
+            <div key={env.id} className={`env-card env-card-${env.status}${expandedId === env.id ? ' expanded' : ''}`}>
               {/* Live setup progress */}
               {(env.status === 'creating' || env.status === 'error') && (
                 <div className="env-setup-tracker">

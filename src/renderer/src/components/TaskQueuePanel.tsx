@@ -4,7 +4,8 @@ import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import {
   Plus, Trash2, Play, Square, Save, FileText, CheckCircle, XCircle,
   Loader, Clock, ListOrdered, Layers, FolderOpen, File, Zap,
-  MessageSquare, Send, ChevronDown, ChevronRight, Code, BookOpen
+  MessageSquare, Send, ChevronDown, ChevronRight, Code, BookOpen,
+  LayoutList, LayoutGrid
 } from 'lucide-react'
 import type { ClaudeInstance } from '../types'
 import HelpPopover from './HelpPopover'
@@ -98,6 +99,7 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
 
   const [showConvertModal, setShowConvertModal] = useState(false)
   const [convertCron, setConvertCron] = useState('0 9 * * 1-5')
+  const [listMode, setListMode] = useState(() => localStorage.getItem('tasks-list-mode') === '1')
   const [convertReuse, setConvertReuse] = useState(true)
   const [convertResult, setConvertResult] = useState<{ count: number; names: string[] } | null>(null)
   const [convertNames, setConvertNames] = useState<string[]>([])
@@ -279,6 +281,13 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
         <div className="panel-header-spacer" />
         <HelpPopover topic="tasks" align="right" />
         <div className="panel-header-actions">
+          <button
+            className={`panel-header-btn${listMode ? ' active' : ''}`}
+            title={listMode ? 'Switch to card view' : 'Switch to list view'}
+            onClick={() => { const next = !listMode; setListMode(next); localStorage.setItem('tasks-list-mode', next ? '1' : '0') }}
+          >
+            {listMode ? <LayoutGrid size={13} /> : <LayoutList size={13} />}
+          </button>
           <button className="panel-header-btn" onClick={handleNew} title="Create new queue">
             <Plus size={13} /> New
           </button>
@@ -303,8 +312,8 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
         )}
       </div>
 
-      {/* File list as cards */}
-      <div className="task-queue-files">
+      {/* File list as cards or rows */}
+      <div className={`task-queue-files${listMode ? ' list-mode' : ''}`}>
         {queueFiles.map((f) => {
           const q = parseQueue(f.content)
           return (
@@ -312,9 +321,15 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
               <div className="task-queue-file-card-header">
                 <FileText size={12} />
                 <span className="task-queue-file-card-name">{q?.name || f.name}</span>
+                {q && listMode && (
+                  <span className="task-queue-file-meta-inline panel-list-meta">
+                    <span>{q.tasks.length}t</span>
+                    <span>{q.mode}</span>
+                  </span>
+                )}
                 <button className="task-queue-file-delete" onClick={(e) => { e.stopPropagation(); if (confirm(`Delete "${f.name}"? This cannot be undone.`)) handleDelete(f.name) }} title="Delete"><Trash2 size={10} /></button>
               </div>
-              {q && (
+              {q && !listMode && (
                 <div className="task-queue-file-card-meta">
                   <span>{q.tasks.length} task{q.tasks.length !== 1 ? 's' : ''}</span>
                   <span>{q.mode}</span>

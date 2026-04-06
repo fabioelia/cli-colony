@@ -201,6 +201,7 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Header',
         position: 'Top bar',
         items: [
+          { label: 'List/card toggle', detail: 'Switch between compact list rows and card view. Preference is saved per device.', icon: 'LayoutList' },
           { label: 'New button', detail: 'Create a new task queue YAML file.', icon: 'Plus' },
         ],
       },
@@ -249,6 +250,7 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Header',
         position: 'Top bar',
         items: [
+          { label: 'List/card toggle', detail: 'Switch between compact list rows and card view. Preference is saved per device.', icon: 'LayoutList' },
           { label: 'Reload button', detail: 'Re-read all pipeline YAML files from disk.', icon: 'RefreshCw' },
         ],
       },
@@ -310,6 +312,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Instances tab', detail: 'Shows running and stopped environments. Click to expand and manage services.' },
           { label: 'Templates tab', detail: 'Browse and manage environment templates. Create new environments from templates.' },
+          { label: 'List/card toggle', detail: 'Switch between compact list rows and card view (Instances tab). Preference is saved per device.', icon: 'LayoutList' },
           { label: 'Refresh button', detail: 'Re-fetches bare repos and re-scans for .colony/ templates (Templates tab only).', icon: 'RefreshCw' },
           { label: 'Import button', detail: 'Import a template from a JSON file.', icon: 'Upload' },
         ],

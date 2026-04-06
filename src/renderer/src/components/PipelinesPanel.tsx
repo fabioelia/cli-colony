@@ -4,7 +4,7 @@ import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import {
   Zap, ZapOff, Play, RefreshCw, ChevronDown, ChevronRight,
   FileText, Clock, CheckCircle, XCircle, AlertTriangle, Save, BookOpen,
-  MessageSquare, Send, Plus, Search, Pencil, Eye, X
+  MessageSquare, Send, Plus, Search, Pencil, Eye, X, LayoutList, LayoutGrid
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import CronEditor from './CronEditor'
@@ -111,6 +111,8 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [expandedTab, setExpandedTab] = useState<'yaml' | 'docs' | 'memory' | 'outputs' | 'history'>('yaml')
   const [debugLogExpanded, setDebugLogExpanded] = useState<Set<string>>(new Set())
   const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number }>>([])
+
+  const [listMode, setListMode] = useState(() => localStorage.getItem('pipelines-list-mode') === '1')
 
   // Cron editor — tracks which pipeline's cron is being edited
   const [cronEditingPipeline, setCronEditingPipeline] = useState<string | null>(null)
@@ -283,6 +285,13 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
         <div className="panel-header-spacer" />
         <HelpPopover topic="pipelines" align="right" />
         <div className="panel-header-actions">
+          <button
+            className={`panel-header-btn${listMode ? ' active' : ''}`}
+            title={listMode ? 'Switch to card view' : 'Switch to list view'}
+            onClick={() => { const next = !listMode; setListMode(next); localStorage.setItem('pipelines-list-mode', next ? '1' : '0') }}
+          >
+            {listMode ? <LayoutGrid size={13} /> : <LayoutList size={13} />}
+          </button>
           <button className="panel-header-btn" onClick={handleReload} title="Reload all pipeline files">
             <RefreshCw size={12} /> Reload
           </button>
@@ -331,9 +340,9 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
         </div>
       )}
 
-      <div className="pipelines-list">
+      <div className={`pipelines-list${listMode ? ' list-mode' : ''}`}>
         {pipelines.map((p) => (
-          <div key={p.name} className={`pipeline-card ${p.enabled ? '' : 'disabled'}`}>
+          <div key={p.name} className={`pipeline-card ${p.enabled ? '' : 'disabled'}${expandedPipeline === p.name ? ' expanded' : ''}`}>
             <div className="pipeline-card-header" onClick={() => handleExpand(p)}>
               <div className="pipeline-card-left">
                 {expandedPipeline === p.name ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
