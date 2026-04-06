@@ -11592,6 +11592,10 @@ input, select {
   border: 1px solid rgba(255,255,255,0.03);
   overflow: hidden;
 }
+.persona-brief-section {
+  border-color: rgba(99, 102, 241, 0.2);
+  background: rgba(99, 102, 241, 0.04);
+}
 
 .persona-section-toggle {
   display: flex;

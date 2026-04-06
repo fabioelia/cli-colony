@@ -405,11 +405,12 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
 }
 
 /** Collapsible section within the persona card */
-function PersonaSection({ title, content, defaultOpen, isOutput, children }: {
+function PersonaSection({ title, content, defaultOpen, isOutput, isBrief, children }: {
   title: string
   content: string | null | undefined
   defaultOpen: boolean
   isOutput?: boolean
+  isBrief?: boolean
   children?: React.ReactNode
 }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -417,7 +418,7 @@ function PersonaSection({ title, content, defaultOpen, isOutput, children }: {
   if (!hasContent) return null
 
   return (
-    <div className="persona-card-section">
+    <div className={`persona-card-section${isBrief ? ' persona-brief-section' : ''}`}>
       <button className="persona-section-toggle" onClick={() => setOpen(!open)}>
         {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
         <h4>{title}</h4>
@@ -462,10 +463,19 @@ function PersonaCard({
   const [whisperText, setWhisperText] = useState('')
   const [whisperFlash, setWhisperFlash] = useState(false)
   const whisperRef = useRef<HTMLTextAreaElement>(null)
+  const [briefContent, setBriefContent] = useState<string | null | 'loading'>(null)
 
   useLayoutEffect(() => {
     if (whisperOpen) whisperRef.current?.focus()
   }, [whisperOpen])
+
+  useEffect(() => {
+    if (!expanded || briefContent !== null) return
+    setBriefContent('loading')
+    window.api.persona.getContent(persona.id + '.brief').then((content) => {
+      setBriefContent(content)
+    })
+  }, [expanded, persona.id, briefContent])
 
   const handleWhisperSubmit = async () => {
     const text = whisperText.trim()
@@ -703,6 +713,11 @@ function PersonaCard({
                 </div>
               ))}
             </div>
+          )}
+
+          {/* Session brief — latest run summary written by the persona itself */}
+          {briefContent && briefContent !== 'loading' && (
+            <PersonaSection title="Latest Brief" content={briefContent} defaultOpen={true} isBrief />
           )}
 
           {/* Collapsible sections — dynamic ones open, static ones collapsed */}
