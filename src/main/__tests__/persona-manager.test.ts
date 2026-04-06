@@ -1836,3 +1836,265 @@ describe('persona-manager: listPersonas (weeklySpend enrichment)', () => {
     expect(personas[0].weeklySpend).toBeUndefined()
   })
 })
+
+// ----------------------------------------------------------------
+
+describe('persona-manager: Smart Persona Parallelism (conflict_group)', () => {
+  let mod: typeof import('../persona-manager')
+
+  // A can_push: true persona (Colony Developer equivalent)
+  const WRITER_PERSONA_MD = `---
+name: "Writer Persona"
+schedule: "*/15 * * * *"
+model: sonnet
+max_sessions: 1
+can_push: true
+can_merge: false
+can_create_sessions: true
+working_directory: "~/projects/test"
+color: "#34d399"
+---
+
+## Role
+
+Writes code.
+`
+
+  // A can_push: true persona with explicit conflict_group
+  const WRITER_B_WITH_GROUP = `---
+name: "Writer B"
+schedule: "*/15 * * * *"
+model: sonnet
+max_sessions: 1
+can_push: true
+can_merge: false
+can_create_sessions: true
+working_directory: "~/projects/test"
+color: "#60a5fa"
+conflict_group: write-group
+---
+
+## Role
+
+Also writes code, in same conflict group as Writer A.
+`
+
+  const WRITER_A_WITH_GROUP = `---
+name: "Writer A"
+schedule: "*/15 * * * *"
+model: sonnet
+max_sessions: 1
+can_push: true
+can_merge: false
+can_create_sessions: true
+working_directory: "~/projects/test"
+color: "#34d399"
+conflict_group: write-group
+---
+
+## Role
+
+Writes code.
+`
+
+  // A can_push: false persona (Colony QA equivalent)
+  const READONLY_PERSONA_MD = `---
+name: "Readonly Persona"
+schedule: "*/40 * * * *"
+model: sonnet
+max_sessions: 1
+can_push: false
+can_merge: false
+can_create_sessions: true
+working_directory: "~/projects/test"
+color: "#a78bfa"
+---
+
+## Role
+
+Reads and reviews.
+`
+
+  const MOCK_INSTANCE = {
+    id: 'inst-par-1', name: 'Persona: Readonly Persona', status: 'running',
+    activity: 'waiting', workingDirectory: '/mock/projects/test',
+    color: '#a78bfa', args: [], createdAt: Date.now(), pinned: false,
+    cliBackend: 'claude', gitBranch: null, gitRepo: null,
+    tokenUsage: { inputTokens: 0, outputTokens: 0, cost: 0 },
+    roleTag: null,
+  }
+
+  const MOCK_WRITER_INSTANCE = {
+    ...MOCK_INSTANCE,
+    id: 'inst-writer-1', name: 'Persona: Writer Persona', color: '#34d399',
+  }
+
+  beforeEach(async () => {
+    vi.resetModules()
+    mockBroadcast.mockReset()
+    mockCreateInstance.mockReset().mockResolvedValue(MOCK_INSTANCE)
+    mockGetAllInstances.mockReset().mockResolvedValue([])
+    mockSendPromptWhenReady.mockReset()
+    mockGetDaemonClient.mockReset().mockReturnValue({ on: vi.fn(), removeListener: vi.fn() })
+    mockUpdateColonyContext.mockReset().mockResolvedValue(undefined)
+    mockAppendActivity.mockReset()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    if (mod) mod.stopScheduler()
+  })
+
+  it('parses conflict_group from frontmatter and exposes it in PersonaInfo', async () => {
+    const fs = buildFsMock({
+      personaFiles: ['writer-a.md', 'writer-b.md'],
+      personaContents: {
+        'writer-a.md': WRITER_A_WITH_GROUP,
+        'writer-b.md': WRITER_B_WITH_GROUP,
+      },
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+
+    const list = mod.getPersonaList()
+    expect(list.find(p => p.name === 'Writer A')?.conflictGroup).toBe('write-group')
+    expect(list.find(p => p.name === 'Writer B')?.conflictGroup).toBe('write-group')
+  })
+
+  it('conflictGroup is undefined when conflict_group not in frontmatter', async () => {
+    const fs = buildFsMock({
+      personaFiles: ['writer-persona.md'],
+      personaContents: { 'writer-persona.md': WRITER_PERSONA_MD },
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+
+    const list = mod.getPersonaList()
+    expect(list[0].conflictGroup).toBeUndefined()
+  })
+
+  it('can_push: false persona launches concurrently while a can_push: true persona is running', async () => {
+    // Writer Persona is already running
+    const stateJson = JSON.stringify({
+      'Writer Persona': {
+        lastRunAt: '2026-04-06T12:00:00.000Z', runCount: 5, activeSessionId: 'writer-sess-1',
+        enabled: true, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null, triggeredBy: null,
+      },
+    })
+    const fs = buildFsMock({
+      personaFiles: ['writer-persona.md', 'readonly-persona.md'],
+      personaContents: {
+        'writer-persona.md': WRITER_PERSONA_MD,
+        'readonly-persona.md': READONLY_PERSONA_MD,
+      },
+      stateJson,
+    })
+    // getAllInstances returns writer as running
+    mockGetAllInstances.mockResolvedValue([
+      { ...MOCK_WRITER_INSTANCE, id: 'writer-sess-1', name: 'Persona: Writer Persona' },
+    ])
+    mockCreateInstance.mockResolvedValue({ ...MOCK_INSTANCE, id: 'readonly-sess-1' })
+
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    // Readonly persona should run without throwing
+    await expect(mod.runPersona('readonly-persona.md')).resolves.toBe('readonly-sess-1')
+    expect(mockCreateInstance).toHaveBeenCalledOnce()
+  })
+
+  it('can_push: true persona with same conflict_group is blocked when the other is running', async () => {
+    // Writer A is already running
+    const stateJson = JSON.stringify({
+      'Writer A': {
+        lastRunAt: '2026-04-06T12:00:00.000Z', runCount: 3, activeSessionId: 'writer-a-sess',
+        enabled: true, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null, triggeredBy: null,
+      },
+    })
+    const fs = buildFsMock({
+      personaFiles: ['writer-a.md', 'writer-b.md'],
+      personaContents: {
+        'writer-a.md': WRITER_A_WITH_GROUP,
+        'writer-b.md': WRITER_B_WITH_GROUP,
+      },
+      stateJson,
+    })
+    mockGetAllInstances.mockResolvedValue([
+      { ...MOCK_WRITER_INSTANCE, id: 'writer-a-sess', name: 'Persona: Writer A' },
+    ])
+
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    // Writer B (same group) should be blocked
+    await expect(mod.runPersona('writer-b.md')).rejects.toThrow(/blocked.*Writer A.*write-group/)
+    expect(mockCreateInstance).not.toHaveBeenCalled()
+  })
+
+  it('can_push: true personas with different conflict_groups can run concurrently', async () => {
+    // Writer A (write-group) is running
+    const stateJson = JSON.stringify({
+      'Writer A': {
+        lastRunAt: '2026-04-06T12:00:00.000Z', runCount: 3, activeSessionId: 'writer-a-sess',
+        enabled: true, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null, triggeredBy: null,
+      },
+    })
+    // Writer Persona has no explicit conflict_group → defaults to its own slug
+    const fs = buildFsMock({
+      personaFiles: ['writer-a.md', 'writer-persona.md'],
+      personaContents: {
+        'writer-a.md': WRITER_A_WITH_GROUP,
+        'writer-persona.md': WRITER_PERSONA_MD,
+      },
+      stateJson,
+    })
+    mockGetAllInstances.mockResolvedValue([
+      { ...MOCK_WRITER_INSTANCE, id: 'writer-a-sess', name: 'Persona: Writer A' },
+    ])
+    mockCreateInstance.mockResolvedValue({ ...MOCK_WRITER_INSTANCE, id: 'writer-p-sess' })
+
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    // Writer Persona (own slug group = 'writer-persona') should launch OK
+    await expect(mod.runPersona('writer-persona.md')).resolves.toBe('writer-p-sess')
+    expect(mockCreateInstance).toHaveBeenCalledOnce()
+  })
+
+  it('scheduler fires can_push: false persona on the same tick reconciliation clears its stale session', async () => {
+    vi.useFakeTimers()
+
+    // Readonly persona has a stale activeSessionId (session already exited in daemon)
+    const stateJson = JSON.stringify({
+      'Readonly Persona': {
+        lastRunAt: '2026-04-06T12:00:00.000Z', runCount: 2, activeSessionId: 'stale-sess',
+        enabled: true, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null, triggeredBy: null,
+      },
+    })
+    const fs = buildFsMock({
+      personaFiles: ['readonly-persona.md'],
+      personaContents: { 'readonly-persona.md': READONLY_PERSONA_MD },
+      stateJson,
+    })
+    // Daemon no longer has the stale session → reconciliation will clear it
+    mockGetAllInstances.mockResolvedValue([])
+    mockCronMatches.mockReturnValue(true)
+    mockCreateInstance.mockResolvedValue({ ...MOCK_INSTANCE, id: 'fresh-sess' })
+
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    mod.startScheduler()
+    await vi.advanceTimersByTimeAsync(15_000)
+
+    // After reconciliation clears the stale session, cron check should fire the persona
+    expect(mockCreateInstance).toHaveBeenCalledOnce()
+
+    vi.useRealTimers()
+    mod.stopScheduler()
+  })
+})

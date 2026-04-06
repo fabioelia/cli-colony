@@ -252,6 +252,13 @@ export interface PersonaInfo {
   pendingTrigger: { from: string; note?: string } | null
   /** Sum of session costs in the last 7 days (undefined when no cost data) */
   weeklySpend?: number
+  /**
+   * Conflict group for serializing can_push: true personas. Two personas in the
+   * same conflict_group will not run simultaneously. Defaults to the persona's
+   * own slug when not set (preserving existing isolated behavior).
+   * Ignored for can_push: false personas — they never block each other.
+   */
+  conflictGroup?: string
 }
 
 export interface AuditResult {

@@ -86,6 +86,12 @@ interface PersonaFrontmatter {
   can_invoke: string[]
   /** Set false to disable automatic memory extraction after each run */
   auto_memory_extraction: boolean
+  /**
+   * Serialization group for can_push: true personas. Two personas with the same
+   * conflict_group will not run simultaneously. Defaults to the persona's own slug.
+   * Not used for can_push: false personas.
+   */
+  conflict_group?: string
 }
 
 function parseFrontmatter(content: string): PersonaFrontmatter | null {
@@ -108,6 +114,7 @@ function parseFrontmatter(content: string): PersonaFrontmatter | null {
     on_complete_run: parseStringArray(val('on_complete_run')),
     can_invoke: parseStringArray(val('can_invoke')),
     auto_memory_extraction: val('auto_memory_extraction') !== 'false',
+    conflict_group: val('conflict_group') || undefined,
   }
 
   if (!result.name) return null
@@ -175,6 +182,7 @@ export function getPersonaList(): PersonaInfo[] {
         canInvoke: fm.can_invoke,
         triggeredBy: state.triggeredBy ?? null,
         pendingTrigger: pending.get(personaId) ? { from: pending.get(personaId)!.from, note: pending.get(personaId)!.note } : null,
+        conflictGroup: fm.conflict_group,
       })
     } catch { /* skip invalid files */ }
   }
@@ -675,7 +683,7 @@ export async function runPersona(fileName: string, trigger: TriggerSource = { ty
 
   const state = getState(fm.name)
 
-  // Check if already running
+  // Check self-duplicate (max_sessions: 1 enforcement — applies to all personas)
   if (state.activeSessionId) {
     const instances = await getAllInstances()
     const existing = instances.find(i => i.id === state.activeSessionId && i.status === 'running')
@@ -684,6 +692,25 @@ export async function runPersona(fileName: string, trigger: TriggerSource = { ty
     }
     // Session died — clear it
     state.activeSessionId = null
+  }
+
+  // For can_push: true personas, serialize within the conflict_group.
+  // can_push: false personas (QA, Product, Research) skip this check entirely —
+  // they are read-only and never conflict with write sessions.
+  if (fm.can_push) {
+    const group = fm.conflict_group || slugify(fm.name)
+    const allPersonas = getPersonaList()
+    const conflicting = allPersonas.find(p =>
+      p.name !== fm.name &&
+      p.activeSessionId !== null &&
+      p.canPush &&
+      (p.conflictGroup || slugify(p.name)) === group
+    )
+    if (conflicting) {
+      throw new Error(
+        `Persona "${fm.name}" blocked — "${conflicting.name}" is already running in conflict group "${group}"`
+      )
+    }
   }
 
   // Build planning prompt and write to temp file
@@ -949,12 +976,14 @@ export function startScheduler(): void {
   schedulerLog('scheduler started')
 
   schedulerInterval = setInterval(async () => {
-    // Reconcile stale activeSessionId — clear if the session no longer exists
-    const personas = getPersonaList()
+    // Reconcile stale activeSessionId — clear if the session no longer exists.
+    // Use a snapshot only for the reconciliation pass; re-read fresh state for the cron check
+    // so that sessions cleared here are immediately visible to the cron loop this same tick.
     try {
+      const reconcileSnapshot = getPersonaList()
       const instances = await getAllInstances()
       let reconciled = false
-      for (const persona of personas) {
+      for (const persona of reconcileSnapshot) {
         if (!persona.activeSessionId) continue
         const exists = instances.find(i => i.id === persona.activeSessionId && i.status === 'running')
         if (!exists) {
@@ -973,6 +1002,8 @@ export function startScheduler(): void {
     if (currentMinute === lastCronMinute) return // only check once per minute
     lastCronMinute = currentMinute
 
+    // Re-read after reconciliation so cleared sessions don't block this tick's cron check
+    const personas = getPersonaList()
     for (const persona of personas) {
       if (!persona.enabled || !persona.schedule) continue
 
