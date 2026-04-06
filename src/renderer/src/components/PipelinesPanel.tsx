@@ -5,12 +5,13 @@ import {
   Zap, ZapOff, Play, RefreshCw, ChevronDown, ChevronRight,
   FileText, Clock, CheckCircle, XCircle, AlertTriangle, Save, BookOpen,
   MessageSquare, Send, Plus, Search, Pencil, Eye, X, LayoutList, LayoutGrid,
-  ShieldCheck, List, Globe
+  ShieldCheck, List, Globe, Wand2, ArrowRight,
 } from 'lucide-react'
-import type { AuditResult } from '../../../shared/types'
+import type { AuditResult, GitHubRepo } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
 import CronEditor from './CronEditor'
 import { describeCron } from '../../../shared/cron'
+import { slugify } from '../../../shared/utils'
 
 interface PipelineInfo {
   name: string
@@ -132,6 +133,20 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   // Cron editor — tracks which pipeline's cron is being edited
   const [cronEditingPipeline, setCronEditingPipeline] = useState<string | null>(null)
 
+  // Automation Wizard
+  type WizardTrigger = 'pr-opened' | 'pr-merged' | 'cron' | 'git-push'
+  const [showAutomationWizard, setShowAutomationWizard] = useState(false)
+  const [wizardStep, setWizardStep] = useState(1)
+  const [wizardTrigger, setWizardTrigger] = useState<WizardTrigger>('cron')
+  const [wizardRepos, setWizardRepos] = useState<GitHubRepo[]>([])
+  const [wizardSelectedRepo, setWizardSelectedRepo] = useState('')
+  const [wizardCron, setWizardCron] = useState('0 9 * * 1-5')
+  const [wizardBranch, setWizardBranch] = useState('main')
+  const [wizardWorkingDir, setWizardWorkingDir] = useState('~/')
+  const [wizardPrompt, setWizardPrompt] = useState('')
+  const [wizardName, setWizardName] = useState('')
+  const [wizardSubmitting, setWizardSubmitting] = useState(false)
+
   // Pipeline preview (dry-run)
   type PreviewResult = {
     wouldFire: boolean
@@ -175,6 +190,17 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     window.api.pipeline.getDir().then(setPipelinesDir)
     window.api.audit.getLastRun('pipelines').then(setAuditLastRun)
   }, [])
+
+  // Load repos when wizard opens
+  useEffect(() => {
+    if (!showAutomationWizard) return
+    window.api.github.getRepos().then(repos => {
+      setWizardRepos(repos)
+      if (repos.length > 0 && !wizardSelectedRepo) {
+        setWizardSelectedRepo(`${repos[0].owner}/${repos[0].name}`)
+      }
+    })
+  }, [showAutomationWizard])
 
   // Track if assistant is still alive
   useEffect(() => {
@@ -334,6 +360,73 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     return `${Math.floor(secs / 86400)}d ago`
   }
 
+  const openAutomationWizard = () => {
+    setWizardStep(1)
+    setWizardTrigger('cron')
+    setWizardSelectedRepo('')
+    setWizardCron('0 9 * * 1-5')
+    setWizardBranch('main')
+    setWizardWorkingDir('~/')
+    setWizardPrompt('')
+    setWizardName('')
+    setWizardSubmitting(false)
+    setShowAutomationWizard(true)
+  }
+
+  const buildAutomationYaml = () => {
+    const name = wizardName.trim() || 'My Automation'
+    let triggerBlock: string
+    let description: string
+
+    if (wizardTrigger === 'pr-opened' || wizardTrigger === 'pr-merged') {
+      const eventLabel = wizardTrigger === 'pr-opened' ? 'PR opened' : 'PR merged'
+      description = `Run automation on ${eventLabel}${wizardSelectedRepo ? ` in ${wizardSelectedRepo}` : ''}`
+      triggerBlock = `trigger:\n  type: webhook\n  source: github\n  secret: ""\n  event: pull_request`
+      if (wizardSelectedRepo) {
+        triggerBlock += `\n  # Webhook URL: http://localhost:7474/webhook/${slugify(name)}`
+        triggerBlock += `\n  # Register at: https://github.com/${wizardSelectedRepo}/settings/hooks`
+      }
+    } else if (wizardTrigger === 'cron') {
+      description = `Run automation on schedule: ${wizardCron}`
+      triggerBlock = `trigger:\n  type: cron\n  cron: "${wizardCron}"`
+    } else {
+      description = `Run automation on git push to ${wizardBranch || 'any branch'}`
+      triggerBlock = `trigger:\n  type: git-poll\n  interval: 300\n  repos: auto`
+      if (wizardBranch) triggerBlock += `  # branch filter: ${wizardBranch}`
+    }
+
+    const indentedPrompt = wizardPrompt.trim().split('\n').join('\n    ')
+
+    return `name: ${name}
+description: ${description}
+enabled: true
+
+${triggerBlock}
+
+condition:
+  type: always
+
+action:
+  type: launch-session
+  workingDirectory: "${wizardWorkingDir.trim() || '~/'}"
+  prompt: |
+    ${indentedPrompt}
+`
+  }
+
+  const handleAutomationConfirm = async () => {
+    const name = wizardName.trim()
+    if (!name) return
+    setWizardSubmitting(true)
+    const yaml = buildAutomationYaml()
+    const ok = await window.api.pipeline.createFromTemplate(yaml, slugify(name))
+    setWizardSubmitting(false)
+    if (ok) {
+      setShowAutomationWizard(false)
+      loadPipelines()
+    }
+  }
+
   return (
     <div className="pipelines-panel">
       <div className="panel-header">
@@ -341,6 +434,9 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
         <div className="panel-header-spacer" />
         <HelpPopover topic="pipelines" align="right" />
         <div className="panel-header-actions">
+          <button className="panel-header-btn primary" onClick={openAutomationWizard} title="Create a new automation with a step-by-step wizard">
+            <Wand2 size={12} /> New Automation
+          </button>
           <button
             className={`panel-header-btn${listMode ? ' active' : ''}`}
             title={listMode ? 'Switch to card view' : 'Switch to list view'}
@@ -803,6 +899,189 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
           </div>
         ))}
       </div>
+
+      {/* Automation Wizard Modal */}
+      {showAutomationWizard && (
+        <div className="pipeline-preview-overlay" onClick={() => setShowAutomationWizard(false)}>
+          <div className="pipeline-preview-modal automation-wizard-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="pipeline-preview-header">
+              <Wand2 size={14} />
+              <span>New Automation — Step {wizardStep} of 3</span>
+              <button className="pipeline-preview-close" onClick={() => setShowAutomationWizard(false)}>
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="automation-wizard-body">
+              {/* Step indicators */}
+              <div className="automation-wizard-steps">
+                {['Trigger', 'Action', 'Review'].map((label, i) => (
+                  <div key={i} className={`automation-wizard-step-dot${wizardStep === i + 1 ? ' active' : wizardStep > i + 1 ? ' done' : ''}`}>
+                    <span className="automation-wizard-step-num">{i + 1}</span>
+                    <span className="automation-wizard-step-label">{label}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Step 1: Trigger */}
+              {wizardStep === 1 && (
+                <div className="automation-wizard-step-content">
+                  <p className="automation-wizard-section-label">When should this automation run?</p>
+                  <div className="automation-wizard-options">
+                    {([
+                      { value: 'pr-opened', label: 'GitHub PR opened', icon: <Globe size={13} /> },
+                      { value: 'pr-merged', label: 'GitHub PR merged', icon: <Globe size={13} /> },
+                      { value: 'cron', label: 'Cron schedule', icon: <Clock size={13} /> },
+                      { value: 'git-push', label: 'Git push to branch', icon: <ArrowRight size={13} /> },
+                    ] as const).map(opt => (
+                      <label key={opt.value} className={`automation-wizard-option${wizardTrigger === opt.value ? ' selected' : ''}`}>
+                        <input
+                          type="radio"
+                          name="trigger"
+                          value={opt.value}
+                          checked={wizardTrigger === opt.value}
+                          onChange={() => setWizardTrigger(opt.value)}
+                        />
+                        {opt.icon}
+                        {opt.label}
+                      </label>
+                    ))}
+                  </div>
+
+                  {(wizardTrigger === 'pr-opened' || wizardTrigger === 'pr-merged') && (
+                    <div className="automation-wizard-field">
+                      <label className="automation-wizard-field-label">Repository</label>
+                      {wizardRepos.length === 0 ? (
+                        <p className="automation-wizard-hint">No repos configured — add repos in Settings → GitHub.</p>
+                      ) : (
+                        <select
+                          className="automation-wizard-select"
+                          value={wizardSelectedRepo}
+                          onChange={(e) => setWizardSelectedRepo(e.target.value)}
+                        >
+                          <option value="">— Select repo —</option>
+                          {wizardRepos.map(r => (
+                            <option key={`${r.owner}/${r.name}`} value={`${r.owner}/${r.name}`}>{r.owner}/{r.name}</option>
+                          ))}
+                        </select>
+                      )}
+                      <p className="automation-wizard-hint">
+                        You'll need to register a webhook at GitHub → Settings → Webhooks pointing to <code>http://localhost:7474/webhook/{'{slug}'}</code>.
+                      </p>
+                    </div>
+                  )}
+
+                  {wizardTrigger === 'cron' && (
+                    <div className="automation-wizard-field">
+                      <label className="automation-wizard-field-label">Schedule (cron expression)</label>
+                      <input
+                        className="automation-wizard-input"
+                        value={wizardCron}
+                        onChange={(e) => setWizardCron(e.target.value)}
+                        placeholder="0 9 * * 1-5"
+                      />
+                      {wizardCron.trim() && (
+                        <p className="automation-wizard-hint">{describeCron(wizardCron)}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {wizardTrigger === 'git-push' && (
+                    <div className="automation-wizard-field">
+                      <label className="automation-wizard-field-label">Branch pattern</label>
+                      <input
+                        className="automation-wizard-input"
+                        value={wizardBranch}
+                        onChange={(e) => setWizardBranch(e.target.value)}
+                        placeholder="main"
+                      />
+                      <p className="automation-wizard-hint">Polls all configured repos every 5 minutes for activity on this branch.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Step 2: Action */}
+              {wizardStep === 2 && (
+                <div className="automation-wizard-step-content">
+                  <p className="automation-wizard-section-label">What should happen?</p>
+                  <div className="automation-wizard-field">
+                    <label className="automation-wizard-field-label">Working directory</label>
+                    <input
+                      className="automation-wizard-input"
+                      value={wizardWorkingDir}
+                      onChange={(e) => setWizardWorkingDir(e.target.value)}
+                      placeholder="~/"
+                    />
+                  </div>
+                  <div className="automation-wizard-field">
+                    <label className="automation-wizard-field-label">Prompt</label>
+                    <textarea
+                      className="automation-wizard-textarea"
+                      value={wizardPrompt}
+                      onChange={(e) => setWizardPrompt(e.target.value)}
+                      placeholder="Describe what Claude should do when this automation fires…"
+                      rows={6}
+                    />
+                    <p className="automation-wizard-hint">
+                      Use template vars like {'{{pr.title}}'}, {'{{pr.branch}}'}, {'{{repo.name}}'}, {'{{timestamp}}'}.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: Review */}
+              {wizardStep === 3 && (
+                <div className="automation-wizard-step-content">
+                  <div className="automation-wizard-field">
+                    <label className="automation-wizard-field-label">Automation name</label>
+                    <input
+                      className="automation-wizard-input"
+                      value={wizardName}
+                      onChange={(e) => setWizardName(e.target.value)}
+                      placeholder="My Automation"
+                      autoFocus
+                    />
+                  </div>
+                  <p className="automation-wizard-section-label">Generated pipeline YAML</p>
+                  <pre className="automation-wizard-yaml-preview">{buildAutomationYaml()}</pre>
+                  <p className="automation-wizard-hint">
+                    This file will be written to <code>~/.claude-colony/pipelines/{wizardName.trim() ? slugify(wizardName) : 'my-automation'}.yaml</code> and picked up automatically within 15s.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="automation-wizard-footer">
+              {wizardStep > 1 && (
+                <button className="panel-header-btn" onClick={() => setWizardStep(s => s - 1)}>
+                  Back
+                </button>
+              )}
+              <div style={{ flex: 1 }} />
+              {wizardStep < 3 ? (
+                <button
+                  className="panel-header-btn primary"
+                  onClick={() => setWizardStep(s => s + 1)}
+                  disabled={
+                    (wizardStep === 2 && !wizardPrompt.trim())
+                  }
+                >
+                  Next <ArrowRight size={12} />
+                </button>
+              ) : (
+                <button
+                  className="panel-header-btn primary"
+                  onClick={handleAutomationConfirm}
+                  disabled={!wizardName.trim() || wizardSubmitting}
+                >
+                  {wizardSubmitting ? 'Creating…' : 'Create Automation'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Pipeline Preview Modal */}
       {(previewLoading || previewResult) && previewPipelineName && (

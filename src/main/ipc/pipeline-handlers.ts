@@ -64,4 +64,24 @@ export function registerPipelineHandlers(): void {
     fs.writeFileSync(memPath, content, 'utf-8')
     return true
   })
+
+  // Create a pipeline from generated YAML (Automation Wizard)
+  ipcMain.handle('pipeline:createFromTemplate', (_e, yaml: string, slug: string): boolean => {
+    if (!yaml || typeof yaml !== 'string' || yaml.trim().length === 0) return false
+    if (!slug || typeof slug !== 'string') return false
+    // Reject path traversal
+    if (slug.includes('/') || slug.includes('\\') || slug.includes('..')) return false
+    const pipelinesDir = colonyPaths.pipelines
+    if (!fs.existsSync(pipelinesDir)) fs.mkdirSync(pipelinesDir, { recursive: true })
+    // Find non-colliding filename
+    let candidate = `${slug}.yaml`
+    let suffix = 2
+    while (fs.existsSync(join(pipelinesDir, candidate))) {
+      candidate = `${slug}-${suffix}.yaml`
+      suffix++
+    }
+    fs.writeFileSync(join(pipelinesDir, candidate), yaml, 'utf-8')
+    loadPipelines()
+    return true
+  })
 }

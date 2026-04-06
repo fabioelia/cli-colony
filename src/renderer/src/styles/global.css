@@ -13520,6 +13520,216 @@ input, select {
   overflow-y: auto;
 }
 
+/* ===== Automation Wizard ===== */
+.automation-wizard-modal {
+  width: 560px;
+}
+
+.automation-wizard-body {
+  padding: 16px 18px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.automation-wizard-steps {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 4px;
+}
+
+.automation-wizard-step-dot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.automation-wizard-step-dot.active { color: var(--text-primary); font-weight: 500; }
+.automation-wizard-step-dot.done { color: var(--accent, #4ade80); }
+
+.automation-wizard-step-num {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.automation-wizard-step-dot.done .automation-wizard-step-num {
+  background: var(--accent, #4ade80);
+  border-color: var(--accent, #4ade80);
+  color: #000;
+}
+
+.automation-wizard-step-dot.active .automation-wizard-step-num {
+  background: var(--bg-tertiary);
+  border-color: var(--text-primary);
+}
+
+.automation-wizard-step-dot + .automation-wizard-step-dot::before {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  margin: 0 8px;
+  width: 32px;
+}
+
+.automation-wizard-step-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.automation-wizard-section-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.automation-wizard-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.automation-wizard-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.automation-wizard-option input[type="radio"] {
+  display: none;
+}
+
+.automation-wizard-option.selected {
+  border-color: var(--accent, #4ade80);
+  color: var(--text-primary);
+  background: rgba(74, 222, 128, 0.05);
+}
+
+.automation-wizard-option:hover:not(.selected) {
+  border-color: var(--border-hover, var(--border));
+  color: var(--text-primary);
+}
+
+.automation-wizard-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.automation-wizard-field-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.automation-wizard-input {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--text-primary);
+  font-family: var(--font-mono, monospace);
+  outline: none;
+}
+
+.automation-wizard-input:focus {
+  border-color: var(--accent, #4ade80);
+}
+
+.automation-wizard-select {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--text-primary);
+  outline: none;
+  cursor: pointer;
+}
+
+.automation-wizard-select:focus {
+  border-color: var(--accent, #4ade80);
+}
+
+.automation-wizard-textarea {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px;
+  font-size: 12px;
+  color: var(--text-primary);
+  resize: vertical;
+  outline: none;
+  min-height: 100px;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.automation-wizard-textarea:focus {
+  border-color: var(--accent, #4ade80);
+}
+
+.automation-wizard-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.automation-wizard-hint code {
+  font-family: var(--font-mono, monospace);
+  background: var(--bg-tertiary);
+  padding: 1px 3px;
+  border-radius: 2px;
+  font-size: 10px;
+}
+
+.automation-wizard-yaml-preview {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.automation-wizard-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+}
+
 /* ===== Session Handoff Modal ===== */
 .handoff-overlay {
   position: fixed;
