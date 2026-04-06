@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { execSync } from 'child_process'
+import { execSync, spawn } from 'child_process'
 import { join } from 'path'
 import { existsSync, writeFileSync, readFileSync } from 'fs'
 import { createShell, writeShell, resizeShell, killShell } from '../shell-pty'
@@ -195,6 +195,42 @@ export function registerInstanceHandlers(): void {
     } catch {
       return false
     }
+  })
+
+  // AI-generated summary of a session's terminal snapshot
+  ipcMain.handle('session:summarize', async (_e, id: string): Promise<string> => {
+    const rawBuf = await client.getInstanceBuffer(id).catch(() => '')
+    const clean = stripAnsi(rawBuf)
+    const lines = clean.split('\n').filter(l => l.trim())
+    const tail = lines.slice(-50).join('\n')
+
+    if (tail.length < 200) {
+      return 'Not enough context to summarize.'
+    }
+
+    const prompt =
+      `Summarize this Claude session in 3-5 sentences. ` +
+      `What was accomplished? What files were changed? ` +
+      `What's the key context for whoever picks this up next?\n\n---\n${tail}`
+
+    return new Promise((resolve, reject) => {
+      const proc = spawn('claude', ['-p', prompt, '--model', 'claude-haiku-4-5-20251001'], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        detached: false,
+      })
+      let out = ''
+      let err = ''
+      proc.stdout.on('data', (chunk: Buffer) => { out += chunk.toString() })
+      proc.stderr.on('data', (chunk: Buffer) => { err += chunk.toString() })
+      proc.on('close', (code) => {
+        if (out.trim()) {
+          resolve(out.trim())
+        } else {
+          reject(new Error(err.trim() || `claude exited with code ${code}`))
+        }
+      })
+      proc.on('error', reject)
+    })
   })
 
   // Shell PTY — real shell terminals per instance

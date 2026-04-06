@@ -296,7 +296,23 @@ input, select {
   color: var(--text-muted);
   padding: 8px 10px 4px;
   opacity: 0.6;
+  display: flex;
+  align-items: center;
 }
+.clear-stopped-btn {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 4px;
+  opacity: 1;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+.clear-stopped-btn:hover { color: var(--danger); }
 
 .instance-list-empty {
   padding: 24px 12px;
@@ -12203,3 +12219,32 @@ input, select {
 }
 .handoff-copy-btn:hover { opacity: 0.9; }
 .handoff-copy-btn:disabled { opacity: 0.5; cursor: default; }
+.handoff-summary-btn {
+  margin-top: 8px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: block;
+  width: 100%;
+}
+.handoff-summary-btn:hover { border-color: var(--accent); color: var(--accent); }
+.handoff-summary-btn:disabled { opacity: 0.5; cursor: default; }
+.handoff-summary-reset {
+  margin-top: 6px;
+  background: none;
+  border: none;
+  font-size: 10px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+.handoff-sum-error {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--danger);
+}

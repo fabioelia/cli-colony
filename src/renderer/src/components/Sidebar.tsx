@@ -121,6 +121,9 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
   const [handoffDoc, setHandoffDoc] = useState('')
   const [handoffLoading, setHandoffLoading] = useState(false)
   const [handoffCopied, setHandoffCopied] = useState(false)
+  const [handoffSummarizing, setHandoffSummarizing] = useState(false)
+  const [handoffSummary, setHandoffSummary] = useState<string | null>(null)
+  const [handoffSumError, setHandoffSumError] = useState<string | null>(null)
 
   useEffect(() => {
     window.api.sessions.list(500).then(setSessions)
@@ -150,8 +153,10 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
   }, [])
 
   useEffect(() => {
-    if (!handoffInst) { setHandoffDoc(''); return }
+    if (!handoffInst) { setHandoffDoc(''); setHandoffSummary(null); setHandoffSumError(null); return }
     setHandoffLoading(true)
+    setHandoffSummary(null)
+    setHandoffSumError(null)
     Promise.all([
       window.api.instance.buffer(handoffInst.id),
       window.api.instance.gitLog(handoffInst.workingDirectory),
@@ -521,7 +526,14 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
           </>
         )}
         {exited.length > 0 && (running.length > 0 || pinned.length > 0) && (
-          <div className="instance-list-divider">Stopped</div>
+          <div className="instance-list-divider">
+            Stopped
+            {exited.length > 1 && (
+              <button className="clear-stopped-btn" onClick={() => exited.forEach(i => onRemove(i.id))}>
+                Clear all
+              </button>
+            )}
+          </div>
         )}
         {exited.map(renderInstance)}
         {instances.length === 0 && (
@@ -752,8 +764,39 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
               <div className="handoff-modal-hint">Paste into a new Claude session to restore context.</div>
               {handoffLoading ? (
                 <div className="handoff-modal-loading">Generating...</div>
+              ) : handoffSummary ? (
+                <>
+                  <textarea className="handoff-doc-textarea" value={handoffSummary} readOnly />
+                  <button
+                    className="handoff-summary-reset"
+                    onClick={() => setHandoffSummary(null)}
+                  >Show raw snapshot</button>
+                </>
               ) : (
-                <textarea className="handoff-doc-textarea" value={handoffDoc} readOnly />
+                <>
+                  <textarea className="handoff-doc-textarea" value={handoffDoc} readOnly />
+                  {handoffSumError && (
+                    <div className="handoff-sum-error">{handoffSumError}</div>
+                  )}
+                  <button
+                    className="handoff-summary-btn"
+                    disabled={handoffSummarizing}
+                    onClick={() => {
+                      setHandoffSummarizing(true)
+                      setHandoffSumError(null)
+                      window.api.instance.summarize(handoffInst.id)
+                        .then(summary => {
+                          // Replace terminal snapshot section with AI summary
+                          const header = handoffDoc.split('## Terminal Snapshot')[0].trimEnd()
+                          setHandoffSummary(header + '\n\n## AI Summary\n\n' + summary + '\n\n---\n*Summarized by Claude Haiku. Paste into a new session to restore context.*')
+                        })
+                        .catch(e => setHandoffSumError(String(e?.message ?? 'Summary failed')))
+                        .finally(() => setHandoffSummarizing(false))
+                    }}
+                  >
+                    {handoffSummarizing ? 'Generating...' : '✨ Generate Summary'}
+                  </button>
+                </>
               )}
             </div>
             <div className="handoff-modal-footer">
@@ -761,7 +804,8 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
                 className="handoff-copy-btn"
                 disabled={handoffLoading}
                 onClick={() => {
-                  navigator.clipboard.writeText(handoffDoc).then(() => {
+                  const text = handoffSummary ?? handoffDoc
+                  navigator.clipboard.writeText(text).then(() => {
                     setHandoffCopied(true)
                     setTimeout(() => setHandoffCopied(false), 2000)
                   })
