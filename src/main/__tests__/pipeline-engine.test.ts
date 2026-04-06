@@ -1825,3 +1825,124 @@ dedup:
     expect(() => mod.triggerPollNow('Artifact Pipeline')).not.toThrow()
   })
 })
+
+// ---- Run History ----
+
+const HISTORY_PATH = `${PIPELINES_DIR}/Cron-Pipe.history.json`
+
+describe('pipeline-engine: run history', () => {
+  let mod: typeof import('../pipeline-engine')
+  let mockCreateInstance: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+    mockCreateInstance = vi.fn().mockResolvedValue({ id: 'inst-1', status: 'running' })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  function setupHistoryMocks(fsMock: ReturnType<typeof buildFsMock>) {
+    vi.doMock('electron', () => ({
+      app: { getPath: vi.fn().mockReturnValue('/mock/home') },
+    }))
+    vi.doMock('../../shared/colony-paths', () => ({
+      colonyPaths: { root: MOCK_ROOT, pipelines: PIPELINES_DIR, schedulerLog: `${MOCK_ROOT}/scheduler.log` },
+    }))
+    vi.doMock('fs', () => fsMock)
+    vi.doMock('../broadcast', () => ({ broadcast: mockBroadcast }))
+    vi.doMock('../repo-config-loader', () => ({ getAllRepoConfigs: mockGetAllRepoConfigs }))
+    vi.doMock('../instance-manager', () => ({
+      createInstance: mockCreateInstance,
+      getAllInstances: vi.fn().mockResolvedValue([]),
+    }))
+    vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
+    vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
+    vi.doMock('../github', () => ({
+      getRepos: vi.fn().mockReturnValue([]),
+      fetchPRs: vi.fn().mockResolvedValue([]),
+      fetchChecks: vi.fn().mockResolvedValue({ checks: [] }),
+      gh: vi.fn().mockResolvedValue('{}'),
+    }))
+    vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
+    vi.doMock('../activity-manager', () => ({ appendActivity: vi.fn() }))
+    vi.doMock('../notifications', () => ({ notify: vi.fn() }))
+  }
+
+  it('getHistory returns [] when history file does not exist', async () => {
+    const fs = buildFsMock(['cron.yaml'], { 'cron.yaml': CRON_YAML })
+    // existsSync returns false for all paths except PIPELINES_DIR
+    fs.existsSync.mockImplementation((p: string) => p === PIPELINES_DIR)
+    setupHistoryMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    expect(mod.getHistory('Cron Pipe')).toEqual([])
+  })
+
+  it('getHistory returns parsed entries when file exists', async () => {
+    const entries = [
+      { ts: '2026-01-01T00:00:00.000Z', trigger: 'cron', actionExecuted: true, success: true, durationMs: 1234 },
+      { ts: '2026-01-02T00:00:00.000Z', trigger: 'cron', actionExecuted: false, success: true, durationMs: 567 },
+    ]
+    const fs = buildFsMock(['cron.yaml'], {
+      'cron.yaml': CRON_YAML,
+      'Cron-Pipe.history.json': JSON.stringify(entries),
+    })
+    fs.existsSync.mockImplementation((p: string) => p === PIPELINES_DIR || p.endsWith('.history.json'))
+    setupHistoryMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    const result = mod.getHistory('Cron Pipe')
+    expect(result).toHaveLength(2)
+    expect(result[0].trigger).toBe('cron')
+    expect(result[0].actionExecuted).toBe(true)
+    expect(result[1].actionExecuted).toBe(false)
+  })
+
+  it('getHistory returns [] on malformed JSON', async () => {
+    const fs = buildFsMock(['cron.yaml'], {
+      'cron.yaml': CRON_YAML,
+      'Cron-Pipe.history.json': '{ not valid json [[[',
+    })
+    fs.existsSync.mockImplementation((p: string) => p === PIPELINES_DIR || p.endsWith('.history.json'))
+    setupHistoryMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    expect(mod.getHistory('Cron Pipe')).toEqual([])
+  })
+
+  it('runPoll writes a history entry to disk after cron fires', async () => {
+    const fs = buildFsMock(['cron.yaml'], { 'cron.yaml': CRON_YAML })
+    fs.existsSync.mockImplementation((p: string) => p === PIPELINES_DIR)
+    setupHistoryMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.startPipelines()
+
+    // Trigger poll manually to avoid waiting for cron schedule
+    mod.triggerPollNow('Cron Pipe')
+    await flushPromises()
+
+    // writeFileSync should be called with the history path
+    const historyCalls = fs.writeFileSync.mock.calls.filter(
+      (c: unknown[]) => typeof c[0] === 'string' && c[0].endsWith('Cron-Pipe.history.json')
+    )
+    expect(historyCalls.length).toBeGreaterThan(0)
+
+    const written = JSON.parse(historyCalls[historyCalls.length - 1][1] as string)
+    expect(Array.isArray(written)).toBe(true)
+    expect(written.length).toBeGreaterThan(0)
+    expect(written[written.length - 1]).toMatchObject({
+      trigger: 'cron',
+      success: true,
+    })
+  })
+})
