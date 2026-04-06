@@ -47,6 +47,7 @@ export const colonyPaths = {
   knowledgeBase: path.join(ROOT, 'KNOWLEDGE.md'),
   mcpCatalog: path.join(ROOT, 'mcp-catalog.json'),
   mcpConfigs: path.join(ROOT, 'mcp-configs'),
+  sessions: path.join(ROOT, 'sessions'),
 
   /** Build a repo clone path for a given owner/name (shallow clones for GitHub panel) */
   repoDir: (owner: string, name: string) => path.join(ROOT, 'repos', owner, name),

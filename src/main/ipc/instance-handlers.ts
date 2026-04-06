@@ -14,6 +14,7 @@ import {
 import { getDaemonClient } from '../daemon-client'
 import { sendPromptWhenReady } from '../send-prompt-when-ready'
 import { stripAnsi } from '../../shared/utils'
+import { readReplay } from '../replay-manager'
 
 export interface ChildProcess {
   pid: number
@@ -231,6 +232,11 @@ export function registerInstanceHandlers(): void {
       })
       proc.on('error', reject)
     })
+  })
+
+  // Read session replay events (tool call audit log)
+  ipcMain.handle('session:getReplay', (_e, instanceId: string) => {
+    return readReplay(instanceId)
   })
 
   // Shell PTY — real shell terminals per instance

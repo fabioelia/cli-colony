@@ -642,4 +642,31 @@ export const helpContent: Record<string, HelpEntry> = {
       },
     ],
   },
+
+  replayTab: {
+    title: 'Replay (Tool Call Log)',
+    description: 'Read-only audit trail of tool calls made during this session. Each entry shows the tool name, input arguments, and output summary. Useful for reviewing what Claude did step by step.',
+    zones: [
+      {
+        name: 'Header',
+        position: 'Top bar',
+        items: [
+          { label: 'Refresh', detail: 'Reload the replay log from disk.', icon: 'RefreshCw' },
+        ],
+      },
+      {
+        name: 'Event List',
+        position: 'Main area',
+        items: [
+          { label: 'Tool badge', detail: 'Blue badge showing the tool name (e.g. Read, Edit, Bash). Parsed from Claude CLI output.' },
+          { label: 'Input summary', detail: 'Truncated summary of the tool\'s input arguments (up to 200 chars).' },
+          { label: 'Timestamp', detail: 'Relative time since the tool call was made. Hover for the exact ISO timestamp.' },
+          { label: 'Expand row', detail: 'Click any row to expand it and see the full input summary, output summary, and exact timestamp.' },
+          { label: 'Output summary', detail: 'Truncated summary of the tool\'s output (up to 200 chars). Visible when the row is expanded.' },
+          { label: 'Empty state', detail: 'Shows "No tool calls recorded yet" when Claude has not made any tool calls in this session, or when the session is brand new.' },
+          { label: 'Event cap', detail: 'The log keeps at most 200 events per session. Older events are dropped once the cap is reached.' },
+        ],
+      },
+    ],
+  },
 }
