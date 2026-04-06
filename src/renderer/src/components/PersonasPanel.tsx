@@ -497,6 +497,7 @@ function PersonaCard({
     setTimeout(() => whisperRef.current?.focus(), 0)
   })
   const [briefContent, setBriefContent] = useState<string | null | 'loading'>(null)
+  const fromName = (id: string) => allPersonas.find(p => p.id === id)?.name ?? id
 
   useLayoutEffect(() => {
     if (whisperOpen) whisperRef.current?.focus()
@@ -544,7 +545,7 @@ function PersonaCard({
           <span className="persona-list-name">{persona.name}</span>
           {isRunning && <span className="persona-list-badge running">Running</span>}
           {!isRunning && persona.pendingTrigger && (
-            <span className="persona-list-badge pending" title={`Queued by ${persona.pendingTrigger.from}${persona.pendingTrigger.note ? `: ${persona.pendingTrigger.note}` : ''}`}>
+            <span className="persona-list-badge pending" title={`Queued by ${fromName(persona.pendingTrigger.from)}${persona.pendingTrigger.note ? `: ${persona.pendingTrigger.note}` : ''}`}>
               <Hourglass size={9} /> queued
             </span>
           )}
@@ -602,8 +603,8 @@ function PersonaCard({
               <span className="persona-triggered-by" title={`This run was automatically triggered after "${persona.triggeredBy}" completed`}>↳ by {persona.triggeredBy}</span>
             )}
             {!isRunning && persona.pendingTrigger && (
-              <span className="persona-pending-trigger" title={`Queued by ${persona.pendingTrigger.from}${persona.pendingTrigger.note ? `: ${persona.pendingTrigger.note}` : ''}`}>
-                <Hourglass size={9} /> queued by {persona.pendingTrigger.from}
+              <span className="persona-pending-trigger" title={`Queued by ${fromName(persona.pendingTrigger.from)}${persona.pendingTrigger.note ? `: ${persona.pendingTrigger.note}` : ''}`}>
+                <Hourglass size={9} /> queued by {fromName(persona.pendingTrigger.from)}
               </span>
             )}
             <div className="persona-card-meta">
