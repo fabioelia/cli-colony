@@ -376,7 +376,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
                 </button>
               )
             })()}
-            {(inst.tokenUsage?.cost ?? 0) > 0.001 && (
+            {(inst.tokenUsage?.cost ?? 0) >= 0.01 && (
               <span className="instance-cost-badge" title={`API cost: $${inst.tokenUsage.cost.toFixed(4)}`}>
                 ${inst.tokenUsage.cost.toFixed(2)}
               </span>
@@ -391,9 +391,11 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
                 MCP {inst.mcpServers.length}
               </span>
             )}
-            <span className="instance-cli-badge" title="CLI for this session">
-              {cliBackendLabel(inst.cliBackend)}
-            </span>
+            {inst.cliBackend === 'cursor-agent' && (
+              <span className="instance-cli-badge" title="CLI for this session">
+                {cliBackendLabel(inst.cliBackend)}
+              </span>
+            )}
           </div>
         )}
         <div className="instance-meta">

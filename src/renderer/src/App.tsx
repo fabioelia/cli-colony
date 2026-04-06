@@ -1021,7 +1021,7 @@ export default function App() {
           {activeModel && (
             <span className="status-bar-item">{activeModel}</span>
           )}
-          {totalCost > 0.001 && (
+          {totalCost >= 0.01 && (
             <span className="status-bar-item status-bar-cost">
               ${totalCost.toFixed(4)}
             </span>
