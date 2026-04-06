@@ -843,7 +843,7 @@ function PersonaCard({
           {/* Session brief — latest run summary written by the persona itself */}
           {briefContent && briefContent !== 'loading' && (
             <PersonaSection
-              title={briefMtime ? (() => { const secs = (Date.now() - briefMtime) / 1000; const ago = secs < 3600 ? `${Math.floor(secs / 60)}m ago` : `${Math.floor(secs / 3600)}h ago`; return `Latest Brief · ${ago}` })() : 'Latest Brief'}
+              title={briefMtime ? (() => { const secs = (Date.now() - briefMtime) / 1000; const ago = secs < 60 ? 'just now' : secs < 3600 ? `${Math.floor(secs / 60)}m ago` : `${Math.floor(secs / 3600)}h ago`; return `Latest Brief · ${ago}` })() : 'Latest Brief'}
               content={briefContent}
               defaultOpen={true}
               isBrief
