@@ -287,7 +287,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Memory', detail: 'Per-pipeline memory file. Sessions are told to append learnings here.' },
           { label: 'Outputs', detail: 'Configurable output directory for pipeline-generated files.' },
-          { label: 'History', detail: 'Ring buffer of the last 20 poll runs: timestamp, trigger type, whether an action fired, success/failure, and duration. Click rows with a chevron (▶) to expand per-stage details — stage type, session name, and individual duration.', icon: 'Clock' },
+          { label: 'History', detail: 'Ring buffer of the last 20 poll runs: timestamp, trigger type, whether an action fired, success/failure, duration, and cost (shown as a muted $X.XX badge when non-zero). Click rows with a chevron (▶) to expand per-stage details — stage type, session name, and individual duration.', icon: 'Clock' },
           { label: 'Docs', detail: 'Companion readme if <name>.readme.md exists alongside the pipeline.' },
         ],
       },

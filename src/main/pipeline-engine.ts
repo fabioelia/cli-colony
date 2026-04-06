@@ -250,6 +250,7 @@ export interface PipelineRunEntry {
   success: boolean
   durationMs: number
   stages?: PipelineStageTrace[]
+  totalCost?: number
 }
 
 const MAX_HISTORY_ENTRIES = 20
@@ -667,11 +668,11 @@ function loadHandoffPreamble(inputs: string[]): string {
  * Iterates up to maxIterations times. Completes when checker says APPROVED
  * or iterations are exhausted.
  */
-async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<void> {
+async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<number> {
   const { makerPrompt, checkerPrompt, approvedKeyword = 'APPROVED', maxIterations = 3 } = action
   if (!makerPrompt || !checkerPrompt) {
     log(`maker-checker: missing makerPrompt or checkerPrompt for "${pipelineName}"`)
-    return
+    return 0
   }
 
   const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -685,6 +686,7 @@ async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pipelineN
   const baseName = resolveTemplate(action.name || pipelineName, ctx)
 
   let prevFeedback = ''
+  let accumulatedCost = 0
 
   for (let iteration = 1; iteration <= maxIterations; iteration++) {
     plog(pipelineName, `maker-checker: iteration ${iteration}/${maxIterations}`)
@@ -723,8 +725,11 @@ async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pipelineN
     if (!makerDone) {
       plog(pipelineName, `maker-checker: maker timed out on iteration ${iteration}`)
       appendActivity({ source: 'pipeline', name: pipelineName, summary: `Maker-checker "${pipelineName}" maker timed out (iteration ${iteration})`, level: 'error' })
-      return
+      return accumulatedCost
     }
+
+    const makerFinalState = await getDaemonClient().getInstance(makerInst.id)
+    accumulatedCost += makerFinalState?.tokenUsage.cost ?? 0
 
     // Read maker output file
     let makerOutput = ''
@@ -756,8 +761,11 @@ async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pipelineN
     if (!checkerDone) {
       plog(pipelineName, `maker-checker: checker timed out on iteration ${iteration}`)
       appendActivity({ source: 'pipeline', name: pipelineName, summary: `Maker-checker "${pipelineName}" checker timed out (iteration ${iteration})`, level: 'error' })
-      return
+      return accumulatedCost
     }
+
+    const checkerFinalState = await getDaemonClient().getInstance(checkerInst.id)
+    accumulatedCost += checkerFinalState?.tokenUsage.cost ?? 0
 
     // Read verdict
     let verdict = ''
@@ -767,7 +775,7 @@ async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pipelineN
     if (verdict.includes(approvedKeyword)) {
       plog(pipelineName, `maker-checker: APPROVED after ${iteration} iteration(s)`)
       appendActivity({ source: 'pipeline', name: pipelineName, summary: `Maker-checker "${pipelineName}" APPROVED after ${iteration} iteration(s)`, level: 'info' })
-      return
+      return accumulatedCost
     }
 
     prevFeedback = verdict || 'Checker did not write a verdict — please review your work carefully.'
@@ -776,11 +784,12 @@ async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pipelineN
 
   plog(pipelineName, `maker-checker: exhausted ${maxIterations} iterations without approval`)
   appendActivity({ source: 'pipeline', name: pipelineName, summary: `Maker-checker "${pipelineName}" exhausted ${maxIterations} iterations without approval`, level: 'warn' })
+  return accumulatedCost
 }
 
 // ---- Action Execution ----
 
-async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<void> {
+async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<number> {
   if (action.type === 'maker-checker') {
     return runMakerChecker(action, ctx, pipelineName)
   }
@@ -849,7 +858,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
         const filePath = writePromptFile(prompt)
         getDaemonClient().writeToInstance(existing.id, buildFilePromptTrigger(filePath) + '\r')
         broadcast('pipeline:fired', { pipeline: name, instanceId: existing.id, routed: true })
-        return
+        return 0
       }
 
       if (action.busyStrategy === 'launch-new') {
@@ -859,7 +868,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
         const sent = await sendPromptToExistingSession(existing.id, prompt)
         if (sent) {
           broadcast('pipeline:fired', { pipeline: name, instanceId: existing.id, routed: true })
-          return
+          return 0
         }
         log(`Routing: timed out waiting for session, falling through to launch new`)
       }
@@ -875,14 +884,14 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
       })
       await sendPromptWhenReady(inst.id, { prompt: 'Execute the instructions in your system prompt. Begin now.' })
       broadcast('pipeline:fired', { pipeline: name, instanceId: inst.id, routed: true, resumed: true })
-      return
+      return 0
     } else {
       plog(name, `route: no matching session found → launching new`)
     }
   }
 
   // ---- Launch new session (fallback when reuse finds nothing) ----
-  if (action.type !== 'launch-session') return
+  if (action.type !== 'launch-session') return 0
 
   // If no working directory resolved, try to infer from running sessions in same repo
   let resolvedCwd = cwd
@@ -923,6 +932,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
 
   // Notify renderer about pipeline-triggered session
   broadcast('pipeline:fired', { pipeline: name, instanceId: inst.id })
+  return 0
 }
 
 // ---- Preview (Dry-Run) ----
@@ -1048,6 +1058,7 @@ async function runPoll(pipelineName: string): Promise<void> {
   let fired = false
   let pollError = false
   const stages: PipelineStageTrace[] = []
+  let totalCost = 0
 
   try {
     let contexts: TriggerContext[] = []
@@ -1136,8 +1147,9 @@ async function runPoll(pipelineName: string): Promise<void> {
       const stageStart = Date.now()
       const stageSessionName = resolveTemplate(p.def.action.name || 'Pipeline Session', ctx)
       let stageError: string | undefined
+      let stageCost = 0
       try {
-        await fireAction(p.def.action, ctx, p.def.name)
+        stageCost = await fireAction(p.def.action, ctx, p.def.name)
       } catch (stageErr) {
         stageError = String(stageErr)
         throw stageErr
@@ -1151,6 +1163,7 @@ async function runPoll(pipelineName: string): Promise<void> {
           error: stageError,
         })
       }
+      totalCost += stageCost
       recordFired(pipelineName, dedupKey, ctx.contentSha)
       fired = true
       plog(pipelineName, `✓ action fired successfully`)
@@ -1205,6 +1218,7 @@ async function runPoll(pipelineName: string): Promise<void> {
     success: !pollError,
     durationMs: Date.now() - pollStartedAt,
     stages: stages.length > 0 ? stages : undefined,
+    totalCost: totalCost > 0 ? totalCost : undefined,
   })
 
   // Trim debug log to the last N iterations

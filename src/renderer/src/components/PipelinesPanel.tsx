@@ -111,7 +111,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [outputFiles, setOutputFiles] = useState<Array<{ name: string; path: string; size: number; modified: number }>>([])
   const [outputPreview, setOutputPreview] = useState<{ name: string; content: string } | null>(null)
   const [expandedTab, setExpandedTab] = useState<'yaml' | 'docs' | 'memory' | 'outputs' | 'history' | 'debug'>('yaml')
-  const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; stages?: Array<{ index: number; actionType: string; sessionName?: string; durationMs: number; success: boolean; error?: string }> }>>([])
+  const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; stages?: Array<{ index: number; actionType: string; sessionName?: string; durationMs: number; success: boolean; error?: string }> }>>([])
   const [expandedHistoryRows, setExpandedHistoryRows] = useState<Set<number>>(new Set())
 
   const [listMode, setListMode] = useState(() => localStorage.getItem('pipelines-list-mode') !== '0')
@@ -699,6 +699,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                                   {entry.actionExecuted ? 'action fired' : 'no action'}
                                 </span>
                                 <span className="pipeline-history-duration">{entry.durationMs < 1000 ? `${entry.durationMs}ms` : `${(entry.durationMs / 1000).toFixed(1)}s`}</span>
+                                {entry.totalCost && entry.totalCost > 0 && <span className="run-cost-badge">${entry.totalCost.toFixed(2)}</span>}
                               </div>
                               {hasStages && isExpanded && (
                                 <div className="pipeline-history-stages">

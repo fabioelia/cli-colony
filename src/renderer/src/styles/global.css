@@ -12783,6 +12783,14 @@ input, select {
   padding: 1px 4px;
 }
 
+.run-cost-badge {
+  font-size: 9px;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
 .persona-stat {
   font-size: 10px;
   color: var(--text-muted);
