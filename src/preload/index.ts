@@ -302,6 +302,7 @@ export interface ClaudeManagerAPI {
   session: {
     getReplay: (instanceId: string) => Promise<ReplayEvent[]>
     sendMessage: (targetName: string, text: string) => Promise<boolean>
+    steer: (instanceId: string, message: string) => Promise<boolean>
     getAttributedCommits: (dir?: string) => Promise<CommitAttribution[]>
     clearCommitAttributions: () => Promise<void>
     gitChanges: (dir: string) => Promise<GitDiffEntry[]>
@@ -649,6 +650,7 @@ const api: ClaudeManagerAPI = {
   session: {
     getReplay: (instanceId) => ipcRenderer.invoke('session:getReplay', instanceId),
     sendMessage: (targetName, text) => ipcRenderer.invoke('session:sendMessage', targetName, text),
+    steer: (instanceId, message) => ipcRenderer.invoke('session:steer', instanceId, message),
     getAttributedCommits: (dir) => ipcRenderer.invoke('session:getAttributedCommits', dir),
     clearCommitAttributions: () => ipcRenderer.invoke('session:clearCommitAttributions'),
     gitChanges: (dir) => ipcRenderer.invoke('session:gitChanges', dir),

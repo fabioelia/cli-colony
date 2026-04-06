@@ -30,6 +30,7 @@ export interface ClaudeInstance {
   childIds: string[]
   roleTag: SessionRole | null
   lastSessionId?: string
+  pendingSteer?: string
 }
 
 export interface AgentDef {

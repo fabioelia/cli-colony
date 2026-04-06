@@ -4,7 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, History, Clock, Trophy, GitCompare, RotateCw, Undo2 } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, History, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation } from 'lucide-react'
 import type { EnvStatus, EnvServiceStatus, ReplayEvent, GitDiffEntry } from '../../../shared/types'
 import { buildDiagnosePrompt } from '../../../shared/env-prompts'
 import '@xterm/xterm/css/xterm.css'
@@ -272,6 +272,11 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const [gitChangesLoading, setGitChangesLoading] = useState(false)
   const [reverting, setReverting] = useState<Set<string>>(new Set())
   const [revertingAll, setRevertingAll] = useState(false)
+
+  // Session steering
+  const [steerOpen, setSteerOpen] = useState(false)
+  const [steerText, setSteerText] = useState('')
+
   // Files tab sort
   const [filesSortMode, setFilesSortMode] = useState<'name' | 'modified'>('name')
   const sortedFileTree = useMemo(() => {
@@ -1058,6 +1063,23 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           )}
         </div>
         <div className="terminal-header-actions">
+          {viewTab === 'session' && instance.status === 'running' && (
+            <Tooltip text="Steer Session" detail="Send a mid-run redirect message — delivered immediately if waiting, or queued for next idle" position="bottom">
+              <button
+                className={steerOpen ? 'active' : ''}
+                onClick={() => {
+                  if (instance.pendingSteer) {
+                    // Pre-populate with queued message (strip prefix)
+                    setSteerText(instance.pendingSteer.replace('[Operator steering]: ', '').replace(/\r$/, ''))
+                  }
+                  setSteerOpen(o => !o)
+                }}
+                aria-label="Steer session"
+              >
+                <Navigation size={14} />
+              </button>
+            </Tooltip>
+          )}
           {(viewTab === 'session' || viewTab === 'shell') && (
             <Tooltip text="Reset Terminal" detail="Destroy this terminal and create a fresh one" position="bottom">
               <button onClick={() => {
@@ -1155,6 +1177,38 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           )}
         </div>
       </div>
+      {steerOpen && viewTab === 'session' && instance.status === 'running' && (
+        <div className="steer-input-bar">
+          <Navigation size={13} className="steer-input-icon" />
+          <input
+            className="steer-input"
+            type="text"
+            placeholder="Redirect the agent mid-run — press Enter to send, Escape to cancel"
+            value={steerText}
+            autoFocus
+            onChange={e => setSteerText(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && steerText.trim()) {
+                window.api.session.steer(instance.id, steerText.trim())
+                setSteerText('')
+                setSteerOpen(false)
+              } else if (e.key === 'Escape') {
+                setSteerText('')
+                setSteerOpen(false)
+              }
+            }}
+          />
+          {instance.pendingSteer && (
+            <button
+              className="steer-cancel-btn"
+              onClick={() => window.api.session.steer(instance.id, '')}
+              title="Cancel queued steer"
+            >
+              <X size={12} /> Clear
+            </button>
+          )}
+        </div>
+      )}
       {viewTab === 'session' && instance.status === 'running' && (
         <div className="session-status-strip">
           <div className="session-status-item">

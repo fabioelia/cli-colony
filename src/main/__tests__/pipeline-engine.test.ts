@@ -2608,7 +2608,7 @@ describe('pipeline-engine: plan stage approval gate behavior', () => {
     const approvals = mod.listApprovals()
     expect(approvals).toHaveLength(1)
     expect(approvals[0].pipelineName).toBe('Plan Pipe')
-    expect(approvals[0].summary).toContain('Approve plan to proceed?')
+    expect(approvals[0].summary).toContain('Implementation plan ready')
     expect(approvals[0].resolvedVars['plan.content']).toContain('Implement X')
   })
 

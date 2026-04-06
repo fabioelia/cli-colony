@@ -81,6 +81,10 @@ export class DaemonClient extends BaseDaemonClient {
     return await this.request({ type: 'set-role', reqId: this.nextReqId(), instanceId: id, role }) as boolean
   }
 
+  async steerInstance(id: string, message: string): Promise<boolean> {
+    return await this.request({ type: 'steer', reqId: this.nextReqId(), instanceId: id, message }) as boolean
+  }
+
   async getAllInstances(): Promise<ClaudeInstance[]> {
     return (await this.request({ type: 'list', reqId: this.nextReqId() }) as ClaudeInstance[]) || []
   }

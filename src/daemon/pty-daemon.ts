@@ -160,6 +160,7 @@ function toSerializable(inst: InternalInstance): ClaudeInstance {
     childIds: inst.childIds,
     roleTag: inst.roleTag,
     lastSessionId: inst.lastSessionId,
+    pendingSteer: inst.pendingSteer,
   }
 }
 
@@ -349,6 +350,14 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
       instance.activity = newActivity
       broadcastEvent({ type: 'activity', instanceId: id, activity: newActivity })
 
+      // Deliver pending steer message on transition to waiting
+      if (newActivity === 'waiting' && instance.pendingSteer && instance.pty) {
+        const steer = instance.pendingSteer
+        instance.pendingSteer = undefined
+        instance.pty.write(steer)
+        notifyListChanged()
+      }
+
       // When a child goes busy→waiting, ask it to write a handoff document
       // Use a flag to only do this once (not on the handoff write itself)
       if (newActivity === 'waiting' && instance.parentId && instance.pty && !instance._handoffRequested) {
@@ -405,6 +414,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
     instance.activity = 'waiting'
     instance.exitCode = exitCode
     instance.pty = null
+    instance.pendingSteer = undefined
     broadcastEvent({ type: 'exited', instanceId: id, exitCode })
     notifyListChanged()
   })
@@ -522,6 +532,27 @@ function setRoleTag(id: string, role: string | null): boolean {
   return true
 }
 
+function steerInstance(id: string, message: string): boolean {
+  const inst = instances.get(id)
+  if (!inst || inst.status !== 'running') return false
+  // Empty message = clear pending steer without delivering
+  if (!message.trim()) {
+    inst.pendingSteer = undefined
+    notifyListChanged()
+    return true
+  }
+  const prefixed = `[Operator steering]: ${message}\r`
+  if (inst.activity === 'waiting' && inst.pty) {
+    inst.pty.write(prefixed)
+    inst.pendingSteer = undefined
+  } else {
+    // Queue for delivery when session next transitions to waiting
+    inst.pendingSteer = prefixed
+  }
+  notifyListChanged()
+  return true
+}
+
 function restartInstance(id: string, defaultArgs?: string[]): ClaudeInstance | null {
   const inst = instances.get(id)
   if (!inst) return null
@@ -626,6 +657,11 @@ function handleRequest(req: DaemonRequest, socket: net.Socket): void {
       }
       case 'set-role': {
         const ok = setRoleTag(req.instanceId, req.role)
+        send({ type: 'ok', reqId: req.reqId, data: ok })
+        break
+      }
+      case 'steer': {
+        const ok = steerInstance(req.instanceId, req.message)
         send({ type: 'ok', reqId: req.reqId, data: ok })
         break
       }

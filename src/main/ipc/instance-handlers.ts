@@ -245,6 +245,12 @@ export function registerInstanceHandlers(): void {
     return readReplay(instanceId)
   })
 
+  // Session steering — queue or immediately deliver a redirect message to a session.
+  // If the session is waiting: delivers immediately. If busy: queues for next waiting transition.
+  ipcMain.handle('session:steer', async (_e, instanceId: string, message: string): Promise<boolean> => {
+    return daemonClient.steerInstance(instanceId, message)
+  })
+
   // Inter-session message bus — send text to a running session by display name.
   // Returns true if the target was found and in waiting state (message queued),
   // false if not running, not waiting, or name not found.

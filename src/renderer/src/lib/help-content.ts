@@ -530,6 +530,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Git branch badge', detail: 'Shows the current git branch and repo name.', icon: 'GitBranch' },
           { label: 'Info button', detail: 'Opens a popover with launch command, PID, working directory, MCP servers, token usage, and child processes.', icon: 'Info' },
+          { label: 'Steer session', detail: 'Send a mid-run redirect message without stopping the session. If idle, the message is delivered immediately. If busy, it is queued and delivered the moment the session next becomes idle. Prefixed with [Operator steering]: so the agent recognises it as a course correction.', icon: 'Navigation' },
           { label: 'Reset terminal', detail: 'Destroy the terminal and create a fresh one. On the Session tab, clears and re-replays the buffer. On the Shell tab, kills the shell and spawns a new one.', icon: 'RotateCcw' },
           { label: 'Spawn child', detail: 'Create a child session that reports back via a handoff document when done.', icon: 'GitFork' },
           { label: 'Arena chip', detail: 'Shown in both split pane headers when Arena mode is active — confirms that the shared input bar below is routing to this session.' },
