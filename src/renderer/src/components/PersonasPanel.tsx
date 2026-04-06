@@ -3,7 +3,7 @@ import { useFileDrop } from '../hooks/useFileDrop'
 import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
   ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote, ArrowRightCircle, Save, Loader2,
-  LayoutList, LayoutGrid, Hourglass, ArrowRight, FolderOpen,
+  LayoutList, LayoutGrid, Hourglass, ArrowRight, FolderOpen, Search,
 } from 'lucide-react'
 import { marked } from 'marked'
 import HelpPopover from './HelpPopover'
@@ -319,6 +319,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
 
       {/* Persona Chat — ask about session logs and briefs */}
       <div className="personas-ask-bar">
+        <Search size={13} className="personas-ask-icon" />
         <input
           className="personas-ask-input"
           placeholder="Ask what's been happening across personas…"
