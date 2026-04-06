@@ -2688,3 +2688,245 @@ describe('pipeline-engine: plan stage approval gate behavior', () => {
     expect(expiredCall![1].status).toBe('expired')
   })
 })
+
+// ---- wait_for_session YAML parsing ----
+
+const WAIT_SESSION_YAML = `
+name: Wait Pipe
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: wait_for_session
+  session_name: My Runner
+  timeout_minutes: 10
+dedup:
+  key: "{{timestamp}}"
+`
+
+describe('pipeline-engine: wait_for_session YAML parsing', () => {
+  let mod: typeof import('../pipeline-engine')
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  it('loads a wait_for_session pipeline', async () => {
+    const fs = buildFsMock(['wait.yaml'], { 'wait.yaml': WAIT_SESSION_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+    const list = mod.getPipelineList()
+    expect(list).toHaveLength(1)
+    expect(list[0].name).toBe('Wait Pipe')
+    expect(list[0].enabled).toBe(true)
+  })
+
+  it('rejects a wait_for_session pipeline with no session_name', async () => {
+    const yaml = WAIT_SESSION_YAML.replace('  session_name: My Runner\n', '')
+    const fs = buildFsMock(['wait.yaml'], { 'wait.yaml': yaml })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+    expect(mod.getPipelineList()).toHaveLength(0)
+  })
+
+  it('rejects a wait_for_session pipeline with a prompt instead of session_name', async () => {
+    const yaml = WAIT_SESSION_YAML
+      .replace('  session_name: My Runner\n', '')
+      .replace('  timeout_minutes: 10\n', '  prompt: do something\n')
+    const fs = buildFsMock(['wait.yaml'], { 'wait.yaml': yaml })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+    // prompt-based validation is skipped; wait_for_session with no session_name is rejected
+    expect(mod.getPipelineList()).toHaveLength(0)
+  })
+})
+
+// ---- wait_for_session runtime behavior ----
+
+describe('pipeline-engine: wait_for_session behavior', () => {
+  let mod: typeof import('../pipeline-engine')
+  let mockGetAllInstances: ReturnType<typeof vi.fn>
+  let mockCreateInstance: ReturnType<typeof vi.fn>
+
+  function setupWaitMocks(fsMock: ReturnType<typeof buildFsMock>, getAllInstances = mockGetAllInstances) {
+    vi.doMock('electron', () => ({
+      app: { getPath: vi.fn().mockReturnValue('/mock/home') },
+    }))
+    vi.doMock('../../shared/colony-paths', () => ({
+      colonyPaths: {
+        root: MOCK_ROOT,
+        pipelines: PIPELINES_DIR,
+        schedulerLog: `${MOCK_ROOT}/scheduler.log`,
+      },
+    }))
+    vi.doMock('fs', () => fsMock)
+    vi.doMock('../broadcast', () => ({ broadcast: mockBroadcast }))
+    vi.doMock('../repo-config-loader', () => ({ getAllRepoConfigs: mockGetAllRepoConfigs }))
+    vi.doMock('../instance-manager', () => ({
+      createInstance: mockCreateInstance,
+      getAllInstances,
+    }))
+    vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
+    vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
+    vi.doMock('../notifications', () => ({ notify: vi.fn() }))
+    vi.doMock('../github', () => ({
+      getRepos: vi.fn().mockReturnValue([]),
+      fetchPRs: vi.fn().mockResolvedValue([]),
+      fetchChecks: vi.fn().mockResolvedValue({ checks: [] }),
+      gh: vi.fn().mockResolvedValue('{}'),
+    }))
+    vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
+    vi.doMock('../activity-manager', () => ({ appendActivity: vi.fn() }))
+  }
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+    mockCreateInstance = vi.fn().mockResolvedValue({ id: 'inst-wait-1' })
+    mockGetAllInstances = vi.fn().mockResolvedValue([])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  /** Read the history entries that were written to the fs mock. */
+  function getWrittenHistory(fs: ReturnType<typeof buildFsMock>): Array<{ success: boolean; actionExecuted: boolean }> {
+    const calls = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls
+    const histFile = calls.find(([p]: [string]) => p.endsWith('Wait-Pipe.history.json'))
+    if (!histFile) return []
+    return JSON.parse(histFile[1])
+  }
+
+  it('resolves when the named session exits cleanly', async () => {
+    // First two polls: session is running; third: exited
+    mockGetAllInstances
+      .mockResolvedValueOnce([{ name: 'My Runner', status: 'running', exitCode: null }])
+      .mockResolvedValueOnce([{ name: 'My Runner', status: 'running', exitCode: null }])
+      .mockResolvedValue([{ name: 'My Runner', status: 'exited', exitCode: 0 }])
+
+    const fs = buildFsMock(['wait.yaml'], { 'wait.yaml': WAIT_SESSION_YAML })
+    setupWaitMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    // Trigger the pipeline — fires wait_for_session
+    mod.triggerPollNow('Wait Pipe')
+    await flushPromises()
+
+    // Advance past two 5s intervals so the third poll (exited) fires
+    await vi.advanceTimersByTimeAsync(12_000)
+    await flushPromises()
+
+    const history = getWrittenHistory(fs)
+    expect(history).toHaveLength(1)
+    expect(history[0].success).toBe(true)
+    expect(history[0].actionExecuted).toBe(true)
+  })
+
+  it('fails when session is not found after the 30s grace period', async () => {
+    // Session never appears
+    mockGetAllInstances.mockResolvedValue([])
+
+    const fs = buildFsMock(['wait.yaml'], { 'wait.yaml': WAIT_SESSION_YAML })
+    setupWaitMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Wait Pipe')
+    await flushPromises()
+
+    // Advance past the 30s grace period (at 30s: elapsed >= 30_000, not found → reject)
+    await vi.advanceTimersByTimeAsync(35_000)
+    await flushPromises()
+
+    const history = getWrittenHistory(fs)
+    expect(history).toHaveLength(1)
+    expect(history[0].success).toBe(false)
+  })
+
+  it('fails when timeout is exceeded', async () => {
+    // Session stays running the entire time
+    mockGetAllInstances.mockResolvedValue([{ name: 'My Runner', status: 'running', exitCode: null }])
+
+    const fs = buildFsMock(['wait.yaml'], { 'wait.yaml': WAIT_SESSION_YAML })
+    setupWaitMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Wait Pipe')
+    await flushPromises()
+
+    // Advance past 10-minute timeout (WAIT_SESSION_YAML sets timeout_minutes: 10)
+    await vi.advanceTimersByTimeAsync(11 * 60_000)
+    await flushPromises()
+
+    const history = getWrittenHistory(fs)
+    expect(history).toHaveLength(1)
+    expect(history[0].success).toBe(false)
+  })
+
+  it('tolerates transient getAllInstances errors and keeps polling', async () => {
+    // First call throws (transient); second resolves with exited session
+    mockGetAllInstances
+      .mockRejectedValueOnce(new Error('daemon disconnected'))
+      .mockResolvedValue([{ name: 'My Runner', status: 'exited', exitCode: 0 }])
+
+    const fs = buildFsMock(['wait.yaml'], { 'wait.yaml': WAIT_SESSION_YAML })
+    setupWaitMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Wait Pipe')
+    await flushPromises()
+    // Advance past one poll interval; second call succeeds with exited session
+    await vi.advanceTimersByTimeAsync(6_000)
+    await flushPromises()
+
+    const history = getWrittenHistory(fs)
+    expect(history).toHaveLength(1)
+    expect(history[0].success).toBe(true)
+  })
+
+  it('writes artifact_output when session exits', async () => {
+    mockGetAllInstances.mockResolvedValue([{ name: 'My Runner', status: 'exited', exitCode: 0 }])
+
+    const yamlWithArtifact = WAIT_SESSION_YAML.replace(
+      '  timeout_minutes: 10',
+      '  timeout_minutes: 10\n  artifact_output: wait-result'
+    )
+    const fs = buildFsMock(['wait.yaml'], { 'wait.yaml': yamlWithArtifact })
+    setupWaitMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Wait Pipe')
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(1_000)
+    await flushPromises()
+
+    // writeFileSync should have been called with the artifact path
+    const writeCalls = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls
+    const artifactCall = writeCalls.find(([p]: [string]) => p.includes('wait-result.txt'))
+    expect(artifactCall).toBeDefined()
+    expect(artifactCall![1]).toContain('exited cleanly')
+  })
+})

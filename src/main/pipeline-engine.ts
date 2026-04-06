@@ -46,7 +46,7 @@ export interface ConditionDef {
 }
 
 export interface ActionDef {
-  type: 'launch-session' | 'route-to-session' | 'maker-checker' | 'diff_review' | 'parallel' | 'plan' // route-to-session is deprecated, normalized to launch-session + reuse:true
+  type: 'launch-session' | 'route-to-session' | 'maker-checker' | 'diff_review' | 'parallel' | 'plan' | 'wait_for_session' // route-to-session is deprecated, normalized to launch-session + reuse:true
   reuse?: boolean // try to find/resume a matching session before launching new
   name?: string
   workingDirectory?: string
@@ -78,6 +78,10 @@ export interface ActionDef {
   // plan specific fields
   require_approval?: boolean // gate on plan before proceeding (default: true)
   plan_keyword?: string      // keyword to detect plan completion (default: PLAN_READY)
+  // wait_for_session specific fields
+  session_name?: string      // name of the session to wait for
+  timeout_minutes?: number   // max wait time in minutes (default: 30)
+  artifact_output?: string   // artifact name to write exit reason to
 }
 
 export interface DedupDef {
@@ -230,6 +234,8 @@ function parsePipelineYaml(content: string): PipelineDef | null {
     if (!result.name || !result.trigger?.type) return null
     if (result.action?.type === 'maker-checker') {
       if (!result.action?.makerPrompt || !result.action?.checkerPrompt) return null
+    } else if (result.action?.type === 'wait_for_session') {
+      if (!result.action?.session_name) return null
     } else if (result.action?.type !== 'diff_review' && result.action?.type !== 'parallel' && !result.action?.prompt) {
       return null
     }
@@ -1163,6 +1169,76 @@ async function runParallel(
   return { cost: totalCost, subStages }
 }
 
+/**
+ * Poll until a named session exits, optionally writing its exit reason to an artifact.
+ * Tolerates "not found" for first 30s (session may not have launched yet).
+ * Transient daemon disconnects are ignored — polling continues.
+ */
+async function runWaitForSession(
+  action: ActionDef,
+  pipelineName: string
+): Promise<{ cost: number; responseSnippet?: string }> {
+  const sessionName = action.session_name || ''
+  const timeoutMs = (action.timeout_minutes ?? 30) * 60_000
+  const GRACE_MS = 30_000
+  const POLL_INTERVAL_MS = 5_000
+  const startedAt = Date.now()
+
+  plog(pipelineName, `wait_for_session: waiting for "${sessionName}" (timeout ${action.timeout_minutes ?? 30}m)`)
+
+  return new Promise((resolve, reject) => {
+    let intervalId: ReturnType<typeof setInterval>
+
+    const check = async () => {
+      const elapsed = Date.now() - startedAt
+
+      if (elapsed >= timeoutMs) {
+        clearInterval(intervalId)
+        reject(new Error(`wait_for_session: timeout after ${action.timeout_minutes ?? 30}m waiting for "${sessionName}"`))
+        return
+      }
+
+      let instances: import('../shared/types').ClaudeInstance[] = []
+      try {
+        instances = await getAllInstances()
+      } catch {
+        return // transient daemon disconnect — keep polling
+      }
+
+      const target = instances.find(i => i.name === sessionName)
+
+      if (!target) {
+        if (elapsed < GRACE_MS) return // grace period — session may not have launched yet
+        clearInterval(intervalId)
+        reject(new Error(`wait_for_session: session "${sessionName}" not found after grace period`))
+        return
+      }
+
+      if (target.status === 'exited') {
+        clearInterval(intervalId)
+        const exitNote = target.exitCode === 0 || target.exitCode === null
+          ? 'exited cleanly'
+          : `exited with code ${target.exitCode}`
+
+        if (action.artifact_output) {
+          try {
+            const artifactsDir = join(COLONY_DIR, 'artifacts')
+            mkdirSync(artifactsDir, { recursive: true })
+            writeFileSync(join(artifactsDir, `${action.artifact_output}.txt`), exitNote, 'utf-8')
+          } catch (err) {
+            log(`wait_for_session: failed to write artifact: ${err}`)
+          }
+        }
+
+        resolve({ cost: 0, responseSnippet: `"${sessionName}" ${exitNote}` })
+      }
+    }
+
+    check() // immediate check before first interval tick
+    intervalId = setInterval(check, POLL_INTERVAL_MS)
+  })
+}
+
 // ---- Action Execution ----
 
 async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<{ cost: number; responseSnippet?: string; subStages?: PipelineStageTrace[] }> {
@@ -1177,6 +1253,9 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
   }
   if (action.type === 'plan') {
     return runPlanStage(action, ctx, pipelineName)
+  }
+  if (action.type === 'wait_for_session') {
+    return runWaitForSession(action, pipelineName)
   }
 
   const rawName = resolveTemplate(action.name || 'Pipeline Session', ctx)

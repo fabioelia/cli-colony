@@ -5,7 +5,7 @@ import {
   Zap, ZapOff, Play, RefreshCw, ChevronDown, ChevronRight,
   FileText, Clock, CheckCircle, XCircle, AlertTriangle, Save, BookOpen,
   MessageSquare, Send, Plus, Search, Pencil, Eye, X, LayoutList, LayoutGrid,
-  ShieldCheck, List, Globe, Wand2, ArrowRight,
+  ShieldCheck, List, Globe, Wand2, ArrowRight, Hourglass,
 } from 'lucide-react'
 import type { AuditResult, GitHubRepo } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
@@ -107,6 +107,7 @@ const STAGE_TYPE_LABELS: Record<string, string> = {
   'diff_review': 'Diff Review',
   'parallel': 'Parallel',
   'plan': 'Plan',
+  'wait_for_session': 'Wait Session',
 }
 function stageTypeLabel(type: string): string {
   return STAGE_TYPE_LABELS[type] ?? type
@@ -836,6 +837,7 @@ action:
                                         </span>
                                         <span className="pipeline-history-stage-type">
                                           {stage.actionType === 'plan' && <FileText size={9} style={{ marginRight: 3, verticalAlign: 'middle' }} />}
+                                          {stage.actionType === 'wait_for_session' && <Hourglass size={9} style={{ marginRight: 3, verticalAlign: 'middle' }} />}
                                           {stage.actionType === 'parallel' && stage.subStages?.length ? `Parallel (${stage.subStages.length})` : stageTypeLabel(stage.actionType)}
                                         </span>
                                         {statusChanged && <span className="pipeline-history-stage-delta" title={`Changed from ${prevStatus} in prior run`}>△</span>}
