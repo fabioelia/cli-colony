@@ -44,6 +44,7 @@ interface PersonaState {
   sessionStartedAt: string | null
   sessionWorkingDir: string | null
   triggeredBy: string | null
+  lastSkipped: number | null
 }
 
 const stateFile = new JsonFile<Record<string, PersonaState>>(STATE_PATH, {})
@@ -64,7 +65,7 @@ function saveState(): void {
 
 function getState(name: string): PersonaState {
   if (!stateCache[name]) {
-    stateCache[name] = { lastRunAt: null, runCount: 0, activeSessionId: null, enabled: false, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null, triggeredBy: null }
+    stateCache[name] = { lastRunAt: null, runCount: 0, activeSessionId: null, enabled: false, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null, triggeredBy: null, lastSkipped: null }
   }
   return stateCache[name]
 }
@@ -92,6 +93,11 @@ interface PersonaFrontmatter {
    * Not used for can_push: false personas.
    */
   conflict_group?: string
+  /**
+   * Optional run condition. Currently supports 'new_commits' — skip run if no
+   * commits have been made since the last run in the persona's working_directory.
+   */
+  run_condition?: string
 }
 
 function parseFrontmatter(content: string): PersonaFrontmatter | null {
@@ -115,6 +121,7 @@ function parseFrontmatter(content: string): PersonaFrontmatter | null {
     can_invoke: parseStringArray(val('can_invoke')),
     auto_memory_extraction: val('auto_memory_extraction') !== 'false',
     conflict_group: val('conflict_group') || undefined,
+    run_condition: val('run_condition') || undefined,
   }
 
   if (!result.name) return null
@@ -183,6 +190,7 @@ export function getPersonaList(): PersonaInfo[] {
         triggeredBy: state.triggeredBy ?? null,
         pendingTrigger: pending.get(personaId) ? { from: pending.get(personaId)!.from, note: pending.get(personaId)!.note } : null,
         conflictGroup: fm.conflict_group,
+        lastSkipped: state.lastSkipped ?? null,
       })
     } catch { /* skip invalid files */ }
   }
@@ -710,6 +718,29 @@ export async function runPersona(fileName: string, trigger: TriggerSource = { ty
       throw new Error(
         `Persona "${fm.name}" blocked — "${conflicting.name}" is already running in conflict group "${group}"`
       )
+    }
+  }
+
+  // Check run_condition: skip if no new commits since last run
+  if (fm.run_condition === 'new_commits' && state.lastRunAt) {
+    let cwd = fm.working_directory || colonyPaths.root
+    if (cwd.startsWith('~')) cwd = cwd.replace('~', process.env.HOME || '/')
+    try {
+      const { stdout } = await execFileAsync(
+        'git', ['log', '--oneline', '-1', `--after=${state.lastRunAt}`],
+        { encoding: 'utf-8', timeout: 5000, cwd }
+      )
+      if (!stdout.trim()) {
+        console.log(`[persona] Skipping "${fm.name}" — no new commits since ${state.lastRunAt}`)
+        state.lastSkipped = Date.now()
+        saveState()
+        broadcastStatus()
+        throw new Error(`Skipped — no new commits since last run`)
+      }
+    } catch (err) {
+      // Re-throw skip errors; for git failures (not a repo, etc.) fall through and run normally
+      if (String(err).includes('Skipped —')) throw err
+      console.log(`[persona] run_condition git check failed for "${fm.name}", running anyway: ${err}`)
     }
   }
 

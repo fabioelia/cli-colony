@@ -2098,3 +2098,182 @@ Reads and reviews.
     mod.stopScheduler()
   })
 })
+
+// ----------------------------------------------------------------
+
+describe('persona-manager: run_condition new_commits', () => {
+  let mod: typeof import('../persona-manager')
+
+  const CONDITIONAL_PERSONA_MD = `---
+name: "Conditional Persona"
+schedule: "*/15 * * * *"
+model: sonnet
+can_push: true
+can_merge: false
+can_create_sessions: false
+working_directory: "~/projects/test"
+color: "#34d399"
+run_condition: new_commits
+---
+
+## Role
+Runs only when there are new commits.
+`
+
+  const MOCK_INSTANCE = {
+    id: 'cond-inst-1', name: 'Persona: Conditional Persona', status: 'running',
+    activity: 'waiting', workingDirectory: '/mock/projects/test',
+    color: '#34d399', args: [], createdAt: Date.now(), pinned: false,
+    cliBackend: 'claude', gitBranch: null, gitRepo: null,
+    tokenUsage: { input: 0, output: 0, cost: 0 },
+    roleTag: null,
+  }
+
+  const BASE_STATE = {
+    'Conditional Persona': {
+      lastRunAt: '2026-04-06T10:00:00.000Z', runCount: 5, activeSessionId: null,
+      enabled: true, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null,
+      triggeredBy: null, lastSkipped: null,
+    },
+  }
+
+  beforeEach(async () => {
+    vi.resetModules()
+    mockBroadcast.mockReset()
+    mockCreateInstance.mockReset().mockResolvedValue(MOCK_INSTANCE)
+    mockGetAllInstances.mockReset().mockResolvedValue([])
+    mockUpdateColonyContext.mockReset().mockResolvedValue(undefined)
+    mockSendPromptWhenReady.mockReset()
+    mockGetDaemonClient.mockReset().mockReturnValue({ on: vi.fn(), removeListener: vi.fn() })
+    mockAppendActivity.mockReset()
+    mockExecFile.mockReset()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    if (mod) mod.stopScheduler()
+  })
+
+  it('skips run and sets lastSkipped when no new commits since lastRunAt', async () => {
+    // git log returns empty stdout → no new commits
+    mockExecFile.mockImplementation(
+      (_cmd: string, _args: string[], _opts: unknown, cb: (e: Error | null, r: { stdout: string; stderr: string }) => void) => {
+        cb(null, { stdout: '', stderr: '' })
+      }
+    )
+    const fs = buildFsMock({
+      personaFiles: ['conditional-persona.md'],
+      personaContents: { 'conditional-persona.md': CONDITIONAL_PERSONA_MD },
+      stateJson: JSON.stringify(BASE_STATE),
+      workingDirs: ['/mock/projects/test'],
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    await expect(mod.runPersona('conditional-persona.md')).rejects.toThrow(/Skipped.*no new commits/)
+    expect(mockCreateInstance).not.toHaveBeenCalled()
+    // lastSkipped should be written to state
+    const writeCalls = fs.writeFileSync.mock.calls
+    const stateWrite = writeCalls.find((c: unknown[]) => String(c[0]) === STATE_PATH)
+    expect(stateWrite).toBeDefined()
+    const savedState = JSON.parse(String(stateWrite![1]))
+    expect(savedState['Conditional Persona'].lastSkipped).toBeTypeOf('number')
+  })
+
+  it('runs normally when new commits exist since lastRunAt', async () => {
+    // git log returns a commit line → new commits found
+    mockExecFile.mockImplementation(
+      (_cmd: string, _args: string[], _opts: unknown, cb: (e: Error | null, r: { stdout: string; stderr: string }) => void) => {
+        cb(null, { stdout: 'abc1234 feat: add new feature\n', stderr: '' })
+      }
+    )
+    const fs = buildFsMock({
+      personaFiles: ['conditional-persona.md'],
+      personaContents: { 'conditional-persona.md': CONDITIONAL_PERSONA_MD },
+      stateJson: JSON.stringify(BASE_STATE),
+      workingDirs: ['/mock/projects/test'],
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    const instanceId = await mod.runPersona('conditional-persona.md')
+    expect(instanceId).toBe('cond-inst-1')
+    expect(mockCreateInstance).toHaveBeenCalledOnce()
+  })
+
+  it('runs normally when lastRunAt is null (first run)', async () => {
+    const firstRunState = {
+      'Conditional Persona': {
+        ...BASE_STATE['Conditional Persona'],
+        lastRunAt: null,
+      },
+    }
+    const fs = buildFsMock({
+      personaFiles: ['conditional-persona.md'],
+      personaContents: { 'conditional-persona.md': CONDITIONAL_PERSONA_MD },
+      stateJson: JSON.stringify(firstRunState),
+      workingDirs: ['/mock/projects/test'],
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    const instanceId = await mod.runPersona('conditional-persona.md')
+    expect(instanceId).toBe('cond-inst-1')
+    expect(mockCreateInstance).toHaveBeenCalledOnce()
+    // git log should NOT have been called (no lastRunAt to check against)
+    expect(mockExecFile).not.toHaveBeenCalled()
+  })
+
+  it('runs normally when git check fails (not a repo)', async () => {
+    mockExecFile.mockImplementation(
+      (_cmd: string, _args: string[], _opts: unknown, cb: (e: Error | null, r: { stdout: string; stderr: string }) => void) => {
+        cb(new Error('not a git repository'), { stdout: '', stderr: '' })
+      }
+    )
+    const fs = buildFsMock({
+      personaFiles: ['conditional-persona.md'],
+      personaContents: { 'conditional-persona.md': CONDITIONAL_PERSONA_MD },
+      stateJson: JSON.stringify(BASE_STATE),
+      workingDirs: ['/mock/projects/test'],
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    // Should fall through and run normally despite git error
+    const instanceId = await mod.runPersona('conditional-persona.md')
+    expect(instanceId).toBe('cond-inst-1')
+    expect(mockCreateInstance).toHaveBeenCalledOnce()
+  })
+
+  it('does not apply run_condition when field is absent', async () => {
+    const fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: { 'test-persona.md': FULL_PERSONA_MD },
+      stateJson: JSON.stringify({
+        'Test Persona': {
+          lastRunAt: '2026-04-06T10:00:00.000Z', runCount: 3, activeSessionId: null,
+          enabled: true, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null,
+          triggeredBy: null, lastSkipped: null,
+        },
+      }),
+      workingDirs: ['/mock/projects/test'],
+    })
+    // Even if git returns empty, should still run (no run_condition)
+    mockExecFile.mockImplementation(
+      (_cmd: string, _args: string[], _opts: unknown, cb: (e: Error | null, r: { stdout: string; stderr: string }) => void) => {
+        cb(null, { stdout: '', stderr: '' })
+      }
+    )
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+
+    const instanceId = await mod.runPersona('test-persona.md')
+    expect(instanceId).toMatch(/inst/)
+    expect(mockCreateInstance).toHaveBeenCalledOnce()
+  })
+})

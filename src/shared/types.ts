@@ -260,6 +260,8 @@ export interface PersonaInfo {
    * Ignored for can_push: false personas — they never block each other.
    */
   conflictGroup?: string
+  /** Timestamp (ms) of last skipped run due to run_condition check, or null */
+  lastSkipped?: number | null
 }
 
 export interface AuditResult {
