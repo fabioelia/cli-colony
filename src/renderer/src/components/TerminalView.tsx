@@ -4,7 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, History, Clock, Trophy, GitCommit, RotateCw, Undo2 } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, History, Clock, Trophy, GitCompare, RotateCw, Undo2 } from 'lucide-react'
 import type { EnvStatus, EnvServiceStatus, ReplayEvent, GitDiffEntry } from '../../../shared/types'
 import { buildDiagnosePrompt } from '../../../shared/env-prompts'
 import '@xterm/xterm/css/xterm.css'
@@ -1032,7 +1032,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 onClick={(e) => { e.stopPropagation(); setViewTab('changes') }}
                 title="Git changes"
               >
-                <GitCommit size={12} /> Changes
+                <GitCompare size={12} /> Changes
                 {viewTab !== 'changes' && gitChanges.length > 0 && (
                   <span className="services-tab-badge" style={{ background: 'var(--color-amber, #f59e0b)' }}>{gitChanges.length}</span>
                 )}
@@ -1843,9 +1843,16 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
         <div className="replay-panel">
           <div className="replay-panel-header">
             <span className="replay-panel-title">
-              <GitCommit size={13} /> Git Changes
+              <GitCompare size={13} /> Git Changes
             </span>
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <button
+                className="replay-refresh-btn"
+                title="Refresh"
+                onClick={loadGitChanges}
+              >
+                <RefreshCw size={12} />
+              </button>
               {gitChanges.length > 0 && (
                 <button
                   className="replay-refresh-btn"
@@ -1857,13 +1864,6 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                   <Undo2 size={12} />
                 </button>
               )}
-              <button
-                className="replay-refresh-btn"
-                title="Refresh"
-                onClick={loadGitChanges}
-              >
-                <RefreshCw size={12} />
-              </button>
             </div>
           </div>
           <div className="replay-panel-content">
@@ -1874,11 +1874,12 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
             {!gitChangesLoading && gitChanges.map((entry) => (
               <div key={entry.file} className="replay-event" style={{ cursor: 'default' }}>
                 <div className="replay-event-header" style={{ alignItems: 'center' }}>
-                  <span className="replay-event-tool" style={{
+                  <span className="replay-event-tool" title={entry.status === 'A' ? 'Added' : entry.status === 'D' ? 'Deleted' : entry.status === 'R' ? 'Renamed' : 'Modified'} style={{
                     color: entry.status === 'A' ? 'var(--color-success, #22c55e)'
                       : entry.status === 'D' ? 'var(--color-danger, #ef4444)'
                       : 'var(--color-amber, #f59e0b)',
                     minWidth: '12px',
+                    cursor: 'default',
                   }}>
                     {entry.status}
                   </span>
