@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ClipboardList, Plus, Trash2, CheckCircle2, Circle, Clock, AlertTriangle, RefreshCw } from 'lucide-react'
+import { ClipboardList, Plus, Trash2, Pencil, CheckCircle2, Circle, Clock, AlertTriangle, RefreshCw } from 'lucide-react'
 import type { TaskBoardItem, TaskStatus } from '../types'
 import HelpPopover from './HelpPopover'
 
@@ -36,6 +36,8 @@ export default function TaskBoardPanel() {
   const [draft, setDraft] = useState<NewTaskDraft>(EMPTY_DRAFT)
   const [saving, setSaving] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState<NewTaskDraft>(EMPTY_DRAFT)
 
   const loadBoard = useCallback(async () => {
     setLoading(true)
@@ -80,6 +82,38 @@ export default function TaskBoardPanel() {
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this task?')) return
     await window.api.tasksBoard.delete(id)
+  }
+
+  const handleStartEdit = (e: React.MouseEvent, item: TaskBoardItem) => {
+    e.stopPropagation()
+    setExpandedId(item.id)
+    setEditingId(item.id)
+    setEditDraft({
+      title: item.title,
+      status: item.status,
+      assignee: item.assignee || '',
+      notes: item.notes || '',
+      tags: item.tags?.join(', ') || '',
+    })
+  }
+
+  const handleEditSave = async (item: TaskBoardItem) => {
+    if (!editDraft.title.trim()) return
+    setSaving(true)
+    try {
+      const updated: TaskBoardItem = {
+        ...item,
+        title: editDraft.title.trim(),
+        status: editDraft.status,
+        assignee: editDraft.assignee.trim() || undefined,
+        notes: editDraft.notes.trim() || undefined,
+        tags: editDraft.tags ? editDraft.tags.split(',').map(t => t.trim()).filter(Boolean) : undefined,
+      }
+      await window.api.tasksBoard.save(updated)
+      setEditingId(null)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const grouped = STATUS_ORDER.reduce<Record<TaskStatus, TaskBoardItem[]>>((acc, s) => {
@@ -184,17 +218,30 @@ export default function TaskBoardPanel() {
                   <div
                     key={item.id}
                     className={`tasks-board-card${expandedId === item.id ? ' expanded' : ''}`}
-                    onClick={() => setExpandedId(id => id === item.id ? null : item.id)}
+                    onClick={() => setExpandedId(id => {
+                      const next = id === item.id ? null : item.id
+                      if (next === null) setEditingId(null)
+                      return next
+                    })}
                   >
                     <div className="tasks-board-card-title">
                       <span>{item.title}</span>
-                      <button
-                        className="tasks-board-card-delete"
-                        title="Delete task"
-                        onClick={e => { e.stopPropagation(); handleDelete(item.id) }}
-                      >
-                        <Trash2 size={11} />
-                      </button>
+                      <div className="tasks-board-card-title-btns">
+                        <button
+                          className="tasks-board-card-edit"
+                          title="Edit task"
+                          onClick={e => handleStartEdit(e, item)}
+                        >
+                          <Pencil size={11} />
+                        </button>
+                        <button
+                          className="tasks-board-card-delete"
+                          title="Delete task"
+                          onClick={e => { e.stopPropagation(); handleDelete(item.id) }}
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
                     </div>
                     {(item.assignee || item.tags?.length) && (
                       <div className="tasks-board-card-meta">
@@ -205,24 +252,77 @@ export default function TaskBoardPanel() {
                       </div>
                     )}
                     {expandedId === item.id && (
-                      <div className="tasks-board-card-detail">
-                        {item.notes && <p className="tasks-board-notes">{item.notes}</p>}
-                        {item.updated && (
-                          <p className="tasks-board-updated">
-                            Updated {new Date(item.updated).toLocaleString()}
-                          </p>
+                      <div className="tasks-board-card-detail" onClick={e => e.stopPropagation()}>
+                        {editingId === item.id ? (
+                          <div className="tasks-board-edit-form">
+                            <div className="tasks-board-edit-header">Edit task</div>
+                            <input
+                              className="tasks-board-input"
+                              placeholder="Task title"
+                              value={editDraft.title}
+                              onChange={e => setEditDraft(d => ({ ...d, title: e.target.value }))}
+                              autoFocus
+                            />
+                            <div className="tasks-board-new-row">
+                              <select
+                                className="tasks-board-select"
+                                value={editDraft.status}
+                                onChange={e => setEditDraft(d => ({ ...d, status: e.target.value as TaskStatus }))}
+                              >
+                                {STATUS_ORDER.map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+                              </select>
+                              <input
+                                className="tasks-board-input tasks-board-input-sm"
+                                placeholder="Assignee (optional)"
+                                value={editDraft.assignee}
+                                onChange={e => setEditDraft(d => ({ ...d, assignee: e.target.value }))}
+                              />
+                            </div>
+                            <input
+                              className="tasks-board-input"
+                              placeholder="Tags (comma-separated, optional)"
+                              value={editDraft.tags}
+                              onChange={e => setEditDraft(d => ({ ...d, tags: e.target.value }))}
+                            />
+                            <textarea
+                              className="tasks-board-textarea"
+                              placeholder="Notes (optional)"
+                              rows={2}
+                              value={editDraft.notes}
+                              onChange={e => setEditDraft(d => ({ ...d, notes: e.target.value }))}
+                            />
+                            <div className="tasks-board-new-actions">
+                              <button className="tasks-board-btn-secondary" onClick={() => setEditingId(null)}>Cancel</button>
+                              <button
+                                className="tasks-board-btn-primary"
+                                onClick={() => handleEditSave(item)}
+                                disabled={saving || !editDraft.title.trim()}
+                              >
+                                {saving ? 'Saving...' : 'Save changes'}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            {item.notes && <p className="tasks-board-notes">{item.notes}</p>}
+                            {item.updated && (
+                              <p className="tasks-board-updated">
+                                Updated {new Date(item.updated).toLocaleString()}
+                              </p>
+                            )}
+                            <div className="tasks-board-card-actions">
+                              {STATUS_ORDER.filter(s => s !== item.status).map(s => (
+                                <button
+                                  key={s}
+                                  className="tasks-board-status-btn"
+                                  onClick={e => { e.stopPropagation(); handleStatusChange(item, s) }}
+                                >
+                                  {STATUS_ICON[s]} {STATUS_LABEL[s]}
+                                </button>
+                              ))}
+                            </div>
+                          </>
                         )}
-                        <div className="tasks-board-card-actions">
-                          {STATUS_ORDER.filter(s => s !== item.status).map(s => (
-                            <button
-                              key={s}
-                              className="tasks-board-status-btn"
-                              onClick={e => { e.stopPropagation(); handleStatusChange(item, s) }}
-                            >
-                              {STATUS_ICON[s]} {STATUS_LABEL[s]}
-                            </button>
-                          ))}
-                        </div>
                       </div>
                     )}
                   </div>

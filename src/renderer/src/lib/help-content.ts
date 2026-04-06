@@ -672,7 +672,8 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Blocked', detail: 'Tasks that are stuck and waiting on something.' },
           { label: 'Done', detail: 'Completed tasks. Only shown when at least one task is done.' },
           { label: 'Task card', detail: 'Click a card to expand it. Expanded cards show notes, last-updated time, and quick status-change buttons.' },
-          { label: 'Delete task', detail: 'Trash icon on each card removes the task immediately (no confirmation).', icon: 'Trash2' },
+          { label: 'Edit task', detail: 'Pencil icon (hover to reveal) opens an inline edit form to change title, status, assignee, tags, or notes.', icon: 'Pencil' },
+          { label: 'Delete task', detail: 'Trash icon (hover to reveal) deletes the task after confirmation.', icon: 'Trash2' },
         ],
       },
       {

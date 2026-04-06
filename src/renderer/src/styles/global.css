@@ -13233,9 +13233,14 @@ input, select {
 .tasks-board-card:hover { border-color: var(--accent); }
 .tasks-board-card.expanded { border-color: var(--accent); }
 .tasks-board-card-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; font-size: 12px; color: var(--text-primary); line-height: 1.4; }
-.tasks-board-card-delete { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 0; opacity: 0; flex-shrink: 0; }
+.tasks-board-card-title-btns { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
+.tasks-board-card-edit, .tasks-board-card-delete { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 0; opacity: 0; }
+.tasks-board-card:hover .tasks-board-card-edit,
 .tasks-board-card:hover .tasks-board-card-delete { opacity: 1; }
+.tasks-board-card-edit:hover { color: var(--accent); }
 .tasks-board-card-delete:hover { color: var(--danger); }
+.tasks-board-edit-form { display: flex; flex-direction: column; gap: 6px; }
+.tasks-board-edit-header { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 2px; }
 .tasks-board-card-meta { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .tasks-board-assignee { font-size: 10px; color: var(--text-muted); background: var(--bg-primary); border: 1px solid var(--border); border-radius: 10px; padding: 1px 6px; }
 .tasks-board-tag { font-size: 10px; color: var(--accent); background: rgba(99,102,241,0.1); border-radius: 10px; padding: 1px 6px; }
