@@ -6,7 +6,7 @@
  * evaluates conditions, and fires actions (usually launching sessions).
  */
 
-import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from 'fs'
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync } from 'fs'
 import { join, basename } from 'path'
 import { createHash } from 'crypto'
 import { app } from 'electron'
@@ -148,6 +148,8 @@ const pendingApprovals = new Map<string, PendingApproval>()
 const pendingApprovalKeys = new Set<string>() // dedup keys with a queued approval
 const timers = new Map<string, ReturnType<typeof setInterval>>()
 const runningPolls = new Set<string>()
+/** mtime snapshots for file-poll pipelines: pipelineName → (path → mtime-ms) */
+const filePollSnapshots = new Map<string, Map<string, number>>()
 let githubUser: string | null = null
 let started = false
 let approvalSweepTimer: ReturnType<typeof setInterval> | null = null
@@ -926,6 +928,12 @@ async function runPoll(pipelineName: string): Promise<void> {
         githubUser: githubUser || undefined,
         timestamp: new Date().toISOString(),
       }]
+    } else if (p.def.trigger.type === 'file-poll') {
+      plog(pipelineName, `file change detected`)
+      contexts = [{
+        githubUser: githubUser || undefined,
+        timestamp: new Date().toISOString(),
+      }]
     }
 
     if (contexts.length === 0) {
@@ -1171,6 +1179,64 @@ function schedulePipeline(name: string, def: PipelineDef): void {
         runPoll(name)
       }
     }, 10000)
+  } else if (def.trigger.type === 'file-poll') {
+    // File-watch: poll mtime of watched paths on a short interval
+    const intervalMs = (def.trigger.interval || 30) * 1000
+    const watchPaths = def.trigger.watch || []
+    log(`Starting file-poll pipeline ${name}: watching ${watchPaths.length} path(s) every ${intervalMs / 1000}s`)
+
+    // Build initial snapshot
+    const snapshot = new Map<string, number>()
+    filePollSnapshots.set(name, snapshot)
+    for (const p of watchPaths) {
+      try {
+        const s = statSync(p)
+        if (s.isDirectory()) {
+          for (const child of readdirSync(p)) {
+            try { snapshot.set(`${p}/${child}`, statSync(`${p}/${child}`).mtimeMs) } catch { /* missing */ }
+          }
+        } else {
+          snapshot.set(p, s.mtimeMs)
+        }
+      } catch { /* path doesn't exist yet */ }
+    }
+
+    const timer = setInterval(() => {
+      const COOLDOWN_MS = 10_000
+      const pipeline = pipelines.get(name)
+      if (pipeline?.state.lastFiredAt) {
+        const msSinceLastFire = Date.now() - new Date(pipeline.state.lastFiredAt).getTime()
+        if (msSinceLastFire < COOLDOWN_MS) return
+      }
+
+      const current = filePollSnapshots.get(name)!
+      let changed = false
+
+      for (const watchPath of watchPaths) {
+        try {
+          const s = statSync(watchPath)
+          if (s.isDirectory()) {
+            for (const child of readdirSync(watchPath)) {
+              const full = `${watchPath}/${child}`
+              try {
+                const mtime = statSync(full).mtimeMs
+                if ((current.get(full) ?? -1) !== mtime) { current.set(full, mtime); changed = true }
+              } catch { /* file disappeared */ }
+            }
+          } else {
+            const mtime = s.mtimeMs
+            if ((current.get(watchPath) ?? -1) !== mtime) { current.set(watchPath, mtime); changed = true }
+          }
+        } catch { /* path missing — treat as no change */ }
+      }
+
+      if (changed) {
+        log(`File change detected for ${name}`)
+        runPoll(name)
+      }
+    }, intervalMs)
+    timers.set(name, timer)
+
   } else {
     // Interval-based: simple fixed interval
     const intervalMs = (def.trigger.interval || 300) * 1000
@@ -1187,6 +1253,7 @@ export function stopPipelines(): void {
     clearInterval(timer)
   }
   timers.clear()
+  filePollSnapshots.clear()
   if (approvalSweepTimer) {
     clearInterval(approvalSweepTimer)
     approvalSweepTimer = null

@@ -67,6 +67,7 @@ function buildFsMock(
   fileNames: string[],
   fileContents: Record<string, string>,
   stateJson?: string,
+  statMtimes?: Record<string, number>,  // path → mtime for file-poll tests
 ) {
   return {
     existsSync: vi.fn().mockImplementation((p: string) => {
@@ -87,6 +88,12 @@ function buildFsMock(
       return []
     }),
     appendFileSync: vi.fn(),
+    statSync: vi.fn().mockImplementation((p: string) => {
+      if (statMtimes && p in statMtimes) {
+        return { mtimeMs: statMtimes[p], isDirectory: () => false }
+      }
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
+    }),
   }
 }
 
@@ -119,6 +126,7 @@ function setupMocks(fsMock: ReturnType<typeof buildFsMock>) {
     gh: vi.fn().mockResolvedValue('{}'),
   }))
   vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
+  vi.doMock('../activity-manager', () => ({ appendActivity: vi.fn() }))
 }
 
 // ---- Test suites ----
@@ -1469,5 +1477,160 @@ describe('pipeline-engine: maker-checker YAML parsing', () => {
     mod.loadPipelines()
     // Pipeline loads successfully — defaults are applied at runtime, not parse time
     expect(mod.getPipelineList()).toHaveLength(1)
+  })
+})
+
+// ----------------------------------------------------------------
+
+const FILE_POLL_YAML = `
+name: File Watcher
+enabled: true
+trigger:
+  type: file-poll
+  interval: 30
+  watch:
+    - /watched/file.txt
+condition:
+  type: always
+action:
+  type: launch-session
+  prompt: A file changed
+dedup:
+  key: file-changed
+`
+
+describe('pipeline-engine: file-poll trigger', () => {
+  let mod: typeof import('../pipeline-engine')
+  let fpCreateInstance: ReturnType<typeof vi.fn>
+  let fpGetAllInstances: ReturnType<typeof vi.fn>
+
+  function setupFilePollMocks(fsMock: ReturnType<typeof buildFsMock>) {
+    vi.doMock('electron', () => ({
+      app: { getPath: vi.fn().mockReturnValue('/mock/home') },
+    }))
+    vi.doMock('../../shared/colony-paths', () => ({
+      colonyPaths: {
+        root: MOCK_ROOT,
+        pipelines: PIPELINES_DIR,
+        schedulerLog: `${MOCK_ROOT}/scheduler.log`,
+      },
+    }))
+    vi.doMock('fs', () => fsMock)
+    vi.doMock('../broadcast', () => ({ broadcast: mockBroadcast }))
+    vi.doMock('../repo-config-loader', () => ({ getAllRepoConfigs: mockGetAllRepoConfigs }))
+    vi.doMock('../instance-manager', () => ({
+      createInstance: fpCreateInstance,
+      getAllInstances: fpGetAllInstances,
+    }))
+    vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
+    vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
+    vi.doMock('../notifications', () => ({ notify: vi.fn() }))
+    vi.doMock('../github', () => ({
+      getRepos: vi.fn().mockReturnValue([]),
+      fetchPRs: vi.fn().mockResolvedValue([]),
+      fetchChecks: vi.fn().mockResolvedValue({ checks: [] }),
+      gh: vi.fn().mockResolvedValue('{}'),
+    }))
+    vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
+    vi.doMock('../activity-manager', () => ({ appendActivity: vi.fn() }))
+  }
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+    fpCreateInstance = vi.fn().mockResolvedValue({ id: 'i1' })
+    fpGetAllInstances = vi.fn().mockResolvedValue([])
+  })
+
+  afterEach(() => {
+    if (mod) mod.stopPipelines()
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('parses file-poll YAML and reports triggerType correctly', async () => {
+    const fs = buildFsMock(['fw.yaml'], { 'fw.yaml': FILE_POLL_YAML })
+    setupFilePollMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    mod.loadPipelines()
+    const list = mod.getPipelineList()
+    expect(list).toHaveLength(1)
+    expect(list[0].triggerType).toBe('file-poll')
+    expect(list[0].name).toBe('File Watcher')
+  })
+
+  it('does not fire when watched file mtime has not changed', async () => {
+    const fs = buildFsMock(['fw.yaml'], { 'fw.yaml': FILE_POLL_YAML }, undefined, {
+      '/watched/file.txt': 1000,
+    })
+    setupFilePollMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    await mod.startPipelines()
+    // Advance 60s — mtime hasn't changed
+    await vi.advanceTimersByTimeAsync(60_000)
+    await flushPromises()
+
+    expect(fpCreateInstance).not.toHaveBeenCalled()
+  })
+
+  it('fires runPoll when watched file mtime increases (via timer)', async () => {
+    let mtime = 1000
+    const fs = buildFsMock(['fw.yaml'], { 'fw.yaml': FILE_POLL_YAML })
+    fs.statSync.mockImplementation((p: string) => {
+      if (p === '/watched/file.txt') return { mtimeMs: mtime, isDirectory: () => false }
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
+    })
+    setupFilePollMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.startPipelines()
+
+    // Change mtime then let a full poll interval pass
+    mtime = 2000
+    await vi.advanceTimersByTimeAsync(30_000)
+    await flushPromises()
+
+    expect(fpCreateInstance).toHaveBeenCalled()
+  })
+
+  it('triggerPollNow fires the pipeline action for file-poll', async () => {
+    const fs = buildFsMock(['fw.yaml'], { 'fw.yaml': FILE_POLL_YAML }, undefined, {
+      '/watched/file.txt': 1000,
+    })
+    setupFilePollMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('File Watcher')
+    await flushPromises()
+
+    expect(fpCreateInstance).toHaveBeenCalled()
+  })
+
+  it('debounces: timer does not re-fire within 10s of last fire', async () => {
+    let mtime = 1000
+    const fs = buildFsMock(['fw.yaml'], { 'fw.yaml': FILE_POLL_YAML })
+    fs.statSync.mockImplementation((p: string) => {
+      if (p === '/watched/file.txt') return { mtimeMs: mtime, isDirectory: () => false }
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
+    })
+    setupFilePollMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.startPipelines()
+
+    // First change — fires
+    mtime = 2000
+    await vi.advanceTimersByTimeAsync(30_000)
+    await flushPromises()
+    const callsAfterFirst = fpCreateInstance.mock.calls.length
+
+    // Second change immediately (within 10s cooldown) — timer should NOT re-fire
+    mtime = 3000
+    await vi.advanceTimersByTimeAsync(5_000)
+    await flushPromises()
+    expect(fpCreateInstance.mock.calls.length).toBe(callsAfterFirst)
   })
 })
