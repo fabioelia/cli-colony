@@ -40,6 +40,7 @@ working_directory: "~/projects/myapp"  # default cwd for sessions
 color: "#a78bfa"                   # session color in sidebar
 on_complete_run: []                # persona IDs to ALWAYS trigger when this run completes
 can_invoke: []                     # persona IDs this persona MAY trigger dynamically (via trigger file)
+conflict_group: my-group           # personas in the same group are serialized (default: persona's own slug)
 ---
 
 ## Role
