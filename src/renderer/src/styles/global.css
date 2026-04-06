@@ -9869,6 +9869,34 @@ input, select {
   padding-bottom: 1px;
 }
 
+.stage-duration-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px 3px 28px;
+}
+
+.stage-duration-bar {
+  height: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.stage-duration-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.stage-timing-total {
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 2px 6px 4px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ===== Session Deps / Orchestrate Panel ===== */
 .session-deps-panel {
   flex: 1;

@@ -116,6 +116,15 @@ function stageTypeLabel(type: string): string {
   return STAGE_TYPE_LABELS[type] ?? type
 }
 
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`
+  const secs = Math.floor(ms / 1000)
+  if (secs < 60) return `${secs}s`
+  const mins = Math.floor(secs / 60)
+  const remainSecs = secs % 60
+  return remainSecs > 0 ? `${mins}m ${remainSecs}s` : `${mins}m`
+}
+
 export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, instances }: Props) {
   const [pipelines, setPipelines] = useState<PipelineInfo[]>([])
   const [expandedPipeline, setExpandedPipeline] = useState<string | null>(null)
@@ -128,7 +137,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [outputFiles, setOutputFiles] = useState<Array<{ name: string; path: string; size: number; modified: number }>>([])
   const [outputPreview, setOutputPreview] = useState<{ name: string; content: string } | null>(null)
   const [expandedTab, setExpandedTab] = useState<'yaml' | 'docs' | 'memory' | 'outputs' | 'history' | 'debug'>('yaml')
-  type StageTrace = { index: number; actionType: string; sessionName?: string; durationMs: number; success: boolean; error?: string; responseSnippet?: string; subStages?: StageTrace[] }
+  type StageTrace = { index: number; actionType: string; sessionName?: string; durationMs: number; startedAt?: number; completedAt?: number; success: boolean; error?: string; responseSnippet?: string; subStages?: StageTrace[] }
   const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; stages?: StageTrace[] }>>([])
   const [expandedHistoryRows, setExpandedHistoryRows] = useState<Set<number>>(new Set())
 
@@ -839,12 +848,19 @@ action:
                                   </div>
                                 )}
                               </div>
-                              {hasStages && isExpanded && (
+                              {hasStages && isExpanded && (() => {
+                                const totalDuration = entry.stages!.reduce((sum, s) => sum + s.durationMs, 0)
+                                const hasTimingData = entry.stages!.some(s => s.startedAt != null)
+                                return (
                                 <div className="pipeline-history-stages">
+                                  {hasTimingData && (
+                                    <div className="stage-timing-total">Total: {formatDuration(totalDuration)}</div>
+                                  )}
                                   {entry.stages!.map((stage, si) => {
                                     const prevStage = prevEntry?.stages?.[si]
                                     const statusChanged = prevStage !== undefined && prevStage.success !== stage.success
                                     const prevStatus = prevStage?.success ? 'PASS' : 'FAIL'
+                                    const barWidth = totalDuration > 0 ? Math.max(2, Math.min((stage.durationMs / totalDuration) * 200, 200)) : 2
                                     return (
                                     <div key={stage.index}>
                                       <div className={`pipeline-history-stage-row ${stage.success ? '' : 'error'}`}>
@@ -862,6 +878,12 @@ action:
                                         <span className="pipeline-history-duration">{stage.durationMs < 1000 ? `${stage.durationMs}ms` : `${(stage.durationMs / 1000).toFixed(1)}s`}</span>
                                         {stage.error && <span className="pipeline-history-stage-error" title={stage.error}>err</span>}
                                       </div>
+                                      {stage.startedAt != null && (
+                                        <div className="stage-duration-bar-row">
+                                          <div className="stage-duration-bar" style={{ width: barWidth }} />
+                                          <span className="stage-duration-label">{formatDuration(stage.durationMs)}</span>
+                                        </div>
+                                      )}
                                       {stage.subStages && stage.subStages.length > 0 && (
                                         <div className="pipeline-history-parallel-group">
                                           {stage.subStages.map(sub => (
@@ -881,7 +903,8 @@ action:
                                     )
                                   })}
                                 </div>
-                              )}
+                                )
+                              })()}
                             </div>
                           )
                         })}

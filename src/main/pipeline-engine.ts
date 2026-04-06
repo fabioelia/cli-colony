@@ -292,6 +292,8 @@ export interface PipelineStageTrace {
   actionType: string
   sessionName?: string
   durationMs: number
+  startedAt?: number
+  completedAt?: number
   success: boolean
   error?: string
   responseSnippet?: string // first ~120 chars of reviewer response (diff_review only)
@@ -1150,11 +1152,14 @@ async function runParallel(
       stageError = String(err)
       throw err
     } finally {
+      const end = Date.now()
       subStages[i] = {
         index: i,
         actionType: subAction.type,
         sessionName,
-        durationMs: Date.now() - start,
+        durationMs: end - start,
+        startedAt: start,
+        completedAt: end,
         success: !stageError,
         error: stageError,
       }
@@ -1645,11 +1650,14 @@ async function runPoll(pipelineName: string): Promise<void> {
         stageError = String(stageErr)
         throw stageErr
       } finally {
+        const stageEnd = Date.now()
         stages.push({
           index: stages.length,
           actionType: p.def.action.type,
           sessionName: stageSessionName,
-          durationMs: Date.now() - stageStart,
+          durationMs: stageEnd - stageStart,
+          startedAt: stageStart,
+          completedAt: stageEnd,
           success: !stageError,
           error: stageError,
           responseSnippet: stageResponseSnippet,
