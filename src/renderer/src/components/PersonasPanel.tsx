@@ -461,8 +461,13 @@ function PersonaCard({
   const [editingSchedule, setEditingSchedule] = useState(false)
   const [whisperOpen, setWhisperOpen] = useState(false)
   const [whisperText, setWhisperText] = useState('')
-  const [whisperFlash, setWhisperFlash] = useState(false)
   const whisperRef = useRef<HTMLTextAreaElement>(null)
+  const { ref: whisperBarRef, isDragging: whisperDragging } = useFileDrop(paths => {
+    const pathText = paths.join('\n')
+    setWhisperText(prev => prev ? prev + '\n' + pathText : pathText)
+    setWhisperOpen(true)
+    setTimeout(() => whisperRef.current?.focus(), 0)
+  })
   const [briefContent, setBriefContent] = useState<string | null | 'loading'>(null)
 
   useLayoutEffect(() => {
@@ -481,8 +486,7 @@ function PersonaCard({
     const text = whisperText.trim()
     if (!text) return
     setWhisperText('')
-    setWhisperFlash(true)
-    setTimeout(() => setWhisperFlash(false), 600)
+    setWhisperOpen(false)
     await onWhisper(text)
   }
   const isRunning = persona.activeSessionId !== null
@@ -595,12 +599,12 @@ function PersonaCard({
       )}
 
       {whisperOpen && (
-        <div className="persona-whisper-bar" onClick={(e) => e.stopPropagation()}>
+        <div ref={whisperBarRef} className={`persona-whisper-bar${whisperDragging ? ' dragging' : ''}`} onClick={(e) => e.stopPropagation()}>
           <StickyNote size={13} className="persona-whisper-icon" />
           <textarea
             ref={whisperRef}
-            className={`persona-whisper-input${whisperFlash ? ' flash' : ''}`}
-            placeholder="Leave a note for next run… Enter to save, Shift+↵ for newline"
+            className="persona-whisper-input"
+            placeholder="Leave a note for next run… or drop files to include paths. Enter to save, Shift+↵ for newline"
             rows={2}
             value={whisperText}
             onChange={(e) => setWhisperText(e.target.value)}
