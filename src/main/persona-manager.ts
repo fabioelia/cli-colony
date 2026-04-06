@@ -223,8 +223,12 @@ export function deleteNote(id: string, index: number): boolean {
     .filter((l) => l.trim().startsWith('- ['))
   if (index < 0 || index >= noteLines.length) return false
   const lineToRemove = noteLines[index]
-  // Remove exactly this line from the file content
-  const updated = content.split('\n').filter((l) => l !== lineToRemove).join('\n')
+  // Remove only the first matching line (avoids deleting duplicate notes with identical text)
+  let removed = false
+  const updated = content.split('\n').filter((l) => {
+    if (!removed && l === lineToRemove) { removed = true; return false }
+    return true
+  }).join('\n')
   writeFileSync(filePath, updated, 'utf-8')
   broadcastStatus()
   return true
