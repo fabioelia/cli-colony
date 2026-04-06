@@ -3,6 +3,7 @@ import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, P
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest } from '../../../shared/types'
+import { stripAnsi } from '../../../shared/utils'
 
 const ROLE_ABBREV: Record<string, string> = {
   Orchestrator: 'Orch', Planner: 'Plan', Coder: 'Code',
@@ -156,7 +157,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
       window.api.instance.gitLog(handoffInst.workingDirectory),
       window.api.instance.gitDiff(handoffInst.workingDirectory),
     ]).then(([buf, gitLog, gitDiff]) => {
-      const clean = buf.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').replace(/\r/g, '')
+      const clean = stripAnsi(buf)
       const lines = clean.split('\n').filter(l => l.trim())
       const tail = lines.slice(-50).join('\n')
       const parts: string[] = [
