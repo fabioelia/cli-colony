@@ -974,7 +974,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
               )}
               <div className="activity-popover-list">
                 {activityEvents.length === 0 && (
-                  <div className="activity-popover-empty">No activity yet</div>
+                  <div className="activity-popover-empty">Activity appears here when personas, pipelines, or approval gates fire. Start a persona or run a pipeline to see events.</div>
                 )}
                 {activityEvents.map(ev => (
                   <div key={ev.id} className={`activity-event activity-event-${ev.level}`}>

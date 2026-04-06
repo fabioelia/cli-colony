@@ -140,10 +140,9 @@ export function registerInstanceHandlers(): void {
   })
 
   // AI-generated summary of a session's terminal snapshot.
-  // Uses three sources in priority order:
-  //   1. Replay log — tool call timeline, unaffected by context compaction
-  //   2. Checkpoint file — structured summary saved before compaction
-  //   3. Terminal buffer — broader window with compaction lines filtered
+  // Uses two sources in priority order:
+  //   1. Replay log — tool call timeline (≥3 events), unaffected by context compaction
+  //   2. Terminal buffer — broader 200-line window with compaction lines filtered
   ipcMain.handle('session:summarize', async (_e, id: string): Promise<string> => {
     let contextText = ''
 
