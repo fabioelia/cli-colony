@@ -105,6 +105,7 @@ const STAGE_TYPE_LABELS: Record<string, string> = {
   'maker-checker': 'Maker-Checker',
   'diff_review': 'Diff Review',
   'parallel': 'Parallel',
+  'plan': 'Plan',
 }
 function stageTypeLabel(type: string): string {
   return STAGE_TYPE_LABELS[type] ?? type
@@ -737,7 +738,10 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                                         <span className={`pipeline-history-icon ${stage.success ? 'success' : 'failure'}`}>
                                           {stage.success ? <CheckCircle size={10} /> : <XCircle size={10} />}
                                         </span>
-                                        <span className="pipeline-history-stage-type">{stage.actionType === 'parallel' && stage.subStages?.length ? `Parallel (${stage.subStages.length})` : stageTypeLabel(stage.actionType)}</span>
+                                        <span className="pipeline-history-stage-type">
+                                          {stage.actionType === 'plan' && <FileText size={9} style={{ marginRight: 3, verticalAlign: 'middle' }} />}
+                                          {stage.actionType === 'parallel' && stage.subStages?.length ? `Parallel (${stage.subStages.length})` : stageTypeLabel(stage.actionType)}
+                                        </span>
                                         {statusChanged && <span className="pipeline-history-stage-delta" title={`Changed from ${prevStatus} in prior run`}>△</span>}
                                         {stage.sessionName && <span className="pipeline-history-stage-name">{stage.sessionName}</span>}
                                         {stage.responseSnippet && <span className="pipeline-history-stage-snippet" title={stage.responseSnippet}>{stage.responseSnippet.length > 60 ? stage.responseSnippet.slice(0, 60) + '…' : stage.responseSnippet}</span>}

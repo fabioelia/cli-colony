@@ -46,7 +46,7 @@ export interface ConditionDef {
 }
 
 export interface ActionDef {
-  type: 'launch-session' | 'route-to-session' | 'maker-checker' | 'diff_review' | 'parallel' // route-to-session is deprecated, normalized to launch-session + reuse:true
+  type: 'launch-session' | 'route-to-session' | 'maker-checker' | 'diff_review' | 'parallel' | 'plan' // route-to-session is deprecated, normalized to launch-session + reuse:true
   reuse?: boolean // try to find/resume a matching session before launching new
   name?: string
   workingDirectory?: string
@@ -75,6 +75,9 @@ export interface ActionDef {
   // parallel specific fields
   stages?: ActionDef[]    // sub-stages to run concurrently (parallel type only)
   fail_fast?: boolean     // abort remaining stages on first failure (default: true)
+  // plan specific fields
+  require_approval?: boolean // gate on plan before proceeding (default: true)
+  plan_keyword?: string      // keyword to detect plan completion (default: PLAN_READY)
 }
 
 export interface DedupDef {
@@ -99,6 +102,9 @@ interface PendingApproval {
   action: ActionDef
   ctx: TriggerContext
   dedupKey: string
+  // Optional callbacks for inline approval gates (plan stage) — resolve/reject instead of re-firing action
+  resolve?: () => void
+  reject?: (reason: string) => void
 }
 
 interface PipelineState {
@@ -990,6 +996,117 @@ async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipelineNam
 
 // ---- Parallel Fan-Out Stage ----
 
+// ---- Plan Stage ----
+
+/**
+ * Run a pre-execution planning stage: dispatch to an agent session, collect its plan output,
+ * then gate on human approval (by default) before the pipeline continues.
+ * Writes the plan to an artifact file so subsequent stages can consume it via handoffInputs.
+ */
+async function runPlanStage(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<{ cost: number; responseSnippet?: string }> {
+  const planKeyword = action.plan_keyword ?? 'PLAN_READY'
+  const requireApproval = action.require_approval !== false // default true
+  const rawPrompt = resolveTemplate(action.prompt || '', ctx)
+  const cwd = resolveTemplate(action.workingDirectory || '', ctx) || undefined
+  const resolvedCwd = cwd?.replace(/^~/, app.getPath('home'))
+
+  const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const safePipelineName = pipelineName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()
+  const planDir = join(COLONY_DIR, 'plan-stages', safePipelineName, runId)
+  mkdirSync(planDir, { recursive: true })
+  const planOutputFile = join(planDir, 'plan-output.md')
+
+  const artifactsDir = join(COLONY_DIR, 'artifacts')
+  mkdirSync(artifactsDir, { recursive: true })
+  const artifactName = `${safePipelineName}-${runId}-implementation-plan`
+  const artifactPath = join(artifactsDir, `${artifactName}.txt`)
+
+  const fullPrompt =
+    `${rawPrompt}\n\n` +
+    `--- Output Instructions ---\n` +
+    `Write your complete plan to:\n${planOutputFile}\n\n` +
+    `When your plan is fully written to that file, output the keyword: ${planKeyword}\n\n` +
+    `The plan file MUST be written before you finish.`
+
+  const baseName = resolveTemplate(action.name || pipelineName, ctx)
+  const plannerName = `Pipe (${baseName}) [Plan]`
+  plog(pipelineName, `plan-stage: launching planner "${plannerName}"`)
+
+  const promptFile = writePromptFile(fullPrompt)
+  const plannerInst = await createInstance({
+    name: plannerName,
+    workingDirectory: resolvedCwd,
+    color: action.color,
+    args: ['--append-system-prompt-file', promptFile],
+    mcpServers: action.mcpServers,
+  })
+
+  const completionPromise = waitForSessionCompletion(plannerInst.id, 5 * 60 * 1000)
+  await sendPromptWhenReady(plannerInst.id, { prompt: 'Execute the instructions in your system prompt. Begin now.' })
+  const plannerDone = await completionPromise
+
+  const plannerFinalState = await getDaemonClient().getInstance(plannerInst.id)
+  const cost = plannerFinalState?.tokenUsage.cost ?? 0
+
+  let planContent = ''
+  if (plannerDone) {
+    try {
+      planContent = existsSync(planOutputFile) ? readFileSync(planOutputFile, 'utf-8').trim() : ''
+    } catch { planContent = '' }
+  }
+
+  if (!planContent) {
+    const reason = !plannerDone ? 'timed out after 5 minutes' : 'did not write output file'
+    planContent = `(Planning session ${reason})`
+    plog(pipelineName, `plan-stage: warning — ${reason}`)
+    appendActivity({ source: 'pipeline', name: pipelineName, summary: `Pipeline "${pipelineName}" plan stage: ${reason}`, level: 'warn' })
+  }
+
+  writeFileSync(artifactPath, planContent, 'utf-8')
+  plog(pipelineName, `plan-stage: artifact written: ${artifactName}`)
+
+  const snippetRaw = planContent.slice(0, 120)
+  const responseSnippet = planContent.length > 120 ? snippetRaw + '…' : snippetRaw
+
+  if (!requireApproval) {
+    plog(pipelineName, `plan-stage: require_approval=false — proceeding automatically`)
+    appendActivity({ source: 'pipeline', name: pipelineName, summary: `Pipeline "${pipelineName}" plan complete — proceeding automatically`, level: 'info' })
+    return { cost, responseSnippet }
+  }
+
+  // Create a blocking approval gate — resolves when approved, rejects when dismissed/expired
+  const approvalId = `plan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const truncatedPlan = planContent.length > 2000 ? planContent.slice(0, 2000) + '\n[...truncated]' : planContent
+
+  const request: ApprovalRequest = {
+    id: approvalId,
+    pipelineName,
+    summary: `Approve plan to proceed? — ${plannerName}`,
+    resolvedVars: {
+      'plan.content': truncatedPlan,
+      'plan.artifact': artifactName,
+    },
+    createdAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + APPROVAL_DEFAULT_TTL_HOURS * 3600 * 1000).toISOString(),
+  }
+
+  return new Promise((resolve, rejectPromise) => {
+    pendingApprovals.set(approvalId, {
+      request,
+      action,
+      ctx,
+      dedupKey: approvalId,
+      resolve: () => resolve({ cost, responseSnippet }),
+      reject: (reason: string) => rejectPromise(new Error(reason)),
+    })
+    pendingApprovalKeys.add(approvalId)
+    broadcast('pipeline:approval:new', request)
+    plog(pipelineName, `plan-stage: awaiting approval ${approvalId}`)
+    appendActivity({ source: 'pipeline', name: pipelineName, summary: `Pipeline "${pipelineName}" waiting for plan approval`, level: 'warn' })
+    notify(`Colony: Plan approval needed`, `Pipeline "${pipelineName}" — Approve plan to proceed?`, 'pipelines')
+  })
+}
+
 /**
  * Dispatch all sub-stages concurrently (Promise.allSettled or Promise.all).
  * Returns total cost + per-sub-stage trace for the history record.
@@ -1057,6 +1174,9 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
   }
   if (action.type === 'parallel') {
     return runParallel(action, ctx, pipelineName)
+  }
+  if (action.type === 'plan') {
+    return runPlanStage(action, ctx, pipelineName)
   }
 
   const rawName = resolveTemplate(action.name || 'Pipeline Session', ctx)
@@ -1848,10 +1968,13 @@ export function setPipelineCron(fileName: string, cron: string | null): boolean 
 export function sweepExpiredApprovals(): void {
   const now = Date.now()
   for (const [id, entry] of pendingApprovals) {
-    const { request, dedupKey } = entry
+    const { request, dedupKey, reject } = entry
     if (request.expiresAt && new Date(request.expiresAt).getTime() <= now) {
       pendingApprovals.delete(id)
       pendingApprovalKeys.delete(dedupKey)
+      if (reject) {
+        reject('Plan approval expired — pipeline run stopped')
+      }
       appendActivity({
         source: 'pipeline',
         name: request.pipelineName,
@@ -1873,9 +1996,18 @@ export function listApprovals(): ApprovalRequest[] {
 export async function approveAction(id: string): Promise<boolean> {
   const entry = pendingApprovals.get(id)
   if (!entry) return false
-  const { request, action, ctx, dedupKey } = entry
+  const { request, action, ctx, dedupKey, resolve } = entry
   pendingApprovals.delete(id)
   pendingApprovalKeys.delete(dedupKey)
+
+  if (resolve) {
+    // Inline approval gate (plan stage) — resume the blocked pipeline
+    resolve()
+    appendActivity({ source: 'pipeline', name: request.pipelineName, summary: `Pipeline "${request.pipelineName}" plan approved — proceeding`, level: 'info' })
+    broadcast('pipeline:approval:update', { id, status: 'approved' })
+    return true
+  }
+
   try {
     const { cost: _ } = await fireAction(action, ctx, request.pipelineName)
     recordFired(request.pipelineName, dedupKey, ctx.contentSha)
@@ -1890,9 +2022,12 @@ export async function approveAction(id: string): Promise<boolean> {
 export function dismissAction(id: string): boolean {
   const entry = pendingApprovals.get(id)
   if (!entry) return false
-  const { request, dedupKey } = entry
+  const { request, dedupKey, reject } = entry
   pendingApprovals.delete(id)
   pendingApprovalKeys.delete(dedupKey)
+  if (reject) {
+    reject('Plan rejected by user — pipeline run stopped')
+  }
   appendActivity({ source: 'pipeline', name: request.pipelineName, summary: `Pipeline "${request.pipelineName}" action dismissed — ${request.summary}`, level: 'warn' })
   broadcast('pipeline:approval:update', { id, status: 'dismissed' })
   return true

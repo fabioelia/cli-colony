@@ -2424,3 +2424,267 @@ describe('pipeline-engine: parallel stage YAML parsing', () => {
     expect(mod.getPipelineList()).toHaveLength(0)
   })
 })
+
+// ---- Plan Stage YAML Fixtures ----
+
+const PLAN_YAML = `
+name: Plan Pipe
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: plan
+  prompt: Analyze the codebase and produce an implementation plan.
+  require_approval: true
+  plan_keyword: PLAN_READY
+dedup:
+  key: "{{timestamp}}"
+`
+
+const PLAN_YAML_AUTO = `
+name: Plan Auto Pipe
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: plan
+  prompt: Auto plan — proceed without gate.
+  require_approval: false
+dedup:
+  key: "{{timestamp}}"
+`
+
+describe('pipeline-engine: plan stage YAML parsing', () => {
+  let mod: typeof import('../pipeline-engine')
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  it('loads a plan stage pipeline', async () => {
+    const fs = buildFsMock(['plan.yaml'], { 'plan.yaml': PLAN_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+    const list = mod.getPipelineList()
+    expect(list).toHaveLength(1)
+    expect(list[0].name).toBe('Plan Pipe')
+    expect(list[0].enabled).toBe(true)
+  })
+
+  it('loads a plan stage with require_approval=false', async () => {
+    const fs = buildFsMock(['plan.yaml'], { 'plan.yaml': PLAN_YAML_AUTO })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+    const list = mod.getPipelineList()
+    expect(list).toHaveLength(1)
+    expect(list[0].name).toBe('Plan Auto Pipe')
+  })
+
+  it('rejects a plan stage pipeline with no prompt', async () => {
+    const yaml = PLAN_YAML.replace('  prompt: Analyze the codebase and produce an implementation plan.\n', '')
+    const fs = buildFsMock(['plan.yaml'], { 'plan.yaml': yaml })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+    expect(mod.getPipelineList()).toHaveLength(0)
+  })
+})
+
+describe('pipeline-engine: plan stage approval gate behavior', () => {
+  let mod: typeof import('../pipeline-engine')
+  let mockCreateInstance: ReturnType<typeof vi.fn>
+  let mockAppendActivity: ReturnType<typeof vi.fn>
+  let mockSendPromptWhenReady: ReturnType<typeof vi.fn>
+  let mockGetInstance: ReturnType<typeof vi.fn>
+  let activityHandlers: Array<(id: string, activity: string) => void>
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+    activityHandlers = []
+    mockCreateInstance = vi.fn().mockResolvedValue({ id: 'inst-plan-123' })
+    mockAppendActivity = vi.fn()
+    mockSendPromptWhenReady = vi.fn().mockResolvedValue(undefined)
+    mockGetInstance = vi.fn().mockResolvedValue({ tokenUsage: { cost: 0.05 } })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  function buildPlanFsMock(yaml: string, planContent = '1. Implement X\n2. Write tests') {
+    const base = buildFsMock(['plan.yaml'], { 'plan.yaml': yaml })
+    base.existsSync = vi.fn().mockImplementation((p: string) => {
+      if (p === PIPELINES_DIR) return true
+      if (p === STATE_PATH) return false
+      if (p.includes('plan-output.md')) return true
+      return false
+    })
+    base.readFileSync = vi.fn().mockImplementation((p: string) => {
+      if (p.includes('plan-output.md')) return planContent
+      if (p.endsWith('plan.yaml')) return yaml
+      throw new Error(`Unexpected readFileSync: ${p}`)
+    })
+    return base
+  }
+
+  function setupPlanMocks(fsMock: ReturnType<typeof buildFsMock>) {
+    vi.doMock('electron', () => ({
+      app: { getPath: vi.fn().mockReturnValue('/mock/home') },
+    }))
+    vi.doMock('../../shared/colony-paths', () => ({
+      colonyPaths: { root: MOCK_ROOT, pipelines: PIPELINES_DIR, schedulerLog: `${MOCK_ROOT}/scheduler.log` },
+    }))
+    vi.doMock('fs', () => fsMock)
+    vi.doMock('../broadcast', () => ({ broadcast: mockBroadcast }))
+    vi.doMock('../repo-config-loader', () => ({ getAllRepoConfigs: mockGetAllRepoConfigs }))
+    vi.doMock('../instance-manager', () => ({
+      createInstance: mockCreateInstance,
+      getAllInstances: vi.fn().mockResolvedValue([]),
+    }))
+    vi.doMock('../daemon-client', () => ({
+      getDaemonClient: vi.fn().mockReturnValue({
+        on: vi.fn().mockImplementation((event: string, handler: (id: string, act: string) => void) => {
+          if (event === 'activity') activityHandlers.push(handler)
+        }),
+        removeListener: vi.fn(),
+        getInstance: mockGetInstance,
+        writeToInstance: vi.fn(),
+      }),
+    }))
+    vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: mockSendPromptWhenReady }))
+    vi.doMock('../github', () => ({
+      getRepos: vi.fn().mockReturnValue([]),
+      fetchPRs: vi.fn().mockResolvedValue([]),
+      fetchChecks: vi.fn().mockResolvedValue({ checks: [] }),
+      gh: vi.fn().mockResolvedValue('{}'),
+    }))
+    vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
+    vi.doMock('../activity-manager', () => ({ appendActivity: mockAppendActivity }))
+    vi.doMock('../notifications', () => ({ notify: vi.fn() }))
+  }
+
+  function fireActivityComplete(instanceId = 'inst-plan-123') {
+    for (const h of activityHandlers) {
+      h(instanceId, 'busy')
+      h(instanceId, 'waiting')
+    }
+  }
+
+  it('queues approval gate when plan session completes with require_approval=true', async () => {
+    const fs = buildPlanFsMock(PLAN_YAML)
+    setupPlanMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Plan Pipe')
+    await flushPromises()
+
+    // Session not finished yet — no approval gate
+    expect(mod.listApprovals()).toHaveLength(0)
+
+    fireActivityComplete()
+    await flushPromises()
+
+    const approvals = mod.listApprovals()
+    expect(approvals).toHaveLength(1)
+    expect(approvals[0].pipelineName).toBe('Plan Pipe')
+    expect(approvals[0].summary).toContain('Approve plan to proceed?')
+    expect(approvals[0].resolvedVars['plan.content']).toContain('Implement X')
+  })
+
+  it('resolves the pipeline when plan approval is accepted', async () => {
+    const fs = buildPlanFsMock(PLAN_YAML)
+    setupPlanMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Plan Pipe')
+    await flushPromises()
+    fireActivityComplete()
+    await flushPromises()
+
+    const [approval] = mod.listApprovals()
+    const accepted = await mod.approveAction(approval.id)
+    expect(accepted).toBe(true)
+    expect(mod.listApprovals()).toHaveLength(0)
+
+    const updateCall = mockBroadcast.mock.calls.find(([ch]) => ch === 'pipeline:approval:update')
+    expect(updateCall![1].status).toBe('approved')
+  })
+
+  it('stops the pipeline when plan approval is dismissed', async () => {
+    const fs = buildPlanFsMock(PLAN_YAML)
+    setupPlanMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Plan Pipe')
+    await flushPromises()
+    fireActivityComplete()
+    await flushPromises()
+
+    const [approval] = mod.listApprovals()
+    const dismissed = mod.dismissAction(approval.id)
+    expect(dismissed).toBe(true)
+    expect(mod.listApprovals()).toHaveLength(0)
+
+    const updateCall = mockBroadcast.mock.calls.find(([ch]) => ch === 'pipeline:approval:update')
+    expect(updateCall![1].status).toBe('dismissed')
+  })
+
+  it('does not queue approval gate when require_approval=false', async () => {
+    const fs = buildPlanFsMock(PLAN_YAML_AUTO)
+    setupPlanMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Plan Auto Pipe')
+    await flushPromises()
+    fireActivityComplete()
+    await flushPromises()
+
+    expect(mod.listApprovals()).toHaveLength(0)
+  })
+
+  it('sweepExpiredApprovals broadcasts expired and removes plan approval', async () => {
+    const fs = buildPlanFsMock(PLAN_YAML)
+    setupPlanMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Plan Pipe')
+    await flushPromises()
+    fireActivityComplete()
+    await flushPromises()
+
+    expect(mod.listApprovals()).toHaveLength(1)
+
+    // Advance past the 24h TTL
+    vi.advanceTimersByTime(25 * 60 * 60 * 1000)
+    mod.sweepExpiredApprovals()
+
+    expect(mod.listApprovals()).toHaveLength(0)
+    const expiredCall = mockBroadcast.mock.calls.find(([ch]) => ch === 'pipeline:approval:update')
+    expect(expiredCall![1].status).toBe('expired')
+  })
+})
