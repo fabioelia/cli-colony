@@ -388,7 +388,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
               if (inst.cliBackend === 'cursor-agent')
                 badges.push({ node: <span key="cl" className="instance-cli-badge" title="CLI for this session">{cliBackendLabel(inst.cliBackend)}</span>, label: cliBackendLabel(inst.cliBackend) })
               if (inst.pendingSteer)
-                badges.push({ node: <span key="ps" className="instance-steer-badge" title="Steering message queued — will be delivered when session is next idle">⚡ Steer</span>, label: 'Steer' })
+                badges.push({ node: <span key="ps" className="instance-steer-badge" title="Steering message queued — will be delivered when session is next idle">Steer</span>, label: 'Steer' })
 
               const MAX_VISIBLE = 5
               const visible = badges.slice(0, MAX_VISIBLE)
