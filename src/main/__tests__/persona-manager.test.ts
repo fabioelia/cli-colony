@@ -136,6 +136,7 @@ function buildFsMock(options: {
       if (p === PERSONAS_DIR) return personaFiles
       return []
     }),
+    statSync: vi.fn().mockReturnValue({ mtimeMs: 1700000000000 }),
     unlinkSync: vi.fn(),
     watch: vi.fn().mockReturnValue({ close: vi.fn() }),
   }
@@ -304,15 +305,16 @@ describe('persona-manager: getPersonaContent', () => {
     if (mod) mod.stopScheduler()
   })
 
-  it('returns file content when file exists', async () => {
+  it('returns file content and mtime when file exists', async () => {
     const fs = buildFsMock({
       personaContents: { 'my-persona.md': FULL_PERSONA_MD },
     })
     setupMocks(fs)
     mod = await import('../persona-manager')
 
-    const content = mod.getPersonaContent('my-persona')
+    const { content, mtime } = mod.getPersonaContent('my-persona')
     expect(content).toBe(FULL_PERSONA_MD)
+    expect(typeof mtime).toBe('number')
   })
 
   it('appends .md when fileName has no extension', async () => {
@@ -323,16 +325,18 @@ describe('persona-manager: getPersonaContent', () => {
     mod = await import('../persona-manager')
 
     // Both forms should work
-    expect(mod.getPersonaContent('my-persona')).toBe(FULL_PERSONA_MD)
-    expect(mod.getPersonaContent('my-persona.md')).toBe(FULL_PERSONA_MD)
+    expect(mod.getPersonaContent('my-persona').content).toBe(FULL_PERSONA_MD)
+    expect(mod.getPersonaContent('my-persona.md').content).toBe(FULL_PERSONA_MD)
   })
 
-  it('returns null when file does not exist', async () => {
+  it('returns null content and mtime when file does not exist', async () => {
     const fs = buildFsMock({ personaContents: {} })
     setupMocks(fs)
     mod = await import('../persona-manager')
 
-    expect(mod.getPersonaContent('nonexistent')).toBeNull()
+    const { content, mtime } = mod.getPersonaContent('nonexistent')
+    expect(content).toBeNull()
+    expect(mtime).toBeNull()
   })
 })
 

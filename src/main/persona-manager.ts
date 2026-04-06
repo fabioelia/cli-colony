@@ -4,7 +4,7 @@
  * and self-managed sections (Active Situations, Learnings, Session Log).
  */
 
-import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, watch } from 'fs'
+import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, statSync, watch } from 'fs'
 import { execFile, spawn } from 'child_process'
 import { promisify } from 'util'
 import { basename, join } from 'path'
@@ -230,12 +230,15 @@ export async function listPersonas(): Promise<PersonaInfo[]> {
   return personas
 }
 
-export function getPersonaContent(fileName: string): string | null {
+export function getPersonaContent(fileName: string): { content: string | null; mtime: number | null } {
   const filePath = resolvedPersonaPath(fileName)
   try {
-    return existsSync(filePath) ? readFileSync(filePath, 'utf-8') : null
+    if (!existsSync(filePath)) return { content: null, mtime: null }
+    const content = readFileSync(filePath, 'utf-8')
+    const mtime = statSync(filePath).mtimeMs
+    return { content, mtime }
   } catch {
-    return null
+    return { content: null, mtime: null }
   }
 }
 
@@ -297,7 +300,7 @@ export function deleteNote(id: string, index: number): boolean {
 
 /** Surgically update the schedule field in a persona frontmatter without touching the rest. */
 export function setPersonaSchedule(fileName: string, schedule: string): boolean {
-  const content = getPersonaContent(fileName)
+  const { content } = getPersonaContent(fileName)
   if (!content) return false
   const updated = content.replace(/^(schedule:\s*).*$/m, `$1"${schedule}"`)
   return savePersonaContent(fileName, updated)

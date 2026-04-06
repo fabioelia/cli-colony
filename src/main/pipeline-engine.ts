@@ -51,6 +51,7 @@ export interface ActionDef {
   match?: {
     gitBranch?: string
     workingDirectory?: string
+    role?: string // route to session with this agent role tag (+20 score)
   }
   busyStrategy?: 'wait' | 'launch-new' // default: 'launch-new'
   mcpServers?: string[] // named MCP servers from catalog to inject via --mcp-config
@@ -1009,6 +1010,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
       workingDirectory: matchDef.workingDirectory ? resolveTemplate(matchDef.workingDirectory, ctx) : undefined,
       repoName: ctx.repo?.name,
       prNumber: ctx.pr?.number,
+      role: matchDef.role,
     }
 
     plog(name, `reuse: looking for branch=${resolvedMatch.gitBranch} dir=${resolvedMatch.workingDirectory} repo=${resolvedMatch.repoName} pr=#${resolvedMatch.prNumber}`)

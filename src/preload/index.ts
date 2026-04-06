@@ -207,7 +207,7 @@ export interface ClaudeManagerAPI {
   }
   persona: {
     list: () => Promise<PersonaInfo[]>
-    getContent: (fileName: string) => Promise<string | null>
+    getContent: (fileName: string) => Promise<{ content: string | null; mtime: number | null }>
     saveContent: (fileName: string, content: string) => Promise<boolean>
     create: (name: string) => Promise<{ fileName: string } | null>
     delete: (fileName: string) => Promise<boolean>

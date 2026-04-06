@@ -499,6 +499,7 @@ function PersonaCard({
     setTimeout(() => whisperRef.current?.focus(), 0)
   })
   const [briefContent, setBriefContent] = useState<string | null | 'loading'>(null)
+  const [briefMtime, setBriefMtime] = useState<number | null>(null)
   const fromName = (id: string) => allPersonas.find(p => p.id === id)?.name ?? id
 
   useLayoutEffect(() => {
@@ -508,8 +509,9 @@ function PersonaCard({
   useEffect(() => {
     if (!expanded || briefContent !== null) return
     setBriefContent('loading')
-    window.api.persona.getContent(persona.id + '.brief').then((content) => {
+    window.api.persona.getContent(persona.id + '.brief').then(({ content, mtime }) => {
       setBriefContent(content ?? '')  // '' = "attempted, not found" — prevents re-fetch loop
+      setBriefMtime(mtime)
     })
   }, [expanded, persona.id, briefContent])
 
@@ -840,7 +842,12 @@ function PersonaCard({
 
           {/* Session brief — latest run summary written by the persona itself */}
           {briefContent && briefContent !== 'loading' && (
-            <PersonaSection title="Latest Brief" content={briefContent} defaultOpen={true} isBrief />
+            <PersonaSection
+              title={briefMtime ? (() => { const secs = (Date.now() - briefMtime) / 1000; const ago = secs < 3600 ? `${Math.floor(secs / 60)}m ago` : `${Math.floor(secs / 3600)}h ago`; return `Latest Brief · ${ago}` })() : 'Latest Brief'}
+              content={briefContent}
+              defaultOpen={true}
+              isBrief
+            />
           )}
 
           {/* Collapsible sections — dynamic ones open, static ones collapsed */}

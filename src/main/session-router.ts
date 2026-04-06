@@ -34,6 +34,7 @@ export interface RouteMatch {
   workingDirectory?: string
   repoName?: string
   prNumber?: number
+  role?: string // match by agent role tag (+20 score bonus)
 }
 
 // ---- Branch Detection ----
@@ -192,7 +193,12 @@ export async function findBestRoute(
   const running = all.filter(i => i.status === 'running')
 
   for (const inst of running) {
-    const score = scoreSessionDir(inst.workingDirectory, inst.name || '', inst.gitBranch, match)
+    let score = scoreSessionDir(inst.workingDirectory, inst.name || '', inst.gitBranch, match)
+
+    // Role tag matching: strong +20 bonus when role matches
+    if (match.role && (inst as any).roleTag === match.role) {
+      score += 20
+    }
 
     if (score > 0) {
       const adjusted = inst.activity === 'waiting' ? score + 1 : score
