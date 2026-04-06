@@ -683,6 +683,8 @@ function PersonaCard({
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleWhisperSubmit() }
               if (e.key === 'Escape') { setWhisperOpen(false); setWhisperText('') }
             }}
+            onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) e.preventDefault() }}
+            onDrop={(e) => e.preventDefault()}
           />
           <button
             className="persona-whisper-send"
