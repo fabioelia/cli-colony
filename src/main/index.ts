@@ -32,7 +32,8 @@ import { updateColonyContext } from './colony-context'
 import { killAllShells } from './shell-pty'
 import { snapshotRunning } from './recent-sessions'
 import { ensureRepoClones } from './github'
-import { loadPersonas, startWatcher as startPersonaWatcher, startScheduler as startPersonaScheduler, onSessionExit as onPersonaSessionExit } from './persona-manager'
+import { loadPersonas, startWatcher as startPersonaWatcher, startScheduler as startPersonaScheduler, onSessionExit as onPersonaSessionExit, runPersona, getPersonaList, addWhisper } from './persona-manager'
+import { initTriggerWatcher } from './persona-triggers'
 
 const COLONY_CLI_SCRIPT = `#!/bin/bash
 # colony — control Colony environments from the command line.
@@ -376,6 +377,7 @@ app.whenReady().then(() => {
       loadPersonas()
       startPersonaWatcher()
       startPersonaScheduler()
+      initTriggerWatcher(runPersona, getPersonaList, addWhisper)
     } catch { /* ignore */ }
   }).catch((err) => {
     console.error('[app] daemon init failed:', err)

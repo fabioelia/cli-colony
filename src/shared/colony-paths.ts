@@ -49,6 +49,8 @@ export const colonyPaths = {
   mcpConfigs: path.join(ROOT, 'mcp-configs'),
   sessions: path.join(ROOT, 'sessions'),
   taskBoard: path.join(ROOT, 'colony-tasks.json'),
+  triggers: path.join(ROOT, 'triggers'),
+  bin: path.join(ROOT, 'bin'),
 
   /** Build a repo clone path for a given owner/name (shallow clones for GitHub panel) */
   repoDir: (owner: string, name: string) => path.join(ROOT, 'repos', owner, name),

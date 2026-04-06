@@ -248,6 +248,8 @@ export interface PersonaInfo {
   canInvoke: string[]
   /** Display name of the persona that triggered this run (handoff trigger only), null otherwise */
   triggeredBy: string | null
+  /** Pending trigger queued for this persona (waiting to fire), or null */
+  pendingTrigger: { from: string; note?: string } | null
 }
 
 export interface AuditResult {

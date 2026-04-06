@@ -6,7 +6,8 @@
 
 import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, watch } from 'fs'
 import { execSync, spawn } from 'child_process'
-import { join, basename } from 'path'
+import { basename, join } from 'path'
+import { getPendingTriggers } from './persona-triggers'
 import { colonyPaths } from '../shared/colony-paths'
 import { createInstance, getAllInstances, killInstance } from './instance-manager'
 import { getDaemonClient } from './daemon-client'
@@ -131,6 +132,7 @@ export function loadPersonas(): void {
 export function getPersonaList(): PersonaInfo[] {
   ensureDir()
   const files = readdirSync(PERSONAS_DIR).filter(f => f.endsWith('.md')).sort()
+  const pending = getPendingTriggers()
   const personas: PersonaInfo[] = []
 
   for (const file of files) {
@@ -141,6 +143,7 @@ export function getPersonaList(): PersonaInfo[] {
       if (!fm) continue
 
       const state = getState(fm.name)
+      const personaId = file.replace('.md', '')
 
       personas.push({
         id: file.replace('.md', ''),
@@ -162,6 +165,7 @@ export function getPersonaList(): PersonaInfo[] {
         onCompleteRun: fm.on_complete_run,
         canInvoke: fm.can_invoke,
         triggeredBy: state.triggeredBy ?? null,
+        pendingTrigger: pending.get(personaId) ? { from: pending.get(personaId)!.from, note: pending.get(personaId)!.note } : null,
       })
     } catch { /* skip invalid files */ }
   }
@@ -354,6 +358,7 @@ function readKnowledgeBase(): string {
 async function buildPlanningPrompt(fm: PersonaFrontmatter, state: PersonaState, filePath: string): Promise<string> {
   const timestamp = new Date().toISOString()
   const runCount = state.runCount + 1
+  const personaId = basename(filePath, '.md')
 
   const knowledgeEntries = readKnowledgeBase()
   const knowledgeSection = knowledgeEntries
@@ -528,8 +533,26 @@ IMPORTANT: Write the complete file back, preserving the YAML frontmatter exactly
 
 ${permissions}
 
+${fm.can_invoke.length > 0 ? `## Persona Invocation
 
-## Session Metadata
+You may trigger other colony personas from within your session using:
+
+\`\`\`bash
+~/.claude-colony/bin/trigger_persona ${personaId} <target-persona-id> "<context note>"
+\`\`\`
+
+**Permitted targets:** ${fm.can_invoke.join(', ')}
+
+Call this at the END of your session, after updating your identity file and writing your brief.
+The context note is injected into the triggered persona's session so it knows what you did and what to focus on.
+Omit the call entirely if you have nothing to hand off (nothing committed, no findings, queue empty, etc).
+
+Example:
+\`\`\`bash
+~/.claude-colony/bin/trigger_persona ${personaId} colony-developer "Arch audit complete (src/main/ipc/): 3 HIGH findings added to arch-audit.md. Prioritise those over the product backlog."
+\`\`\`
+
+` : ''}## Session Metadata
 
 - Persona: ${fm.name}
 - Session number: ${runCount}
@@ -584,13 +607,11 @@ function buildKickoff(filePath: string, trigger: TriggerSource, customMessage?: 
 
   const base = `Read your identity file at ${filePath} and the colony context, then assess, decide, and act.`
 
-  const dynamicTriggerDoc = `\n\n## Dynamic Trigger Override\n\nBy default, your \`on_complete_run\` list fires when your session exits. To override it for this session only, write \`~/.claude-colony/personas/<your-id>.triggers.json\` before ending:\n\n\`\`\`json\n{"triggers": [{"persona": "colony-developer", "message": "Optional custom context for triggered persona."}]}\n\`\`\`\n\n- Empty \`triggers: []\` = suppress all completion triggers this run\n- Omit the file = \`on_complete_run\` fires as usual\n- Include \`message\` to give the triggered persona specific context\n\nYour persona ID is the filename without \`.md\` (e.g. \`colony-research\` for \`colony-research.md\`).`
-
   switch (trigger.type) {
     case 'cron':
-      return `Your scheduled run has fired (schedule: ${trigger.schedule}). ${base}${dynamicTriggerDoc}`
+      return `Your scheduled run has fired (schedule: ${trigger.schedule}). ${base}`
     case 'handoff':
-      return `You've been triggered by "${trigger.from}" completing its run. Check what it accomplished in the colony context or recent session output, then ${base}${dynamicTriggerDoc}`
+      return `You've been triggered by "${trigger.from}" completing its run.${customMessage ? '' : ' Check what it accomplished in the colony context or recent session output, then'} ${base}`
     case 'manual':
     default:
       return `You've been manually triggered. ${base}`
