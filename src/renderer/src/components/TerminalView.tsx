@@ -1058,7 +1058,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
             </Tooltip>
           )}
           {isSplit && arenaMode && (
-            <span className="arena-chip">[Arena]</span>
+            <span className="arena-chip">Arena</span>
           )}
           {isSplit && onCloseSplit && (
             <Tooltip text="Close Split" detail="Return to single session view" shortcut="Cmd+Shift+W">

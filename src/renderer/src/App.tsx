@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { Swords } from 'lucide-react'
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
 import { createPortal } from 'react-dom'
 import type { ClaudeInstance, AgentDef, CliSession, RecentSession, CliBackend } from './types'
@@ -42,6 +43,7 @@ export default function App() {
   const [splitRatio, setSplitRatio] = useState(0.5)
   const [arenaMode, setArenaMode] = useState(false)
   const [arenaText, setArenaText] = useState('')
+  const arenaTextareaRef = useRef<HTMLTextAreaElement>(null)
   const [unreadIds, setUnreadIds] = useState<Set<string>>(new Set())
   const [fontSize, setFontSize] = useState(13)
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
@@ -916,7 +918,7 @@ export default function App() {
               title={arenaMode ? 'Disable Arena mode' : 'Enable Arena mode — shared input bar'}
               aria-label="Toggle Arena mode"
             >
-              A
+              <Swords size={9} />
             </button>
           </div>
         )}
@@ -925,9 +927,14 @@ export default function App() {
         {isSplit && arenaMode && (
           <div className="arena-input-bar" style={{ order: 100 }}>
             <textarea
+              ref={arenaTextareaRef}
               className="arena-textarea"
               value={arenaText}
-              onChange={(e) => setArenaText(e.target.value)}
+              onChange={(e) => {
+                setArenaText(e.target.value)
+                e.target.style.height = 'auto'
+                e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
@@ -935,10 +942,10 @@ export default function App() {
                   window.api.instance.write(activeId, arenaText + '\n')
                   window.api.instance.write(splitId, arenaText + '\n')
                   setArenaText('')
+                  if (arenaTextareaRef.current) arenaTextareaRef.current.style.height = ''
                 }
               }}
               placeholder="Send to both sessions... (Enter to send, Shift+Enter for newline)"
-              rows={1}
             />
             <button
               className="arena-send-btn"
@@ -948,6 +955,7 @@ export default function App() {
                 window.api.instance.write(activeId, arenaText + '\n')
                 window.api.instance.write(splitId, arenaText + '\n')
                 setArenaText('')
+                if (arenaTextareaRef.current) arenaTextareaRef.current.style.height = ''
               }}
             >
               Send to both
