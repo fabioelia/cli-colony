@@ -2281,3 +2281,233 @@ Runs only when there are new commits.
     expect(mockCreateInstance).toHaveBeenCalledOnce()
   })
 })
+
+// ---- updatePersonaMeta ----
+
+describe('persona-manager: updatePersonaMeta', () => {
+  let mod: typeof import('../persona-manager')
+  let fs: ReturnType<typeof buildFsMock>
+
+  beforeEach(async () => {
+    vi.resetModules()
+    fs = buildFsMock({
+      personaFiles: ['test-persona.md'],
+      personaContents: {
+        'test-persona.md': `---
+name: "Test Persona"
+schedule: "*/30 * * * *"
+model: sonnet
+enabled: true
+---
+
+## Role
+
+Does things.
+`,
+      },
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    mod.loadPersonas()
+  })
+
+  afterEach(() => { vi.useRealTimers() })
+
+  it('replaces an existing frontmatter field', async () => {
+    const result = mod.updatePersonaMeta('test-persona.md', { model: 'opus' })
+    expect(result).toBe(true)
+    const written = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls[0][1] as string
+    // strings are wrapped in double-quotes by updatePersonaMeta
+    expect(written).toMatch(/^model: "opus"$/m)
+    expect(written).not.toMatch(/^model: "sonnet"$/m)
+  })
+
+  it('appends a new field to frontmatter when absent', async () => {
+    const result = mod.updatePersonaMeta('test-persona.md', { max_sessions: 3 })
+    expect(result).toBe(true)
+    const written = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls[0][1] as string
+    // numbers are not quoted
+    expect(written).toMatch(/^max_sessions: 3$/m)
+  })
+
+  it('updates multiple fields at once', async () => {
+    const result = mod.updatePersonaMeta('test-persona.md', { model: 'haiku', enabled: false })
+    expect(result).toBe(true)
+    const written = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls[0][1] as string
+    expect(written).toMatch(/^model: "haiku"$/m)
+    expect(written).toMatch(/^enabled: false$/m)
+  })
+
+  it('returns false when the persona file does not exist', async () => {
+    const result = mod.updatePersonaMeta('nonexistent.md', { model: 'opus' })
+    expect(result).toBe(false)
+    expect(fs.writeFileSync).not.toHaveBeenCalled()
+  })
+})
+
+// ---- getPersonaArtifacts ----
+
+describe('persona-manager: getPersonaArtifacts', () => {
+  let mod: typeof import('../persona-manager')
+  let fs: ReturnType<typeof buildFsMock>
+
+  const PERSONA_ID = 'colony-qa'
+  const OUTPUTS_DIR = `${MOCK_ROOT}/outputs/${PERSONA_ID}`
+  const BRIEF_PATH = `${PERSONAS_DIR}/${PERSONA_ID}.brief.md`
+
+  function buildArtifactsFsMock(opts: {
+    hasBrief?: boolean
+    outputFiles?: Array<{ name: string; size: number; mtime: number }>
+  } = {}) {
+    const { hasBrief = false, outputFiles = [] } = opts
+    const mock = buildFsMock({
+      personaFiles: [],
+      workingDirs: [
+        ...(hasBrief ? [BRIEF_PATH] : []),
+        ...(outputFiles.length > 0 ? [OUTPUTS_DIR] : []),
+      ],
+    })
+    // Override existsSync to handle artifact paths
+    const origExists = mock.existsSync as ReturnType<typeof vi.fn>
+    mock.existsSync = vi.fn().mockImplementation((p: string) => {
+      if (p === BRIEF_PATH) return hasBrief
+      if (p === OUTPUTS_DIR) return outputFiles.length > 0
+      return origExists(p)
+    })
+    // Override statSync for artifact files
+    mock.statSync = vi.fn().mockImplementation((p: string) => {
+      if (p === BRIEF_PATH) return { size: 1024, mtimeMs: 2000 }
+      for (const f of outputFiles) {
+        if (p === `${OUTPUTS_DIR}/${f.name}`) return { size: f.size, mtimeMs: f.mtime, isFile: () => true }
+      }
+      return { mtimeMs: 1700000000000, isFile: () => true }
+    })
+    // Override readdirSync for outputs dir
+    mock.readdirSync = vi.fn().mockImplementation((p: string) => {
+      if (p === OUTPUTS_DIR) return outputFiles.map(f => f.name)
+      return []
+    })
+    return mock
+  }
+
+  afterEach(() => { vi.useRealTimers() })
+
+  it('returns empty array when no brief and no outputs dir', async () => {
+    vi.resetModules()
+    fs = buildArtifactsFsMock({ hasBrief: false, outputFiles: [] })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    const artifacts = mod.getPersonaArtifacts(PERSONA_ID)
+    expect(artifacts).toEqual([])
+  })
+
+  it('returns brief-only artifact when brief exists and no outputs', async () => {
+    vi.resetModules()
+    fs = buildArtifactsFsMock({ hasBrief: true, outputFiles: [] })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    const artifacts = mod.getPersonaArtifacts(PERSONA_ID)
+    expect(artifacts).toHaveLength(1)
+    expect(artifacts[0].isBrief).toBe(true)
+    expect(artifacts[0].name).toBe(`${PERSONA_ID}.brief.md`)
+    expect(artifacts[0].sizeBytes).toBe(1024)
+  })
+
+  it('returns output files sorted newest first (after brief)', async () => {
+    vi.resetModules()
+    fs = buildArtifactsFsMock({
+      hasBrief: true,
+      outputFiles: [
+        { name: 'old-report.md', size: 500, mtime: 1000 },
+        { name: 'new-report.md', size: 800, mtime: 3000 },
+      ],
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    const artifacts = mod.getPersonaArtifacts(PERSONA_ID)
+    expect(artifacts).toHaveLength(3)
+    expect(artifacts[0].isBrief).toBe(true)
+    expect(artifacts[1].name).toBe('new-report.md')
+    expect(artifacts[2].name).toBe('old-report.md')
+  })
+
+  it('sanitises personaId using basename (path traversal guard)', async () => {
+    vi.resetModules()
+    fs = buildArtifactsFsMock({ hasBrief: false, outputFiles: [] })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    // Should not throw and should return empty (no files for the safe basename)
+    const artifacts = mod.getPersonaArtifacts('../../../etc/passwd')
+    expect(artifacts).toEqual([])
+  })
+})
+
+// ---- readPersonaArtifact ----
+
+describe('persona-manager: readPersonaArtifact', () => {
+  let mod: typeof import('../persona-manager')
+
+  const PERSONA_ID = 'colony-qa'
+  const BRIEF_NAME = `${PERSONA_ID}.brief.md`
+  const OUTPUT_FILE = 'qa-report.md'
+  const BRIEF_PATH = `${PERSONAS_DIR}/${BRIEF_NAME}`
+  const OUTPUT_PATH = `${MOCK_ROOT}/outputs/${PERSONA_ID}/${OUTPUT_FILE}`
+  const CONTENT = '# QA Report\n\nAll clear.'
+
+  afterEach(() => { vi.useRealTimers() })
+
+  it('reads brief content when filename matches brief pattern', async () => {
+    vi.resetModules() // already present — keep for clarity
+    const fs = buildFsMock({ workingDirs: [BRIEF_PATH] })
+    fs.existsSync = vi.fn().mockImplementation((p: string) => p === BRIEF_PATH)
+    fs.readFileSync = vi.fn().mockImplementation((p: string) => {
+      if (p === BRIEF_PATH) return CONTENT
+      throw new Error(`unexpected: ${p}`)
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    const result = mod.readPersonaArtifact(PERSONA_ID, BRIEF_NAME)
+    expect(result).toBe(CONTENT)
+  })
+
+  it('reads output file from outputs directory', async () => {
+    vi.resetModules()
+    const fs = buildFsMock({ workingDirs: [OUTPUT_PATH] })
+    fs.existsSync = vi.fn().mockImplementation((p: string) => p === OUTPUT_PATH)
+    fs.readFileSync = vi.fn().mockImplementation((p: string) => {
+      if (p === OUTPUT_PATH) return CONTENT
+      throw new Error(`unexpected: ${p}`)
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    const result = mod.readPersonaArtifact(PERSONA_ID, OUTPUT_FILE)
+    expect(result).toBe(CONTENT)
+  })
+
+  it('returns null when file does not exist', async () => {
+    vi.resetModules()
+    const fs = buildFsMock()
+    fs.existsSync = vi.fn().mockReturnValue(false)
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    const result = mod.readPersonaArtifact(PERSONA_ID, OUTPUT_FILE)
+    expect(result).toBeNull()
+  })
+
+  it('truncates content over 50KB', async () => {
+    vi.resetModules()
+    const bigContent = 'x'.repeat(51 * 1024)
+    const fs = buildFsMock({ workingDirs: [OUTPUT_PATH] })
+    fs.existsSync = vi.fn().mockImplementation((p: string) => p === OUTPUT_PATH)
+    fs.readFileSync = vi.fn().mockImplementation((p: string) => {
+      if (p === OUTPUT_PATH) return bigContent
+      throw new Error(`unexpected: ${p}`)
+    })
+    setupMocks(fs)
+    mod = await import('../persona-manager')
+    const result = mod.readPersonaArtifact(PERSONA_ID, OUTPUT_FILE)
+    expect(result).not.toBeNull()
+    expect(result!.length).toBeLessThan(bigContent.length)
+    expect(result).toMatch(/\[truncated\]$/)
+  })
+})
