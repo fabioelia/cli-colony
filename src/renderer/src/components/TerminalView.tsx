@@ -1966,8 +1966,9 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                       {entry.deletions > 0 && <span style={{ color: 'var(--color-danger, #ef4444)' }}>-{entry.deletions}</span>}
                     </span>
                     {fileComments.length > 0 && (
-                      <span style={{ marginLeft: '4px', fontSize: '10px', color: 'var(--color-amber, #f59e0b)', opacity: 0.85 }}>
+                      <span style={{ marginLeft: '4px', fontSize: '10px', color: 'var(--color-amber, #f59e0b)', opacity: 0.85, display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
                         <MessageCircleWarning size={11} />
+                        {fileComments.length > 1 && fileComments.length}
                       </span>
                     )}
                     <button
