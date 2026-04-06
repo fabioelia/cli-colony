@@ -62,6 +62,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Role badge', detail: 'Purple tag (Orchestrator, Planner, Coder, Tester, Reviewer, Researcher) set via right-click. Helps coordinate multi-agent workflows at a glance.' },
           { label: 'Split indicator', detail: 'A columns icon appears on sessions that have a split partner.', icon: 'Columns2' },
           { label: 'Shortcut numbers', detail: 'Numbers 1-9 shown next to sessions for quick Cmd+N jumping.' },
+          { label: 'Repo Memory', detail: 'Place a `.colony/memory.md` file in a repo to automatically inject its conventions, architecture decisions, and team notes into every Colony session started in that directory. Same pattern as AGENTS.md — no UI needed.' },
         ],
       },
       {

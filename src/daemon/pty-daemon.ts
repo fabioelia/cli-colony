@@ -204,9 +204,11 @@ function buildSpawn(
   }
   const agentsMd = path.join(cwd, 'AGENTS.md')
   const agentsArgs = fs.existsSync(agentsMd) ? ['--append-system-prompt-file', agentsMd] : []
+  const colonyMemory = path.join(cwd, '.colony', 'memory.md')
+  const memoryArgs = fs.existsSync(colonyMemory) ? ['--append-system-prompt-file', colonyMemory] : []
   return {
     command: 'claude',
-    argv: ['--dangerously-skip-permissions', '--add-dir', cwd, '--name', name, ...agentsArgs, ...defaultArgs, ...userArgs],
+    argv: ['--dangerously-skip-permissions', '--add-dir', cwd, '--name', name, ...agentsArgs, ...memoryArgs, ...defaultArgs, ...userArgs],
   }
 }
 
