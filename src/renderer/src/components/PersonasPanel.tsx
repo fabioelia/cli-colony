@@ -3,7 +3,7 @@ import { useFileDrop } from '../hooks/useFileDrop'
 import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
   ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote, ArrowRightCircle, Save, Loader2,
-  LayoutList, LayoutGrid, Hourglass, ArrowRight, FolderOpen, Search,
+  Hourglass, ArrowRight, FolderOpen, Search,
 } from 'lucide-react'
 import { marked } from 'marked'
 import HelpPopover from './HelpPopover'
@@ -141,8 +141,6 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
   const [editingPersona, setEditingPersona] = useState<PersonaInfo | null>(null)
   const [editContent, setEditContent] = useState('')
   const [editSaving, setEditSaving] = useState(false)
-  const [listMode, setListMode] = useState(() => localStorage.getItem('personas-list-mode') !== '0')
-
   // Ask bar — persona assistant
   const [askInput, setAskInput] = useState('')
   const [assistantId, setAssistantId] = useState<string | null>(null)
@@ -300,17 +298,6 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
         <div className="panel-header-spacer" />
         <HelpPopover topic="personas" align="right" />
         <div className="panel-header-actions">
-          <button
-            className={`panel-header-btn${listMode ? ' active' : ''}`}
-            title={listMode ? 'Switch to card view' : 'Switch to list view'}
-            onClick={() => {
-              const next = !listMode
-              setListMode(next)
-              localStorage.setItem('personas-list-mode', next ? '1' : '0')
-            }}
-          >
-            {listMode ? <LayoutGrid size={13} /> : <LayoutList size={13} />}
-          </button>
           <button className="panel-header-btn primary" onClick={() => setShowNewDialog(true)}>
             <Plus size={13} /> New Persona
           </button>
@@ -401,7 +388,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
         </div>
       )}
 
-      <div className={`personas-list${listMode ? ' list-mode' : ''}`}>
+      <div className="personas-list list-mode">
         {personas.map((persona) => (
           <PersonaCard
             key={persona.id}
@@ -409,7 +396,6 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
             expanded={expandedId === persona.id}
             instances={instances}
             allPersonas={personas}
-            listMode={listMode}
             onToggleExpand={() => setExpandedId(expandedId === persona.id ? null : persona.id)}
             onRun={() => handleRun(persona.id)}
             onStop={() => handleStop(persona.id)}
@@ -532,7 +518,6 @@ interface PersonaCardProps {
   expanded: boolean
   instances: ClaudeInstance[]
   allPersonas: PersonaInfo[]
-  listMode?: boolean
   onToggleExpand: () => void
   onRun: () => void
   onStop: () => void
@@ -548,7 +533,7 @@ interface PersonaCardProps {
 }
 
 function PersonaCard({
-  persona, expanded, instances, allPersonas, listMode,
+  persona, expanded, instances, allPersonas,
   onToggleExpand, onRun, onStop, onToggle, onDelete, onFocusInstance, onViewFile, onEditFile, onEditMeta, onScheduleSave, onWhisper, onDeleteNote
 }: PersonaCardProps) {
   const [editingSchedule, setEditingSchedule] = useState(false)
@@ -604,20 +589,10 @@ function PersonaCard({
   const allSections = parseSections(persona.content)
   const sections = expanded ? allSections : {}
 
-  // Always parse session log for the preview (even when collapsed)
-  const sessionLogLines = (allSections['Session Log'] || '')
-    .split('\n')
-    .filter(l => l.trim().startsWith('- ['))
-    .slice(-3).reverse() // last 3 entries, newest first
-
   return (
-    <div className={listMode
-      ? `persona-list-row ${isRunning ? 'running' : persona.enabled ? 'enabled' : 'disabled'}`
-      : `persona-card ${isRunning ? 'running' : persona.enabled ? 'enabled' : 'disabled'}`
-    }>
-      {listMode ? (
-        /* List mode — compact single-line row */
-        <div className="persona-list-row-main" onClick={onToggleExpand}>
+    <div className={`persona-list-row ${isRunning ? 'running' : persona.enabled ? 'enabled' : 'disabled'}`}>
+      {/* List mode — compact single-line row */}
+      <div className="persona-list-row-main" onClick={onToggleExpand}>
           <span className="persona-list-expand">
             {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
           </span>
@@ -679,102 +654,6 @@ function PersonaCard({
             </Tooltip>
           </div>
         </div>
-      ) : (
-        /* Card mode — existing header */
-        <div className="persona-card-header" onClick={onToggleExpand}>
-          <span className="persona-card-expand">
-            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-          </span>
-          <span className={`persona-card-status-dot ${statusClass}`} />
-          <div className="persona-card-info">
-            <span className="persona-card-name">{persona.name}</span>
-            {isRunning && persona.triggeredBy && (
-              <span className="persona-triggered-by" title={`This run was automatically triggered after "${persona.triggeredBy}" completed`}>↳ by {persona.triggeredBy}</span>
-            )}
-            {!isRunning && persona.pendingTrigger && (
-              <span className="persona-pending-trigger" title={`Queued by ${fromName(persona.pendingTrigger.from)}${persona.pendingTrigger.note ? `: ${persona.pendingTrigger.note}` : ''}`}>
-                <Hourglass size={9} /> queued by {fromName(persona.pendingTrigger.from)}
-              </span>
-            )}
-            <div className="persona-card-meta">
-              <button
-                className="persona-schedule-btn"
-                title={persona.schedule ? `Schedule: ${persona.schedule} — click to edit` : 'Click to set schedule'}
-                onClick={(e) => { e.stopPropagation(); setEditingSchedule(!editingSchedule) }}
-              >
-                <Clock size={10} />
-                {persona.schedule ? describeCron(persona.schedule) : 'Manual only'}
-                <Pencil size={9} className="cron-badge-edit-icon" />
-              </button>
-              <span title={`${persona.runCount} completed runs`}>
-                <Hash size={10} /> {persona.runCount}
-              </span>
-              {persona.onCompleteRun.length > 0 && (
-                <span className="persona-trigger-badge" title={`After each run, automatically triggers: ${persona.onCompleteRun.map(id => allPersonas.find(p => p.id === id)?.name ?? id).join(', ')}`}>
-                  <ArrowRightCircle size={10} /> {persona.onCompleteRun.map(id => allPersonas.find(p => p.id === id)?.name ?? id).join(', ')}
-                </span>
-              )}
-              {persona.canInvoke.length > 0 && (
-                <span className="persona-trigger-badge persona-trigger-badge--dynamic" title={`Can dynamically invoke (via trigger file): ${persona.canInvoke.map(id => allPersonas.find(p => p.id === id)?.name ?? id).join(', ')}`}>
-                  <ArrowRightCircle size={10} /> {persona.canInvoke.map(id => allPersonas.find(p => p.id === id)?.name ?? id).join(', ')}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="persona-card-actions">
-            {!isRunning && (
-              <Tooltip text="Run persona" detail="⌘⇧P runs the first enabled persona from anywhere">
-                <button
-                  className="persona-action-btn"
-                  onClick={(e) => { e.stopPropagation(); onRun() }}
-                >
-                  <Play size={12} />
-                </button>
-              </Tooltip>
-            )}
-            {isRunning && (
-              <Tooltip text="Stop persona">
-                <button
-                  className="persona-action-btn running"
-                  onClick={(e) => { e.stopPropagation(); onStop() }}
-                >
-                  <Square size={12} />
-                </button>
-              </Tooltip>
-            )}
-            <Tooltip text="Add a note for this persona's next run">
-              <button
-                className={`persona-action-btn${whispers.length > 0 ? ' whisper-active' : ''}`}
-                aria-label="Add note"
-                onClick={(e) => { e.stopPropagation(); setWhisperOpen(v => !v) }}
-              >
-                <StickyNote size={12} />
-                {whispers.length > 0 && (
-                  <span className="persona-whisper-badge">{whispers.length}</span>
-                )}
-              </button>
-            </Tooltip>
-            <button
-              className="persona-toggle"
-              onClick={(e) => { e.stopPropagation(); onToggle(!persona.enabled) }}
-              title={persona.enabled ? 'Disable scheduled runs' : 'Enable scheduled runs'}
-            >
-              <div className={`persona-toggle-track${persona.enabled ? ' enabled' : ''}`}>
-                <div className="persona-toggle-thumb" />
-              </div>
-              <span className="persona-toggle-label">{persona.enabled ? 'On' : 'Off'}</span>
-            </button>
-            <Tooltip text="Delete persona">
-              <button
-                className="persona-action-btn danger"
-                onClick={(e) => { e.stopPropagation(); onDelete() }}
-              >
-                <Trash2 size={12} />
-              </button>
-            </Tooltip>
-          </div>
-        </div>
-      )}
 
       {editingSchedule && (
         <CronEditor
@@ -826,26 +705,6 @@ function PersonaCard({
           {whispers.length > 2 && (
             <span className="persona-whisper-more">+{whispers.length - 2} more</span>
           )}
-        </div>
-      )}
-
-      {/* Recent activity preview — card mode only */}
-      {!listMode && !expanded && sessionLogLines.length > 0 && (
-        <div className="persona-card-preview" onClick={onToggleExpand}>
-          {sessionLogLines.map((line, i) => {
-            // Parse "- [2026-04-02T21:15:00Z] summary text"
-            const match = line.match(/^- \[([^\]]+)\]\s*(.*)/)
-            if (!match) return null
-            const time = new Date(match[1])
-            const summary = match[2]
-            const timeStr = time.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-            return (
-              <div key={i} className="persona-preview-entry">
-                <span className="persona-preview-time">{timeStr}</span>
-                <span className="persona-preview-text">{summary}</span>
-              </div>
-            )
-          })}
         </div>
       )}
 
