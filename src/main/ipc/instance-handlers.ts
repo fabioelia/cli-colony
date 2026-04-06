@@ -198,21 +198,56 @@ export function registerInstanceHandlers(): void {
     }
   })
 
-  // AI-generated summary of a session's terminal snapshot
+  // AI-generated summary of a session's terminal snapshot.
+  // Uses three sources in priority order:
+  //   1. Replay log — tool call timeline, unaffected by context compaction
+  //   2. Checkpoint file — structured summary saved before compaction
+  //   3. Terminal buffer — broader window with compaction lines filtered
   ipcMain.handle('session:summarize', async (_e, id: string): Promise<string> => {
-    const rawBuf = await client.getInstanceBuffer(id).catch(() => '')
-    const clean = stripAnsi(rawBuf)
-    const lines = clean.split('\n').filter(l => l.trim())
-    const tail = lines.slice(-50).join('\n')
+    let contextText = ''
 
-    if (tail.length < 200) {
+    // Source 1: replay log (most reliable — independent of context compaction)
+    const replayEvents = readReplay(id)
+    if (replayEvents.length >= 3) {
+      const lines = replayEvents
+        .slice(-40)
+        .map(e => `[${e.tool}] ${e.inputSummary}${e.outputSummary ? ' → ' + e.outputSummary : ''}`)
+      contextText = lines.join('\n')
+    }
+
+    // Source 2: checkpoint file (saved before compaction occurs)
+    if (!contextText) {
+      try {
+        const inst = await client.getInstance(id)
+        if (inst?.workingDirectory) {
+          const cpPath = join(inst.workingDirectory, '.colony-checkpoint.md')
+          if (existsSync(cpPath)) {
+            const cpContent = readFileSync(cpPath, 'utf-8')
+            if (cpContent.length > 200) contextText = cpContent.slice(0, 6000)
+          }
+        }
+      } catch { /* ignore — instance may not be reachable */ }
+    }
+
+    // Source 3: terminal buffer — broader window, skip compaction header lines
+    if (!contextText) {
+      const COMPACTION_RE = /context.*(?:compacted|summarized)|conversation.*continued.*previous.*context/i
+      const rawBuf = await client.getInstanceBuffer(id).catch(() => '')
+      const clean = stripAnsi(rawBuf)
+      const lines = clean.split('\n').filter(l => l.trim())
+      // Use a wider window and strip lines that look like compaction headers
+      const relevant = lines.slice(-200).filter(l => !COMPACTION_RE.test(l))
+      contextText = relevant.slice(-80).join('\n')
+    }
+
+    if (contextText.length < 200) {
       return 'Not enough context to summarize.'
     }
 
     const prompt =
       `Summarize this Claude session in 3-5 sentences. ` +
       `What was accomplished? What files were changed? ` +
-      `What's the key context for whoever picks this up next?\n\n---\n${tail}`
+      `What's the key context for whoever picks this up next?\n\n---\n${contextText.slice(0, 8000)}`
 
     return new Promise((resolve, reject) => {
       const proc = spawn('claude', ['-p', prompt, '--model', 'claude-haiku-4-5-20251001'], {
