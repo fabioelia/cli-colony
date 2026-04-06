@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState, MutableRefObject } from 'react'
+import { useEffect, useRef, useCallback, useState, useMemo, MutableRefObject } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -241,8 +241,22 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const logsInitialized = useRef(false)
   // Files tab sort
   const [filesSortMode, setFilesSortMode] = useState<'name' | 'modified'>('name')
+  const sortedFileTree = useMemo(() => {
+    if (!fileTree) return null
+    return [...fileTree].sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'directory' ? -1 : 1
+      if (filesSortMode === 'modified') {
+        const extA = a.name.split('.').pop() || ''
+        const extB = b.name.split('.').pop() || ''
+        const extCmp = extA.localeCompare(extB)
+        if (extCmp !== 0) return extCmp
+      }
+      return a.name.localeCompare(b.name)
+    })
+  }, [fileTree, filesSortMode])
   // Shell quick commands
   const [shellQuickOpen, setShellQuickOpen] = useState(true)
+  const [shellTermReady, setShellTermReady] = useState(false)
 
   useEffect(() => {
     if (!envName) return
@@ -354,6 +368,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
       term, fitAddon,
       unsub: () => { unsubOutput(); unsubExit(); observer.disconnect() },
     }
+    setShellTermReady(true)
 
     setTimeout(() => fitAddon.fit(), 100)
   }, [viewTab, shellResetKey])
@@ -365,6 +380,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
         shellTermRef.current.unsub?.()
         shellTermRef.current.term.dispose()
         shellTermRef.current = null
+        setShellTermReady(false)
       }
       if (shellCreatedRef.current) {
         window.api.shellPty.kill(instance.id)
@@ -927,6 +943,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                     shellTermRef.current.unsub?.()
                     shellTermRef.current.term.dispose()
                     shellTermRef.current = null
+                    setShellTermReady(false)
                   }
                   window.api.shellPty.kill(instance.id)
                   shellCreatedRef.current = false
@@ -1183,13 +1200,13 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                   </>
                 )}
                 {searchMode === 'files' && fileTreeLoading && <div className="filetree-loading">Loading...</div>}
-                {searchMode === 'files' && fileTree && (
+                {searchMode === 'files' && sortedFileTree && (
                   <FileTreeNode
                     node={{
                       name: instance.workingDirectory.split('/').pop() || '/',
                       path: instance.workingDirectory,
                       type: 'directory',
-                      children: fileTree,
+                      children: sortedFileTree,
                     }}
                     depth={0}
                     selectedPath={selectedFile}
@@ -1619,7 +1636,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           <button className="terminal-scroll-btn" onClick={scrollToBottom} title="Scroll to bottom" aria-label="Scroll to bottom"><ChevronDown size={14} /></button>
         </div>
       </div>
-      {viewTab === 'shell' && shellTermRef.current && (
+      {viewTab === 'shell' && shellTermReady && (
         <div className="shell-quick-bar">
           <button
             className={`shell-quick-toggle ${shellQuickOpen ? 'open' : ''}`}
