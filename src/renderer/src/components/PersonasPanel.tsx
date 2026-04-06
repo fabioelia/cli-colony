@@ -639,7 +639,7 @@ function PersonaCard({
             <span className="persona-list-lastrun muted">—</span>
           )}
           {persona.schedule && (
-            <span className="persona-list-cron-chip" title="Schedule cron expression">{persona.schedule}</span>
+            <span className="persona-list-cron-chip" title={persona.schedule}>{describeCron(persona.schedule)}</span>
           )}
           <span className="persona-list-model">{persona.model || 'sonnet'}</span>
           {persona.weeklySpend && persona.weeklySpend > 0.01 && (
@@ -888,7 +888,7 @@ function PersonaCard({
                   return (
                     <button key={a.name} className="persona-artifact-row" onClick={() => handleViewArtifact(a)}>
                       <span className="persona-artifact-name">
-                        {a.isBrief ? '📋 Session Brief' : a.name}
+                        {a.isBrief ? <><FileText size={10} /> Session Brief</> : a.name}
                       </span>
                       <span className="persona-artifact-meta">{kb} KB · {ago}</span>
                     </button>

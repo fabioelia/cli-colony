@@ -13969,6 +13969,9 @@ input, select {
 }
 .persona-artifact-row:hover { background: var(--bg-hover); }
 .persona-artifact-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 12px;
   color: var(--text-primary);
   flex: 1;
