@@ -1081,7 +1081,7 @@ async function runPlanStage(action: ActionDef, ctx: TriggerContext, pipelineName
   const request: ApprovalRequest = {
     id: approvalId,
     pipelineName,
-    summary: `Approve plan to proceed? — ${plannerName}`,
+    summary: `Implementation plan ready — approve to continue`,
     resolvedVars: {
       'plan.content': truncatedPlan,
       'plan.artifact': artifactName,

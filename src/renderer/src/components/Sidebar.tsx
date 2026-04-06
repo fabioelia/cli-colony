@@ -1051,6 +1051,13 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
                         <span className="activity-approval-time">{formatActivityTime(req.createdAt)}</span>
                       </div>
                       <div className="activity-approval-summary">{req.summary}</div>
+                      {req.resolvedVars?.['plan.content'] && (
+                        <div className="activity-approval-plan-preview">
+                          {req.resolvedVars['plan.content'].length > 280
+                            ? req.resolvedVars['plan.content'].slice(0, 280) + '…'
+                            : req.resolvedVars['plan.content']}
+                        </div>
+                      )}
                       {formatApprovalExpiry(req.expiresAt) && (
                         <div className="activity-approval-expiry">{formatApprovalExpiry(req.expiresAt)}</div>
                       )}
