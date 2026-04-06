@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useFileDrop } from '../hooks/useFileDrop'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import {
   Zap, ZapOff, Play, RefreshCw, ChevronDown, ChevronRight,
@@ -128,6 +129,9 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   // Pipeline assistant
   const [askInput, setAskInput] = useState('')
   const [assistantId, setAssistantId] = useState<string | null>(null)
+  const { ref: askBarRef, isDragging: askBarDragging } = useFileDrop(paths => {
+    setAskInput(prev => (prev ? prev + '\n' : '') + paths.join('\n'))
+  })
   const [pipelinesDir, setPipelinesDir] = useState<string | null>(null)
   const sendingRef = useRef(false)
 
@@ -289,11 +293,11 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
         Pipelines automate trigger → action workflows. Define them as YAML files in <code>~/.claude-colony/pipelines/</code>.
       </p>
 
-      <div className="panel-ask-bar">
+      <div ref={askBarRef} className={`panel-ask-bar${askBarDragging ? ' dragging' : ''}`}>
         <MessageSquare size={14} className="panel-ask-icon" />
         <input
           className="panel-ask-input"
-          placeholder="Ask the Pipeline Assistant to create or modify a pipeline..."
+          placeholder="Ask the Pipeline Assistant... or drop files to include paths"
           value={askInput}
           onChange={(e) => setAskInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAsk() } }}

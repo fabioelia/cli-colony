@@ -3490,6 +3490,10 @@ input, select {
   background: rgba(255, 80, 80, 0.2);
   color: #f66;
 }
+.services-tab-badge.success {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
 
 /* ---- Services Panel (TerminalView tab) ---- */
 .services-panel {
@@ -5661,6 +5665,11 @@ input, select {
 }
 .panel-ask-bar:focus-within {
   border-color: var(--accent);
+}
+.panel-ask-bar.dragging {
+  border-color: var(--accent);
+  background: rgba(99, 102, 241, 0.06);
+  border-style: dashed;
 }
 
 .panel-ask-icon {
@@ -11876,6 +11885,65 @@ input, select {
 .persona-modal-content em {
   color: var(--text-muted);
   font-style: italic;
+}
+
+.persona-edit-modal {
+  display: flex;
+  flex-direction: column;
+  max-height: 80vh;
+}
+
+.persona-edit-textarea {
+  flex: 1;
+  min-height: 400px;
+  padding: 12px;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  line-height: 1.6;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: none;
+  border-top: 1px solid var(--border);
+  resize: none;
+  outline: none;
+}
+
+.persona-edit-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.persona-edit-cancel {
+  padding: 5px 12px;
+  font-size: 12px;
+  border-radius: 5px;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+}
+.persona-edit-cancel:hover {
+  background: var(--bg-primary);
+}
+
+.persona-edit-save {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  font-size: 12px;
+  border-radius: 5px;
+  background: var(--accent);
+  color: white;
+  font-weight: 500;
+}
+.persona-edit-save:hover:not(:disabled) {
+  opacity: 0.85;
+}
+.persona-edit-save:disabled {
+  opacity: 0.5;
 }
 
 .persona-run-output {

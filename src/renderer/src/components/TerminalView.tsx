@@ -919,7 +919,9 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 <Server size={12} /> Services
                 {envStatus && (() => {
                   const crashed = envStatus.services.filter(s => s.status === 'crashed').length
+                  const running = envStatus.services.filter(s => s.status === 'running').length
                   if (crashed > 0) return <span className="services-tab-badge danger">{crashed}</span>
+                  if (running > 0) return <span className="services-tab-badge success">{running}</span>
                   return null
                 })()}
               </button>

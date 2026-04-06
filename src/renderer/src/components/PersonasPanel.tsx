@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react'
+import { useFileDrop } from '../hooks/useFileDrop'
 import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
-  ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote, ArrowRightCircle
+  ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote, ArrowRightCircle, Save, Loader2
 } from 'lucide-react'
 import { marked } from 'marked'
 import HelpPopover from './HelpPopover'
@@ -121,10 +122,16 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
   const [newName, setNewName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [viewingPersona, setViewingPersona] = useState<PersonaInfo | null>(null)
+  const [editingPersona, setEditingPersona] = useState<PersonaInfo | null>(null)
+  const [editContent, setEditContent] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
 
   // Ask bar — persona assistant
   const [askInput, setAskInput] = useState('')
   const [assistantId, setAssistantId] = useState<string | null>(null)
+  const { ref: askBarRef, isDragging: askBarDragging } = useFileDrop(paths => {
+    setAskInput(prev => (prev ? prev + '\n' : '') + paths.join('\n'))
+  })
   const [personasDir, setPersonasDir] = useState<string | null>(null)
   const sendingRef = useRef(false)
 
@@ -217,6 +224,20 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
     }
   }
 
+  const handleEditSave = async () => {
+    if (!editingPersona) return
+    setEditSaving(true)
+    try {
+      await window.api.persona.saveContent(editingPersona.id, editContent)
+      setEditingPersona(null)
+      loadPersonas()
+    } catch (err) {
+      console.error('Failed to save persona:', err)
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
   const handleCreate = async () => {
     const name = newName.trim()
     if (!name) return
@@ -246,11 +267,11 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
       </div>
 
       {/* Ask bar — always visible */}
-      <div className="panel-ask-bar">
+      <div ref={askBarRef} className={`panel-ask-bar${askBarDragging ? ' dragging' : ''}`}>
         <MessageSquare size={14} className="panel-ask-icon" />
         <input
           className="panel-ask-input"
-          placeholder="Describe a persona to create or modify..."
+          placeholder="Describe a persona to create or modify... or drop files to include paths"
           value={askInput}
           onChange={(e) => setAskInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAsk() } }}
@@ -315,6 +336,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
             onDelete={() => handleDelete(persona.id)}
             onFocusInstance={onFocusInstance}
             onViewFile={() => setViewingPersona(persona)}
+            onEditFile={() => { setEditingPersona(persona); setEditContent(persona.content) }}
             onScheduleSave={async (schedule) => {
               await window.api.persona.setSchedule(persona.id, schedule)
             }}
@@ -345,6 +367,36 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
                 __html: marked(viewingPersona.content.replace(/^---\n[\s\S]*?\n---\n?/, '')) as string
               }}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Raw markdown editor modal */}
+      {editingPersona && (
+        <div className="persona-modal-overlay" onClick={() => !editSaving && setEditingPersona(null)}>
+          <div className="persona-modal persona-edit-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="persona-modal-header">
+              <h3><Pencil size={14} /> Edit: {editingPersona.name}</h3>
+              <span className="persona-modal-path">{editingPersona.filePath}</span>
+              <button className="persona-modal-close" onClick={() => setEditingPersona(null)} disabled={editSaving}>
+                <X size={16} />
+              </button>
+            </div>
+            <textarea
+              className="persona-edit-textarea"
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              spellCheck={false}
+              autoFocus
+            />
+            <div className="persona-edit-footer">
+              <button className="persona-edit-cancel" onClick={() => setEditingPersona(null)} disabled={editSaving}>
+                Cancel
+              </button>
+              <button className="persona-edit-save" onClick={handleEditSave} disabled={editSaving}>
+                {editSaving ? <><Loader2 size={13} className="spin" /> Saving…</> : <><Save size={13} /> Save</>}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -395,6 +447,7 @@ interface PersonaCardProps {
   onDelete: () => void
   onFocusInstance: (id: string) => void
   onViewFile: () => void
+  onEditFile: () => void
   onScheduleSave: (schedule: string) => Promise<void>
   onWhisper: (text: string) => Promise<void>
   onDeleteNote: (index: number) => Promise<void>
@@ -402,7 +455,7 @@ interface PersonaCardProps {
 
 function PersonaCard({
   persona, expanded, instances, allPersonas, onToggleExpand,
-  onRun, onStop, onToggle, onDelete, onFocusInstance, onViewFile, onScheduleSave, onWhisper, onDeleteNote
+  onRun, onStop, onToggle, onDelete, onFocusInstance, onViewFile, onEditFile, onScheduleSave, onWhisper, onDeleteNote
 }: PersonaCardProps) {
   const [editingSchedule, setEditingSchedule] = useState(false)
   const [whisperOpen, setWhisperOpen] = useState(false)
@@ -619,6 +672,9 @@ function PersonaCard({
               <span className="persona-card-meta-inline">{persona.model}</span>
               <button className="persona-view-file-btn" onClick={onViewFile} title="View full persona file">
                 <FileText size={10} /> View File
+              </button>
+              <button className="persona-view-file-btn" onClick={onEditFile} title="Edit persona file directly">
+                <Pencil size={10} /> Edit File
               </button>
             </div>
           </div>

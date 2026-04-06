@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useFileDrop } from '../hooks/useFileDrop'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import {
   Plus, Trash2, Play, Square, Save, FileText, CheckCircle, XCircle,
@@ -104,6 +105,9 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
   // Ask bar
   const [askInput, setAskInput] = useState('')
   const [assistantId, setAssistantId] = useState<string | null>(null)
+  const { ref: askBarRef, isDragging: askBarDragging } = useFileDrop(paths => {
+    setAskInput(prev => (prev ? prev + '\n' : '') + paths.join('\n'))
+  })
   const [workspacePath, setWorkspacePath] = useState<string | null>(null)
   const sendingRef = useRef(false)
 
@@ -282,11 +286,11 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
       </div>
 
       {/* Ask bar */}
-      <div className="panel-ask-bar">
+      <div ref={askBarRef} className={`panel-ask-bar${askBarDragging ? ' dragging' : ''}`}>
         <MessageSquare size={14} className="panel-ask-icon" />
         <input
           className="panel-ask-input"
-          placeholder="Ask the Task Assistant to create or modify a task queue..."
+          placeholder="Ask the Task Assistant... or drop files to include paths"
           value={askInput}
           onChange={(e) => setAskInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAsk() } }}
