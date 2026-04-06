@@ -135,7 +135,7 @@ export default function NewEnvironmentDialog({ onClose, onCreated, onLaunchInsta
   }
 
   return (
-    <div className="env-dialog-overlay" onClick={onClose}>
+    <div className="env-dialog-overlay">
       <div className="env-dialog env-dialog-create" onClick={e => e.stopPropagation()}>
         <div className="env-dialog-header">
           <h3>{mode === 'template' ? 'New Template' : 'New Environment'}</h3>
