@@ -9078,46 +9078,42 @@ input, select {
   word-break: break-word;
 }
 
-.pipeline-card-actions {
+.pipeline-header-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
+  margin-left: 6px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
 }
 
-.pipeline-toggle-btn,
-.pipeline-trigger-btn {
+.pipeline-action-btn {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  padding: 3px 8px;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
   border-radius: 4px;
-  border: 1px solid var(--border);
-  background: var(--bg-hover);
-  color: var(--text-secondary);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
   cursor: pointer;
+  flex-shrink: 0;
 }
 
-.pipeline-toggle-btn:hover,
-.pipeline-trigger-btn:hover {
-  background: var(--bg-active);
+.pipeline-action-btn:hover {
+  background: var(--bg-hover);
   color: var(--text-primary);
+  border-color: var(--border);
 }
 
-.pipeline-toggle-btn.enabled {
-  background: rgba(16, 185, 129, 0.15);
-  border-color: rgba(16, 185, 129, 0.3);
+.pipeline-action-btn.enabled {
   color: var(--success);
 }
 
-.pipeline-trigger-btn {
-  background: rgba(59, 130, 246, 0.1);
-  border-color: rgba(59, 130, 246, 0.2);
-  color: var(--accent);
-}
-
-.pipeline-trigger-btn:hover {
-  background: rgba(59, 130, 246, 0.2);
+.pipeline-action-btn.enabled:hover {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.3);
 }
 
 .pipeline-editor {
@@ -12845,15 +12841,13 @@ input, select {
   gap: 6px;
 }
 
-/* pipeline card mode: hide meta when collapsed; hover-reveal secondary actions */
+/* pipeline card mode: hide meta when collapsed */
 .pipelines-list:not(.list-mode) .pipeline-card:not(.expanded) .pipeline-card-meta {
   display: none;
 }
-.pipelines-list:not(.list-mode) .pipeline-card:not(.expanded) .pipeline-trigger-btn {
-  visibility: hidden;
-}
-.pipelines-list:not(.list-mode) .pipeline-card:not(.expanded):hover .pipeline-trigger-btn {
-  visibility: visible;
+/* always hide meta when expanded — History tab covers this */
+.pipeline-card.expanded .pipeline-card-meta {
+  display: none;
 }
 
 /* pipeline list mode */
@@ -12878,13 +12872,10 @@ input, select {
 .pipelines-list.list-mode .pipeline-card-header:hover { background: var(--bg-hover); }
 .pipelines-list.list-mode .pipeline-card-desc,
 .pipelines-list.list-mode .pipeline-card-meta,
-.pipelines-list.list-mode .pipeline-card-actions,
 .pipelines-list.list-mode .cron-editor {
   display: none;
 }
 .pipelines-list.list-mode .pipeline-card.expanded .pipeline-card-desc,
-.pipelines-list.list-mode .pipeline-card.expanded .pipeline-card-meta,
-.pipelines-list.list-mode .pipeline-card.expanded .pipeline-card-actions,
 .pipelines-list.list-mode .pipeline-card.expanded .cron-editor {
   display: revert;
 }

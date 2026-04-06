@@ -463,6 +463,31 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                     <AlertTriangle size={9} />
                   </span>
                 )}
+                <div className="pipeline-header-actions" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    className={`pipeline-action-btn ${p.enabled ? 'enabled' : ''}`}
+                    onClick={() => handleToggle(p.name, !p.enabled)}
+                    title={p.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable'}
+                  >
+                    {p.enabled ? <Zap size={11} /> : <ZapOff size={11} />}
+                  </button>
+                  {p.enabled && (
+                    <button
+                      className="pipeline-action-btn"
+                      onClick={() => handleTriggerNow(p.name)}
+                      title="Poll now (⌘⇧F fires the first enabled pipeline from anywhere)"
+                    >
+                      <Play size={11} />
+                    </button>
+                  )}
+                  <button
+                    className="pipeline-action-btn"
+                    onClick={() => handlePreview(p)}
+                    title="Dry-run: evaluate conditions without firing"
+                  >
+                    <Eye size={11} />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -497,39 +522,13 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
                   <CheckCircle size={10} /> Fired {timeSince(p.lastFiredAt)}
                 </span>
               )}
-              {p.lastError && (
-                <div className="pipeline-error-block">
-                  <AlertTriangle size={10} />
-                  <span className="pipeline-error-text">{p.lastError}</span>
-                </div>
-              )}
             </div>
-
-            <div className="pipeline-card-actions">
-              <button
-                className={`pipeline-toggle-btn ${p.enabled ? 'enabled' : ''}`}
-                onClick={(e) => { e.stopPropagation(); handleToggle(p.name, !p.enabled) }}
-              >
-                {p.enabled ? <Zap size={11} /> : <ZapOff size={11} />}
-                {p.enabled ? 'Enabled' : 'Disabled'}
-              </button>
-              {p.enabled && (
-                <button
-                  className="pipeline-trigger-btn"
-                  onClick={(e) => { e.stopPropagation(); handleTriggerNow(p.name) }}
-                  title="Run poll now (⌘⇧F fires the first enabled pipeline from anywhere)"
-                >
-                  <Play size={11} /> Poll Now
-                </button>
-              )}
-              <button
-                className="pipeline-trigger-btn"
-                onClick={(e) => { e.stopPropagation(); handlePreview(p) }}
-                title="Dry-run: evaluate conditions without firing"
-              >
-                <Eye size={11} /> Preview
-              </button>
-            </div>
+            {p.lastError && (
+              <div className="pipeline-error-block">
+                <AlertTriangle size={10} />
+                <span className="pipeline-error-text">{p.lastError}</span>
+              </div>
+            )}
 
             {expandedPipeline === p.name && editingContent !== null && (
               <div className="pipeline-editor">
