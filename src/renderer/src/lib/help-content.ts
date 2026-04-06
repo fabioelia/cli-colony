@@ -530,6 +530,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Terminal tab', detail: 'A raw shell in the same directory for running commands alongside Claude.' },
           { label: 'Services tab', detail: 'Appears when an environment is attached. Manage services.' },
           { label: 'Logs tab', detail: 'Appears when an environment is attached. Stream service logs.' },
+          { label: 'Tab navigation', detail: 'Cmd+Shift+{ / Cmd+Shift+} cycles between Session, Terminal, Files, Replay, Changes tabs (and Services/Logs when an environment is attached).' },
         ],
       },
       {
