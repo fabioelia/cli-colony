@@ -294,60 +294,62 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
   const ansiRegex = /\x1B\[[0-9;]*[a-zA-Z]|\x1B\][\s\S]*?(\x07|\x1B\\)/g
   const SENTINEL_PREFIX = 'COLONY_COMMENT:'
   ptyProcess.onData((data) => {
-    // Just pass data through as-is to avoid buffering issues with sync blocks
-    // Only extract sentinel comments for internal use
-    const clean = data.replace(ansiRegex, '')
-    const lines = clean.split('\n')
-
-    for (const line of lines) {
-      const stripped = line.trim()
-      if (stripped.startsWith(SENTINEL_PREFIX)) {
-        const rest = stripped.slice(SENTINEL_PREFIX.length)
-        const colonIdx1 = rest.indexOf(':')
-        const colonIdx2 = colonIdx1 >= 0 ? rest.indexOf(':', colonIdx1 + 1) : -1
-        const colonIdx3 = colonIdx2 >= 0 ? rest.indexOf(':', colonIdx2 + 1) : -1
-        if (colonIdx1 > 0 && colonIdx2 > colonIdx1 && colonIdx3 > colonIdx2) {
-          const file = rest.slice(0, colonIdx1)
-          const lineNum = parseInt(rest.slice(colonIdx1 + 1, colonIdx2), 10)
-          const sev = rest.slice(colonIdx2 + 1, colonIdx3)
-          const message = rest.slice(colonIdx3 + 1)
-          if (!isNaN(lineNum) && ['error', 'warn', 'info'].includes(sev) && message) {
-            instance.comments.push({
-              file,
-              line: lineNum,
-              severity: sev as ColonyComment['severity'],
-              message,
-            })
-          }
-        }
-      }
-    }
-
-    // Send all data through immediately (including sentinel lines - let renderer filter if needed)
+    // Fast path: send data immediately (keystroke echo path)
     instance.outputBuffer.push(data)
     if (instance.outputBuffer.length > 10000) {
       instance.outputBuffer.splice(0, instance.outputBuffer.length - 5000)
     }
-    // Broadcast immediately without waiting for newlines
     broadcastEvent({ type: 'output', instanceId: id, data: Buffer.from(data).toString('base64') })
 
-    // Parse token usage (clean already defined above)
-    const inputMatch = clean.match(/([\d,]+)\s*input\s*tokens?/i)
-    if (inputMatch) instance.tokenUsage.input = parseInt(inputMatch[1].replace(/,/g, ''), 10)
-    const outputMatch = clean.match(/([\d,]+)\s*output\s*tokens?/i)
-    if (outputMatch) instance.tokenUsage.output = parseInt(outputMatch[1].replace(/,/g, ''), 10)
+    // Defer heavy parsing: token usage, MCP servers, and sentinel extraction to next event loop
+    // This keeps the keystroke echo path (10-20 bytes) off the blocking path
+    setImmediate(() => {
+      const clean = data.replace(ansiRegex, '')
 
-    // Parse MCP servers
-    for (const pattern of MCP_PATTERNS) {
-      const mcpMatch = clean.match(pattern)
-      if (mcpMatch?.[1]) {
-        const serverName = mcpMatch[1].trim()
-        if (!instance.mcpServers.includes(serverName)) {
-          instance.mcpServers.push(serverName)
-          notifyListChanged()
+      // Extract sentinel comments
+      const lines = clean.split('\n')
+      for (const line of lines) {
+        const stripped = line.trim()
+        if (stripped.startsWith(SENTINEL_PREFIX)) {
+          const rest = stripped.slice(SENTINEL_PREFIX.length)
+          const colonIdx1 = rest.indexOf(':')
+          const colonIdx2 = colonIdx1 >= 0 ? rest.indexOf(':', colonIdx1 + 1) : -1
+          const colonIdx3 = colonIdx2 >= 0 ? rest.indexOf(':', colonIdx2 + 1) : -1
+          if (colonIdx1 > 0 && colonIdx2 > colonIdx1 && colonIdx3 > colonIdx2) {
+            const file = rest.slice(0, colonIdx1)
+            const lineNum = parseInt(rest.slice(colonIdx1 + 1, colonIdx2), 10)
+            const sev = rest.slice(colonIdx2 + 1, colonIdx3)
+            const message = rest.slice(colonIdx3 + 1)
+            if (!isNaN(lineNum) && ['error', 'warn', 'info'].includes(sev) && message) {
+              instance.comments.push({
+                file,
+                line: lineNum,
+                severity: sev as ColonyComment['severity'],
+                message,
+              })
+            }
+          }
         }
       }
-    }
+
+      // Parse token usage
+      const inputMatch = clean.match(/([\d,]+)\s*input\s*tokens?/i)
+      if (inputMatch) instance.tokenUsage.input = parseInt(inputMatch[1].replace(/,/g, ''), 10)
+      const outputMatch = clean.match(/([\d,]+)\s*output\s*tokens?/i)
+      if (outputMatch) instance.tokenUsage.output = parseInt(outputMatch[1].replace(/,/g, ''), 10)
+
+      // Parse MCP servers
+      for (const pattern of MCP_PATTERNS) {
+        const mcpMatch = clean.match(pattern)
+        if (mcpMatch?.[1]) {
+          const serverName = mcpMatch[1].trim()
+          if (!instance.mcpServers.includes(serverName)) {
+            instance.mcpServers.push(serverName)
+            notifyListChanged()
+          }
+        }
+      }
+    })
   })
 
   // Color is tracked internally by Colony — no /color PTY write needed

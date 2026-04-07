@@ -33,8 +33,9 @@ export function registerInstanceHandlers(): void {
     return createInstance(opts || {})
   })
   const client = getDaemonClient()
-  ipcMain.handle('instance:write', async (_e, id: string, data: string) => {
-    try { return await client.writeToInstance(id, data) } catch { return false }
+  ipcMain.on('instance:write', async (_e, id: string, data: string) => {
+    // Fire-and-forget — don't wait for reply. Keystroke echo doesn't need confirmation.
+    client.writeToInstance(id, data).catch(() => {})
   })
   ipcMain.handle('instance:resize', async (_e, id: string, cols: number, rows: number) => {
     try { return await client.resizeInstance(id, cols, rows) } catch { return false }

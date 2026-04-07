@@ -28,6 +28,10 @@ export class TerminalProxy {
   // Set to 0 for immediate rendering of keystroke echoes
   private readonly THROTTLE_MS = 0
 
+  // Rolling suffix buffer for chunk-safe sync marker detection
+  // Keeps the last (SYNC_END.length - 1) bytes to detect markers split across chunks
+  private rollingBuff = ''
+
   constructor(term: Terminal) {
     this.term = term
 
@@ -51,53 +55,80 @@ export class TerminalProxy {
    * Called when user types — reset scroll tracking and snap to bottom
    */
   onUserInput(): void {
-    this.userScrolledUp = false
-    this.suppressScrollTracking = true
-    this.term.scrollToBottom()
-    this.suppressScrollTracking = false
+    // Only scroll if actually scrolled up; avoid sync layout on every keystroke
+    if (this.userScrolledUp) {
+      this.suppressScrollTracking = true
+      this.term.scrollToBottom()
+      this.suppressScrollTracking = false
+      this.userScrolledUp = false
+    }
   }
 
   /**
    * Process incoming PTY data. Handles sync block detection and buffering.
+   * Chunk-safe: detects markers even when split across multiple write() calls.
    */
   write(data: string): void {
     let remaining = data
 
-
     while (remaining.length > 0) {
       if (this.inSyncBlock) {
-        // Look for sync end
-        const endIdx = remaining.indexOf(SYNC_END)
+        // Look for sync end — search with rolling buffer to catch split markers
+        const searchBuf = this.rollingBuff + remaining
+        const endIdx = searchBuf.indexOf(SYNC_END)
         if (endIdx >= 0) {
-          // Add everything up to and including the sync end
-          this.syncBuffer += remaining.substring(0, endIdx + SYNC_END.length)
-          remaining = remaining.substring(endIdx + SYNC_END.length)
-          this.inSyncBlock = false
-          // Flush the entire sync block atomically
-          this.flushSyncBlock()
+          // Found end marker. Account for rolling buffer offset.
+          const endIdxInRemaining = endIdx - this.rollingBuff.length
+          if (endIdxInRemaining >= 0) {
+            // End marker is in the remaining data
+            this.syncBuffer += remaining.substring(0, endIdxInRemaining + SYNC_END.length)
+            remaining = remaining.substring(endIdxInRemaining + SYNC_END.length)
+            this.inSyncBlock = false
+            this.flushSyncBlock()
+          } else {
+            // End marker is in the rolling buffer — shouldn't happen, but buffer and continue
+            this.syncBuffer += remaining
+            remaining = ''
+          }
         } else {
           // Still in sync block, buffer everything
           this.syncBuffer += remaining
           remaining = ''
         }
       } else {
-        // Look for sync start
-        const startIdx = remaining.indexOf(SYNC_START)
+        // Look for sync start — search with rolling buffer to catch split markers
+        const searchBuf = this.rollingBuff + remaining
+        const startIdx = searchBuf.indexOf(SYNC_START)
         if (startIdx >= 0) {
-          // Write everything before the sync start immediately
-          if (startIdx > 0) {
-            this.appendPending(remaining.substring(0, startIdx))
+          // Found start marker. Account for rolling buffer offset.
+          const startIdxInRemaining = startIdx - this.rollingBuff.length
+          if (startIdxInRemaining >= 0) {
+            // Start marker is in the remaining data
+            if (startIdxInRemaining > 0) {
+              this.appendPending(remaining.substring(0, startIdxInRemaining))
+            }
+            this.inSyncBlock = true
+            this.syncBuffer = SYNC_START
+            remaining = remaining.substring(startIdxInRemaining + SYNC_START.length)
+          } else {
+            // Start marker is in the rolling buffer — shouldn't happen, but flush what we have
+            this.appendPending(remaining)
+            remaining = ''
           }
-          // Enter sync mode
-          this.inSyncBlock = true
-          this.syncBuffer = SYNC_START
-          remaining = remaining.substring(startIdx + SYNC_START.length)
         } else {
           // No sync markers, throttled write
           this.appendPending(remaining)
           remaining = ''
         }
       }
+    }
+
+    // Update rolling buffer with the last (SYNC_END.length - 1) bytes of the original data
+    // to detect markers split across chunks
+    if (data.length >= SYNC_END.length - 1) {
+      this.rollingBuff = data.substring(data.length - (SYNC_END.length - 1))
+    } else {
+      this.rollingBuff = (this.rollingBuff + data).slice(-(SYNC_END.length - 1))
     }
   }
 
@@ -130,16 +161,8 @@ export class TerminalProxy {
         })
       })
     } else {
-      // Write and force visual update
-      this.term.write(data, () => {
-        // Trigger xterm to repaint after the write completes
-        // Use requestIdleCallback as a fallback to ensure we update the DOM
-        if ('requestIdleCallback' in window) {
-          (window.requestIdleCallback as any)(() => this.term.refresh(0, this.term.rows), { timeout: 50 })
-        } else {
-          requestAnimationFrame(() => this.term.refresh(0, this.term.rows))
-        }
-      })
+      // Trust xterm's internal scheduler — term.write() handles repainting via RAF automatically
+      this.term.write(data)
     }
   }
 
@@ -166,15 +189,8 @@ export class TerminalProxy {
         }
       })
     } else {
-      // Write and force visual update
-      this.term.write(data, () => {
-        // Trigger xterm to repaint after the write completes
-        if ('requestIdleCallback' in window) {
-          (window.requestIdleCallback as any)(() => this.term.refresh(0, this.term.rows), { timeout: 50 })
-        } else {
-          requestAnimationFrame(() => this.term.refresh(0, this.term.rows))
-        }
-      })
+      // Trust xterm's internal scheduler
+      this.term.write(data)
     }
   }
 

@@ -38,7 +38,7 @@ export interface ClaudeManagerAPI {
       cliBackend?: CliBackend
       mcpServers?: string[]
     }) => Promise<ClaudeInstance>
-    write: (id: string, data: string) => Promise<boolean>
+    write: (id: string, data: string) => void
     resize: (id: string, cols: number, rows: number) => Promise<boolean>
     kill: (id: string) => Promise<boolean>
     remove: (id: string) => Promise<boolean>
@@ -382,7 +382,7 @@ const api: ClaudeManagerAPI = {
   },
   instance: {
     create: (opts) => ipcRenderer.invoke('instance:create', opts),
-    write: (id, data) => ipcRenderer.invoke('instance:write', id, data),
+    write: (id, data) => ipcRenderer.send('instance:write', id, data),
     resize: (id, cols, rows) => ipcRenderer.invoke('instance:resize', id, cols, rows),
     kill: (id) => ipcRenderer.invoke('instance:kill', id),
     remove: (id) => ipcRenderer.invoke('instance:remove', id),

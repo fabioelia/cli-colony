@@ -1166,12 +1166,10 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                   // Must pause the live listener during replay to avoid double-writes.
                   const entry = terminalsRef.current.get(instance.id)
                   if (entry) {
-                    // Unsubscribe old listener
-                    entry.unsub?.()
-
                     entry.term.reset()
 
                     // Queue live events until buffer replay finishes (same pattern as initial mount)
+                    // Subscribe BEFORE unsubscribing old listener to avoid race window where output is lost
                     let queue: string[] | null = []
                     const unsub = window.api.instance.onOutput(({ id, data }) => {
                       if (id === instance.id) {
@@ -1182,6 +1180,9 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                         }
                       }
                     })
+
+                    // Now safe to unsubscribe old listener — new one is already attached
+                    entry.unsub?.()
                     entry.unsub = unsub
 
                     window.api.instance.buffer(instance.id).then((buf) => {
