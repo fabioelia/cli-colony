@@ -12,7 +12,7 @@ import CronEditor from './CronEditor'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import { describeCron } from '../../../shared/cron'
 
-import type { PersonaInfo, ClaudeInstance, PersonaArtifact } from '../../../shared/types'
+import type { PersonaInfo, ClaudeInstance, PersonaArtifact, PersonaRunEntry } from '../../../shared/types'
 
 interface Props {
   onBack: () => void
@@ -513,6 +513,31 @@ function PersonaSection({ title, content, defaultOpen, isOutput, isBrief, childr
   )
 }
 
+function PersonaRunSparkline({ entries }: { entries: PersonaRunEntry[] }) {
+  const bars = entries.slice(0, 7).reverse()
+  if (bars.length === 0) return null
+  const maxCost = Math.max(...bars.map(e => e.cost), 0.001)
+  const BAR_W = 16
+  const BAR_GAP = 4
+  const MAX_H = 24
+  const totalW = bars.length * (BAR_W + BAR_GAP) - BAR_GAP
+  return (
+    <div className="persona-history-sparkline">
+      <svg width={totalW} height={MAX_H} style={{ display: 'block', overflow: 'visible' }}>
+        {bars.map((e, i) => {
+          const h = Math.max(3, Math.round((e.cost / maxCost) * MAX_H))
+          const x = i * (BAR_W + BAR_GAP)
+          const fill = e.success ? 'var(--accent)' : 'var(--danger, #ef4444)'
+          return (
+            <rect key={i} x={x} y={MAX_H - h} width={BAR_W} height={h} rx={2} fill={fill} opacity={0.75} />
+          )
+        })}
+      </svg>
+      <span className="persona-history-sparkline-label">Last {bars.length} run{bars.length !== 1 ? 's' : ''} · cost trend</span>
+    </div>
+  )
+}
+
 interface PersonaCardProps {
   persona: PersonaInfo
   expanded: boolean
@@ -539,9 +564,10 @@ function PersonaCard({
   const [editingSchedule, setEditingSchedule] = useState(false)
   const [whisperOpen, setWhisperOpen] = useState(false)
   const [whisperText, setWhisperText] = useState('')
-  const [activeTab, setActiveTab] = useState<'content' | 'outputs'>('content')
+  const [activeTab, setActiveTab] = useState<'content' | 'outputs' | 'history'>('content')
   const [artifacts, setArtifacts] = useState<PersonaArtifact[] | null>(null)
   const [viewingArtifact, setViewingArtifact] = useState<{ name: string; content: string } | null>(null)
+  const [runHistory, setRunHistory] = useState<PersonaRunEntry[] | null>(null)
   const whisperRef = useRef<HTMLTextAreaElement>(null)
   const { ref: whisperBarRef, isDragging: whisperDragging } = useFileDrop(paths => {
     const pathText = paths.join('\n')
@@ -570,6 +596,11 @@ function PersonaCard({
     if (!expanded || activeTab !== 'outputs' || artifacts !== null) return
     window.api.persona.getArtifacts(persona.id).then(setArtifacts)
   }, [expanded, activeTab, persona.id, artifacts])
+
+  useEffect(() => {
+    if (!expanded || activeTab !== 'history' || runHistory !== null) return
+    window.api.persona.getRunHistory(persona.id).then(setRunHistory)
+  }, [expanded, activeTab, persona.id, runHistory])
 
   const handleViewArtifact = async (artifact: PersonaArtifact) => {
     const content = await window.api.persona.readArtifact(persona.id, artifact.name)
@@ -732,6 +763,10 @@ function PersonaCard({
               className={`persona-card-tab${activeTab === 'outputs' ? ' active' : ''}`}
               onClick={() => setActiveTab('outputs')}
             ><FolderOpen size={10} /> Outputs</button>
+            <button
+              className={`persona-card-tab${activeTab === 'history' ? ' active' : ''}`}
+              onClick={() => setActiveTab('history')}
+            ><Clock size={10} /> History</button>
           </div>
 
           {activeTab === 'outputs' && (
@@ -754,6 +789,39 @@ function PersonaCard({
                     </button>
                   )
                 })
+              )}
+            </div>
+          )}
+
+          {activeTab === 'history' && (
+            <div className="persona-outputs-tab">
+              {runHistory === null ? (
+                <div className="persona-outputs-loading"><Loader2 size={13} className="spin" /> Loading…</div>
+              ) : runHistory.length === 0 ? (
+                <div className="persona-outputs-empty">No run history yet — history records after each session completes.</div>
+              ) : (
+                <>
+                  <PersonaRunSparkline entries={runHistory} />
+                  <div className="persona-history-list">
+                    {runHistory.map((entry, i) => {
+                      const secs = (Date.now() - new Date(entry.timestamp).getTime()) / 1000
+                      const ago = secs < 60 ? 'just now' : secs < 3600 ? `${Math.floor(secs / 60)}m ago` : secs < 86400 ? `${Math.floor(secs / 3600)}h ago` : `${Math.floor(secs / 86400)}d ago`
+                      const durMin = Math.floor(entry.durationMs / 60000)
+                      const durSec = Math.floor((entry.durationMs % 60000) / 1000)
+                      const dur = durMin > 0 ? `${durMin}m ${durSec}s` : `${durSec}s`
+                      return (
+                        <div key={i} className="persona-history-row">
+                          <span className={`persona-history-status ${entry.success ? 'success' : 'fail'}`}>
+                            {entry.success ? '✓' : '✗'}
+                          </span>
+                          <span className="persona-history-time">{ago}</span>
+                          <span className="persona-history-dur">{dur}</span>
+                          <span className="persona-history-cost">{entry.cost > 0 ? `$${entry.cost.toFixed(3)}` : '—'}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
               )}
             </div>
           )}

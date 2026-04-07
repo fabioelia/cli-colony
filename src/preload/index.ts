@@ -5,6 +5,7 @@ import type {
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
+  PersonaRunEntry,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -14,6 +15,7 @@ export type {
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
+  PersonaRunEntry,
 }
 
 
@@ -223,6 +225,7 @@ export interface ClaudeManagerAPI {
     getArtifacts: (personaId: string) => Promise<PersonaArtifact[]>
     readArtifact: (personaId: string, filename: string) => Promise<string | null>
     ask: (query: string) => Promise<string>
+    getRunHistory: (personaId: string) => Promise<PersonaRunEntry[]>
     onStatus: (cb: (personas: PersonaInfo[]) => void) => () => void
     onRun: (cb: (data: { persona: string; instanceId: string }) => void) => () => void
   }
@@ -587,6 +590,7 @@ const api: ClaudeManagerAPI = {
     getArtifacts: (personaId) => ipcRenderer.invoke('persona:getArtifacts', personaId),
     readArtifact: (personaId, filename) => ipcRenderer.invoke('persona:readArtifact', personaId, filename),
     ask: (query) => ipcRenderer.invoke('persona:ask', query),
+    getRunHistory: (personaId) => ipcRenderer.invoke('persona:getRunHistory', personaId),
     onStatus: (cb) => {
       const l = (_e: any, data: PersonaInfo[]) => cb(data)
       ipcRenderer.on('persona:status', l)

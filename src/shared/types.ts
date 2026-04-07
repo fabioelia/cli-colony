@@ -280,6 +280,14 @@ export interface PersonaArtifact {
   isBrief: boolean
 }
 
+export interface PersonaRunEntry {
+  personaId: string
+  timestamp: string
+  durationMs: number
+  cost: number
+  success: boolean
+}
+
 export interface AuditResult {
   severity: 'HIGH' | 'MEDIUM' | 'LOW'
   panel: string

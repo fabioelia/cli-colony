@@ -14270,6 +14270,52 @@ input, select {
   border-top: 1px solid var(--border);
 }
 
+/* ===== Persona Run History ===== */
+.persona-history-sparkline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px 4px;
+}
+.persona-history-sparkline-label {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.persona-history-list {
+  padding: 2px 0;
+}
+.persona-history-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.persona-history-row:hover { background: var(--bg-hover); }
+.persona-history-status {
+  font-size: 10px;
+  font-weight: 600;
+  width: 12px;
+  flex-shrink: 0;
+}
+.persona-history-status.success { color: var(--accent); }
+.persona-history-status.fail { color: var(--danger, #ef4444); }
+.persona-history-time {
+  flex: 1;
+  color: var(--text-secondary);
+}
+.persona-history-dur {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.persona-history-cost {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 48px;
+  text-align: right;
+}
+
 /* ===== Persona Edit Meta Modal ===== */
 .persona-edit-meta-modal {
   max-width: 420px;

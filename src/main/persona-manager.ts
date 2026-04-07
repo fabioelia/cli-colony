@@ -23,6 +23,7 @@ import { slugify, parseFrontmatter as parseRawFrontmatter, stripAnsi } from '../
 import type { PersonaInfo } from '../shared/types'
 import { JsonFile } from '../shared/json-file'
 import { appendActivity } from './activity-manager'
+import { appendRunEntry } from './persona-run-history'
 
 const PERSONAS_DIR = colonyPaths.personas
 const STATE_PATH = colonyPaths.personaState
@@ -991,6 +992,7 @@ export async function onSessionExit(instanceId: string): Promise<void> {
   for (const [name, state] of Object.entries(stateCache)) {
     if (state.activeSessionId === instanceId) {
       // Capture the session's output buffer before clearing
+      let sessionCost = 0
       try {
         const buffer = await getDaemonClient().getInstanceBuffer(instanceId)
         if (buffer) {
@@ -999,6 +1001,11 @@ export async function onSessionExit(instanceId: string): Promise<void> {
           state.lastRunOutput = clean.length > 5000 ? clean.slice(-5000) : clean
         }
       } catch { /* buffer may be gone */ }
+      try {
+        const instances = await getAllInstances()
+        const inst = instances.find(i => i.id === instanceId)
+        sessionCost = inst?.tokenUsage?.cost ?? 0
+      } catch { /* non-fatal */ }
 
       // Compute session outcome stats
       const startedAt = state.sessionStartedAt
@@ -1044,8 +1051,15 @@ export async function onSessionExit(instanceId: string): Promise<void> {
         } catch { return false }
       })
       if (personaFile) {
-        // Check for dynamic trigger override file
+        // Record this run in the per-persona ring buffer
         const personaId = personaFile.replace('.md', '')
+        appendRunEntry(personaId, {
+          personaId,
+          timestamp: new Date().toISOString(),
+          durationMs: durationSec !== null ? durationSec * 1000 : 0,
+          cost: sessionCost,
+          success: true,
+        })
         const overridePath = join(PERSONAS_DIR, `${personaId}.triggers.json`)
         let dynamicTriggers: Array<{ persona: string; message?: string }> | null = null
 
