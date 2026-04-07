@@ -44,6 +44,7 @@ export default function SettingsPanel({ onBack }: Props) {
   const [showCommitSection, setShowCommitSection] = useState(false)
   const [mcpForm, setMcpForm] = useState<McpServer | null>(null)
   const [mcpFormType, setMcpFormType] = useState<'command' | 'sse'>('command')
+  const [mcpFormArgsString, setMcpFormArgsString] = useState('')
   const [mcpFormError, setMcpFormError] = useState<string | null>(null)
   const [mcpOriginalName, setMcpOriginalName] = useState<string | null>(null)
 
@@ -373,6 +374,7 @@ export default function SettingsPanel({ onBack }: Props) {
                         onClick={() => {
                           setMcpFormType(s.url ? 'sse' : 'command')
                           setMcpForm({ ...s })
+                          setMcpFormArgsString((s.args ?? []).join(' '))
                           setMcpOriginalName(s.name)
                           setMcpFormError(null)
                         }}
@@ -432,8 +434,8 @@ export default function SettingsPanel({ onBack }: Props) {
                     <div className="mcp-form-row">
                       <label>Args</label>
                       <input
-                        value={(mcpForm.args ?? []).join(' ')}
-                        onChange={(e) => setMcpForm({ ...mcpForm, args: parseShellArgs(e.target.value) })}
+                        value={mcpFormArgsString}
+                        onChange={(e) => setMcpFormArgsString(e.target.value)}
                         placeholder='e.g. -y @mcp/fs "/path/with spaces" $HOME'
                       />
                     </div>
@@ -459,7 +461,7 @@ export default function SettingsPanel({ onBack }: Props) {
                 <div className="mcp-form-actions">
                   <button
                     className="settings-logs-toggle"
-                    onClick={() => { setMcpForm(null); setMcpFormError(null); setMcpOriginalName(null) }}
+                    onClick={() => { setMcpForm(null); setMcpFormArgsString(''); setMcpFormError(null); setMcpOriginalName(null) }}
                   >
                     Cancel
                   </button>
@@ -467,9 +469,14 @@ export default function SettingsPanel({ onBack }: Props) {
                     className="panel-header-btn primary"
                     onClick={async () => {
                       if (!mcpForm.name.trim()) { setMcpFormError('Name is required'); return }
-                      const updated = await window.api.mcp.save(mcpForm)
+                      // Parse args string if in command mode
+                      const formToSave = mcpFormType === 'command' && mcpFormArgsString
+                        ? { ...mcpForm, args: parseShellArgs(mcpFormArgsString) }
+                        : mcpForm
+                      const updated = await window.api.mcp.save(formToSave)
                       setMcpServers(updated)
                       setMcpForm(null)
+                      setMcpFormArgsString('')
                       setMcpFormError(null)
                       setMcpOriginalName(null)
                     }}
@@ -484,6 +491,7 @@ export default function SettingsPanel({ onBack }: Props) {
                 onClick={() => {
                   setMcpFormType('command')
                   setMcpForm({ name: '', command: '', args: [] })
+                  setMcpFormArgsString('')
                   setMcpOriginalName(null)
                   setMcpFormError(null)
                 }}
