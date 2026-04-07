@@ -452,6 +452,18 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Webhook & API Section',
+        position: 'Below Commit Attribution',
+        items: [
+          { label: 'Enable webhook server', detail: 'Starts an HTTP server on 127.0.0.1:<port> (default 7474). Required for both webhook pipeline triggers and the REST API.', icon: 'Globe' },
+          { label: 'Port', detail: 'Port to listen on. Requires app restart to take effect. Default: 7474.' },
+          { label: 'API URL', detail: 'Base URL for the Colony REST API (http://127.0.0.1:7474/api/). Click the copy button to copy it. Use GET /api/sessions, GET /api/pipelines, POST /api/sessions/:id/steer, POST /api/pipelines/:name/trigger, or GET /api/events (SSE stream). Protect with an API token via the apiToken setting.' },
+          { label: 'GET /api/sessions', detail: 'Returns a list of all sessions: id, name, status, cost, uptime (ms). Filter by status client-side.' },
+          { label: 'POST /api/pipelines/:name/trigger', detail: 'Trigger a named pipeline run immediately — same as clicking the Run button in the Pipelines panel. Name must match the pipeline file slug.' },
+          { label: 'GET /api/events', detail: 'SSE stream of all Colony broadcast events (session updates, pipeline fires, activity). Connect with EventSource. Max 5 concurrent clients. Each message is JSON: { channel, data }.' },
+        ],
+      },
+      {
         name: 'Logs Section',
         position: 'Bottom section',
         items: [

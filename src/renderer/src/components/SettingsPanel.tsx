@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate } from 'lucide-react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import type { McpAuditEntry, CommitAttribution } from '../../../preload'
 import type { SessionTemplate } from '../../../shared/types'
@@ -673,6 +673,19 @@ export default function SettingsPanel({ onBack }: Props) {
             <p className="settings-help">
               Listening at <code>http://localhost:{webhookPort}</code>
             </p>
+            <div className="settings-row">
+              <span className="settings-row-label">API URL</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <code style={{ fontSize: '11px' }}>http://127.0.0.1:{webhookPort}/api/</code>
+                <button
+                  className="panel-header-btn"
+                  title="Copy API URL"
+                  onClick={() => navigator.clipboard.writeText(`http://127.0.0.1:${webhookPort}/api/`)}
+                >
+                  <Copy size={12} />
+                </button>
+              </div>
+            </div>
           </>
         )}
         <p className="settings-help settings-help-bottom">

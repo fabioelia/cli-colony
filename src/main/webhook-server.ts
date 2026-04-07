@@ -1,21 +1,41 @@
 /**
- * Webhook HTTP server for Colony.
+ * Webhook + REST API HTTP server for Colony.
  *
- * Listens on 127.0.0.1:<port> and routes POST /webhook/<slug>
- * to the matching pipeline via fireWebhookPipeline().
+ * Webhook routes: POST /webhook/<slug> → fire matching pipeline
+ * REST API routes: /api/* → session/pipeline management + SSE event stream
  *
  * GitHub source: verifies X-Hub-Signature-256 (HMAC-SHA256 of raw body)
  * Generic source: verifies Authorization: Bearer <secret> or X-Colony-Token: <secret>
+ * API routes: Bearer/X-Colony-Token required when `apiToken` setting is configured
  */
 
 import { createServer, IncomingMessage, ServerResponse, Server } from 'http'
 import { createHmac, timingSafeEqual } from 'crypto'
-import { fireWebhookPipeline, getWebhookTriggers } from './pipeline-engine'
+import { fireWebhookPipeline, getWebhookTriggers, getPipelineList, triggerPollNow } from './pipeline-engine'
+import { getAllInstances } from './instance-manager'
+import { getDaemonClient } from './daemon-client'
+import { getSetting } from './settings'
+import { addBroadcastListener } from './broadcast'
 
 const PREFIX = '[webhook-server]'
 
 let server: Server | null = null
 let serverUrl: string | null = null
+
+// SSE client tracking
+const MAX_SSE_CLIENTS = 5
+const _sseClients = new Set<ServerResponse>()
+
+// Relay all broadcast events to SSE clients
+addBroadcastListener((channel, ...args) => {
+  if (_sseClients.size === 0) return
+  const event = JSON.stringify({ channel, data: args.length === 1 ? args[0] : args })
+  for (const res of _sseClients) {
+    try {
+      res.write(`data: ${event}\n\n`)
+    } catch { /* client disconnected */ }
+  }
+})
 
 function log(msg: string): void {
   console.log(`${PREFIX} ${msg}`)
@@ -69,9 +89,135 @@ function sendJson(res: ServerResponse, status: number, body: Record<string, unkn
   res.end(payload)
 }
 
+/** Check API auth — required only when `apiToken` setting is configured. */
+function checkApiAuth(req: IncomingMessage): boolean {
+  const token = getSetting('apiToken')
+  if (!token) return true
+  return verifyGenericToken(token, req)
+}
+
+async function handleApiRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const url = req.url || '/'
+  const method = req.method || 'GET'
+
+  if (!checkApiAuth(req)) {
+    sendJson(res, 401, { error: 'Unauthorized' })
+    return
+  }
+
+  // GET /api/events — SSE stream
+  if (method === 'GET' && url === '/api/events') {
+    if (_sseClients.size >= MAX_SSE_CLIENTS) {
+      sendJson(res, 503, { error: 'Too many SSE connections' })
+      return
+    }
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    })
+    res.write('data: {"channel":"connected"}\n\n')
+    _sseClients.add(res)
+    req.on('close', () => _sseClients.delete(res))
+    return
+  }
+
+  // GET /api/sessions
+  if (method === 'GET' && url === '/api/sessions') {
+    const instances = await getAllInstances()
+    const now = Date.now()
+    const sessions = instances.map((i) => ({
+      id: i.id,
+      name: i.name,
+      status: i.status,
+      cost: i.tokenUsage.cost,
+      uptime: i.createdAt ? now - new Date(i.createdAt).getTime() : 0,
+    }))
+    sendJson(res, 200, { sessions })
+    return
+  }
+
+  // POST /api/sessions/:id/steer — must be checked before GET /api/sessions/:id
+  const steerMatch = url.match(/^\/api\/sessions\/([^/?#]+)\/steer$/)
+  if (method === 'POST' && steerMatch) {
+    const idOrName = decodeURIComponent(steerMatch[1])
+    let body: Buffer
+    try {
+      body = await readBody(req)
+    } catch {
+      sendJson(res, 400, { error: 'Failed to read request body' })
+      return
+    }
+    let parsed: { prompt?: unknown } = {}
+    try {
+      parsed = JSON.parse(body.toString('utf8'))
+    } catch {
+      sendJson(res, 400, { error: 'Invalid JSON body' })
+      return
+    }
+    const prompt = parsed.prompt
+    if (typeof prompt !== 'string' || !prompt.trim()) {
+      sendJson(res, 400, { error: 'Missing required field: prompt' })
+      return
+    }
+    const instances = await getAllInstances()
+    const inst = instances.find((i) => i.id === idOrName || i.name === idOrName)
+    if (!inst) {
+      sendJson(res, 404, { error: 'Session not found' })
+      return
+    }
+    const ok = await getDaemonClient().steerInstance(inst.id, prompt)
+    sendJson(res, ok ? 200 : 500, { ok })
+    return
+  }
+
+  // GET /api/sessions/:id
+  const sessionMatch = url.match(/^\/api\/sessions\/([^/?#]+)$/)
+  if (method === 'GET' && sessionMatch) {
+    const idOrName = decodeURIComponent(sessionMatch[1])
+    const instances = await getAllInstances()
+    const inst = instances.find((i) => i.id === idOrName || i.name === idOrName)
+    if (!inst) {
+      sendJson(res, 404, { error: 'Session not found' })
+      return
+    }
+    sendJson(res, 200, { session: inst })
+    return
+  }
+
+  // GET /api/pipelines
+  if (method === 'GET' && url === '/api/pipelines') {
+    const pipelines = getPipelineList()
+    sendJson(res, 200, { pipelines })
+    return
+  }
+
+  // POST /api/pipelines/:name/trigger
+  const pipelineMatch = url.match(/^\/api\/pipelines\/([^/?#]+)\/trigger$/)
+  if (method === 'POST' && pipelineMatch) {
+    const name = decodeURIComponent(pipelineMatch[1])
+    const ok = triggerPollNow(name)
+    if (!ok) {
+      sendJson(res, 404, { error: `Pipeline not found: ${name}` })
+      return
+    }
+    sendJson(res, 200, { ok: true, pipeline: name })
+    return
+  }
+
+  sendJson(res, 404, { error: 'Not Found' })
+}
+
 async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = req.url || '/'
   log(`${req.method} ${url}`)
+
+  // Route /api/* to the REST API handler
+  if (url.startsWith('/api/')) {
+    await handleApiRequest(req, res)
+    return
+  }
 
   // Only handle POST /webhook/<slug>
   if (req.method !== 'POST') {
