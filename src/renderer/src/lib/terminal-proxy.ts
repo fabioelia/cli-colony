@@ -19,15 +19,13 @@ export class TerminalProxy {
   private syncBuffer = ''
   private pendingData = ''
   private flushTimer: ReturnType<typeof setTimeout> | null = null
-  private syncBlockTimer: ReturnType<typeof setTimeout> | null = null
   private userScrolledUp = false
   // Suppress scroll tracking during our own programmatic scrollToLine/scrollToBottom calls
   // to prevent onScroll from incorrectly flipping userScrolledUp
   private suppressScrollTracking = false
 
-  // If sync block doesn't complete within this time, force flush it (for keystroke echo responsiveness)
-  private readonly SYNC_TIMEOUT_MS = 10
   // Throttle interval for batching writes outside sync blocks (ms)
+  // Set to 0 for immediate rendering of keystroke echoes
   private readonly THROTTLE_MS = 0
 
   constructor(term: Terminal) {
@@ -75,11 +73,6 @@ export class TerminalProxy {
           this.syncBuffer += remaining.substring(0, endIdx + SYNC_END.length)
           remaining = remaining.substring(endIdx + SYNC_END.length)
           this.inSyncBlock = false
-          // Clear timeout since sync block completed
-          if (this.syncBlockTimer) {
-            clearTimeout(this.syncBlockTimer)
-            this.syncBlockTimer = null
-          }
           // Flush the entire sync block atomically
           this.flushSyncBlock()
         } else {
@@ -99,15 +92,6 @@ export class TerminalProxy {
           this.inSyncBlock = true
           this.syncBuffer = SYNC_START
           remaining = remaining.substring(startIdx + SYNC_START.length)
-          // Set timeout to force-flush incomplete sync blocks (e.g., keystroke echoes)
-          if (!this.syncBlockTimer) {
-            this.syncBlockTimer = setTimeout(() => {
-              if (this.inSyncBlock && this.syncBuffer) {
-                this.inSyncBlock = false
-                this.flushSyncBlock()
-              }
-            }, this.SYNC_TIMEOUT_MS)
-          }
         } else {
           // No sync markers, throttled write
           this.appendPending(remaining)
@@ -146,7 +130,16 @@ export class TerminalProxy {
         })
       })
     } else {
-      this.term.write(data)
+      // Write and force visual update
+      this.term.write(data, () => {
+        // Trigger xterm to repaint after the write completes
+        // Use requestIdleCallback as a fallback to ensure we update the DOM
+        if ('requestIdleCallback' in window) {
+          (window.requestIdleCallback as any)(() => this.term.refresh(0, this.term.rows), { timeout: 50 })
+        } else {
+          requestAnimationFrame(() => this.term.refresh(0, this.term.rows))
+        }
+      })
     }
   }
 
@@ -173,7 +166,15 @@ export class TerminalProxy {
         }
       })
     } else {
-      this.term.write(data)
+      // Write and force visual update
+      this.term.write(data, () => {
+        // Trigger xterm to repaint after the write completes
+        if ('requestIdleCallback' in window) {
+          (window.requestIdleCallback as any)(() => this.term.refresh(0, this.term.rows), { timeout: 50 })
+        } else {
+          requestAnimationFrame(() => this.term.refresh(0, this.term.rows))
+        }
+      })
     }
   }
 
@@ -184,10 +185,6 @@ export class TerminalProxy {
     if (this.flushTimer) {
       clearTimeout(this.flushTimer)
       this.flushTimer = null
-    }
-    if (this.syncBlockTimer) {
-      clearTimeout(this.syncBlockTimer)
-      this.syncBlockTimer = null
     }
     if (this.syncBuffer) {
       this.term.write(this.syncBuffer)
@@ -203,10 +200,6 @@ export class TerminalProxy {
     if (this.flushTimer) {
       clearTimeout(this.flushTimer)
       this.flushTimer = null
-    }
-    if (this.syncBlockTimer) {
-      clearTimeout(this.syncBlockTimer)
-      this.syncBlockTimer = null
     }
     this.syncBuffer = ''
     this.pendingData = ''

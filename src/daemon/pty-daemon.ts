@@ -293,15 +293,14 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
   // Stream output
   const ansiRegex = /\x1B\[[0-9;]*[a-zA-Z]|\x1B\][\s\S]*?(\x07|\x1B\\)/g
   const SENTINEL_PREFIX = 'COLONY_COMMENT:'
-  let lastSentPartialLen = 0 // Track what we've already sent from partial line
   ptyProcess.onData((data) => {
-    // Sentinel detection: buffer across chunks, split on newlines
-    instance._lineBuffer += data
-    const rawLines = instance._lineBuffer.split('\n')
-    instance._lineBuffer = rawLines.pop()! // last element is partial (or empty if trailing \n)
-    const filteredLines: string[] = []
-    for (const line of rawLines) {
-      const stripped = line.replace(ansiRegex, '').trim()
+    // Just pass data through as-is to avoid buffering issues with sync blocks
+    // Only extract sentinel comments for internal use
+    const clean = data.replace(ansiRegex, '')
+    const lines = clean.split('\n')
+
+    for (const line of lines) {
+      const stripped = line.trim()
       if (stripped.startsWith(SENTINEL_PREFIX)) {
         const rest = stripped.slice(SENTINEL_PREFIX.length)
         const colonIdx1 = rest.indexOf(':')
@@ -321,38 +320,18 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
             })
           }
         }
-        // Sentinel line stripped — not forwarded to terminal
-      } else {
-        filteredLines.push(line)
-      }
-    }
-    const filteredData = filteredLines.length > 0 ? filteredLines.join('\n') + '\n' : ''
-
-    if (filteredData) {
-      instance.outputBuffer.push(filteredData)
-      if (instance.outputBuffer.length > 10000) {
-        instance.outputBuffer.splice(0, instance.outputBuffer.length - 5000)
-      }
-      // Broadcast to subscribers as base64
-      broadcastEvent({ type: 'output', instanceId: id, data: Buffer.from(filteredData).toString('base64') })
-      lastSentPartialLen = 0 // Reset since we've sent complete lines
-    }
-
-    // Also broadcast any new partial line data (for keystroke echo responsiveness)
-    if (instance._lineBuffer.length > lastSentPartialLen) {
-      const newPartial = instance._lineBuffer.slice(lastSentPartialLen)
-      if (newPartial) {
-        instance.outputBuffer.push(newPartial)
-        if (instance.outputBuffer.length > 10000) {
-          instance.outputBuffer.splice(0, instance.outputBuffer.length - 5000)
-        }
-        broadcastEvent({ type: 'output', instanceId: id, data: Buffer.from(newPartial).toString('base64') })
-        lastSentPartialLen = instance._lineBuffer.length
       }
     }
 
-    // Parse token usage
-    const clean = data.replace(ansiRegex, '')
+    // Send all data through immediately (including sentinel lines - let renderer filter if needed)
+    instance.outputBuffer.push(data)
+    if (instance.outputBuffer.length > 10000) {
+      instance.outputBuffer.splice(0, instance.outputBuffer.length - 5000)
+    }
+    // Broadcast immediately without waiting for newlines
+    broadcastEvent({ type: 'output', instanceId: id, data: Buffer.from(data).toString('base64') })
+
+    // Parse token usage (clean already defined above)
     const inputMatch = clean.match(/([\d,]+)\s*input\s*tokens?/i)
     if (inputMatch) instance.tokenUsage.input = parseInt(inputMatch[1].replace(/,/g, ''), 10)
     const outputMatch = clean.match(/([\d,]+)\s*output\s*tokens?/i)

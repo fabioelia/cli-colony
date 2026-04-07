@@ -23,7 +23,7 @@ export interface ClaudeInstance {
   cliBackend: CliBackend
   gitBranch: string | null
   gitRepo: string | null
-  tokenUsage: { input: number; output: number }
+  tokenUsage: { input: number; output: number; cost?: number }
   pinned: boolean
   mcpServers: string[]
   parentId: string | null
@@ -378,5 +378,35 @@ export interface OutputEntry {
   mtime: number
   sizeBytes: number
   type: 'brief' | 'artifact'
+}
+
+// Cost governance types (EU AI Act compliance)
+export type CostAuditStatus = 'OK' | 'WARNED' | 'THROTTLED' | 'BLOCKED'
+
+export interface CostQuotaEntry {
+  teamId: string
+  projectId: string
+  agentId?: string
+  hardLimitUsd: number
+  warnThresholdUsd: number
+}
+
+export interface CostQuotas {
+  quotas: CostQuotaEntry[]
+  metadata: {
+    lastUpdated: string
+    version: string
+  }
+}
+
+export interface CostAuditEntry {
+  timestamp: string
+  teamId: string
+  projectId: string
+  agentId?: string
+  sessionId?: string
+  costUsd: number
+  status: CostAuditStatus
+  reason?: string
 }
 
