@@ -5,7 +5,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
 import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, History, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation, MessageCircleWarning, ThumbsUp, Sparkles } from 'lucide-react'
-import type { EnvStatus, EnvServiceStatus, ReplayEvent, GitDiffEntry, ColonyComment, ScoreCard } from '../../../shared/types'
+import type { EnvStatus, EnvServiceStatus, ReplayEvent, GitDiffEntry, ColonyComment, ScoreCard, CoordinatorTeam, CoordinatorWorker } from '../../../shared/types'
 import { buildDiagnosePrompt } from '../../../shared/env-prompts'
 import '@xterm/xterm/css/xterm.css'
 import type { ClaudeInstance } from '../types'
@@ -212,7 +212,7 @@ function FileTreeNode({ node, depth, selectedPath, expandedPaths, filter, onTogg
   )
 }
 
-type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'replay' | 'changes'
+type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'replay' | 'changes' | 'team'
 
 export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane, outputBytes = 0 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -277,6 +277,9 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const [revertingAll, setRevertingAll] = useState(false)
   const [scoreCard, setScoreCard] = useState<ScoreCard | null>(null)
   const [scoreCardLoading, setScoreCardLoading] = useState(false)
+  // Team tab state (Coordinator role)
+  const [coordinatorTeam, setCoordinatorTeam] = useState<CoordinatorTeam | null>(null)
+  const [teamLoading, setTeamLoading] = useState(false)
 
   // Session steering
   const [steerOpen, setSteerOpen] = useState(false)
@@ -663,6 +666,22 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
       setScoreCardLoading(false)
     }
   }, [instance.dir, gitChanges.length])
+
+  // Load coordinator team when tab switches to team and role is Coordinator
+  useEffect(() => {
+    if (viewTab !== 'team' || instance.roleTag !== 'Coordinator') {
+      if (viewTab !== 'team') setCoordinatorTeam(null)
+      return
+    }
+    setTeamLoading(true)
+    window.api.session.getCoordinatorTeam(instance.id).then((team) => {
+      setCoordinatorTeam(team)
+      setTeamLoading(false)
+    }).catch(() => {
+      setCoordinatorTeam(null)
+      setTeamLoading(false)
+    })
+  }, [viewTab, instance.id, instance.roleTag])
 
   const handleTogglePath = useCallback((path: string) => {
     setExpandedPaths((prev) => {
@@ -1110,6 +1129,18 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 )}
               </button>
             )}
+            {instance.roleTag === 'Coordinator' && (
+              <button
+                className={`terminal-tab ${viewTab === 'team' ? 'active' : ''}`}
+                onClick={(e) => { e.stopPropagation(); setViewTab('team') }}
+                title="Coordinator team"
+              >
+                <Bot size={12} /> Team
+                {viewTab !== 'team' && coordinatorTeam?.workers?.length ? (
+                  <span className="services-tab-badge" style={{ background: 'var(--color-amber, #f59e0b)' }}>{coordinatorTeam.workers.length}</span>
+                ) : null}
+              </button>
+            )}
           </div>
           {viewTab === 'session' && <HelpPopover topic="sessionTab" />}
           {viewTab === 'files' && <HelpPopover topic="filesTab" />}
@@ -1118,6 +1149,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           {viewTab === 'logs' && <HelpPopover topic="logsTab" />}
           {viewTab === 'replay' && <HelpPopover topic="replayTab" />}
           {viewTab === 'changes' && <HelpPopover topic="changesTab" />}
+          {viewTab === 'team' && <HelpPopover topic="teamTab" />}
           {(instance.gitRepo || instance.gitBranch) && (
             <div className="terminal-header-repo-info">
               {instance.gitRepo && (
@@ -2138,6 +2170,95 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 </p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {viewTab === 'team' && instance.roleTag === 'Coordinator' && (
+        <div className="replay-panel">
+          <div className="replay-panel-header">
+            <span className="replay-panel-title">
+              <Bot size={13} /> Coordinator Team
+            </span>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <button
+                className="replay-refresh-btn"
+                title="Refresh"
+                onClick={() => {
+                  setTeamLoading(true)
+                  window.api.session.getCoordinatorTeam(instance.id).then((team) => {
+                    setCoordinatorTeam(team)
+                    setTeamLoading(false)
+                  }).catch(() => {
+                    setCoordinatorTeam(null)
+                    setTeamLoading(false)
+                  })
+                }}
+              >
+                <RefreshCw size={12} />
+              </button>
+            </div>
+          </div>
+          <div className="replay-panel-content">
+            {teamLoading && <div className="replay-empty">Loading workers...</div>}
+            {!teamLoading && !coordinatorTeam && (
+              <div className="replay-empty">No worker sessions active.</div>
+            )}
+            {!teamLoading && coordinatorTeam && coordinatorTeam.workers.length === 0 && (
+              <div className="replay-empty">No worker sessions active.</div>
+            )}
+            {!teamLoading && coordinatorTeam && coordinatorTeam.workers.map((worker: CoordinatorWorker) => (
+              <div key={worker.id} className="replay-event" style={{ cursor: 'default' }}>
+                <div className="replay-event-header" style={{ alignItems: 'center' }}>
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    flex: 1,
+                  }}>
+                    {worker.name}
+                  </span>
+                  <span style={{
+                    fontSize: '10px',
+                    padding: '2px 6px',
+                    borderRadius: '3px',
+                    background: worker.status === 'running'
+                      ? 'rgba(34,197,94,0.15)'
+                      : 'rgba(107,114,128,0.15)',
+                    color: worker.status === 'running'
+                      ? 'var(--color-success, #22c55e)'
+                      : 'var(--text-muted, #9ca3af)',
+                    textTransform: 'capitalize',
+                  }}>
+                    {worker.status}
+                  </span>
+                  {worker.activity && (
+                    <span style={{
+                      fontSize: '10px',
+                      padding: '2px 6px',
+                      borderRadius: '3px',
+                      background: worker.activity === 'busy'
+                        ? 'rgba(245,158,11,0.15)'
+                        : 'rgba(34,197,94,0.15)',
+                      color: worker.activity === 'busy'
+                        ? 'var(--color-amber, #f59e0b)'
+                        : 'var(--color-success, #22c55e)',
+                      textTransform: 'capitalize',
+                      marginLeft: '6px',
+                    }}>
+                      {worker.activity}
+                    </span>
+                  )}
+                  {worker.costUsd !== undefined && (
+                    <span style={{
+                      fontSize: '10px',
+                      opacity: 0.7,
+                      marginLeft: '6px',
+                    }}>
+                      ${worker.costUsd.toFixed(3)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

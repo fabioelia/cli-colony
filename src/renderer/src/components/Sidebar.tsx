@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, FileDown, GitFork, ChevronDown, ChevronRight, Trophy, BookTemplate, FolderOpen } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, FileDown, GitFork, ChevronDown, ChevronRight, Trophy, BookTemplate, FolderOpen, Crown } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate } from '../../../shared/types'
@@ -8,6 +8,7 @@ import { stripAnsi } from '../../../shared/utils'
 const ROLE_ABBREV: Record<string, string> = {
   Orchestrator: 'Orch', Planner: 'Plan', Coder: 'Code',
   Tester: 'Test', Reviewer: 'Rev', Researcher: 'Res',
+  Coordinator: 'Coord', Worker: 'Work',
 }
 import Tooltip from './Tooltip'
 import HelpPopover from './HelpPopover'
@@ -396,8 +397,13 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
             const level = inst.status === 'running' ? ctxLevel(outputBytes.get(inst.id) || 0) : null
             if (level)
               badges.push({ node: <button key="cx" className={`instance-ctx-badge ${level}`} title={level === 'red' ? 'Context near limit · Click to export handoff doc' : 'Context building up · Click to export handoff doc'} onClick={(e) => { e.stopPropagation(); setHandoffInst(inst); setHandoffCopied(false) }}>ctx</button>, label: `ctx (${level})` })
-            if (inst.roleTag)
-              badges.push({ node: <span key="ro" className={`instance-role-badge role-${inst.roleTag.toLowerCase()}`} title={`Role: ${inst.roleTag}`}>{ROLE_ABBREV[inst.roleTag] ?? inst.roleTag.slice(0, 4)}</span>, label: inst.roleTag })
+            if (inst.roleTag) {
+              if (inst.roleTag === 'Coordinator') {
+                badges.push({ node: <span key="ro" className="instance-coordinator-badge" title="Coordinator role — manages worker sessions"><Crown size={14} /></span>, label: 'Coordinator' })
+              } else {
+                badges.push({ node: <span key="ro" className={`instance-role-badge role-${inst.roleTag.toLowerCase()}`} title={`Role: ${inst.roleTag}`}>{ROLE_ABBREV[inst.roleTag] ?? inst.roleTag.slice(0, 4)}</span>, label: inst.roleTag })
+              }
+            }
             if (inst.mcpServers.length > 0)
               badges.push({ node: <span key="mc" className="instance-mcp-badge" title={inst.mcpServers.join(', ')}>MCP {inst.mcpServers.length}</span>, label: `MCP ${inst.mcpServers.length}` })
             if (inst.cliBackend === 'cursor-agent')

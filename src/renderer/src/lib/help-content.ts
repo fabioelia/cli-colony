@@ -59,7 +59,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Export Handoff Doc', detail: 'Generates a markdown snapshot of the session — git commits, terminal output, metadata — ready to paste into a new session to restore context. Click "✨ Generate Summary" inside the dialog to replace the raw terminal snapshot with an AI-generated 3–5 sentence summary.', icon: 'FileDown' },
           { label: 'Session Templates', detail: 'Save and reuse session configurations. Right-click a session → Save as Template to save the name, working directory, and role. The New Session button shows a template picker when templates exist. Manage templates in Settings → Session Templates.', icon: 'BookTemplate' },
           { label: 'Context budget badge', detail: 'Amber "ctx" badge when a session has generated significant output (context building up). Red when near the limit. Click to open the Handoff Doc export to capture a snapshot before the session reaches its context limit.' },
-          { label: 'Role badge', detail: 'Purple tag (Orchestrator, Planner, Coder, Tester, Reviewer, Researcher) set via right-click. Helps coordinate multi-agent workflows at a glance.' },
+          { label: 'Role badge', detail: 'Purple/gold tag (Orchestrator, Planner, Coder, Tester, Reviewer, Researcher, Coordinator, Worker) set via right-click. Coordinator shows a gold Crown icon 👑. Helps coordinate multi-agent workflows at a glance. Coordinator sessions display a Team tab showing all active Worker sessions.' },
           { label: 'Split indicator', detail: 'A columns icon appears on sessions that have a split partner.', icon: 'Columns2' },
           { label: 'Shortcut numbers', detail: 'Numbers 1-9 shown next to sessions for quick Cmd+N jumping.' },
           { label: 'Repo Memory', detail: 'Place a `.colony/memory.md` file in a repo to automatically inject its conventions, architecture decisions, and team notes into every Colony session started in that directory. Same pattern as AGENTS.md — no UI needed.' },
@@ -871,6 +871,39 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'COLONY_COMMENT sentinel', detail: 'Review agents emit `COLONY_COMMENT:<file>:<line>:<severity>:<message>` lines. The daemon strips these from terminal output and stores them. Polled every 3 seconds while the session is running.' },
           { label: 'Severity chips', detail: 'ERROR (red), WARN (amber), INFO (blue) — color-coded left border and label next to the line number.' },
           { label: 'Line number', detail: 'L<N> shows which source line the comment refers to.' },
+        ],
+      },
+    ],
+  },
+  teamTab: {
+    title: 'Team (Coordinator)',
+    description: 'Available only when a session has the Coordinator role. Shows all active Worker sessions that this coordinator is managing. Displays each worker\'s status, activity, and accumulated cost for real-time visibility into multi-agent workflows.',
+    zones: [
+      {
+        name: 'Header',
+        position: 'Top bar',
+        items: [
+          { label: 'Refresh', detail: 'Reload the worker list from the daemon.', icon: 'RefreshCw' },
+        ],
+      },
+      {
+        name: 'Worker List',
+        position: 'Main area',
+        items: [
+          { label: 'Worker name', detail: 'Session name of the worker agent.' },
+          { label: 'Status badge', detail: 'Green "running" or gray "exited". Updated in real-time as workers start and stop.' },
+          { label: 'Activity badge', detail: 'Shows "busy" (amber) when Claude is processing, "waiting" (green) when ready for input.' },
+          { label: 'Cost', detail: 'Accumulated token cost ($USD) for that worker session.' },
+          { label: 'Empty state', detail: 'Shows "No worker sessions active" when the coordinator has no assigned workers.' },
+        ],
+      },
+      {
+        name: 'Future Coordinator Features',
+        position: 'Planned',
+        items: [
+          { label: 'Worker context injection', detail: 'Handoff documents will include a list of active workers + their recent outputs.' },
+          { label: '@worker-name messaging', detail: 'Use @worker-name mentions in the whisper bar to send targeted instructions to individual workers.' },
+          { label: 'Coordinator audit log', detail: 'Track which workers were assigned which tasks and when.' },
         ],
       },
     ],

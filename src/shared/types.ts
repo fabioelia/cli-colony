@@ -5,9 +5,9 @@
 
 export type CliBackend = 'claude' | 'cursor-agent'
 
-export type SessionRole = 'Orchestrator' | 'Planner' | 'Coder' | 'Tester' | 'Reviewer' | 'Researcher'
+export type SessionRole = 'Orchestrator' | 'Planner' | 'Coder' | 'Tester' | 'Reviewer' | 'Researcher' | 'Coordinator' | 'Worker'
 
-export const SESSION_ROLES: SessionRole[] = ['Orchestrator', 'Planner', 'Coder', 'Tester', 'Reviewer', 'Researcher']
+export const SESSION_ROLES: SessionRole[] = ['Orchestrator', 'Planner', 'Coder', 'Tester', 'Reviewer', 'Researcher', 'Coordinator', 'Worker']
 
 export interface ClaudeInstance {
   id: string
@@ -424,5 +424,21 @@ export interface ApprovalRule {
   action: ApprovalRuleAction
   enabled: boolean
   createdAt: string
+}
+
+// Coordinator team types
+export interface CoordinatorWorker {
+  id: string
+  name: string
+  status: 'running' | 'exited'
+  activity: 'busy' | 'waiting'
+  costUsd?: number
+  uptime?: number
+  currentTask?: string
+}
+
+export interface CoordinatorTeam {
+  coordinatorId: string
+  workers: CoordinatorWorker[]
 }
 

@@ -1150,6 +1150,16 @@ input, select {
 .instance-role-badge.role-tester       { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
 .instance-role-badge.role-reviewer     { background: rgba(239, 68, 68, 0.15);  color: #f87171; }
 .instance-role-badge.role-researcher   { background: rgba(139, 92, 246, 0.15); color: #a78bfa; }
+.instance-role-badge.role-coordinator  { background: rgba(217, 119, 6, 0.15); color: #d97706; }
+.instance-role-badge.role-worker       { background: rgba(107, 114, 128, 0.15); color: #9ca3af; }
+
+.instance-coordinator-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  color: #d97706;
+  opacity: 0.8;
+}
 
 .instance-badge-overflow {
   display: inline-block;

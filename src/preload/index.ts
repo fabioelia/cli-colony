@@ -6,6 +6,7 @@ import type {
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
   PersonaRunEntry, ScoreCard, CostQuotas, CostAuditEntry, ApprovalRule, ApprovalRuleType, ApprovalRuleAction,
+  CoordinatorTeam,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -16,6 +17,7 @@ export type {
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
   PersonaRunEntry, ScoreCard, CostQuotas, CostAuditEntry, ApprovalRule, ApprovalRuleType, ApprovalRuleAction,
+  CoordinatorTeam,
 }
 
 
@@ -718,6 +720,7 @@ const api: ClaudeManagerAPI = {
     gitRevert: (dir, file) => ipcRenderer.invoke('session:gitRevert', dir, file),
     scoreOutput: (dir) => ipcRenderer.invoke('session:scoreOutput', dir),
     getComments: (instanceId) => ipcRenderer.invoke('session:getComments', instanceId),
+    getCoordinatorTeam: (sessionId) => ipcRenderer.invoke('session:getCoordinatorTeam', sessionId) as Promise<CoordinatorTeam | null>,
   },
   audit: {
     runPanel: (panel, context) => ipcRenderer.invoke('audit:runPanel', panel, context),
