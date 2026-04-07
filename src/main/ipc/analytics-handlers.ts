@@ -21,6 +21,19 @@ export function getAnalyticsSummary(): AnalyticsSummary {
 
   // --- Session costs (last 7 days) ---
   const instances = getAllInstances()
+  if (!Array.isArray(instances)) {
+    // Return safe defaults if instances is not an array
+    return {
+      sessionCount: 0,
+      sessionCountDelta: 0,
+      totalCost: 0,
+      totalCostDelta: 0,
+      aiCommitCount: 0,
+      pipelineSuccessRate: 0,
+      topSpenders: [],
+      dailyCosts: Array(7).fill(0),
+    }
+  }
   const exited = instances.filter((i) => i.status === 'exited')
 
   const sessionsLast7 = exited.filter((i) => {
