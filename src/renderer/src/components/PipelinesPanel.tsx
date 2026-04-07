@@ -6,7 +6,7 @@ import {
   FileText, Clock, CheckCircle, XCircle, AlertTriangle, Save, BookOpen,
   MessageSquare, Send, Plus, Search, Pencil, Eye, X, LayoutList, LayoutGrid,
   ShieldCheck, List, Globe, Wand2, ArrowRight, Hourglass,
-  GitPullRequest, GitMerge, GitBranch,
+  GitPullRequest, GitMerge, GitBranch, Sparkles, RotateCw,
 } from 'lucide-react'
 import type { AuditResult, GitHubRepo } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
@@ -160,6 +160,14 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [wizardName, setWizardName] = useState('')
   const [wizardSubmitting, setWizardSubmitting] = useState(false)
   const [wizardError, setWizardError] = useState('')
+
+  // AI Generate modal
+  const [showGenerateModal, setShowGenerateModal] = useState(false)
+  const [generateDescription, setGenerateDescription] = useState('')
+  const [generateLoading, setGenerateLoading] = useState(false)
+  const [generateResult, setGenerateResult] = useState('')
+  const [generateError, setGenerateError] = useState('')
+  const [generateSaving, setGenerateSaving] = useState(false)
 
   // Pipeline preview (dry-run)
   type PreviewResult = {
@@ -444,6 +452,38 @@ action:
     }
   }
 
+  const handleGeneratePipeline = async () => {
+    if (!generateDescription.trim()) return
+    setGenerateLoading(true)
+    setGenerateResult('')
+    setGenerateError('')
+    const result = await window.api.pipeline.generate(generateDescription)
+    setGenerateLoading(false)
+    if (!result) {
+      setGenerateError('Generation failed. Check the Claude CLI is available.')
+    } else {
+      setGenerateResult(result)
+    }
+  }
+
+  const handleGenerateSave = async () => {
+    if (!generateResult.trim()) return
+    setGenerateSaving(true)
+    // Extract name from YAML (first line that looks like `name: ...`)
+    const nameMatch = generateResult.match(/^name:\s*(.+)/m)
+    const name = nameMatch ? nameMatch[1].trim() : 'generated-pipeline'
+    const ok = await window.api.pipeline.createFromTemplate(generateResult, slugify(name))
+    setGenerateSaving(false)
+    if (ok) {
+      setShowGenerateModal(false)
+      setGenerateDescription('')
+      setGenerateResult('')
+      loadPipelines()
+    } else {
+      setGenerateError('Failed to save pipeline — check the pipelines directory is writable.')
+    }
+  }
+
   return (
     <div className="pipelines-panel">
       <div className="panel-header">
@@ -453,6 +493,9 @@ action:
         <div className="panel-header-actions">
           <button className="panel-header-btn primary" onClick={openAutomationWizard} title="Create a new automation with a step-by-step wizard">
             <Wand2 size={12} /> New Automation
+          </button>
+          <button className="panel-header-btn" onClick={() => { setShowGenerateModal(true); setGenerateDescription(''); setGenerateResult(''); setGenerateError('') }} title="Describe a pipeline in plain English and generate YAML with AI">
+            <Sparkles size={12} /> AI Generate
           </button>
           <button
             className={`panel-header-btn${listMode ? ' active' : ''}`}
@@ -940,6 +983,82 @@ action:
           </div>
         ))}
       </div>
+
+      {/* AI Generate Pipeline Modal */}
+      {showGenerateModal && (
+        <div className="pipeline-preview-overlay" onClick={() => setShowGenerateModal(false)}>
+          <div className="pipeline-preview-modal automation-wizard-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="pipeline-preview-header">
+              <Sparkles size={14} />
+              <span>Generate Pipeline with AI</span>
+              <button className="pipeline-preview-close" onClick={() => setShowGenerateModal(false)}>
+                <X size={14} />
+              </button>
+            </div>
+            <div className="automation-wizard-body">
+              {!generateResult ? (
+                <div className="automation-wizard-step-content">
+                  <p className="automation-wizard-section-label">Describe what you want this pipeline to do</p>
+                  <textarea
+                    className="automation-wizard-textarea"
+                    value={generateDescription}
+                    onChange={(e) => setGenerateDescription(e.target.value)}
+                    placeholder="e.g. Run every night: check for outdated npm packages and write a summary to outputs/dep-audit.md&#10;&#10;e.g. When a PR is opened: review the diff for security issues and post findings as a comment&#10;&#10;Press Shift+Enter for new lines"
+                    rows={6}
+                    autoFocus
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleGeneratePipeline() } }}
+                  />
+                  {generateError && (
+                    <p style={{ fontSize: 11, color: 'var(--danger, #f87171)', marginTop: 6 }}>{generateError}</p>
+                  )}
+                </div>
+              ) : (
+                <div className="automation-wizard-step-content">
+                  <p className="automation-wizard-section-label">Generated pipeline YAML — review and edit before saving</p>
+                  <textarea
+                    className="pipeline-editor-textarea"
+                    value={generateResult}
+                    onChange={(e) => setGenerateResult(e.target.value)}
+                    spellCheck={false}
+                    style={{ minHeight: '260px' }}
+                  />
+                  {generateError && (
+                    <p style={{ fontSize: 11, color: 'var(--danger, #f87171)', marginTop: 6 }}>{generateError}</p>
+                  )}
+                  <p className="automation-wizard-hint">
+                    Edit the YAML above if needed, then click Save to write it to <code>~/.claude-colony/pipelines/</code>.
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="automation-wizard-footer">
+              {generateResult && (
+                <button className="panel-header-btn" onClick={() => { setGenerateResult(''); setGenerateError('') }}>
+                  ← Back
+                </button>
+              )}
+              <div style={{ flex: 1 }} />
+              {!generateResult ? (
+                <button
+                  className="panel-header-btn primary"
+                  onClick={handleGeneratePipeline}
+                  disabled={generateLoading || !generateDescription.trim()}
+                >
+                  {generateLoading ? <><RotateCw size={12} className="spinning" /> Generating…</> : <><Sparkles size={12} /> Generate</>}
+                </button>
+              ) : (
+                <button
+                  className="panel-header-btn primary"
+                  onClick={handleGenerateSave}
+                  disabled={generateSaving || !generateResult.trim()}
+                >
+                  {generateSaving ? 'Saving…' : 'Save Pipeline'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Automation Wizard Modal */}
       {showAutomationWizard && (
