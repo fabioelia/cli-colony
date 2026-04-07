@@ -671,7 +671,7 @@ export default function SettingsPanel({ onBack }: Props) {
               />
             </div>
             <p className="settings-help">
-              Listening at <code>http://localhost:{webhookPort}</code>
+              Listening at <code>http://127.0.0.1:{webhookPort}</code>
             </p>
             <div className="settings-row">
               <span className="settings-row-label">API URL</span>
