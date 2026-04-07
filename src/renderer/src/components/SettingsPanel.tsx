@@ -1031,7 +1031,7 @@ export default function SettingsPanel({ onBack }: Props) {
                         </tbody>
                       </table>
                     ) : (
-                      <p className="governance-empty">No team quotas defined.</p>
+                      <p className="governance-empty">No team quotas defined. Create quotas to track and limit spending per team.</p>
                     )}
                   </div>
                 </div>
@@ -1076,7 +1076,7 @@ export default function SettingsPanel({ onBack }: Props) {
                         </tbody>
                       </table>
                     ) : (
-                      <p className="governance-empty">No project quotas defined.</p>
+                      <p className="governance-empty">No project quotas defined. Create quotas to track and limit spending per project.</p>
                     )}
                   </div>
                 </div>
@@ -1138,12 +1138,12 @@ export default function SettingsPanel({ onBack }: Props) {
                   {filteredAuditLog.length > 0 ? (
                     <div className="governance-audit-list">
                       {filteredAuditLog.slice().reverse().map((entry, idx) => (
-                        <div key={idx} className={`governance-audit-entry status-${entry.status.toLowerCase()}`}>
+                        <div key={`${entry.timestamp}-${entry.teamId}-${entry.projectId}-${idx}`} className={`governance-audit-entry status-${entry.status.toLowerCase()}`}>
                           <div className="governance-audit-header">
                             <span className="governance-audit-time">
                               {new Date(entry.timestamp).toLocaleString()}
                             </span>
-                            <span className={`governance-badge ${entry.status === 'OK' ? 'ok' : entry.status === 'WARNED' ? 'warned' : 'blocked'}`}>
+                            <span className={`governance-badge ${entry.status === 'OK' ? 'ok' : entry.status === 'WARNED' ? 'warned' : entry.status === 'THROTTLED' ? 'warned' : 'blocked'}`}>
                               {entry.status}
                             </span>
                           </div>
@@ -1182,7 +1182,7 @@ export default function SettingsPanel({ onBack }: Props) {
               onClick={() => setShowSchedulerLogs(!showSchedulerLogs)}
               title={showSchedulerLogs ? 'Hide scheduler log' : 'Show scheduler log'}
             >
-              {showSchedulerLogs ? 'Hide' : 'Show'}
+              {showSchedulerLogs ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
             </button>
           </div>
         </div>
