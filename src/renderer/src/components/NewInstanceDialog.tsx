@@ -9,6 +9,7 @@ interface Props {
     color?: string
     args?: string[]
     cliBackend?: CliBackend
+    mcpServers?: string[]
   }) => void | Promise<void>
   onClose: () => void
   prefill?: AgentDef
@@ -27,6 +28,13 @@ interface EnvOption {
   status: string
 }
 
+interface McpServer {
+  name: string
+  command?: string
+  url?: string
+  description?: string
+}
+
 export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props) {
   const [name, setName] = useState(prefill?.name || '')
   const [workingDirectory, setWorkingDirectory] = useState('')
@@ -35,6 +43,8 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
   const [cliBackend, setCliBackend] = useState<CliBackend>('claude')
   const [creating, setCreating] = useState(false)
   const [environments, setEnvironments] = useState<EnvOption[]>([])
+  const [mcpServersList, setMcpServersList] = useState<McpServer[]>([])
+  const [selectedMcpServers, setSelectedMcpServers] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     window.api.settings.getAll().then((s) => {
@@ -43,6 +53,10 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
     // Load environments for picker
     window.api.env?.list?.().then((envs: any[]) => {
       if (envs?.length) setEnvironments(envs)
+    }).catch(() => {})
+    // Load MCP servers
+    window.api.mcp?.list?.().then((servers: McpServer[]) => {
+      if (servers?.length) setMcpServersList(servers)
     }).catch(() => {})
   }, [])
 
@@ -55,6 +69,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
     if (creating) return
     setCreating(true)
     const args = extraArgs.trim() ? extraArgs.trim().split(/\s+/) : undefined
+    const mcpServers = selectedMcpServers.size > 0 ? Array.from(selectedMcpServers) : undefined
     try {
       await onCreate({
         name: name.trim() || undefined,
@@ -62,6 +77,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
         color,
         args,
         cliBackend,
+        mcpServers,
       })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -180,6 +196,33 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
             <option value="cursor-agent">Cursor Agent (agent)</option>
           </select>
         </div>
+
+        {mcpServersList.length > 0 && (
+          <div className="dialog-field">
+            <label>MCP Servers (optional)</label>
+            <div className="dialog-mcp-servers">
+              {mcpServersList.map(server => (
+                <label key={server.name} className="dialog-mcp-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={selectedMcpServers.has(server.name)}
+                    onChange={(e) => {
+                      const updated = new Set(selectedMcpServers)
+                      if (e.target.checked) {
+                        updated.add(server.name)
+                      } else {
+                        updated.delete(server.name)
+                      }
+                      setSelectedMcpServers(updated)
+                    }}
+                  />
+                  <span className="dialog-mcp-name">{server.name}</span>
+                  {server.description && <span className="dialog-mcp-desc">{server.description}</span>}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="dialog-actions">
           <button type="button" className="cancel" onClick={handleClose} disabled={creating} title="Cancel">Cancel</button>

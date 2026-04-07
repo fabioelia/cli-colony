@@ -347,6 +347,7 @@ export default function App() {
     color?: string
     args?: string[]
     cliBackend?: CliBackend
+    mcpServers?: string[]
   }) => {
     agentToLaunchRef.current = null
     const inst = await window.api.instance.create(opts)
