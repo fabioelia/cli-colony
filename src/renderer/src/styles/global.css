@@ -3605,6 +3605,24 @@ input, select {
   cursor: default;
 }
 
+.arena-vote-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 2px 8px;
+  height: 22px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  opacity: 0.9;
+  transition: opacity 0.15s;
+}
+.arena-vote-btn:hover { opacity: 1; }
+
 /* Focus styles for split panes */
 .terminal-header.unfocused {
   opacity: 0.7;

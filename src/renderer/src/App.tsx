@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { Swords, BarChart3, X as XIcon } from 'lucide-react'
+import { Swords, BarChart3, X as XIcon, EyeOff } from 'lucide-react'
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
 import { createPortal } from 'react-dom'
 import type { ClaudeInstance, AgentDef, CliSession, RecentSession, CliBackend, ArenaStats } from './types'
@@ -45,6 +45,7 @@ export default function App() {
   const [showSplitPicker, setShowSplitPicker] = useState(false)
   const [splitRatio, setSplitRatio] = useState(0.5)
   const [arenaMode, setArenaMode] = useState(false)
+  const [arenaBlind, setArenaBlind] = useState(false)
   const [arenaText, setArenaText] = useState('')
   const arenaTextareaRef = useRef<HTMLTextAreaElement>(null)
   const [arenaWinnerId, setArenaWinnerId] = useState<string | null>(null)
@@ -603,6 +604,7 @@ export default function App() {
       })
       setFocusedPane('left')
       setArenaMode(false)
+      setArenaBlind(false)
       setArenaText('')
       setArenaWinnerId(null)
     } else {
@@ -639,6 +641,7 @@ export default function App() {
     })
     setFocusedPane('left')
     setArenaMode(false)
+    setArenaBlind(false)
     setArenaText('')
     setArenaWinnerId(null)
   }, [splitId, activeId])
@@ -650,6 +653,7 @@ export default function App() {
     const loser = instances.find((i) => i.id === loserInstId)
     if (!winner || !loser) return
     setArenaWinnerId(winnerInstId)
+    setArenaBlind(false)
     await window.api.arena.recordWinner(winner.name, loser.name)
   }, [activeId, splitId, arenaWinnerId, instances])
 
@@ -910,6 +914,8 @@ export default function App() {
                 }}
                 isSplit={isSplit}
                 arenaMode={isSplit && arenaMode}
+                arenaBlind={isSplit && arenaMode && arenaBlind}
+                paneLabel={isLeft ? 'A' : 'B'}
                 arenaVoted={arenaWinnerId !== null}
                 arenaWinnerId={arenaWinnerId}
                 onArenaWin={() => handleArenaWin(inst.id)}
@@ -976,12 +982,27 @@ export default function App() {
           >
             <button
               className={`arena-toggle-btn${arenaMode ? ' active' : ''}`}
-              onClick={(e) => { e.stopPropagation(); setArenaMode((m) => !m) }}
+              onClick={(e) => {
+                e.stopPropagation()
+                const next = !arenaMode
+                setArenaMode(next)
+                if (!next) setArenaBlind(false)
+              }}
               title={arenaMode ? 'Disable Arena mode' : 'Enable Arena mode — shared input bar'}
               aria-label="Toggle Arena mode"
             >
               <Swords size={9} />
             </button>
+            {arenaMode && (
+              <button
+                className={`arena-toggle-btn${arenaBlind ? ' active' : ''}`}
+                onClick={(e) => { e.stopPropagation(); setArenaBlind((b) => !b) }}
+                title={arenaBlind ? 'Reveal session identities' : 'Hide session identities until you vote'}
+                aria-label="Toggle blind mode"
+              >
+                <EyeOff size={9} />
+              </button>
+            )}
           </div>
         )}
 
@@ -1005,6 +1026,7 @@ export default function App() {
                   window.api.instance.write(splitId, arenaText + '\n')
                   setArenaText('')
                   setArenaWinnerId(null)
+                  setArenaBlind(false)
                   if (arenaTextareaRef.current) arenaTextareaRef.current.style.height = ''
                 }
               }}
@@ -1019,6 +1041,7 @@ export default function App() {
                 window.api.instance.write(splitId, arenaText + '\n')
                 setArenaText('')
                 setArenaWinnerId(null)
+                setArenaBlind(false)
                 if (arenaTextareaRef.current) arenaTextareaRef.current.style.height = ''
               }}
             >

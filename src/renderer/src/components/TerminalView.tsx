@@ -31,6 +31,8 @@ interface Props {
   onFork?: () => void
   isSplit?: boolean
   arenaMode?: boolean
+  arenaBlind?: boolean
+  paneLabel?: 'A' | 'B'
   arenaVoted?: boolean
   arenaWinnerId?: string | null
   onArenaWin?: () => void
@@ -212,7 +214,7 @@ function FileTreeNode({ node, depth, selectedPath, expandedPaths, filter, onTogg
 
 type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'replay' | 'changes'
 
-export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane, outputBytes = 0 }: Props) {
+export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane, outputBytes = 0 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const initializedRef = useRef(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -1022,7 +1024,9 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
       <div className={`terminal-header ${focused ? 'focused' : 'unfocused'}`} onClick={onFocusPane}>
         <div className="terminal-header-accent" style={{ backgroundColor: focused ? instance.color : 'transparent' }} />
         <div className="terminal-header-left">
-          <span className="terminal-header-name" style={{ color: instance.color }}>{instance.name}</span>
+          <span className="terminal-header-name" style={{ color: instance.color }}>
+            {arenaBlind ? `Pane ${paneLabel ?? 'A'}` : instance.name}
+          </span>
           <div className="terminal-header-tabs">
             <button
               className={`terminal-tab ${viewTab === 'session' ? 'active' : ''}`}
@@ -1200,19 +1204,31 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           )}
           {isSplit && arenaMode && (
             <>
-              <span className="arena-chip">Arena</span>
-              <Tooltip
-                text={arenaVoted ? (arenaWinnerId === instance.id ? 'Winner!' : 'Round lost') : 'Pick as winner'}
-              >
-                <button
-                  className={`arena-trophy-btn${arenaWinnerId === instance.id ? ' winner' : arenaVoted ? ' loser' : ''}`}
-                  onClick={() => { if (!arenaVoted) onArenaWin?.() }}
-                  disabled={arenaVoted}
-                  aria-label="Pick as arena winner"
+              <span className="arena-chip">{arenaBlind ? `Pane ${paneLabel ?? 'A'}` : 'Arena'}</span>
+              {arenaBlind && !arenaVoted ? (
+                <Tooltip text="Vote for this pane as the winner">
+                  <button
+                    className="arena-vote-btn"
+                    onClick={() => onArenaWin?.()}
+                    aria-label="Vote for this pane"
+                  >
+                    👍 This one
+                  </button>
+                </Tooltip>
+              ) : (
+                <Tooltip
+                  text={arenaVoted ? (arenaWinnerId === instance.id ? 'Winner!' : 'Round lost') : 'Pick as winner'}
                 >
-                  <Trophy size={12} />
-                </button>
-              </Tooltip>
+                  <button
+                    className={`arena-trophy-btn${arenaWinnerId === instance.id ? ' winner' : arenaVoted ? ' loser' : ''}`}
+                    onClick={() => { if (!arenaVoted) onArenaWin?.() }}
+                    disabled={arenaVoted}
+                    aria-label="Pick as arena winner"
+                  >
+                    <Trophy size={12} />
+                  </button>
+                </Tooltip>
+              )}
             </>
           )}
           {isSplit && onCloseSplit && (
