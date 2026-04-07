@@ -465,6 +465,18 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Cost Governance Section',
+        position: 'Above Logs section',
+        items: [
+          { label: 'Cost Governance', detail: 'EU AI Act compliance: hierarchical quotas (team → project → agent), real-time spend tracking, and audit log. Manage cost guardrails for high-risk AI deployments.', icon: 'TrendingUp' },
+          { label: 'Team Quotas', detail: 'Shows all team-level quotas with 30-day spend aggregation. Hard limit (USD) is the absolute maximum. Warn threshold (USD or %) triggers an amber notification. Status badge shows OK (green), Warned (amber), or Blocked (red) based on current 30-day spend.' },
+          { label: 'Project Quotas', detail: 'Project-level quotas scoped to a team. Project spend counts toward both project and team quotas. Most specific quota wins (agent → project → team hierarchy).' },
+          { label: 'Audit Log', detail: 'Append-only log of all cost events (30-day window). Each entry records timestamp, team, project, agent, session, cost, and status. Filter by team, project, or status to drill down. Search text matches any field. Export to CSV for compliance audits.', icon: 'Download' },
+          { label: 'Quota status indicators', detail: 'OK: within limits. Warned: >= warn threshold. Blocked: >= hard limit (new sessions for blocked team/project are rejected by pipeline-engine).' },
+          { label: 'CSV Export', detail: 'Download the entire audit log as a CSV file for external reporting or compliance review. Headers: Timestamp, Team, Project, Agent, Session, Cost (USD), Status, Reason.', icon: 'Download' },
+        ],
+      },
+      {
         name: 'Logs Section',
         position: 'Bottom section',
         items: [
