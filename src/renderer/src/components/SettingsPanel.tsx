@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy } from 'lucide-react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import { parseShellArgs } from '../../../shared/utils'
 import type { McpAuditEntry, CommitAttribution } from '../../../preload'
@@ -474,7 +474,7 @@ export default function SettingsPanel({ onBack }: Props) {
                               onClick={() => setMcpFormEnvVars(mcpFormEnvVars.filter((_, i) => i !== idx))}
                               title="Remove"
                             >
-                              ✕
+                              <X size={16} />
                             </button>
                           </div>
                         ))}
@@ -484,7 +484,7 @@ export default function SettingsPanel({ onBack }: Props) {
                         onClick={() => setMcpFormEnvVars([...mcpFormEnvVars, { key: '', value: '' }])}
                         title="Add environment variable"
                       >
-                        + Add Variable
+                        <Plus size={14} /> Add Variable
                       </button>
                     </div>
                   </>
@@ -1004,6 +1004,9 @@ export default function SettingsPanel({ onBack }: Props) {
           cursor: pointer;
           font-size: 12px;
           transition: all 200ms;
+          display: flex;
+          align-items: center;
+          gap: 6px;
         }
         .mcp-env-add:hover {
           border-color: var(--accent);
