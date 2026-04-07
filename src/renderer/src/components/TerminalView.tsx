@@ -4,8 +4,8 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, History, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation, MessageCircleWarning, ThumbsUp } from 'lucide-react'
-import type { EnvStatus, EnvServiceStatus, ReplayEvent, GitDiffEntry, ColonyComment } from '../../../shared/types'
+import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, History, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation, MessageCircleWarning, ThumbsUp, Sparkles } from 'lucide-react'
+import type { EnvStatus, EnvServiceStatus, ReplayEvent, GitDiffEntry, ColonyComment, ScoreCard } from '../../../shared/types'
 import { buildDiagnosePrompt } from '../../../shared/env-prompts'
 import '@xterm/xterm/css/xterm.css'
 import type { ClaudeInstance } from '../types'
@@ -275,6 +275,8 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const [colonyComments, setColonyComments] = useState<ColonyComment[]>([])
   const [reverting, setReverting] = useState<Set<string>>(new Set())
   const [revertingAll, setRevertingAll] = useState(false)
+  const [scoreCard, setScoreCard] = useState<ScoreCard | null>(null)
+  const [scoreCardLoading, setScoreCardLoading] = useState(false)
 
   // Session steering
   const [steerOpen, setSteerOpen] = useState(false)
@@ -647,6 +649,20 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     setRevertingAll(false)
     loadGitChanges()
   }, [instance.dir, gitChanges, loadGitChanges])
+
+  const handleScoreOutput = useCallback(async () => {
+    if (!instance.dir || gitChanges.length === 0) return
+    setScoreCardLoading(true)
+    setScoreCard(null)
+    try {
+      const result = await window.api.session.scoreOutput(instance.dir)
+      setScoreCard(result)
+    } catch {
+      setScoreCard({ confidence: 0, scopeCreep: false, testCoverage: 'none', summary: 'Scoring failed.', raw: '' })
+    } finally {
+      setScoreCardLoading(false)
+    }
+  }, [instance.dir, gitChanges.length])
 
   const handleTogglePath = useCallback((path: string) => {
     setExpandedPaths((prev) => {
@@ -1971,15 +1987,26 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 <RefreshCw size={12} />
               </button>
               {gitChanges.length > 0 && (
-                <button
-                  className="replay-refresh-btn"
-                  title="Revert all changes"
-                  disabled={revertingAll}
-                  onClick={handleRevertAll}
-                  style={{ color: 'var(--color-danger, #ef4444)' }}
-                >
-                  <Undo2 size={12} />
-                </button>
+                <>
+                  <button
+                    className="replay-refresh-btn"
+                    title="Score output quality with AI"
+                    disabled={scoreCardLoading}
+                    onClick={handleScoreOutput}
+                    style={{ color: 'var(--color-primary, #3b82f6)' }}
+                  >
+                    {scoreCardLoading ? <RotateCw size={12} className="spinning" /> : <Sparkles size={12} />}
+                  </button>
+                  <button
+                    className="replay-refresh-btn"
+                    title="Revert all changes"
+                    disabled={revertingAll}
+                    onClick={handleRevertAll}
+                    style={{ color: 'var(--color-danger, #ef4444)' }}
+                  >
+                    <Undo2 size={12} />
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -2061,6 +2088,58 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 </div>
               )
             })}
+            {scoreCard && (
+              <div style={{
+                margin: '8px 8px 4px',
+                padding: '10px 12px',
+                background: 'var(--bg-secondary, rgba(255,255,255,0.04))',
+                borderRadius: '6px',
+                border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <Sparkles size={12} style={{ color: 'var(--color-primary, #3b82f6)', flexShrink: 0 }} />
+                  <span style={{ fontSize: '11px', fontWeight: 600, opacity: 0.9 }}>AI Score</span>
+                  <div style={{ display: 'flex', gap: '3px', marginLeft: '4px' }}>
+                    {[1, 2, 3, 4, 5].map(i => (
+                      <div key={i} style={{
+                        width: '8px', height: '8px', borderRadius: '50%',
+                        background: i <= scoreCard.confidence
+                          ? (scoreCard.confidence >= 4 ? 'var(--color-success, #22c55e)' : scoreCard.confidence >= 2 ? 'var(--color-amber, #f59e0b)' : 'var(--color-danger, #ef4444)')
+                          : 'var(--border-color, rgba(255,255,255,0.12))',
+                      }} />
+                    ))}
+                  </div>
+                  {scoreCard.scopeCreep && (
+                    <span style={{
+                      fontSize: '9px', fontWeight: 600, padding: '1px 5px', borderRadius: '4px',
+                      background: 'rgba(245,158,11,0.15)', color: 'var(--color-amber, #f59e0b)',
+                      border: '1px solid rgba(245,158,11,0.3)',
+                    }}>SCOPE CREEP</span>
+                  )}
+                  <span style={{
+                    fontSize: '9px', fontWeight: 600, padding: '1px 5px', borderRadius: '4px',
+                    background: scoreCard.testCoverage === 'good' ? 'rgba(34,197,94,0.15)' : scoreCard.testCoverage === 'partial' ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.12)',
+                    color: scoreCard.testCoverage === 'good' ? 'var(--color-success, #22c55e)' : scoreCard.testCoverage === 'partial' ? 'var(--color-amber, #f59e0b)' : 'var(--color-danger, #ef4444)',
+                    border: scoreCard.testCoverage === 'good' ? '1px solid rgba(34,197,94,0.3)' : scoreCard.testCoverage === 'partial' ? '1px solid rgba(245,158,11,0.3)' : '1px solid rgba(239,68,68,0.2)',
+                    marginLeft: 'auto',
+                    textTransform: 'uppercase',
+                  }}>
+                    {scoreCard.testCoverage === 'good' ? 'Tests ✓' : scoreCard.testCoverage === 'partial' ? 'Tests ~' : 'No Tests'}
+                  </span>
+                  <button
+                    className="replay-refresh-btn"
+                    title="Dismiss"
+                    onClick={() => setScoreCard(null)}
+                    style={{ marginLeft: '4px' }}
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+                <p style={{ fontSize: '11px', opacity: 0.8, margin: 0, lineHeight: 1.5 }}>
+                  {scoreCard.summary}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}

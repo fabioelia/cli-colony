@@ -1,6 +1,8 @@
 import { ipcMain } from 'electron'
 import { execFile, spawn } from 'child_process'
 import { promisify } from 'util'
+import { DEFAULT_SCORING_PROMPT } from '../scoring-config'
+import type { ScoreCard } from '../../shared/types'
 
 const execFileAsync = promisify(execFile)
 import { createShell, writeShell, resizeShell, killShell } from '../shell-pty'
@@ -182,6 +184,61 @@ export function registerInstanceHandlers(): void {
     } catch {
       return false
     }
+  })
+
+  // LLM-as-Judge scorecard for uncommitted changes in a session's working directory.
+  ipcMain.handle('session:scoreOutput', async (_e, dir: string): Promise<ScoreCard> => {
+    // Get the git diff (truncated at 8KB)
+    let diff = ''
+    try {
+      const { stdout } = await execFileAsync('git', ['diff', 'HEAD'], { encoding: 'utf-8', timeout: 10000, cwd: dir })
+      diff = stdout
+    } catch {
+      return { confidence: 0, scopeCreep: false, testCoverage: 'none', summary: 'Could not read git diff.', raw: '' }
+    }
+
+    const MAX_DIFF = 8 * 1024
+    if (Buffer.byteLength(diff, 'utf-8') > MAX_DIFF) {
+      const truncated = Buffer.from(diff).slice(0, MAX_DIFF).toString('utf-8')
+      const totalLines = diff.split('\n').length
+      const keptLines = truncated.split('\n').length
+      diff = truncated + `\n[... ${totalLines - keptLines} lines truncated]`
+    }
+
+    if (!diff.trim()) {
+      return { confidence: 0, scopeCreep: false, testCoverage: 'none', summary: 'No uncommitted changes to score.', raw: '' }
+    }
+
+    const fullPrompt = DEFAULT_SCORING_PROMPT + diff
+
+    return new Promise((resolve) => {
+      const proc = spawn('claude', ['-p', fullPrompt, '--model', 'claude-haiku-4-5-20251001'], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        detached: false,
+      })
+      let out = ''
+      proc.stdout.on('data', (chunk: Buffer) => { out += chunk.toString() })
+      proc.on('close', () => {
+        const raw = out.trim()
+        try {
+          // Strip markdown fences if present
+          const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+          const parsed = JSON.parse(cleaned)
+          resolve({
+            confidence: Math.min(5, Math.max(0, Math.round(Number(parsed.confidence) || 0))),
+            scopeCreep: Boolean(parsed.scopeCreep),
+            testCoverage: (['none', 'partial', 'good'].includes(parsed.testCoverage) ? parsed.testCoverage : 'none') as ScoreCard['testCoverage'],
+            summary: String(parsed.summary || '').slice(0, 400),
+            raw,
+          })
+        } catch {
+          resolve({ confidence: 0, scopeCreep: false, testCoverage: 'none', summary: raw.slice(0, 400) || 'Could not parse score response.', raw })
+        }
+      })
+      proc.on('error', (err) => {
+        resolve({ confidence: 0, scopeCreep: false, testCoverage: 'none', summary: `Error: ${err.message}`, raw: '' })
+      })
+    })
   })
 
   // AI-generated summary of a session's terminal snapshot.

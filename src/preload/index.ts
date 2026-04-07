@@ -5,7 +5,7 @@ import type {
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
-  PersonaRunEntry,
+  PersonaRunEntry, ScoreCard,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -15,7 +15,7 @@ export type {
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
-  PersonaRunEntry,
+  PersonaRunEntry, ScoreCard,
 }
 
 
@@ -315,6 +315,7 @@ export interface ClaudeManagerAPI {
     clearCommitAttributions: () => Promise<void>
     gitChanges: (dir: string) => Promise<GitDiffEntry[]>
     gitRevert: (dir: string, file: string) => Promise<boolean>
+    scoreOutput: (dir: string) => Promise<ScoreCard>
     getComments: (instanceId: string) => Promise<ColonyComment[]>
   }
   audit: {
@@ -680,6 +681,7 @@ const api: ClaudeManagerAPI = {
     clearCommitAttributions: () => ipcRenderer.invoke('session:clearCommitAttributions'),
     gitChanges: (dir) => ipcRenderer.invoke('session:gitChanges', dir),
     gitRevert: (dir, file) => ipcRenderer.invoke('session:gitRevert', dir, file),
+    scoreOutput: (dir) => ipcRenderer.invoke('session:scoreOutput', dir),
     getComments: (instanceId) => ipcRenderer.invoke('session:getComments', instanceId),
   },
   audit: {

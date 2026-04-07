@@ -313,6 +313,14 @@ export interface GitDiffEntry {
   status: 'M' | 'A' | 'D' | 'R' | '?'
 }
 
+export interface ScoreCard {
+  confidence: number   // 0–5 (0 = error/no changes)
+  scopeCreep: boolean
+  testCoverage: 'none' | 'partial' | 'good'
+  summary: string
+  raw: string          // raw response for fallback display
+}
+
 export interface CommitAttribution {
   commitHash: string
   shortMsg: string
