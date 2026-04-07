@@ -1304,9 +1304,6 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           <span className="session-status-item session-status-uptime" tabIndex={-1}>
             {formatUptime(Math.max(0, Math.floor((Date.now() - new Date(instance.createdAt).getTime()) / 1000)))}
           </span>
-          <span className={`session-status-item session-status-cost ${instance.tokenUsage.cost >= 1.0 ? 'red' : instance.tokenUsage.cost >= 0.10 ? 'amber' : 'green'}`} tabIndex={-1}>
-            ${instance.tokenUsage.cost.toFixed(3)}
-          </span>
           {outputBytes >= 250 * 1024 && (
             <span className={`session-status-item session-status-ctx ${outputBytes >= 600 * 1024 ? 'red' : 'amber'}`} tabIndex={-1} title="Context window pressure — terminal output is large, approaching context limit">
               <span className={`session-status-dot ${outputBytes >= 600 * 1024 ? 'red' : 'amber'}`} />

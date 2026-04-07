@@ -516,7 +516,6 @@ function PersonaSection({ title, content, defaultOpen, isOutput, isBrief, childr
 function PersonaRunSparkline({ entries }: { entries: PersonaRunEntry[] }) {
   const bars = entries.slice(0, 7).reverse()
   if (bars.length === 0) return null
-  const maxCost = Math.max(...bars.map(e => e.cost), 0.001)
   const BAR_W = 16
   const BAR_GAP = 4
   const MAX_H = 24
@@ -525,7 +524,7 @@ function PersonaRunSparkline({ entries }: { entries: PersonaRunEntry[] }) {
     <div className="persona-history-sparkline">
       <svg width={totalW} height={MAX_H} style={{ display: 'block', overflow: 'visible' }}>
         {bars.map((e, i) => {
-          const h = Math.max(3, Math.round((e.cost / maxCost) * MAX_H))
+          const h = MAX_H
           const x = i * (BAR_W + BAR_GAP)
           const fill = e.success ? 'var(--accent)' : 'var(--danger, #ef4444)'
           return (
@@ -533,7 +532,7 @@ function PersonaRunSparkline({ entries }: { entries: PersonaRunEntry[] }) {
           )
         })}
       </svg>
-      <span className="persona-history-sparkline-label">Last {bars.length} run{bars.length !== 1 ? 's' : ''} · cost trend</span>
+      <span className="persona-history-sparkline-label">Last {bars.length} run{bars.length !== 1 ? 's' : ''}</span>
     </div>
   )
 }
@@ -813,7 +812,6 @@ function PersonaCard({
                           </span>
                           <span className="persona-history-time">{ago}</span>
                           <span className="persona-history-dur">{dur}</span>
-                          <span className="persona-history-cost">{entry.cost > 0 ? `$${entry.cost.toFixed(3)}` : '—'}</span>
                         </div>
                       )
                     })}

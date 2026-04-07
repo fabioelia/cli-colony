@@ -302,9 +302,9 @@ export interface ClaudeManagerAPI {
     onUnread: (cb: (data: { count: number }) => void) => () => void
   }
   mcp: {
-    list: () => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string }>>
-    save: (server: { name: string; command?: string; args?: string[]; url?: string; description?: string }) => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string }>>
-    delete: (name: string) => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string }>>
+    list: () => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string> }>>
+    save: (server: { name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string> }) => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string> }>>
+    delete: (name: string) => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string> }>>
     getAuditLog: () => Promise<McpAuditEntry[]>
     clearAuditLog: () => Promise<void>
   }

@@ -254,7 +254,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
       workingDirectory: cwd, createdAt: new Date().toISOString(),
       exitCode: -1, pid: null, args: argv, cliBackend,
       gitBranch: resolveGitBranch(cwd), gitRepo: resolveGitRepo(cwd),
-      tokenUsage: { input: 0, output: 0, cost: 0 },
+      tokenUsage: { input: 0, output: 0 },
       pinned: false, mcpServers: [], roleTag: null,
       parentId: opts.parentId || null, childIds: [],
       pty: null, outputBuffer: [`Failed to spawn ${command}: ${err}\r\n`],
@@ -293,6 +293,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
   // Stream output
   const ansiRegex = /\x1B\[[0-9;]*[a-zA-Z]|\x1B\][\s\S]*?(\x07|\x1B\\)/g
   const SENTINEL_PREFIX = 'COLONY_COMMENT:'
+  let lastSentPartialLen = 0 // Track what we've already sent from partial line
   ptyProcess.onData((data) => {
     // Sentinel detection: buffer across chunks, split on newlines
     instance._lineBuffer += data
@@ -334,19 +335,24 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
       }
       // Broadcast to subscribers as base64
       broadcastEvent({ type: 'output', instanceId: id, data: Buffer.from(filteredData).toString('base64') })
+      lastSentPartialLen = 0 // Reset since we've sent complete lines
+    }
+
+    // Also broadcast any new partial line data (for keystroke echo responsiveness)
+    if (instance._lineBuffer.length > lastSentPartialLen) {
+      const newPartial = instance._lineBuffer.slice(lastSentPartialLen)
+      if (newPartial) {
+        instance.outputBuffer.push(newPartial)
+        if (instance.outputBuffer.length > 10000) {
+          instance.outputBuffer.splice(0, instance.outputBuffer.length - 5000)
+        }
+        broadcastEvent({ type: 'output', instanceId: id, data: Buffer.from(newPartial).toString('base64') })
+        lastSentPartialLen = instance._lineBuffer.length
+      }
     }
 
     // Parse token usage
     const clean = data.replace(ansiRegex, '')
-    // Primary: context-specific patterns (e.g. "$0.12 cost", "cost: $0.12")
-    let costMatch = clean.match(/\$(\d+\.?\d*)\s*(?:cost|spent|total)/i) || clean.match(/cost[:\s]*\$(\d+\.?\d*)/i)
-    // Fallback: bare dollar amount with ≥2 decimal places on the last non-empty line of the chunk
-    if (!costMatch) {
-      const lastLine = clean.split('\n').map(l => l.trim()).filter(Boolean).at(-1) ?? ''
-      const bare = lastLine.match(/\$(\d+\.\d{2,4})(?:\s|$)/)
-      if (bare) costMatch = bare
-    }
-    if (costMatch) instance.tokenUsage.cost = parseFloat(costMatch[1])
     const inputMatch = clean.match(/([\d,]+)\s*input\s*tokens?/i)
     if (inputMatch) instance.tokenUsage.input = parseInt(inputMatch[1].replace(/,/g, ''), 10)
     const outputMatch = clean.match(/([\d,]+)\s*output\s*tokens?/i)

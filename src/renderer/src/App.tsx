@@ -801,7 +801,6 @@ export default function App() {
   // Status bar data
   const runningCount = instances.filter((i) => i.status === 'running').length
   const activeModel = active?.args.find((_, i, arr) => arr[i - 1] === '--model') || null
-  const totalCost = instances.reduce((sum, i) => sum + i.tokenUsage.cost, 0)
 
   return (
     <div className="app">
@@ -1226,11 +1225,6 @@ export default function App() {
           )}
           {activeModel && (
             <span className="status-bar-item">{activeModel}</span>
-          )}
-          {totalCost >= 0.01 && (
-            <span className="status-bar-item status-bar-cost">
-              ${totalCost.toFixed(4)}
-            </span>
           )}
           <span className="status-bar-item">
             {fontSize}px

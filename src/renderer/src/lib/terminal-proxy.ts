@@ -26,9 +26,9 @@ export class TerminalProxy {
   private suppressScrollTracking = false
 
   // If sync block doesn't complete within this time, force flush it (for keystroke echo responsiveness)
-  private readonly SYNC_TIMEOUT_MS = 50
+  private readonly SYNC_TIMEOUT_MS = 10
   // Throttle interval for batching writes outside sync blocks (ms)
-  private readonly THROTTLE_MS = 8
+  private readonly THROTTLE_MS = 0
 
   constructor(term: Terminal) {
     this.term = term
@@ -119,7 +119,10 @@ export class TerminalProxy {
 
   private appendPending(data: string): void {
     this.pendingData += data
-    if (!this.flushTimer) {
+    if (this.THROTTLE_MS === 0) {
+      // Flush immediately for responsive keystroke echo
+      this.flushPending()
+    } else if (!this.flushTimer) {
       this.flushTimer = setTimeout(() => this.flushPending(), this.THROTTLE_MS)
     }
   }

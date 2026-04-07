@@ -23,7 +23,7 @@ export interface ClaudeInstance {
   cliBackend: CliBackend
   gitBranch: string | null
   gitRepo: string | null
-  tokenUsage: { input: number; output: number; cost: number }
+  tokenUsage: { input: number; output: number }
   pinned: boolean
   mcpServers: string[]
   parentId: string | null
@@ -31,11 +31,6 @@ export interface ClaudeInstance {
   roleTag: SessionRole | null
   lastSessionId?: string
   pendingSteer?: string
-  // Cost governance context (EU AI Act compliance)
-  contextMetadata?: {
-    teamId?: string
-    projectId?: string
-  }
 }
 
 export interface AgentDef {
@@ -287,7 +282,6 @@ export interface PersonaRunEntry {
   personaId: string
   timestamp: string
   durationMs: number
-  cost: number
   success: boolean
 }
 
@@ -330,7 +324,6 @@ export interface CommitAttribution {
   sessionId: string
   sessionName: string
   personaName?: string
-  cost?: number
   startedAt: number
   stoppedAt: number
   dir: string
