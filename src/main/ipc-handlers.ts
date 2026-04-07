@@ -29,6 +29,7 @@ import { registerArenaHandlers } from './ipc/arena-handlers'
 import { registerForkHandlers } from './ipc/fork-handlers'
 import { registerSessionTemplateHandlers } from './ipc/session-template-handlers'
 import { registerOutputsHandlers } from './ipc/outputs-handlers'
+import { registerGovernanceHandlers } from './ipc/governance-handlers'
 
 export function registerIpcHandlers(): void {
   // Delegated handler modules
@@ -50,6 +51,7 @@ export function registerIpcHandlers(): void {
   registerForkHandlers()
   registerSessionTemplateHandlers()
   registerOutputsHandlers()
+  registerGovernanceHandlers()
 
   // ---- Temp files ----
   ipcMain.handle('fs:writeTempFile', (_e, prefix: string, content: string) => {

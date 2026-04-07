@@ -17,6 +17,9 @@ export interface CreateOpts {
   parentId?: string
   cliBackend?: CliBackend
   model?: string
+  // Cost governance context (EU AI Act compliance)
+  teamId?: string
+  projectId?: string
 }
 
 // ---- Client → Daemon requests ----

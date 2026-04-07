@@ -19,13 +19,16 @@ export class TerminalProxy {
   private syncBuffer = ''
   private pendingData = ''
   private flushTimer: ReturnType<typeof setTimeout> | null = null
+  private syncBlockTimer: ReturnType<typeof setTimeout> | null = null
   private userScrolledUp = false
   // Suppress scroll tracking during our own programmatic scrollToLine/scrollToBottom calls
   // to prevent onScroll from incorrectly flipping userScrolledUp
   private suppressScrollTracking = false
 
-  // Extra delay during sync blocks to catch all data
-  private readonly SYNC_DELAY_MS = 32
+  // If sync block doesn't complete within this time, force flush it (for keystroke echo responsiveness)
+  private readonly SYNC_TIMEOUT_MS = 50
+  // Throttle interval for batching writes outside sync blocks (ms)
+  private readonly THROTTLE_MS = 8
 
   constructor(term: Terminal) {
     this.term = term
@@ -60,21 +63,8 @@ export class TerminalProxy {
    * Process incoming PTY data. Handles sync block detection and buffering.
    */
   write(data: string): void {
-    // Scan for sync markers in the incoming data
     let remaining = data
-    const hasSyncStart = remaining.includes(SYNC_START)
-    const hasSyncEnd = remaining.includes(SYNC_END)
 
-    if (hasSyncStart || hasSyncEnd || this.inSyncBlock) {
-      console.log('[TerminalProxy]', {
-        hasSyncStart,
-        hasSyncEnd,
-        inSyncBlock: this.inSyncBlock,
-        dataLen: data.length,
-        pendingLen: this.pendingData.length,
-        syncBufferLen: this.syncBuffer.length,
-      })
-    }
 
     while (remaining.length > 0) {
       if (this.inSyncBlock) {
@@ -85,6 +75,11 @@ export class TerminalProxy {
           this.syncBuffer += remaining.substring(0, endIdx + SYNC_END.length)
           remaining = remaining.substring(endIdx + SYNC_END.length)
           this.inSyncBlock = false
+          // Clear timeout since sync block completed
+          if (this.syncBlockTimer) {
+            clearTimeout(this.syncBlockTimer)
+            this.syncBlockTimer = null
+          }
           // Flush the entire sync block atomically
           this.flushSyncBlock()
         } else {
@@ -104,6 +99,15 @@ export class TerminalProxy {
           this.inSyncBlock = true
           this.syncBuffer = SYNC_START
           remaining = remaining.substring(startIdx + SYNC_START.length)
+          // Set timeout to force-flush incomplete sync blocks (e.g., keystroke echoes)
+          if (!this.syncBlockTimer) {
+            this.syncBlockTimer = setTimeout(() => {
+              if (this.inSyncBlock && this.syncBuffer) {
+                this.inSyncBlock = false
+                this.flushSyncBlock()
+              }
+            }, this.SYNC_TIMEOUT_MS)
+          }
         } else {
           // No sync markers, throttled write
           this.appendPending(remaining)
@@ -115,7 +119,9 @@ export class TerminalProxy {
 
   private appendPending(data: string): void {
     this.pendingData += data
-    this.flushPending()
+    if (!this.flushTimer) {
+      this.flushTimer = setTimeout(() => this.flushPending(), this.THROTTLE_MS)
+    }
   }
 
   private flushPending(): void {
@@ -176,6 +182,10 @@ export class TerminalProxy {
       clearTimeout(this.flushTimer)
       this.flushTimer = null
     }
+    if (this.syncBlockTimer) {
+      clearTimeout(this.syncBlockTimer)
+      this.syncBlockTimer = null
+    }
     if (this.syncBuffer) {
       this.term.write(this.syncBuffer)
       this.syncBuffer = ''
@@ -190,6 +200,10 @@ export class TerminalProxy {
     if (this.flushTimer) {
       clearTimeout(this.flushTimer)
       this.flushTimer = null
+    }
+    if (this.syncBlockTimer) {
+      clearTimeout(this.syncBlockTimer)
+      this.syncBlockTimer = null
     }
     this.syncBuffer = ''
     this.pendingData = ''

@@ -5,7 +5,7 @@ import type {
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
-  PersonaRunEntry, ScoreCard,
+  PersonaRunEntry, ScoreCard, CostQuotas, CostAuditEntry,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -15,7 +15,7 @@ export type {
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
-  PersonaRunEntry, ScoreCard,
+  PersonaRunEntry, ScoreCard, CostQuotas, CostAuditEntry,
 }
 
 
@@ -347,6 +347,27 @@ export interface ClaudeManagerAPI {
   outputs: {
     list: () => Promise<OutputEntry[]>
     read: (filePath: string) => Promise<{ content: string } | { error: string }>
+  }
+  governance: {
+    getQuotas: () => Promise<CostQuotas>
+    saveQuotas: (quotas: CostQuotas) => Promise<boolean>
+    auditLog: (filters?: {
+      startDate?: string
+      endDate?: string
+      teamId?: string
+      projectId?: string
+      status?: string
+      limit?: number
+    }) => Promise<CostAuditEntry[]>
+    exportCsv: () => Promise<string>
+    getSpend: (teamId: string, projectId: string, windowDays?: number) => Promise<number>
+    getTeamSpend: (teamId: string, windowDays?: number) => Promise<number>
+    checkQuotaStatus: (
+      teamId: string,
+      projectId: string,
+      agentId?: string,
+      costUsd?: number
+    ) => Promise<{ status: string; limitUsd: number; currentSpend: number; reason: string }>
   }
 }
 
@@ -714,6 +735,17 @@ const api: ClaudeManagerAPI = {
   outputs: {
     list: () => ipcRenderer.invoke('outputs:list'),
     read: (filePath) => ipcRenderer.invoke('outputs:read', filePath),
+  },
+  governance: {
+    getQuotas: () => ipcRenderer.invoke('governance:getQuotas'),
+    saveQuotas: (quotas) => ipcRenderer.invoke('governance:saveQuotas', quotas),
+    auditLog: (filters) => ipcRenderer.invoke('governance:auditLog', filters),
+    exportCsv: () => ipcRenderer.invoke('governance:exportCsv'),
+    getSpend: (teamId, projectId, windowDays) =>
+      ipcRenderer.invoke('governance:getSpend', teamId, projectId, windowDays),
+    getTeamSpend: (teamId, windowDays) => ipcRenderer.invoke('governance:getTeamSpend', teamId, windowDays),
+    checkQuotaStatus: (teamId, projectId, agentId, costUsd) =>
+      ipcRenderer.invoke('governance:checkQuotaStatus', teamId, projectId, agentId, costUsd),
   },
 }
 

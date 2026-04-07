@@ -31,6 +31,11 @@ export interface ClaudeInstance {
   roleTag: SessionRole | null
   lastSessionId?: string
   pendingSteer?: string
+  // Cost governance context (EU AI Act compliance)
+  contextMetadata?: {
+    teamId?: string
+    projectId?: string
+  }
 }
 
 export interface AgentDef {
