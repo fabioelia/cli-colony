@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { genId, slugify, resolveMustacheTemplate, parseFrontmatter, stripAnsi } from '../utils'
+import { genId, slugify, resolveMustacheTemplate, parseFrontmatter, stripAnsi, parseShellArgs, expandEnvVars } from '../utils'
 
 describe('genId', () => {
   it('returns a non-empty string', () => {
@@ -171,5 +171,104 @@ describe('parseFrontmatter', () => {
     const result = parseFrontmatter(content)
     expect(result.first).toBe('yes')
     expect(result.second).toBeUndefined()
+  })
+})
+
+describe('parseShellArgs', () => {
+  it('parses simple space-separated args', () => {
+    expect(parseShellArgs('-y @mcp/fs /path')).toEqual(['-y', '@mcp/fs', '/path'])
+  })
+
+  it('preserves double-quoted args with spaces', () => {
+    expect(parseShellArgs('arg "with spaces" arg2')).toEqual(['arg', 'with spaces', 'arg2'])
+  })
+
+  it('preserves single-quoted args with spaces', () => {
+    expect(parseShellArgs("arg 'with spaces' arg2")).toEqual(['arg', 'with spaces', 'arg2'])
+  })
+
+  it('handles mixed quotes and unquoted args', () => {
+    expect(parseShellArgs('-y @mcp/fs "/path/with spaces" $HOME')).toEqual(['-y', '@mcp/fs', '/path/with spaces', '$HOME'])
+  })
+
+  it('handles escaped quotes in double-quoted strings', () => {
+    expect(parseShellArgs('arg "with \\"quote" more')).toEqual(['arg', 'with "quote', 'more'])
+  })
+
+  it('handles empty string', () => {
+    expect(parseShellArgs('')).toEqual([])
+  })
+
+  it('handles whitespace-only string', () => {
+    expect(parseShellArgs('   ')).toEqual([])
+  })
+
+  it('handles multiple spaces between args', () => {
+    expect(parseShellArgs('arg1   arg2     arg3')).toEqual(['arg1', 'arg2', 'arg3'])
+  })
+
+  it('handles trailing/leading spaces', () => {
+    expect(parseShellArgs('  arg1 arg2  ')).toEqual(['arg1', 'arg2'])
+  })
+
+  it('preserves special characters inside quotes', () => {
+    expect(parseShellArgs('arg "$VAR" "a|b" "-x"')).toEqual(['arg', '$VAR', 'a|b', '-x'])
+  })
+
+  it('handles unclosed quotes gracefully', () => {
+    // Unclosed quote includes everything to the end
+    expect(parseShellArgs('arg "unclosed')).toEqual(['arg', 'unclosed'])
+  })
+})
+
+describe('expandEnvVars', () => {
+  it('expands $VAR syntax', () => {
+    const env = { HOME: '/home/user', VAR: 'value' }
+    expect(expandEnvVars('$HOME/data', env)).toBe('/home/user/data')
+  })
+
+  it('expands ${VAR} syntax', () => {
+    const env = { HOME: '/home/user', VAR: 'value' }
+    expect(expandEnvVars('${HOME}/data', env)).toBe('/home/user/data')
+  })
+
+  it('handles multiple variables in one string', () => {
+    const env = { HOME: '/home/user', NAME: 'john' }
+    expect(expandEnvVars('$HOME/$NAME', env)).toBe('/home/user/john')
+  })
+
+  it('handles missing variables (returns empty string)', () => {
+    expect(expandEnvVars('$MISSING/data', {})).toBe('/data')
+  })
+
+  it('handles mixed $VAR and ${VAR} syntax', () => {
+    const env = { A: 'alpha', B: 'beta' }
+    expect(expandEnvVars('$A/${B}/$A', env)).toBe('alpha/beta/alpha')
+  })
+
+  it('returns plain text unchanged', () => {
+    expect(expandEnvVars('no variables here', { VAR: 'val' })).toBe('no variables here')
+  })
+
+  it('handles edge case: variable name at end of string', () => {
+    const env = { VAR: 'value' }
+    expect(expandEnvVars('prefix-$VAR', env)).toBe('prefix-value')
+  })
+
+  it('handles numbers in variable names', () => {
+    const env = { VAR1: 'one', VAR2: 'two' }
+    expect(expandEnvVars('$VAR1 and $VAR2', env)).toBe('one and two')
+  })
+
+  it('does not expand variables in $VAR123 form if no matching var', () => {
+    const env = { VAR: 'value' }
+    expect(expandEnvVars('$VAR123', env)).toBe('')
+  })
+
+  it('uses process.env by default when env not provided', () => {
+    // This test verifies the default behavior (cannot predict actual env values)
+    process.env.TEST_VAR = 'test-value'
+    expect(expandEnvVars('$TEST_VAR')).toBe('test-value')
+    delete process.env.TEST_VAR
   })
 })

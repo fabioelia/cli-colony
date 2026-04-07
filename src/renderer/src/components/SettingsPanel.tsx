@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy } from 'lucide-react'
 import HelpPopover from './HelpPopover'
+import { parseShellArgs } from '../../../shared/utils'
 import type { McpAuditEntry, CommitAttribution } from '../../../preload'
 import type { SessionTemplate } from '../../../shared/types'
 
@@ -432,8 +433,8 @@ export default function SettingsPanel({ onBack }: Props) {
                       <label>Args</label>
                       <input
                         value={(mcpForm.args ?? []).join(' ')}
-                        onChange={(e) => setMcpForm({ ...mcpForm, args: e.target.value.split(' ').filter(Boolean) })}
-                        placeholder="e.g. -y @modelcontextprotocol/server-filesystem /path"
+                        onChange={(e) => setMcpForm({ ...mcpForm, args: parseShellArgs(e.target.value) })}
+                        placeholder='e.g. -y @mcp/fs "/path/with spaces" $HOME'
                       />
                     </div>
                   </>

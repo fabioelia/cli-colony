@@ -1,5 +1,6 @@
 import * as fs from 'fs'
 import * as path from 'path'
+import { expandEnvVars } from '../shared/utils'
 import { colonyPaths } from '../shared/colony-paths'
 
 export interface McpServerDef {
@@ -27,6 +28,7 @@ export function writeCatalog(servers: McpServerDef[]): void {
 /**
  * Build a temporary --mcp-config JSON file for the named servers.
  * Returns the file path, or null if no valid servers were found.
+ * Expands environment variables in command arguments (e.g., $HOME, ${VAR}).
  */
 export function buildMcpConfig(serverNames: string[], configId: string): string | null {
   const catalog = readCatalog()
@@ -38,7 +40,9 @@ export function buildMcpConfig(serverNames: string[], configId: string): string 
     if (s.url) {
       mcpServers[s.name] = { type: 'sse', url: s.url }
     } else if (s.command) {
-      mcpServers[s.name] = { command: s.command, args: s.args ?? [] }
+      // Expand environment variables in each arg
+      const expandedArgs = (s.args ?? []).map((arg) => expandEnvVars(arg))
+      mcpServers[s.name] = { command: s.command, args: expandedArgs }
     }
   }
   if (Object.keys(mcpServers).length === 0) return null

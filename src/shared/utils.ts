@@ -74,3 +74,77 @@ export function parseFrontmatter(content: string): Record<string, string> {
   }
   return meta
 }
+
+/**
+ * Parse a shell-style argument string, respecting single and double quotes.
+ * Handles: "arg with spaces", 'single quoted', unquoted, and mixed.
+ * Example: `parseShellArgs('-y @mcp/fs "/path/with spaces"')` returns `['-y', '@mcp/fs', '/path/with spaces']`
+ */
+export function parseShellArgs(argsStr: string): string[] {
+  const args: string[] = []
+  let current = ''
+  let inSingleQuote = false
+  let inDoubleQuote = false
+  let i = 0
+
+  while (i < argsStr.length) {
+    const ch = argsStr[i]
+
+    if (inSingleQuote) {
+      if (ch === "'") {
+        inSingleQuote = false
+      } else {
+        current += ch
+      }
+    } else if (inDoubleQuote) {
+      if (ch === '"') {
+        inDoubleQuote = false
+      } else if (ch === '\\' && i + 1 < argsStr.length) {
+        // Handle escape sequences in double quotes
+        const nextCh = argsStr[i + 1]
+        if (nextCh === '"' || nextCh === '\\' || nextCh === '$') {
+          current += nextCh
+          i++
+        } else {
+          current += ch
+        }
+      } else {
+        current += ch
+      }
+    } else {
+      if (ch === "'") {
+        inSingleQuote = true
+      } else if (ch === '"') {
+        inDoubleQuote = true
+      } else if (/\s/.test(ch)) {
+        if (current.length > 0) {
+          args.push(current)
+          current = ''
+        }
+      } else {
+        current += ch
+      }
+    }
+
+    i++
+  }
+
+  if (current.length > 0) {
+    args.push(current)
+  }
+
+  return args
+}
+
+/**
+ * Expand environment variables in a string.
+ * Supports: $VAR and ${VAR} syntax.
+ * Falls back to empty string if variable is not set.
+ * Example: `expandEnvVars('$HOME/data')` with HOME=/Users/foo returns '/Users/foo/data'
+ */
+export function expandEnvVars(text: string, env: Record<string, string> = process.env as Record<string, string>): string {
+  return text.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g, (_match, p1, p2) => {
+    const varName = p1 || p2
+    return env[varName] ?? ''
+  })
+}
