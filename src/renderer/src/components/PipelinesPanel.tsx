@@ -5,7 +5,7 @@ import {
   Zap, ZapOff, Play, RefreshCw, ChevronDown, ChevronRight,
   FileText, Clock, CheckCircle, XCircle, AlertTriangle, Save, BookOpen,
   MessageSquare, Send, Plus, Search, Pencil, Eye, X, LayoutList, LayoutGrid,
-  ShieldCheck, List, Globe, Wand2, ArrowRight, Hourglass,
+  ShieldCheck, List, Globe, Wand2, ArrowRight, ArrowLeft, Hourglass,
   GitPullRequest, GitMerge, GitBranch, Sparkles, RotateCw,
 } from 'lucide-react'
 import type { AuditResult, GitHubRepo } from '../../../shared/types'
@@ -1034,7 +1034,7 @@ action:
             <div className="automation-wizard-footer">
               {generateResult && (
                 <button className="panel-header-btn" onClick={() => { setGenerateResult(''); setGenerateError('') }}>
-                  ← Back
+                  <ArrowLeft size={12} /> Back
                 </button>
               )}
               <div style={{ flex: 1 }} />

@@ -2124,7 +2124,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                     marginLeft: 'auto',
                     textTransform: 'uppercase',
                   }}>
-                    {scoreCard.testCoverage === 'good' ? 'Tests ✓' : scoreCard.testCoverage === 'partial' ? 'Tests ~' : 'No Tests'}
+                    {scoreCard.testCoverage === 'good' ? 'Tests OK' : scoreCard.testCoverage === 'partial' ? 'Tests' : 'No Tests'}
                   </span>
                   <button
                     className="replay-refresh-btn"
