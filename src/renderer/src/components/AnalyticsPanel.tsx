@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, BarChart2, TrendingUp, TrendingDown, Code2, CheckCircle } from 'lucide-react'
+import { ArrowLeft, BarChart2, TrendingUp, TrendingDown, CheckCircle } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import type { AnalyticsSummary } from '../../../shared/types'
 
