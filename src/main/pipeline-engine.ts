@@ -51,6 +51,7 @@ export interface ActionDef {
   name?: string
   workingDirectory?: string
   color?: string
+  model?: string // Claude model override for this stage (e.g. 'claude-opus-4-6', 'claude-haiku-4-5')
   prompt?: string // required for launch-session; omitted for maker-checker
   match?: {
     gitBranch?: string
@@ -291,6 +292,7 @@ export interface PipelineStageTrace {
   index: number
   actionType: string
   sessionName?: string
+  model?: string  // per-stage model override if set
   durationMs: number
   startedAt?: number
   completedAt?: number
@@ -791,6 +793,7 @@ async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pipelineN
       workingDirectory: cwd,
       color: action.color,
       args: ['--append-system-prompt-file', makerPromptFile],
+      model: action.model,
     })
 
     const completionPromise = waitForSessionCompletion(makerInst.id)
@@ -827,6 +830,7 @@ async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pipelineN
       workingDirectory: cwd,
       color: action.color,
       args: ['--append-system-prompt-file', checkerPromptFile],
+      model: action.model,
     })
 
     const checkerCompletionPromise = waitForSessionCompletion(checkerInst.id)
@@ -936,6 +940,7 @@ async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipelineNam
       workingDirectory: cwd,
       color: action.color,
       args: ['--append-system-prompt-file', promptFile],
+      model: action.model,
     })
 
     const completionPromise = waitForSessionCompletion(reviewerInst.id)
@@ -975,6 +980,7 @@ async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipelineNam
         workingDirectory: cwd,
         color: action.color,
         args: ['--append-system-prompt-file', fixerPromptFile],
+        model: action.model,
       })
       const fixerCompletion = waitForSessionCompletion(fixerInst.id)
       await sendPromptWhenReady(fixerInst.id, { prompt: 'Execute the instructions in your system prompt. Begin now.' })
@@ -1057,6 +1063,7 @@ async function runPlanStage(action: ActionDef, ctx: TriggerContext, pipelineName
     color: action.color,
     args: ['--append-system-prompt-file', promptFile],
     mcpServers: action.mcpServers,
+    model: action.model,
   })
 
   const completionPromise = waitForSessionCompletion(plannerInst.id, 5 * 60 * 1000)
@@ -1361,6 +1368,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
         color: action.color,
         args: ['--resume', route.sessionId, '--append-system-prompt-file', promptFile],
         mcpServers: action.mcpServers,
+        model: action.model,
       })
       await sendPromptWhenReady(inst.id, { prompt: 'Execute the instructions in your system prompt. Begin now.' })
       broadcast('pipeline:fired', { pipeline: name, instanceId: inst.id, routed: true, resumed: true })
@@ -1405,6 +1413,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
     color: action.color,
     args: ['--append-system-prompt-file', promptFile],
     mcpServers: action.mcpServers,
+    model: action.model,
   })
 
   // Full prompt is in the system prompt file — just send a trigger
@@ -1655,6 +1664,7 @@ async function runPoll(pipelineName: string): Promise<void> {
           index: stages.length,
           actionType: p.def.action.type,
           sessionName: stageSessionName,
+          model: p.def.action.model,
           durationMs: stageEnd - stageStart,
           startedAt: stageStart,
           completedAt: stageEnd,

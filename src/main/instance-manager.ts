@@ -162,6 +162,7 @@ export async function createInstance(opts: {
   parentId?: string
   cliBackend?: CliBackend
   mcpServers?: string[]
+  model?: string
 }): Promise<ClaudeInstance> {
   const defaultArgs = getDefaultArgs()
   const home = app.getPath('home')

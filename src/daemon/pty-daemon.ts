@@ -203,6 +203,7 @@ function buildSpawn(
   name: string,
   defaultArgs: string[],
   userArgs: string[],
+  model?: string,
 ): { command: string; argv: string[] } {
   if (cliBackend === 'cursor-agent') {
     return { command: 'agent', argv: [...defaultArgs, ...userArgs] }
@@ -211,9 +212,10 @@ function buildSpawn(
   const agentsArgs = fs.existsSync(agentsMd) ? ['--append-system-prompt-file', agentsMd] : []
   const colonyMemory = path.join(cwd, '.colony', 'memory.md')
   const memoryArgs = fs.existsSync(colonyMemory) ? ['--append-system-prompt-file', colonyMemory] : []
+  const modelArgs = model ? ['--model', model] : []
   return {
     command: 'claude',
-    argv: ['--dangerously-skip-permissions', '--add-dir', cwd, '--name', name, ...agentsArgs, ...memoryArgs, ...defaultArgs, ...userArgs],
+    argv: ['--dangerously-skip-permissions', ...modelArgs, '--add-dir', cwd, '--name', name, ...agentsArgs, ...memoryArgs, ...defaultArgs, ...userArgs],
   }
 }
 
@@ -231,7 +233,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
 
   const defaultArgs = opts.defaultArgs || []
   const userArgs = opts.args || []
-  const { command, argv } = buildSpawn(cliBackend, cwd, name, defaultArgs, userArgs)
+  const { command, argv } = buildSpawn(cliBackend, cwd, name, defaultArgs, userArgs, opts.model)
 
   log(`creating instance name="${name}" cwd=${cwd} cliBackend=${cliBackend} command=${command} args=${JSON.stringify(argv)}`)
 

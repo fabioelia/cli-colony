@@ -3153,3 +3153,109 @@ budget:
     expect(limitCall).toBeUndefined()
   })
 })
+
+// ---- Per-stage model selection ----
+
+const MODEL_YAML = `
+name: Model Pipe
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * *"
+condition:
+  type: always
+action:
+  type: launch-session
+  model: claude-haiku-4-5
+  prompt: Do work
+dedup:
+  key: model-run
+`
+
+describe('pipeline-engine: per-stage model selection', () => {
+  let mod: typeof import('../pipeline-engine')
+  let mockCreateInstance: ReturnType<typeof vi.fn>
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+    mockCreateInstance = vi.fn().mockResolvedValue({ id: 'inst-model', tokenUsage: { cost: 0 } })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  function setupModelMocks(fsMock: ReturnType<typeof buildFsMock>) {
+    vi.doMock('electron', () => ({
+      app: { getPath: vi.fn().mockReturnValue('/mock/home') },
+    }))
+    vi.doMock('../../shared/colony-paths', () => ({
+      colonyPaths: { root: MOCK_ROOT, pipelines: PIPELINES_DIR, schedulerLog: `${MOCK_ROOT}/scheduler.log` },
+    }))
+    vi.doMock('fs', () => fsMock)
+    vi.doMock('../broadcast', () => ({ broadcast: mockBroadcast }))
+    vi.doMock('../repo-config-loader', () => ({ getAllRepoConfigs: mockGetAllRepoConfigs }))
+    vi.doMock('../instance-manager', () => ({
+      createInstance: mockCreateInstance,
+      getAllInstances: vi.fn().mockResolvedValue([]),
+    }))
+    vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
+    vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
+    vi.doMock('../github', () => ({
+      getRepos: vi.fn().mockReturnValue([]),
+      fetchPRs: vi.fn().mockResolvedValue([]),
+      fetchChecks: vi.fn().mockResolvedValue({ checks: [] }),
+      gh: vi.fn().mockResolvedValue('{}'),
+    }))
+    vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
+    vi.doMock('../activity-manager', () => ({ appendActivity: vi.fn() }))
+    vi.doMock('../notifications', () => ({ notify: vi.fn() }))
+  }
+
+  it('passes model to createInstance when action.model is set', async () => {
+    const fs = buildFsMock(['model.yaml'], { 'model.yaml': MODEL_YAML })
+    setupModelMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('Model Pipe')
+    await flushPromises()
+
+    expect(mockCreateInstance).toHaveBeenCalledOnce()
+    const callOpts = mockCreateInstance.mock.calls[0][0]
+    expect(callOpts.model).toBe('claude-haiku-4-5')
+  })
+
+  it('does not pass model to createInstance when action.model is absent', async () => {
+    const yaml = `
+name: No Model Pipe
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * *"
+condition:
+  type: always
+action:
+  type: launch-session
+  prompt: Do work
+dedup:
+  key: no-model-run
+`
+    const fs = buildFsMock(['nomodel.yaml'], { 'nomodel.yaml': yaml })
+    setupModelMocks(fs)
+    mod = await import('../pipeline-engine')
+    mod.loadPipelines()
+
+    mod.triggerPollNow('No Model Pipe')
+    await flushPromises()
+
+    expect(mockCreateInstance).toHaveBeenCalledOnce()
+    const callOpts = mockCreateInstance.mock.calls[0][0]
+    expect(callOpts.model).toBeUndefined()
+  })
+})

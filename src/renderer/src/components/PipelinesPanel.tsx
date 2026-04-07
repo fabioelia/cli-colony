@@ -137,7 +137,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [outputFiles, setOutputFiles] = useState<Array<{ name: string; path: string; size: number; modified: number }>>([])
   const [outputPreview, setOutputPreview] = useState<{ name: string; content: string } | null>(null)
   const [expandedTab, setExpandedTab] = useState<'yaml' | 'docs' | 'memory' | 'outputs' | 'history' | 'debug'>('yaml')
-  type StageTrace = { index: number; actionType: string; sessionName?: string; durationMs: number; startedAt?: number; completedAt?: number; success: boolean; error?: string; responseSnippet?: string; subStages?: StageTrace[] }
+  type StageTrace = { index: number; actionType: string; sessionName?: string; model?: string; durationMs: number; startedAt?: number; completedAt?: number; success: boolean; error?: string; responseSnippet?: string; subStages?: StageTrace[] }
   const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; stages?: StageTrace[] }>>([])
   const [expandedHistoryRows, setExpandedHistoryRows] = useState<Set<number>>(new Set())
 
@@ -874,6 +874,7 @@ action:
                                         </span>
                                         {statusChanged && <span className="pipeline-history-stage-delta" title={`Changed from ${prevStatus} in prior run`}>△</span>}
                                         {stage.sessionName && <span className="pipeline-history-stage-name">{stage.sessionName}</span>}
+                                        {stage.model && <span className="pipeline-history-stage-model" title={stage.model}>· {stage.model.replace(/^claude-/, '').split('-')[0]}</span>}
                                         {stage.responseSnippet && <span className="pipeline-history-stage-snippet" title={stage.responseSnippet}>{stage.responseSnippet.length > 60 ? stage.responseSnippet.slice(0, 60) + '…' : stage.responseSnippet}</span>}
                                         <span className="pipeline-history-duration">{stage.durationMs < 1000 ? `${stage.durationMs}ms` : `${(stage.durationMs / 1000).toFixed(1)}s`}</span>
                                         {stage.error && <span className="pipeline-history-stage-error" title={stage.error}>err</span>}
