@@ -76,16 +76,78 @@ import { broadcast } from './broadcast'
 import { seedDefaultPipelines, startPipelines, getPipelineList } from './pipeline-engine'
 import { cleanupStaleForkGroups } from './fork-manager'
 import { startWebhookServer, stopWebhookServer } from './webhook-server'
+import { colonyPaths } from '../shared/colony-paths'
 
 let mainWindow: BrowserWindow | null = null
+
+// ---- Window state persistence ----
+
+interface WindowState {
+  x?: number
+  y?: number
+  width?: number
+  height?: number
+  isMaximized?: boolean
+  isFullScreen?: boolean
+}
+
+function getWindowStatePath(): string {
+  return join(colonyPaths.root, 'window-state.json')
+}
+
+function loadWindowState(): WindowState {
+  try {
+    const path = getWindowStatePath()
+    if (fs.existsSync(path)) {
+      const data = JSON.parse(fs.readFileSync(path, 'utf-8'))
+      // Validate bounds are within reasonable screen range
+      if (data.width && data.height && data.width > 400 && data.height > 300) {
+        return data
+      }
+    }
+  } catch (err) {
+    console.warn('[app] Failed to load window state:', err)
+  }
+  return {}
+}
+
+function saveWindowState(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  try {
+    const bounds = mainWindow.getBounds()
+    const state: WindowState = {
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+      isMaximized: mainWindow.isMaximized(),
+      isFullScreen: mainWindow.isFullScreen(),
+    }
+    fs.writeFileSync(getWindowStatePath(), JSON.stringify(state, null, 2), 'utf-8')
+  } catch (err) {
+    console.warn('[app] Failed to save window state:', err)
+  }
+}
 
 function getIconPath(): string {
   return join(__dirname, '../../resources/icon.png')
 }
 
 function createWindow(): void {
+  const savedState = loadWindowState()
+
+  // Use saved bounds if available, otherwise use defaults
+  const bounds: any = {
+    height: savedState.height || 800,
+    width: savedState.width || 1200,
+  }
+  if (savedState.x !== undefined && savedState.y !== undefined) {
+    bounds.x = savedState.x
+    bounds.y = savedState.y
+  }
+
   mainWindow = new BrowserWindow({
-    height: 800,
+    ...bounds,
     minHeight: 600,
     minWidth: 900,
     show: false,
@@ -95,7 +157,6 @@ function createWindow(): void {
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
     vibrancy: 'sidebar',
-    width: 1200,
     icon: getIconPath(),
     webPreferences: {
       contextIsolation: true,
@@ -105,7 +166,17 @@ function createWindow(): void {
     },
   })
 
+  // Save window state on move, resize, maximize, and fullscreen changes
+  const stateChangeHandler = () => saveWindowState()
+  mainWindow.on('move', stateChangeHandler)
+  mainWindow.on('resize', stateChangeHandler)
+  mainWindow.on('maximize', stateChangeHandler)
+  mainWindow.on('unmaximize', stateChangeHandler)
+  mainWindow.on('enter-full-screen', stateChangeHandler)
+  mainWindow.on('leave-full-screen', stateChangeHandler)
+
   mainWindow.on('close', (event) => {
+    saveWindowState()
     if (process.platform === 'darwin' && !app.isQuitting) {
       const keepInTray = getSetting('keepInTray') !== 'false'
       if (keepInTray) {
@@ -140,6 +211,22 @@ function createWindow(): void {
   mainWindow.on('ready-to-show', () => {
     clearTimeout(fallbackShowTimer)
     mainWindow?.show()
+    // Restore fullscreen state after window is shown
+    // Do this in setImmediate to ensure the window is fully visible first
+    if (savedState.isFullScreen) {
+      setImmediate(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.setFullScreen(true)
+        }
+      })
+    } else if (savedState.isMaximized) {
+      // Restore maximized state if not fullscreen
+      setImmediate(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.maximize()
+        }
+      })
+    }
   })
 
   mainWindow.on('closed', () => {

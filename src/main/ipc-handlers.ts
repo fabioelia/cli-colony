@@ -128,6 +128,16 @@ export function registerIpcHandlers(): void {
 
   // ---- Resource Monitor ----
   registerResourceHandlers()
+
+  // ---- Window Management ----
+  ipcMain.handle('window:toggleFullScreen', (_e) => {
+    const { BrowserWindow } = require('electron')
+    const win = BrowserWindow.getFocusedWindow()
+    if (win) {
+      win.setFullScreen(!win.isFullScreen())
+    }
+    return true
+  })
 }
 
 // ---- File system handlers ----

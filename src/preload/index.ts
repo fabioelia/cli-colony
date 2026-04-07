@@ -133,6 +133,9 @@ export interface ClaudeManagerAPI {
   dialog: {
     openDirectory: () => Promise<string | null>
   }
+  window: {
+    toggleFullScreen: () => Promise<boolean>
+  }
   github: {
     authStatus: () => Promise<boolean>
     fetchPRs: (repo: GitHubRepo) => Promise<GitHubPR[]>
@@ -503,6 +506,9 @@ const api: ClaudeManagerAPI = {
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   dialog: {
     openDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
+  },
+  window: {
+    toggleFullScreen: () => ipcRenderer.invoke('window:toggleFullScreen'),
   },
   github: {
     authStatus: () => ipcRenderer.invoke('github:authStatus'),
