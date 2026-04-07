@@ -64,6 +64,19 @@ export class TerminalProxy {
   write(data: string): void {
     // Scan for sync markers in the incoming data
     let remaining = data
+    const hasSyncStart = remaining.includes(SYNC_START)
+    const hasSyncEnd = remaining.includes(SYNC_END)
+
+    if (hasSyncStart || hasSyncEnd || this.inSyncBlock) {
+      console.log('[TerminalProxy]', {
+        hasSyncStart,
+        hasSyncEnd,
+        inSyncBlock: this.inSyncBlock,
+        dataLen: data.length,
+        pendingLen: this.pendingData.length,
+        syncBufferLen: this.syncBuffer.length,
+      })
+    }
 
     while (remaining.length > 0) {
       if (this.inSyncBlock) {
