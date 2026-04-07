@@ -219,6 +219,22 @@ describe('parseShellArgs', () => {
     // Unclosed quote includes everything to the end
     expect(parseShellArgs('arg "unclosed')).toEqual(['arg', 'unclosed'])
   })
+
+  it('handles MCP-style flags correctly: -y mcp', () => {
+    // User reports issue: "-y mcp" being parsed as "-ymcp"
+    // This test verifies the correct behavior
+    expect(parseShellArgs('-y mcp')).toEqual(['-y', 'mcp'])
+  })
+
+  it('handles MCP round-trip: parse, store, rejoin, reparse', () => {
+    // Simulate the full round-trip: user input -> parse -> store -> rejoin -> reparse
+    const userInput = '-y mcp'
+    const parsed = parseShellArgs(userInput)  // ['-y', 'mcp']
+    const stored = parsed  // Store in database
+    const rejoined = stored.join(' ')  // Rejoin for form display: '-y mcp'
+    const reparsed = parseShellArgs(rejoined)  // Reparse when saving: ['-y', 'mcp']
+    expect(reparsed).toEqual(['-y', 'mcp'])
+  })
 })
 
 describe('expandEnvVars', () => {
