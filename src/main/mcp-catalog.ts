@@ -9,6 +9,7 @@ export interface McpServerDef {
   args?: string[]
   url?: string
   description?: string
+  env?: Record<string, string>
 }
 
 export function readCatalog(): McpServerDef[] {
@@ -29,6 +30,7 @@ export function writeCatalog(servers: McpServerDef[]): void {
  * Build a temporary --mcp-config JSON file for the named servers.
  * Returns the file path, or null if no valid servers were found.
  * Expands environment variables in command arguments (e.g., $HOME, ${VAR}).
+ * Custom env variables defined per server take precedence over system env.
  */
 export function buildMcpConfig(serverNames: string[], configId: string): string | null {
   const catalog = readCatalog()
@@ -40,8 +42,10 @@ export function buildMcpConfig(serverNames: string[], configId: string): string 
     if (s.url) {
       mcpServers[s.name] = { type: 'sse', url: s.url }
     } else if (s.command) {
-      // Expand environment variables in each arg
-      const expandedArgs = (s.args ?? []).map((arg) => expandEnvVars(arg))
+      // Merge system env + custom server env (custom takes precedence)
+      const mergedEnv = { ...process.env, ...(s.env ?? {}) } as Record<string, string>
+      // Expand environment variables in each arg using merged env
+      const expandedArgs = (s.args ?? []).map((arg) => expandEnvVars(arg, mergedEnv))
       mcpServers[s.name] = { command: s.command, args: expandedArgs }
     }
   }

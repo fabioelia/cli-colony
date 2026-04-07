@@ -34,7 +34,7 @@ export default function SettingsPanel({ onBack }: Props) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const schedulerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  type McpServer = { name: string; command?: string; args?: string[]; url?: string; description?: string }
+  type McpServer = { name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string> }
   const [mcpServers, setMcpServers] = useState<McpServer[]>([])
   const [showMcpSection, setShowMcpSection] = useState(false)
 
@@ -45,6 +45,7 @@ export default function SettingsPanel({ onBack }: Props) {
   const [mcpForm, setMcpForm] = useState<McpServer | null>(null)
   const [mcpFormType, setMcpFormType] = useState<'command' | 'sse'>('command')
   const [mcpFormArgsString, setMcpFormArgsString] = useState('')
+  const [mcpFormEnvVars, setMcpFormEnvVars] = useState<Array<{ key: string; value: string }>>([])
   const [mcpFormError, setMcpFormError] = useState<string | null>(null)
   const [mcpOriginalName, setMcpOriginalName] = useState<string | null>(null)
 
@@ -375,6 +376,7 @@ export default function SettingsPanel({ onBack }: Props) {
                           setMcpFormType(s.url ? 'sse' : 'command')
                           setMcpForm({ ...s })
                           setMcpFormArgsString((s.args ?? []).join(' '))
+                          setMcpFormEnvVars(Object.entries(s.env ?? {}).map(([key, value]) => ({ key, value })))
                           setMcpOriginalName(s.name)
                           setMcpFormError(null)
                         }}
@@ -439,6 +441,52 @@ export default function SettingsPanel({ onBack }: Props) {
                         placeholder='e.g. -y @mcp/fs "/path/with spaces" $HOME'
                       />
                     </div>
+                    <div className="mcp-form-row">
+                      <label>Environment Variables (Optional)</label>
+                      <div className="mcp-env-vars">
+                        {mcpFormEnvVars.map((envVar, idx) => (
+                          <div key={idx} className="mcp-env-var-row">
+                            <input
+                              type="text"
+                              value={envVar.key}
+                              onChange={(e) => {
+                                const updated = [...mcpFormEnvVars]
+                                updated[idx].key = e.target.value
+                                setMcpFormEnvVars(updated)
+                              }}
+                              placeholder="KEY"
+                              className="mcp-env-key"
+                            />
+                            <span className="mcp-env-sep">=</span>
+                            <input
+                              type="text"
+                              value={envVar.value}
+                              onChange={(e) => {
+                                const updated = [...mcpFormEnvVars]
+                                updated[idx].value = e.target.value
+                                setMcpFormEnvVars(updated)
+                              }}
+                              placeholder="value"
+                              className="mcp-env-value"
+                            />
+                            <button
+                              className="mcp-env-remove"
+                              onClick={() => setMcpFormEnvVars(mcpFormEnvVars.filter((_, i) => i !== idx))}
+                              title="Remove"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        className="mcp-env-add"
+                        onClick={() => setMcpFormEnvVars([...mcpFormEnvVars, { key: '', value: '' }])}
+                        title="Add environment variable"
+                      >
+                        + Add Variable
+                      </button>
+                    </div>
                   </>
                 ) : (
                   <div className="mcp-form-row">
@@ -461,7 +509,7 @@ export default function SettingsPanel({ onBack }: Props) {
                 <div className="mcp-form-actions">
                   <button
                     className="settings-logs-toggle"
-                    onClick={() => { setMcpForm(null); setMcpFormArgsString(''); setMcpFormError(null); setMcpOriginalName(null) }}
+                    onClick={() => { setMcpForm(null); setMcpFormArgsString(''); setMcpFormEnvVars([]); setMcpFormError(null); setMcpOriginalName(null) }}
                   >
                     Cancel
                   </button>
@@ -470,13 +518,19 @@ export default function SettingsPanel({ onBack }: Props) {
                     onClick={async () => {
                       if (!mcpForm.name.trim()) { setMcpFormError('Name is required'); return }
                       // Parse args string if in command mode
-                      const formToSave = mcpFormType === 'command' && mcpFormArgsString
+                      let formToSave = mcpFormType === 'command' && mcpFormArgsString
                         ? { ...mcpForm, args: parseShellArgs(mcpFormArgsString) }
                         : mcpForm
+                      // Add env vars if any (filter out empty ones)
+                      const envVars = mcpFormEnvVars.filter(e => e.key.trim()).reduce((acc, e) => ({ ...acc, [e.key]: e.value }), {})
+                      if (Object.keys(envVars).length > 0) {
+                        formToSave = { ...formToSave, env: envVars }
+                      }
                       const updated = await window.api.mcp.save(formToSave)
                       setMcpServers(updated)
                       setMcpForm(null)
                       setMcpFormArgsString('')
+                      setMcpFormEnvVars([])
                       setMcpFormError(null)
                       setMcpOriginalName(null)
                     }}
@@ -492,6 +546,7 @@ export default function SettingsPanel({ onBack }: Props) {
                   setMcpFormType('command')
                   setMcpForm({ name: '', command: '', args: [] })
                   setMcpFormArgsString('')
+                  setMcpFormEnvVars([])
                   setMcpOriginalName(null)
                   setMcpFormError(null)
                 }}
@@ -888,6 +943,73 @@ export default function SettingsPanel({ onBack }: Props) {
       <div className="settings-footer">
         <span className="settings-config-path">~/.claude-colony/settings.json</span>
       </div>
+
+      <style>{`
+        .mcp-env-vars {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          margin-bottom: 8px;
+        }
+        .mcp-env-var-row {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+        }
+        .mcp-env-key {
+          flex: 0 0 120px;
+          padding: 6px;
+          border: 1px solid var(--border);
+          border-radius: 4px;
+          font-family: monospace;
+          font-size: 12px;
+        }
+        .mcp-env-sep {
+          color: var(--text-secondary);
+          font-weight: 500;
+        }
+        .mcp-env-value {
+          flex: 1;
+          padding: 6px;
+          border: 1px solid var(--border);
+          border-radius: 4px;
+          font-family: monospace;
+          font-size: 12px;
+        }
+        .mcp-env-remove {
+          width: 28px;
+          height: 28px;
+          padding: 0;
+          border: none;
+          border-radius: 4px;
+          background: var(--bg-secondary);
+          color: var(--text-secondary);
+          cursor: pointer;
+          font-size: 14px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 200ms;
+        }
+        .mcp-env-remove:hover {
+          background: var(--error);
+          color: white;
+        }
+        .mcp-env-add {
+          padding: 6px 12px;
+          border: 1px solid var(--border);
+          border-radius: 4px;
+          background: var(--bg-secondary);
+          color: var(--text-primary);
+          cursor: pointer;
+          font-size: 12px;
+          transition: all 200ms;
+        }
+        .mcp-env-add:hover {
+          border-color: var(--accent);
+          color: var(--accent);
+        }
+      `}</style>
     </div>
   )
 }
