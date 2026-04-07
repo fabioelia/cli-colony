@@ -5,7 +5,7 @@ import type {
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
-  PersonaRunEntry, ScoreCard,
+  PersonaRunEntry, ScoreCard, AnalyticsSummary,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -15,7 +15,7 @@ export type {
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
-  PersonaRunEntry, ScoreCard,
+  PersonaRunEntry, ScoreCard, AnalyticsSummary,
 }
 
 
@@ -347,6 +347,9 @@ export interface ClaudeManagerAPI {
   outputs: {
     list: () => Promise<OutputEntry[]>
     read: (filePath: string) => Promise<{ content: string } | { error: string }>
+  }
+  analytics: {
+    getSummary: () => Promise<AnalyticsSummary>
   }
 }
 
@@ -714,6 +717,9 @@ const api: ClaudeManagerAPI = {
   outputs: {
     list: () => ipcRenderer.invoke('outputs:list'),
     read: (filePath) => ipcRenderer.invoke('outputs:read', filePath),
+  },
+  analytics: {
+    getSummary: () => ipcRenderer.invoke('analytics:getSummary'),
   },
 }
 

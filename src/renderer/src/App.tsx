@@ -17,6 +17,7 @@ import PipelinesPanel from './components/PipelinesPanel'
 import EnvironmentsPanel from './components/EnvironmentsPanel'
 import PersonasPanel from './components/PersonasPanel'
 import OutputsPanel from './components/OutputsPanel'
+import AnalyticsPanel from './components/AnalyticsPanel'
 import QuickPromptDialog from './components/QuickPromptDialog'
 import ForkModal from './components/ForkModal'
 import { stripAnsi } from '../../shared/utils'
@@ -1188,6 +1189,7 @@ export default function App() {
           />
         )}
         {view === 'outputs' && <OutputsPanel />}
+        {view === 'analytics' && <AnalyticsPanel onBack={() => setView('instances')} />}
         <div style={{ display: view === 'github' ? 'contents' : 'none' }}>
           <GitHubPanel
             onBack={() => setView('instances')}

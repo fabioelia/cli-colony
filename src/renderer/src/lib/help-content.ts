@@ -854,4 +854,36 @@ export const helpContent: Record<string, HelpEntry> = {
       },
     ],
   },
+  analytics: {
+    title: 'Analytics Dashboard',
+    description: 'ROI metrics, cost trends, and performance data for the last 7 days. Tracks session count, total spend, AI-attributed commits, and pipeline success rate across all personas and pipeline runs.',
+    zones: [
+      {
+        name: 'Summary Tiles',
+        position: 'Top section (4 tiles)',
+        items: [
+          { label: 'Sessions', detail: 'Total Claude sessions run (exited only). Compares against the 7 days prior to show trend.' },
+          { label: 'Total Cost', detail: 'Sum of tokenUsage.cost from all exited sessions in the last 7 days. Shows delta from the previous 7-day period.' },
+          { label: 'AI Commits', detail: 'Number of commits recorded in ~/.claude-colony/commit-attribution.json over the last 7 days. Shows percentage of total commits if available.' },
+          { label: 'Pipeline Success', detail: 'Percentage of pipeline runs that completed successfully (status=success) in the last 7 days.' },
+        ],
+      },
+      {
+        name: 'Daily Cost Chart',
+        position: 'Bar chart (7 bars)',
+        items: [
+          { label: 'Cost trend', detail: 'Visual representation of daily costs (oldest to newest). Height represents spending for that day. Hover for exact amount.' },
+          { label: 'Day labels', detail: 'Shows "Today" for current day, then "1d", "2d", etc. for prior days.' },
+        ],
+      },
+      {
+        name: 'Top Spenders Table',
+        position: 'Bottom section',
+        items: [
+          { label: 'Session/Persona name', detail: 'Name of the session or persona that consumed the most tokens.' },
+          { label: 'Cost', detail: 'Total spend for that entity in the last 7 days. Up to top 5 spenders shown.' },
+        ],
+      },
+    ],
+  },
 }

@@ -7,7 +7,7 @@ import {
   Filter, Zap, Square, Terminal, FolderOpen, Stethoscope, Trash2,
   GitBranch, Info, GitFork, User, Bell, Eye, FileDown, StickyNote, Clock, Network, ArrowUpDown,
   AlertCircle, LayoutList, ShieldCheck, UserPlus, ClipboardList, GitCommit,
-  Trophy, BarChart3, Globe, Navigation, ArrowRight, BookTemplate, Wand2, Hourglass, Undo2, EyeOff,
+  Trophy, BarChart3, BarChart2, Globe, Navigation, ArrowRight, BookTemplate, Wand2, Hourglass, Undo2, EyeOff,
   Sparkles,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -20,7 +20,7 @@ const iconMap: Record<string, LucideIcon> = {
   Filter, Zap, Square, Terminal, FolderOpen, Stethoscope, Trash2,
   GitBranch, Info, GitFork, HelpCircle, ChevronDown, User, Bell, Eye, FileDown,
   StickyNote, Clock, Network, ArrowUpDown, AlertCircle, LayoutList, ShieldCheck, UserPlus,
-  ClipboardList, GitCommit, Trophy, BarChart3, Globe, Navigation, ArrowRight, BookTemplate, Wand2, Hourglass, Undo2, EyeOff,
+  ClipboardList, GitCommit, Trophy, BarChart3, BarChart2, Globe, Navigation, ArrowRight, BookTemplate, Wand2, Hourglass, Undo2, EyeOff,
   Sparkles,
 }
 
