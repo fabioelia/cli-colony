@@ -22,6 +22,7 @@ import { resolveMustacheTemplate, slugify } from '../shared/utils'
 import type { GitHubRepo, GitHubPR, PRChecks, ApprovalRequest } from '../shared/types'
 import { appendActivity } from './activity-manager'
 import { notify } from './notifications'
+import { matchRules, estimateActionCost } from './approval-rules'
 
 // ---- Types ----
 
@@ -1610,6 +1611,60 @@ async function runPoll(pipelineName: string): Promise<void> {
       if (pendingApprovalKeys.has(dedupKey)) {
         plog(pipelineName, `⊘ approval already queued for ${dedupKey}`)
         continue
+      }
+
+      // Scoped approval gate: check rules before the binary requireApproval check
+      const ruleMatch = matchRules(p.def.action.type, estimateActionCost(p.def.action.type), [])
+      if (ruleMatch) {
+        if (ruleMatch.action === 'auto_approve') {
+          plog(pipelineName, `✓ auto-approved by rule "${ruleMatch.name}"`)
+          appendActivity({
+            source: 'pipeline',
+            name: pipelineName,
+            summary: `Pipeline "${pipelineName}" auto-approved by rule "${ruleMatch.name}"`,
+            level: 'info',
+          })
+          // skip approval gate — fall through to fireAction
+        } else if (ruleMatch.action === 'require_approval' || ruleMatch.action === 'require_escalation') {
+          // Create approval gate, include rule info in resolvedVars
+          const approvalId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+          const summary = ctx.pr
+            ? `PR #${ctx.pr.number}: ${ctx.pr.branch}${ctx.repo ? ` (${ctx.repo.owner}/${ctx.repo.name})` : ''}`
+            : `${pipelineName} (${ctx.timestamp.slice(0, 10)})`
+          const resolvedVars: Record<string, string> = {
+            'action.name': resolveTemplate(p.def.action.name || 'Pipeline Session', ctx),
+            'dedup.key': dedupKey,
+            'rule.name': ruleMatch.name,
+          }
+          if (p.def.action.workingDirectory) resolvedVars['action.workingDirectory'] = resolveTemplate(p.def.action.workingDirectory, ctx)
+          if (ctx.pr) {
+            resolvedVars['pr.number'] = String(ctx.pr.number)
+            resolvedVars['pr.branch'] = ctx.pr.branch
+            resolvedVars['pr.title'] = ctx.pr.title || ''
+          }
+          if (ctx.repo) {
+            resolvedVars['repo.owner'] = ctx.repo.owner
+            resolvedVars['repo.name'] = ctx.repo.name
+          }
+          if (ruleMatch.action === 'require_escalation') {
+            resolvedVars['escalation.required'] = 'true'
+          }
+          const ttlHours = p.def.approvalTtl ?? APPROVAL_DEFAULT_TTL_HOURS
+          const expiresAt = new Date(Date.now() + ttlHours * 3600 * 1000).toISOString()
+          const request: ApprovalRequest = { id: approvalId, pipelineName, summary, resolvedVars, createdAt: new Date().toISOString(), expiresAt }
+          pendingApprovals.set(approvalId, { request, action: p.def.action, ctx, dedupKey })
+          pendingApprovalKeys.add(dedupKey)
+          broadcast('pipeline:approval:new', request)
+          plog(pipelineName, `→ approval required by rule "${ruleMatch.name}", queued request ${approvalId}`)
+          appendActivity({
+            source: 'pipeline',
+            name: pipelineName,
+            summary: `Pipeline "${pipelineName}" approval required by rule "${ruleMatch.name}"`,
+            level: 'warn',
+          })
+          notify(`Colony: Approval needed`, `Pipeline "${pipelineName}" — ${summary}`, 'pipelines')
+          continue
+        }
       }
 
       if (p.def.requireApproval) {

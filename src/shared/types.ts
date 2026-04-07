@@ -283,6 +283,7 @@ export interface PersonaRunEntry {
   timestamp: string
   durationMs: number
   success: boolean
+  costUsd?: number
 }
 
 export interface AuditResult {
@@ -327,6 +328,7 @@ export interface CommitAttribution {
   startedAt: number
   stoppedAt: number
   dir: string
+  costUsd?: number
 }
 
 export interface ArenaStatEntry {
@@ -408,5 +410,19 @@ export interface CostAuditEntry {
   costUsd: number
   status: CostAuditStatus
   reason?: string
+}
+
+// Scoped Approval Gate Builder types
+export type ApprovalRuleType = 'file_pattern' | 'cost_threshold' | 'risk_level'
+export type ApprovalRuleAction = 'auto_approve' | 'require_approval' | 'require_escalation'
+
+export interface ApprovalRule {
+  id: string
+  name: string
+  type: ApprovalRuleType
+  condition: string  // e.g. "*.md,*.txt" | "< 0.10" | "low|medium"
+  action: ApprovalRuleAction
+  enabled: boolean
+  createdAt: string
 }
 

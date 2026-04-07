@@ -79,7 +79,7 @@ export async function scanNewCommits(
         sessionId: instanceId,
         sessionName,
         personaName,
-        cost,
+        costUsd: cost,
         startedAt: startedAtMs,
         stoppedAt,
         dir,

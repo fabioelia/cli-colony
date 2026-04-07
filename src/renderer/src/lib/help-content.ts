@@ -477,6 +477,18 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Approval Rules Section',
+        position: 'Above Logs section',
+        items: [
+          { label: 'Approval Rules', detail: 'Define rules that auto-approve, require approval, or escalate actions based on file patterns, cost, or risk level. Rules enable safe delegation of agent workflows without manual sign-off on every low-risk action.', icon: 'Shield' },
+          { label: 'file_pattern rule', detail: 'Glob patterns (e.g. *.md,*.txt) matched against files changed by the action. Useful for auto-approving documentation-only changes. First matching rule wins.' },
+          { label: 'cost_threshold rule', detail: 'Compares estimated action cost against a threshold (e.g. < 0.10). Low-cost formatting or validation runs auto-approve; expensive operations require approval.' },
+          { label: 'risk_level rule', detail: 'Infers risk from action type (plan/wait → low, diff_review/session → medium). Match with pipe-separated levels (e.g. low|medium) to auto-approve safe actions.' },
+          { label: 'Rule precedence', detail: 'Rules are evaluated in order — first match wins. Disabled rules are skipped.' },
+          { label: 'Auto-approve audit trail', detail: 'Auto-approved actions still appear in the governance audit log for compliance (autoApproved: true).' },
+        ],
+      },
+      {
         name: 'Logs Section',
         position: 'Bottom section',
         items: [

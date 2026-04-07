@@ -5,7 +5,7 @@ import type {
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
-  PersonaRunEntry, ScoreCard, CostQuotas, CostAuditEntry,
+  PersonaRunEntry, ScoreCard, CostQuotas, CostAuditEntry, ApprovalRule, ApprovalRuleType, ApprovalRuleAction,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -15,7 +15,7 @@ export type {
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
-  PersonaRunEntry, ScoreCard, CostQuotas, CostAuditEntry,
+  PersonaRunEntry, ScoreCard, CostQuotas, CostAuditEntry, ApprovalRule, ApprovalRuleType, ApprovalRuleAction,
 }
 
 
@@ -371,6 +371,12 @@ export interface ClaudeManagerAPI {
       agentId?: string,
       costUsd?: number
     ) => Promise<{ status: string; limitUsd: number; currentSpend: number; reason: string }>
+  }
+  approvalRules: {
+    list: () => Promise<ApprovalRule[]>
+    create: (name: string, type: ApprovalRuleType, condition: string, action: ApprovalRuleAction) => Promise<ApprovalRule>
+    update: (id: string, updates: Partial<ApprovalRule>) => Promise<boolean>
+    delete: (id: string) => Promise<boolean>
   }
 }
 
@@ -752,6 +758,13 @@ const api: ClaudeManagerAPI = {
     getTeamSpend: (teamId, windowDays) => ipcRenderer.invoke('governance:getTeamSpend', teamId, windowDays),
     checkQuotaStatus: (teamId, projectId, agentId, costUsd) =>
       ipcRenderer.invoke('governance:checkQuotaStatus', teamId, projectId, agentId, costUsd),
+  },
+  approvalRules: {
+    list: () => ipcRenderer.invoke('approvalRules:list'),
+    create: (name, type, condition, action) =>
+      ipcRenderer.invoke('approvalRules:create', name, type, condition, action),
+    update: (id, updates) => ipcRenderer.invoke('approvalRules:update', id, updates),
+    delete: (id) => ipcRenderer.invoke('approvalRules:delete', id),
   },
 }
 

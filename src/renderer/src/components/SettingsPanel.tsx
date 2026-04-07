@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X, TrendingUp, Download, Search } from 'lucide-react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X, TrendingUp, Download, Search, Shield } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import { parseShellArgs } from '../../../shared/utils'
-import type { McpAuditEntry, CommitAttribution, CostQuotas, CostAuditEntry, CostAuditStatus } from '../../../preload'
+import type { McpAuditEntry, CommitAttribution, CostQuotas, CostAuditEntry, CostAuditStatus, ApprovalRule, ApprovalRuleType, ApprovalRuleAction } from '../../../preload'
 import type { SessionTemplate } from '../../../shared/types'
 
 interface Props {
@@ -64,6 +64,15 @@ export default function SettingsPanel({ onBack }: Props) {
   const [governanceFilterProject, setGovernanceFilterProject] = useState<string>('')
   const [governanceFilterStatus, setGovernanceFilterStatus] = useState<CostAuditStatus | ''>('')
 
+  const [approvalRules, setApprovalRules] = useState<ApprovalRule[]>([])
+  const [showApprovalRulesSection, setShowApprovalRulesSection] = useState(false)
+  const [approvalRuleForm, setApprovalRuleForm] = useState<Partial<ApprovalRule> | null>(null)
+  const [approvalRuleFormError, setApprovalRuleFormError] = useState<string | null>(null)
+  const [approvalRuleFormName, setApprovalRuleFormName] = useState('')
+  const [approvalRuleFormType, setApprovalRuleFormType] = useState<ApprovalRuleType>('file_pattern')
+  const [approvalRuleFormCondition, setApprovalRuleFormCondition] = useState('')
+  const [approvalRuleFormAction, setApprovalRuleFormAction] = useState<ApprovalRuleAction>('auto_approve')
+
   useEffect(() => {
     window.api.settings.getAll().then((s) => {
       setDefaultArgs(s.defaultArgs || '')
@@ -88,6 +97,7 @@ export default function SettingsPanel({ onBack }: Props) {
     window.api.sessionTemplates.list().then(setSessionTemplates).catch(() => {})
     window.api.governance.getQuotas().then(setCostQuotas).catch(() => {})
     window.api.governance.auditLog().then(setGovernanceAuditLog).catch(() => {})
+    window.api.approvalRules.list().then(setApprovalRules).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -1167,6 +1177,259 @@ export default function SettingsPanel({ onBack }: Props) {
                 </div>
               </div>
             )}
+          </div>
+        )
+      })()}
+
+      {/* Approval Rules */}
+      {(() => {
+        const handleAddRule = () => {
+          setApprovalRuleFormName('')
+          setApprovalRuleFormType('file_pattern')
+          setApprovalRuleFormCondition('')
+          setApprovalRuleFormAction('auto_approve')
+          setApprovalRuleFormError(null)
+          setApprovalRuleForm({})
+        }
+
+        const handleSaveRule = async () => {
+          if (!approvalRuleFormName.trim()) {
+            setApprovalRuleFormError('Rule name is required')
+            return
+          }
+          if (!approvalRuleFormCondition.trim()) {
+            setApprovalRuleFormError('Condition is required')
+            return
+          }
+          try {
+            const created = await window.api.approvalRules.create(
+              approvalRuleFormName,
+              approvalRuleFormType,
+              approvalRuleFormCondition,
+              approvalRuleFormAction
+            )
+            setApprovalRules([...approvalRules, created])
+            setApprovalRuleForm(null)
+            setApprovalRuleFormError(null)
+          } catch (error) {
+            setApprovalRuleFormError(String(error))
+          }
+        }
+
+        const handleToggleEnabled = async (rule: ApprovalRule) => {
+          try {
+            await window.api.approvalRules.update(rule.id, { enabled: !rule.enabled })
+            setApprovalRules(
+              approvalRules.map((r) => (r.id === rule.id ? { ...r, enabled: !r.enabled } : r))
+            )
+          } catch (error) {
+            console.error('Failed to toggle rule:', error)
+          }
+        }
+
+        const handleDeleteRule = async (id: string) => {
+          try {
+            await window.api.approvalRules.delete(id)
+            setApprovalRules(approvalRules.filter((r) => r.id !== id))
+          } catch (error) {
+            console.error('Failed to delete rule:', error)
+          }
+        }
+
+        const getConditionPlaceholder = () => {
+          if (approvalRuleFormType === 'file_pattern') return 'e.g. *.md,*.txt'
+          if (approvalRuleFormType === 'cost_threshold') return 'e.g. < 0.10'
+          return 'e.g. low|medium'
+        }
+
+        return (
+          <div className={`settings-section settings-logs-section ${showApprovalRulesSection ? '' : 'collapsed'}`}>
+            <div className="settings-section-title">
+              <Shield size={12} />
+              Approval Rules
+              <div className="settings-logs-actions">
+                <button
+                  className="settings-logs-toggle"
+                  onClick={() => setShowApprovalRulesSection(!showApprovalRulesSection)}
+                  title={showApprovalRulesSection ? 'Hide' : 'Show'}
+                >
+                  {showApprovalRulesSection ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                </button>
+              </div>
+            </div>
+            {showApprovalRulesSection && (
+              <div className="approval-rules-list">
+                {approvalRuleForm !== null ? (
+                  <div className="approval-rule-form">
+                    <div style={{ marginBottom: '8px' }}>
+                      <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Rule Name</label>
+                      <input
+                        type="text"
+                        value={approvalRuleFormName}
+                        onChange={(e) => setApprovalRuleFormName(e.target.value)}
+                        placeholder="e.g. Auto-Approve Formatting"
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          marginTop: '4px',
+                          fontSize: '12px',
+                          border: '1px solid var(--border-muted)',
+                          borderRadius: '4px',
+                          backgroundColor: 'var(--bg-secondary)',
+                          color: 'var(--text)',
+                        }}
+                      />
+                    </div>
+                    <div style={{ marginBottom: '8px' }}>
+                      <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Rule Type</label>
+                      <select
+                        value={approvalRuleFormType}
+                        onChange={(e) => setApprovalRuleFormType(e.target.value as ApprovalRuleType)}
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          marginTop: '4px',
+                          fontSize: '12px',
+                          border: '1px solid var(--border-muted)',
+                          borderRadius: '4px',
+                          backgroundColor: 'var(--bg-secondary)',
+                          color: 'var(--text)',
+                        }}
+                      >
+                        <option value="file_pattern">File Pattern</option>
+                        <option value="cost_threshold">Cost Threshold</option>
+                        <option value="risk_level">Risk Level</option>
+                      </select>
+                    </div>
+                    <div style={{ marginBottom: '8px' }}>
+                      <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Condition</label>
+                      <input
+                        type="text"
+                        value={approvalRuleFormCondition}
+                        onChange={(e) => setApprovalRuleFormCondition(e.target.value)}
+                        placeholder={getConditionPlaceholder()}
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          marginTop: '4px',
+                          fontSize: '12px',
+                          border: '1px solid var(--border-muted)',
+                          borderRadius: '4px',
+                          backgroundColor: 'var(--bg-secondary)',
+                          color: 'var(--text)',
+                        }}
+                      />
+                    </div>
+                    <div style={{ marginBottom: '12px' }}>
+                      <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Action</label>
+                      <select
+                        value={approvalRuleFormAction}
+                        onChange={(e) => setApprovalRuleFormAction(e.target.value as ApprovalRuleAction)}
+                        style={{
+                          width: '100%',
+                          padding: '6px 8px',
+                          marginTop: '4px',
+                          fontSize: '12px',
+                          border: '1px solid var(--border-muted)',
+                          borderRadius: '4px',
+                          backgroundColor: 'var(--bg-secondary)',
+                          color: 'var(--text)',
+                        }}
+                      >
+                        <option value="auto_approve">Auto-Approve</option>
+                        <option value="require_approval">Require Approval</option>
+                        <option value="require_escalation">Require Escalation</option>
+                      </select>
+                    </div>
+                    {approvalRuleFormError && (
+                      <div style={{ color: 'var(--color-error)', fontSize: '12px', marginBottom: '8px' }}>
+                        {approvalRuleFormError}
+                      </div>
+                    )}
+                    <div className="mcp-form-actions">
+                      <button
+                        className="settings-logs-toggle"
+                        onClick={() => {
+                          setApprovalRuleForm(null)
+                          setApprovalRuleFormError(null)
+                        }}
+                        style={{ padding: '4px 12px', fontSize: '12px' }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        className="panel-header-btn primary"
+                        onClick={handleSaveRule}
+                        style={{ padding: '4px 12px', fontSize: '12px' }}
+                      >
+                        Save Rule
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border-muted)' }}>
+                          <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600' }}>Name</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600' }}>Type</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600' }}>Condition</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600' }}>Action</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'center', fontWeight: '600' }}>Enabled</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'center', fontWeight: '600' }}>Delete</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {approvalRules.map((rule) => (
+                          <tr key={rule.id} style={{ borderBottom: '1px solid var(--border-muted)' }}>
+                            <td style={{ padding: '6px 8px' }}>{rule.name}</td>
+                            <td style={{ padding: '6px 8px' }}>
+                              <span style={{ fontSize: '10px', padding: '2px 6px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '2px' }}>
+                                {rule.type.replace(/_/g, ' ')}
+                              </span>
+                            </td>
+                            <td style={{ padding: '6px 8px', color: 'var(--text-muted)', fontSize: '10px' }}>
+                              {rule.condition}
+                            </td>
+                            <td style={{ padding: '6px 8px' }}>
+                              <span style={{ fontSize: '10px', padding: '2px 6px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '2px' }}>
+                                {rule.action.replace(/_/g, ' ')}
+                              </span>
+                            </td>
+                            <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                              <input
+                                type="checkbox"
+                                checked={rule.enabled}
+                                onChange={() => handleToggleEnabled(rule)}
+                                style={{ cursor: 'pointer' }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                              <button
+                                className="settings-logs-toggle"
+                                onClick={() => handleDeleteRule(rule.id)}
+                                style={{ padding: '2px 6px' }}
+                                title="Delete rule"
+                              >
+                                <Trash2 size={10} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <button
+                      className="mcp-catalog-add"
+                      onClick={handleAddRule}
+                      style={{ marginTop: approvalRules.length === 0 ? 0 : '12px' }}
+                    >
+                      <Plus size={12} /> Add Rule
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+            <HelpPopover topic="settings" align="right" />
           </div>
         )
       })()}

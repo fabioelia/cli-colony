@@ -81,7 +81,7 @@ describe('commit-attributor', () => {
     expect(written[0].sessionId).toBe('session-1')
     expect(written[0].sessionName).toBe('My Session')
     expect(written[0].personaName).toBe('Colony QA')
-    expect(written[0].cost).toBe(0.05)
+    expect(written[0].costUsd).toBe(0.05)
     expect(written[1].commitHash).toBe('def5678')
   })
 

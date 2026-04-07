@@ -1025,7 +1025,7 @@ export async function onSessionExit(instanceId: string): Promise<void> {
           personaId,
           timestamp: new Date().toISOString(),
           durationMs: durationSec !== null ? durationSec * 1000 : 0,
-          cost: sessionCost,
+          costUsd: sessionCost,
           success: true,
         })
         const overridePath = join(PERSONAS_DIR, `${personaId}.triggers.json`)

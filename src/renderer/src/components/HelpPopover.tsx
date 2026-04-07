@@ -6,7 +6,7 @@ import {
   Download, Upload, ArrowLeft, Brain, FileText, MessageSquare, Search,
   Filter, Zap, Square, Terminal, FolderOpen, Stethoscope, Trash2,
   GitBranch, Info, GitFork, User, Bell, Eye, FileDown, StickyNote, Clock, Network, ArrowUpDown,
-  AlertCircle, LayoutList, ShieldCheck, UserPlus, ClipboardList, GitCommit,
+  AlertCircle, LayoutList, ShieldCheck, Shield, UserPlus, ClipboardList, GitCommit,
   Trophy, BarChart3, BarChart2, Globe, Navigation, ArrowRight, BookTemplate, Wand2, Hourglass, Undo2, EyeOff,
   Sparkles,
 } from 'lucide-react'
@@ -19,7 +19,7 @@ const iconMap: Record<string, LucideIcon> = {
   Download, Upload, ArrowLeft, Brain, FileText, MessageSquare, Search,
   Filter, Zap, Square, Terminal, FolderOpen, Stethoscope, Trash2,
   GitBranch, Info, GitFork, HelpCircle, ChevronDown, User, Bell, Eye, FileDown,
-  StickyNote, Clock, Network, ArrowUpDown, AlertCircle, LayoutList, ShieldCheck, UserPlus,
+  StickyNote, Clock, Network, ArrowUpDown, AlertCircle, LayoutList, ShieldCheck, Shield, UserPlus,
   ClipboardList, GitCommit, Trophy, BarChart3, BarChart2, Globe, Navigation, ArrowRight, BookTemplate, Wand2, Hourglass, Undo2, EyeOff,
   Sparkles,
 }

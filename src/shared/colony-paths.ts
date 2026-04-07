@@ -54,6 +54,10 @@ export const colonyPaths = {
   forks: path.join(ROOT, 'forks'),
   forkGroups: path.join(ROOT, 'fork-groups.json'),
   sessionTemplates: path.join(ROOT, 'session-templates.json'),
+  governance: path.join(ROOT, 'governance'),
+  costQuotasJson: path.join(ROOT, 'governance', 'cost-quotas.json'),
+  costAuditLog: path.join(ROOT, 'governance', 'cost-audit.jsonl'),
+  approvalRulesJson: path.join(ROOT, 'governance', 'approval-rules.json'),
 
   /** Build a repo clone path for a given owner/name (shallow clones for GitHub panel) */
   repoDir: (owner: string, name: string) => path.join(ROOT, 'repos', owner, name),
