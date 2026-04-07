@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X } from 'lucide-react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X, TrendingUp, Download, Search } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import { parseShellArgs } from '../../../shared/utils'
-import type { McpAuditEntry, CommitAttribution } from '../../../preload'
+import type { McpAuditEntry, CommitAttribution, CostQuotas, CostAuditEntry, CostAuditStatus } from '../../../preload'
 import type { SessionTemplate } from '../../../shared/types'
 
 interface Props {
@@ -56,6 +56,14 @@ export default function SettingsPanel({ onBack }: Props) {
   const [sessionTemplates, setSessionTemplates] = useState<SessionTemplate[]>([])
   const [showTemplatesSection, setShowTemplatesSection] = useState(false)
 
+  const [costQuotas, setCostQuotas] = useState<CostQuotas | null>(null)
+  const [governanceAuditLog, setGovernanceAuditLog] = useState<CostAuditEntry[]>([])
+  const [showGovernanceSection, setShowGovernanceSection] = useState(false)
+  const [governanceSearchTerm, setGovernanceSearchTerm] = useState('')
+  const [governanceFilterTeam, setGovernanceFilterTeam] = useState<string>('')
+  const [governanceFilterProject, setGovernanceFilterProject] = useState<string>('')
+  const [governanceFilterStatus, setGovernanceFilterStatus] = useState<CostAuditStatus | ''>('')
+
   useEffect(() => {
     window.api.settings.getAll().then((s) => {
       setDefaultArgs(s.defaultArgs || '')
@@ -78,6 +86,8 @@ export default function SettingsPanel({ onBack }: Props) {
     window.api.mcp.getAuditLog().then(setAuditLog).catch(() => {})
     window.api.session.getAttributedCommits().then(setCommitAttributions).catch(() => {})
     window.api.sessionTemplates.list().then(setSessionTemplates).catch(() => {})
+    window.api.governance.getQuotas().then(setCostQuotas).catch(() => {})
+    window.api.governance.auditLog().then(setGovernanceAuditLog).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -916,6 +926,250 @@ export default function SettingsPanel({ onBack }: Props) {
           </pre>
         )}
       </div>
+
+      {/* Cost Governance */}
+      {(() => {
+        const teamQuotas = costQuotas?.quotas.filter((q) => !q.projectId || q.projectId === 'ungoverned') ?? []
+        const projectQuotas = costQuotas?.quotas.filter((q) => q.projectId && q.projectId !== 'ungoverned') ?? []
+
+        const getTeamSpend = (teamId: string): number => {
+          return governanceAuditLog
+            .filter((e) => e.teamId === teamId && (new Date().getTime() - new Date(e.timestamp).getTime()) < 30 * 24 * 60 * 60 * 1000)
+            .reduce((sum, e) => sum + e.costUsd, 0)
+        }
+
+        const getProjectSpend = (teamId: string, projectId: string): number => {
+          return governanceAuditLog
+            .filter((e) => e.teamId === teamId && e.projectId === projectId && (new Date().getTime() - new Date(e.timestamp).getTime()) < 30 * 24 * 60 * 60 * 1000)
+            .reduce((sum, e) => sum + e.costUsd, 0)
+        }
+
+        const getStatusColor = (spent: number, limit: number, warned: number): 'ok' | 'warned' | 'blocked' => {
+          if (spent >= limit) return 'blocked'
+          if (spent >= warned) return 'warned'
+          return 'ok'
+        }
+
+        const filteredAuditLog = governanceAuditLog.filter((e) => {
+          if (governanceSearchTerm && !JSON.stringify(e).toLowerCase().includes(governanceSearchTerm.toLowerCase())) return false
+          if (governanceFilterTeam && e.teamId !== governanceFilterTeam) return false
+          if (governanceFilterProject && e.projectId !== governanceFilterProject) return false
+          if (governanceFilterStatus && e.status !== governanceFilterStatus) return false
+          return true
+        })
+
+        const handleExportCsv = async () => {
+          const csv = await window.api.governance.exportCsv()
+          const blob = new Blob([csv], { type: 'text/csv' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `governance-audit-${new Date().toISOString().split('T')[0]}.csv`
+          a.click()
+          URL.revokeObjectURL(url)
+        }
+
+        return (
+          <div className={`settings-section settings-logs-section ${showGovernanceSection ? '' : 'collapsed'}`}>
+            <div className="settings-section-title">
+              <TrendingUp size={12} />
+              Cost Governance
+              <div className="settings-logs-actions">
+                <button
+                  className="governance-export-btn"
+                  onClick={handleExportCsv}
+                  title="Export audit log as CSV"
+                >
+                  <Download size={12} />
+                </button>
+                <button
+                  className="settings-logs-toggle"
+                  onClick={() => setShowGovernanceSection(!showGovernanceSection)}
+                  title={showGovernanceSection ? 'Hide' : 'Show'}
+                >
+                  {showGovernanceSection ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                </button>
+              </div>
+            </div>
+            {showGovernanceSection && (
+              <div className="governance-content">
+                {/* Team Quotas Table */}
+                <div className="governance-subsection">
+                  <h3 className="governance-subsection-title">Team Quotas (30-day window)</h3>
+                  <div className="governance-table-container">
+                    {teamQuotas.length > 0 ? (
+                      <table className="governance-table">
+                        <thead>
+                          <tr>
+                            <th>Team</th>
+                            <th>Limit (USD)</th>
+                            <th>30-Day Spend</th>
+                            <th>% Used</th>
+                            <th>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {teamQuotas.map((q) => {
+                            const spent = getTeamSpend(q.teamId)
+                            const limit = q.hardLimitUsd
+                            const percentage = ((spent / limit) * 100).toFixed(1)
+                            const status = getStatusColor(spent, limit, q.warnThresholdUsd)
+                            return (
+                              <tr key={q.teamId}>
+                                <td className="team-name">{q.teamId}</td>
+                                <td className="number">${limit.toFixed(2)}</td>
+                                <td className="number">${spent.toFixed(2)}</td>
+                                <td className="number">{percentage}%</td>
+                                <td>
+                                  <span className={`governance-badge ${status}`}>
+                                    {status === 'ok' ? '✓ OK' : status === 'warned' ? '⚠ Warned' : '🚫 Blocked'}
+                                  </span>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <p className="governance-empty">No team quotas defined.</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Project Quotas Table */}
+                <div className="governance-subsection">
+                  <h3 className="governance-subsection-title">Project Quotas (30-day window)</h3>
+                  <div className="governance-table-container">
+                    {projectQuotas.length > 0 ? (
+                      <table className="governance-table">
+                        <thead>
+                          <tr>
+                            <th>Team</th>
+                            <th>Project</th>
+                            <th>Limit (USD)</th>
+                            <th>30-Day Spend</th>
+                            <th>% Used</th>
+                            <th>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {projectQuotas.map((q) => {
+                            const spent = getProjectSpend(q.teamId, q.projectId!)
+                            const limit = q.hardLimitUsd
+                            const percentage = ((spent / limit) * 100).toFixed(1)
+                            const status = getStatusColor(spent, limit, q.warnThresholdUsd)
+                            return (
+                              <tr key={`${q.teamId}-${q.projectId}`}>
+                                <td className="team-name">{q.teamId}</td>
+                                <td className="project-name">{q.projectId}</td>
+                                <td className="number">${limit.toFixed(2)}</td>
+                                <td className="number">${spent.toFixed(2)}</td>
+                                <td className="number">{percentage}%</td>
+                                <td>
+                                  <span className={`governance-badge ${status}`}>
+                                    {status === 'ok' ? '✓ OK' : status === 'warned' ? '⚠ Warned' : '🚫 Blocked'}
+                                  </span>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <p className="governance-empty">No project quotas defined.</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Audit Log */}
+                <div className="governance-subsection">
+                  <h3 className="governance-subsection-title">Audit Log</h3>
+                  <div className="governance-filters">
+                    <div className="governance-filter-row">
+                      <div className="governance-filter-group">
+                        <Search size={12} />
+                        <input
+                          placeholder="Search audit log..."
+                          value={governanceSearchTerm}
+                          onChange={(e) => setGovernanceSearchTerm(e.target.value)}
+                          className="governance-search"
+                        />
+                        {governanceSearchTerm && (
+                          <button className="governance-clear" onClick={() => setGovernanceSearchTerm('')}>
+                            <X size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="governance-filter-row">
+                      <select
+                        value={governanceFilterTeam}
+                        onChange={(e) => setGovernanceFilterTeam(e.target.value)}
+                        className="governance-filter-select"
+                      >
+                        <option value="">All Teams</option>
+                        {[...new Set(governanceAuditLog.map((e) => e.teamId))].map((team) => (
+                          <option key={team} value={team}>{team}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={governanceFilterProject}
+                        onChange={(e) => setGovernanceFilterProject(e.target.value)}
+                        className="governance-filter-select"
+                      >
+                        <option value="">All Projects</option>
+                        {[...new Set(governanceAuditLog.filter((e) => !governanceFilterTeam || e.teamId === governanceFilterTeam).map((e) => e.projectId))].map((proj) => (
+                          <option key={proj} value={proj}>{proj}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={governanceFilterStatus}
+                        onChange={(e) => setGovernanceFilterStatus(e.target.value as CostAuditStatus | '')}
+                        className="governance-filter-select"
+                      >
+                        <option value="">All Statuses</option>
+                        <option value="OK">OK</option>
+                        <option value="WARNED">Warned</option>
+                        <option value="THROTTLED">Throttled</option>
+                        <option value="BLOCKED">Blocked</option>
+                      </select>
+                    </div>
+                  </div>
+                  {filteredAuditLog.length > 0 ? (
+                    <div className="governance-audit-list">
+                      {filteredAuditLog.slice().reverse().map((entry, idx) => (
+                        <div key={idx} className={`governance-audit-entry status-${entry.status.toLowerCase()}`}>
+                          <div className="governance-audit-header">
+                            <span className="governance-audit-time">
+                              {new Date(entry.timestamp).toLocaleString()}
+                            </span>
+                            <span className={`governance-badge ${entry.status === 'OK' ? 'ok' : entry.status === 'WARNED' ? 'warned' : 'blocked'}`}>
+                              {entry.status}
+                            </span>
+                          </div>
+                          <div className="governance-audit-detail">
+                            <span>{entry.teamId} / {entry.projectId}</span>
+                            {entry.agentId && <span className="detail-muted">Agent: {entry.agentId}</span>}
+                            {entry.sessionId && <span className="detail-muted">Session: {entry.sessionId}</span>}
+                            <span className="detail-cost">${entry.costUsd.toFixed(4)}</span>
+                          </div>
+                          {entry.reason && (
+                            <div className="governance-audit-reason">
+                              {entry.reason}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="governance-empty">No audit entries match the filters.</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Scheduler Log */}
       <div className={`settings-section settings-logs-section ${showSchedulerLogs ? '' : 'collapsed'}`}>
