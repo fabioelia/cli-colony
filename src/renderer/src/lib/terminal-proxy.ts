@@ -25,7 +25,7 @@ export class TerminalProxy {
   private suppressScrollTracking = false
 
   // Throttle interval for batching writes outside sync blocks (ms)
-  private readonly THROTTLE_MS = 8
+  private readonly THROTTLE_MS = 1
   // Extra delay during sync blocks to catch all data
   private readonly SYNC_DELAY_MS = 32
 
