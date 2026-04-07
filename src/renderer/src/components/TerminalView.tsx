@@ -4,7 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, History, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation, MessageCircleWarning } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, History, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation, MessageCircleWarning, ThumbsUp } from 'lucide-react'
 import type { EnvStatus, EnvServiceStatus, ReplayEvent, GitDiffEntry, ColonyComment } from '../../../shared/types'
 import { buildDiagnosePrompt } from '../../../shared/env-prompts'
 import '@xterm/xterm/css/xterm.css'
@@ -1204,7 +1204,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           )}
           {isSplit && arenaMode && (
             <>
-              <span className="arena-chip">{arenaBlind ? `Pane ${paneLabel ?? 'A'}` : 'Arena'}</span>
+              <span className="arena-chip">{arenaBlind ? 'Blind' : 'Arena'}</span>
               {arenaBlind && !arenaVoted ? (
                 <Tooltip text="Vote for this pane as the winner">
                   <button
@@ -1212,7 +1212,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                     onClick={() => onArenaWin?.()}
                     aria-label="Vote for this pane"
                   >
-                    👍 This one
+                    <ThumbsUp size={11} /> This one
                   </button>
                 </Tooltip>
               ) : (
