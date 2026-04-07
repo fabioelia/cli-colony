@@ -649,9 +649,6 @@ function PersonaCard({
             <span className="persona-list-cron-chip" title={persona.schedule}>{describeCron(persona.schedule)}</span>
           )}
           <span className="persona-list-model">{persona.model || 'sonnet'}</span>
-          {persona.weeklySpend && persona.weeklySpend > 0.01 && (
-            <span className="persona-cost-badge" title="Weekly spend">${persona.weeklySpend.toFixed(2)}</span>
-          )}
           <div className="persona-list-actions" onClick={(e) => e.stopPropagation()}>
             {!isRunning ? (
               <Tooltip text="Run persona">
@@ -854,9 +851,6 @@ function PersonaCard({
                   return `${Math.floor(secs / 3600)}h ago`
                 })()}
               </span>
-            )}
-            {persona.weeklySpend && persona.weeklySpend > 0.01 && (
-              <div className="persona-stat">This week: <strong>${persona.weeklySpend.toFixed(2)}</strong></div>
             )}
             <div className="persona-card-footer-inline">
               <span className={`persona-permission-badge ${persona.canPush ? 'allowed' : 'denied'}`}>Push</span>

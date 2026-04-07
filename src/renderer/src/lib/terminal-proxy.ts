@@ -24,8 +24,6 @@ export class TerminalProxy {
   // to prevent onScroll from incorrectly flipping userScrolledUp
   private suppressScrollTracking = false
 
-  // Throttle interval for batching writes outside sync blocks (ms)
-  private readonly THROTTLE_MS = 1
   // Extra delay during sync blocks to catch all data
   private readonly SYNC_DELAY_MS = 32
 
@@ -117,9 +115,7 @@ export class TerminalProxy {
 
   private appendPending(data: string): void {
     this.pendingData += data
-    if (!this.flushTimer) {
-      this.flushTimer = setTimeout(() => this.flushPending(), this.THROTTLE_MS)
-    }
+    this.flushPending()
   }
 
   private flushPending(): void {

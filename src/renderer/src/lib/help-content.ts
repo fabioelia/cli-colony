@@ -507,7 +507,6 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Queued badge', detail: 'Amber "queued" badge appears when another persona has dispatched a trigger for this one — it will launch on its next scheduled run or when manually triggered. Hover for the triggering persona name and context note.' },
           { label: 'Schedule', detail: 'Shows when the persona runs automatically as a human-readable label (e.g. "Every 2 hours"). Click to open the schedule editor with presets and next-run times.', icon: 'Clock' },
           { label: 'Run count', detail: 'How many sessions this persona has completed.' },
-          { label: 'Weekly cost badge', detail: 'Small muted "$X.XX" badge shows the total Claude API cost for this persona\'s sessions in the last 7 days. Only appears when spend exceeds $0.01. The expanded card also shows "This week: $X.XX" in the status section.' },
           { label: 'Trigger label', detail: '"→ colony-qa" (accent color) — set via on_complete_run; those personas auto-launch when this session ends. Muted "→ x" — set via can_invoke; personas this one may trigger dynamically via a trigger file, but never fires automatically.' },
           { label: 'Run button', detail: 'Manually trigger a persona session now.', icon: 'Play' },
           { label: 'Stop button', detail: 'Stop the currently running persona session.', icon: 'Square' },
@@ -851,38 +850,6 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'COLONY_COMMENT sentinel', detail: 'Review agents emit `COLONY_COMMENT:<file>:<line>:<severity>:<message>` lines. The daemon strips these from terminal output and stores them. Polled every 3 seconds while the session is running.' },
           { label: 'Severity chips', detail: 'ERROR (red), WARN (amber), INFO (blue) — color-coded left border and label next to the line number.' },
           { label: 'Line number', detail: 'L<N> shows which source line the comment refers to.' },
-        ],
-      },
-    ],
-  },
-  analytics: {
-    title: 'Analytics Dashboard',
-    description: 'ROI metrics, cost trends, and performance data for the last 7 days. Tracks session count, total spend, AI-attributed commits, and pipeline success rate across all personas and pipeline runs.',
-    zones: [
-      {
-        name: 'Summary Tiles',
-        position: 'Top section (4 tiles)',
-        items: [
-          { label: 'Sessions', detail: 'Total Claude sessions run (exited only). Compares against the 7 days prior to show trend.' },
-          { label: 'Total Cost', detail: 'Sum of tokenUsage.cost from all exited sessions in the last 7 days. Shows delta from the previous 7-day period.' },
-          { label: 'AI Commits', detail: 'Number of commits recorded in ~/.claude-colony/commit-attribution.json over the last 7 days. Shows percentage of total commits if available.' },
-          { label: 'Pipeline Success', detail: 'Percentage of pipeline runs that completed successfully (status=success) in the last 7 days.' },
-        ],
-      },
-      {
-        name: 'Daily Cost Chart',
-        position: 'Bar chart (7 bars)',
-        items: [
-          { label: 'Cost trend', detail: 'Visual representation of daily costs (oldest to newest). Height represents spending for that day. Hover for exact amount.' },
-          { label: 'Day labels', detail: 'Shows "Today" for current day, then "1d", "2d", etc. for prior days.' },
-        ],
-      },
-      {
-        name: 'Top Spenders Table',
-        position: 'Bottom section',
-        items: [
-          { label: 'Session/Persona name', detail: 'Name of the session or persona that consumed the most tokens.' },
-          { label: 'Cost', detail: 'Total spend for that entity in the last 7 days. Up to top 5 spenders shown.' },
         ],
       },
     ],

@@ -260,8 +260,6 @@ export interface PersonaInfo {
   triggeredBy: string | null
   /** Pending trigger queued for this persona (waiting to fire), or null */
   pendingTrigger: { from: string; note?: string } | null
-  /** Sum of session costs in the last 7 days (undefined when no cost data) */
-  weeklySpend?: number
   /**
    * Conflict group for serializing can_push: true personas. Two personas in the
    * same conflict_group will not run simultaneously. Defaults to the persona's
@@ -384,23 +382,3 @@ export interface OutputEntry {
   type: 'brief' | 'artifact'
 }
 
-export interface AnalyticsSummary {
-  /** Sessions run in the last 7 days */
-  sessionCount: number
-  /** Delta from the 7 days before that */
-  sessionCountDelta: number
-  /** Total cost of exited sessions in last 7 days */
-  totalCost: number
-  /** Cost delta from prior 7 days */
-  totalCostDelta: number
-  /** AI commits attributed in last 7 days */
-  aiCommitCount: number
-  /** Percentage of total commits (if available) */
-  commitPercentage?: number
-  /** Success rate of pipeline runs (0–1) */
-  pipelineSuccessRate: number
-  /** Top 5 personas/sessions by cost */
-  topSpenders: Array<{ label: string; cost: number }>
-  /** Daily costs for last 7 days (oldest to newest) */
-  dailyCosts: number[]
-}

@@ -881,7 +881,6 @@ action:
                                   {entry.actionExecuted ? 'action fired' : 'no action'}
                                 </span>
                                 <span className="pipeline-history-duration">{entry.durationMs < 1000 ? `${entry.durationMs}ms` : `${(entry.durationMs / 1000).toFixed(1)}s`}</span>
-                                {entry.totalCost && entry.totalCost >= 0.01 && <span className="run-cost-badge" title="Total cost of this pipeline run">${entry.totalCost.toFixed(2)}</span>}
                                 {p.budget && entry.totalCost != null && (
                                   <div className="pipeline-budget-bar" title={`$${entry.totalCost.toFixed(2)} of $${p.budget.maxCostUsd.toFixed(2)} budget`}>
                                     <div

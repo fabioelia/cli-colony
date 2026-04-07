@@ -199,38 +199,6 @@ export function getPersonaList(): PersonaInfo[] {
   return personas
 }
 
-/**
- * Async version of getPersonaList that enriches each persona with weeklySpend —
- * the sum of tokenUsage.cost for completed sessions matching this persona in the last 7 days.
- * Used by the IPC handler so the renderer can display per-persona cost badges.
- */
-export async function listPersonas(): Promise<PersonaInfo[]> {
-  const personas = getPersonaList()
-  try {
-    const instances = await getAllInstances()
-    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
-    for (const persona of personas) {
-      let spend = 0
-      for (const inst of instances) {
-        if (
-          inst.status === 'exited' &&
-          inst.name.startsWith('Persona: ') &&
-          inst.name.includes(persona.name)
-        ) {
-          const createdMs = new Date(inst.createdAt).getTime()
-          if (!isNaN(createdMs) && createdMs >= sevenDaysAgo) {
-            spend += inst.tokenUsage?.cost ?? 0
-          }
-        }
-      }
-      if (spend > 0) persona.weeklySpend = spend
-    }
-  } catch {
-    // Non-fatal — return personas without cost data
-  }
-  return personas
-}
-
 export function getPersonaContent(fileName: string): { content: string | null; mtime: number | null } {
   const filePath = resolvedPersonaPath(fileName)
   try {
