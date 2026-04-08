@@ -479,3 +479,33 @@ export interface BatchRun {
   reportSent?: boolean
 }
 
+// Team Telemetry types
+export interface TeamMetricsEntry {
+  id: string  // unique ID for this run
+  timestamp: string  // ISO 8601
+  workerId: string  // extracted from session name (e.g., "Worker: job-name" → "job-name")
+  status: 'success' | 'failed'  // based on exitCode === 0
+  durationMs: number
+  costUsd: number
+  sessionId?: string  // reference to the session for detailed logs
+}
+
+export interface WorkerStats {
+  workerId: string
+  runsCount: number  // 7d or 30d
+  successRate: number  // 0–100
+  avgDurationMs: number
+  totalCostUsd: number
+  lastRunAt: string | null  // ISO 8601, most recent
+}
+
+export interface TeamMetrics {
+  window: '7d' | '30d'
+  generatedAt: string  // ISO 8601
+  teamSuccessRate: number  // 0–100
+  avgDurationMs: number
+  totalCostYtd: number  // year-to-date
+  activeWorkerCount: number
+  workers: WorkerStats[]
+}
+

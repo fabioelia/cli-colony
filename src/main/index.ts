@@ -23,7 +23,7 @@ if (process.env.COLONY_CDP_PORT) {
 
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerIpcHandlers } from './ipc-handlers'
-import { initDaemon, disconnectDaemon, setOnInstanceListChanged, setOnSessionExit } from './instance-manager'
+import { initDaemon, disconnectDaemon, setOnInstanceListChanged, setOnSessionExit, getAllInstances } from './instance-manager'
 import { initEnvDaemon, refreshRepoConfigs } from './env-manager'
 import { createTray, updateTrayMenu } from './tray'
 import { initLogger } from './logger'
@@ -34,6 +34,7 @@ import { snapshotRunning } from './recent-sessions'
 import { ensureRepoClones } from './github'
 import { loadPersonas, startWatcher as startPersonaWatcher, startScheduler as startPersonaScheduler, onSessionExit as onPersonaSessionExit, runPersona, getPersonaList, addWhisper } from './persona-manager'
 import { initTriggerWatcher } from './persona-triggers'
+import { recordWorkerExit } from './team-metrics'
 
 const COLONY_CLI_SCRIPT = `#!/bin/bash
 # colony — control Colony environments from the command line.
@@ -446,7 +447,22 @@ app.whenReady().then(() => {
 
   // Wire callbacks before daemon connect so no events are missed
   setOnInstanceListChanged(() => updateTrayMenu(mainWindow))
-  setOnSessionExit((instanceId) => onPersonaSessionExit(instanceId))
+  setOnSessionExit((instanceId) => {
+    onPersonaSessionExit(instanceId)
+    // Record worker metrics if this is a Worker session
+    getAllInstances().then(instances => {
+      const inst = instances.find(i => i.id === instanceId)
+      if (inst && inst.roleTag === 'Worker') {
+        recordWorkerExit(
+          inst.name,
+          instanceId,
+          inst.exitCode,
+          Math.round((Date.now() - new Date(inst.createdAt).getTime()) / 1000) * 1000,
+          inst.tokenUsage?.cost ?? 0,
+        )
+      }
+    }).catch(() => {})
+  })
 
   // Seed default pipelines before daemon connects
   seedDefaultPipelines()

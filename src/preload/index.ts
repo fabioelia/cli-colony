@@ -6,7 +6,7 @@ import type {
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
   PersonaRunEntry, ScoreCard, CostQuotas, CostAuditEntry, ApprovalRule, ApprovalRuleType, ApprovalRuleAction,
-  CoordinatorTeam, BatchConfig, BatchRun,
+  CoordinatorTeam, BatchConfig, BatchRun, TeamMetrics, WorkerStats, TeamMetricsEntry,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -17,7 +17,7 @@ export type {
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
   PersonaRunEntry, ScoreCard, CostQuotas, CostAuditEntry, ApprovalRule, ApprovalRuleType, ApprovalRuleAction,
-  CoordinatorTeam, BatchConfig, BatchRun,
+  CoordinatorTeam, BatchConfig, BatchRun, TeamMetrics, WorkerStats, TeamMetricsEntry,
 }
 
 
@@ -385,6 +385,11 @@ export interface ClaudeManagerAPI {
     setConfig: (config: BatchConfig) => Promise<boolean>
     getHistory: (limit?: number) => Promise<BatchRun[]>
     runNow: () => Promise<{ success: boolean; batchId?: string; error?: string }>
+  }
+  team: {
+    getMetrics: (window?: '7d' | '30d') => Promise<TeamMetrics>
+    getWorkerHistory: (workerId: string, limit?: number, status?: 'success' | 'failed') => Promise<TeamMetricsEntry[]>
+    exportCsv: (window?: '7d' | '30d') => Promise<string>
   }
 }
 
@@ -780,6 +785,11 @@ const api: ClaudeManagerAPI = {
     setConfig: (config) => ipcRenderer.invoke('batch:setConfig', config),
     getHistory: (limit) => ipcRenderer.invoke('batch:getHistory', limit),
     runNow: () => ipcRenderer.invoke('batch:runNow'),
+  },
+  team: {
+    getMetrics: (window) => ipcRenderer.invoke('team:getMetrics', window),
+    getWorkerHistory: (workerId, limit, status) => ipcRenderer.invoke('team:getWorkerHistory', workerId, limit, status),
+    exportCsv: (window) => ipcRenderer.invoke('team:exportCsv', window),
   },
 }
 

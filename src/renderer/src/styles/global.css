@@ -15119,3 +15119,237 @@ input, select {
   font-size: 10px;
   font-style: italic;
 }
+
+/* Team Metrics Panel */
+.team-metrics-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 12px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.team-metrics-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.team-metrics-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.team-metrics-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.team-metrics-window-selector {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  padding: 2px;
+}
+
+.team-metrics-window-btn {
+  padding: 4px 8px;
+  font-size: 12px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 150ms;
+}
+
+.team-metrics-window-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.team-metrics-window-btn.active {
+  background: var(--accent-primary);
+  color: white;
+}
+
+.team-metrics-export-btn {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  transition: all 150ms;
+}
+
+.team-metrics-export-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+/* Summary cards */
+.team-metrics-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.team-metrics-card {
+  padding: 8px;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+}
+
+.team-metrics-card-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.team-metrics-card-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--accent-primary);
+  font-family: Menlo, Monaco, monospace;
+}
+
+/* Chart container */
+.team-metrics-chart-container {
+  flex: 1;
+  min-height: 250px;
+  padding: 8px;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+}
+
+.team-metrics-chart-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+/* Workers table */
+.team-metrics-workers {
+  flex: 1;
+  min-height: 200px;
+  overflow: auto;
+}
+
+.team-metrics-table-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  padding: 0 4px;
+}
+
+.team-metrics-table {
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+}
+
+.team-metrics-table-content {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.team-metrics-table-content thead {
+  background: var(--bg-secondary);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.team-metrics-table-content th {
+  padding: 6px 8px;
+  text-align: left;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.team-metrics-table-content tbody tr {
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background 150ms;
+}
+
+.team-metrics-table-content tbody tr:hover {
+  background: var(--bg-tertiary);
+}
+
+.team-metrics-table-content td {
+  padding: 6px 8px;
+  color: var(--text-primary);
+}
+
+.team-metrics-worker-name {
+  font-weight: 500;
+  color: var(--accent-primary);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.team-metrics-cell-numeric {
+  text-align: right;
+  font-family: Menlo, Monaco, monospace;
+  color: var(--text-secondary);
+}
+
+.team-metrics-cell-muted {
+  text-align: right;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+/* Empty and error states */
+.team-metrics-empty,
+.team-metrics-no-workers {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.team-metrics-loading {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.team-metrics-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: var(--error-bg, #fee);
+  border: 1px solid var(--error-border, #fcc);
+  border-radius: 4px;
+  color: var(--error-text, #c33);
+  font-size: 12px;
+}
+

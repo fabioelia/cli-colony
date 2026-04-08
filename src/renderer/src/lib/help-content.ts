@@ -933,4 +933,56 @@ export const helpContent: Record<string, HelpEntry> = {
       },
     ],
   },
+  teamMetrics: {
+    title: 'Team Metrics Dashboard',
+    description: 'Real-time performance analytics for multi-worker teams. Track team-level success rates, duration trends, and per-worker efficiency metrics across 7-day or 30-day windows. Accessible in Coordinator sessions (Metrics tab) or as a standalone panel.',
+    zones: [
+      {
+        name: 'Time Window',
+        position: 'Top controls',
+        items: [
+          { label: '7d / 30d toggle', detail: 'Switch between 7-day and 30-day rolling windows for metrics aggregation.' },
+          { label: 'Export as CSV', detail: 'Download the current worker metrics table as a CSV file for analysis in spreadsheet tools.', icon: 'Download' },
+        ],
+      },
+      {
+        name: 'Summary Cards',
+        position: 'Below controls',
+        items: [
+          { label: 'Success Rate', detail: 'Percentage of worker sessions that completed successfully (exitCode === 0).' },
+          { label: 'Avg Duration', detail: 'Mean session duration across all workers in the selected window.' },
+          { label: 'Team Cost (YTD)', detail: 'Total USD cost for all workers since the start of the year (not limited by window).' },
+          { label: 'Active Workers', detail: 'Count of distinct workers with at least one run in the selected window.' },
+        ],
+      },
+      {
+        name: 'Daily Runs Chart',
+        position: 'Middle section',
+        items: [
+          { label: 'Bar chart', detail: 'Shows daily run count over the selected time window (7 or 30 days). Hover for exact values.' },
+        ],
+      },
+      {
+        name: 'Worker Performance Table',
+        position: 'Bottom section',
+        items: [
+          { label: 'Worker ID', detail: 'Name of the worker session (extracted from "Worker: <name>" pattern).' },
+          { label: 'Runs', detail: 'Number of completed sessions for this worker in the selected window.' },
+          { label: 'Success Rate (%)', detail: 'Percentage of successful runs (0–100).' },
+          { label: 'Avg Duration (s)', detail: 'Mean session duration in seconds.' },
+          { label: 'Total Cost (USD)', detail: 'Cumulative cost for all runs of this worker in the selected window.' },
+          { label: 'Last Run', detail: 'When this worker last completed a session (relative time: e.g., "2h ago").' },
+        ],
+      },
+      {
+        name: 'Interpretation Guide',
+        position: 'Reference',
+        items: [
+          { label: 'Bottlenecks', detail: 'High run count + low success rate = debugging needed; high duration = slow; high cost = expensive operations.' },
+          { label: 'Optimization target', detail: 'Sort table by any column to find workers worth optimizing (highest cost, longest duration, lowest success).' },
+          { label: 'Trend analysis', detail: 'Compare 7d vs 30d metrics to identify recent improvements or regressions.' },
+        ],
+      },
+    ],
+  },
 }
