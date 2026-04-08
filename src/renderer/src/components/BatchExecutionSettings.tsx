@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronRight, Play, Settings, AlertCircle } from 'lucide-react'
+import { ChevronDown, ChevronRight, Play, Settings, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react'
+import HelpPopover from './HelpPopover'
 import type { BatchConfig, BatchRun } from '../../../shared/types'
 
 interface Props {
@@ -97,7 +98,10 @@ export default function BatchExecutionSettings({ isExpanded, onToggleExpand }: P
           {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           <h3>Batch Execution</h3>
         </div>
-        <Settings size={16} />
+        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+          <HelpPopover topic="tasks" zone="Batch Execution" align="right" />
+          <Settings size={16} />
+        </div>
       </button>
 
       {isExpanded && (
@@ -114,8 +118,18 @@ export default function BatchExecutionSettings({ isExpanded, onToggleExpand }: P
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px', marginBottom: '16px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '4px' }}>Batch Mode</label>
-                  <div style={{ fontSize: '14px', fontWeight: config.enabled ? '600' : '400' }}>
-                    {config.enabled ? '✓ Enabled' : '○ Disabled'}
+                  <div style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {config.enabled ? (
+                      <>
+                        <CheckCircle size={14} style={{ color: '#4ade80' }} />
+                        <span style={{ fontWeight: '600' }}>Enabled</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle size={14} style={{ color: '#888' }} />
+                        <span>Disabled</span>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div>
@@ -156,6 +170,9 @@ export default function BatchExecutionSettings({ isExpanded, onToggleExpand }: P
             </>
           ) : (
             <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #333' }}>
+                <h4 style={{ margin: 0, fontSize: '13px', fontWeight: '600' }}>Edit Configuration</h4>
+              </div>
               <div style={{ display: 'grid', gap: '12px', marginBottom: '16px' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                   <input
@@ -273,12 +290,17 @@ export default function BatchExecutionSettings({ isExpanded, onToggleExpand }: P
                       <span style={{ color: '#888' }}>
                         {new Date(run.createdAt).toLocaleString()}
                       </span>
-                      <span style={{
-                        color: run.failedCount === 0 ? '#4ade80' : '#fbbf24',
-                        fontWeight: '600',
-                      }}>
-                        {run.successCount}✓ {run.failedCount}✗ ${run.totalCostUsd.toFixed(2)}
-                      </span>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <span style={{ color: '#4ade80', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <CheckCircle size={12} />
+                          {run.successCount}
+                        </span>
+                        <span style={{ color: '#fbbf24', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <AlertTriangle size={12} />
+                          {run.failedCount}
+                        </span>
+                        <span style={{ color: '#888', fontSize: '12px' }}>${run.totalCostUsd.toFixed(2)}</span>
+                      </div>
                     </div>
                     {expandedRun === run.id && (
                       <div style={{ marginTop: '8px', fontSize: '11px', color: '#888', borderTop: '1px solid #333', paddingTop: '8px' }}>

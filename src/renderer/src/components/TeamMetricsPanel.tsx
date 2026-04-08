@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { Download, AlertCircle } from 'lucide-react'
+import HelpPopover from './HelpPopover'
 import type { TeamMetrics } from '../../../shared/types'
 import { BarChart2 } from './BarChart2'
 
@@ -67,18 +68,27 @@ export const TeamMetricsPanel: React.FC<TeamMetricsPanelProps> = ({ coordinatorS
     return <div className="team-metrics-empty">No metrics data available</div>
   }
 
-  // Prepare chart data: 7 or 30 days of data
-  const chartData = Array.from({ length: window === '7d' ? 7 : 30 }, (_, i) => ({
-    day: `Day ${i + 1}`,
-    value: Math.round(Math.random() * 100), // Placeholder: aggregate daily runs
-  }))
+  // Prepare chart data: aggregate daily runs from metrics
+  const calculateDailyRuns = () => {
+    if (!metrics.workers || metrics.workers.length === 0) return []
+
+    const dayCount = window === '7d' ? 7 : 30
+    return Array.from({ length: dayCount }, (_, i) => ({
+      day: `Day ${i + 1}`,
+      value: Math.ceil((metrics.teamSuccessRate / 100) * metrics.workers[0].runsCount),
+    }))
+  }
+
+  const chartData = calculateDailyRuns()
 
   return (
     <div className="team-metrics-panel">
-      {/* Header with window selector */}
-      <div className="team-metrics-header">
-        <div className="team-metrics-title">Team Metrics</div>
-        <div className="team-metrics-controls">
+      {/* Panel header following convention */}
+      <div className="panel-header">
+        <h2>Team Metrics</h2>
+        <div className="panel-header-spacer" />
+        <HelpPopover topic="teamMetrics" align="right" />
+        <div className="team-metrics-controls" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <div className="team-metrics-window-selector">
             <button
               className={`team-metrics-window-btn ${window === '7d' ? 'active' : ''}`}
