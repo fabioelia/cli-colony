@@ -91,18 +91,12 @@ export const TeamMetricsPanel: React.FC<TeamMetricsPanelProps> = ({ coordinatorS
     }
   }
 
-  // Chart data: distribute aggregate run count roughly uniformly over window days.
-  // This is approximate because the backend aggregates stats, not per-day counts.
-  const chartData: BarDatum[] = (() => {
-    if (!metrics || !metrics.workers || metrics.workers.length === 0) return []
-    const dayCount = timeWindow === '7d' ? 7 : 30
-    const totalRuns = metrics.workers.reduce((sum, w) => sum + w.runsCount, 0)
-    const perDay = totalRuns / dayCount
-    return Array.from({ length: dayCount }, (_, i) => ({
-      label: `D${i + 1}`,
-      value: Math.round(perDay),
-    }))
-  })()
+  // Chart data: real per-worker run counts (sorted descending for scanability).
+  // The backend aggregates per-worker stats, not per-day, so we chart what we have.
+  const chartData: BarDatum[] = (metrics?.workers ?? [])
+    .slice()
+    .sort((a, b) => b.runsCount - a.runsCount)
+    .map((w) => ({ label: w.workerId, value: w.runsCount }))
 
   return (
     <div className="team-metrics-panel">
@@ -171,7 +165,7 @@ export const TeamMetricsPanel: React.FC<TeamMetricsPanelProps> = ({ coordinatorS
           {/* Chart */}
           {chartData.length > 0 && (
             <div className="team-metrics-chart-container">
-              <h3 className="team-metrics-chart-title">Daily Runs ({timeWindow})</h3>
+              <h3 className="team-metrics-chart-title">Runs per Worker ({timeWindow})</h3>
               <SimpleBarChart data={chartData} />
             </div>
           )}

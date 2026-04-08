@@ -967,10 +967,10 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
-        name: 'Daily Runs Chart',
+        name: 'Runs per Worker Chart',
         position: 'Middle section',
         items: [
-          { label: 'Bar chart', detail: 'Shows daily run count over the selected time window (7 or 30 days). Hover for exact values.' },
+          { label: 'Bar chart', detail: 'One bar per worker showing run count in the selected window, sorted highest-first. Hover any bar to see the worker name and exact count.' },
         ],
       },
       {
