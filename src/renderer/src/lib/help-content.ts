@@ -502,6 +502,22 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Updates',
+        position: 'Below Daemon section',
+        items: [
+          { label: 'Updates section', detail: 'Colony checks GitHub releases for new versions once a day (and once 10 seconds after app start). Packaged builds only — development builds skip update checks entirely.', icon: 'DownloadCloud' },
+          { label: 'Current Version', detail: 'The app version you are running right now. Same value shown in the About dialog.' },
+          { label: 'Last Checked', detail: 'Relative timestamp of the most recent successful update check. Persisted across app restarts.' },
+          { label: 'Status', detail: 'Live state: "Up to date" (green), "Update available" (blue), "Downloading…" with %, "Update ready" (green), or an error (red). Errors from missing releases are treated as "up to date" so fresh repos do not flap.' },
+          { label: 'Automatically check for updates daily', detail: 'Toggle the daily check on or off. Disabling stops the timer; you can still use "Check for updates now" to run a manual check whenever you want.' },
+          { label: 'Check for updates now', detail: 'Force an immediate check. Useful if you want to pick up a release before the next daily tick.', icon: 'RefreshCw' },
+          { label: 'Download Update', detail: 'Appears when an update is available. Downloads the release in the background without interrupting your session.' },
+          { label: 'Install & Restart', detail: 'Appears when a downloaded update is ready. Confirms before killing any running sessions (they are restored on next launch). Restarts into the new version.' },
+          { label: 'Release notes', detail: 'Shown inline when an update is available or ready. Pulled from the GitHub release description.' },
+          { label: 'Signed builds required', detail: 'macOS requires the downloaded .dmg/.zip to be signed with the same certificate as the running app. Unsigned builds will fail to install silently — watch for errors in the status line.' },
+        ],
+      },
+      {
         name: 'Webhook & API Section',
         position: 'Below Commit Attribution',
         items: [

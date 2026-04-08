@@ -119,6 +119,62 @@ input, select {
   background: none;
 }
 
+/* App update banner — same pattern as daemon banner, stacked below it */
+.app-update-banner {
+  position: fixed;
+  top: 38px;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  background: #1d4ed8;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  z-index: 999998;
+  -webkit-app-region: no-drag;
+}
+.app-update-banner span {
+  flex: 1;
+}
+.app-update-banner button {
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.3);
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.app-update-banner button:hover {
+  background: rgba(255,255,255,0.25);
+}
+.app-update-banner .app-update-dismiss {
+  border: none;
+  background: none;
+  opacity: 0.6;
+  font-weight: 400;
+}
+.app-update-banner .app-update-dismiss:hover {
+  opacity: 1;
+  background: none;
+}
+.app-update-progress {
+  flex: 0 0 140px;
+  height: 6px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.app-update-progress-bar {
+  height: 100%;
+  background: #fff;
+  transition: width 200ms linear;
+}
+
 /* ===== Sidebar ===== */
 .sidebar {
   width: var(--sidebar-width);

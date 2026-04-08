@@ -19,6 +19,7 @@ import PersonasPanel from './components/PersonasPanel'
 import OutputsPanel from './components/OutputsPanel'
 import QuickPromptDialog from './components/QuickPromptDialog'
 import ForkModal from './components/ForkModal'
+import AppUpdateBanner from './components/AppUpdateBanner'
 import { stripAnsi } from '../../shared/utils'
 import type { ForkGroup } from '../../shared/types'
 
@@ -804,6 +805,7 @@ export default function App() {
 
   return (
     <div className="app">
+      {createPortal(<AppUpdateBanner />, document.body)}
       {daemonStale && createPortal(
         <div className="daemon-update-banner">
           <span>Daemon is outdated — restart to apply updates. Running sessions will be terminated; use resume to restore them.</span>
