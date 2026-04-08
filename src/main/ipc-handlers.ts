@@ -33,6 +33,7 @@ import { registerGovernanceHandlers } from './ipc/governance-handlers'
 import { registerApprovalRulesHandlers } from './ipc/approval-rules-handlers'
 import { registerBatchHandlers } from './ipc/batch-handlers'
 import { registerTeamHandlers } from './ipc/team-handlers'
+import { registerAppUpdateHandlers } from './ipc/app-update-handlers'
 
 export function registerIpcHandlers(): void {
   // Delegated handler modules
@@ -58,6 +59,7 @@ export function registerIpcHandlers(): void {
   registerApprovalRulesHandlers()
   registerBatchHandlers()
   registerTeamHandlers()
+  registerAppUpdateHandlers()
 
   // ---- Temp files ----
   ipcMain.handle('fs:writeTempFile', (_e, prefix: string, content: string) => {

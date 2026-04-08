@@ -538,3 +538,30 @@ export interface ContextUsage {
   lastUpdatedAt: string  // ISO 8601
 }
 
+// App auto-update status (electron-updater wrapper)
+export type UpdateState =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'not-available'
+  | 'downloading'
+  | 'ready'
+  | 'error'
+
+export interface UpdateInfo {
+  version: string
+  releaseNotes?: string
+  releaseDate?: string
+}
+
+export interface UpdateStatus {
+  state: UpdateState
+  currentVersion: string
+  info: UpdateInfo | null
+  downloadPercent: number  // 0–100, only meaningful while downloading
+  lastCheckAt: number | null  // epoch ms
+  lastError: string | null
+  /** True only when running in packaged (production) mode. In dev, checks are skipped. */
+  enabledInEnv: boolean
+}
+

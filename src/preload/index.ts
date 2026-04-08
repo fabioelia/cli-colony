@@ -7,7 +7,7 @@ import type {
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
   PersonaRunEntry, ScoreCard, CostQuotas, CostAuditEntry, ApprovalRule, ApprovalRuleType, ApprovalRuleAction,
   CoordinatorTeam, BatchConfig, BatchRun, TeamMetrics, WorkerStats, TeamMetricsEntry, ContextUsage,
-  PendingLaunchRecord,
+  PendingLaunchRecord, UpdateStatus, UpdateInfo,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -19,7 +19,7 @@ export type {
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
   PersonaRunEntry, ScoreCard, CostQuotas, CostAuditEntry, ApprovalRule, ApprovalRuleType, ApprovalRuleAction,
   CoordinatorTeam, BatchConfig, BatchRun, TeamMetrics, WorkerStats, TeamMetricsEntry, ContextUsage,
-  PendingLaunchRecord,
+  PendingLaunchRecord, UpdateStatus, UpdateInfo,
 }
 
 
@@ -405,6 +405,19 @@ export interface ClaudeManagerAPI {
     getMetrics: (window?: '7d' | '30d') => Promise<TeamMetrics>
     getWorkerHistory: (workerId: string, limit?: number, status?: 'success' | 'failed') => Promise<TeamMetricsEntry[]>
     exportCsv: (window?: '7d' | '30d') => Promise<string>
+  }
+  appUpdate: {
+    getStatus: () => Promise<UpdateStatus>
+    checkNow: () => Promise<UpdateStatus>
+    download: () => Promise<UpdateStatus>
+    quitAndInstall: () => Promise<boolean>
+    getAutoEnabled: () => Promise<boolean>
+    setAutoEnabled: (enabled: boolean) => Promise<boolean>
+    onStatus: (cb: (status: UpdateStatus) => void) => () => void
+    onAvailable: (cb: (info: UpdateInfo) => void) => () => void
+    onReady: (cb: (info: UpdateInfo) => void) => () => void
+    onDownloadProgress: (cb: (progress: { percent: number; bytesPerSecond: number; total: number }) => void) => () => void
+    onError: (cb: (err: { message: string }) => void) => () => void
   }
 }
 
@@ -820,6 +833,39 @@ const api: ClaudeManagerAPI = {
     getMetrics: (window) => ipcRenderer.invoke('team:getMetrics', window),
     getWorkerHistory: (workerId, limit, status) => ipcRenderer.invoke('team:getWorkerHistory', workerId, limit, status),
     exportCsv: (window) => ipcRenderer.invoke('team:exportCsv', window),
+  },
+  appUpdate: {
+    getStatus: () => ipcRenderer.invoke('appUpdate:getStatus'),
+    checkNow: () => ipcRenderer.invoke('appUpdate:checkNow'),
+    download: () => ipcRenderer.invoke('appUpdate:download'),
+    quitAndInstall: () => ipcRenderer.invoke('appUpdate:quitAndInstall'),
+    getAutoEnabled: () => ipcRenderer.invoke('appUpdate:getAutoEnabled'),
+    setAutoEnabled: (enabled) => ipcRenderer.invoke('appUpdate:setAutoEnabled', enabled),
+    onStatus: (cb) => {
+      const l = (_e: any, s: UpdateStatus) => cb(s)
+      ipcRenderer.on('app:updateStatus', l)
+      return () => ipcRenderer.removeListener('app:updateStatus', l)
+    },
+    onAvailable: (cb) => {
+      const l = (_e: any, info: UpdateInfo) => cb(info)
+      ipcRenderer.on('app:updateAvailable', l)
+      return () => ipcRenderer.removeListener('app:updateAvailable', l)
+    },
+    onReady: (cb) => {
+      const l = (_e: any, info: UpdateInfo) => cb(info)
+      ipcRenderer.on('app:updateReady', l)
+      return () => ipcRenderer.removeListener('app:updateReady', l)
+    },
+    onDownloadProgress: (cb) => {
+      const l = (_e: any, p: { percent: number; bytesPerSecond: number; total: number }) => cb(p)
+      ipcRenderer.on('app:updateDownloadProgress', l)
+      return () => ipcRenderer.removeListener('app:updateDownloadProgress', l)
+    },
+    onError: (cb) => {
+      const l = (_e: any, err: { message: string }) => cb(err)
+      ipcRenderer.on('app:updateError', l)
+      return () => ipcRenderer.removeListener('app:updateError', l)
+    },
   },
 }
 

@@ -77,6 +77,7 @@ import { broadcast } from './broadcast'
 import { seedDefaultPipelines, startPipelines, getPipelineList } from './pipeline-engine'
 import { cleanupStaleForkGroups } from './fork-manager'
 import { startWebhookServer, stopWebhookServer } from './webhook-server'
+import { initAppUpdater, shutdownAppUpdater } from './app-updater'
 import { colonyPaths } from '../shared/colony-paths'
 
 let mainWindow: BrowserWindow | null = null
@@ -444,6 +445,7 @@ app.whenReady().then(() => {
   buildAppMenu()
   createWindow()
   createTray(mainWindow)
+  initAppUpdater(mainWindow)
 
   // Wire callbacks before daemon connect so no events are missed
   setOnInstanceListChanged(() => updateTrayMenu(mainWindow))
@@ -555,6 +557,8 @@ app.on('before-quit', () => {
   snapshotRunning()
   // Stop webhook HTTP server
   stopWebhookServer()
+  // Tear down auto-updater timers
+  shutdownAppUpdater()
   // Just disconnect — daemon keeps instances alive for reconnection
   disconnectDaemon()
 })

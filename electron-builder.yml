@@ -21,3 +21,10 @@ npmRebuild: true
 asar: true
 asarUnpack:
   - "node_modules/node-pty/**"
+# Auto-update provider — GitHub releases.
+# TODO: confirm the actual repo owner/name before the first release cut.
+# electron-updater will fetch the latest release artifact from this repo.
+publish:
+  provider: github
+  owner: fabioelia
+  repo: claude-electron
