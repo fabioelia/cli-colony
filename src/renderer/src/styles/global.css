@@ -3315,7 +3315,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .mcp-catalog-delete {
-  color: var(--color-danger, #f87171);
+  color: var(--danger);
   padding: 2px 6px;
   border-radius: 4px;
   display: flex;
@@ -3323,7 +3323,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .mcp-catalog-delete:hover {
-  background: rgba(248, 113, 113, 0.1);
+  background: rgba(239, 68, 68, 0.1);
 }
 
 .mcp-catalog-add {
@@ -12997,8 +12997,8 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .persona-whisper-item-delete:hover {
-  color: var(--color-danger, #f87171);
-  background: rgba(248, 113, 113, 0.1);
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.1);
 }
 
 .persona-card-preview {

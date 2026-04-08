@@ -1132,7 +1132,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               >
                 <GitCompare size={12} /> Changes
                 {viewTab !== 'changes' && gitChanges.length > 0 && (
-                  <span className="services-tab-badge" style={{ background: 'var(--color-amber, #f59e0b)' }}>{gitChanges.length}</span>
+                  <span className="services-tab-badge" style={{ background: 'var(--warning)' }}>{gitChanges.length}</span>
                 )}
               </button>
             )}
@@ -1144,7 +1144,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               >
                 <Bot size={12} /> Team
                 {viewTab !== 'team' && coordinatorTeam?.workers?.length ? (
-                  <span className="services-tab-badge" style={{ background: 'var(--color-amber, #f59e0b)' }}>{coordinatorTeam.workers.length}</span>
+                  <span className="services-tab-badge" style={{ background: 'var(--warning)' }}>{coordinatorTeam.workers.length}</span>
                 ) : null}
               </button>
             )}
@@ -2061,7 +2061,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                     title="Score output quality with AI"
                     disabled={scoreCardLoading}
                     onClick={handleScoreOutput}
-                    style={{ color: 'var(--color-primary, #3b82f6)' }}
+                    style={{ color: 'var(--accent)' }}
                   >
                     {scoreCardLoading ? <RotateCw size={12} className="spinning" /> : <Sparkles size={12} />}
                   </button>
@@ -2070,7 +2070,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                     title="Revert all changes"
                     disabled={revertingAll}
                     onClick={handleRevertAll}
-                    style={{ color: 'var(--color-danger, #ef4444)' }}
+                    style={{ color: 'var(--danger)' }}
                   >
                     <Undo2 size={12} />
                   </button>
@@ -2092,9 +2092,9 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 <div key={entry.file} className="replay-event" style={{ cursor: 'default' }}>
                   <div className="replay-event-header" style={{ alignItems: 'center' }}>
                     <span className="replay-event-tool" title={entry.status === 'A' ? 'Added' : entry.status === 'D' ? 'Deleted' : entry.status === 'R' ? 'Renamed' : 'Modified'} style={{
-                      color: entry.status === 'A' ? 'var(--color-success, #22c55e)'
-                        : entry.status === 'D' ? 'var(--color-danger, #ef4444)'
-                        : 'var(--color-amber, #f59e0b)',
+                      color: entry.status === 'A' ? 'var(--success)'
+                        : entry.status === 'D' ? 'var(--danger)'
+                        : 'var(--warning)',
                       minWidth: '12px',
                       cursor: 'default',
                     }}>
@@ -2104,12 +2104,12 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                       {entry.file}
                     </span>
                     <span className="replay-event-time" style={{ fontSize: '10px', opacity: 0.7 }}>
-                      {entry.insertions > 0 && <span style={{ color: 'var(--color-success, #22c55e)' }}>+{entry.insertions}</span>}
+                      {entry.insertions > 0 && <span style={{ color: 'var(--success)' }}>+{entry.insertions}</span>}
                       {entry.insertions > 0 && entry.deletions > 0 && ' '}
-                      {entry.deletions > 0 && <span style={{ color: 'var(--color-danger, #ef4444)' }}>-{entry.deletions}</span>}
+                      {entry.deletions > 0 && <span style={{ color: 'var(--danger)' }}>-{entry.deletions}</span>}
                     </span>
                     {fileComments.length > 0 && (
-                      <span style={{ marginLeft: '4px', fontSize: '10px', color: 'var(--color-amber, #f59e0b)', opacity: 0.85, display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+                      <span style={{ marginLeft: '4px', fontSize: '10px', color: 'var(--warning)', opacity: 0.85, display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
                         <MessageCircleWarning size={11} />
                         {fileComments.length > 1 && fileComments.length}
                       </span>
@@ -2119,7 +2119,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                       title={`Revert ${entry.file}`}
                       disabled={reverting.has(entry.file)}
                       onClick={() => handleRevert(entry.file)}
-                      style={{ marginLeft: '4px', color: 'var(--color-danger, #ef4444)' }}
+                      style={{ marginLeft: '4px', color: 'var(--danger)' }}
                     >
                       {reverting.has(entry.file) ? <RotateCw size={11} className="spinning" /> : <Undo2 size={11} />}
                     </button>
@@ -2130,15 +2130,15 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                       alignItems: 'flex-start',
                       gap: '6px',
                       padding: '4px 8px 4px 24px',
-                      borderLeft: `2px solid ${comment.severity === 'error' ? 'var(--color-danger, #ef4444)' : comment.severity === 'warn' ? 'var(--color-amber, #f59e0b)' : 'var(--color-primary, #3b82f6)'}`,
+                      borderLeft: `2px solid ${comment.severity === 'error' ? 'var(--danger)' : comment.severity === 'warn' ? 'var(--warning)' : 'var(--accent)'}`,
                       marginTop: '2px',
-                      background: 'var(--bg-secondary, rgba(255,255,255,0.03))',
+                      background: 'var(--bg-secondary)',
                     }}>
                       <span style={{
                         fontSize: '9px',
                         fontWeight: 600,
                         letterSpacing: '0.04em',
-                        color: comment.severity === 'error' ? 'var(--color-danger, #ef4444)' : comment.severity === 'warn' ? 'var(--color-amber, #f59e0b)' : 'var(--color-primary, #3b82f6)',
+                        color: comment.severity === 'error' ? 'var(--danger)' : comment.severity === 'warn' ? 'var(--warning)' : 'var(--accent)',
                         textTransform: 'uppercase',
                         minWidth: '28px',
                         paddingTop: '1px',
@@ -2160,35 +2160,35 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               <div style={{
                 margin: '8px 8px 4px',
                 padding: '10px 12px',
-                background: 'var(--bg-secondary, rgba(255,255,255,0.04))',
+                background: 'var(--bg-secondary)',
                 borderRadius: '6px',
-                border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
+                border: '1px solid var(--border)',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                  <Sparkles size={12} style={{ color: 'var(--color-primary, #3b82f6)', flexShrink: 0 }} />
+                  <Sparkles size={12} style={{ color: 'var(--accent)', flexShrink: 0 }} />
                   <span style={{ fontSize: '11px', fontWeight: 600, opacity: 0.9 }}>AI Score</span>
                   <div style={{ display: 'flex', gap: '3px', marginLeft: '4px' }}>
                     {[1, 2, 3, 4, 5].map(i => (
                       <div key={i} style={{
                         width: '8px', height: '8px', borderRadius: '50%',
                         background: i <= scoreCard.confidence
-                          ? (scoreCard.confidence >= 4 ? 'var(--color-success, #22c55e)' : scoreCard.confidence >= 2 ? 'var(--color-amber, #f59e0b)' : 'var(--color-danger, #ef4444)')
-                          : 'var(--border-color, rgba(255,255,255,0.12))',
+                          ? (scoreCard.confidence >= 4 ? 'var(--success)' : scoreCard.confidence >= 2 ? 'var(--warning)' : 'var(--danger)')
+                          : 'var(--border)',
                       }} />
                     ))}
                   </div>
                   {scoreCard.scopeCreep && (
                     <span style={{
                       fontSize: '9px', fontWeight: 600, padding: '1px 5px', borderRadius: '4px',
-                      background: 'rgba(245,158,11,0.15)', color: 'var(--color-amber, #f59e0b)',
+                      background: 'rgba(245,158,11,0.15)', color: 'var(--warning)',
                       border: '1px solid rgba(245,158,11,0.3)',
                     }}>SCOPE CREEP</span>
                   )}
                   <span style={{
                     fontSize: '9px', fontWeight: 600, padding: '1px 5px', borderRadius: '4px',
-                    background: scoreCard.testCoverage === 'good' ? 'rgba(34,197,94,0.15)' : scoreCard.testCoverage === 'partial' ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.12)',
-                    color: scoreCard.testCoverage === 'good' ? 'var(--color-success, #22c55e)' : scoreCard.testCoverage === 'partial' ? 'var(--color-amber, #f59e0b)' : 'var(--color-danger, #ef4444)',
-                    border: scoreCard.testCoverage === 'good' ? '1px solid rgba(34,197,94,0.3)' : scoreCard.testCoverage === 'partial' ? '1px solid rgba(245,158,11,0.3)' : '1px solid rgba(239,68,68,0.2)',
+                    background: scoreCard.testCoverage === 'good' ? 'rgba(16,185,129,0.15)' : scoreCard.testCoverage === 'partial' ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.12)',
+                    color: scoreCard.testCoverage === 'good' ? 'var(--success)' : scoreCard.testCoverage === 'partial' ? 'var(--warning)' : 'var(--danger)',
+                    border: scoreCard.testCoverage === 'good' ? '1px solid rgba(16,185,129,0.3)' : scoreCard.testCoverage === 'partial' ? '1px solid rgba(245,158,11,0.3)' : '1px solid rgba(239,68,68,0.2)',
                     marginLeft: 'auto',
                     textTransform: 'uppercase',
                   }}>
@@ -2256,11 +2256,11 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                     padding: '2px 6px',
                     borderRadius: '3px',
                     background: worker.status === 'running'
-                      ? 'rgba(34,197,94,0.15)'
+                      ? 'rgba(16,185,129,0.15)'
                       : 'rgba(107,114,128,0.15)',
                     color: worker.status === 'running'
-                      ? 'var(--color-success, #22c55e)'
-                      : 'var(--text-muted, #9ca3af)',
+                      ? 'var(--success)'
+                      : 'var(--text-muted)',
                     textTransform: 'capitalize',
                   }}>
                     {worker.status}
@@ -2272,10 +2272,10 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                       borderRadius: '3px',
                       background: worker.activity === 'busy'
                         ? 'rgba(245,158,11,0.15)'
-                        : 'rgba(34,197,94,0.15)',
+                        : 'rgba(16,185,129,0.15)',
                       color: worker.activity === 'busy'
-                        ? 'var(--color-amber, #f59e0b)'
-                        : 'var(--color-success, #22c55e)',
+                        ? 'var(--warning)'
+                        : 'var(--success)',
                       textTransform: 'capitalize',
                       marginLeft: '6px',
                     }}>

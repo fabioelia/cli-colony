@@ -1351,7 +1351,7 @@ export default function SettingsPanel({ onBack }: Props) {
                       </select>
                     </div>
                     {approvalRuleFormError && (
-                      <div style={{ color: 'var(--color-error)', fontSize: '12px', marginBottom: '8px' }}>
+                      <div style={{ color: 'var(--danger)', fontSize: '12px', marginBottom: '8px' }}>
                         {approvalRuleFormError}
                       </div>
                     )}
@@ -1417,7 +1417,7 @@ export default function SettingsPanel({ onBack }: Props) {
                               <button
                                 className="settings-logs-toggle"
                                 onClick={() => handleDeleteRule(rule.id)}
-                                style={{ padding: '2px 6px', color: 'var(--color-error, #ef4444)', opacity: 0.8 }}
+                                style={{ padding: '2px 6px', color: 'var(--danger)', opacity: 0.8 }}
                                 title="Delete rule"
                               >
                                 <Trash2 size={10} />
