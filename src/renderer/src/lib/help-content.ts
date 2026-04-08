@@ -639,7 +639,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Terminal tab', detail: 'A raw shell in the same directory for running commands alongside Claude.' },
           { label: 'Services tab', detail: 'Appears when an environment is attached. Manage services.' },
           { label: 'Logs tab', detail: 'Appears when an environment is attached. Stream service logs.' },
-          { label: 'Tab navigation', detail: 'Cmd+Shift+{ / Cmd+Shift+} cycles through the visible tabs (Session, Terminal, Files, Replay, Changes, plus Services/Logs when an environment is attached and Team/Metrics for Coordinator sessions). Same shortcut works in Environments (Instances ↔ Templates).' },
+          { label: 'Tab navigation', detail: 'Cmd+Shift+{ / Cmd+Shift+} cycles through the visible tabs (Session, Terminal, Files, Replay, Changes, plus Services/Logs when an environment is attached and Team/Metrics for Coordinator sessions). Works even when focus is inside a terminal or input — the Cmd+Shift combo never conflicts with typing `{`/`}`. Same shortcut works in Environments (Instances ↔ Templates).' },
         ],
       },
       {
