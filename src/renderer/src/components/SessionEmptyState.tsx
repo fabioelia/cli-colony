@@ -83,11 +83,13 @@ export default function SessionEmptyState({ onSelectCard, defaultWorkingDirector
         {cwd ? (
           <>
             <h2>
-              Working in <span className="session-empty-state-cwd">{basename(cwd)}</span>
+              Working in{' '}
+              <span className="session-empty-state-cwd" title={cwd}>
+                {basename(cwd)}
+              </span>
             </h2>
-            <p className="session-empty-state-subtitle" title={cwd}>
-              Pick a starter prompt — Claude opens in{' '}
-              <code>{cwd}</code> with the prompt pre-filled.
+            <p className="session-empty-state-subtitle">
+              Pick a starter prompt — Claude opens in this folder with your prompt pre-filled.
             </p>
             <button
               type="button"
@@ -126,8 +128,13 @@ export default function SessionEmptyState({ onSelectCard, defaultWorkingDirector
               tabIndex={0}
               className={`starter-card ${cardsEnabled ? '' : 'disabled'}`}
               data-testid={`starter-card-${p.id}`}
-              aria-disabled={!cardsEnabled}
-              title={cardsEnabled ? p.title : 'Choose a folder first'}
+              title={
+                cardsEnabled
+                  ? p.prompt
+                    ? `Runs on create:\n"${p.prompt}"`
+                    : 'Opens a blank New Session dialog'
+                  : 'Choose a folder first'
+              }
               onClick={() => handleCardActivate(p)}
               onKeyDown={(e) => handleCardKey(e, p)}
             >

@@ -74,9 +74,12 @@ describe('SessionEmptyState', () => {
     )
     expect(html).toContain('Pick a working directory')
     expect(html).toContain('Choose folder')
-    // Cards still render but get the disabled class so users see what's available.
+    // Cards still render but get the visual disabled class so users see what's
+    // available. They remain clickable (clicking one triggers the folder picker
+    // as a path to activation), so no aria-disabled — the tooltip copy
+    // ("Choose a folder first") provides the behavioural cue instead.
     expect(html).toContain('starter-card disabled')
-    expect(html).toContain('aria-disabled="true"')
+    expect(html).toContain('Choose a folder first')
   })
 
   it('each card is keyboard-focusable (role=button + tabIndex=0)', async () => {
