@@ -373,7 +373,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
       )}
 
       {error && (
-        <div style={{ padding: '8px 12px', color: '#ef4444', fontSize: '12px' }}>
+        <div style={{ padding: '8px 12px', color: 'var(--danger)', fontSize: '12px' }}>
           {error}
         </div>
       )}

@@ -253,12 +253,12 @@ export default function SettingsPanel({ onBack }: Props) {
           <p className="settings-help">
             Protocol for cloning GitHub repos (environments, bare repos, colony feedback).
             {detectedProtocol && detectedProtocol !== gitProtocol && (
-              <span className="settings-restart-note" style={{ color: '#f59e0b' }}>
+              <span className="settings-restart-note" style={{ color: 'var(--warning)' }}>
                 Detected: {detectedProtocol} works on this machine
               </span>
             )}
             {detectedProtocol && detectedProtocol === gitProtocol && (
-              <span className="settings-restart-note" style={{ color: '#10b981' }}>
+              <span className="settings-restart-note" style={{ color: 'var(--success)' }}>
                 Verified: {detectedProtocol} works
               </span>
             )}

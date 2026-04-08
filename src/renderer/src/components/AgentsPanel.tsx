@@ -11,9 +11,9 @@ interface Props {
 }
 
 const MODEL_COLORS: Record<string, string> = {
-  opus: '#8b5cf6',
-  sonnet: '#3b82f6',
-  haiku: '#10b981',
+  opus: '#8b5cf6', // purple — no canonical CSS var for this hue
+  sonnet: 'var(--accent)',
+  haiku: 'var(--success)',
 }
 
 export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
@@ -68,7 +68,7 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
 
   const renderAgent = (agent: AgentDef) => {
     const isExpanded = expandedId === agent.id
-    const accentColor = agent.color ? colorMap(agent.color) : '#6b6b80'
+    const accentColor = agent.color ? colorMap(agent.color) : 'var(--text-muted)'
     return (
       <div key={agent.id} className={`agent-card ${isExpanded ? 'expanded' : ''}`}>
         <div
@@ -85,7 +85,7 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
               {agent.model && (
                 <span
                   className="agent-card-model"
-                  style={{ color: MODEL_COLORS[agent.model] || '#a0a0b0', borderColor: MODEL_COLORS[agent.model] || '#a0a0b0' }}
+                  style={{ color: MODEL_COLORS[agent.model] || 'var(--text-secondary)', borderColor: MODEL_COLORS[agent.model] || 'var(--text-secondary)' }}
                 >
                   {agent.model}
                 </span>
