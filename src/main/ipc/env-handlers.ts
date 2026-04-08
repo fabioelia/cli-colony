@@ -8,6 +8,13 @@ import {
   refreshRepoConfigs,
 } from '../env-manager'
 import { getRepoConfig, getAllRepoConfigs } from '../repo-config-loader'
+import {
+  registerPendingLaunch,
+  cancelPendingLaunch,
+  getPendingLaunches,
+  handleEnvStatusUpdate,
+  type PendingLaunchSpawnOpts,
+} from '../pending-session-launches'
 
 export function registerEnvHandlers(): void {
   ipcMain.handle('env:list', () => listEnvironments())
@@ -33,6 +40,21 @@ export function registerEnvHandlers(): void {
   ipcMain.handle('env:saveManifest', (_e, envId: string, manifest: any) => saveManifest(envId, manifest))
   ipcMain.handle('env:fix', async (_e, envId: string) => fixEnvironment(envId))
   ipcMain.handle('env:setRestartPolicy', (_e, envId: string, policy: 'manual' | 'on-crash') => setRestartPolicy(envId, policy))
+  ipcMain.handle('env:launchSessionWhenReady', async (
+    _e,
+    opts: { envId: string; envName: string; spawnOpts: PendingLaunchSpawnOpts; initialPrompt?: string },
+  ) => {
+    const pendingId = registerPendingLaunch(opts)
+    // Prime with current state so callers get an immediate status update even
+    // if the env is already ready (fast builds) or already broken.
+    try {
+      const envs = await listEnvironments()
+      handleEnvStatusUpdate(envs)
+    } catch { /* non-fatal */ }
+    return { pendingId }
+  })
+  ipcMain.handle('env:cancelPendingLaunch', (_e, pendingId: string) => cancelPendingLaunch(pendingId))
+  ipcMain.handle('env:getPendingLaunches', (_e, envId?: string) => getPendingLaunches(envId))
   ipcMain.handle('env:setPurposeTag', (_e, envId: string, tag: PurposeTag | null) => setPurposeTag(envId, tag))
   ipcMain.handle('env:retrySetup', async (_e, envId: string) => {
     setupEnvironment(envId).catch((err) => {

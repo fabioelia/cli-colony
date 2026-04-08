@@ -18,6 +18,7 @@ import { readAndReconcileState, emptyState, writeState } from '../shared/env-sta
 import { addToIndex, removeFromIndex, allEnvDirs } from '../shared/env-index'
 import { broadcast } from './broadcast'
 import { appendActivity } from './activity-manager'
+import { handleEnvStatusUpdate } from './pending-session-launches'
 import { runSetup } from './env-setup'
 import { gitRemoteUrl } from './settings'
 import { getAllRepoConfigs, getRepoConfig, clearRepoConfigCache } from './repo-config-loader'
@@ -46,6 +47,9 @@ export function wireEnvDaemonEvents(): void {
 
   client.on('env-changed', (environments: EnvStatus[]) => {
     broadcast('env:list', environments)
+    try { handleEnvStatusUpdate(environments) } catch (err) {
+      console.warn('[env-manager] pending-session-launches update failed:', err)
+    }
   })
 
   client.on('service-output', (envId: string, service: string, data: string) => {
@@ -72,6 +76,7 @@ export function wireEnvDaemonEvents(): void {
     // so the UI is always in sync with the daemon
     client.status().then((environments) => {
       broadcast('env:list', environments)
+      try { handleEnvStatusUpdate(environments) } catch { /* non-fatal */ }
     }).catch(() => {})
   })
 

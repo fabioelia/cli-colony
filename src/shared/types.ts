@@ -151,6 +151,18 @@ export interface EnvStatus {
   createdAt: string
 }
 
+/** Pending session launch — queued by env:launchSessionWhenReady while an environment is setting up */
+export type PendingLaunchState = 'waiting' | 'ready' | 'failed' | 'timeout' | 'cancelled'
+
+export interface PendingLaunchRecord {
+  id: string
+  envId: string
+  envName: string
+  state: PendingLaunchState
+  createdAt: number
+  services: EnvServiceStatus[]
+}
+
 export interface EnvironmentTemplate {
   id: string
   name: string

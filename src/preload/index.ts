@@ -7,6 +7,7 @@ import type {
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
   PersonaRunEntry, ScoreCard, CostQuotas, CostAuditEntry, ApprovalRule, ApprovalRuleType, ApprovalRuleAction,
   CoordinatorTeam, BatchConfig, BatchRun, TeamMetrics, WorkerStats, TeamMetricsEntry, ContextUsage,
+  PendingLaunchRecord,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -18,6 +19,7 @@ export type {
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
   PersonaRunEntry, ScoreCard, CostQuotas, CostAuditEntry, ApprovalRule, ApprovalRuleType, ApprovalRuleAction,
   CoordinatorTeam, BatchConfig, BatchRun, TeamMetrics, WorkerStats, TeamMetricsEntry, ContextUsage,
+  PendingLaunchRecord,
 }
 
 
@@ -298,6 +300,16 @@ export interface ClaudeManagerAPI {
     onPromptRequest: (cb: (data: { requestId: string; envId: string; hookName: string; prompt: string; promptType: string; defaultPath?: string; options?: string[] }) => void) => () => void
     respondToPrompt: (data: { requestId: string; filePath?: string; selectedValue?: string; cancelled?: boolean }) => void
     pickFile: (opts: { title?: string; defaultPath?: string; message?: string }) => Promise<string | null>
+    launchSessionWhenReady: (opts: {
+      envId: string
+      envName: string
+      spawnOpts: { name?: string; workingDirectory?: string; color?: string; args?: string[]; parentId?: string }
+      initialPrompt?: string
+    }) => Promise<{ pendingId: string }>
+    cancelPendingLaunch: (pendingId: string) => Promise<boolean>
+    getPendingLaunches: (envId?: string) => Promise<PendingLaunchRecord[]>
+    onPendingLaunchStatus: (cb: (record: PendingLaunchRecord) => void) => () => void
+    onPendingLaunchSpawned: (cb: (data: { pendingId: string; envId: string; instanceId: string; autoHeal: boolean; timedOut?: boolean }) => void) => () => void
   }
   activity: {
     list: () => Promise<ActivityEvent[]>
@@ -701,6 +713,19 @@ const api: ClaudeManagerAPI = {
     },
     respondToPrompt: (data) => { ipcRenderer.send('env:prompt-response', data) },
     pickFile: (opts) => ipcRenderer.invoke('env:pick-file', opts),
+    launchSessionWhenReady: (opts) => ipcRenderer.invoke('env:launchSessionWhenReady', opts),
+    cancelPendingLaunch: (pendingId: string) => ipcRenderer.invoke('env:cancelPendingLaunch', pendingId),
+    getPendingLaunches: (envId?: string) => ipcRenderer.invoke('env:getPendingLaunches', envId),
+    onPendingLaunchStatus: (cb) => {
+      const l = (_e: any, record: PendingLaunchRecord) => cb(record)
+      ipcRenderer.on('pendingLaunch:status', l)
+      return () => ipcRenderer.removeListener('pendingLaunch:status', l)
+    },
+    onPendingLaunchSpawned: (cb) => {
+      const l = (_e: any, data: { pendingId: string; envId: string; instanceId: string; autoHeal: boolean; timedOut?: boolean }) => cb(data)
+      ipcRenderer.on('pendingLaunch:spawned', l)
+      return () => ipcRenderer.removeListener('pendingLaunch:spawned', l)
+    },
   },
   activity: {
     list: () => ipcRenderer.invoke('activity:list'),
