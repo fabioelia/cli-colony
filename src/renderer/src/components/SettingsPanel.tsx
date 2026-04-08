@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X, TrendingUp, Download, Search, Shield } from 'lucide-react'
 import HelpPopover from './HelpPopover'
+import BatchExecutionSettings from './BatchExecutionSettings'
 import { parseShellArgs } from '../../../shared/utils'
 import type { McpAuditEntry, CommitAttribution, CostQuotas, CostAuditEntry, CostAuditStatus, ApprovalRule, ApprovalRuleType, ApprovalRuleAction } from '../../../preload'
 import type { SessionTemplate } from '../../../shared/types'
@@ -67,6 +68,8 @@ export default function SettingsPanel({ onBack }: Props) {
   const [approvalRules, setApprovalRules] = useState<ApprovalRule[]>([])
   const [showApprovalRulesSection, setShowApprovalRulesSection] = useState(false)
   const [approvalRuleForm, setApprovalRuleForm] = useState<Partial<ApprovalRule> | null>(null)
+
+  const [showBatchSection, setShowBatchSection] = useState(false)
   const [approvalRuleFormError, setApprovalRuleFormError] = useState<string | null>(null)
   const [approvalRuleFormName, setApprovalRuleFormName] = useState('')
   const [approvalRuleFormType, setApprovalRuleFormType] = useState<ApprovalRuleType>('file_pattern')
@@ -1437,6 +1440,12 @@ export default function SettingsPanel({ onBack }: Props) {
           </div>
         )
       })()}
+
+      {/* Batch Execution */}
+      <BatchExecutionSettings
+        isExpanded={showBatchSection}
+        onToggleExpand={() => setShowBatchSection(!showBatchSection)}
+      />
 
       {/* Scheduler Log */}
       <div className={`settings-section settings-logs-section ${showSchedulerLogs ? '' : 'collapsed'}`}>
