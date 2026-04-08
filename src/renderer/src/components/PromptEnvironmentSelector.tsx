@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AlertCircle, HelpCircle } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 
@@ -32,6 +32,15 @@ export default function PromptEnvironmentSelector({
   const [mode, setMode] = useState<'create' | 'reuse'>('create')
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onCancel])
 
   // Filter running instances
   const runningInstances = instances.filter((inst) => inst.status === 'running')
