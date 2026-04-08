@@ -4381,7 +4381,7 @@ input, select {
 .session-status-context.red { color: var(--danger); }
 .context-meter-label {
   font-family: var(--font-mono, monospace);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
 }
 

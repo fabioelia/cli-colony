@@ -1357,16 +1357,28 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           <span className="session-status-item session-status-uptime" tabIndex={-1}>
             {formatUptime(Math.max(0, Math.floor((Date.now() - new Date(instance.createdAt).getTime()) / 1000)))}
           </span>
-          {contextUsage && (
-            <span
-              className={`session-status-item session-status-context ${contextUsage.percentage >= 95 ? 'red' : contextUsage.percentage >= 80 ? 'amber' : 'green'}`}
-              tabIndex={-1}
-              title={`Context usage: ${contextUsage.tokens.toLocaleString()} / ${contextUsage.maxTokens.toLocaleString()} tokens (${contextUsage.percentage}%)`}
-            >
-              <span className={`session-status-dot ${contextUsage.percentage >= 95 ? 'red' : contextUsage.percentage >= 80 ? 'amber' : 'green'}`} />
-              <span className="context-meter-label">{contextUsage.percentage}%</span>
-            </span>
-          )}
+          {contextUsage && (() => {
+            const b = contextUsage.breakdown
+            const fmt = (n: number) => n.toLocaleString()
+            const tooltip = [
+              `Context usage: ${fmt(contextUsage.tokens)} / ${fmt(contextUsage.maxTokens)} tokens (${contextUsage.percentage}%)`,
+              '',
+              `System prompt: ${fmt(b.systemPrompt)}`,
+              `History: ${fmt(b.history)}`,
+              `Artifacts: ${fmt(b.artifacts)}`,
+              `Other: ${fmt(b.other)}`,
+            ].join('\n')
+            return (
+              <span
+                className={`session-status-item session-status-context ${contextUsage.percentage >= 95 ? 'red' : contextUsage.percentage >= 80 ? 'amber' : 'green'}`}
+                tabIndex={-1}
+                title={tooltip}
+              >
+                <span className={`session-status-dot ${contextUsage.percentage >= 95 ? 'red' : contextUsage.percentage >= 80 ? 'amber' : 'green'}`} />
+                <span className="context-meter-label">{contextUsage.percentage}%</span>
+              </span>
+            )
+          })()}
           {outputBytes >= 250 * 1024 && (
             <span className={`session-status-item session-status-ctx ${outputBytes >= 600 * 1024 ? 'red' : 'amber'}`} tabIndex={-1} title="Context window pressure — terminal output is large, approaching context limit">
               <span className={`session-status-dot ${outputBytes >= 600 * 1024 ? 'red' : 'amber'}`} />
