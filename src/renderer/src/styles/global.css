@@ -4364,9 +4364,25 @@ input, select {
 .session-status-dot.waiting { background: #f59e0b; }
 .session-status-dot.amber { background: #f59e0b; }
 .session-status-dot.red { background: var(--danger); }
+.session-status-dot.green { background: #10b981; }
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
+}
+
+/* Context Meter */
+.session-status-context {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.session-status-context.green { color: #10b981; }
+.session-status-context.amber { color: #f59e0b; }
+.session-status-context.red { color: var(--danger); }
+.context-meter-label {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  font-weight: 500;
 }
 
 /* ---- Session Steer Input Bar ---- */

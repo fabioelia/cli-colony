@@ -5,7 +5,8 @@ import {
 } from '../session-scanner'
 import { getRestorableSessions, clearRestorable, getRecentSessions } from '../recent-sessions'
 import { getAllInstances } from '../instance-manager'
-import type { CoordinatorTeam } from '../../shared/types'
+import { getContextUsage, tokenizeApproximate } from '../context-counter'
+import type { CoordinatorTeam, ContextUsage } from '../../shared/types'
 
 export function registerSessionHandlers(): void {
   ipcMain.handle('sessions:list', (_e, limit?: number) => scanSessions(limit))
@@ -60,5 +61,13 @@ export function registerSessionHandlers(): void {
       coordinatorId: sessionId,
       workers,
     }
+  })
+
+  ipcMain.handle('session:getContextUsage', (_e, sessionId: string): ContextUsage | null => {
+    return getContextUsage(sessionId)
+  })
+
+  ipcMain.handle('session:tokenizeApproximate', (_e, text: string): number => {
+    return tokenizeApproximate(text)
   })
 }

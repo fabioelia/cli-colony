@@ -509,3 +509,20 @@ export interface TeamMetrics {
   workers: WorkerStats[]
 }
 
+// Context window usage tracking
+export interface ContextUsageBreakdown {
+  systemPrompt: number  // estimated tokens in system prompt
+  history: number  // estimated tokens in conversation history
+  artifacts: number  // estimated tokens in handoff artifacts
+  other: number  // other tracked data
+}
+
+export interface ContextUsage {
+  sessionId: string
+  tokens: number  // estimated current tokens
+  maxTokens: number  // max for this model
+  percentage: number  // 0–100
+  breakdown: ContextUsageBreakdown
+  lastUpdatedAt: string  // ISO 8601
+}
+

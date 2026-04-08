@@ -6,7 +6,7 @@ import type {
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
   PersonaRunEntry, ScoreCard, CostQuotas, CostAuditEntry, ApprovalRule, ApprovalRuleType, ApprovalRuleAction,
-  CoordinatorTeam, BatchConfig, BatchRun, TeamMetrics, WorkerStats, TeamMetricsEntry,
+  CoordinatorTeam, BatchConfig, BatchRun, TeamMetrics, WorkerStats, TeamMetricsEntry, ContextUsage,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -17,7 +17,7 @@ export type {
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
   PersonaRunEntry, ScoreCard, CostQuotas, CostAuditEntry, ApprovalRule, ApprovalRuleType, ApprovalRuleAction,
-  CoordinatorTeam, BatchConfig, BatchRun, TeamMetrics, WorkerStats, TeamMetricsEntry,
+  CoordinatorTeam, BatchConfig, BatchRun, TeamMetrics, WorkerStats, TeamMetricsEntry, ContextUsage,
 }
 
 
@@ -323,6 +323,9 @@ export interface ClaudeManagerAPI {
     gitRevert: (dir: string, file: string) => Promise<boolean>
     scoreOutput: (dir: string) => Promise<ScoreCard>
     getComments: (instanceId: string) => Promise<ColonyComment[]>
+    getCoordinatorTeam: (sessionId: string) => Promise<CoordinatorTeam | null>
+    getContextUsage: (sessionId: string) => Promise<ContextUsage | null>
+    tokenizeApproximate: (text: string) => Promise<number>
   }
   audit: {
     runPanel: (panel: string, context: object) => Promise<AuditResult[]>
@@ -732,6 +735,8 @@ const api: ClaudeManagerAPI = {
     scoreOutput: (dir) => ipcRenderer.invoke('session:scoreOutput', dir),
     getComments: (instanceId) => ipcRenderer.invoke('session:getComments', instanceId),
     getCoordinatorTeam: (sessionId) => ipcRenderer.invoke('session:getCoordinatorTeam', sessionId) as Promise<CoordinatorTeam | null>,
+    getContextUsage: (sessionId) => ipcRenderer.invoke('session:getContextUsage', sessionId),
+    tokenizeApproximate: (text) => ipcRenderer.invoke('session:tokenizeApproximate', text),
   },
   audit: {
     runPanel: (panel, context) => ipcRenderer.invoke('audit:runPanel', panel, context),

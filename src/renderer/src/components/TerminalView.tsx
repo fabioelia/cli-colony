@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useState, useMemo, MutableRefObject } from 'react'
+import type { ContextUsage } from '../../preload'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -301,6 +302,8 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   // Shell quick commands
   const [shellQuickOpen, setShellQuickOpen] = useState(() => localStorage.getItem('shell-quick-open') !== 'false')
   const [shellTermReady, setShellTermReady] = useState(false)
+  // Context usage tracking
+  const [contextUsage, setContextUsage] = useState<ContextUsage | null>(null)
 
   useEffect(() => {
     if (!envName) return
@@ -682,6 +685,23 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
       setTeamLoading(false)
     })
   }, [viewTab, instance.id, instance.roleTag])
+
+  // Track context usage periodically (every 5 seconds)
+  useEffect(() => {
+    if (instance.status !== 'running') return
+
+    const fetchContextUsage = async () => {
+      const usage = await window.api.session.getContextUsage(instance.id)
+      setContextUsage(usage)
+    }
+
+    // Fetch immediately
+    fetchContextUsage()
+
+    // Then fetch every 5 seconds
+    const interval = setInterval(fetchContextUsage, 5000)
+    return () => clearInterval(interval)
+  }, [instance.id, instance.status])
 
   const handleTogglePath = useCallback((path: string) => {
     setExpandedPaths((prev) => {
@@ -1337,6 +1357,16 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           <span className="session-status-item session-status-uptime" tabIndex={-1}>
             {formatUptime(Math.max(0, Math.floor((Date.now() - new Date(instance.createdAt).getTime()) / 1000)))}
           </span>
+          {contextUsage && (
+            <span
+              className={`session-status-item session-status-context ${contextUsage.percentage >= 95 ? 'red' : contextUsage.percentage >= 80 ? 'amber' : 'green'}`}
+              tabIndex={-1}
+              title={`Context usage: ${contextUsage.tokens.toLocaleString()} / ${contextUsage.maxTokens.toLocaleString()} tokens (${contextUsage.percentage}%)`}
+            >
+              <span className={`session-status-dot ${contextUsage.percentage >= 95 ? 'red' : contextUsage.percentage >= 80 ? 'amber' : 'green'}`} />
+              <span className="context-meter-label">{contextUsage.percentage}%</span>
+            </span>
+          )}
           {outputBytes >= 250 * 1024 && (
             <span className={`session-status-item session-status-ctx ${outputBytes >= 600 * 1024 ? 'red' : 'amber'}`} tabIndex={-1} title="Context window pressure — terminal output is large, approaching context limit">
               <span className={`session-status-dot ${outputBytes >= 600 * 1024 ? 'red' : 'amber'}`} />
