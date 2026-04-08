@@ -1582,6 +1582,162 @@ body:has(.daemon-update-banner) .app-update-banner {
   opacity: 0.85;
 }
 
+/* ===== Session empty state (starter cards) ===== */
+.session-empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 32px 24px;
+  max-width: 620px;
+  margin: 0 auto;
+  -webkit-app-region: no-drag;
+}
+
+.session-empty-state-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.session-empty-state-header h2 {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.session-empty-state-cwd {
+  font-family: monospace;
+  color: var(--accent);
+  font-size: 16px;
+}
+
+.session-empty-state-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  max-width: 480px;
+  line-height: 1.5;
+}
+
+.session-empty-state-subtitle code {
+  font-size: 11px;
+  padding: 1px 5px;
+  background: var(--bg-secondary);
+  border-radius: 3px;
+  color: var(--text-primary);
+}
+
+.session-empty-state-change-dir {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.session-empty-state-change-dir:hover {
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
+
+.session-empty-state-pick-dir {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: white;
+  background: var(--accent);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.session-empty-state-pick-dir:hover {
+  opacity: 0.85;
+}
+
+.starter-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  width: 100%;
+}
+
+.starter-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 14px 14px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.12s, border-color 0.12s, background 0.12s;
+  outline: none;
+}
+
+.starter-card:hover,
+.starter-card:focus-visible {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  background: var(--bg-tertiary, var(--bg-secondary));
+}
+
+.starter-card.disabled {
+  opacity: 0.55;
+}
+
+.starter-card.disabled:hover,
+.starter-card.disabled:focus-visible {
+  border-color: var(--border);
+  transform: none;
+}
+
+.starter-card-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--accent);
+}
+
+.starter-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.starter-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.starter-card-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
 /* ===== Dialog ===== */
 /* Repo removal impact modal */
 .removal-modal-overlay {
@@ -1897,6 +2053,31 @@ body:has(.daemon-update-banner) .app-update-banner {
 .dialog-field select:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+.dialog-field textarea.dialog-first-prompt {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.5;
+}
+
+.dialog-field textarea.dialog-first-prompt:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.dialog-field-hint {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .dialog-env-picker {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { AgentDef, CliBackend } from '../types'
 import { COLORS, COLOR_MAP } from '../lib/constants'
 
@@ -10,9 +10,21 @@ interface Props {
     args?: string[]
     cliBackend?: CliBackend
     mcpServers?: string[]
+    initialPrompt?: string
   }) => void | Promise<void>
   onClose: () => void
   prefill?: AgentDef
+  /**
+   * Seed text for the optional "First prompt" textarea. When set (even to an
+   * empty string), the prompt field is rendered and the provided text becomes
+   * the initial value. Used by the Sessions empty-state starter cards.
+   */
+  initialPrompt?: string
+  /**
+   * Seed for the working-directory input. Lets callers (e.g. the starter
+   * cards) pre-populate the folder the session will run in.
+   */
+  initialWorkingDirectory?: string
 }
 
 function resolveColor(c?: string): string {
@@ -35,9 +47,9 @@ interface McpServer {
   description?: string
 }
 
-export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props) {
+export default function NewInstanceDialog({ onCreate, onClose, prefill, initialPrompt, initialWorkingDirectory }: Props) {
   const [name, setName] = useState(prefill?.name || '')
-  const [workingDirectory, setWorkingDirectory] = useState('')
+  const [workingDirectory, setWorkingDirectory] = useState(initialWorkingDirectory || '')
   const [color, setColor] = useState(resolveColor(prefill?.color))
   const [extraArgs, setExtraArgs] = useState('')
   const [cliBackend, setCliBackend] = useState<CliBackend>('claude')
@@ -45,6 +57,22 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
   const [environments, setEnvironments] = useState<EnvOption[]>([])
   const [mcpServersList, setMcpServersList] = useState<McpServer[]>([])
   const [selectedMcpServers, setSelectedMcpServers] = useState<Set<string>>(new Set())
+  // Only render the first-prompt field when the caller passed a seed — the
+  // classic "New Session" dialog stays unchanged for users who hit Cmd+T.
+  const showPromptField = initialPrompt !== undefined
+  const [firstPrompt, setFirstPrompt] = useState(initialPrompt || '')
+  const promptRef = useRef<HTMLTextAreaElement | null>(null)
+
+  // When the starter-card path opens the dialog, focus the prompt textarea
+  // and place the cursor at the end so the user can just press Enter.
+  useEffect(() => {
+    if (!showPromptField) return
+    const ta = promptRef.current
+    if (!ta) return
+    ta.focus()
+    const len = ta.value.length
+    ta.setSelectionRange(len, len)
+  }, [showPromptField])
 
   useEffect(() => {
     window.api.settings.getAll().then((s) => {
@@ -70,6 +98,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
     setCreating(true)
     const args = extraArgs.trim() ? extraArgs.trim().split(/\s+/) : undefined
     const mcpServers = selectedMcpServers.size > 0 ? Array.from(selectedMcpServers) : undefined
+    const trimmedPrompt = firstPrompt.trim()
     try {
       await onCreate({
         name: name.trim() || undefined,
@@ -78,6 +107,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
         args,
         cliBackend,
         mcpServers,
+        initialPrompt: trimmedPrompt || undefined,
       })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -114,9 +144,26 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill }: Props)
             placeholder="My Project"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            autoFocus
+            autoFocus={!showPromptField}
           />
         </div>
+
+        {showPromptField && (
+          <div className="dialog-field">
+            <label>First prompt</label>
+            <textarea
+              ref={promptRef}
+              className="dialog-first-prompt"
+              placeholder="What should Claude work on first?"
+              value={firstPrompt}
+              onChange={(e) => setFirstPrompt(e.target.value)}
+              rows={4}
+            />
+            <div className="dialog-field-hint">
+              Runs automatically as soon as the session is ready. Leave blank to start idle.
+            </div>
+          </div>
+        )}
 
         <div className="dialog-field">
           <label>Working Directory</label>

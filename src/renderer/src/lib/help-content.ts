@@ -50,6 +50,16 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Empty State',
+        position: 'Main panel when no sessions exist',
+        items: [
+          { label: 'Starter prompt cards', detail: 'New to Colony? The empty Sessions panel shows 4 starter cards — click one to launch a session with a seed prompt pre-filled against your current working directory. Cards: Explore (codebase tour), Propose a refactor (low-risk diff), Fix a small bug (PR from recent history), Start blank (opens a blank New Session dialog).', icon: 'Search' },
+          { label: 'Working directory chip', detail: 'The header shows the folder the card will open Claude in. Click "Change directory" to pick a different folder before launching. If no directory is set, the cards are disabled and the page shows a "Choose folder…" CTA — pick a folder once and the cards light up.', icon: 'FolderOpen' },
+          { label: 'First prompt editor', detail: 'Clicking a card opens the New Session dialog with a "First prompt" textarea pre-filled with the card\'s seed text. Edit it if you want, then press Create — the prompt runs automatically the moment the session is ready.' },
+          { label: 'Blank start', detail: 'The "Start blank" card opens the dialog with an empty prompt field if you just want a fresh session without a seed task.', icon: 'TerminalSquare' },
+        ],
+      },
+      {
         name: 'Session List',
         position: 'Main area',
         items: [

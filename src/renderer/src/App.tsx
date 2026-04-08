@@ -6,6 +6,7 @@ import type { ClaudeInstance, AgentDef, CliSession, RecentSession, CliBackend, A
 import Sidebar, { SidebarView } from './components/Sidebar'
 import TerminalView from './components/TerminalView'
 import NewInstanceDialog from './components/NewInstanceDialog'
+import SessionEmptyState from './components/SessionEmptyState'
 import AgentsPanel from './components/AgentsPanel'
 import AgentEditor from './components/AgentEditor'
 import SettingsPanel from './components/SettingsPanel'
@@ -35,6 +36,13 @@ export default function App() {
   const [instances, setInstances] = useState<ClaudeInstance[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [showNewDialog, setShowNewDialog] = useState(false)
+  // Seed for the next "New Session" dialog open. When a starter-card on the
+  // Sessions empty state is clicked, we stash the prompt + cwd here so the
+  // dialog opens pre-filled. Cleared on close.
+  const [newDialogSeed, setNewDialogSeed] = useState<{
+    initialPrompt?: string
+    workingDirectory?: string
+  } | null>(null)
   const [view, setView] = useState<View>('instances')
   const [tasksTab, setTasksTab] = useState<'queue' | 'board'>('queue')
   const [editingAgent, setEditingAgent] = useState<AgentDef | null>(null)
@@ -348,13 +356,33 @@ export default function App() {
     args?: string[]
     cliBackend?: CliBackend
     mcpServers?: string[]
+    initialPrompt?: string
   }) => {
     agentToLaunchRef.current = null
-    const inst = await window.api.instance.create(opts)
+    const { initialPrompt, ...createOpts } = opts
+    const inst = await window.api.instance.create(createOpts)
+    // If the caller seeded a first prompt, queue it to run once the session
+    // signals it's ready — same path the Quick Prompt flow uses.
+    if (initialPrompt && initialPrompt.trim()) {
+      pendingPromptRef.current = { id: inst.id, prompt: initialPrompt }
+    }
     setActiveId(inst.id)
     setShowNewDialog(false)
+    setNewDialogSeed(null)
     setView('instances')
   }, [])
+
+  const handleStarterCard = useCallback(
+    (prompt: string, seedOpts: { workingDirectory?: string }) => {
+      agentToLaunchRef.current = null
+      setNewDialogSeed({
+        initialPrompt: prompt,
+        workingDirectory: seedOpts.workingDirectory,
+      })
+      setShowNewDialog(true)
+    },
+    [],
+  )
 
   const handleSelect = useCallback((id: string) => {
     // Clear unread
@@ -1207,10 +1235,16 @@ export default function App() {
             }}
           />
         </div>
-        {view === 'instances' && !active && (
+        {view === 'instances' && !active && regularInstances.length === 0 && (
+          <SessionEmptyState
+            onSelectCard={handleStarterCard}
+            defaultWorkingDirectory={recentDirs[0] || ''}
+          />
+        )}
+        {view === 'instances' && !active && regularInstances.length > 0 && (
           <div className="empty-state">
             <h2>No session selected</h2>
-            <p>Create a new Claude session to get started</p>
+            <p>Pick a session from the sidebar, or create a new one</p>
             <button onClick={() => setShowNewDialog(true)}>New Session</button>
           </div>
         )}
@@ -1253,8 +1287,14 @@ export default function App() {
       {showNewDialog && (
         <NewInstanceDialog
           onCreate={handleCreate}
-          onClose={() => { setShowNewDialog(false); agentToLaunchRef.current = null }}
+          onClose={() => {
+            setShowNewDialog(false)
+            setNewDialogSeed(null)
+            agentToLaunchRef.current = null
+          }}
           prefill={agentToLaunchRef.current || undefined}
+          initialPrompt={newDialogSeed?.initialPrompt}
+          initialWorkingDirectory={newDialogSeed?.workingDirectory}
         />
       )}
       {forkModalInst && (
