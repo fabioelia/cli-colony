@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, HelpCircle } from 'lucide-react'
+import HelpPopover from './HelpPopover'
 
 interface Instance {
   id: string
@@ -66,7 +67,10 @@ export default function PromptEnvironmentSelector({
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/30">
       <div className="bg-bg-secondary rounded-lg shadow-lg p-6 w-96 border border-border">
-        <h2 className="text-lg font-semibold mb-4">Environment for "{promptLabel}"</h2>
+        <div className="flex items-center justify-between mb-4 gap-2">
+          <h2 className="text-lg font-semibold">Environment for "{promptLabel}"</h2>
+          <HelpPopover topic="github" align="left" />
+        </div>
 
         <div className="space-y-4 mb-6">
           {/* Create New Option */}
@@ -86,7 +90,10 @@ export default function PromptEnvironmentSelector({
           </label>
 
           {/* Reuse Existing Option */}
-          <label className="flex items-start gap-3 cursor-pointer p-3 rounded border border-border hover:bg-bg-tertiary transition-colors" style={{ borderColor: mode === 'reuse' ? 'var(--accent)' : undefined, opacity: hasRunningInstances ? 1 : 0.5 }}>
+          <label className="flex items-start gap-3 p-3 rounded border transition-colors" style={{
+            borderColor: mode === 'reuse' ? 'var(--accent)' : !hasRunningInstances ? 'var(--text-muted)' : 'var(--border)',
+            cursor: hasRunningInstances ? 'pointer' : 'not-allowed',
+          }}>
             <input
               type="radio"
               name="env-mode"
@@ -96,7 +103,7 @@ export default function PromptEnvironmentSelector({
               disabled={!hasRunningInstances}
               className="mt-1"
             />
-            <div className="flex-1">
+            <div className="flex-1" style={{ opacity: hasRunningInstances ? 1 : 0.6 }}>
               <div className="font-medium">Reuse existing</div>
               <div className="text-xs text-text-tertiary mt-1">
                 {hasRunningInstances ? `${runningInstances.length} running instance${runningInstances.length !== 1 ? 's' : ''} available` : 'No running instances'}
