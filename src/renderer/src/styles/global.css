@@ -11998,6 +11998,90 @@ input, select {
   gap: 16px;
 }
 
+/* Env launch waiting view — shown while services boot */
+.env-launch-waiting {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 4px 4px;
+}
+.env-launch-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.env-launch-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.env-launch-title strong {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.env-launch-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.env-launch-services {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--bg-tertiary);
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.env-launch-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 6px 0;
+  text-align: center;
+}
+.env-launch-service {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+}
+.env-launch-service-name {
+  flex: 1;
+  color: var(--text-primary);
+  font-family: var(--font-mono, monospace);
+}
+.env-launch-service-status {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.env-launch-service-running .env-launch-service-status { color: #10b981; }
+.env-launch-service-crashed .env-launch-service-status { color: #ef4444; }
+.env-launch-service-starting .env-launch-service-status { color: #f59e0b; }
+.env-launch-icon-ok { color: #10b981; }
+.env-launch-icon-error { color: #ef4444; }
+.env-launch-icon-spin {
+  animation: spin 1s linear infinite;
+  color: var(--accent);
+}
+.env-launch-icon-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  margin-left: 3px;
+  margin-right: 3px;
+}
+.env-launch-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .env-setup-spinner {
   color: var(--accent);
 }

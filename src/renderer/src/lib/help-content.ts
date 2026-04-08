@@ -414,6 +414,18 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Delete', detail: 'Remove this template.', icon: 'Trash2' },
         ],
       },
+      {
+        name: 'Launch Gate',
+        position: 'Shown after clicking + New Environment — progress view before session opens',
+        items: [
+          { label: 'Ready gate', detail: 'Colony waits until ALL required services transition to running before spawning the Claude session. You won\'t see errors from a half-initialized env.' },
+          { label: 'Live service rows', detail: 'Each row shows a service name and live status (starting / running / crashed / stopped). Updates every 2 seconds while the env boots.' },
+          { label: 'Auto-heal on crash', detail: 'If any required service crashes during startup, Colony still opens the session — but prefixes the first message with the failed service name, last 50 log lines, and a directive to investigate. The Claude session lands pre-briefed to fix the env.' },
+          { label: 'Timeout fallback', detail: 'If nothing resolves within 5 minutes, Colony spawns the session anyway so you\'re not stuck waiting. The timed-out env may still need manual intervention.' },
+          { label: 'Cancel button', detail: 'Drops the pending launch. Does NOT tear down the environment — it keeps running in the background. You can re-launch a session from the Instances tab once services are up.' },
+          { label: 'Optional services', detail: 'mcp-server crashes do not trigger auto-heal — it\'s treated as optional to match the env-daemon tolerance.' },
+        ],
+      },
     ],
   },
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { X, Loader2, MessageSquare, GitBranch, FolderOpen, Send, Plus, FileText } from 'lucide-react'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import { buildTemplateAgentPrompt } from '../../../shared/env-prompts'
+import EnvLaunchWaiting from './EnvLaunchWaiting'
 
 interface GitHubRepo {
   owner: string
@@ -34,6 +35,8 @@ export default function NewEnvironmentDialog({ onClose, onCreated, onLaunchInsta
   const [instructions, setInstructions] = useState('')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Pending launch waiting state
+  const [waiting, setWaiting] = useState<{ pendingId: string; envId: string; envName: string } | null>(null)
 
   useEffect(() => {
     window.api.github.getRepos().then(setRepos)
@@ -112,21 +115,39 @@ export default function NewEnvironmentDialog({ onClose, onCreated, onLaunchInsta
         `\nHow can I help you with this environment?`,
       ].filter(Boolean).join('')
 
-      const id = await onLaunchInstance({
-        name: instanceName.trim(),
-        workingDirectory: manifest.paths?.root,
-        color: '#10b981',
-        args: ['--dangerously-skip-permissions'],
+      // Defer session launch until services are ready (or auto-heal on failure).
+      // Main process watches env status and spawns the session when all required
+      // services are running, or with an auto-heal prompt if any crash.
+      const { pendingId } = await window.api.env.launchSessionWhenReady({
+        envId: manifest.id,
+        envName: instanceName.trim(),
+        spawnOpts: {
+          name: instanceName.trim(),
+          workingDirectory: manifest.paths?.root,
+          color: '#10b981',
+          args: ['--dangerously-skip-permissions'],
+        },
+        initialPrompt,
       })
-
-      sendPromptWhenReady(id, { prompt: initialPrompt })
-
-      onFocusInstance(id)
+      setWaiting({ pendingId, envId: manifest.id, envName: instanceName.trim() })
       onCreated()
     } catch (err: any) {
       setError(err.message || 'Failed to create instance')
       setCreating(false)
     }
+  }
+
+  const handleWaitingSpawned = (instanceId: string) => {
+    setWaiting(null)
+    setCreating(false)
+    onFocusInstance(instanceId)
+    onClose()
+  }
+
+  const handleWaitingCancel = () => {
+    setWaiting(null)
+    setCreating(false)
+    onClose()
   }
 
   const handleSelectDir = async () => {
@@ -154,7 +175,15 @@ export default function NewEnvironmentDialog({ onClose, onCreated, onLaunchInsta
           </div>
         )}
 
-        {creating ? (
+        {waiting ? (
+          <EnvLaunchWaiting
+            pendingId={waiting.pendingId}
+            envId={waiting.envId}
+            envName={waiting.envName}
+            onSpawned={handleWaitingSpawned}
+            onCancel={handleWaitingCancel}
+          />
+        ) : creating ? (
           <div className="env-setup-progress">
             <Loader2 size={24} className="spinning" />
             <p>{mode === 'template' ? 'Launching Template Agent...' : `Creating "${instanceName}"...`}</p>
