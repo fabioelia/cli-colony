@@ -351,10 +351,18 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
       <div className="panel-header">
         <h2><Server size={16} /> Environments</h2>
         <div className="panel-header-tabs">
-          <button className={`panel-header-tab ${activeTab === 'instances' ? 'active' : ''}`} onClick={() => setActiveTab('instances')}>
+          <button
+            className={`panel-header-tab ${activeTab === 'instances' ? 'active' : ''}`}
+            onClick={() => setActiveTab('instances')}
+            title="Running and stopped environments (Cmd+Shift+{ / Cmd+Shift+})"
+          >
             Instances {environments.length > 0 && <span className="panel-header-count">{environments.length}</span>}
           </button>
-          <button className={`panel-header-tab ${activeTab === 'templates' ? 'active' : ''}`} onClick={() => setActiveTab('templates')}>
+          <button
+            className={`panel-header-tab ${activeTab === 'templates' ? 'active' : ''}`}
+            onClick={() => setActiveTab('templates')}
+            title="Environment templates (Cmd+Shift+{ / Cmd+Shift+})"
+          >
             Templates {templates.length > 0 && <span className="panel-header-count">{templates.length}</span>}
           </button>
         </div>
