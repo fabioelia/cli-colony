@@ -1443,7 +1443,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-radius: 4px;
 }
 .terminal-header-branch-badge.env {
-  color: #10b981;
+  color: var(--success);
   background: rgba(16, 185, 129, 0.08);
   border-color: rgba(16, 185, 129, 0.15);
 }
@@ -1987,8 +1987,8 @@ body:has(.daemon-update-banner) .app-update-banner {
 .removal-modal-cancel:hover { background: var(--bg-hover); }
 
 .removal-modal-confirm {
-  background: #ef4444;
-  border-color: #ef4444;
+  background: var(--danger);
+  border-color: var(--danger);
   color: #fff;
 }
 .removal-modal-confirm:hover:not(:disabled) { opacity: 0.85; }
@@ -2109,8 +2109,8 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: var(--text-muted);
 }
 
-.dialog-env-dot.running { background: #10b981; }
-.dialog-env-dot.partial { background: #f59e0b; }
+.dialog-env-dot.running { background: var(--success); }
+.dialog-env-dot.partial { background: var(--warning); }
 
 .dialog-env-branch {
   font-size: 9px;
@@ -3125,7 +3125,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-family: var(--font-mono, monospace);
 }
 .settings-daemon-stale {
-  color: #f59e0b;
+  color: var(--warning);
   font-weight: 600;
   font-family: var(--font-sans, system-ui);
 }
@@ -3389,7 +3389,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .mcp-form-error {
   font-size: 11px;
-  color: #ef4444;
+  color: var(--danger);
   margin-top: 2px;
 }
 
@@ -3453,7 +3453,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .mcp-audit-outcome--approved {
-  color: #10b981;
+  color: var(--success);
   background: rgba(16, 185, 129, 0.12);
 }
 
@@ -3869,13 +3869,13 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .arena-trophy-btn:not(:disabled):hover {
   opacity: 1;
-  color: #f59e0b;
-  border-color: #f59e0b;
+  color: var(--warning);
+  border-color: var(--warning);
 }
 
 .arena-trophy-btn.winner {
-  color: #f59e0b;
-  border-color: #f59e0b;
+  color: var(--warning);
+  border-color: var(--warning);
   opacity: 1;
 }
 
@@ -4131,7 +4131,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .services-tab-badge.success {
   background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
+  color: var(--success);
 }
 
 /* ---- Services Panel (TerminalView tab) ---- */
@@ -4165,11 +4165,11 @@ body:has(.daemon-update-banner) .app-update-banner {
   padding: 2px 7px;
   border-radius: 3px;
 }
-.services-panel-env-status.running { color: #10b981; background: rgba(16, 185, 129, 0.1); }
+.services-panel-env-status.running { color: var(--success); background: rgba(16, 185, 129, 0.1); }
 .services-panel-env-status.stopped { color: var(--text-muted); background: var(--bg-surface); }
-.services-panel-env-status.partial { color: #f59e0b; background: rgba(245, 158, 11, 0.1); }
-.services-panel-env-status.creating { color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
-.services-panel-env-status.error   { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+.services-panel-env-status.partial { color: var(--warning); background: rgba(245, 158, 11, 0.1); }
+.services-panel-env-status.creating { color: var(--accent); background: rgba(59, 130, 246, 0.1); }
+.services-panel-env-status.error   { color: var(--danger); background: rgba(239, 68, 68, 0.1); }
 
 .services-panel-actions {
   display: flex;
@@ -4264,8 +4264,8 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 12px;
   font-weight: 600;
 }
-.services-panel-fix-result.success .services-panel-fix-result-header { color: #10b981; }
-.services-panel-fix-result.error .services-panel-fix-result-header { color: #ef4444; }
+.services-panel-fix-result.success .services-panel-fix-result-header { color: var(--success); }
+.services-panel-fix-result.error .services-panel-fix-result-header { color: var(--danger); }
 .services-panel-fix-result-header button {
   margin-left: auto;
   background: none;
@@ -4369,10 +4369,10 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-radius: 50%;
   flex-shrink: 0;
 }
-.services-panel-status-dot.running { background: #10b981; box-shadow: 0 0 4px rgba(16, 185, 129, 0.4); }
+.services-panel-status-dot.running { background: var(--success); box-shadow: 0 0 4px rgba(16, 185, 129, 0.4); }
 .services-panel-status-dot.stopped { background: #4b5563; }
-.services-panel-status-dot.crashed { background: #ef4444; box-shadow: 0 0 4px rgba(239, 68, 68, 0.4); }
-.services-panel-status-dot.starting { background: #f59e0b; animation: pulse-dot 1.5s infinite; }
+.services-panel-status-dot.crashed { background: var(--danger); box-shadow: 0 0 4px rgba(239, 68, 68, 0.4); }
+.services-panel-status-dot.starting { background: var(--warning); animation: pulse-dot 1.5s infinite; }
 
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }
@@ -4394,10 +4394,10 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-radius: 3px;
   letter-spacing: 0.3px;
 }
-.services-panel-svc-badge.running { color: #10b981; background: rgba(16, 185, 129, 0.1); }
+.services-panel-svc-badge.running { color: var(--success); background: rgba(16, 185, 129, 0.1); }
 .services-panel-svc-badge.stopped { color: var(--text-muted); background: var(--bg-surface); }
-.services-panel-svc-badge.crashed { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
-.services-panel-svc-badge.starting { color: #f59e0b; background: rgba(245, 158, 11, 0.1); }
+.services-panel-svc-badge.crashed { color: var(--danger); background: rgba(239, 68, 68, 0.1); }
+.services-panel-svc-badge.starting { color: var(--warning); background: rgba(245, 158, 11, 0.1); }
 
 .services-panel-row-meta {
   display: flex;
@@ -4425,7 +4425,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   display: flex;
   align-items: center;
   gap: 2px;
-  color: #f59e0b;
+  color: var(--warning);
   font-size: 10px;
   font-weight: 600;
 }
@@ -4591,10 +4591,10 @@ body:has(.daemon-update-banner) .app-update-banner {
 .session-status-uptime {
   color: var(--text-secondary);
 }
-.session-status-cost.green { color: #10b981; }
-.session-status-cost.amber { color: #f59e0b; }
+.session-status-cost.green { color: var(--success); }
+.session-status-cost.amber { color: var(--warning); }
 .session-status-cost.red { color: var(--danger); }
-.session-status-ctx.amber { color: #f59e0b; }
+.session-status-ctx.amber { color: var(--warning); }
 .session-status-ctx.red { color: var(--danger); }
 .session-status-dot {
   width: 6px;
@@ -4602,11 +4602,11 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-radius: 50%;
   flex-shrink: 0;
 }
-.session-status-dot.busy { background: #10b981; animation: pulse-dot 1.5s infinite; }
-.session-status-dot.waiting { background: #f59e0b; }
-.session-status-dot.amber { background: #f59e0b; }
+.session-status-dot.busy { background: var(--success); animation: pulse-dot 1.5s infinite; }
+.session-status-dot.waiting { background: var(--warning); }
+.session-status-dot.amber { background: var(--warning); }
 .session-status-dot.red { background: var(--danger); }
-.session-status-dot.green { background: #10b981; }
+.session-status-dot.green { background: var(--success); }
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
@@ -4618,8 +4618,8 @@ body:has(.daemon-update-banner) .app-update-banner {
   align-items: center;
   gap: 4px;
 }
-.session-status-context.green { color: #10b981; }
-.session-status-context.amber { color: #f59e0b; }
+.session-status-context.green { color: var(--success); }
+.session-status-context.amber { color: var(--warning); }
 .session-status-context.red { color: var(--danger); }
 .context-meter-label {
   font-family: var(--font-mono, monospace);
@@ -4633,13 +4633,13 @@ body:has(.daemon-update-banner) .app-update-banner {
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
-  background: color-mix(in srgb, #f59e0b 8%, var(--bg-surface));
-  border-bottom: 1px solid color-mix(in srgb, #f59e0b 30%, var(--border));
+  background: color-mix(in srgb, var(--warning) 8%, var(--bg-surface));
+  border-bottom: 1px solid color-mix(in srgb, var(--warning) 30%, var(--border));
   flex-shrink: 0;
   -webkit-app-region: no-drag;
 }
 .steer-input-icon {
-  color: #f59e0b;
+  color: var(--warning);
   flex-shrink: 0;
 }
 .steer-input {
@@ -4676,9 +4676,9 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-weight: 600;
   padding: 1px 4px;
   border-radius: 3px;
-  background: color-mix(in srgb, #f59e0b 20%, transparent);
-  color: #f59e0b;
-  border: 1px solid color-mix(in srgb, #f59e0b 40%, transparent);
+  background: color-mix(in srgb, var(--warning) 20%, transparent);
+  color: var(--warning);
+  border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent);
   white-space: nowrap;
 }
 
@@ -4771,8 +4771,8 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: rgba(239, 68, 68, 0.08);
 }
 .logs-level-btn.warn.active {
-  color: #f59e0b;
-  border-color: #f59e0b;
+  color: var(--warning);
+  border-color: var(--warning);
   background: rgba(245, 158, 11, 0.08);
 }
 
@@ -4805,10 +4805,10 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-radius: 50%;
   flex-shrink: 0;
 }
-.logs-filter-dot.running { background: #10b981; }
+.logs-filter-dot.running { background: var(--success); }
 .logs-filter-dot.stopped { background: #4b5563; }
-.logs-filter-dot.crashed { background: #ef4444; }
-.logs-filter-dot.starting { background: #f59e0b; }
+.logs-filter-dot.crashed { background: var(--danger); }
+.logs-filter-dot.starting { background: var(--warning); }
 
 .logs-panel-actions {
   display: flex;
@@ -5398,7 +5398,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .github-repo-not-cloned {
   font-size: 10px;
-  color: #f59e0b;
+  color: var(--warning);
   margin-left: auto;
   margin-right: 4px;
   opacity: 0.8;
@@ -5406,7 +5406,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .github-repo-cloning {
   font-size: 10px;
-  color: #3b82f6;
+  color: var(--accent);
   margin-left: auto;
   margin-right: 4px;
   animation: pulse 1.5s ease-in-out infinite;
@@ -7961,11 +7961,11 @@ body:has(.daemon-update-banner) .app-update-banner {
   white-space: nowrap;
 }
 .github-pr-attention.review-requested {
-  color: #f59e0b;
+  color: var(--warning);
   background: rgba(245, 158, 11, 0.12);
 }
 .github-pr-attention.assigned {
-  color: #3b82f6;
+  color: var(--accent);
   background: rgba(59, 130, 246, 0.12);
 }
 
@@ -7982,11 +7982,11 @@ body:has(.daemon-update-banner) .app-update-banner {
   cursor: default;
 }
 .github-pr-feedback.pending {
-  color: #f59e0b;
+  color: var(--warning);
   background: rgba(245, 158, 11, 0.12);
 }
 .github-pr-feedback.addressed {
-  color: #10b981;
+  color: var(--success);
   background: rgba(16, 185, 129, 0.12);
 }
 
@@ -8004,7 +8004,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   padding: 6px 10px;
   font-size: 11px;
   font-weight: 600;
-  color: #f59e0b;
+  color: var(--warning);
   background: rgba(245, 158, 11, 0.08);
 }
 .github-attention-row {
@@ -8034,7 +8034,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .github-attention-reason {
   font-size: 10px;
   font-weight: 600;
-  color: #f59e0b;
+  color: var(--warning);
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -8046,7 +8046,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-muted);
   margin-left: 4px;
 }
-.github-pr-age.amber { color: #f59e0b; }
+.github-pr-age.amber { color: var(--warning); }
 .github-pr-age.red { color: var(--danger); }
 
 /* Merge readiness badges */
@@ -8058,7 +8058,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-radius: 8px;
   font-size: 10px;
   font-weight: 600;
-  color: #10b981;
+  color: var(--success);
   background: rgba(16, 185, 129, 0.12);
   white-space: nowrap;
 }
@@ -8081,7 +8081,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-muted);
   margin-bottom: 8px;
 }
-.github-pr-diff-stats .additions { color: #10b981; font-weight: 600; }
+.github-pr-diff-stats .additions { color: var(--success); font-weight: 600; }
 .github-pr-diff-stats .deletions { color: var(--danger); font-weight: 600; }
 
 .github-pr-checks {
@@ -9470,7 +9470,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   padding: 1px 5px;
   border-radius: 4px;
   background: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
+  color: var(--warning);
   border: 1px solid rgba(245, 158, 11, 0.3);
   font-weight: 600;
 }
@@ -11062,7 +11062,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .env-badge-running {
   background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
+  color: var(--success);
 }
 
 .env-badge-stopped {
@@ -11072,7 +11072,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .env-badge-partial {
   background: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
+  color: var(--warning);
 }
 
 .env-panel-actions {
@@ -11127,7 +11127,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .env-btn-danger {
-  background: #ef4444;
+  background: var(--danger);
   color: white;
 }
 
@@ -11212,7 +11212,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .env-card-creating .env-setup-tracker-header { color: var(--accent); }
-.env-card-error .env-setup-tracker-header { color: #ef4444; }
+.env-card-error .env-setup-tracker-header { color: var(--danger); }
 
 .env-setup-step {
   display: flex;
@@ -11226,18 +11226,18 @@ body:has(.daemon-update-banner) .app-update-banner {
 .env-setup-step-pending .env-setup-step-icon { color: var(--text-muted); }
 .env-setup-step-running .env-setup-step-icon { color: var(--accent); }
 .env-setup-step-done .env-setup-step-icon { color: var(--success); }
-.env-setup-step-error .env-setup-step-icon { color: #ef4444; }
+.env-setup-step-error .env-setup-step-icon { color: var(--danger); }
 
 .env-setup-step-name {
   color: var(--text-secondary);
 }
 
 .env-setup-step-done .env-setup-step-name { color: var(--text-muted); }
-.env-setup-step-error .env-setup-step-name { color: #ef4444; }
+.env-setup-step-error .env-setup-step-name { color: var(--danger); }
 
 .env-setup-step-error {
   font-size: 10px;
-  color: #ef4444;
+  color: var(--danger);
   opacity: 0.8;
   margin-left: auto;
   max-width: 300px;
@@ -11259,13 +11259,13 @@ body:has(.daemon-update-banner) .app-update-banner {
   border: 1px solid rgba(239, 68, 68, 0.2);
   border-radius: 4px;
   font-size: 10px;
-  color: #ef4444;
+  color: var(--danger);
   line-height: 1.4;
   word-break: break-word;
 }
 
 .env-card-running {
-  border-left: 3px solid #10b981;
+  border-left: 3px solid var(--success);
 }
 
 .env-card-stopped {
@@ -11273,15 +11273,15 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .env-card-partial {
-  border-left: 3px solid #f59e0b;
+  border-left: 3px solid var(--warning);
 }
 
 .env-card-creating {
-  border-left: 3px solid #3b82f6;
+  border-left: 3px solid var(--accent);
 }
 
 .env-card-error {
-  border-left: 3px solid #ef4444;
+  border-left: 3px solid var(--danger);
 }
 
 .env-card-header {
@@ -11405,19 +11405,19 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .env-action-start:hover {
-  color: #10b981;
+  color: var(--success);
 }
 
 .env-action-stop:hover {
-  color: #f59e0b;
+  color: var(--warning);
 }
 
 .env-action-teardown:hover {
-  color: #ef4444;
+  color: var(--danger);
 }
 
 .env-action-confirm {
-  color: #ef4444 !important;
+  color: var(--danger) !important;
   background: rgba(239, 68, 68, 0.1) !important;
   animation: env-pulse 0.5s ease-in-out infinite alternate;
 }
@@ -11590,7 +11590,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .env-purpose-interactive {
   background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
+  color: var(--success);
 }
 .env-purpose-background {
   background: rgba(99, 102, 241, 0.15);
@@ -11723,7 +11723,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   display: flex;
   align-items: center;
   gap: 3px;
-  color: #f59e0b;
+  color: var(--warning);
   font-size: 11px;
 }
 
@@ -11888,7 +11888,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #f59e0b;
+  background: var(--warning);
   flex-shrink: 0;
   display: inline-block;
   margin-right: 4px;
@@ -11896,7 +11896,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .sidebar-session-external {
   opacity: 0.85;
-  border-left: 2px solid #f59e0b;
+  border-left: 2px solid var(--warning);
   padding-left: 6px !important;
   cursor: pointer;
   transition: opacity 0.15s, background 0.15s;
@@ -11950,7 +11950,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .ext-session-popover-title svg {
-  color: #f59e0b;
+  color: var(--warning);
   flex-shrink: 0;
 }
 
@@ -12068,7 +12068,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .ext-session-msg-assistant .ext-session-msg-role {
-  color: #3b82f6;
+  color: var(--accent);
 }
 
 .ext-session-msg-header svg {
@@ -12076,7 +12076,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .ext-session-msg-assistant .ext-session-msg-header svg {
-  color: #3b82f6;
+  color: var(--accent);
 }
 
 .ext-session-msg-time {
@@ -12114,7 +12114,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 12px;
   font-weight: 600;
   color: #fff;
-  background: #f59e0b;
+  background: var(--warning);
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -12225,7 +12225,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 6px;
-  color: #ef4444;
+  color: var(--danger);
   font-size: 12px;
   margin-top: 8px;
 }
@@ -12493,10 +12493,10 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-color: var(--text-muted);
 }
 .persona-card.enabled {
-  border-left-color: #10b981;
+  border-left-color: var(--success);
 }
 .persona-card.running {
-  border-left-color: #10b981;
+  border-left-color: var(--success);
 }
 .persona-card.disabled {
   opacity: 0.55;
@@ -12572,7 +12572,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   align-items: center;
   gap: 3px;
   font-size: 10px;
-  color: #f59e0b;
+  color: var(--warning);
   opacity: 0.85;
   letter-spacing: 0.02em;
 }
@@ -12580,7 +12580,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 /* ---- Audit results panel ---- */
 
 .panel-header-btn--audit-alert {
-  color: #f59e0b;
+  color: var(--warning);
 }
 
 .audit-badge {
@@ -12591,7 +12591,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   height: 16px;
   padding: 0 4px;
   border-radius: 8px;
-  background: #f59e0b;
+  background: var(--warning);
   color: #000;
   font-size: 9px;
   font-weight: 700;
@@ -12662,8 +12662,8 @@ body:has(.daemon-update-banner) .app-update-banner {
   letter-spacing: 0.04em;
   margin-top: 1px;
 }
-.audit-result-row--high .audit-result-severity { background: rgba(239,68,68,0.15); color: #ef4444; }
-.audit-result-row--medium .audit-result-severity { background: rgba(245,158,11,0.15); color: #f59e0b; }
+.audit-result-row--high .audit-result-severity { background: rgba(239,68,68,0.15); color: var(--danger); }
+.audit-result-row--medium .audit-result-severity { background: rgba(245,158,11,0.15); color: var(--warning); }
 .audit-result-row--low .audit-result-severity { background: rgba(99,102,241,0.1); color: #a5b4fc; }
 
 .audit-result-body {
@@ -12707,7 +12707,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   flex-shrink: 0;
 }
 .persona-card-status-dot.running {
-  background: #10b981;
+  background: var(--success);
   animation: pulse 2s infinite;
 }
 .persona-card-status-dot.idle {
@@ -12737,7 +12737,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-radius: 4px;
 }
 .persona-status-badge.running {
-  color: #10b981;
+  color: var(--success);
   background: rgba(16, 185, 129, 0.1);
 }
 .persona-status-badge.idle {
@@ -12788,10 +12788,10 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-primary);
 }
 .persona-action-btn.running {
-  color: #10b981;
+  color: var(--success);
 }
 .persona-action-btn.danger:hover {
-  color: #ef4444;
+  color: var(--danger);
 }
 
 /* Pill toggle switch for enabled/disabled */
@@ -12819,7 +12819,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   flex-shrink: 0;
 }
 .persona-toggle-track.enabled {
-  background: #10b981;
+  background: var(--success);
 }
 .persona-toggle-thumb {
   position: absolute;
@@ -12843,7 +12843,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   min-width: 16px;
 }
 .persona-toggle:has(.persona-toggle-track.enabled) .persona-toggle-label {
-  color: #10b981;
+  color: var(--success);
 }
 
 /* Whisper feature */
@@ -13178,7 +13178,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .persona-permission-badge.allowed {
   background: rgba(16, 185, 129, 0.12);
-  color: #10b981;
+  color: var(--success);
 }
 .persona-permission-badge.denied {
   background: rgba(107, 114, 128, 0.08);
@@ -13515,7 +13515,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   align-items: center;
   gap: 3px;
   background: rgba(245, 158, 11, 0.12);
-  color: #f59e0b;
+  color: var(--warning);
   border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
@@ -14482,7 +14482,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .fork-entry-dot.running { background: #4ade80; animation: pulse 1.5s infinite; }
 .fork-entry-dot.waiting { background: #60a5fa; }
-.fork-entry-dot.crashed { background: #f59e0b; }
+.fork-entry-dot.crashed { background: var(--warning); }
 .fork-entry-dot.winner { background: #4ade80; }
 .fork-entry-dot.discarded { background: var(--text-muted); opacity: 0.4; }
 .fork-entry-info { display: flex; flex-direction: column; min-width: 0; }
@@ -14497,7 +14497,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .fork-entry-btn.discard-btn:hover { border-color: #f87171; color: #f87171; }
 .fork-entry-crashed-badge {
   font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(245,158,11,0.15);
-  color: #f59e0b; border: 1px solid rgba(245,158,11,0.3);
+  color: var(--warning); border: 1px solid rgba(245,158,11,0.3);
 }
 .fork-entry-winner-badge {
   font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(74,222,128,0.15);
@@ -14787,7 +14787,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .persona-edit-meta-select:focus { border-color: var(--accent); }
 .persona-edit-meta-error {
   font-size: 11px;
-  color: #ef4444;
+  color: var(--danger);
   padding: 4px 8px;
   background: rgba(239,68,68,0.08);
   border-radius: 4px;
@@ -15414,19 +15414,19 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .governance-audit-entry.status-ok {
-  border-left-color: #10b981;
+  border-left-color: var(--success);
 }
 
 .governance-audit-entry.status-warned {
-  border-left-color: #f59e0b;
+  border-left-color: var(--warning);
 }
 
 .governance-audit-entry.status-throttled {
-  border-left-color: #f59e0b;
+  border-left-color: var(--warning);
 }
 
 .governance-audit-entry.status-blocked {
-  border-left-color: #ef4444;
+  border-left-color: var(--danger);
 }
 
 .governance-audit-header {
@@ -15459,7 +15459,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   margin-left: auto;
   font-family: Menlo, Monaco, monospace;
   font-weight: 600;
-  color: #10b981;
+  color: var(--success);
 }
 
 .governance-audit-reason {
