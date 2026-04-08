@@ -182,8 +182,19 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'CI badges', detail: 'Green/red/yellow dots for GitHub Actions check status. Click to see details and fetch failure logs.' },
           { label: 'Dispatch button', detail: 'Send this PR as a note to a persona. Pick a persona and add optional context — the note appears in the persona\'s ## Notes section on its next run.', icon: 'UserPlus' },
           { label: 'Colony Review', detail: 'Launches a Claude session that reviews the code and pushes structured feedback to the colony-feedback branch.', icon: 'Play' },
-          { label: 'Quick actions', detail: 'Buttons (Review, Summarize, Checkout & Test) launch a Claude session with the PR pre-loaded as context.' },
+          { label: 'Quick actions', detail: 'Buttons (Review, Summarize, Checkout & Test). Click any button to open the environment selector modal.', icon: 'Play' },
           { label: 'Comments', detail: 'Click to view all PR comments (general + file-level) in a split modal with markdown rendering.', icon: 'MessageSquare' },
+        ],
+      },
+      {
+        name: 'Prompt Actions',
+        position: 'Environment selector modal',
+        items: [
+          { label: 'Create new environment', detail: 'Set up a fresh instance with all dependencies. Takes 30–60s to initialize. Default option.' },
+          { label: 'Reuse existing', detail: 'Send the prompt to an already-running instance. Shows instance name, status, age, and cost. Choose this if you\'re testing multiple PRs in the same environment.' },
+          { label: 'Instance dropdown', detail: 'Lists running instances only. Each entry shows the session name, status, how long it\'s been running, and its current cost (if available).' },
+          { label: 'Cancel', detail: 'Close the modal without launching anything.' },
+          { label: 'Next', detail: 'Proceed with your selection. For new environments, the session starts in a "building" state. For reuse, the prompt is queued immediately.' },
         ],
       },
       {

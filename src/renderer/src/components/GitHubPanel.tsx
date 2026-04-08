@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useFileDrop } from '../hooks/useFileDrop'
 import { ArrowLeft, Plus, Trash2, RefreshCw, GitPullRequest, ExternalLink, Play, Pencil, ChevronDown, ChevronRight, MessageSquare, Send, User, Users, Eye, GitBranch, Clock, FileDiff, ShieldCheck, ShieldAlert, ShieldQuestion, Brain, Save, X, FileText, File, Filter, Search, CheckCircle, XCircle, Loader, CircleDot, Wrench, Download, AlertCircle, UserPlus } from 'lucide-react'
 import RepoRemovalModal, { type RemovalImpact } from './RepoRemovalModal'
+import PromptEnvironmentSelector from './PromptEnvironmentSelector'
 import { marked } from 'marked'
 import type { GitHubPR, GitHubRepo, QuickPrompt, PRChecks, FeedbackFile } from '../types'
 import type { PersonaInfo } from '../../../shared/types'
@@ -114,6 +115,10 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
 
   // Feedback files per PR (keyed by "owner/name#number")
   const [feedbackByPR, setFeedbackByPR] = useState<Record<string, FeedbackFile[]>>({})
+
+  // Prompt Environment Selector modal
+  const [showEnvSelector, setShowEnvSelector] = useState(false)
+  const [pendingPromptAction, setPendingPromptAction] = useState<{ prompt: QuickPrompt; pr: GitHubPR; repo: GitHubRepo } | null>(null)
 
   // Sync PR context file whenever prsByRepo changes
   const [contextPath, setContextPath] = useState<string | null>(null)
@@ -387,16 +392,41 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const handleQuickAction = async (prompt: QuickPrompt, pr: GitHubPR, repo: GitHubRepo) => {
     // Ensure context file is current before launching
     await ensurePRsRefreshed()
+    // Store pending action and show environment selector modal
+    setPendingPromptAction({ prompt, pr, repo })
+    setShowEnvSelector(true)
+  }
+
+  const handleEnvSelectorCreate = async (mode: 'create', opts?: { name?: string; workingDirectory?: string; args?: string[] }) => {
+    if (!pendingPromptAction) return
+    const { prompt, pr, repo } = pendingPromptAction
     const resolved = await window.api.github.resolvePrompt(prompt, pr, repo)
     const slug = `${repo.owner}/${repo.name}`
     const commentRef = pr.comments?.length > 0
       ? `\n\nThe PR has ${pr.comments.length} comments. Read the comments file at ~/.claude-colony/pr-workspace/comments/${slug.replace(/\//g, '-')}-${pr.number}.md for full details.`
       : ''
     const id = await onLaunchInstance({
-      name: `${prompt.label}: ${repo.name}#${pr.number}`,
-      workingDirectory: repo.localPath || workspacePath || undefined,
+      name: opts?.name || `${prompt.label}: ${repo.name}#${pr.number}`,
+      workingDirectory: opts?.workingDirectory || repo.localPath || workspacePath || undefined,
+      args: opts?.args,
     })
     sendPromptToInstance(id, resolved + commentRef + memoryInstructions + colonyContextInstruction, `${prompt.label}: ${repo.name}#${pr.number}`)
+    setShowEnvSelector(false)
+    setPendingPromptAction(null)
+  }
+
+  const handleEnvSelectorReuse = async (instanceId: string) => {
+    if (!pendingPromptAction) return
+    const { prompt, pr, repo } = pendingPromptAction
+    const resolved = await window.api.github.resolvePrompt(prompt, pr, repo)
+    const slug = `${repo.owner}/${repo.name}`
+    const commentRef = pr.comments?.length > 0
+      ? `\n\nThe PR has ${pr.comments.length} comments. Read the comments file at ~/.claude-colony/pr-workspace/comments/${slug.replace(/\//g, '-')}-${pr.number}.md for full details.`
+      : ''
+    sendPromptToInstance(instanceId, resolved + commentRef + memoryInstructions + colonyContextInstruction, `${prompt.label}: ${repo.name}#${pr.number}`)
+    onFocusInstance(instanceId)
+    setShowEnvSelector(false)
+    setPendingPromptAction(null)
   }
 
   const handleOpenPromptEditor = () => {
@@ -1404,6 +1434,22 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
             </div>
           </div>
         </div>
+      )}
+
+      {/* Prompt Environment Selector modal */}
+      {showEnvSelector && pendingPromptAction && (
+        <PromptEnvironmentSelector
+          instances={instances}
+          promptLabel={pendingPromptAction.prompt.label}
+          repoName={pendingPromptAction.repo.name}
+          prNumber={pendingPromptAction.pr.number}
+          onCancel={() => {
+            setShowEnvSelector(false)
+            setPendingPromptAction(null)
+          }}
+          onSelect={handleEnvSelectorCreate}
+          onSelectReuse={handleEnvSelectorReuse}
+        />
       )}
     </div>
   )
