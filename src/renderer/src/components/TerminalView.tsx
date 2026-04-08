@@ -13,6 +13,7 @@ import '@xterm/xterm/css/xterm.css'
 import type { ClaudeInstance } from '../types'
 import Tooltip from './Tooltip'
 import HelpPopover from './HelpPopover'
+import { usePanelTabKeys } from '../hooks/usePanelTabKeys'
 
 interface TerminalEntry {
   term: Terminal
@@ -1051,30 +1052,14 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   }, [instance.id, viewTab, focused])
 
   // Session tab keyboard navigation — Cmd+Shift+{ (prev) / Cmd+Shift+} (next)
-  useEffect(() => {
-    if (!focused) return
-    const handler = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey) return
-      if (e.key !== '{' && e.key !== '}') return
-      e.preventDefault()
-      e.stopPropagation()
-      const visibleTabs: ViewTab[] = [
-        'session', 'shell', 'files',
-        ...(envName ? ['services' as ViewTab, 'logs' as ViewTab] : []),
-        'replay',
-        ...(instance.dir ? ['changes' as ViewTab] : []),
-        ...(instance.roleTag === 'Coordinator' ? ['team' as ViewTab, 'metrics' as ViewTab] : []),
-      ]
-      const currentIndex = visibleTabs.indexOf(viewTab)
-      if (currentIndex === -1) return
-      const nextIndex = e.key === '}'
-        ? (currentIndex + 1) % visibleTabs.length
-        : (currentIndex - 1 + visibleTabs.length) % visibleTabs.length
-      setViewTab(visibleTabs[nextIndex])
-    }
-    window.addEventListener('keydown', handler, true)
-    return () => window.removeEventListener('keydown', handler, true)
-  }, [focused, viewTab, envName, instance.dir, instance.roleTag])
+  const visibleViewTabs = useMemo<ViewTab[]>(() => [
+    'session', 'shell', 'files',
+    ...(envName ? (['services', 'logs'] as ViewTab[]) : []),
+    'replay',
+    ...(instance.dir ? (['changes'] as ViewTab[]) : []),
+    ...(instance.roleTag === 'Coordinator' ? (['team', 'metrics'] as ViewTab[]) : []),
+  ], [envName, instance.dir, instance.roleTag])
+  usePanelTabKeys(visibleViewTabs, viewTab, setViewTab, focused)
 
   return (
     <>

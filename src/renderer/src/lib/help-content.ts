@@ -373,6 +373,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Instances tab', detail: 'Shows running and stopped environments. Click to expand and manage services.' },
           { label: 'Templates tab', detail: 'Browse and manage environment templates. Create new environments from templates.' },
+          { label: 'Tab navigation', detail: 'Cmd+Shift+{ / Cmd+Shift+} cycles between the Instances and Templates tabs without touching the mouse.' },
           { label: 'List/card toggle', detail: 'Switch between compact list rows and card view (Instances tab). Preference is saved per device.', icon: 'LayoutList' },
           { label: 'Refresh button', detail: 'Re-fetches bare repos and re-scans for .colony/ templates (Templates tab only).', icon: 'RefreshCw' },
           { label: 'Import button', detail: 'Import a template from a JSON file.', icon: 'Upload' },
@@ -622,7 +623,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Terminal tab', detail: 'A raw shell in the same directory for running commands alongside Claude.' },
           { label: 'Services tab', detail: 'Appears when an environment is attached. Manage services.' },
           { label: 'Logs tab', detail: 'Appears when an environment is attached. Stream service logs.' },
-          { label: 'Tab navigation', detail: 'Cmd+Shift+{ / Cmd+Shift+} cycles between Session, Terminal, Files, Replay, Changes tabs (and Services/Logs when an environment is attached).' },
+          { label: 'Tab navigation', detail: 'Cmd+Shift+{ / Cmd+Shift+} cycles through the visible tabs (Session, Terminal, Files, Replay, Changes, plus Services/Logs when an environment is attached and Team/Metrics for Coordinator sessions). Same shortcut works in Environments (Instances ↔ Templates).' },
         ],
       },
       {

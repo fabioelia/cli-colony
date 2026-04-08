@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Server, Play, Square, Trash2, RefreshCw, FileText,
   Plus, ExternalLink, ChevronDown, ChevronRight,
@@ -11,6 +11,7 @@ import Tooltip from './Tooltip'
 import HelpPopover from './HelpPopover'
 import EnvironmentLogViewer from './EnvironmentLogViewer'
 import NewEnvironmentDialog from './NewEnvironmentDialog'
+import { usePanelTabKeys } from '../hooks/usePanelTabKeys'
 
 import type { EnvStatus, EnvServiceStatus, EnvironmentTemplate } from '../../../shared/types'
 
@@ -53,6 +54,8 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
   const [environments, setEnvironments] = useState<EnvStatus[]>([])
   const [templates, setTemplates] = useState<EnvironmentTemplate[]>([])
   const [activeTab, setActiveTab] = useState<'instances' | 'templates'>('instances')
+  const envTabs = useMemo(() => ['instances', 'templates'] as const, [])
+  usePanelTabKeys(envTabs, activeTab, setActiveTab)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [logViewEnv, setLogViewEnv] = useState<{ envId: string; envName: string; serviceNames?: string[] } | null>(null)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
