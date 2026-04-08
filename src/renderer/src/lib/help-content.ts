@@ -263,6 +263,20 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'File drag & drop', detail: 'Drag files from Finder onto the ask bar to append their absolute paths to your message.' },
         ],
       },
+      {
+        name: 'Batch Execution',
+        position: 'Batch tab (if enabled)',
+        items: [
+          { label: 'Batch Mode', detail: 'Toggle batch execution ON/OFF. When enabled, tasks from your queue are executed on schedule automatically. Default: OFF.' },
+          { label: 'Schedule', detail: 'Cron expression for when to run the batch (e.g. "0 2 * * *" = every night at 2am). Uses standard 5-field cron format.' },
+          { label: 'Concurrency', detail: 'Number of tasks to run in parallel: 1 (sequential, default) to 5 (max parallel). Higher concurrency runs more tasks at once but may use more resources.' },
+          { label: 'Timeout per task', detail: 'Maximum time (in minutes) to wait for each task before killing it and moving to the next. Default: 30 minutes.' },
+          { label: 'On Completion', detail: 'Action after all tasks finish: nothing (silent), report (email summary), or commit (git add + commit if all succeeded).' },
+          { label: 'Report Recipients', detail: 'Email addresses (comma-separated) to send the batch completion report to. Only used if "on completion" action is set to "report".' },
+          { label: 'Run Now', detail: 'Trigger the batch immediately without waiting for the schedule. Useful for testing or emergency runs.' },
+          { label: 'History tab', detail: 'View past batch runs with summary (# completed, # failed, total cost, duration). Click on a run to see detailed task breakdown and logs.' },
+        ],
+      },
     ],
   },
 
