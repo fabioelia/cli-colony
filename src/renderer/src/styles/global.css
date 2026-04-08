@@ -467,7 +467,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   align-items: center;
 }
 .instance-info-process-kill:hover {
-  color: var(--danger, #e55);
+  color: var(--danger);
   background: rgba(255, 80, 80, 0.1);
 }
 
@@ -944,7 +944,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .activity-approval-expiry {
   font-size: 10px;
-  color: var(--amber, #f59e0b);
+  color: var(--warning);
   margin-top: 2px;
 }
 
@@ -1188,7 +1188,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .instance-ctx-badge.red {
   background: rgba(239, 68, 68, 0.15);
-  color: var(--error);
+  color: var(--danger);
 }
 
 .instance-role-badge {
@@ -1772,7 +1772,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .removal-modal-icon {
-  color: var(--warning, #f59e0b);
+  color: var(--warning);
   flex-shrink: 0;
 }
 
@@ -1871,7 +1871,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 9px;
   padding: 1px 5px;
   border-radius: 3px;
-  background: var(--warning, #f59e0b);
+  background: var(--warning);
   color: #000;
   align-self: flex-start;
 }
@@ -6157,7 +6157,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .github-prompt-delete:hover {
-  color: var(--danger, #ef4444);
+  color: var(--danger);
   background: rgba(239, 68, 68, 0.1);
 }
 
@@ -9561,7 +9561,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-family: inherit;
 }
 .cron-editor-input.invalid {
-  color: var(--error, #ef4444);
+  color: var(--danger);
 }
 
 .cron-editor-description {
@@ -13736,7 +13736,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .pipeline-list-error {
   display: inline-flex;
   align-items: center;
-  color: var(--danger, #ef4444);
+  color: var(--danger);
 }
 
 /* env list mode */
@@ -13864,7 +13864,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: var(--error, #ef4444);
+  color: var(--danger);
   background: rgba(239, 68, 68, 0.08);
   border: 1px solid rgba(239, 68, 68, 0.2);
   border-radius: 6px;
@@ -14009,7 +14009,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .automation-wizard-step-dot.active { color: var(--text-primary); font-weight: 500; }
-.automation-wizard-step-dot.done { color: var(--accent, #4ade80); }
+.automation-wizard-step-dot.done { color: var(--success); }
 
 .automation-wizard-step-num {
   width: 20px;
@@ -14025,8 +14025,8 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .automation-wizard-step-dot.done .automation-wizard-step-num {
-  background: var(--accent, #4ade80);
-  border-color: var(--accent, #4ade80);
+  background: var(--success);
+  border-color: var(--success);
   color: #000;
 }
 
@@ -14080,9 +14080,9 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .automation-wizard-option.selected {
-  border-color: var(--accent, #4ade80);
+  border-color: var(--accent);
   color: var(--text-primary);
-  background: rgba(74, 222, 128, 0.05);
+  background: rgba(59, 130, 246, 0.08);
 }
 
 .automation-wizard-option:hover:not(.selected) {
@@ -14114,7 +14114,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .automation-wizard-input:focus {
-  border-color: var(--accent, #4ade80);
+  border-color: var(--accent);
 }
 
 .automation-wizard-select {
@@ -14129,7 +14129,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .automation-wizard-select:focus {
-  border-color: var(--accent, #4ade80);
+  border-color: var(--accent);
 }
 
 .automation-wizard-textarea {
@@ -14147,7 +14147,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .automation-wizard-textarea:focus {
-  border-color: var(--accent, #4ade80);
+  border-color: var(--accent);
 }
 
 .automation-wizard-hint {
@@ -15118,7 +15118,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .outputs-viewer-error {
-  color: var(--error, #f87171);
+  color: var(--danger);
 }
 
 .outputs-viewer {
@@ -15695,10 +15695,10 @@ body:has(.daemon-update-banner) .app-update-banner {
   align-items: center;
   gap: 8px;
   padding: 12px;
-  background: var(--error-bg, #fee);
-  border: 1px solid var(--error-border, #fcc);
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
   border-radius: 4px;
-  color: var(--error-text, #c33);
+  color: var(--danger);
   font-size: 12px;
 }
 

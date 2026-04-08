@@ -885,7 +885,7 @@ action:
                                   <div className="pipeline-budget-bar" title={`$${entry.totalCost.toFixed(2)} of $${p.budget.maxCostUsd.toFixed(2)} budget`}>
                                     <div
                                       className="pipeline-budget-bar-fill"
-                                      style={{ width: `${Math.min(100, (entry.totalCost / p.budget.maxCostUsd) * 100).toFixed(1)}%`, background: entry.totalCost >= p.budget.maxCostUsd ? 'var(--error)' : entry.totalCost >= p.budget.warnAt ? 'var(--warning)' : 'var(--accent)' }}
+                                      style={{ width: `${Math.min(100, (entry.totalCost / p.budget.maxCostUsd) * 100).toFixed(1)}%`, background: entry.totalCost >= p.budget.maxCostUsd ? 'var(--danger)' : entry.totalCost >= p.budget.warnAt ? 'var(--warning)' : 'var(--accent)' }}
                                     />
                                   </div>
                                 )}
@@ -1008,7 +1008,7 @@ action:
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleGeneratePipeline() } }}
                   />
                   {generateError && (
-                    <p style={{ fontSize: 11, color: 'var(--danger, #f87171)', marginTop: 6 }}>{generateError}</p>
+                    <p style={{ fontSize: 11, color: 'var(--danger)', marginTop: 6 }}>{generateError}</p>
                   )}
                 </div>
               ) : (
@@ -1022,7 +1022,7 @@ action:
                     style={{ minHeight: '260px' }}
                   />
                   {generateError && (
-                    <p style={{ fontSize: 11, color: 'var(--danger, #f87171)', marginTop: 6 }}>{generateError}</p>
+                    <p style={{ fontSize: 11, color: 'var(--danger)', marginTop: 6 }}>{generateError}</p>
                   )}
                   <p className="automation-wizard-hint">
                     Edit the YAML above if needed, then click Save to write it to <code>~/.claude-colony/pipelines/</code>.
@@ -1218,7 +1218,7 @@ action:
                 </button>
               )}
               <div style={{ flex: 1 }} />
-              {wizardError && <span style={{ fontSize: 11, color: 'var(--danger, #f87171)', marginRight: 8 }}>{wizardError}</span>}
+              {wizardError && <span style={{ fontSize: 11, color: 'var(--danger)', marginRight: 8 }}>{wizardError}</span>}
               {wizardStep < 3 ? (
                 <button
                   className="panel-header-btn primary"

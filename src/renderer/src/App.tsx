@@ -1363,32 +1363,33 @@ export default function App() {
       {envPromptRequest && createPortal(
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}
           onClick={() => { window.api.env.respondToPrompt({ requestId: envPromptRequest.requestId, cancelled: true }); setEnvPromptRequest(null) }}>
-          <div style={{ background: 'var(--bg-primary, #1e1e2e)', border: '1px solid var(--border, #333)', borderRadius: 10, padding: 24, width: 460, maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}
+          <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 10, padding: 24, width: 460, maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>
                 {envPromptRequest.promptType === 'file' ? 'Select File' : 'Select Option'}
               </h3>
-              <button style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4 }}
+              <button style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' }}
+                title="Cancel"
                 onClick={() => { window.api.env.respondToPrompt({ requestId: envPromptRequest.requestId, cancelled: true }); setEnvPromptRequest(null) }}>
-                ✕
+                <XIcon size={14} />
               </button>
             </div>
-            <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--text-secondary, #aaa)', lineHeight: 1.5 }}>{envPromptRequest.prompt}</p>
+            <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{envPromptRequest.prompt}</p>
 
             {envPromptRequest.promptType === 'file' && (
               <>
                 {envPromptRequest.defaultPath && (
-                  <div style={{ background: 'var(--bg-secondary, #282838)', borderRadius: 6, padding: '8px 12px', margin: '0 0 20px', fontSize: 12, color: 'var(--text-muted, #666)', wordBreak: 'break-all' }}>
-                    Default: <code style={{ color: 'var(--text-primary, #ccc)' }}>{envPromptRequest.defaultPath}</code>
+                  <div style={{ background: 'var(--bg-secondary)', borderRadius: 6, padding: '8px 12px', margin: '0 0 20px', fontSize: 12, color: 'var(--text-muted)', wordBreak: 'break-all' }}>
+                    Default: <code style={{ color: 'var(--text-primary)' }}>{envPromptRequest.defaultPath}</code>
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                  <button style={{ padding: '7px 16px', borderRadius: 6, border: '1px solid var(--border, #444)', background: 'transparent', color: 'var(--text-primary, #ccc)', cursor: 'pointer', fontSize: 13 }}
+                  <button style={{ padding: '7px 16px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 13 }}
                     onClick={() => { window.api.env.respondToPrompt({ requestId: envPromptRequest.requestId, cancelled: true }); setEnvPromptRequest(null) }}>
                     Skip
                   </button>
-                  <button style={{ padding: '7px 16px', borderRadius: 6, border: 'none', background: 'var(--accent, #7c5cfc)', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}
+                  <button style={{ padding: '7px 16px', borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}
                     onClick={async () => {
                       const filePath = await window.api.env.pickFile({
                         title: 'Select .env file',
@@ -1408,11 +1409,11 @@ export default function App() {
 
             {envPromptRequest.promptType === 'select' && envPromptRequest.options && (
               <>
-                <div style={{ maxHeight: 300, overflowY: 'auto', margin: '0 0 16px', borderRadius: 6, border: '1px solid var(--border, #333)' }}>
+                <div style={{ maxHeight: 300, overflowY: 'auto', margin: '0 0 16px', borderRadius: 6, border: '1px solid var(--border)' }}>
                   {envPromptRequest.options.map((option, i) => (
                     <button key={i}
-                      style={{ display: 'block', width: '100%', padding: '10px 14px', background: 'transparent', border: 'none', borderBottom: i < envPromptRequest.options!.length - 1 ? '1px solid var(--border, #333)' : 'none', color: 'var(--text-primary, #ccc)', cursor: 'pointer', fontSize: 13, textAlign: 'left', fontFamily: 'monospace' }}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-secondary, #282838)')}
+                      style={{ display: 'block', width: '100%', padding: '10px 14px', background: 'transparent', border: 'none', borderBottom: i < envPromptRequest.options!.length - 1 ? '1px solid var(--border)' : 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 13, textAlign: 'left', fontFamily: 'monospace' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-secondary)')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                       onClick={() => {
                         window.api.env.respondToPrompt({ requestId: envPromptRequest.requestId, selectedValue: option })
@@ -1423,7 +1424,7 @@ export default function App() {
                   ))}
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button style={{ padding: '7px 16px', borderRadius: 6, border: '1px solid var(--border, #444)', background: 'transparent', color: 'var(--text-primary, #ccc)', cursor: 'pointer', fontSize: 13 }}
+                  <button style={{ padding: '7px 16px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 13 }}
                     onClick={() => { window.api.env.respondToPrompt({ requestId: envPromptRequest.requestId, cancelled: true }); setEnvPromptRequest(null) }}>
                     Skip
                   </button>

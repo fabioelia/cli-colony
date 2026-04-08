@@ -526,7 +526,7 @@ function PersonaRunSparkline({ entries }: { entries: PersonaRunEntry[] }) {
         {bars.map((e, i) => {
           const h = MAX_H
           const x = i * (BAR_W + BAR_GAP)
-          const fill = e.success ? 'var(--accent)' : 'var(--danger, #ef4444)'
+          const fill = e.success ? 'var(--accent)' : 'var(--danger)'
           return (
             <rect key={i} x={x} y={MAX_H - h} width={BAR_W} height={h} rx={2} fill={fill} opacity={0.75} />
           )

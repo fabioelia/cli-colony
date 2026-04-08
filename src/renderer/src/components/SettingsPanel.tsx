@@ -1529,7 +1529,7 @@ export default function SettingsPanel({ onBack }: Props) {
           transition: all 200ms;
         }
         .mcp-env-remove:hover {
-          background: var(--error);
+          background: var(--danger);
           color: white;
         }
         .mcp-env-add {
