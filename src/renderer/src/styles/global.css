@@ -12059,14 +12059,18 @@ input, select {
   letter-spacing: 0.04em;
   color: var(--text-muted);
 }
-.env-launch-service-running .env-launch-service-status { color: #10b981; }
-.env-launch-service-crashed .env-launch-service-status { color: #ef4444; }
-.env-launch-service-starting .env-launch-service-status { color: #f59e0b; }
-.env-launch-icon-ok { color: #10b981; }
-.env-launch-icon-error { color: #ef4444; }
+.env-launch-service-running .env-launch-service-status { color: var(--success); }
+.env-launch-service-crashed .env-launch-service-status { color: var(--danger); }
+.env-launch-service-starting .env-launch-service-status { color: var(--warning); }
+.env-launch-icon-ok { color: var(--success); }
+.env-launch-icon-error { color: var(--danger); }
+.env-launch-icon-warn { color: var(--warning); }
 .env-launch-icon-spin {
   animation: spin 1s linear infinite;
   color: var(--accent);
+}
+.env-launch-subtitle-warn {
+  color: var(--warning);
 }
 .env-launch-icon-dot {
   width: 8px;

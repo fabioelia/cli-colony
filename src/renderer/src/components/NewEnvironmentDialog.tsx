@@ -43,6 +43,24 @@ export default function NewEnvironmentDialog({ onClose, onCreated, onLaunchInsta
     window.api.env.listTemplates().then(setTemplates)
   }, [])
 
+  // Escape closes the dialog (or cancels a pending launch). Keeps the waiting
+  // state escapable so users aren't trapped while services boot.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (waiting) {
+        window.api.env.cancelPendingLaunch(waiting.pendingId).catch(() => {})
+        setWaiting(null)
+        setCreating(false)
+        onClose()
+      } else if (!creating) {
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [waiting, creating, onClose])
+
   // ---- Create Template (launch Template Agent) ----
   const handleCreateTemplate = async () => {
     if (selectedRepos.size === 0 && !instructions.trim()) {

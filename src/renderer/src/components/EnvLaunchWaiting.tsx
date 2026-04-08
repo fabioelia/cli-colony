@@ -73,14 +73,16 @@ export default function EnvLaunchWaiting({ pendingId, envId, envName, onSpawned,
   return (
     <div className="env-launch-waiting">
       <div className="env-launch-header">
-        {crashed ? (
-          <AlertTriangle size={18} className="env-launch-icon env-launch-icon-error" />
+        {crashed || state === 'failed' || state === 'timeout' ? (
+          <AlertTriangle size={18} className="env-launch-icon env-launch-icon-warn" />
         ) : (
           <Loader2 size={18} className="env-launch-icon env-launch-icon-spin" />
         )}
         <div className="env-launch-title">
           <strong>{envName}</strong>
-          <div className="env-launch-subtitle">{statusLabel}</div>
+          <div className={`env-launch-subtitle${crashed || state === 'failed' || state === 'timeout' ? ' env-launch-subtitle-warn' : ''}`}>
+            {statusLabel}
+          </div>
         </div>
       </div>
 
@@ -98,7 +100,12 @@ export default function EnvLaunchWaiting({ pendingId, envId, envName, onSpawned,
       </div>
 
       <div className="env-launch-actions">
-        <button type="button" className="env-btn env-btn-ghost" onClick={handleCancel}>
+        <button
+          type="button"
+          className="env-btn env-btn-ghost"
+          onClick={handleCancel}
+          title="Cancel the pending session launch. The environment keeps running in the background — you can open a session from the Instances tab later."
+        >
           Cancel
         </button>
       </div>
