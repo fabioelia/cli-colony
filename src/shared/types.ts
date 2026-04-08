@@ -442,3 +442,40 @@ export interface CoordinatorTeam {
   workers: CoordinatorWorker[]
 }
 
+// Batch Task Executor types
+export interface BatchConfig {
+  enabled: boolean
+  schedule: string  // cron expression, e.g. "0 2 * * *"
+  concurrency: number  // 1–5, default 1
+  timeoutPerTaskMinutes: number  // default 30
+  onCompletion: 'nothing' | 'report' | 'commit'  // what to do after batch completes
+  reportRecipients: string[]  // email addresses for reports
+}
+
+export type BatchTaskStatus = 'running' | 'success' | 'timeout' | 'failed'
+
+export interface BatchTaskRun {
+  taskId: string
+  status: BatchTaskStatus
+  costUsd?: number
+  durationMs?: number
+  outputPath?: string
+  startedAt: string
+  completedAt?: string
+}
+
+export interface BatchRun {
+  id: string  // unique batch run ID
+  createdAt: string
+  startedAt?: string
+  completedAt?: string
+  taskCount: number
+  successCount: number
+  failedCount: number
+  timeoutCount: number
+  totalCostUsd: number
+  totalDurationMs: number
+  tasks: BatchTaskRun[]
+  reportSent?: boolean
+}
+
