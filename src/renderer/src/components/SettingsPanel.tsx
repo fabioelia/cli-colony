@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X, TrendingUp, Download, Search, Shield } from 'lucide-react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X, TrendingUp, Download, Search, Shield, CheckCircle2, Ban } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import BatchExecutionSettings from './BatchExecutionSettings'
 import AppUpdateSettings from './AppUpdateSettings'
@@ -1037,7 +1037,7 @@ export default function SettingsPanel({ onBack }: Props) {
                                 <td className="number">{percentage}%</td>
                                 <td>
                                   <span className={`governance-badge ${status}`}>
-                                    {status === 'ok' ? '✓ OK' : status === 'warned' ? '⚠ Warned' : '🚫 Blocked'}
+                                    {status === 'ok' ? <><CheckCircle2 size={11} /> OK</> : status === 'warned' ? <><AlertTriangle size={11} /> Warned</> : <><Ban size={11} /> Blocked</>}
                                   </span>
                                 </td>
                               </tr>
@@ -1082,7 +1082,7 @@ export default function SettingsPanel({ onBack }: Props) {
                                 <td className="number">{percentage}%</td>
                                 <td>
                                   <span className={`governance-badge ${status}`}>
-                                    {status === 'ok' ? '✓ OK' : status === 'warned' ? '⚠ Warned' : '🚫 Blocked'}
+                                    {status === 'ok' ? <><CheckCircle2 size={11} /> OK</> : status === 'warned' ? <><AlertTriangle size={11} /> Warned</> : <><Ban size={11} /> Blocked</>}
                                   </span>
                                 </td>
                               </tr>

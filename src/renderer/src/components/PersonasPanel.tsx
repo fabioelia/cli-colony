@@ -3,7 +3,7 @@ import { useFileDrop } from '../hooks/useFileDrop'
 import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
   ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote, ArrowRightCircle, Save, Loader2,
-  Hourglass, ArrowRight, FolderOpen, Search,
+  Hourglass, ArrowRight, FolderOpen, Search, Check,
 } from 'lucide-react'
 import { marked } from 'marked'
 import HelpPopover from './HelpPopover'
@@ -807,8 +807,8 @@ function PersonaCard({
                       const dur = durMin > 0 ? `${durMin}m ${durSec}s` : `${durSec}s`
                       return (
                         <div key={i} className="persona-history-row">
-                          <span className={`persona-history-status ${entry.success ? 'success' : 'fail'}`}>
-                            {entry.success ? '✓' : '✗'}
+                          <span className={`persona-history-status ${entry.success ? 'success' : 'fail'}`} title={entry.success ? 'Completed successfully' : 'Run failed'}>
+                            {entry.success ? <Check size={12} /> : <X size={12} />}
                           </span>
                           <span className="persona-history-time">{ago}</span>
                           <span className="persona-history-dur">{dur}</span>

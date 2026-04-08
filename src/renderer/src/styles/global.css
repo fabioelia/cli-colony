@@ -14699,13 +14699,14 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .persona-history-row:hover { background: var(--bg-hover); }
 .persona-history-status {
-  font-size: 10px;
-  font-weight: 600;
-  width: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
   flex-shrink: 0;
 }
-.persona-history-status.success { color: var(--accent); }
-.persona-history-status.fail { color: var(--danger, #ef4444); }
+.persona-history-status.success { color: var(--success); }
+.persona-history-status.fail { color: var(--danger); }
 .persona-history-time {
   flex: 1;
   color: var(--text-secondary);
@@ -15280,7 +15281,9 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .governance-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 2px 8px;
   border-radius: 3px;
   font-size: 11px;
@@ -15291,17 +15294,17 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .governance-badge.ok {
   background: rgba(16, 185, 129, 0.2);
-  color: #10b981;
+  color: var(--success);
 }
 
 .governance-badge.warned {
   background: rgba(245, 158, 11, 0.2);
-  color: #f59e0b;
+  color: var(--warning);
 }
 
 .governance-badge.blocked {
   background: rgba(239, 68, 68, 0.2);
-  color: #ef4444;
+  color: var(--danger);
 }
 
 .governance-empty {
