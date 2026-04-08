@@ -1,11 +1,12 @@
 import { useEffect, useRef, useCallback, useState, useMemo, MutableRefObject } from 'react'
-import type { ContextUsage } from '../../preload'
+import type { ContextUsage } from '../../../preload'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, History, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation, MessageCircleWarning, ThumbsUp, Sparkles } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, History, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation, MessageCircleWarning, ThumbsUp, Sparkles, Bot, BarChart3 } from 'lucide-react'
+import { TeamMetricsPanel } from './TeamMetricsPanel'
 import type { EnvStatus, EnvServiceStatus, ReplayEvent, GitDiffEntry, ColonyComment, ScoreCard, CoordinatorTeam, CoordinatorWorker } from '../../../shared/types'
 import { buildDiagnosePrompt } from '../../../shared/env-prompts'
 import '@xterm/xterm/css/xterm.css'
@@ -213,7 +214,7 @@ function FileTreeNode({ node, depth, selectedPath, expandedPaths, filter, onTogg
   )
 }
 
-type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'replay' | 'changes' | 'team'
+type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'replay' | 'changes' | 'team' | 'metrics'
 
 export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane, outputBytes = 0 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -1062,6 +1063,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
         ...(envName ? ['services' as ViewTab, 'logs' as ViewTab] : []),
         'replay',
         ...(instance.dir ? ['changes' as ViewTab] : []),
+        ...(instance.roleTag === 'Coordinator' ? ['team' as ViewTab, 'metrics' as ViewTab] : []),
       ]
       const currentIndex = visibleTabs.indexOf(viewTab)
       if (currentIndex === -1) return
@@ -1072,7 +1074,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [focused, viewTab, envName, instance.dir])
+  }, [focused, viewTab, envName, instance.dir, instance.roleTag])
 
   return (
     <>
@@ -1159,6 +1161,15 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 {viewTab !== 'team' && coordinatorTeam?.workers?.length ? (
                   <span className="services-tab-badge" style={{ background: 'var(--color-amber, #f59e0b)' }}>{coordinatorTeam.workers.length}</span>
                 ) : null}
+              </button>
+            )}
+            {instance.roleTag === 'Coordinator' && (
+              <button
+                className={`terminal-tab ${viewTab === 'metrics' ? 'active' : ''}`}
+                onClick={(e) => { e.stopPropagation(); setViewTab('metrics') }}
+                title="Team metrics"
+              >
+                <BarChart3 size={12} /> Metrics
               </button>
             )}
           </div>
@@ -2299,6 +2310,11 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               </div>
             ))}
           </div>
+        </div>
+      )}
+      {viewTab === 'metrics' && instance.roleTag === 'Coordinator' && (
+        <div className="replay-panel">
+          <TeamMetricsPanel coordinatorSessionId={instance.id} />
         </div>
       )}
       <div

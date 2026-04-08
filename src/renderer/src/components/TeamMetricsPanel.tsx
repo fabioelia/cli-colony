@@ -2,31 +2,67 @@
  * Team Metrics Panel — displays worker performance metrics and team-level aggregates.
  */
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Download, AlertCircle } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import type { TeamMetrics } from '../../../shared/types'
-import { BarChart2 } from './BarChart2'
 
 interface TeamMetricsPanelProps {
   coordinatorSessionId?: string  // optional, for contextual filtering
 }
 
-export const TeamMetricsPanel: React.FC<TeamMetricsPanelProps> = ({ coordinatorSessionId }) => {
+interface BarDatum {
+  label: string
+  value: number
+}
+
+function SimpleBarChart({ data, height = 160 }: { data: BarDatum[]; height?: number }) {
+  const max = Math.max(1, ...data.map(d => d.value))
+  const barWidth = 14
+  const gap = 6
+  const width = data.length * (barWidth + gap) + gap
+
+  return (
+    <svg
+      className="team-metrics-chart"
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
+      style={{ width: '100%', height: `${height}px`, maxWidth: '100%' }}
+    >
+      {data.map((d, i) => {
+        const barH = (d.value / max) * (height - 20)
+        const x = gap + i * (barWidth + gap)
+        const y = height - barH - 12
+        return (
+          <g key={i}>
+            <rect
+              x={x}
+              y={y}
+              width={barWidth}
+              height={barH}
+              fill="var(--accent-primary, #34d399)"
+              rx={2}
+            >
+              <title>{`${d.label}: ${d.value}`}</title>
+            </rect>
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
+export const TeamMetricsPanel: React.FC<TeamMetricsPanelProps> = ({ coordinatorSessionId: _coordinatorSessionId }) => {
   const [metrics, setMetrics] = useState<TeamMetrics | null>(null)
-  const [window, setWindow] = useState<'7d' | '30d'>('7d')
+  const [timeWindow, setTimeWindow] = useState<'7d' | '30d'>('7d')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchMetrics()
-  }, [window])
-
-  const fetchMetrics = async () => {
+  const fetchMetrics = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const data = await window.api.team.getMetrics(window)
+      const data = await window.api.team.getMetrics(timeWindow)
       setMetrics(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load metrics')
@@ -34,52 +70,39 @@ export const TeamMetricsPanel: React.FC<TeamMetricsPanelProps> = ({ coordinatorS
     } finally {
       setLoading(false)
     }
-  }
+  }, [timeWindow])
+
+  useEffect(() => {
+    fetchMetrics()
+  }, [fetchMetrics])
 
   const handleExportCsv = async () => {
     try {
-      const csv = await window.api.team.exportCsv(window)
+      const csv = await window.api.team.exportCsv(timeWindow)
       const blob = new Blob([csv], { type: 'text/csv' })
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `team-metrics-${window}.csv`
+      link.download = `team-metrics-${timeWindow}.csv`
       link.click()
       URL.revokeObjectURL(url)
-    } catch (err) {
+    } catch {
       setError('Failed to export metrics')
     }
   }
 
-  if (loading) {
-    return <div className="team-metrics-loading">Loading metrics...</div>
-  }
-
-  if (error) {
-    return (
-      <div className="team-metrics-error">
-        <AlertCircle size={16} />
-        <span>{error}</span>
-      </div>
-    )
-  }
-
-  if (!metrics) {
-    return <div className="team-metrics-empty">No metrics data available</div>
-  }
-
-  // Prepare chart data: aggregate daily runs from metrics
-  const calculateDailyRuns = () => {
-    if (!metrics.workers || metrics.workers.length === 0) return []
-
-    const dayCount = window === '7d' ? 7 : 30
+  // Chart data: distribute aggregate run count roughly uniformly over window days.
+  // This is approximate because the backend aggregates stats, not per-day counts.
+  const chartData: BarDatum[] = (() => {
+    if (!metrics || !metrics.workers || metrics.workers.length === 0) return []
+    const dayCount = timeWindow === '7d' ? 7 : 30
+    const totalRuns = metrics.workers.reduce((sum, w) => sum + w.runsCount, 0)
+    const perDay = totalRuns / dayCount
     return Array.from({ length: dayCount }, (_, i) => ({
-      day: `Day ${i + 1}`,
-      value: Math.ceil((metrics.teamSuccessRate / 100) * metrics.workers[0].runsCount),
+      label: `D${i + 1}`,
+      value: Math.round(perDay),
     }))
-  }
-
-  const chartData = calculateDailyRuns()
+  })()
 
   return (
     <div className="team-metrics-panel">
@@ -88,96 +111,109 @@ export const TeamMetricsPanel: React.FC<TeamMetricsPanelProps> = ({ coordinatorS
         <h2>Team Metrics</h2>
         <div className="panel-header-spacer" />
         <HelpPopover topic="teamMetrics" align="right" />
-        <div className="team-metrics-controls" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div className="panel-header-actions">
           <div className="team-metrics-window-selector">
             <button
-              className={`team-metrics-window-btn ${window === '7d' ? 'active' : ''}`}
-              onClick={() => setWindow('7d')}
+              className={`panel-header-btn ${timeWindow === '7d' ? 'primary' : ''}`}
+              onClick={() => setTimeWindow('7d')}
             >
               7d
             </button>
             <button
-              className={`team-metrics-window-btn ${window === '30d' ? 'active' : ''}`}
-              onClick={() => setWindow('30d')}
+              className={`panel-header-btn ${timeWindow === '30d' ? 'primary' : ''}`}
+              onClick={() => setTimeWindow('30d')}
             >
               30d
             </button>
           </div>
-          <button className="team-metrics-export-btn" onClick={handleExportCsv} title="Export as CSV">
-            <Download size={14} />
+          <button
+            className="panel-header-btn"
+            onClick={handleExportCsv}
+            title="Export as CSV"
+            disabled={!metrics || metrics.workers.length === 0}
+          >
+            <Download size={12} /> CSV
           </button>
         </div>
       </div>
 
-      {/* Summary cards */}
-      <div className="team-metrics-summary">
-        <div className="team-metrics-card">
-          <div className="team-metrics-card-label">Success Rate</div>
-          <div className="team-metrics-card-value">{metrics.teamSuccessRate.toFixed(1)}%</div>
-        </div>
-        <div className="team-metrics-card">
-          <div className="team-metrics-card-label">Avg Duration</div>
-          <div className="team-metrics-card-value">{Math.round(metrics.avgDurationMs / 1000)}s</div>
-        </div>
-        <div className="team-metrics-card">
-          <div className="team-metrics-card-label">Team Cost (YTD)</div>
-          <div className="team-metrics-card-value">${metrics.totalCostYtd.toFixed(2)}</div>
-        </div>
-        <div className="team-metrics-card">
-          <div className="team-metrics-card-label">Active Workers</div>
-          <div className="team-metrics-card-value">{metrics.activeWorkerCount}</div>
-        </div>
-      </div>
+      {loading && <div className="team-metrics-loading">Loading metrics...</div>}
 
-      {/* Chart */}
-      <div className="team-metrics-chart-container">
-        <h3 className="team-metrics-chart-title">Daily Runs ({window})</h3>
-        <BarChart2
-          data={chartData}
-          xKey="day"
-          yKey="value"
-          height={200}
-          width={600}
-          tooltip="Daily run count"
-        />
-      </div>
+      {error && (
+        <div className="team-metrics-error">
+          <AlertCircle size={16} />
+          <span>{error}</span>
+        </div>
+      )}
 
-      {/* Workers table */}
-      <div className="team-metrics-workers">
-        <h3 className="team-metrics-table-title">Worker Performance</h3>
-        {metrics.workers.length === 0 ? (
-          <div className="team-metrics-no-workers">No worker data in selected period</div>
-        ) : (
-          <div className="team-metrics-table">
-            <table className="team-metrics-table-content">
-              <thead>
-                <tr>
-                  <th>Worker ID</th>
-                  <th>Runs</th>
-                  <th>Success Rate (%)</th>
-                  <th>Avg Duration (s)</th>
-                  <th>Total Cost (USD)</th>
-                  <th>Last Run</th>
-                </tr>
-              </thead>
-              <tbody>
-                {metrics.workers.map((worker) => (
-                  <tr key={worker.workerId} className="team-metrics-worker-row">
-                    <td className="team-metrics-worker-name">{worker.workerId}</td>
-                    <td className="team-metrics-cell-numeric">{worker.runsCount}</td>
-                    <td className="team-metrics-cell-numeric">{worker.successRate.toFixed(1)}</td>
-                    <td className="team-metrics-cell-numeric">{Math.round(worker.avgDurationMs / 1000)}</td>
-                    <td className="team-metrics-cell-numeric">${worker.totalCostUsd.toFixed(4)}</td>
-                    <td className="team-metrics-cell-muted">
-                      {worker.lastRunAt ? formatLastRun(worker.lastRunAt) : 'Never'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {!loading && !error && metrics && (
+        <>
+          {/* Summary cards */}
+          <div className="team-metrics-summary">
+            <div className="team-metrics-card">
+              <div className="team-metrics-card-label">Success Rate</div>
+              <div className="team-metrics-card-value">{metrics.teamSuccessRate.toFixed(1)}%</div>
+            </div>
+            <div className="team-metrics-card">
+              <div className="team-metrics-card-label">Avg Duration</div>
+              <div className="team-metrics-card-value">{Math.round(metrics.avgDurationMs / 1000)}s</div>
+            </div>
+            <div className="team-metrics-card">
+              <div className="team-metrics-card-label">Team Cost (YTD)</div>
+              <div className="team-metrics-card-value">${metrics.totalCostYtd.toFixed(2)}</div>
+            </div>
+            <div className="team-metrics-card">
+              <div className="team-metrics-card-label">Active Workers</div>
+              <div className="team-metrics-card-value">{metrics.activeWorkerCount}</div>
+            </div>
           </div>
-        )}
-      </div>
+
+          {/* Chart */}
+          {chartData.length > 0 && (
+            <div className="team-metrics-chart-container">
+              <h3 className="team-metrics-chart-title">Daily Runs ({timeWindow})</h3>
+              <SimpleBarChart data={chartData} />
+            </div>
+          )}
+
+          {/* Workers table */}
+          <div className="team-metrics-workers">
+            <h3 className="team-metrics-table-title">Worker Performance</h3>
+            {metrics.workers.length === 0 ? (
+              <div className="team-metrics-no-workers">No worker data in selected period</div>
+            ) : (
+              <div className="team-metrics-table">
+                <table className="team-metrics-table-content">
+                  <thead>
+                    <tr>
+                      <th>Worker ID</th>
+                      <th>Runs</th>
+                      <th>Success Rate (%)</th>
+                      <th>Avg Duration (s)</th>
+                      <th>Total Cost (USD)</th>
+                      <th>Last Run</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {metrics.workers.map((worker) => (
+                      <tr key={worker.workerId} className="team-metrics-worker-row">
+                        <td className="team-metrics-worker-name">{worker.workerId}</td>
+                        <td className="team-metrics-cell-numeric">{worker.runsCount}</td>
+                        <td className="team-metrics-cell-numeric">{worker.successRate.toFixed(1)}</td>
+                        <td className="team-metrics-cell-numeric">{Math.round(worker.avgDurationMs / 1000)}</td>
+                        <td className="team-metrics-cell-numeric">${worker.totalCostUsd.toFixed(4)}</td>
+                        <td className="team-metrics-cell-muted">
+                          {worker.lastRunAt ? formatLastRun(worker.lastRunAt) : 'Never'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }

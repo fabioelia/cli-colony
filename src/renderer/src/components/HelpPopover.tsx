@@ -35,6 +35,8 @@ interface Props {
   topic: string
   align?: 'left' | 'right'
   position?: 'below' | 'above'
+  /** Optional zone name — scopes the popover to show only that zone from the topic. */
+  zone?: string
 }
 
 function Zone({ zone, defaultOpen }: { zone: HelpZone; defaultOpen: boolean }) {
@@ -61,14 +63,30 @@ function Zone({ zone, defaultOpen }: { zone: HelpZone; defaultOpen: boolean }) {
   )
 }
 
-export default function HelpPopover({ topic, align = 'left', position = 'below' }: Props) {
+export default function HelpPopover({ topic, align = 'left', position = 'below', zone }: Props) {
   const [open, setOpen] = useState(false)
   const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
 
-  const entry: HelpEntry | undefined = helpContent[topic]
-  if (!entry) return null
+  const baseEntry: HelpEntry | undefined = helpContent[topic]
+  if (!baseEntry) return null
+
+  // If a zone is specified, filter the entry down to just that zone.
+  // Match is case-insensitive and trims whitespace for resilience.
+  const entry: HelpEntry = zone && baseEntry.zones
+    ? (() => {
+        const target = zone.trim().toLowerCase()
+        const match = baseEntry.zones!.find(z => z.name.trim().toLowerCase() === target)
+        if (!match) return baseEntry
+        return {
+          title: match.name,
+          description: baseEntry.description,
+          zones: [match],
+          shortcuts: baseEntry.shortcuts,
+        }
+      })()
+    : baseEntry
 
   const updatePosition = useCallback(() => {
     if (!btnRef.current) return
