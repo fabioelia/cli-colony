@@ -30,23 +30,23 @@ function formatUptime(seconds: number): string {
 
 function statusColor(status: string): string {
   switch (status) {
-    case 'running': return '#10b981'
-    case 'stopped': return '#6b7280'
-    case 'partial': return '#f59e0b'
-    case 'creating': return '#3b82f6'
-    case 'crashed': return '#ef4444'
-    case 'starting': return '#3b82f6'
-    case 'error': return '#ef4444'
-    default: return '#6b7280'
+    case 'running': return 'var(--success)'
+    case 'stopped': return 'var(--text-muted)'
+    case 'partial': return 'var(--warning)'
+    case 'creating': return 'var(--accent)'
+    case 'crashed': return 'var(--danger)'
+    case 'starting': return 'var(--accent)'
+    case 'error': return 'var(--danger)'
+    default: return 'var(--text-muted)'
   }
 }
 
 function serviceStatusColor(status: string): string {
   switch (status) {
-    case 'running': return '#10b981'
-    case 'starting': return '#3b82f6'
-    case 'crashed': return '#ef4444'
-    default: return '#4b5563'
+    case 'running': return 'var(--success)'
+    case 'starting': return 'var(--accent)'
+    case 'crashed': return 'var(--danger)'
+    default: return 'var(--text-muted)'
   }
 }
 
