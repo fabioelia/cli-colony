@@ -2200,10 +2200,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           </div>
           <div className="replay-panel-content">
             {teamLoading && <div className="replay-empty">Loading workers...</div>}
-            {!teamLoading && !coordinatorTeam && (
-              <div className="replay-empty">No worker sessions active.</div>
-            )}
-            {!teamLoading && coordinatorTeam && coordinatorTeam.workers.length === 0 && (
+            {!teamLoading && (!coordinatorTeam || coordinatorTeam.workers.length === 0) && (
               <div className="replay-empty">No worker sessions active.</div>
             )}
             {!teamLoading && coordinatorTeam && coordinatorTeam.workers.map((worker: CoordinatorWorker) => (

@@ -1228,6 +1228,7 @@ export default function SettingsPanel({ onBack }: Props) {
         }
 
         const handleDeleteRule = async (id: string) => {
+          if (!confirm('Delete this approval rule?')) return
           try {
             await window.api.approvalRules.delete(id)
             setApprovalRules(approvalRules.filter((r) => r.id !== id))
@@ -1261,6 +1262,9 @@ export default function SettingsPanel({ onBack }: Props) {
               <div className="approval-rules-list">
                 {approvalRuleForm !== null ? (
                   <div className="approval-rule-form">
+                    <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '12px', color: 'var(--text-muted)' }}>
+                      Add New Rule
+                    </div>
                     <div style={{ marginBottom: '8px' }}>
                       <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Rule Name</label>
                       <input
@@ -1408,7 +1412,7 @@ export default function SettingsPanel({ onBack }: Props) {
                               <button
                                 className="settings-logs-toggle"
                                 onClick={() => handleDeleteRule(rule.id)}
-                                style={{ padding: '2px 6px' }}
+                                style={{ padding: '2px 6px', color: 'var(--color-error, #ef4444)', opacity: 0.8 }}
                                 title="Delete rule"
                               >
                                 <Trash2 size={10} />
