@@ -136,6 +136,11 @@ input, select {
   z-index: 999998;
   -webkit-app-region: no-drag;
 }
+/* When the daemon banner is also visible, stack the app-update banner below it
+   so both bars are readable instead of overlapping. */
+body:has(.daemon-update-banner) .app-update-banner {
+  top: 68px;
+}
 .app-update-banner span {
   flex: 1;
 }

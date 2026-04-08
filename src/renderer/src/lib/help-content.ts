@@ -503,7 +503,7 @@ export const helpContent: Record<string, HelpEntry> = {
       },
       {
         name: 'Updates',
-        position: 'Below Daemon section',
+        position: 'Below Approval Rules / above Batch Execution',
         items: [
           { label: 'Updates section', detail: 'Colony checks GitHub releases for new versions once a day (and once 10 seconds after app start). Packaged builds only — development builds skip update checks entirely.', icon: 'DownloadCloud' },
           { label: 'Current Version', detail: 'The app version you are running right now. Same value shown in the About dialog.' },

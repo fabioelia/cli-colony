@@ -67,8 +67,19 @@ export default function AppUpdateBanner() {
           <span>
             <strong>Update available</strong> — v{version} is ready to download.
           </span>
-          <button onClick={handleDownload}>Download</button>
-          <button className="app-update-dismiss" onClick={handleDismiss}>Dismiss</button>
+          <button
+            onClick={handleDownload}
+            title="Download the update in the background — your sessions keep running"
+          >
+            Download
+          </button>
+          <button
+            className="app-update-dismiss"
+            onClick={handleDismiss}
+            title={`Hide this banner for v${version}. It will reappear on next launch or if a newer version ships.`}
+          >
+            Dismiss
+          </button>
         </>
       )}
       {state === 'downloading' && (
@@ -76,7 +87,10 @@ export default function AppUpdateBanner() {
           <span>
             <strong>Downloading update…</strong> {status.downloadPercent}%
           </span>
-          <div className="app-update-progress">
+          <div
+            className="app-update-progress"
+            title={`Downloading v${version} — ${status.downloadPercent}%`}
+          >
             <div className="app-update-progress-bar" style={{ width: `${status.downloadPercent}%` }} />
           </div>
         </>
@@ -86,8 +100,19 @@ export default function AppUpdateBanner() {
           <span>
             <strong>Update ready</strong> — v{version}. Install and restart to apply.
           </span>
-          <button onClick={handleInstall}>Install &amp; Restart</button>
-          <button className="app-update-dismiss" onClick={handleDismiss}>Later</button>
+          <button
+            onClick={handleInstall}
+            title="Quit Colony and relaunch on the new version. Running sessions will be stopped — resume will attempt to restore them."
+          >
+            Install &amp; Restart
+          </button>
+          <button
+            className="app-update-dismiss"
+            onClick={handleDismiss}
+            title="Hide this banner until next launch. The update stays downloaded and ready to install."
+          >
+            Later
+          </button>
         </>
       )}
     </div>

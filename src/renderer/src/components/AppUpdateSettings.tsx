@@ -105,7 +105,10 @@ export default function AppUpdateSettings({ isExpanded, onToggleExpand }: Props)
             {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             <h3>Updates</h3>
           </div>
-          <DownloadCloud size={16} />
+          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+            <HelpPopover topic="settings" zone="Updates" align="right" />
+            <DownloadCloud size={16} />
+          </div>
         </button>
       </div>
     )
@@ -113,13 +116,13 @@ export default function AppUpdateSettings({ isExpanded, onToggleExpand }: Props)
 
   const statusLine = (() => {
     switch (status.state) {
-      case 'checking': return { icon: <Loader2 size={14} className="spin" />, text: 'Checking for updates…', color: '#888' }
-      case 'available': return { icon: <DownloadCloud size={14} />, text: `Update available: v${status.info?.version}`, color: '#60a5fa' }
-      case 'downloading': return { icon: <Loader2 size={14} className="spin" />, text: `Downloading: ${status.downloadPercent}%`, color: '#60a5fa' }
-      case 'ready': return { icon: <CheckCircle size={14} />, text: `Update ready: v${status.info?.version}`, color: '#4ade80' }
-      case 'not-available': return { icon: <CheckCircle size={14} />, text: 'Up to date', color: '#4ade80' }
-      case 'error': return { icon: <AlertTriangle size={14} />, text: status.lastError || 'Update check failed', color: '#ef4444' }
-      default: return { icon: null, text: 'Idle', color: '#888' }
+      case 'checking': return { icon: <Loader2 size={14} className="spin" />, text: 'Checking for updates…', color: 'var(--text-muted)' }
+      case 'available': return { icon: <DownloadCloud size={14} />, text: `Update available: v${status.info?.version}`, color: 'var(--accent)' }
+      case 'downloading': return { icon: <Loader2 size={14} className="spin" />, text: `Downloading: ${status.downloadPercent}%`, color: 'var(--accent)' }
+      case 'ready': return { icon: <CheckCircle size={14} />, text: `Update ready: v${status.info?.version}`, color: 'var(--success)' }
+      case 'not-available': return { icon: <CheckCircle size={14} />, text: 'Up to date', color: 'var(--success)' }
+      case 'error': return { icon: <AlertTriangle size={14} />, text: status.lastError || 'Update check failed', color: 'var(--danger)' }
+      default: return { icon: null, text: 'Idle', color: 'var(--text-muted)' }
     }
   })()
 
@@ -139,23 +142,23 @@ export default function AppUpdateSettings({ isExpanded, onToggleExpand }: Props)
       {isExpanded && (
         <div className="settings-section-content">
           {!status.enabledInEnv && (
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', padding: '8px 10px', marginBottom: '12px', border: '1px solid #333', borderRadius: '4px', fontSize: '12px', color: '#888' }}>
-              <AlertTriangle size={14} style={{ marginTop: '2px', flexShrink: 0, color: '#fbbf24' }} />
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', padding: '8px 10px', marginBottom: '12px', border: '1px solid var(--border)', borderRadius: '4px', fontSize: '12px', color: 'var(--text-muted)' }}>
+              <AlertTriangle size={14} style={{ marginTop: '2px', flexShrink: 0, color: 'var(--warning)' }} />
               <span>Updates are disabled in development builds. Run a packaged build (<code>yarn package</code>) to enable update checks.</span>
             </div>
           )}
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px', marginBottom: '16px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '4px' }}>Current Version</label>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>Current Version</label>
               <div style={{ fontSize: '14px', fontFamily: 'monospace' }}>v{status.currentVersion}</div>
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '4px' }}>Last Checked</label>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>Last Checked</label>
               <div style={{ fontSize: '14px' }}>{formatLastCheck(status.lastCheckAt)}</div>
             </div>
             <div style={{ gridColumn: '1 / -1' }}>
-              <label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '4px' }}>Status</label>
+              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>Status</label>
               <div style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', color: statusLine.color }}>
                 {statusLine.icon}
                 <span>{statusLine.text}</span>
@@ -205,9 +208,9 @@ export default function AppUpdateSettings({ isExpanded, onToggleExpand }: Props)
           </div>
 
           {status.info?.releaseNotes && (status.state === 'available' || status.state === 'ready') && (
-            <div style={{ marginTop: '16px', padding: '10px', background: '#1a1a1a', borderRadius: '4px', fontSize: '12px', maxHeight: '200px', overflowY: 'auto' }}>
+            <div style={{ marginTop: '16px', padding: '10px', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: '4px', fontSize: '12px', maxHeight: '200px', overflowY: 'auto' }}>
               <div style={{ fontWeight: 600, marginBottom: '6px' }}>Release notes</div>
-              <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', color: '#bbb' }}>{status.info.releaseNotes}</pre>
+              <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', color: 'var(--text-primary)' }}>{status.info.releaseNotes}</pre>
             </div>
           )}
         </div>
