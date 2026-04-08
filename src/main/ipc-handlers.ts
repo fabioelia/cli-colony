@@ -31,6 +31,7 @@ import { registerSessionTemplateHandlers } from './ipc/session-template-handlers
 import { registerOutputsHandlers } from './ipc/outputs-handlers'
 import { registerGovernanceHandlers } from './ipc/governance-handlers'
 import { registerApprovalRulesHandlers } from './ipc/approval-rules-handlers'
+import { registerBatchHandlers } from './ipc/batch-handlers'
 
 export function registerIpcHandlers(): void {
   // Delegated handler modules
@@ -54,6 +55,7 @@ export function registerIpcHandlers(): void {
   registerOutputsHandlers()
   registerGovernanceHandlers()
   registerApprovalRulesHandlers()
+  registerBatchHandlers()
 
   // ---- Temp files ----
   ipcMain.handle('fs:writeTempFile', (_e, prefix: string, content: string) => {

@@ -6,7 +6,7 @@ import type {
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
   PersonaRunEntry, ScoreCard, CostQuotas, CostAuditEntry, ApprovalRule, ApprovalRuleType, ApprovalRuleAction,
-  CoordinatorTeam,
+  CoordinatorTeam, BatchConfig, BatchRun,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -17,7 +17,7 @@ export type {
   ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
   PersonaRunEntry, ScoreCard, CostQuotas, CostAuditEntry, ApprovalRule, ApprovalRuleType, ApprovalRuleAction,
-  CoordinatorTeam,
+  CoordinatorTeam, BatchConfig, BatchRun,
 }
 
 
@@ -379,6 +379,12 @@ export interface ClaudeManagerAPI {
     create: (name: string, type: ApprovalRuleType, condition: string, action: ApprovalRuleAction) => Promise<ApprovalRule>
     update: (id: string, updates: Partial<ApprovalRule>) => Promise<boolean>
     delete: (id: string) => Promise<boolean>
+  }
+  batch: {
+    getConfig: () => Promise<BatchConfig>
+    setConfig: (config: BatchConfig) => Promise<boolean>
+    getHistory: (limit?: number) => Promise<BatchRun[]>
+    runNow: () => Promise<{ success: boolean; batchId?: string; error?: string }>
   }
 }
 
@@ -768,6 +774,12 @@ const api: ClaudeManagerAPI = {
       ipcRenderer.invoke('approvalRules:create', name, type, condition, action),
     update: (id, updates) => ipcRenderer.invoke('approvalRules:update', id, updates),
     delete: (id) => ipcRenderer.invoke('approvalRules:delete', id),
+  },
+  batch: {
+    getConfig: () => ipcRenderer.invoke('batch:getConfig'),
+    setConfig: (config) => ipcRenderer.invoke('batch:setConfig', config),
+    getHistory: (limit) => ipcRenderer.invoke('batch:getHistory', limit),
+    runNow: () => ipcRenderer.invoke('batch:runNow'),
   },
 }
 
