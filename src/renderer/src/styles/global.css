@@ -15,6 +15,7 @@
   --text-secondary: #a0a0b0;
   --text-muted: #6b6b80;
   --border: #2a2a4a;
+  --border-subtle: rgba(255, 255, 255, 0.08);
   --border-active: #4a4a7a;
   --accent: #3b82f6;
   --success: #10b981;
@@ -3513,7 +3514,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-radius: 4px;
   background: var(--bg-surface);
   color: var(--text-primary);
-  border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+  border: 1px solid var(--border-subtle);
 }
 
 .mcp-form-header {
@@ -3521,7 +3522,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-weight: 600;
   color: var(--text-secondary);
   padding-bottom: 4px;
-  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+  border-bottom: 1px solid var(--border-subtle);
   margin-bottom: 2px;
 }
 
@@ -3558,13 +3559,13 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .mcp-audit-table td {
   padding: 5px 8px;
   color: var(--text-secondary);
-  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.05));
+  border-bottom: 1px solid rgba(255,255,255,0.05);
   white-space: nowrap;
   max-width: 180px;
   overflow: hidden;
@@ -4624,7 +4625,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .services-panel-row {
-  border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.03));
+  border-bottom: 1px solid rgba(255,255,255,0.03);
 }
 .services-panel-row:last-child { border-bottom: none; }
 .services-panel-row:hover { background: var(--bg-hover); }
@@ -15522,7 +15523,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .outputs-chip:hover {
   border-color: var(--accent);
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .outputs-chip.active {
@@ -15552,7 +15553,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   padding: 7px 10px;
   border: none;
   background: transparent;
-  color: var(--text);
+  color: var(--text-primary);
   cursor: pointer;
   text-align: left;
   border-bottom: 1px solid var(--border);
@@ -15679,7 +15680,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .outputs-markdown {
   font-size: 13px;
   line-height: 1.6;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .outputs-markdown h1,
@@ -15688,7 +15689,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .outputs-markdown h4 {
   margin-top: 1.2em;
   margin-bottom: 0.4em;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .outputs-markdown p {
@@ -15727,7 +15728,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 12px;
   white-space: pre-wrap;
   word-break: break-word;
-  color: var(--text);
+  color: var(--text-primary);
   margin: 0;
 }
 
