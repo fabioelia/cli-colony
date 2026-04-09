@@ -3758,6 +3758,114 @@ body:has(.daemon-update-banner) .app-update-banner {
   order: 99;
 }
 
+/* 4-up grid layout */
+.main.grid-4 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr auto;
+  gap: 2px;
+}
+
+.main.grid-4 .terminal-wrapper.visible {
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+}
+
+.main.grid-4 .terminal-wrapper.visible.grid-focused {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.main.grid-4 .terminal-wrapper.hidden {
+  /* Keep hidden terminals out of grid flow */
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+.main.grid-4 .status-bar {
+  grid-column: 1 / -1;
+}
+
+/* Grid empty pane */
+.grid-empty-pane {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--border);
+  border-radius: 2px;
+  background: var(--bg-primary);
+}
+
+.grid-empty-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.grid-empty-content p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.grid-empty-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 180px;
+  overflow-y: auto;
+  width: 200px;
+}
+
+.grid-empty-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.grid-empty-pick:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+}
+
+.grid-empty-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.grid-empty-close {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.grid-empty-close:hover {
+  opacity: 1;
+  color: var(--text-primary);
+}
+
 /* Split divider */
 .split-divider {
   width: 4px;

@@ -65,6 +65,9 @@ export default function App() {
   const [focusedPane, setFocusedPane] = useState<'left' | 'right'>('left')
   const [showSplitPicker, setShowSplitPicker] = useState(false)
   const [splitRatio, setSplitRatio] = useState(0.5)
+  // 4-up grid state (mutually exclusive with 2-up splitPairs)
+  const [gridPanes, setGridPanes] = useState<(string | null)[]>([null, null, null, null])
+  const [focusedGridIdx, setFocusedGridIdx] = useState(0)
   const [arenaMode, setArenaMode] = useState(false)
   const [arenaBlind, setArenaBlind] = useState(false)
   const [arenaText, setArenaText] = useState('')
@@ -103,6 +106,8 @@ export default function App() {
   const splitId = activeId ? (splitPairs.get(activeId) || null) : null
   const splitRef = useRef<{ splitId: string | null; focusedPane: 'left' | 'right' }>({ splitId: null, focusedPane: 'left' })
   splitRef.current = { splitId, focusedPane }
+  // Derived: are we in 4-up grid mode?
+  const isGrid = gridPanes.some(p => p !== null)
 
   useEffect(() => {
     window.api.instance.list().then((list) => setInstances(prev => instancesEqual(prev, list) ? prev : list))
@@ -430,11 +435,33 @@ export default function App() {
       return
     }
 
+    // In grid mode: if session is already in a pane, focus it; otherwise fill next empty or replace focused
+    if (gridPanes.some(p => p !== null)) {
+      const existingIdx = gridPanes.indexOf(id)
+      if (existingIdx >= 0) {
+        setFocusedGridIdx(existingIdx)
+        setActiveId(id)
+        setView('instances')
+        return
+      }
+      // Fill next empty pane, or replace focused pane
+      const emptyIdx = gridPanes.indexOf(null)
+      if (emptyIdx >= 0) {
+        setGridPanes(prev => { const n = [...prev]; n[emptyIdx] = id; return n })
+        setFocusedGridIdx(emptyIdx)
+      } else {
+        setGridPanes(prev => { const n = [...prev]; n[focusedGridIdx] = id; return n })
+      }
+      setActiveId(id)
+      setView('instances')
+      return
+    }
+
     // Just select the instance — if it has a split partner, the split will show automatically
     setActiveId(id)
     setFocusedPane('left')
     setView('instances')
-  }, [editorInstanceId, editingAgent])
+  }, [editorInstanceId, editingAgent, gridPanes, focusedGridIdx])
 
   const handleKill = useCallback(async (id: string) => {
     await window.api.instance.kill(id)
@@ -444,6 +471,19 @@ export default function App() {
       next.delete(id) // remove if it was a left pane
       for (const [left, right] of prev) { // remove if it was a right pane
         if (right === id) next.delete(left)
+      }
+      return next
+    })
+    // Clean up grid panes
+    setGridPanes(prev => {
+      const idx = prev.indexOf(id)
+      if (idx < 0) return prev
+      const next = [...prev]
+      next[idx] = null
+      const remaining = next.filter(p => p !== null)
+      if (remaining.length <= 1) {
+        if (remaining.length === 1) setActiveId(remaining[0])
+        return [null, null, null, null]
       }
       return next
     })
@@ -462,6 +502,19 @@ export default function App() {
       next.delete(id)
       for (const [left, right] of prev) {
         if (right === id) next.delete(left)
+      }
+      return next
+    })
+    // Clean up grid panes
+    setGridPanes(prev => {
+      const idx = prev.indexOf(id)
+      if (idx < 0) return prev
+      const next = [...prev]
+      next[idx] = null
+      const remaining = next.filter(p => p !== null)
+      if (remaining.length <= 1) {
+        if (remaining.length === 1) setActiveId(remaining[0])
+        return [null, null, null, null]
       }
       return next
     })
@@ -743,6 +796,88 @@ export default function App() {
     })
   }, [activeId, terminalsRef])
 
+  // Enter 4-up grid mode from current state
+  const handleEnterGrid = useCallback(() => {
+    if (!activeId) return
+    const panes: (string | null)[] = [activeId, splitId || null, null, null]
+    setGridPanes(panes)
+    setFocusedGridIdx(0)
+    // Clear 2-up split pairs since grid takes over
+    setSplitPairs(new Map())
+    setFocusedPane('left')
+    setArenaMode(false)
+    setArenaBlind(false)
+    setArenaText('')
+    setArenaWinnerId(null)
+    // Refit all visible terminals
+    requestAnimationFrame(() => {
+      for (const p of panes) {
+        if (!p) continue
+        const entry = terminalsRef.current.get(p)
+        if (entry) {
+          entry.fitAddon.fit()
+          const dims = entry.fitAddon.proposeDimensions?.()
+          if (dims && dims.cols > 0 && dims.rows > 0) {
+            window.api.instance.resize(p, dims.cols, dims.rows)
+          }
+        }
+      }
+    })
+  }, [activeId, splitId, terminalsRef])
+
+  // Exit grid mode entirely
+  const handleExitGrid = useCallback(() => {
+    const first = gridPanes.find(p => p !== null)
+    setGridPanes([null, null, null, null])
+    setFocusedGridIdx(0)
+    if (first) setActiveId(first)
+  }, [gridPanes])
+
+  // Close one grid pane — if 1 or fewer remain, exit grid mode
+  const handleCloseGridPane = useCallback((idx: number) => {
+    setGridPanes(prev => {
+      const next = [...prev]
+      next[idx] = null
+      const remaining = next.filter(p => p !== null)
+      if (remaining.length <= 1) {
+        if (remaining.length === 1) setActiveId(remaining[0])
+        return [null, null, null, null]
+      }
+      // If the focused pane was closed, move focus to the first non-null pane
+      const focusedId = next[focusedGridIdx]
+      if (!focusedId) {
+        const newFocusIdx = next.findIndex(p => p !== null)
+        if (newFocusIdx >= 0) {
+          setFocusedGridIdx(newFocusIdx)
+          setActiveId(next[newFocusIdx]!)
+        }
+      }
+      return next
+    })
+  }, [focusedGridIdx])
+
+  // Focus a grid pane
+  const handleGridPaneFocus = useCallback((idx: number) => {
+    setFocusedGridIdx(idx)
+    const paneId = gridPanes[idx]
+    if (paneId) setActiveId(paneId)
+  }, [gridPanes])
+
+  // Cycle layout: single → 2-up → 4-up → single
+  const handleCycleLayout = useCallback(() => {
+    if (!activeId) return
+    if (isGrid) {
+      // 4-up → single
+      handleExitGrid()
+    } else if (splitId) {
+      // 2-up → 4-up
+      handleEnterGrid()
+    } else {
+      // single → 2-up (existing toggle behavior)
+      handleToggleSplit()
+    }
+  }, [activeId, isGrid, splitId, handleExitGrid, handleEnterGrid, handleToggleSplit])
+
   // Direct keyboard handler for zoom (fallback for when menu accelerators don't fire)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -771,19 +906,38 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler, true)
   }, [])
 
-  // Clean up split pairs if either instance no longer exists
+  // Clean up split pairs and grid panes if instances no longer exist
   useEffect(() => {
     const ids = new Set(instances.map((i) => i.id))
-    let changed = false
+    let splitChanged = false
     const next = new Map(splitPairs)
     for (const [left, right] of splitPairs) {
       if (!ids.has(left) || !ids.has(right)) {
         next.delete(left)
-        changed = true
+        splitChanged = true
       }
     }
-    if (changed) setSplitPairs(next)
-  }, [instances, splitPairs])
+    if (splitChanged) setSplitPairs(next)
+
+    // Grid cleanup
+    let gridChanged = false
+    const nextGrid = [...gridPanes]
+    for (let i = 0; i < 4; i++) {
+      if (nextGrid[i] && !ids.has(nextGrid[i]!)) {
+        nextGrid[i] = null
+        gridChanged = true
+      }
+    }
+    if (gridChanged) {
+      const remaining = nextGrid.filter(p => p !== null)
+      if (remaining.length <= 1) {
+        setGridPanes([null, null, null, null])
+        if (remaining.length === 1) setActiveId(remaining[0])
+      } else {
+        setGridPanes(nextGrid)
+      }
+    }
+  }, [instances, splitPairs, gridPanes])
 
   // Bridge custom events to handlers (so shortcuts can call stateful handlers)
   useEffect(() => {
@@ -812,8 +966,9 @@ export default function App() {
   }, [showSplitPicker, showNewDialog, cmdPaletteOpen, quickPromptOpen])
 
   const active = instances.find((i) => i.id === activeId) || null
-  const showTerminal = view === 'instances' && active
-  const isSplit = !!(splitId && showTerminal && instances.some((i) => i.id === splitId))
+  const showTerminal = view === 'instances' && (active || isGrid)
+  const showGrid = isGrid && view === 'instances'
+  const isSplit = !showGrid && !!(splitId && showTerminal && instances.some((i) => i.id === splitId))
 
   // Refit on view transitions
   const prevShowTerminalRef = useRef(false)
@@ -839,10 +994,12 @@ export default function App() {
     }
   }, [showTerminal, activeId])
 
-  // Refit both terminals when split changes
+  // Refit terminals when split/grid changes
   useEffect(() => {
     if (!showTerminal) return
-    const ids = [activeId, splitId].filter(Boolean) as string[]
+    const ids = showGrid
+      ? gridPanes.filter(Boolean) as string[]
+      : [activeId, splitId].filter(Boolean) as string[]
     requestAnimationFrame(() => {
       for (const id of ids) {
         const entry = terminalsRef.current.get(id)
@@ -855,7 +1012,7 @@ export default function App() {
         }
       }
     })
-  }, [isSplit, splitId])
+  }, [isSplit, splitId, showGrid, gridPanes])
 
   const sidebarView: SidebarView = view === 'agent-editor' ? 'agents' : view
 
@@ -1005,24 +1162,32 @@ export default function App() {
         onDrop={handleSidebarDrop}
         forkGroups={forkGroups}
         onForkSession={handleForkSession}
+        gridPanes={showGrid ? gridPanes : undefined}
       />
-      <div className={`main ${isSplit ? 'split' : ''}`}>
+      <div className={`main ${showGrid ? 'grid-4' : isSplit ? 'split' : ''}`}>
         {/* All terminals stay mounted (xterm doesn't support re-open); expensive effects gated on focused prop */}
         {regularInstances.map((inst) => {
-          const isLeft = showTerminal && inst.id === activeId
+          const gridIdx = showGrid ? gridPanes.indexOf(inst.id) : -1
+          const isGridPane = gridIdx >= 0
+          const isLeft = !showGrid && showTerminal && inst.id === activeId
           const isRight = isSplit && inst.id === splitId
-          const isVisible = isLeft || isRight
+          const isVisible = isLeft || isRight || isGridPane
           const isFocused = isVisible && (
+            showGrid ? gridIdx === focusedGridIdx :
             !isSplit || (isLeft && focusedPane === 'left') || (isRight && focusedPane === 'right')
           )
           return (
             <div
               key={inst.id}
-              className={`terminal-wrapper ${isVisible ? 'visible' : 'hidden'}`}
-              style={isSplit && isVisible ? {
+              className={`terminal-wrapper ${isVisible ? 'visible' : 'hidden'}${isGridPane && isFocused ? ' grid-focused' : ''}`}
+              style={showGrid && isGridPane ? {
+                gridRow: Math.floor(gridIdx / 2) + 1,
+                gridColumn: (gridIdx % 2) + 1,
+              } : isSplit && isVisible ? {
                 flex: `0 0 calc(${isLeft ? splitRatio * 100 : (1 - splitRatio) * 100}% - 2px)`,
                 order: isLeft ? 0 : 2,
               } : undefined}
+              onClick={isGridPane ? () => handleGridPaneFocus(gridIdx) : undefined}
             >
               <TerminalView
                 instance={inst}
@@ -1030,13 +1195,13 @@ export default function App() {
                 onRestart={handleRestart}
                 onRemove={handleRemove}
                 onSplit={instanceCallbacksRef.current.get(inst.id)!.onSplit}
-                onCloseSplit={handleCloseSplitView}
+                onCloseSplit={showGrid ? () => handleCloseGridPane(gridIdx) : handleCloseSplitView}
                 onSpawnChild={instanceCallbacksRef.current.get(inst.id)!.onSpawnChild}
                 onFork={instanceCallbacksRef.current.get(inst.id)!.onFork}
-                isSplit={isSplit}
+                isSplit={isSplit || showGrid}
                 arenaMode={isSplit && arenaMode}
                 arenaBlind={isSplit && arenaMode && arenaBlind}
-                paneLabel={isLeft ? 'A' : 'B'}
+                paneLabel={showGrid ? (['1','2','3','4'][gridIdx] as any) : isLeft ? 'A' : 'B'}
                 arenaVoted={arenaWinnerId !== null}
                 arenaWinnerId={arenaWinnerId}
                 onArenaWin={instanceCallbacksRef.current.get(inst.id)!.onArenaWin}
@@ -1045,9 +1210,50 @@ export default function App() {
                 onSearchClose={handleSearchClose}
                 fontSize={fontSize}
                 focused={isFocused}
-                onFocusPane={isLeft ? instanceCallbacksRef.current.get(inst.id)!.onFocusLeft : instanceCallbacksRef.current.get(inst.id)!.onFocusRight}
+                onFocusPane={showGrid ? () => handleGridPaneFocus(gridIdx) : isLeft ? instanceCallbacksRef.current.get(inst.id)!.onFocusLeft : instanceCallbacksRef.current.get(inst.id)!.onFocusRight}
                 outputBytes={outputBytes.get(inst.id) || 0}
+                layoutMode={showGrid ? '4-up' : isSplit ? '2-up' : 'single'}
+                onCycleLayout={handleCycleLayout}
+                onEnterGrid={handleEnterGrid}
               />
+            </div>
+          )
+        })}
+
+        {/* Grid empty pane placeholders */}
+        {showGrid && gridPanes.map((paneId, idx) => {
+          if (paneId) return null
+          return (
+            <div
+              key={`empty-${idx}`}
+              className="grid-empty-pane"
+              style={{
+                gridRow: Math.floor(idx / 2) + 1,
+                gridColumn: (idx % 2) + 1,
+              }}
+            >
+              <div className="grid-empty-content">
+                <p>No session</p>
+                <div className="grid-empty-list">
+                  {regularInstances.filter(i => !gridPanes.includes(i.id)).slice(0, 6).map(i => (
+                    <button
+                      key={i.id}
+                      className="grid-empty-pick"
+                      onClick={() => {
+                        setGridPanes(prev => { const n = [...prev]; n[idx] = i.id; return n })
+                        setFocusedGridIdx(idx)
+                        setActiveId(i.id)
+                      }}
+                    >
+                      <span className="grid-empty-dot" style={{ background: i.color }} />
+                      {i.name}
+                    </button>
+                  ))}
+                </div>
+                <button className="grid-empty-close" onClick={() => handleCloseGridPane(idx)} title="Remove pane">
+                  <XIcon size={12} /> Close pane
+                </button>
+              </div>
             </div>
           )
         })}

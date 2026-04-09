@@ -5,7 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation, MessageCircleWarning, ThumbsUp, Sparkles, Bot, BarChart3 } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, LayoutGrid, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation, MessageCircleWarning, ThumbsUp, Sparkles, Bot, BarChart3 } from 'lucide-react'
 import { TeamMetricsPanel } from './TeamMetricsPanel'
 import type { EnvStatus, EnvServiceStatus, GitDiffEntry, ColonyComment, ScoreCard, CoordinatorTeam, CoordinatorWorker } from '../../../shared/types'
 import { buildDiagnosePrompt } from '../../../shared/env-prompts'
@@ -35,7 +35,7 @@ interface Props {
   isSplit?: boolean
   arenaMode?: boolean
   arenaBlind?: boolean
-  paneLabel?: 'A' | 'B'
+  paneLabel?: 'A' | 'B' | '1' | '2' | '3' | '4'
   arenaVoted?: boolean
   arenaWinnerId?: string | null
   onArenaWin?: () => void
@@ -46,6 +46,9 @@ interface Props {
   focused?: boolean
   onFocusPane?: () => void
   outputBytes?: number
+  layoutMode?: 'single' | '2-up' | '4-up'
+  onCycleLayout?: () => void
+  onEnterGrid?: () => void
 }
 
 function formatUptime(seconds: number): string {
@@ -217,7 +220,7 @@ function FileTreeNode({ node, depth, selectedPath, expandedPaths, filter, onTogg
 
 type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'changes' | 'team' | 'metrics'
 
-export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane, outputBytes = 0 }: Props) {
+export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const initializedRef = useRef(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -1227,6 +1230,20 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
             <Tooltip text="Split View" detail="Open a second session side-by-side" shortcut="Cmd+\">
               <button onClick={onSplit} aria-label="Split view">
                 <Columns2 size={14} /> Split
+              </button>
+            </Tooltip>
+          )}
+          {isSplit && layoutMode === '2-up' && onEnterGrid && (
+            <Tooltip text="Grid View" detail="Expand to 2×2 grid — monitor 4 sessions at once">
+              <button onClick={onEnterGrid} aria-label="Grid view">
+                <LayoutGrid size={14} /> Grid
+              </button>
+            </Tooltip>
+          )}
+          {layoutMode === '4-up' && onCycleLayout && (
+            <Tooltip text="Exit Grid" detail="Return to single session view">
+              <button onClick={onCycleLayout} aria-label="Exit grid view">
+                <Columns2 size={14} /> Single
               </button>
             </Tooltip>
           )}

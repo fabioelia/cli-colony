@@ -241,9 +241,10 @@ interface Props {
   onDrop?: (e: React.DragEvent) => void
   forkGroups?: ForkGroup[]
   onForkSession?: (id: string) => void
+  gridPanes?: (string | null)[]
 }
 
-function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onRestoreAll, restorableCount, unreadIds, outputBytes, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop, forkGroups = [], onForkSession }: Props) {
+function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onRestoreAll, restorableCount, unreadIds, outputBytes, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop, forkGroups = [], onForkSession, gridPanes }: Props) {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [runningEnvCount, setRunningEnvCount] = useState(0)
@@ -544,7 +545,10 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   } satisfies InstanceItemCallbacks)
 
   const renderItem = (inst: ClaudeInstance) => {
+    const gridIdx = gridPanes ? gridPanes.indexOf(inst.id) : -1
+    const isInGrid = gridIdx >= 0
     const splitBadge: 'left' | 'right' | 'indicator' | null =
+      isInGrid ? (gridIdx === 0 ? 'left' : 'indicator') :
       splitId && inst.id === activeId ? 'left' :
       splitId && inst.id === splitId ? 'right' :
       inst.id !== activeId && inst.id !== splitId && splitPairs.has(inst.id) ? 'indicator' : null
