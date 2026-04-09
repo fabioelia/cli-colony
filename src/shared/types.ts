@@ -565,3 +565,36 @@ export interface UpdateStatus {
   enabledInEnv: boolean
 }
 
+// Onboarding — first-run welcome modal + prerequisites + checklist
+export type PrerequisiteKey = 'claude' | 'auth' | 'git' | 'github'
+export type OnboardingChecklistKey =
+  | 'createdSession'
+  | 'ranFirstPrompt'
+  | 'createdPersona'
+  | 'connectedGitHub'
+  | 'ranPipeline'
+
+export interface PrerequisiteCheck {
+  ok: boolean
+  detail?: string
+  error?: string
+}
+
+export interface PrerequisitesStatus {
+  claude: PrerequisiteCheck
+  auth: PrerequisiteCheck
+  git: PrerequisiteCheck
+  github: PrerequisiteCheck
+  /** Derived: true when the three hard requirements (claude, auth, git) pass. GitHub is optional. */
+  ready: boolean
+  /** Epoch ms when this snapshot was produced. */
+  checkedAt: number
+}
+
+export interface OnboardingState {
+  /** ISO string when the user finished or skipped the welcome flow; null means the modal should show. */
+  firstRunCompletedAt: string | null
+  prerequisitesOk: Record<PrerequisiteKey, boolean>
+  checklist: Record<OnboardingChecklistKey, boolean>
+}
+

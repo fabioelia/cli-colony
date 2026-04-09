@@ -1035,4 +1035,30 @@ export const helpContent: Record<string, HelpEntry> = {
       },
     ],
   },
+  gettingStarted: {
+    title: 'Getting Started',
+    description: 'Colony checks that your machine has the required tools before your first session.',
+    zones: [
+      {
+        name: 'Prerequisites',
+        position: 'Welcome modal',
+        items: [
+          { label: 'Claude CLI', detail: 'The Claude command-line tool must be installed (brew install anthropic/tap/claude) and respond to claude --version within 3 seconds.', icon: 'Terminal' },
+          { label: 'Anthropic auth', detail: 'Claude needs valid credentials at ~/.claude/config.json. Run `claude` once and sign in to set this up.', icon: 'Key' },
+          { label: 'Git user.email', detail: 'Colony commits on your behalf, so git needs a global user.email configured (git config --global user.email "you@example.com").', icon: 'GitBranch' },
+          { label: 'GitHub token', detail: 'Optional — enables the PR tab, environment auto-clone, and webhook pipelines. Connect later in Settings > GitHub.', icon: 'Github' },
+        ],
+      },
+      {
+        name: 'Welcome Flow',
+        position: 'Modal actions',
+        items: [
+          { label: 'Start your first session', detail: 'Enabled once the three required prerequisites (CLI, auth, git) pass. Closes the modal and lands on the starter-card empty state.' },
+          { label: 'Re-check', detail: 'Re-run all prerequisite checks after installing something. Each check has a 3-second timeout.' },
+          { label: 'Skip for now', detail: 'Dismiss the modal permanently. You can replay it anytime from the command palette (Show Welcome).' },
+          { label: 'Replay welcome', detail: 'Open the command palette and run "Show Welcome" to re-open the modal and check prerequisites again.' },
+        ],
+      },
+    ],
+  },
 }

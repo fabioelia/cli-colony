@@ -8,6 +8,7 @@ import type {
   PersonaRunEntry, ScoreCard, CostQuotas, CostAuditEntry, ApprovalRule, ApprovalRuleType, ApprovalRuleAction,
   CoordinatorTeam, BatchConfig, BatchRun, TeamMetrics, WorkerStats, TeamMetricsEntry, ContextUsage,
   PendingLaunchRecord, UpdateStatus, UpdateInfo,
+  OnboardingState, OnboardingChecklistKey, PrerequisitesStatus,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -20,6 +21,7 @@ export type {
   PersonaRunEntry, ScoreCard, CostQuotas, CostAuditEntry, ApprovalRule, ApprovalRuleType, ApprovalRuleAction,
   CoordinatorTeam, BatchConfig, BatchRun, TeamMetrics, WorkerStats, TeamMetricsEntry, ContextUsage,
   PendingLaunchRecord, UpdateStatus, UpdateInfo,
+  OnboardingState, OnboardingChecklistKey, PrerequisitesStatus,
 }
 
 
@@ -418,6 +420,17 @@ export interface ClaudeManagerAPI {
     onReady: (cb: (info: UpdateInfo) => void) => () => void
     onDownloadProgress: (cb: (progress: { percent: number; bytesPerSecond: number; total: number }) => void) => () => void
     onError: (cb: (err: { message: string }) => void) => () => void
+  }
+  onboarding: {
+    getState: () => Promise<OnboardingState>
+    markComplete: (key: OnboardingChecklistKey) => Promise<OnboardingState>
+    skip: () => Promise<OnboardingState>
+    replay: () => Promise<OnboardingState>
+    reset: () => Promise<OnboardingState>
+    onStateChanged: (cb: (state: OnboardingState) => void) => () => void
+  }
+  prerequisites: {
+    check: () => Promise<PrerequisitesStatus>
   }
 }
 
@@ -866,6 +879,21 @@ const api: ClaudeManagerAPI = {
       ipcRenderer.on('app:updateError', l)
       return () => ipcRenderer.removeListener('app:updateError', l)
     },
+  },
+  onboarding: {
+    getState: () => ipcRenderer.invoke('onboarding:getState'),
+    markComplete: (key) => ipcRenderer.invoke('onboarding:markComplete', key),
+    skip: () => ipcRenderer.invoke('onboarding:skip'),
+    replay: () => ipcRenderer.invoke('onboarding:replay'),
+    reset: () => ipcRenderer.invoke('onboarding:reset'),
+    onStateChanged: (cb) => {
+      const l = (_e: any, s: OnboardingState) => cb(s)
+      ipcRenderer.on('onboarding:stateChanged', l)
+      return () => ipcRenderer.removeListener('onboarding:stateChanged', l)
+    },
+  },
+  prerequisites: {
+    check: () => ipcRenderer.invoke('prerequisites:check'),
   },
 }
 

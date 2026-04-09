@@ -34,6 +34,7 @@ import { registerApprovalRulesHandlers } from './ipc/approval-rules-handlers'
 import { registerBatchHandlers } from './ipc/batch-handlers'
 import { registerTeamHandlers } from './ipc/team-handlers'
 import { registerAppUpdateHandlers } from './ipc/app-update-handlers'
+import { registerOnboardingHandlers } from './ipc/onboarding-handlers'
 
 export function registerIpcHandlers(): void {
   // Delegated handler modules
@@ -60,6 +61,7 @@ export function registerIpcHandlers(): void {
   registerBatchHandlers()
   registerTeamHandlers()
   registerAppUpdateHandlers()
+  registerOnboardingHandlers()
 
   // ---- Temp files ----
   ipcMain.handle('fs:writeTempFile', (_e, prefix: string, content: string) => {

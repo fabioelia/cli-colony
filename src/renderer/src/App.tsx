@@ -21,6 +21,7 @@ import OutputsPanel from './components/OutputsPanel'
 import QuickPromptDialog from './components/QuickPromptDialog'
 import ForkModal from './components/ForkModal'
 import AppUpdateBanner from './components/AppUpdateBanner'
+import WelcomeModal from './components/WelcomeModal'
 import { stripAnsi } from '../../shared/utils'
 import type { ForkGroup } from '../../shared/types'
 
@@ -75,6 +76,7 @@ export default function App() {
   } | null>(null)
   const [daemonStale, setDaemonStale] = useState(false)
   const [envPromptRequest, setEnvPromptRequest] = useState<{ requestId: string; envId: string; hookName: string; prompt: string; promptType: string; defaultPath?: string; options?: string[] } | null>(null)
+  const [showWelcome, setShowWelcome] = useState(false)
   const [forkModalInst, setForkModalInst] = useState<ClaudeInstance | null>(null)
   const [forkModalHint, setForkModalHint] = useState('')
   const [forkGroups, setForkGroups] = useState<ForkGroup[]>([])
@@ -101,6 +103,10 @@ export default function App() {
         try { setQuickPromptHistory(JSON.parse(s.quickPromptHistory)) } catch { /* ignore */ }
       }
     })
+    // Check first-run onboarding state
+    window.api.onboarding.getState().then((s) => {
+      if (!s.firstRunCompletedAt) setShowWelcome(true)
+    }).catch(() => {})
     // Check daemon version on mount (the push event may have fired before we loaded)
     window.api.daemon.getVersion().then((v) => {
       if (v.running !== v.expected) setDaemonStale(true)
@@ -834,6 +840,10 @@ export default function App() {
   return (
     <div className="app">
       {createPortal(<AppUpdateBanner />, document.body)}
+      {showWelcome && createPortal(
+        <WelcomeModal onClose={() => setShowWelcome(false)} />,
+        document.body
+      )}
       {daemonStale && createPortal(
         <div className="daemon-update-banner">
           <span>Daemon is outdated — restart to apply updates. Running sessions will be terminated; use resume to restore them.</span>
