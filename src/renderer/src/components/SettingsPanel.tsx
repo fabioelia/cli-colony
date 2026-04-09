@@ -1516,6 +1516,7 @@ export default function SettingsPanel({ onBack }: Props) {
                 className="panel-header-btn"
                 style={{ color: 'var(--danger)' }}
                 onClick={async () => {
+                  if (!confirm('Reset all onboarding state? This clears the checklist and re-shows the welcome screen.')) return
                   const s = await window.api.onboarding.reset()
                   setOnboardingState(s)
                 }}

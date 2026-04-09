@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import {
   Plus, Settings, GitPullRequest, Users, Square, Play, Columns2,
-  MonitorPlay, History, Search, ArrowRight, Terminal, Server, User, Bot, Zap, ListChecks,
+  MonitorPlay, History, Search, ArrowRight, Terminal, Server, User, Bot, Zap, ListChecks, RotateCcw,
 } from 'lucide-react'
 import type { ClaudeInstance, CliSession, AgentDef } from '../types'
 import type { PersonaInfo } from '../../../shared/types'
@@ -221,7 +221,7 @@ export default function CommandPalette({
       id: 'show-welcome',
       label: 'Show Welcome',
       detail: 'Replay the first-run welcome screen',
-      icon: <Play size={14} />,
+      icon: <RotateCcw size={14} />,
       section: 'Actions',
       keywords: 'welcome onboarding tour replay first run',
       onExecute: () => {
