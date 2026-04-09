@@ -1389,8 +1389,6 @@ export default function App() {
           onKeyDown={e => {
             if (e.key === 'Escape') {
               window.api.env.respondToPrompt({ requestId: envPromptRequest.requestId, cancelled: true }); setEnvPromptRequest(null)
-            } else if (e.key === 'Enter' && envPromptRequest.promptType === 'file' && envPromptRequest.defaultPathValid) {
-              window.api.env.respondToPrompt({ requestId: envPromptRequest.requestId, filePath: envPromptRequest.defaultPath }); setEnvPromptRequest(null)
             }
           }}>
           <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 10, padding: 24, width: 460, maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}

@@ -2490,31 +2490,6 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: var(--bg-surface);
 }
 
-/* Empty state */
-.agents-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 40px 0;
-  color: var(--text-muted);
-}
-
-.agents-empty-state p {
-  font-size: 14px;
-}
-
-.agents-empty-hint {
-  font-size: 12px !important;
-  color: var(--text-muted);
-}
-
-.agents-empty-hint code {
-  background: var(--bg-surface);
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-size: 11px;
-}
 
 /* Agent card */
 .agent-card {
@@ -5181,34 +5156,6 @@ body:has(.daemon-update-banner) .app-update-banner {
   cursor: pointer;
 }
 
-.github-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding: 48px 24px;
-  color: var(--text-muted);
-}
-
-.github-empty-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 7px 14px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-primary);
-  background: var(--bg-tertiary);
-  border: 1px dashed var(--border);
-  transition: all 0.15s;
-}
-
-.github-empty-btn:hover {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: white;
-}
 
 /* Add repo inline form */
 .github-add-repo {
@@ -8763,20 +8710,6 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: var(--bg-secondary);
 }
 
-.task-queue-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 40px 0;
-  color: var(--text-muted);
-  text-align: center;
-  flex: 1;
-}
-
-.task-queue-empty-state p { margin: 0; font-size: 13px; }
-.task-queue-empty-hint { font-size: 11px; color: var(--text-muted); }
 
 .task-outputs-split {
   flex: 1;
@@ -9350,19 +9283,6 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-primary);
 }
 
-.pipelines-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: var(--text-muted);
-  padding: 40px;
-  text-align: center;
-}
-
-.pipelines-empty p { margin: 0; font-size: 13px; }
-.pipelines-empty-hint { font-size: 11px; color: var(--text-muted); }
 
 .pipelines-list {
   flex: 1;
@@ -13477,24 +13397,6 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 10px;
 }
 
-.persona-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  flex: 1;
-  gap: 12px;
-  color: var(--text-muted);
-}
-
-.persona-empty svg {
-  opacity: 0.3;
-}
-
-.persona-empty p {
-  font-size: 13px;
-  margin: 0;
-}
 
 /* ---- Personas List Mode ---- */
 
