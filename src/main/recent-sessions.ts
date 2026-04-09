@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync, unlinkSync } from 'fs'
-import { execSync } from 'child_process'
+import { promises as fsp, readFileSync, writeFileSync, mkdirSync } from 'fs'
+import { execFile } from 'child_process'
 import { join } from 'path'
 import { app } from 'electron'
 import type { CliBackend } from '../shared/types'
@@ -31,25 +31,22 @@ function getRestoreSnapshotPath(): string {
   return join(colonyPaths.root, 'restore-snapshot.json')
 }
 
-function ensureDir(): void {
-  if (!existsSync(colonyPaths.root)) mkdirSync(colonyPaths.root, { recursive: true })
+async function ensureDir(): Promise<void> {
+  await fsp.mkdir(colonyPaths.root, { recursive: true })
 }
 
-function load(): RecentSession[] {
-  const path = getFilePath()
+async function load(): Promise<RecentSession[]> {
   try {
-    if (existsSync(path)) {
-      return JSON.parse(readFileSync(path, 'utf-8'))
-    }
+    const data = await fsp.readFile(getFilePath(), 'utf-8')
+    return JSON.parse(data)
   } catch {
-    // corrupted
+    return []
   }
-  return []
 }
 
-function save(sessions: RecentSession[]): void {
-  ensureDir()
-  writeFileSync(getFilePath(), JSON.stringify(sessions, null, 2), 'utf-8')
+async function save(sessions: RecentSession[]): Promise<void> {
+  await ensureDir()
+  await fsp.writeFile(getFilePath(), JSON.stringify(sessions, null, 2), 'utf-8')
 }
 
 /**
@@ -61,11 +58,15 @@ function save(sessions: RecentSession[]): void {
  * @param workingDirectory - The session's working directory (used for project dir scanning)
  * @param recencyMs - Only consider session files modified within this window (default: 60s)
  */
-export function discoverSessionId(pid: number | null, workingDirectory: string, recencyMs: number = 60_000): string | null {
+export async function discoverSessionId(pid: number | null, workingDirectory: string, recencyMs: number = 60_000): Promise<string | null> {
   // 1. Try lsof on the PID -- most reliable for running processes
   if (pid) {
     try {
-      const lsofOutput = execSync(`lsof -p ${pid} 2>/dev/null`, { encoding: 'utf-8', timeout: 3000 })
+      const lsofOutput = await new Promise<string>((resolve, reject) => {
+        execFile('lsof', ['-p', String(pid)], { encoding: 'utf-8', timeout: 3000 }, (err, stdout) => {
+          if (err) reject(err); else resolve(stdout)
+        })
+      })
       const jsonlMatch = lsofOutput.match(/\.claude\/projects\/[^\s]+\/([a-f0-9-]{36})\.jsonl/i)
       if (jsonlMatch) return jsonlMatch[1]
     } catch { /* skip */ }
@@ -76,26 +77,36 @@ export function discoverSessionId(pid: number | null, workingDirectory: string, 
     const home = app.getPath('home')
     const projectDirName = workingDirectory.replace(/[/.]/g, '-')
     const projectDir = join(home, '.claude', 'projects', projectDirName)
-    let searchDir = existsSync(projectDir) ? projectDir : null
+    let searchDir: string | null = null
+
+    try {
+      const stat = await fsp.stat(projectDir)
+      if (stat.isDirectory()) searchDir = projectDir
+    } catch { /* doesn't exist */ }
 
     if (!searchDir) {
       const projectsDir = join(home, '.claude', 'projects')
-      if (existsSync(projectsDir)) {
-        for (const dir of readdirSync(projectsDir)) {
+      try {
+        const dirs = await fsp.readdir(projectsDir)
+        for (const dir of dirs) {
           const decoded = dir.startsWith('-') ? dir.substring(1).replace(/-/g, '/') : dir.replace(/-/g, '/')
           if (workingDirectory === '/' + decoded || workingDirectory.startsWith('/' + decoded + '/')) {
             const candidate = join(projectsDir, dir)
-            if (existsSync(candidate)) { searchDir = candidate; break }
+            try {
+              await fsp.stat(candidate)
+              searchDir = candidate
+              break
+            } catch { /* */ }
           }
         }
-      }
+      } catch { /* */ }
     }
 
     if (searchDir) {
-      const files = readdirSync(searchDir).filter((f: string) => f.endsWith('.jsonl'))
+      const files = (await fsp.readdir(searchDir)).filter((f: string) => f.endsWith('.jsonl'))
       let newest: { name: string; mtime: number } | null = null
       for (const f of files) {
-        const st = statSync(join(searchDir, f))
+        const st = await fsp.stat(join(searchDir, f))
         if (!newest || st.mtimeMs > newest.mtime) {
           newest = { name: f, mtime: st.mtimeMs }
         }
@@ -109,7 +120,7 @@ export function discoverSessionId(pid: number | null, workingDirectory: string, 
   return null
 }
 
-export function trackOpened(opts: {
+export async function trackOpened(opts: {
   instanceName: string
   instanceId: string
   sessionId: string | null
@@ -119,8 +130,8 @@ export function trackOpened(opts: {
   cliBackend?: CliBackend
   pinned?: boolean
   pid?: number | null
-}): void {
-  const sessions = load()
+}): Promise<void> {
+  const sessions = await load()
   sessions.unshift({
     instanceName: opts.instanceName,
     instanceId: opts.instanceId,
@@ -135,18 +146,18 @@ export function trackOpened(opts: {
     exitType: 'running',
   })
   // Keep last 50
-  save(sessions.slice(0, 50))
+  await save(sessions.slice(0, 50))
 
   // For new sessions (no sessionId yet), schedule discovery after CLI has time to create its file
   if (!opts.sessionId && opts.pid) {
     const pid = opts.pid
     const cwd = opts.workingDirectory
     const instId = opts.instanceId
-    setTimeout(() => {
+    setTimeout(async () => {
       try {
-        const discovered = discoverSessionId(pid, cwd)
+        const discovered = await discoverSessionId(pid, cwd)
         if (discovered) {
-          updateSessionId(instId, discovered)
+          await updateSessionId(instId, discovered)
         }
       } catch { /* non-fatal */ }
     }, 3000)
@@ -154,18 +165,18 @@ export function trackOpened(opts: {
 }
 
 /** Update the sessionId for an instance after it has been discovered. */
-export function updateSessionId(instanceId: string, sessionId: string): void {
-  const sessions = load()
+export async function updateSessionId(instanceId: string, sessionId: string): Promise<void> {
+  const sessions = await load()
   const match = sessions.find((s) => s.instanceId === instanceId && !s.sessionId)
   if (match) {
     match.sessionId = sessionId
-    save(sessions)
+    await save(sessions)
   }
 }
 
 /** Mark a session as closed. Matches by instanceId (daemon UUID) for precision. */
-export function trackClosed(instanceId: string, exitType: 'exited' | 'killed'): void {
-  const sessions = load()
+export async function trackClosed(instanceId: string, exitType: 'exited' | 'killed'): Promise<void> {
+  const sessions = await load()
   const match = sessions.find(
     (s) => s.instanceId === instanceId && s.closedAt === null
   )
@@ -173,17 +184,17 @@ export function trackClosed(instanceId: string, exitType: 'exited' | 'killed'): 
     match.closedAt = new Date().toISOString()
     match.exitType = exitType
 
-    // Last chance: if we still have no sessionId, try lsof/directory scan now
+    // Last chance: if we still have no sessionId, try directory scan now
     if (!match.sessionId) {
-      const discovered = discoverSessionId(null, match.workingDirectory)
+      const discovered = await discoverSessionId(null, match.workingDirectory)
       if (discovered) match.sessionId = discovered
     }
 
-    save(sessions)
+    await save(sessions)
   }
 }
 
-export function getRecentSessions(): RecentSession[] {
+export async function getRecentSessions(): Promise<RecentSession[]> {
   return load()
 }
 
@@ -192,8 +203,8 @@ export function getRecentSessions(): RecentSession[] {
  * to a separate file. Only these sessions should be offered for restore.
  * This separates "was running when app quit" from "user previously stopped."
  */
-export function snapshotRunning(): void {
-  const running = load().filter((s) => s.closedAt === null && s.exitType === 'running' && s.sessionId)
+export async function snapshotRunning(): Promise<void> {
+  const running = (await load()).filter((s) => s.closedAt === null && s.exitType === 'running' && s.sessionId)
   if (running.length === 0) return
   // Deduplicate by sessionId — keep most recent record for each
   const bySessionId = new Map<string, RecentSession>()
@@ -204,8 +215,8 @@ export function snapshotRunning(): void {
       bySessionId.set(s.sessionId, s)
     }
   }
-  ensureDir()
-  writeFileSync(getRestoreSnapshotPath(), JSON.stringify([...bySessionId.values()], null, 2), 'utf-8')
+  await ensureDir()
+  await fsp.writeFile(getRestoreSnapshotPath(), JSON.stringify([...bySessionId.values()], null, 2), 'utf-8')
 }
 
 /**
@@ -213,13 +224,10 @@ export function snapshotRunning(): void {
  * Only sessions that were actively running when the app last quit are returned.
  * Deduplicates against sessions already running in the daemon.
  */
-export function getRestorableSessions(alreadyRunningSessionIds?: Set<string>): RecentSession[] {
-  const snapshotPath = getRestoreSnapshotPath()
+export async function getRestorableSessions(alreadyRunningSessionIds?: Set<string>): Promise<RecentSession[]> {
   try {
-    if (!existsSync(snapshotPath)) return []
-    const snapshot: RecentSession[] = JSON.parse(readFileSync(snapshotPath, 'utf-8'))
-
-    // Filter out sessions the daemon already has (reconnected automatically)
+    const data = await fsp.readFile(getRestoreSnapshotPath(), 'utf-8')
+    const snapshot: RecentSession[] = JSON.parse(data)
     return snapshot.filter((s) => {
       if (!s.sessionId) return false
       if (alreadyRunningSessionIds?.has(s.sessionId)) return false
@@ -232,15 +240,14 @@ export function getRestorableSessions(alreadyRunningSessionIds?: Set<string>): R
 
 /**
  * Clear the restore snapshot — called after the user restores or dismisses.
- * Also marks any still-running records in recent-sessions.json as exited.
+ * Also marks any still-running records as exited in the main list.
  */
-export function clearRestorable(): void {
+export async function clearRestorable(): Promise<void> {
   // Remove snapshot file
-  const snapshotPath = getRestoreSnapshotPath()
-  try { if (existsSync(snapshotPath)) unlinkSync(snapshotPath) } catch { /* ok */ }
+  try { await fsp.unlink(getRestoreSnapshotPath()) } catch { /* ok */ }
 
   // Mark any still-running records as exited in the main list
-  const sessions = load()
+  const sessions = await load()
   let changed = false
   for (const s of sessions) {
     if (s.closedAt === null) {
@@ -249,5 +256,28 @@ export function clearRestorable(): void {
       changed = true
     }
   }
-  if (changed) save(sessions)
+  if (changed) await save(sessions)
+}
+
+/**
+ * Synchronous version of snapshotRunning — used only in before-quit handler
+ * where the process is about to exit and async won't complete.
+ */
+export function snapshotRunningSync(): void {
+  try {
+    const data = readFileSync(getFilePath(), 'utf-8')
+    const sessions: RecentSession[] = JSON.parse(data)
+    const running = sessions.filter((s) => s.closedAt === null && s.exitType === 'running' && s.sessionId)
+    if (running.length === 0) return
+    const bySessionId = new Map<string, RecentSession>()
+    for (const s of running) {
+      if (!s.sessionId) continue
+      const existing = bySessionId.get(s.sessionId)
+      if (!existing || new Date(s.openedAt).getTime() > new Date(existing.openedAt).getTime()) {
+        bySessionId.set(s.sessionId, s)
+      }
+    }
+    mkdirSync(colonyPaths.root, { recursive: true })
+    writeFileSync(getRestoreSnapshotPath(), JSON.stringify([...bySessionId.values()], null, 2), 'utf-8')
+  } catch { /* best-effort on shutdown */ }
 }

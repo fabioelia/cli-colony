@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
-import { execSync } from 'child_process'
+import { promises as fsp } from 'fs'
+import { execFile } from 'child_process'
 import { join } from 'path'
 import type { CliBackend } from '../shared/types'
 
@@ -18,45 +18,49 @@ function getSettingsDir(): string {
   return colonyPaths.root
 }
 
-function ensureDir(): void {
-  const dir = getSettingsDir()
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true })
-  }
+async function ensureDir(): Promise<void> {
+  await fsp.mkdir(getSettingsDir(), { recursive: true })
 }
 
 let _cache: AppSettings | null = null
 
-export function getSettings(): AppSettings {
+export async function getSettings(): Promise<AppSettings> {
   if (_cache) return _cache
-  ensureDir()
+  await ensureDir()
   const path = getSettingsPath()
   try {
-    if (existsSync(path)) {
-      const data = JSON.parse(readFileSync(path, 'utf-8'))
-      _cache = data
-      return data
-    }
-  } catch (err) {
-    console.error('[settings] failed to read:', err)
+    const data = JSON.parse(await fsp.readFile(path, 'utf-8'))
+    _cache = data
+    return data
+  } catch {
+    // File doesn't exist or invalid JSON
   }
   const defaults = { defaultArgs: '' }
   _cache = defaults
   return defaults
 }
 
-export function getSetting(key: string): string {
-  const settings = getSettings()
+export async function getSetting(key: string): Promise<string> {
+  const settings = await getSettings()
   return settings[key] || ''
 }
 
-export function setSetting(key: string, value: string): void {
-  const settings = getSettings()
+/**
+ * Sync cache-only read — returns '' if settings haven't been loaded yet.
+ * Use only in sync contexts (e.g. event handlers) where awaiting isn't possible.
+ * Call getSettings() at startup to ensure the cache is populated.
+ */
+export function getSettingSync(key: string): string {
+  return _cache?.[key] || ''
+}
+
+export async function setSetting(key: string, value: string): Promise<void> {
+  const settings = await getSettings()
   settings[key] = value
   _cache = settings
-  ensureDir()
+  await ensureDir()
   const path = getSettingsPath()
-  writeFileSync(path, JSON.stringify(settings, null, 2), 'utf-8')
+  await fsp.writeFile(path, JSON.stringify(settings, null, 2), 'utf-8')
   console.log(`[settings] saved ${key}=${value} to ${path}`)
 }
 
@@ -64,8 +68,8 @@ export function setSetting(key: string, value: string): void {
  * Build a git remote URL for a GitHub repo based on the user's protocol preference.
  * Setting: gitProtocol = 'ssh' (default) | 'https'
  */
-export function gitRemoteUrl(owner: string, name: string): string {
-  const protocol = getSetting('gitProtocol') || 'ssh'
+export async function gitRemoteUrl(owner: string, name: string): Promise<string> {
+  const protocol = await getSetting('gitProtocol') || 'ssh'
   if (protocol === 'https') {
     return `https://github.com/${owner}/${name}.git`
   }
@@ -77,10 +81,14 @@ export function gitRemoteUrl(owner: string, name: string): string {
  * Returns 'ssh' if `ssh -T git@github.com` succeeds (exit 1 is success for GitHub),
  * 'https' if it fails, null if can't determine.
  */
-export function detectGitProtocol(): 'ssh' | 'https' | null {
+export async function detectGitProtocol(): Promise<'ssh' | 'https' | null> {
   try {
-    // GitHub SSH returns exit code 1 with "Hi username!" on success
-    const result = execSync('ssh -T git@github.com 2>&1 || true', { encoding: 'utf-8', timeout: 10000 })
+    const result = await new Promise<string>((resolve, reject) => {
+      execFile('ssh', ['-T', 'git@github.com'], { encoding: 'utf-8', timeout: 10000 }, (err, stdout, stderr) => {
+        // GitHub SSH returns exit code 1 with "Hi username!" on success
+        resolve((stdout || '') + (stderr || ''))
+      })
+    })
     if (result.includes('Hi ') || result.includes('successfully authenticated')) {
       return 'ssh'
     }
@@ -90,13 +98,13 @@ export function detectGitProtocol(): 'ssh' | 'https' | null {
   }
 }
 
-export function getDefaultArgs(): string[] {
-  const raw = getSetting('defaultArgs').trim()
+export async function getDefaultArgs(): Promise<string[]> {
+  const raw = (await getSetting('defaultArgs')).trim()
   if (!raw) return []
   return raw.split(/\s+/)
 }
 
-export function getDefaultCliBackend(): CliBackend {
-  const raw = getSetting('defaultCliBackend').trim()
+export async function getDefaultCliBackend(): Promise<CliBackend> {
+  const raw = (await getSetting('defaultCliBackend')).trim()
   return raw === 'cursor-agent' ? 'cursor-agent' : 'claude'
 }

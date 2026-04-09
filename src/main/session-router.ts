@@ -83,12 +83,12 @@ export function nameMatchesBranch(sessionName: string, branch: string): boolean 
 // ---- Scoring ----
 
 /** Score how well a session directory matches the desired route criteria. */
-export function scoreSessionDir(
+export async function scoreSessionDir(
   dir: string,
   sessionName: string,
   metadataBranch: string | null,
   match: RouteMatch
-): number {
+): Promise<number> {
   let score = 0
 
   // 1. Git branch check -- check live branch first, then subdirectory, then metadata
@@ -161,7 +161,7 @@ export function scoreSessionDir(
     const dirLower = dir.toLowerCase()
     const repoLower = match.repoName.toLowerCase()
     // Get all configured repos to detect siblings
-    const allRepos = getRepos()
+    const allRepos = await getRepos()
     for (const r of allRepos) {
       const otherLower = r.name.toLowerCase()
       if (otherLower === repoLower) continue // same repo, no penalty
@@ -193,7 +193,7 @@ export async function findBestRoute(
   const running = all.filter(i => i.status === 'running')
 
   for (const inst of running) {
-    let score = scoreSessionDir(inst.workingDirectory, inst.name || '', inst.gitBranch, match)
+    let score = await scoreSessionDir(inst.workingDirectory, inst.name || '', inst.gitBranch, match)
 
     // Role tag matching: strong +20 bonus when role matches
     if (match.role && (inst as any).roleTag === match.role) {
@@ -212,7 +212,7 @@ export async function findBestRoute(
 
   if (bestRunning < 10) {
     try {
-      const history = scanSessions(100)
+      const history = await scanSessions(100)
       // Exclude sessions that are already running in Colony
       const runningArgs = all.flatMap(i => i.args || [])
 
@@ -220,7 +220,7 @@ export async function findBestRoute(
         if (runningArgs.includes(session.sessionId)) continue
 
         const sessionName = session.name || session.display || ''
-        const score = scoreSessionDir(session.project, sessionName, null, match)
+        const score = await scoreSessionDir(session.project, sessionName, null, match)
 
         if (score > 0) {
           candidates.push({

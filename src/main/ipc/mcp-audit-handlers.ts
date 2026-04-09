@@ -1,5 +1,5 @@
 import { ipcMain, app } from 'electron'
-import * as fs from 'fs'
+import { promises as fsp } from 'fs'
 import { join } from 'path'
 import type { McpAuditEntry } from '../../shared/types'
 
@@ -7,10 +7,9 @@ const AUDIT_PATH = join(app.getPath('home'), '.claude-colony', 'mcp-audit.json')
 const MAX_ENTRIES = 500
 const DISPLAY_LIMIT = 100
 
-function readEntries(): McpAuditEntry[] {
+async function readEntries(): Promise<McpAuditEntry[]> {
   try {
-    if (!fs.existsSync(AUDIT_PATH)) return []
-    const raw = fs.readFileSync(AUDIT_PATH, 'utf-8')
+    const raw = await fsp.readFile(AUDIT_PATH, 'utf-8')
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
     return parsed as McpAuditEntry[]
@@ -24,16 +23,16 @@ function readEntries(): McpAuditEntry[] {
  * Fire-and-forget — does not throw on write failure.
  * Exported so it can be called from tool approval IPC once that ships.
  */
-export function appendAuditEntry(entry: Omit<McpAuditEntry, 'ts'>): void {
+export async function appendAuditEntry(entry: Omit<McpAuditEntry, 'ts'>): Promise<void> {
   try {
-    const entries = readEntries()
+    const entries = await readEntries()
     const newEntry: McpAuditEntry = { ts: Date.now(), ...entry }
     entries.push(newEntry)
     // Trim to ring buffer size
     const trimmed = entries.length > MAX_ENTRIES ? entries.slice(entries.length - MAX_ENTRIES) : entries
     const dir = join(app.getPath('home'), '.claude-colony')
-    fs.mkdirSync(dir, { recursive: true })
-    fs.writeFileSync(AUDIT_PATH, JSON.stringify(trimmed, null, 2), 'utf-8')
+    await fsp.mkdir(dir, { recursive: true })
+    await fsp.writeFile(AUDIT_PATH, JSON.stringify(trimmed, null, 2), 'utf-8')
   } catch (err) {
     console.error('[mcp-audit] appendAuditEntry failed:', err)
   }
@@ -42,25 +41,23 @@ export function appendAuditEntry(entry: Omit<McpAuditEntry, 'ts'>): void {
 /**
  * Return the last 100 entries, newest first.
  */
-export function getAuditLog(): McpAuditEntry[] {
-  const entries = readEntries()
+export async function getAuditLog(): Promise<McpAuditEntry[]> {
+  const entries = await readEntries()
   return entries.slice(-DISPLAY_LIMIT).reverse()
 }
 
 /**
  * Clear the audit log by deleting the file.
  */
-export function clearAuditLog(): void {
+export async function clearAuditLog(): Promise<void> {
   try {
-    if (fs.existsSync(AUDIT_PATH)) {
-      fs.unlinkSync(AUDIT_PATH)
-    }
-  } catch (err) {
-    console.error('[mcp-audit] clearAuditLog failed:', err)
+    await fsp.unlink(AUDIT_PATH)
+  } catch (err: any) {
+    if (err.code !== 'ENOENT') console.error('[mcp-audit] clearAuditLog failed:', err)
   }
 }
 
 export function registerMcpAuditHandlers(): void {
-  ipcMain.handle('mcp:getAuditLog', (): McpAuditEntry[] => getAuditLog())
-  ipcMain.handle('mcp:clearAuditLog', (): void => clearAuditLog())
+  ipcMain.handle('mcp:getAuditLog', () => getAuditLog())
+  ipcMain.handle('mcp:clearAuditLog', () => clearAuditLog())
 }

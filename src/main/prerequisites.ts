@@ -5,7 +5,7 @@
  */
 
 import { spawn } from 'child_process'
-import { existsSync, readFileSync } from 'fs'
+import { promises as fsp } from 'fs'
 import { join } from 'path'
 import * as os from 'os'
 import type {
@@ -144,14 +144,12 @@ export async function checkGitConfig(): Promise<PrerequisiteCheck> {
  */
 export async function checkGitHubToken(): Promise<PrerequisiteCheck> {
   const tokenFile = join(os.homedir(), '.claude', 'github-token.txt')
-  if (existsSync(tokenFile)) {
-    try {
-      const contents = readFileSync(tokenFile, 'utf-8').trim()
-      if (contents) {
-        return { ok: true, detail: tokenFile }
-      }
-    } catch { /* fall through to gh check */ }
-  }
+  try {
+    const contents = (await fsp.readFile(tokenFile, 'utf-8')).trim()
+    if (contents) {
+      return { ok: true, detail: tokenFile }
+    }
+  } catch { /* fall through to gh check */ }
   const ghResult = await runCommand('gh', ['auth', 'status'])
   // `gh auth status` exits 0 when authed, non-zero when not.
   if (ghResult.code === 0) {
@@ -191,7 +189,7 @@ export async function checkAllPrerequisites(): Promise<PrerequisitesStatus> {
     git: git.ok,
     github: github.ok,
   }
-  setPrerequisiteSnapshot(snapshot)
+  await setPrerequisiteSnapshot(snapshot)
   return status
 }
 

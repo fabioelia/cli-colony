@@ -1,40 +1,37 @@
 import { ipcMain } from 'electron'
-import * as fs from 'fs'
+import { promises as fsp, watch, type FSWatcher } from 'fs'
 import { colonyPaths } from '../../shared/colony-paths'
 import { broadcast } from '../broadcast'
 import type { TaskBoardItem } from '../../shared/types'
 
-let _watcher: fs.FSWatcher | null = null
+let _watcher: FSWatcher | null = null
 
 export function registerTasksBoardHandlers(): void {
-  ipcMain.handle('tasks:board:list', (): TaskBoardItem[] => {
-    return readBoard()
-  })
+  ipcMain.handle('tasks:board:list', () => readBoard())
 
-  ipcMain.handle('tasks:board:save', (_e, item: TaskBoardItem): void => {
-    const items = readBoard()
+  ipcMain.handle('tasks:board:save', async (_e, item: TaskBoardItem) => {
+    const items = await readBoard()
     const idx = items.findIndex(t => t.id === item.id)
     if (idx >= 0) {
       items[idx] = { ...items[idx], ...item, updated: new Date().toISOString() }
     } else {
       items.push({ ...item, created: item.created ?? new Date().toISOString(), updated: new Date().toISOString() })
     }
-    writeBoard(items)
+    await writeBoard(items)
   })
 
-  ipcMain.handle('tasks:board:delete', (_e, id: string): void => {
-    const items = readBoard().filter(t => t.id !== id)
-    writeBoard(items)
+  ipcMain.handle('tasks:board:delete', async (_e, id: string) => {
+    const items = (await readBoard()).filter(t => t.id !== id)
+    await writeBoard(items)
   })
 
   // Start watching the file for external edits (e.g., agents writing tasks)
   startWatcher()
 }
 
-function readBoard(): TaskBoardItem[] {
+async function readBoard(): Promise<TaskBoardItem[]> {
   try {
-    if (!fs.existsSync(colonyPaths.taskBoard)) return []
-    const raw = fs.readFileSync(colonyPaths.taskBoard, 'utf-8')
+    const raw = await fsp.readFile(colonyPaths.taskBoard, 'utf-8')
     const parsed = JSON.parse(raw)
     if (Array.isArray(parsed)) return parsed
     if (Array.isArray(parsed?.tasks)) return parsed.tasks
@@ -44,10 +41,10 @@ function readBoard(): TaskBoardItem[] {
   }
 }
 
-function writeBoard(items: TaskBoardItem[]): void {
+async function writeBoard(items: TaskBoardItem[]): Promise<void> {
   const tmp = colonyPaths.taskBoard + '.tmp'
-  fs.writeFileSync(tmp, JSON.stringify(items, null, 2), 'utf-8')
-  fs.renameSync(tmp, colonyPaths.taskBoard)
+  await fsp.writeFile(tmp, JSON.stringify(items, null, 2), 'utf-8')
+  await fsp.rename(tmp, colonyPaths.taskBoard)
   broadcast('tasks:board:updated', items)
 }
 
@@ -57,11 +54,11 @@ function startWatcher(): void {
   const dir = colonyPaths.root
   let debounce: ReturnType<typeof setTimeout> | null = null
   try {
-    _watcher = fs.watch(dir, (_event, filename) => {
+    _watcher = watch(dir, (_event, filename) => {
       if (filename !== 'colony-tasks.json') return
       if (debounce) clearTimeout(debounce)
       debounce = setTimeout(() => {
-        broadcast('tasks:board:updated', readBoard())
+        readBoard().then(items => broadcast('tasks:board:updated', items)).catch(() => {})
       }, 200)
     })
     _watcher.on('error', () => { _watcher = null })

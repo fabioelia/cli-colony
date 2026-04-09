@@ -1,5 +1,5 @@
 import { ipcMain, app } from 'electron'
-import * as fs from 'fs'
+import { promises as fsp } from 'fs'
 import { join } from 'path'
 import { spawn } from 'child_process'
 import { colonyPaths } from '../../shared/colony-paths'
@@ -113,7 +113,7 @@ export function registerPipelineHandlers(): void {
   ipcMain.handle('pipeline:getDir', () => getPipelinesDir())
   ipcMain.handle('pipeline:getContent', (_e, fileName: string) => getPipelineContent(fileName))
   ipcMain.handle('pipeline:saveContent', (_e, fileName: string, content: string) => savePipelineContent(fileName, content))
-  ipcMain.handle('pipeline:reload', () => { loadPipelines(); return getPipelineList() })
+  ipcMain.handle('pipeline:reload', async () => { await loadPipelines(); return getPipelineList() })
   ipcMain.handle('pipeline:setCron', (_e, fileName: string, cron: string | null) => setPipelineCron(fileName, cron))
   ipcMain.handle('pipeline:preview', (_e, fileName: string) => previewPipeline(fileName))
   ipcMain.handle('pipeline:listApprovals', () => listApprovals())
@@ -122,18 +122,19 @@ export function registerPipelineHandlers(): void {
   ipcMain.handle('pipeline:getHistory', (_e, name: string) => getHistory(name))
 
   // Pipeline outputs
-  ipcMain.handle('pipeline:listOutputs', (_e, outputDir: string) => {
+  ipcMain.handle('pipeline:listOutputs', async (_e, outputDir: string) => {
     const resolved = outputDir.replace(/^~/, app.getPath('home'))
-    if (!fs.existsSync(resolved)) return []
     try {
-      const scanDir = (dir: string, prefix = ''): Array<{ name: string; path: string; size: number; modified: number }> => {
+      const scanDir = async (dir: string, prefix = ''): Promise<Array<{ name: string; path: string; size: number; modified: number }>> => {
         const results: Array<{ name: string; path: string; size: number; modified: number }> = []
-        for (const entry of fs.readdirSync(dir)) {
+        let entries: string[]
+        try { entries = await fsp.readdir(dir) } catch { return results }
+        for (const entry of entries) {
           const full = join(dir, entry)
           try {
-            const stat = fs.statSync(full)
+            const stat = await fsp.stat(full)
             if (stat.isDirectory()) {
-              results.push(...scanDir(full, prefix ? `${prefix}/${entry}` : entry))
+              results.push(...await scanDir(full, prefix ? `${prefix}/${entry}` : entry))
             } else {
               results.push({
                 name: prefix ? `${prefix}/${entry}` : entry,
@@ -146,40 +147,41 @@ export function registerPipelineHandlers(): void {
         }
         return results
       }
-      return scanDir(resolved).sort((a, b) => b.modified - a.modified)
+      return (await scanDir(resolved)).sort((a, b) => b.modified - a.modified)
     } catch { return [] }
   })
 
   // Pipeline memory
   const PIPELINES_DIR_MEM = colonyPaths.pipelines
-  ipcMain.handle('pipeline:getMemory', (_e, fileName: string) => {
+  ipcMain.handle('pipeline:getMemory', async (_e, fileName: string) => {
     const memPath = join(PIPELINES_DIR_MEM, `${fileName.replace(/\.(yaml|yml)$/, '')}.memory.md`)
-    return fs.existsSync(memPath) ? fs.readFileSync(memPath, 'utf-8') : ''
+    try { return await fsp.readFile(memPath, 'utf-8') } catch { return '' }
   })
-  ipcMain.handle('pipeline:saveMemory', (_e, fileName: string, content: string) => {
-    if (!fs.existsSync(PIPELINES_DIR_MEM)) fs.mkdirSync(PIPELINES_DIR_MEM, { recursive: true })
+  ipcMain.handle('pipeline:saveMemory', async (_e, fileName: string, content: string) => {
+    await fsp.mkdir(PIPELINES_DIR_MEM, { recursive: true })
     const memPath = join(PIPELINES_DIR_MEM, `${fileName.replace(/\.(yaml|yml)$/, '')}.memory.md`)
-    fs.writeFileSync(memPath, content, 'utf-8')
+    await fsp.writeFile(memPath, content, 'utf-8')
     return true
   })
 
   // Create a pipeline from generated YAML (Automation Wizard)
-  ipcMain.handle('pipeline:createFromTemplate', (_e, yaml: string, slug: string): boolean => {
+  ipcMain.handle('pipeline:createFromTemplate', async (_e, yaml: string, slug: string): Promise<boolean> => {
     if (!yaml || typeof yaml !== 'string' || yaml.trim().length === 0) return false
     if (!slug || typeof slug !== 'string') return false
     // Reject path traversal
     if (slug.includes('/') || slug.includes('\\') || slug.includes('..')) return false
     const pipelinesDir = colonyPaths.pipelines
-    if (!fs.existsSync(pipelinesDir)) fs.mkdirSync(pipelinesDir, { recursive: true })
+    await fsp.mkdir(pipelinesDir, { recursive: true })
     // Find non-colliding filename
     let candidate = `${slug}.yaml`
     let suffix = 2
-    while (fs.existsSync(join(pipelinesDir, candidate))) {
+    const existing = new Set(await fsp.readdir(pipelinesDir))
+    while (existing.has(candidate)) {
       candidate = `${slug}-${suffix}.yaml`
       suffix++
     }
-    fs.writeFileSync(join(pipelinesDir, candidate), yaml, 'utf-8')
-    loadPipelines()
+    await fsp.writeFile(join(pipelinesDir, candidate), yaml, 'utf-8')
+    await loadPipelines()
     return true
   })
 

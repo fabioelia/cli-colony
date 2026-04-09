@@ -62,12 +62,12 @@ export function wireDaemonEvents(): void {
   })
 
   // Forward activity changes + notify when Claude finishes processing
-  client.on('activity', (instanceId: string, activity: string) => {
+  client.on('activity', async (instanceId: string, activity: string) => {
     broadcast('instance:activity', { id: instanceId, activity })
 
     // When an instance transitions to 'waiting', Claude finished its task
     if (activity === 'waiting') {
-      const soundEnabled = getSetting('soundOnFinish') !== 'false'
+      const soundEnabled = await getSetting('soundOnFinish') !== 'false'
 
       // Only notify if the app window is not focused (user is elsewhere)
       const win = BrowserWindow.getAllWindows()[0]
@@ -88,7 +88,7 @@ export function wireDaemonEvents(): void {
   })
 
   // Forward exit events + handle auto-cleanup + track session closure
-  client.on('exited', (instanceId: string, exitCode: number) => {
+  client.on('exited', async (instanceId: string, exitCode: number) => {
     broadcast('instance:exited', { id: instanceId, exitCode })
     trackClosed(instanceId, 'exited')
     onSessionExitCallback?.(instanceId)
@@ -111,12 +111,12 @@ export function wireDaemonEvents(): void {
     }).catch(() => {})
     const mcpPath = _mcpConfigPaths.get(instanceId)
     if (mcpPath) {
-      cleanMcpConfigFile(mcpPath)
+      cleanMcpConfigFile(mcpPath).catch(() => {})
       _mcpConfigPaths.delete(instanceId)
     }
 
     // Auto-cleanup (skip persona sessions — they're kept for review)
-    const cleanupMins = parseInt(getSetting('autoCleanupMinutes') || '5', 10)
+    const cleanupMins = parseInt(await getSetting('autoCleanupMinutes') || '5', 10)
     if (cleanupMins > 0) {
       setTimeout(async () => {
         try {
@@ -166,13 +166,13 @@ export async function createInstance(opts: {
   mcpServers?: string[]
   model?: string
 }): Promise<ClaudeInstance> {
-  const defaultArgs = getDefaultArgs()
+  const defaultArgs = await getDefaultArgs()
   const home = app.getPath('home')
   const cwd = resolveWorkingDirectory(opts.workingDirectory, home)
   if (!existsSync(cwd) || !statSync(cwd).isDirectory()) {
     throw new Error(`Working directory is missing or not a folder: ${cwd}`)
   }
-  const cliBackend = opts.cliBackend ?? getDefaultCliBackend()
+  const cliBackend = opts.cliBackend ?? await getDefaultCliBackend()
 
   // Build MCP config file if servers are requested
   let mcpConfigPath: string | null = null
@@ -180,7 +180,7 @@ export async function createInstance(opts: {
   let finalArgs = baseArgs
   if (opts.mcpServers && opts.mcpServers.length > 0) {
     const configId = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-    mcpConfigPath = buildMcpConfig(opts.mcpServers, configId)
+    mcpConfigPath = await buildMcpConfig(opts.mcpServers, configId)
     if (mcpConfigPath) {
       finalArgs = [...baseArgs, '--mcp-config', mcpConfigPath]
     }
@@ -223,7 +223,7 @@ export async function killInstance(id: string): Promise<boolean> {
 }
 
 export async function restartInstance(id: string): Promise<ClaudeInstance | null> {
-  const defaultArgs = getDefaultArgs()
+  const defaultArgs = await getDefaultArgs()
   return getDaemonClient().restartInstance(id, defaultArgs)
 }
 

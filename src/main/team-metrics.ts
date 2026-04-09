@@ -5,7 +5,7 @@
  * Aggregates on demand into 7d/30d rolling windows with per-worker stats.
  */
 
-import { readFileSync, writeFileSync, existsSync, appendFileSync } from 'fs'
+import { promises as fsp } from 'fs'
 import { join } from 'path'
 import { colonyPaths } from '../shared/colony-paths'
 import type { TeamMetricsEntry, TeamMetrics, WorkerStats } from '../shared/types'
@@ -26,13 +26,13 @@ function extractWorkerId(sessionName: string | null): string {
 /**
  * Record a worker session exit as a metrics entry.
  */
-export function recordWorkerExit(
+export async function recordWorkerExit(
   sessionName: string | null,
   sessionId: string | undefined,
   exitCode: number | null,
   durationMs: number,
   costUsd: number,
-): void {
+): Promise<void> {
   const workerId = extractWorkerId(sessionName)
   const entry: TeamMetricsEntry = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -45,9 +45,9 @@ export function recordWorkerExit(
   }
 
   try {
-    appendFileSync(METRICS_PATH, JSON.stringify(entry) + '\n', 'utf-8')
+    await fsp.appendFile(METRICS_PATH, JSON.stringify(entry) + '\n', 'utf-8')
     // Trim to 90 days on every append (lightweight filter)
-    trimToRetention()
+    await trimToRetention()
   } catch (err) {
     console.error('[team-metrics] Failed to record worker exit:', err)
   }
@@ -56,10 +56,9 @@ export function recordWorkerExit(
 /**
  * Load all metrics entries from the JSONL file.
  */
-function loadAllEntries(): TeamMetricsEntry[] {
-  if (!existsSync(METRICS_PATH)) return []
+async function loadAllEntries(): Promise<TeamMetricsEntry[]> {
   try {
-    const content = readFileSync(METRICS_PATH, 'utf-8')
+    const content = await fsp.readFile(METRICS_PATH, 'utf-8')
     return content
       .trim()
       .split('\n')
@@ -80,14 +79,14 @@ function loadAllEntries(): TeamMetricsEntry[] {
 /**
  * Remove entries older than RETENTION_DAYS.
  */
-function trimToRetention(): void {
-  const entries = loadAllEntries()
+async function trimToRetention(): Promise<void> {
+  const entries = await loadAllEntries()
   const cutoff = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000
   const kept = entries.filter(e => new Date(e.timestamp).getTime() > cutoff)
 
   if (kept.length < entries.length) {
     try {
-      writeFileSync(METRICS_PATH, kept.map(e => JSON.stringify(e)).join('\n') + '\n', 'utf-8')
+      await fsp.writeFile(METRICS_PATH, kept.map(e => JSON.stringify(e)).join('\n') + '\n', 'utf-8')
     } catch (err) {
       console.error('[team-metrics] Failed to trim file:', err)
     }
@@ -106,8 +105,8 @@ function filterByWindow(entries: TeamMetricsEntry[], window: '7d' | '30d'): Team
 /**
  * Compute aggregated metrics for a given time window.
  */
-export function getTeamMetrics(window: '7d' | '30d' = '7d'): TeamMetrics {
-  const allEntries = loadAllEntries()
+export async function getTeamMetrics(window: '7d' | '30d' = '7d'): Promise<TeamMetrics> {
+  const allEntries = await loadAllEntries()
   const windowEntries = filterByWindow(allEntries, window)
 
   if (windowEntries.length === 0) {
@@ -174,12 +173,12 @@ export function getTeamMetrics(window: '7d' | '30d' = '7d'): TeamMetrics {
 /**
  * Get historical runs for a specific worker, optionally filtered by status.
  */
-export function getWorkerHistory(
+export async function getWorkerHistory(
   workerId: string,
   limit = 20,
   status?: 'success' | 'failed',
-): TeamMetricsEntry[] {
-  const allEntries = loadAllEntries()
+): Promise<TeamMetricsEntry[]> {
+  const allEntries = await loadAllEntries()
   let filtered = allEntries.filter(e => e.workerId === workerId)
   if (status) filtered = filtered.filter(e => e.status === status)
   return filtered
@@ -190,8 +189,8 @@ export function getWorkerHistory(
 /**
  * Export metrics as CSV (for download).
  */
-export function exportMetricsAsCsv(window: '7d' | '30d' = '7d'): string {
-  const metrics = getTeamMetrics(window)
+export async function exportMetricsAsCsv(window: '7d' | '30d' = '7d'): Promise<string> {
+  const metrics = await getTeamMetrics(window)
   const lines = [
     'Worker ID,Runs,Success Rate (%),Avg Duration (ms),Total Cost (USD),Last Run',
     ...metrics.workers.map(w =>

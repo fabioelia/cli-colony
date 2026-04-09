@@ -3,8 +3,8 @@
  * Persists repo list and custom prompts to ~/.claude-colony/github.json.
  */
 
-import { execFile, execSync } from 'child_process'
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'fs'
+import { execFile } from 'child_process'
+import { promises as fsp } from 'fs'
 import { JsonFile } from '../shared/json-file'
 import { join } from 'path'
 import { app } from 'electron'
@@ -48,6 +48,10 @@ const DEFAULT_PROMPTS: QuickPrompt[] = [
     scope: 'global',
   },
 ]
+
+async function pathExists(p: string): Promise<boolean> {
+  try { await fsp.stat(p); return true } catch { return false }
+}
 
 import { colonyPaths } from '../shared/colony-paths'
 import { ensureBareRepo as ensureBareRepoWorktree } from '../shared/git-worktree'
@@ -184,11 +188,13 @@ export async function fetchPRs(repo: GitHubRepo): Promise<GitHubPR[]> {
  */
 async function refreshBareRepoConfig(owner: string, name: string): Promise<void> {
   const bareDir = colonyPaths.bareRepoDir(owner, name)
-  if (!existsSync(bareDir)) return
+  if (!await pathExists(bareDir)) return
   try {
-    execSync('git fetch origin --prune', { cwd: bareDir, timeout: 15000, stdio: 'ignore' })
+    await new Promise<void>((resolve) => {
+      execFile('git', ['fetch', 'origin', '--prune'], { cwd: bareDir, timeout: 15000 }, () => resolve())
+    })
   } catch { /* non-fatal */ }
-  const config = getRepoConfig(bareDir, `${owner}/${name}`)
+  const config = await getRepoConfig(bareDir, `${owner}/${name}`)
   if (config) {
     console.log(`[github] refreshed .colony/ for ${owner}/${name}: ${config.templates.length} templates`)
   }
@@ -352,26 +358,26 @@ const REPOS_DIR = colonyPaths.repos
  * Resolve repo directory — checks bare repo (.git suffix) first, then legacy paths.
  * For the GitHub panel's `localPath` reference — returns whichever exists.
  */
-function resolveCloneDir(owner: string, name: string): string {
+async function resolveCloneDir(owner: string, name: string): Promise<string> {
   const bareDir = colonyPaths.bareRepoDir(owner, name)
-  if (existsSync(bareDir)) return bareDir
+  if (await pathExists(bareDir)) return bareDir
   const newPath = colonyPaths.repoDir(owner, name)
-  if (existsSync(newPath)) return newPath
+  if (await pathExists(newPath)) return newPath
   const legacyPath = join(REPOS_DIR, `${owner}-${name}`)
-  if (existsSync(legacyPath)) return legacyPath
+  if (await pathExists(legacyPath)) return legacyPath
   return bareDir // default to bare repo format for new repos
 }
 
-export function getRepos(): GitHubRepo[] {
+export async function getRepos(): Promise<GitHubRepo[]> {
   const config = loadConfig()
   let updated = false
   for (const repo of config.repos) {
-    const cloneDir = resolveCloneDir(repo.owner, repo.name)
-    if (!repo.localPath || !existsSync(repo.localPath)) {
+    const cloneDir = await resolveCloneDir(repo.owner, repo.name)
+    if (!repo.localPath || !await pathExists(repo.localPath)) {
       repo.localPath = cloneDir
       updated = true
     }
-    ;(repo as any).cloned = existsSync(cloneDir)
+    ;(repo as any).cloned = await pathExists(cloneDir)
   }
   if (updated) saveConfig(config)
   return config.repos
@@ -383,12 +389,12 @@ export function getRepos(): GitHubRepo[] {
  * the shared object store for worktree-based environments AND the
  * GitHub panel's reference repo.
  */
-export function ensureRepoClones(): void {
-  const repos = getRepos()
+export async function ensureRepoClones(): Promise<void> {
+  const repos = await getRepos()
   for (const repo of repos) {
     const bareDir = colonyPaths.bareRepoDir(repo.owner, repo.name)
-    if (!existsSync(bareDir)) {
-      const remoteUrl = gitRemoteUrl(repo.owner, repo.name)
+    if (!await pathExists(bareDir)) {
+      const remoteUrl = await gitRemoteUrl(repo.owner, repo.name)
       ensureBareRepoWorktree(repo.owner, repo.name, remoteUrl).catch(err => {
         console.error(`[github] bare clone failed for ${repo.owner}/${repo.name}:`, err)
       })
@@ -419,7 +425,7 @@ export function addRepo(repo: GitHubRepo): GitHubRepo[] {
  * This is the unified entry point — all repo cloning goes through bare repos now.
  */
 export async function shallowCloneRepo(repo: GitHubRepo): Promise<void> {
-  const remoteUrl = gitRemoteUrl(repo.owner, repo.name)
+  const remoteUrl = await gitRemoteUrl(repo.owner, repo.name)
   await ensureBareRepoWorktree(repo.owner, repo.name, remoteUrl)
 }
 
@@ -442,19 +448,19 @@ export interface RepoRemovalImpact {
 }
 
 /** Scan all Colony data for references to a repo before removing it. */
-export function getRemovalImpact(owner: string, name: string): RepoRemovalImpact {
+export async function getRemovalImpact(owner: string, name: string): Promise<RepoRemovalImpact> {
   const slug = `${owner}/${name}`
   const bareClonePath = colonyPaths.bareRepoDir(owner, name)
 
   // Scan a directory of text files for lines containing any of the search terms
-  function scanDir(dir: string, ext: string, terms: string[]): Array<{ fileName: string; filePath: string; matchingLines: string[] }> {
-    if (!existsSync(dir)) return []
+  async function scanDir(dir: string, ext: string, terms: string[]): Promise<Array<{ fileName: string; filePath: string; matchingLines: string[] }>> {
+    if (!await pathExists(dir)) return []
     const results: Array<{ fileName: string; filePath: string; matchingLines: string[] }> = []
-    for (const file of readdirSync(dir)) {
+    for (const file of await fsp.readdir(dir)) {
       if (!file.endsWith(ext)) continue
       const filePath = join(dir, file)
       try {
-        const content = readFileSync(filePath, 'utf-8')
+        const content = await fsp.readFile(filePath, 'utf-8')
         const matchingLines = content.split('\n')
           .filter(line => terms.some(t => line.includes(t)))
           .map(l => l.trim()).filter(Boolean).slice(0, 5)
@@ -469,21 +475,21 @@ export function getRemovalImpact(owner: string, name: string): RepoRemovalImpact
 
   // 1. Pipeline YAMLs
   const pipelineFiles = [
-    ...scanDir(colonyPaths.pipelines, '.yaml', terms),
-    ...scanDir(colonyPaths.pipelines, '.yml', terms),
+    ...await scanDir(colonyPaths.pipelines, '.yaml', terms),
+    ...await scanDir(colonyPaths.pipelines, '.yml', terms),
   ]
 
   // 2. Persona markdown files
-  const personaFiles = scanDir(colonyPaths.personas, '.md', terms)
+  const personaFiles = await scanDir(colonyPaths.personas, '.md', terms)
 
   // 3. Environments whose manifest paths reference this repo
   const environments: RepoRemovalImpact['environments'] = []
-  if (existsSync(colonyPaths.environments)) {
-    for (const envName of readdirSync(colonyPaths.environments)) {
+  if (await pathExists(colonyPaths.environments)) {
+    for (const envName of await fsp.readdir(colonyPaths.environments)) {
       const manifestPath = join(colonyPaths.environments, envName, 'manifest.json')
-      if (!existsSync(manifestPath)) continue
+      if (!await pathExists(manifestPath)) continue
       try {
-        const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'))
+        const manifest = JSON.parse(await fsp.readFile(manifestPath, 'utf-8'))
         const pathValues = Object.values(manifest.paths || {}) as string[]
         if (pathValues.some(p => terms.some(t => p.includes(t)))) {
           environments.push({
@@ -508,12 +514,12 @@ export function getRemovalImpact(owner: string, name: string): RepoRemovalImpact
 
   // 5. PR comment files
   let prCommentFiles = 0
-  if (existsSync(colonyPaths.prComments)) {
+  if (await pathExists(colonyPaths.prComments)) {
     const safeSlug = slug.replace(/\//g, '-')
-    prCommentFiles = readdirSync(colonyPaths.prComments).filter(f => f.startsWith(safeSlug)).length
+    prCommentFiles = (await fsp.readdir(colonyPaths.prComments)).filter(f => f.startsWith(safeSlug)).length
   }
 
-  return { slug, pipelineFiles, personaFiles, environments, repoPipelines, prCommentFiles, bareCloneExists: existsSync(bareClonePath), bareClonePath }
+  return { slug, pipelineFiles, personaFiles, environments, repoPipelines, prCommentFiles, bareCloneExists: await pathExists(bareClonePath), bareClonePath }
 }
 
 export function updateRepoPath(owner: string, name: string, localPath: string): GitHubRepo[] {
@@ -580,7 +586,7 @@ const BASIC_REVIEW_PROMPT: QuickPrompt = {
   scope: 'pr',
 }
 
-export function getPrompts(): QuickPrompt[] {
+export async function getPrompts(): Promise<QuickPrompt[]> {
   const prompts = loadConfig().prompts
 
   // If user already has a review prompt (custom or saved), don't inject
@@ -592,8 +598,8 @@ export function getPrompts(): QuickPrompt[] {
   try {
     const pipelinesDir = colonyPaths.pipelines
     const feedbackFile = join(pipelinesDir, 'colony-feedback.yaml')
-    if (existsSync(feedbackFile)) {
-      const content = readFileSync(feedbackFile, 'utf-8')
+    if (await pathExists(feedbackFile)) {
+      const content = await fsp.readFile(feedbackFile, 'utf-8')
       if (/^enabled:\s*true/m.test(content)) {
         return [COLONY_REVIEW_PROMPT, ...prompts]
       }
@@ -630,8 +636,8 @@ export function savePrompts(prompts: QuickPrompt[]): QuickPrompt[] {
  * Writes all loaded PR data to the pr-workspace directory
  * so CLI instances can reference it via system prompt.
  */
-export function writePrContext(prsByRepo: Record<string, GitHubPR[]>): string {
-  getPrWorkspacePath() // ensure directory exists
+export async function writePrContext(prsByRepo: Record<string, GitHubPR[]>): Promise<string> {
+  await getPrWorkspacePath() // ensure directory exists
   const contextPath = join(PR_WORKSPACE, 'pr-context.md')
   const lines: string[] = ['# Open Pull Requests', '', `_Last synced: ${new Date().toISOString()}_`, '']
 
@@ -660,7 +666,7 @@ export function writePrContext(prsByRepo: Record<string, GitHubPR[]>): string {
       }
       // Write comments to a separate file per PR
       const commentsDir = join(PR_WORKSPACE, 'comments')
-      if (!existsSync(commentsDir)) mkdirSync(commentsDir, { recursive: true })
+      if (!await pathExists(commentsDir)) await fsp.mkdir(commentsDir, { recursive: true })
       const safeSlug = slug.replace(/\//g, '-')
       const commentFile = join(commentsDir, `${safeSlug}-${pr.number}.md`)
       if (pr.comments && pr.comments.length > 0) {
@@ -675,7 +681,7 @@ export function writePrContext(prsByRepo: Record<string, GitHubPR[]>): string {
           const fileTag = c.path ? ` (file: ${c.path})` : ' (general)'
           commentLines.push(`## ${c.author}${fileTag} — ${c.createdAt}`, '', cleanComment, '')
         }
-        writeFileSync(commentFile, commentLines.join('\n'), 'utf-8')
+        await fsp.writeFile(commentFile, commentLines.join('\n'), 'utf-8')
         lines.push(`- **Comments:** ${pr.comments.length} — to read full comments: \`cat ${commentFile}\``)
       } else {
         lines.push('- **Comments:** none')
@@ -684,7 +690,7 @@ export function writePrContext(prsByRepo: Record<string, GitHubPR[]>): string {
     }
   }
 
-  writeFileSync(contextPath, lines.join('\n'), 'utf-8')
+  await fsp.writeFile(contextPath, lines.join('\n'), 'utf-8')
   return contextPath
 }
 
@@ -696,40 +702,40 @@ const PR_WORKSPACE = colonyPaths.prWorkspace
 
 const MEMORY_PATH = join(PR_WORKSPACE, 'pr-memory.md')
 
-export function getPrMemory(): string {
+export async function getPrMemory(): Promise<string> {
   try {
-    if (existsSync(MEMORY_PATH)) {
-      return readFileSync(MEMORY_PATH, 'utf-8')
+    if (await pathExists(MEMORY_PATH)) {
+      return await fsp.readFile(MEMORY_PATH, 'utf-8')
     }
   } catch { /* */ }
   return ''
 }
 
-export function savePrMemory(content: string): boolean {
+export async function savePrMemory(content: string): Promise<boolean> {
   try {
-    writeFileSync(MEMORY_PATH, content, 'utf-8')
+    await fsp.writeFile(MEMORY_PATH, content, 'utf-8')
     return true
   } catch {
     return false
   }
 }
 
-export function getPrMemoryPath(): string {
-  getPrWorkspacePath() // ensure directory exists
-  if (!existsSync(MEMORY_PATH)) {
-    writeFileSync(MEMORY_PATH, '# PR Memory\n\nThis file stores important context learned from PR reviews and discussions.\n', 'utf-8')
+export async function getPrMemoryPath(): Promise<string> {
+  await getPrWorkspacePath() // ensure directory exists
+  if (!await pathExists(MEMORY_PATH)) {
+    await fsp.writeFile(MEMORY_PATH, '# PR Memory\n\nThis file stores important context learned from PR reviews and discussions.\n', 'utf-8')
   }
   return MEMORY_PATH
 }
 
-export function getPrWorkspacePath(): string {
-  if (!existsSync(PR_WORKSPACE)) {
-    mkdirSync(PR_WORKSPACE, { recursive: true })
+export async function getPrWorkspacePath(): Promise<string> {
+  if (!await pathExists(PR_WORKSPACE)) {
+    await fsp.mkdir(PR_WORKSPACE, { recursive: true })
   }
   return PR_WORKSPACE
 }
 
-export function resolvePrompt(prompt: QuickPrompt, pr: GitHubPR, repo: GitHubRepo): string {
+export async function resolvePrompt(prompt: QuickPrompt, pr: GitHubPR, repo: GitHubRepo): Promise<string> {
   return resolveMustacheTemplate(prompt.prompt, {
     pr: {
       ...pr,
@@ -742,7 +748,7 @@ export function resolvePrompt(prompt: QuickPrompt, pr: GitHubPR, repo: GitHubRep
     },
     repo: {
       ...repo,
-      remoteUrl: gitRemoteUrl(repo.owner, repo.name),
+      remoteUrl: await gitRemoteUrl(repo.owner, repo.name),
     },
     reviewer: _cachedUser || 'unknown',
   })

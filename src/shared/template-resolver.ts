@@ -24,7 +24,7 @@ export function createResolver(context: Record<string, any>, opts: ResolveOpts =
   // Only match ${...} where the key starts with a known context namespace.
   // This avoids clobbering bash syntax like ${VAR:-default} or ${var%%pattern}.
   const knownPrefixes = Object.keys(context).join('|')
-  const pattern = new RegExp(`\\$\\{((?:${knownPrefixes})(?:\\.[a-zA-Z_][a-zA-Z0-9_]*)*)\\}`, 'g')
+  const pattern = new RegExp(`\\$\\{((?:${knownPrefixes})(?:\\.[a-zA-Z_][a-zA-Z0-9_-]*)*)\\}`, 'g')
 
   // Namespaces whose values are filesystem paths — shell-quote if they contain spaces
   const pathNamespaces = new Set(['paths', 'repos'])

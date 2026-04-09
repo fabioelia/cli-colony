@@ -1,5 +1,5 @@
 import { ipcMain, dialog, shell, app, clipboard } from 'electron'
-import * as fs from 'fs'
+import { promises as fsp } from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import { execFile } from 'child_process'
@@ -62,54 +62,51 @@ export function registerIpcHandlers(): void {
   registerOnboardingHandlers()
 
   // ---- Temp files ----
-  ipcMain.handle('fs:writeTempFile', (_e, prefix: string, content: string) => {
+  ipcMain.handle('fs:writeTempFile', async (_e, prefix: string, content: string) => {
     const dir = path.join(os.tmpdir(), 'claude-colony')
-    fs.mkdirSync(dir, { recursive: true })
+    await fsp.mkdir(dir, { recursive: true })
     const filePath = path.join(dir, `${prefix}-${Date.now()}.txt`)
-    fs.writeFileSync(filePath, content, 'utf-8')
+    await fsp.writeFile(filePath, content, 'utf-8')
     return filePath
   })
 
   // ---- Settings ----
   ipcMain.handle('settings:getAll', () => getSettings())
-  ipcMain.handle('settings:getShells', () => {
+  ipcMain.handle('settings:getShells', async () => {
     try {
-      const content = fs.readFileSync('/etc/shells', 'utf-8')
+      const content = await fsp.readFile('/etc/shells', 'utf-8')
       return content.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'))
     } catch {
       return ['/bin/zsh', '/bin/bash', '/bin/sh']
     }
   })
   ipcMain.handle('settings:detectGitProtocol', () => detectGitProtocol())
-  ipcMain.handle('settings:set', (_e, key: string, value: string) => {
-    setSetting(key, value)
+  ipcMain.handle('settings:set', async (_e, key: string, value: string) => {
+    await setSetting(key, value)
     return true
   })
 
   // ---- Logs ----
-  ipcMain.handle('logs:get', () => {
+  ipcMain.handle('logs:get', async () => {
     const appLogs = getLogs()
     const daemonLogPath = colonyPaths.daemonLog
     let daemonLogs = ''
     try {
-      if (fs.existsSync(daemonLogPath)) {
-        const full = fs.readFileSync(daemonLogPath, 'utf-8')
-        const lines = full.split('\n')
-        daemonLogs = lines.slice(-200).join('\n')
-      }
+      const full = await fsp.readFile(daemonLogPath, 'utf-8')
+      const lines = full.split('\n')
+      daemonLogs = lines.slice(-200).join('\n')
     } catch { /* */ }
     return daemonLogs ? `${appLogs}\n\n--- Daemon Logs ---\n${daemonLogs}` : appLogs
   })
-  ipcMain.handle('logs:getScheduler', () => {
+  ipcMain.handle('logs:getScheduler', async () => {
     try {
-      if (!fs.existsSync(colonyPaths.schedulerLog)) return []
-      const lines = fs.readFileSync(colonyPaths.schedulerLog, 'utf-8').split('\n').filter(Boolean)
+      const lines = (await fsp.readFile(colonyPaths.schedulerLog, 'utf-8')).split('\n').filter(Boolean)
       return lines.slice(-20)
     } catch { return [] }
   })
-  ipcMain.handle('logs:clear', () => {
+  ipcMain.handle('logs:clear', async () => {
     clearLogs()
-    try { fs.writeFileSync(colonyPaths.daemonLog, '', 'utf-8') } catch { /* */ }
+    try { await fsp.writeFile(colonyPaths.daemonLog, '', 'utf-8') } catch { /* */ }
     return true
   })
 
@@ -127,12 +124,12 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('colony:updateContext', () => updateColonyContext())
   ipcMain.handle('colony:getContextPath', () => getColonyContextPath())
   ipcMain.handle('colony:getContextInstruction', () => getColonyContextInstruction())
-  ipcMain.handle('colony:writePromptFile', (_e, content: string) => {
+  ipcMain.handle('colony:writePromptFile', async (_e, content: string) => {
     const promptsDir = colonyPaths.pipelinePrompts
-    if (!fs.existsSync(promptsDir)) fs.mkdirSync(promptsDir, { recursive: true })
+    await fsp.mkdir(promptsDir, { recursive: true })
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const filePath = join(promptsDir, `${id}.md`)
-    fs.writeFileSync(filePath, content, 'utf-8')
+    await fsp.writeFile(filePath, content, 'utf-8')
     return filePath
   })
 
@@ -164,9 +161,9 @@ function registerFsHandlers(): void {
     const IGNORE = new Set(['.git', 'node_modules', '.next', '__pycache__', '.venv', 'venv',
       '.DS_Store', '.claude', 'dist', 'build', 'out', '.cache', 'coverage', '.turbo', '.nuxt'])
 
-    function scan(dir: string, currentDepth: number): FileNode[] {
+    async function scan(dir: string, currentDepth: number): Promise<FileNode[]> {
       try {
-        const entries = fs.readdirSync(dir, { withFileTypes: true })
+        const entries = (await fsp.readdir(dir, { withFileTypes: true }))
           .filter((e) => !e.name.startsWith('.') || e.name === '.env' || e.name === '.github')
           .filter((e) => !IGNORE.has(e.name))
           .sort((a, b) => {
@@ -175,15 +172,17 @@ function registerFsHandlers(): void {
             return a.name.localeCompare(b.name)
           })
 
-        return entries.map((e) => {
+        const nodes: FileNode[] = []
+        for (const e of entries) {
           const fullPath = path.join(dir, e.name)
           const isDir = e.isDirectory()
           const node: FileNode = { name: e.name, path: fullPath, type: isDir ? 'directory' : 'file' }
           if (isDir && currentDepth < depth) {
-            node.children = scan(fullPath, currentDepth + 1)
+            node.children = await scan(fullPath, currentDepth + 1)
           }
-          return node
-        })
+          nodes.push(node)
+        }
+        return nodes
       } catch {
         return []
       }
@@ -196,20 +195,20 @@ function registerFsHandlers(): void {
     const img = clipboard.readImage()
     if (img.isEmpty()) return null
     const tmpDir = colonyPaths.screenshots
-    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true })
+    await fsp.mkdir(tmpDir, { recursive: true })
     const fileName = `screenshot-${Date.now()}.png`
     const filePath = join(tmpDir, fileName)
-    fs.writeFileSync(filePath, img.toPNG())
+    await fsp.writeFile(filePath, img.toPNG())
     return filePath
   })
 
   ipcMain.handle('fs:saveClipboardImage', async (_e, base64Data: string) => {
     const tmpDir = colonyPaths.screenshots
-    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true })
+    await fsp.mkdir(tmpDir, { recursive: true })
     const fileName = `screenshot-${Date.now()}.png`
     const filePath = join(tmpDir, fileName)
     const buffer = Buffer.from(base64Data, 'base64')
-    fs.writeFileSync(filePath, buffer)
+    await fsp.writeFile(filePath, buffer)
     return filePath
   })
 
@@ -265,9 +264,9 @@ function registerFsHandlers(): void {
 
   ipcMain.handle('fs:readFile', async (_e, filePath: string) => {
     try {
-      const stat = fs.statSync(filePath)
+      const stat = await fsp.stat(filePath)
       if (stat.size > 1024 * 1024) return { error: 'File too large (>1MB)' }
-      return { content: fs.readFileSync(filePath, 'utf-8') }
+      return { content: await fsp.readFile(filePath, 'utf-8') }
     } catch (err: any) {
       return { error: err.message }
     }

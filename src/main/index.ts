@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, globalShortcut, Menu, nativeImage } from 'electron'
+import { app, BrowserWindow, shell, globalShortcut, Menu, nativeImage, screen } from 'electron'
 
 // Prevent non-fatal pipe/socket errors (EIO, EPIPE) from crashing the app.
 // These occur when child processes exit before their stdio pipes are fully drained.
@@ -27,7 +27,7 @@ import { initDaemon, disconnectDaemon, setOnInstanceListChanged, setOnSessionExi
 import { initEnvDaemon, refreshRepoConfigs } from './env-manager'
 import { createTray, updateTrayMenu } from './tray'
 import { initLogger } from './logger'
-import { getSetting } from './settings'
+import { getSetting, getSettingSync, getSettings } from './settings'
 import { updateColonyContext } from './colony-context'
 import { killAllShells } from './shell-pty'
 import { snapshotRunning } from './recent-sessions'
@@ -183,13 +183,19 @@ function createWindow(): void {
   mainWindow.on('resize', stateChangeHandler)
   mainWindow.on('maximize', stateChangeHandler)
   mainWindow.on('unmaximize', stateChangeHandler)
-  mainWindow.on('enter-full-screen', stateChangeHandler)
-  mainWindow.on('leave-full-screen', stateChangeHandler)
+  mainWindow.on('enter-full-screen', () => {
+    stateChangeHandler()
+    mainWindow?.webContents.send('window:fullscreen-changed', true)
+  })
+  mainWindow.on('leave-full-screen', () => {
+    stateChangeHandler()
+    mainWindow?.webContents.send('window:fullscreen-changed', false)
+  })
 
   mainWindow.on('close', (event) => {
     saveWindowState(true)
     if (process.platform === 'darwin' && !app.isQuitting) {
-      const keepInTray = getSetting('keepInTray') !== 'false'
+      const keepInTray = getSettingSync('keepInTray') !== 'false'
       if (keepInTray) {
         event.preventDefault()
         mainWindow?.hide()
@@ -282,6 +288,21 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+}
+
+/** Show the main window and center it on the current display. */
+function showAndCenter(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  mainWindow.show()
+  mainWindow.focus()
+  // Center on the display the window is currently on (or primary if off-screen)
+  const bounds = mainWindow.getBounds()
+  const display = screen.getDisplayNearestPoint({ x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 })
+  const { width: dw, height: dh, x: dx, y: dy } = display.workArea
+  const x = Math.round(dx + (dw - bounds.width) / 2)
+  const y = Math.round(dy + (dh - bounds.height) / 2)
+  mainWindow.setPosition(x, y)
+  if (process.platform === 'darwin') app.dock?.show()
 }
 
 function buildAppMenu(): void {
@@ -423,6 +444,12 @@ function buildAppMenu(): void {
         { role: 'minimize' as const },
         { role: 'zoom' as const },
         { type: 'separator' as const },
+        {
+          label: 'Center Window',
+          accelerator: 'CmdOrCtrl+Shift+C',
+          click: () => showAndCenter(),
+        },
+        { type: 'separator' as const },
         { role: 'front' as const },
       ],
     },
@@ -431,7 +458,7 @@ function buildAppMenu(): void {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.claude-colony.app')
   app.setName('Claude Colony')
 
@@ -449,6 +476,9 @@ app.whenReady().then(() => {
   if (process.platform === 'darwin') {
     app.dock.setIcon(getIconPath())
   }
+
+  // Pre-load settings into cache so sync reads (getSettingSync) work everywhere
+  await getSettings()
 
   registerIpcHandlers()
   buildAppMenu()
@@ -476,7 +506,7 @@ app.whenReady().then(() => {
   })
 
   // Seed default pipelines before daemon connects
-  seedDefaultPipelines()
+  await seedDefaultPipelines()
 
   // Connect to PTY daemon (spawns it if not running)
   initDaemon().then(async () => {
@@ -494,18 +524,16 @@ app.whenReady().then(() => {
       fs.chmodSync(cliDst, 0o755)
     } catch { /* ignore */ }
     // Ensure all repos have bare clones, then pre-warm .colony/ config cache
-    try {
-      ensureRepoClones()
-    } catch { /* ignore */ }
+    ensureRepoClones().catch(() => { /* ignore */ })
     refreshRepoConfigs().catch(() => { /* ignore */ })
     // Start pipeline polling
-    startPipelines().then(() => {
+    startPipelines().then(async () => {
       console.log('[app] pipelines started')
       // Broadcast the loaded list so any renderer that subscribed before startup completes gets it
       broadcast('pipeline:status', getPipelineList())
       // Start webhook server if enabled
-      const webhookPort = parseInt(getSetting('webhookPort') || '7474', 10)
-      if (getSetting('webhookEnabled') !== 'false') {
+      const webhookPort = parseInt(await getSetting('webhookPort') || '7474', 10)
+      if (await getSetting('webhookEnabled') !== 'false') {
         startWebhookServer(webhookPort)
       }
     }).catch((err) => {
@@ -531,7 +559,7 @@ app.whenReady().then(() => {
   })
 
   // Register global hotkey to bring app to front
-  const hotkey = getSetting('globalHotkey') || 'CommandOrControl+Shift+Space'
+  const hotkey = await getSetting('globalHotkey') || 'CommandOrControl+Shift+Space'
   try {
     globalShortcut.register(hotkey, () => {
       if (mainWindow && !mainWindow.isDestroyed()) {

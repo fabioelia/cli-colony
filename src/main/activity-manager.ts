@@ -5,7 +5,7 @@
  * Tracks an in-memory unread count that resets on markRead().
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { promises as fsp } from 'fs'
 import { colonyPaths } from '../shared/colony-paths'
 import { broadcast } from './broadcast'
 import type { ActivityEvent } from '../shared/types'
@@ -18,14 +18,10 @@ let unreadCount = 0
 // callers (pipeline poll + session exit) could overwrite each other's append.
 let _events: ActivityEvent[] | null = null
 
-function getEvents(): ActivityEvent[] {
+async function getEvents(): Promise<ActivityEvent[]> {
   if (_events === null) {
     try {
-      if (!existsSync(colonyPaths.activityLog)) {
-        _events = []
-      } else {
-        _events = JSON.parse(readFileSync(colonyPaths.activityLog, 'utf-8'))
-      }
+      _events = JSON.parse(await fsp.readFile(colonyPaths.activityLog, 'utf-8'))
     } catch {
       _events = []
     }
@@ -33,14 +29,14 @@ function getEvents(): ActivityEvent[] {
   return _events!
 }
 
-function writeLog(events: ActivityEvent[]): void {
+async function writeLog(events: ActivityEvent[]): Promise<void> {
   try {
-    writeFileSync(colonyPaths.activityLog, JSON.stringify(events, null, 2), 'utf-8')
+    await fsp.writeFile(colonyPaths.activityLog, JSON.stringify(events, null, 2), 'utf-8')
   } catch { /* non-fatal */ }
 }
 
-export function appendActivity(event: Omit<ActivityEvent, 'id' | 'timestamp'>): void {
-  const events = getEvents()
+export async function appendActivity(event: Omit<ActivityEvent, 'id' | 'timestamp'>): Promise<void> {
+  const events = await getEvents()
   const newEvent: ActivityEvent = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     timestamp: new Date().toISOString(),
@@ -48,12 +44,12 @@ export function appendActivity(event: Omit<ActivityEvent, 'id' | 'timestamp'>): 
   }
   events.push(newEvent)
   if (events.length > MAX_EVENTS) events.splice(0, events.length - MAX_EVENTS)
-  writeLog(events)
+  await writeLog(events)
   unreadCount++
   broadcast('activity:new', { event: newEvent, unreadCount })
 }
 
-export function listActivity(): ActivityEvent[] {
+export async function listActivity(): Promise<ActivityEvent[]> {
   return getEvents()
 }
 

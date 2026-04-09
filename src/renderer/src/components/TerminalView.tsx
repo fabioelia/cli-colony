@@ -1550,7 +1550,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                       onClick={() => {
                         const text = selectedFile.includes(' ') ? `"${selectedFile}"` : selectedFile
                         window.api.instance.write(instance.id, text + ' ')
-                        setViewTab('terminal')
+                        setViewTab('session')
                       }}
                       title="Paste path to terminal"
                     >

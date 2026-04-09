@@ -1,5 +1,5 @@
 import { ipcMain, dialog, app } from 'electron'
-import * as fs from 'fs'
+import { promises as fsp, createWriteStream, createReadStream } from 'fs'
 import * as path from 'path'
 import { basename, join as pathJoin } from 'path'
 import archiver from 'archiver'
@@ -32,13 +32,11 @@ export function registerAgentHandlers(): void {
     })
     if (result.canceled || !result.filePath) return false
     return new Promise<boolean>((resolve) => {
-      const output = fs.createWriteStream(result.filePath!)
+      const output = createWriteStream(result.filePath!)
       const archive = archiver('zip', { zlib: { level: 9 } })
       archive.pipe(output)
       for (const p of agentPaths) {
-        if (fs.existsSync(p)) {
-          archive.file(p, { name: basename(p) })
-        }
+        archive.file(p, { name: basename(p) })
       }
       output.on('close', () => resolve(true))
       archive.on('error', () => resolve(false))
@@ -53,16 +51,16 @@ export function registerAgentHandlers(): void {
     })
     if (result.canceled || result.filePaths.length === 0) return 0
     const resolvedDir = targetDir || pathJoin(app.getPath('home'), '.claude', 'agents')
-    if (!fs.existsSync(resolvedDir)) fs.mkdirSync(resolvedDir, { recursive: true })
+    await fsp.mkdir(resolvedDir, { recursive: true })
     return new Promise<number>((resolve) => {
       let count = 0
-      fs.createReadStream(result.filePaths[0])
+      createReadStream(result.filePaths[0])
         .pipe(unzipper.Parse())
         .on('entry', (entry: any) => {
           const name = basename(entry.path)
           if (name.endsWith('.md') && !name.startsWith('.')) {
             count++
-            entry.pipe(fs.createWriteStream(pathJoin(resolvedDir, name)))
+            entry.pipe(createWriteStream(pathJoin(resolvedDir, name)))
           } else {
             entry.autodrain()
           }
@@ -72,19 +70,19 @@ export function registerAgentHandlers(): void {
     })
   })
 
-  ipcMain.handle('agents:read', (_e, filePath: string) => {
+  ipcMain.handle('agents:read', async (_e, filePath: string) => {
     assertAgentPath(filePath)
     try {
-      return fs.readFileSync(filePath, 'utf-8')
+      return await fsp.readFile(filePath, 'utf-8')
     } catch {
       return null
     }
   })
 
-  ipcMain.handle('agents:write', (_e, filePath: string, content: string) => {
+  ipcMain.handle('agents:write', async (_e, filePath: string, content: string) => {
     assertAgentPath(filePath)
     try {
-      fs.writeFileSync(filePath, content, 'utf-8')
+      await fsp.writeFile(filePath, content, 'utf-8')
       return true
     } catch {
       return false

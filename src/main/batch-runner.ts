@@ -3,7 +3,7 @@
  * Handles schedule firing, task spawning, history tracking, and report generation.
  */
 
-import * as fs from 'fs'
+import { promises as fsp } from 'fs'
 import { join } from 'path'
 import { v4 as uuid } from 'uuid'
 import { parseYaml } from '../shared/yaml-parser'
@@ -47,10 +47,9 @@ export function getDefaultBatchConfig(): BatchConfig {
  * Parse a task queue YAML file and extract tasks.
  * Returns null if parsing fails.
  */
-export function parseTaskQueue(filePath: string): TaskQueueItem[] | null {
+export async function parseTaskQueue(filePath: string): Promise<TaskQueueItem[] | null> {
   try {
-    if (!fs.existsSync(filePath)) return null
-    const content = fs.readFileSync(filePath, 'utf-8')
+    const content = await fsp.readFile(filePath, 'utf-8')
     const parsed = parseYaml(content)
     if (!parsed || !Array.isArray(parsed.tasks)) return null
     return parsed.tasks as TaskQueueItem[]
@@ -63,17 +62,17 @@ export function parseTaskQueue(filePath: string): TaskQueueItem[] | null {
 /**
  * Append a batch run to history (ring buffer, max 100 entries).
  */
-export function appendBatchHistory(run: BatchRun): void {
+export async function appendBatchHistory(run: BatchRun): Promise<void> {
   try {
     let entries: BatchRun[] = []
-    if (fs.existsSync(BATCH_HISTORY_FILE)) {
-      const lines = fs.readFileSync(BATCH_HISTORY_FILE, 'utf-8')
+    try {
+      const lines = (await fsp.readFile(BATCH_HISTORY_FILE, 'utf-8'))
         .split('\n')
         .filter(l => l.trim())
       entries = lines.map(l => {
         try { return JSON.parse(l) } catch { return null }
       }).filter((e): e is BatchRun => e !== null)
-    }
+    } catch { /* file doesn't exist */ }
     entries.push(run)
     // Trim to last 100 entries
     if (entries.length > MAX_HISTORY_ENTRIES) {
@@ -81,7 +80,7 @@ export function appendBatchHistory(run: BatchRun): void {
     }
     // Write as JSONL (one entry per line)
     const content = entries.map(e => JSON.stringify(e)).join('\n') + '\n'
-    fs.writeFileSync(BATCH_HISTORY_FILE, content, 'utf-8')
+    await fsp.writeFile(BATCH_HISTORY_FILE, content, 'utf-8')
   } catch (err) {
     console.error('Failed to append batch history:', err)
   }
@@ -90,18 +89,16 @@ export function appendBatchHistory(run: BatchRun): void {
 /**
  * Retrieve recent batch runs from history.
  */
-export function getBatchHistory(limit: number = 20): BatchRun[] {
+export async function getBatchHistory(limit: number = 20): Promise<BatchRun[]> {
   try {
-    if (!fs.existsSync(BATCH_HISTORY_FILE)) return []
-    const lines = fs.readFileSync(BATCH_HISTORY_FILE, 'utf-8')
+    const lines = (await fsp.readFile(BATCH_HISTORY_FILE, 'utf-8'))
       .split('\n')
       .filter(l => l.trim())
     const entries = lines.map(l => {
       try { return JSON.parse(l) } catch { return null }
     }).filter((e): e is BatchRun => e !== null)
     return entries.slice(-limit)
-  } catch (err) {
-    console.error('Failed to read batch history:', err)
+  } catch {
     return []
   }
 }

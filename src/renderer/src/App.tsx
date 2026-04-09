@@ -350,6 +350,13 @@ export default function App() {
     return () => unsubs.forEach((u) => u())
   }, []) // empty deps — runs once, uses refs for fresh values
 
+  // Toggle body class for fullscreen — lets CSS reduce traffic-light padding
+  useEffect(() => {
+    return window.api.window.onFullScreenChanged((isFS) => {
+      document.body.classList.toggle('fullscreen', isFS)
+    })
+  }, [])
+
   // Resource monitor: poll every 15 seconds, only when the window is focused
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null
@@ -513,8 +520,10 @@ export default function App() {
     setView(v)
   }, [])
 
+  const handleNewSession = useCallback(() => { agentToLaunchRef.current = null; setShowNewDialog(true) }, [])
+
   useGlobalShortcuts({
-    onNewSession: useCallback(() => { agentToLaunchRef.current = null; setShowNewDialog(true) }, []),
+    onNewSession: handleNewSession,
     onNavigate: handleViewChange,
     currentView: view as SidebarView,
   })
@@ -601,7 +610,7 @@ export default function App() {
     }
   }, [])
 
-  const regularInstances = instances.filter((i) => i.id !== editorInstanceId)
+  const regularInstances = useMemo(() => instances.filter((i) => i.id !== editorInstanceId), [instances, editorInstanceId])
 
   // Unique recent working directories from current instances (for quick prompt dir picker)
   const recentDirs = useMemo(() => {
@@ -866,6 +875,23 @@ export default function App() {
     onFocusRight: () => void
   }>())
   const handleSearchClose = useCallback(() => setSearchOpen(false), [])
+  const handleForkSession = useCallback(async (id: string) => {
+    const inst = instancesRef.current.find((i) => i.id === id)
+    if (!inst) return
+    let hint = ''
+    try {
+      const buf = await window.api.instance.buffer(id)
+      const clean = stripAnsi(buf)
+      const lines = clean.split('\n').filter((l) => l.trim()).slice(-3)
+      hint = lines.join('\n')
+    } catch { /* best-effort */ }
+    setForkModalHint(hint)
+    setForkModalInst(inst)
+  }, [])
+  const restorableCount = useMemo(
+    () => restorableSessions.filter((s) => s.sessionId && s.exitType !== 'killed').length,
+    [restorableSessions]
+  )
   // Create stable callbacks per instance (created once, use refs for current values)
   for (const inst of regularInstances) {
     let cbs = instanceCallbacksRef.current.get(inst.id)
@@ -958,7 +984,7 @@ export default function App() {
         unreadIds={unreadIds}
         outputBytes={outputBytes}
         onSelect={handleSelect}
-        onNew={() => { agentToLaunchRef.current = null; setShowNewDialog(true) }}
+        onNew={handleNewSession}
         onKill={handleKill}
         onRestart={handleRestart}
         onRemove={handleRemove}
@@ -970,7 +996,7 @@ export default function App() {
         onResumeSession={handleResumeSession}
         onTakeoverExternal={handleTakeoverExternal}
         onRestoreAll={handleRestoreAll}
-        restorableCount={restorableSessions.filter((s) => s.sessionId && s.exitType !== 'killed').length}
+        restorableCount={restorableCount}
         splitId={splitId}
         splitPairs={splitPairs}
         focusedPane={focusedPane}
@@ -978,19 +1004,7 @@ export default function App() {
         onCloseSplit={handleCloseSplitView}
         onDrop={handleSidebarDrop}
         forkGroups={forkGroups}
-        onForkSession={async (id) => {
-          const inst = instances.find((i) => i.id === id)
-          if (!inst) return
-          let hint = ''
-          try {
-            const buf = await window.api.instance.buffer(id)
-            const clean = stripAnsi(buf)
-            const lines = clean.split('\n').filter((l) => l.trim()).slice(-3)
-            hint = lines.join('\n')
-          } catch { /* best-effort */ }
-          setForkModalHint(hint)
-          setForkModalInst(inst)
-        }}
+        onForkSession={handleForkSession}
       />
       <div className={`main ${isSplit ? 'split' : ''}`}>
         {/* All terminals stay mounted (xterm doesn't support re-open); expensive effects gated on focused prop */}
@@ -1424,7 +1438,7 @@ export default function App() {
         instances={regularInstances}
         activeId={activeId}
         onSelect={(id) => { handleSelect(id); setView('instances') }}
-        onNew={() => { agentToLaunchRef.current = null; setShowNewDialog(true) }}
+        onNew={handleNewSession}
         onKill={handleKill}
         onRestart={handleRestart}
         onViewChange={(v) => setView(v as View)}

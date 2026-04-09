@@ -28,12 +28,12 @@ function getFocusedWindow(): BrowserWindow | null {
  * @param route  Optional route key broadcast to renderer on click
  *               (e.g. 'pipelines', 'personas', { type: 'session', id: '...' })
  */
-export function notify(
+export async function notify(
   title: string,
   body: string,
   route?: string | Record<string, unknown>
-): void {
-  if (getSetting('notificationsEnabled') === 'false') return
+): Promise<void> {
+  if (await getSetting('notificationsEnabled') === 'false') return
   if (!Notification.isSupported()) return
 
   const notif = new Notification({

@@ -6,12 +6,13 @@
  * evaluates conditions, and fires actions (usually launching sessions).
  */
 
-import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync } from 'fs'
-import { execSync, spawnSync } from 'child_process'
+import { promises as fsp } from 'fs'
+import { execFile as execFileCb } from 'child_process'
+import { promisify } from 'util'
 import { join, basename } from 'path'
 import { createHash } from 'crypto'
 import { app } from 'electron'
-import { createInstance, getAllInstances } from './instance-manager'
+import { createInstance, getAllInstances, killInstance } from './instance-manager'
 import { getDaemonClient } from './daemon-client'
 import { sendPromptWhenReady } from './send-prompt-when-ready'
 import { getRepos, fetchPRs, fetchChecks, gh } from './github'
@@ -23,6 +24,12 @@ import type { GitHubRepo, GitHubPR, PRChecks, ApprovalRequest } from '../shared/
 import { appendActivity } from './activity-manager'
 import { notify } from './notifications'
 import { matchRules, estimateActionCost } from './approval-rules'
+
+const execFileAsync = promisify(execFileCb)
+
+async function pathExists(p: string): Promise<boolean> {
+  try { await fsp.access(p); return true } catch { return false }
+}
 
 // ---- Types ----
 
@@ -321,12 +328,12 @@ function historyPath(name: string): string {
   return join(PIPELINES_DIR, `${safe}.history.json`)
 }
 
-function appendHistory(pipelineName: string, entry: PipelineRunEntry): void {
+async function appendHistory(pipelineName: string, entry: PipelineRunEntry): Promise<void> {
   const path = historyPath(pipelineName)
   let entries: PipelineRunEntry[] = []
   try {
-    if (existsSync(path)) {
-      entries = JSON.parse(readFileSync(path, 'utf-8'))
+    if (await pathExists(path)) {
+      entries = JSON.parse(await fsp.readFile(path, 'utf-8'))
     }
   } catch { /* ignore */ }
   entries.push(entry)
@@ -334,15 +341,15 @@ function appendHistory(pipelineName: string, entry: PipelineRunEntry): void {
     entries = entries.slice(entries.length - MAX_HISTORY_ENTRIES)
   }
   try {
-    writeFileSync(path, JSON.stringify(entries, null, 2), 'utf-8')
+    await fsp.writeFile(path, JSON.stringify(entries, null, 2), 'utf-8')
   } catch { /* ignore */ }
 }
 
-export function getHistory(pipelineName: string): PipelineRunEntry[] {
+export async function getHistory(pipelineName: string): Promise<PipelineRunEntry[]> {
   const path = historyPath(pipelineName)
   try {
-    if (existsSync(path)) {
-      return JSON.parse(readFileSync(path, 'utf-8'))
+    if (await pathExists(path)) {
+      return JSON.parse(await fsp.readFile(path, 'utf-8'))
     }
   } catch { /* ignore */ }
   return []
@@ -355,10 +362,10 @@ function debugLogPath(name: string): string {
   return join(PIPELINES_DIR, `${safe}.debug.json`)
 }
 
-function loadState(): Record<string, PipelineState> {
+async function loadState(): Promise<Record<string, PipelineState>> {
   try {
-    if (existsSync(STATE_PATH)) {
-      const raw = JSON.parse(readFileSync(STATE_PATH, 'utf-8'))
+    if (await pathExists(STATE_PATH)) {
+      const raw = JSON.parse(await fsp.readFile(STATE_PATH, 'utf-8'))
       for (const key of Object.keys(raw)) {
         if (!raw[key].debugLog) raw[key].debugLog = []
         if (!raw[key].consecutiveFailures) raw[key].consecutiveFailures = 0
@@ -369,26 +376,26 @@ function loadState(): Record<string, PipelineState> {
   return {}
 }
 
-function saveState(): void {
+async function saveState(): Promise<void> {
   const state: Record<string, any> = {}
   for (const [name, p] of pipelines) {
     const { debugLog, ...rest } = p.state
     state[name] = rest
   }
   try {
-    writeFileSync(STATE_PATH, JSON.stringify(state, null, 2), 'utf-8')
+    await fsp.writeFile(STATE_PATH, JSON.stringify(state, null, 2), 'utf-8')
   } catch (err) {
     log(`Failed to save state: ${err}`)
   }
 }
 
 /** Persist the last 50 debug log entries per pipeline to disk. */
-function saveDebugLogs(): void {
+async function saveDebugLogs(): Promise<void> {
   for (const [name, p] of pipelines) {
     if (p.state.debugLog.length === 0) continue
     const entries = p.state.debugLog.slice(-50)
     try {
-      writeFileSync(debugLogPath(name), JSON.stringify({ entries, savedAt: new Date().toISOString() }, null, 2), 'utf-8')
+      await fsp.writeFile(debugLogPath(name), JSON.stringify({ entries, savedAt: new Date().toISOString() }, null, 2), 'utf-8')
     } catch (err) {
       log(`Failed to save debug log for ${name}: ${err}`)
     }
@@ -446,7 +453,7 @@ function isDuplicate(pipelineName: string, key: string, ttlSeconds: number, cont
   return Date.now() - lastFired < ttlSeconds * 1000
 }
 
-function recordFired(pipelineName: string, key: string, contentSha?: string): void {
+async function recordFired(pipelineName: string, key: string, contentSha?: string): Promise<void> {
   const p = pipelines.get(pipelineName)
   if (!p) return
   p.state.firedKeys[key] = Date.now()
@@ -467,17 +474,17 @@ function recordFired(pipelineName: string, key: string, contentSha?: string): vo
     }
   }
 
-  saveState()
+  await saveState()
 }
 
 // ---- Write prompt to file, send short trigger to PTY ----
 
-function writePromptFile(prompt: string): string {
+async function writePromptFile(prompt: string): Promise<string> {
   const promptsDir = join(COLONY_DIR, 'pipeline-prompts')
-  if (!existsSync(promptsDir)) mkdirSync(promptsDir, { recursive: true })
+  if (!await pathExists(promptsDir)) await fsp.mkdir(promptsDir, { recursive: true })
   const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const filePath = join(promptsDir, `${id}.md`)
-  writeFileSync(filePath, prompt, 'utf-8')
+  await fsp.writeFile(filePath, prompt, 'utf-8')
   return filePath
 }
 
@@ -490,7 +497,7 @@ function buildFilePromptTrigger(filePath: string): string {
 async function sendPromptToExistingSession(instanceId: string, prompt: string): Promise<boolean> {
   const client = getDaemonClient()
   const inst = await client.getInstance(instanceId)
-  const filePath = writePromptFile(prompt)
+  const filePath = await writePromptFile(prompt)
   const trigger = buildFilePromptTrigger(filePath)
 
   if (inst?.activity === 'waiting') {
@@ -529,7 +536,7 @@ async function sendPromptToExistingSession(instanceId: string, prompt: string): 
 // ---- Trigger Execution ----
 
 async function executeGitPollTrigger(trigger: TriggerDef): Promise<TriggerContext[]> {
-  const repos = trigger.repos === 'auto' || !trigger.repos ? getRepos() : trigger.repos as GitHubRepo[]
+  const repos = trigger.repos === 'auto' || !trigger.repos ? await getRepos() : trigger.repos as GitHubRepo[]
   const contexts: TriggerContext[] = []
 
   for (const repo of repos) {
@@ -680,13 +687,14 @@ async function waitForSessionCompletion(instanceId: string, timeoutMs = 600000):
 }
 
 /** Run artifact capture commands and save stdout to the shared artifacts directory. Never throws. */
-function captureArtifacts(outputs: Array<{ name: string; cmd: string }>, cwd: string | undefined): void {
+async function captureArtifacts(outputs: Array<{ name: string; cmd: string }>, cwd: string | undefined): Promise<void> {
   const artifactsDir = join(COLONY_DIR, 'artifacts')
-  mkdirSync(artifactsDir, { recursive: true })
+  await fsp.mkdir(artifactsDir, { recursive: true })
   for (const { name, cmd } of outputs) {
     try {
-      const result = execSync(cmd, { cwd, timeout: 30_000, maxBuffer: 1024 * 1024 }).toString().trim()
-      writeFileSync(join(artifactsDir, `${name}.txt`), result, 'utf-8')
+      const { stdout } = await execFileAsync('sh', ['-c', cmd], { cwd, timeout: 30_000, maxBuffer: 1024 * 1024 })
+      const result = stdout.trim()
+      await fsp.writeFile(join(artifactsDir, `${name}.txt`), result, 'utf-8')
       log(`[artifacts] captured "${name}": ${result.length} bytes`)
     } catch (err: any) {
       log(`[artifacts] warn: capture failed for "${name}" (cmd: ${cmd}): ${err?.message ?? err}`)
@@ -695,13 +703,13 @@ function captureArtifacts(outputs: Array<{ name: string; cmd: string }>, cwd: st
 }
 
 /** Read artifact files and build a preamble block to prepend to the prompt. */
-function loadArtifactPreamble(inputs: string[]): string {
+async function loadArtifactPreamble(inputs: string[]): Promise<string> {
   const artifactsDir = join(COLONY_DIR, 'artifacts')
   const sections: string[] = []
   for (const name of inputs) {
     const filePath = join(artifactsDir, `${name}.txt`)
-    if (existsSync(filePath)) {
-      const content = readFileSync(filePath, 'utf-8').trim()
+    if (await pathExists(filePath)) {
+      const content = (await fsp.readFile(filePath, 'utf-8')).trim()
       sections.push(`--- Artifact: ${name} ---\n${content}`)
     } else {
       log(`[artifacts] input "${name}" not found at ${filePath} — skipping`)
@@ -714,13 +722,13 @@ function loadArtifactPreamble(inputs: string[]): string {
  * Read artifact files and build a structured handoff block with narrative framing.
  * Used for passing decision metadata and constraints between pipeline stages.
  */
-function loadHandoffPreamble(inputs: string[]): string {
+async function loadHandoffPreamble(inputs: string[]): Promise<string> {
   const artifactsDir = join(COLONY_DIR, 'artifacts')
   const sections: string[] = []
   for (const name of inputs) {
     const filePath = join(artifactsDir, `${name}.txt`)
-    if (existsSync(filePath)) {
-      const content = readFileSync(filePath, 'utf-8').trim()
+    if (await pathExists(filePath)) {
+      const content = (await fsp.readFile(filePath, 'utf-8')).trim()
       sections.push(
         `--- Stage Handoff from Prior Stage ---\n` +
         `The previous pipeline stage completed and left this structured briefing. Read it carefully before starting. ` +
@@ -756,7 +764,7 @@ async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pipelineN
   const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const safeName = pipelineName.replace(/[^a-zA-Z0-9]/g, '-')
   const runDir = join(COLONY_DIR, 'maker-checker', safeName, runId)
-  mkdirSync(runDir, { recursive: true })
+  await fsp.mkdir(runDir, { recursive: true })
 
   const makerOutputFile = join(runDir, 'maker-output.md')
   const verdictFile = join(runDir, 'checker-verdict.md')
@@ -780,15 +788,15 @@ async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pipelineN
     const p = [...pipelines.values()].find(pp => pp.def.name === pipelineName)
     if (p) {
       const memPath = join(PIPELINES_DIR, `${p.fileName.replace(/\.(yaml|yml)$/, '')}.memory.md`)
-      if (existsSync(memPath)) {
-        const memory = readFileSync(memPath, 'utf-8').trim()
+      if (await pathExists(memPath)) {
+        const memory = (await fsp.readFile(memPath, 'utf-8')).trim()
         if (memory) {
           makerFullPrompt += `\n\n--- Pipeline Memory ---\n${memory}`
         }
       }
     }
 
-    const makerPromptFile = writePromptFile(makerFullPrompt)
+    const makerPromptFile = await writePromptFile(makerFullPrompt)
     const makerInst = await createInstance({
       name: `${baseName} [Maker ${iteration}]`,
       workingDirectory: cwd,
@@ -813,7 +821,7 @@ async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pipelineN
     // Read maker output file
     let makerOutput = ''
     try {
-      makerOutput = existsSync(makerOutputFile) ? readFileSync(makerOutputFile, 'utf-8') : '(maker did not write output file)'
+      makerOutput = await pathExists(makerOutputFile) ? await fsp.readFile(makerOutputFile, 'utf-8') : '(maker did not write output file)'
     } catch { makerOutput = '(error reading maker output)' }
     plog(pipelineName, `maker-checker: maker output: ${makerOutput.slice(0, 120)}${makerOutput.length > 120 ? '...' : ''}`)
 
@@ -823,9 +831,9 @@ async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pipelineN
     checkerFullPrompt += `\n\n--- Required Verdict Step ---\nAfter your evaluation, write one of the following to:\n${verdictFile}\n\n- Work is complete and acceptable → write exactly: APPROVED\n- Changes needed → write: NEEDS REVISION: <your specific feedback>\n\nThis file MUST be written before you finish.`
 
     // Clear any previous verdict
-    try { writeFileSync(verdictFile, '', 'utf-8') } catch {}
+    try { await fsp.writeFile(verdictFile, '', 'utf-8') } catch {}
 
-    const checkerPromptFile = writePromptFile(checkerFullPrompt)
+    const checkerPromptFile = await writePromptFile(checkerFullPrompt)
     const checkerInst = await createInstance({
       name: `${baseName} [Checker ${iteration}]`,
       workingDirectory: cwd,
@@ -849,7 +857,7 @@ async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pipelineN
 
     // Read verdict
     let verdict = ''
-    try { verdict = existsSync(verdictFile) ? readFileSync(verdictFile, 'utf-8').trim() : '' } catch {}
+    try { verdict = await pathExists(verdictFile) ? (await fsp.readFile(verdictFile, 'utf-8')).trim() : '' } catch {}
     plog(pipelineName, `maker-checker: checker verdict: ${verdict.slice(0, 120)}`)
 
     if (isApproved(verdict) || verdict.includes(approvedKeyword)) {
@@ -890,14 +898,15 @@ async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipelineNam
   }
 
   // Validate diff_base ref
-  const validateResult = spawnSync('git', ['rev-parse', '--verify', diffBase], { cwd, timeout: 10_000 })
-  if (validateResult.status !== 0) {
-    throw new Error(`diff-review: invalid diff_base ref "${diffBase}": ${validateResult.stderr?.toString().trim() || 'not found'}`)
+  try {
+    await execFileAsync('git', ['rev-parse', '--verify', diffBase], { cwd, timeout: 10_000 })
+  } catch (err: any) {
+    throw new Error(`diff-review: invalid diff_base ref "${diffBase}": ${err?.stderr?.trim() || 'not found'}`)
   }
 
   const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const runDir = join(COLONY_DIR, 'diff-reviews', runId)
-  mkdirSync(runDir, { recursive: true })
+  await fsp.mkdir(runDir, { recursive: true })
   const verdictFile = join(runDir, 'review-verdict.md')
   const baseName = resolveTemplate(action.name || pipelineName, ctx)
   let accumulatedCost = 0
@@ -907,8 +916,11 @@ async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipelineNam
 
   for (let iteration = 0; iteration <= maxIterations; iteration++) {
     // Get diff
-    const diffResult = spawnSync('git', ['diff', diffBase], { cwd, timeout: 30_000, maxBuffer: 10 * 1024 * 1024 })
-    let diff = diffResult.stdout?.toString() || ''
+    let diff = ''
+    try {
+      const diffResult = await execFileAsync('git', ['diff', diffBase], { cwd, timeout: 30_000, maxBuffer: 10 * 1024 * 1024 })
+      diff = diffResult.stdout || ''
+    } catch { /* empty diff */ }
     if (Buffer.byteLength(diff, 'utf-8') > MAX_DIFF_BYTES) {
       const truncBytes = Buffer.from(diff).slice(0, MAX_DIFF_BYTES).toString('utf-8')
       const totalLines = diff.split('\n').length
@@ -930,12 +942,12 @@ async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipelineNam
       `If there are issues, write: NEEDS REVISION: <your specific feedback>\n\n` +
       `This file MUST be written before you finish.`
 
-    try { writeFileSync(verdictFile, '', 'utf-8') } catch { /* ignore */ }
+    try { await fsp.writeFile(verdictFile, '', 'utf-8') } catch { /* ignore */ }
 
     const reviewerName = iteration === 0 ? `${baseName} [Diff Review]` : `${baseName} [Diff Review ${iteration + 1}]`
     plog(pipelineName, `diff-review: launching reviewer "${reviewerName}" (iteration ${iteration + 1}/${maxIterations + 1})`)
 
-    const promptFile = writePromptFile(fullPrompt)
+    const promptFile = await writePromptFile(fullPrompt)
     const reviewerInst = await createInstance({
       name: reviewerName,
       workingDirectory: cwd,
@@ -958,7 +970,7 @@ async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipelineNam
     accumulatedCost += reviewerState?.tokenUsage.cost ?? 0
 
     let verdict = ''
-    try { verdict = existsSync(verdictFile) ? readFileSync(verdictFile, 'utf-8').trim() : '' } catch { /* ignore */ }
+    try { verdict = await pathExists(verdictFile) ? (await fsp.readFile(verdictFile, 'utf-8')).trim() : '' } catch { /* ignore */ }
     plog(pipelineName, `diff-review: verdict: ${verdict.slice(0, 120)}`)
     lastResponseSnippet = verdict.slice(0, 120)
 
@@ -975,7 +987,7 @@ async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipelineNam
         `The following code diff was reviewed and needs changes:\n\n\`\`\`diff\n${diff}\n\`\`\`\n\n` +
         `Reviewer feedback:\n${verdict}\n\n` +
         `Please address the feedback and make the necessary changes.`
-      const fixerPromptFile = writePromptFile(fixPrompt)
+      const fixerPromptFile = await writePromptFile(fixPrompt)
       const fixerInst = await createInstance({
         name: `${baseName} [Auto-fix ${iteration + 1}]`,
         workingDirectory: cwd,
@@ -1038,11 +1050,11 @@ async function runPlanStage(action: ActionDef, ctx: TriggerContext, pipelineName
   const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const safePipelineName = pipelineName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()
   const planDir = join(COLONY_DIR, 'plan-stages', safePipelineName, runId)
-  mkdirSync(planDir, { recursive: true })
+  await fsp.mkdir(planDir, { recursive: true })
   const planOutputFile = join(planDir, 'plan-output.md')
 
   const artifactsDir = join(COLONY_DIR, 'artifacts')
-  mkdirSync(artifactsDir, { recursive: true })
+  await fsp.mkdir(artifactsDir, { recursive: true })
   const artifactName = `${safePipelineName}-${runId}-implementation-plan`
   const artifactPath = join(artifactsDir, `${artifactName}.txt`)
 
@@ -1057,7 +1069,7 @@ async function runPlanStage(action: ActionDef, ctx: TriggerContext, pipelineName
   const plannerName = `Pipe (${baseName}) [Plan]`
   plog(pipelineName, `plan-stage: launching planner "${plannerName}"`)
 
-  const promptFile = writePromptFile(fullPrompt)
+  const promptFile = await writePromptFile(fullPrompt)
   const plannerInst = await createInstance({
     name: plannerName,
     workingDirectory: resolvedCwd,
@@ -1077,7 +1089,7 @@ async function runPlanStage(action: ActionDef, ctx: TriggerContext, pipelineName
   let planContent = ''
   if (plannerDone) {
     try {
-      planContent = existsSync(planOutputFile) ? readFileSync(planOutputFile, 'utf-8').trim() : ''
+      planContent = await pathExists(planOutputFile) ? (await fsp.readFile(planOutputFile, 'utf-8')).trim() : ''
     } catch { planContent = '' }
   }
 
@@ -1088,7 +1100,7 @@ async function runPlanStage(action: ActionDef, ctx: TriggerContext, pipelineName
     appendActivity({ source: 'pipeline', name: pipelineName, summary: `Pipeline "${pipelineName}" plan stage: ${reason}`, level: 'warn' })
   }
 
-  writeFileSync(artifactPath, planContent, 'utf-8')
+  await fsp.writeFile(artifactPath, planContent, 'utf-8')
   plog(pipelineName, `plan-stage: artifact written: ${artifactName}`)
 
   const snippetRaw = planContent.slice(0, 120)
@@ -1246,8 +1258,8 @@ async function runWaitForSession(
         if (action.artifact_output) {
           try {
             const artifactsDir = join(COLONY_DIR, 'artifacts')
-            mkdirSync(artifactsDir, { recursive: true })
-            writeFileSync(join(artifactsDir, `${action.artifact_output}.txt`), exitNote, 'utf-8')
+            await fsp.mkdir(artifactsDir, { recursive: true })
+            await fsp.writeFile(join(artifactsDir, `${action.artifact_output}.txt`), exitNote, 'utf-8')
           } catch (err) {
             log(`wait_for_session: failed to write artifact: ${err}`)
           }
@@ -1289,13 +1301,13 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
 
   // Inject artifact preamble (raw data from prior captures)
   if (action.artifactInputs?.length) {
-    const preamble = loadArtifactPreamble(action.artifactInputs)
+    const preamble = await loadArtifactPreamble(action.artifactInputs)
     if (preamble) prompt = preamble + prompt
   }
 
   // Inject structured handoff on top — handoff precedes raw artifacts so context comes first
   if (action.handoffInputs?.length) {
-    const handoff = loadHandoffPreamble(action.handoffInputs)
+    const handoff = await loadHandoffPreamble(action.handoffInputs)
     if (handoff) prompt = handoff + prompt
   }
 
@@ -1313,8 +1325,8 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
   const p = [...pipelines.values()].find(pp => pp.def.name === pipelineName)
   if (p) {
     const memPath = join(PIPELINES_DIR, `${p.fileName.replace(/\.(yaml|yml)$/, '')}.memory.md`)
-    if (existsSync(memPath)) {
-      const memory = readFileSync(memPath, 'utf-8').trim()
+    if (await pathExists(memPath)) {
+      const memory = (await fsp.readFile(memPath, 'utf-8')).trim()
       if (memory) {
         prompt += `\n\n--- Pipeline Memory ---\nThe following are learnings from previous runs. Use these to improve your approach:\n\n${memory}`
       }
@@ -1343,7 +1355,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
       plog(name, `route: found running session "${existing.name}" (${existing.id}) activity=${existing.activity}`)
 
       if (existing.activity === 'waiting') {
-        const filePath = writePromptFile(prompt)
+        const filePath = await writePromptFile(prompt)
         getDaemonClient().writeToInstance(existing.id, buildFilePromptTrigger(filePath) + '\r')
         broadcast('pipeline:fired', { pipeline: name, instanceId: existing.id, routed: true })
         return { cost: 0 }
@@ -1362,7 +1374,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
       }
     } else if (route?.type === 'resume') {
       plog(name, `route: resuming history session "${route.name}" (${route.sessionId})`)
-      const promptFile = writePromptFile(prompt)
+      const promptFile = await writePromptFile(prompt)
       const inst = await createInstance({
         name: name,
         workingDirectory: route.project,
@@ -1402,12 +1414,12 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
 
   // Capture artifact outputs before launching (captures current env state)
   if (action.artifactOutputs?.length) {
-    captureArtifacts(action.artifactOutputs, resolvedCwd)
+    await captureArtifacts(action.artifactOutputs, resolvedCwd)
   }
 
   plog(name, `launching session "${name}" in ${resolvedCwd || '$HOME (no cwd resolved!)'}`)
 
-  const promptFile = writePromptFile(prompt)
+  const promptFile = await writePromptFile(prompt)
   const inst = await createInstance({
     name,
     workingDirectory: resolvedCwd,
@@ -1419,6 +1431,32 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
 
   // Full prompt is in the system prompt file — just send a trigger
   await sendPromptWhenReady(inst.id, { prompt: 'Execute the instructions in your system prompt. Begin now.' })
+
+  // Auto-close: kill session if still running after timeout (default 10 min)
+  const autoCloseMinutes = action.timeout_minutes || 10
+  const client = getDaemonClient()
+  let autoCloseResolved = false
+
+  const onFinished = (id: string, activity: string) => {
+    if (id !== inst.id || activity !== 'waiting') return
+    if (autoCloseResolved) return
+    autoCloseResolved = true
+    client.removeListener('activity', onFinished)
+    clearTimeout(autoCloseTimeout)
+    log(`pipeline session ${inst.id} finished, killing in 5s`)
+    setTimeout(async () => {
+      try { await killInstance(inst.id) } catch { /* already gone */ }
+    }, 5000)
+  }
+  client.on('activity', onFinished)
+
+  const autoCloseTimeout = setTimeout(async () => {
+    if (autoCloseResolved) return
+    autoCloseResolved = true
+    client.removeListener('activity', onFinished)
+    log(`pipeline session ${inst.id} still running after ${autoCloseMinutes}min, force-killing`)
+    try { await killInstance(inst.id) } catch { /* already gone */ }
+  }, autoCloseMinutes * 60_000)
 
   // Notify renderer about pipeline-triggered session
   broadcast('pipeline:fired', { pipeline: name, instanceId: inst.id })
@@ -1746,7 +1784,7 @@ async function runPoll(pipelineName: string): Promise<void> {
         }
       }
 
-      recordFired(pipelineName, dedupKey, ctx.contentSha)
+      await recordFired(pipelineName, dedupKey, ctx.contentSha)
       fired = true
       plog(pipelineName, `✓ action fired successfully`)
       const firedSummary = ctx.pr
@@ -1774,9 +1812,9 @@ async function runPoll(pipelineName: string): Promise<void> {
       }
       const filePath = join(PIPELINES_DIR, p.fileName)
       try {
-        let content = readFileSync(filePath, 'utf-8')
+        let content = await fsp.readFile(filePath, 'utf-8')
         content = content.replace(/^enabled:\s*(true|false)/m, `enabled: false`)
-        writeFileSync(filePath, content, 'utf-8')
+        await fsp.writeFile(filePath, content, 'utf-8')
       } catch (writeErr) {
         log(`Failed to update ${p.fileName} after auto-pause: ${writeErr}`)
       }
@@ -1795,7 +1833,7 @@ async function runPoll(pipelineName: string): Promise<void> {
   p.state.lastRunStoppedBudget = stoppedBudget
 
   // Record run history
-  appendHistory(pipelineName, {
+  await appendHistory(pipelineName, {
     ts: new Date().toISOString(),
     trigger: p.def.trigger.type,
     actionExecuted: fired,
@@ -1816,26 +1854,26 @@ async function runPoll(pipelineName: string): Promise<void> {
     p.state.debugLog = p.state.debugLog.slice(cutAt)
   }
 
-  saveDebugLogs() // persist debug logs after every poll
-  if (fired) saveState()
+  await saveDebugLogs() // persist debug logs after every poll
+  if (fired) await saveState()
   broadcast('pipeline:status', getPipelineList())
 }
 
 // ---- Public API ----
 
-export function loadPipelines(): void {
-  if (!existsSync(PIPELINES_DIR)) mkdirSync(PIPELINES_DIR, { recursive: true })
+export async function loadPipelines(): Promise<void> {
+  if (!await pathExists(PIPELINES_DIR)) await fsp.mkdir(PIPELINES_DIR, { recursive: true })
 
-  const savedState = loadState()
+  const savedState = await loadState()
   pipelines.clear()
 
   // 1. User pipelines (from ~/.claude-colony/pipelines/)
-  const files = readdirSync(PIPELINES_DIR).filter(f => f.endsWith('.yaml') || f.endsWith('.yml'))
+  const files = (await fsp.readdir(PIPELINES_DIR)).filter(f => f.endsWith('.yaml') || f.endsWith('.yml'))
   const userNames = new Set<string>()
 
   for (const file of files) {
     try {
-      const content = readFileSync(join(PIPELINES_DIR, file), 'utf-8')
+      const content = await fsp.readFile(join(PIPELINES_DIR, file), 'utf-8')
       const def = parsePipelineYaml(content)
       if (!def) {
         log(`Failed to parse ${file}`)
@@ -1844,8 +1882,8 @@ export function loadPipelines(): void {
       const state = savedState[def.name] || freshState()
       try {
         const lp = debugLogPath(def.name)
-        if (existsSync(lp)) {
-          const { entries } = JSON.parse(readFileSync(lp, 'utf-8'))
+        if (await pathExists(lp)) {
+          const { entries } = JSON.parse(await fsp.readFile(lp, 'utf-8'))
           if (Array.isArray(entries)) state.debugLog = entries
         }
       } catch { /* ignore */ }
@@ -1870,8 +1908,8 @@ export function loadPipelines(): void {
         const state = enablement || freshState()
         try {
           const lp = debugLogPath(repoPipeline.name)
-          if (existsSync(lp)) {
-            const { entries } = JSON.parse(readFileSync(lp, 'utf-8'))
+          if (await pathExists(lp)) {
+            const { entries } = JSON.parse(await fsp.readFile(lp, 'utf-8'))
             if (Array.isArray(entries)) state.debugLog = entries
           }
         } catch { /* ignore */ }
@@ -1898,18 +1936,18 @@ export async function startPipelines(): Promise<void> {
     log('Could not resolve GitHub user — pipelines with {{github.user}} may not match')
   }
 
-  loadPipelines()
+  await loadPipelines()
 
   for (const [name, p] of pipelines) {
     if (!p.def.enabled) continue
-    schedulePipeline(name, p.def)
+    await schedulePipeline(name, p.def)
   }
 
   // Sweep expired approvals every 60 seconds
   approvalSweepTimer = setInterval(() => sweepExpiredApprovals(), 60_000)
 }
 
-function schedulePipeline(name: string, def: PipelineDef): void {
+async function schedulePipeline(name: string, def: PipelineDef): Promise<void> {
   // Webhook pipelines are not timer-driven — they are fired externally via fireWebhookPipeline()
   if (def.trigger.type === 'webhook') {
     log(`Webhook pipeline ${name} registered — no timer needed`)
@@ -1957,10 +1995,10 @@ function schedulePipeline(name: string, def: PipelineDef): void {
     filePollSnapshots.set(name, snapshot)
     for (const p of watchPaths) {
       try {
-        const s = statSync(p)
+        const s = await fsp.stat(p)
         if (s.isDirectory()) {
-          for (const child of readdirSync(p)) {
-            try { snapshot.set(`${p}/${child}`, statSync(`${p}/${child}`).mtimeMs) } catch { /* missing */ }
+          for (const child of await fsp.readdir(p)) {
+            try { snapshot.set(`${p}/${child}`, (await fsp.stat(`${p}/${child}`)).mtimeMs) } catch { /* missing */ }
           }
         } else {
           snapshot.set(p, s.mtimeMs)
@@ -1968,7 +2006,7 @@ function schedulePipeline(name: string, def: PipelineDef): void {
       } catch { /* path doesn't exist yet */ }
     }
 
-    const timer = setInterval(() => {
+    const timer = setInterval(async () => {
       const COOLDOWN_MS = 10_000
       const pipeline = pipelines.get(name)
       if (pipeline?.state.lastFiredAt) {
@@ -1981,12 +2019,12 @@ function schedulePipeline(name: string, def: PipelineDef): void {
 
       for (const watchPath of watchPaths) {
         try {
-          const s = statSync(watchPath)
+          const s = await fsp.stat(watchPath)
           if (s.isDirectory()) {
-            for (const child of readdirSync(watchPath)) {
+            for (const child of await fsp.readdir(watchPath)) {
               const full = `${watchPath}/${child}`
               try {
-                const mtime = statSync(full).mtimeMs
+                const mtime = (await fsp.stat(full)).mtimeMs
                 if ((current.get(full) ?? -1) !== mtime) { current.set(full, mtime); changed = true }
               } catch { /* file disappeared */ }
             }
@@ -2056,7 +2094,7 @@ export function getPipelineList(): PipelineInfo[] {
   return result
 }
 
-export function togglePipeline(name: string, enabled: boolean): boolean {
+export async function togglePipeline(name: string, enabled: boolean): Promise<boolean> {
   const p = pipelines.get(name)
   if (!p) return false
 
@@ -2065,15 +2103,15 @@ export function togglePipeline(name: string, enabled: boolean): boolean {
   // Update the YAML file
   const filePath = join(PIPELINES_DIR, p.fileName)
   try {
-    let content = readFileSync(filePath, 'utf-8')
+    let content = await fsp.readFile(filePath, 'utf-8')
     content = content.replace(/^enabled:\s*(true|false)/m, `enabled: ${enabled}`)
-    writeFileSync(filePath, content, 'utf-8')
+    await fsp.writeFile(filePath, content, 'utf-8')
   } catch (err) {
     log(`Failed to update ${p.fileName}: ${err}`)
   }
 
   if (enabled && !timers.has(name)) {
-    schedulePipeline(name, p.def)
+    await schedulePipeline(name, p.def)
     log(`Enabled pipeline: ${name}`)
   } else if (!enabled && timers.has(name)) {
     clearInterval(timers.get(name)!)
@@ -2081,7 +2119,7 @@ export function togglePipeline(name: string, enabled: boolean): boolean {
     log(`Disabled pipeline: ${name}`)
   }
 
-  saveState()
+  await saveState()
   broadcast('pipeline:status', getPipelineList())
   return true
 }
@@ -2093,31 +2131,31 @@ export function triggerPollNow(name: string): boolean {
   return true
 }
 
-export function getPipelinesDir(): string {
-  if (!existsSync(PIPELINES_DIR)) mkdirSync(PIPELINES_DIR, { recursive: true })
+export async function getPipelinesDir(): Promise<string> {
+  if (!await pathExists(PIPELINES_DIR)) await fsp.mkdir(PIPELINES_DIR, { recursive: true })
   return PIPELINES_DIR
 }
 
-export function getPipelineContent(fileName: string): string | null {
+export async function getPipelineContent(fileName: string): Promise<string | null> {
   const filePath = join(PIPELINES_DIR, fileName)
   try {
-    return readFileSync(filePath, 'utf-8')
+    return await fsp.readFile(filePath, 'utf-8')
   } catch {
     return null
   }
 }
 
-export function savePipelineContent(fileName: string, content: string): boolean {
+export async function savePipelineContent(fileName: string, content: string): Promise<boolean> {
   const filePath = join(PIPELINES_DIR, fileName)
   try {
-    writeFileSync(filePath, content, 'utf-8')
+    await fsp.writeFile(filePath, content, 'utf-8')
     // Reload pipelines to pick up changes
     stopPipelines()
-    loadPipelines()
+    await loadPipelines()
     // Restart enabled ones
     for (const [name, p] of pipelines) {
       if (p.def.enabled) {
-        schedulePipeline(name, p.def)
+        await schedulePipeline(name, p.def)
       }
     }
     started = true
@@ -2130,8 +2168,8 @@ export function savePipelineContent(fileName: string, content: string): boolean 
 }
 
 /** Surgically update the cron field in a pipeline YAML file without touching the rest. */
-export function setPipelineCron(fileName: string, cron: string | null): boolean {
-  const content = getPipelineContent(fileName)
+export async function setPipelineCron(fileName: string, cron: string | null): Promise<boolean> {
+  const content = await getPipelineContent(fileName)
   if (!content) return false
   let updated: string
   if (cron) {
@@ -2195,7 +2233,7 @@ export async function approveAction(id: string): Promise<boolean> {
 
   try {
     const { cost: _ } = await fireAction(action, ctx, request.pipelineName)
-    recordFired(request.pipelineName, dedupKey, ctx.contentSha)
+    await recordFired(request.pipelineName, dedupKey, ctx.contentSha)
     appendActivity({ source: 'pipeline', name: request.pipelineName, summary: `Pipeline "${request.pipelineName}" approved and fired — ${request.summary}`, level: 'info' })
   } catch (err) {
     appendActivity({ source: 'pipeline', name: request.pipelineName, summary: `Pipeline "${request.pipelineName}" failed after approval: ${String(err).slice(0, 100)}`, level: 'error' })
@@ -2260,11 +2298,11 @@ export function fireWebhookPipeline(slug: string, payload: unknown): { ok: boole
 
 // ---- Seed Default Pipeline ----
 
-export function seedDefaultPipelines(): void {
-  if (!existsSync(PIPELINES_DIR)) mkdirSync(PIPELINES_DIR, { recursive: true })
+export async function seedDefaultPipelines(): Promise<void> {
+  if (!await pathExists(PIPELINES_DIR)) await fsp.mkdir(PIPELINES_DIR, { recursive: true })
 
   const feedbackFile = join(PIPELINES_DIR, 'colony-feedback.yaml')
-  if (!existsSync(feedbackFile)) {
+  if (!await pathExists(feedbackFile)) {
     const template = `name: Colony Feedback
 description: Route reviewer feedback to existing sessions. When enabled, also adds a Colony-aware Review PR button to the PRs tab.
 enabled: false
@@ -2305,12 +2343,12 @@ dedup:
   key: "{{repo.owner}}/{{repo.name}}/{{pr.number}}"
   ttl: 3600
 `
-    writeFileSync(feedbackFile, template, 'utf-8')
+    await fsp.writeFile(feedbackFile, template, 'utf-8')
     log('Seeded default pipeline: colony-feedback.yaml')
   }
 
   const readmeFile = join(PIPELINES_DIR, 'colony-feedback.readme.md')
-  if (!existsSync(readmeFile)) {
+  if (!await pathExists(readmeFile)) {
     const readme = `# Colony Feedback Pipeline
 
 Automates PR review feedback loops. When a reviewer pushes structured feedback to the \`colony-feedback\` branch, Colony detects it and either routes the feedback to your existing session on that branch (preserving full context) or launches a new session to address it.
@@ -2393,13 +2431,13 @@ When feedback is detected, Colony looks for a running session that matches the P
 - If found and busy → waits for it to finish, then sends the feedback
 - If no match → launches a new session in the repo directory
 `
-    writeFileSync(readmeFile, readme, 'utf-8')
+    await fsp.writeFile(readmeFile, readme, 'utf-8')
     log('Seeded pipeline README: colony-feedback.readme.md')
   }
 
   // ---- CI Auto-Fix pipeline ----
   const ciFixFile = join(PIPELINES_DIR, 'ci-auto-fix.yaml')
-  if (!existsSync(ciFixFile)) {
+  if (!await pathExists(ciFixFile)) {
     const ciTemplate = `name: CI Auto-Fix
 description: Hourly during work hours — find my PRs with failing CI (excluding Playwright) and auto-fix them
 enabled: false
@@ -2444,13 +2482,13 @@ dedup:
   key: "ci-{{repo.owner}}/{{repo.name}}/{{pr.number}}"
   ttl: 3600
 `
-    writeFileSync(ciFixFile, ciTemplate, 'utf-8')
+    await fsp.writeFile(ciFixFile, ciTemplate, 'utf-8')
     log('Seeded default pipeline: ci-auto-fix.yaml')
   }
 
   // ---- PR Attention Digest pipeline ----
   const digestFile = join(PIPELINES_DIR, 'pr-attention-digest.yaml')
-  if (!existsSync(digestFile)) {
+  if (!await pathExists(digestFile)) {
     const digestTemplate = `name: PR Attention Digest
 description: Hourly digest of PRs that need your attention — assigned, review requested, or mentioned
 enabled: false
@@ -2508,7 +2546,7 @@ dedup:
   key: "pr-digest-{{timestamp}}"
   ttl: 3600
 `
-    writeFileSync(digestFile, digestTemplate, 'utf-8')
+    await fsp.writeFile(digestFile, digestTemplate, 'utf-8')
     log('Seeded default pipeline: pr-attention-digest.yaml')
   }
 }

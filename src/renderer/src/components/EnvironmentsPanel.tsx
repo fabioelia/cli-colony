@@ -118,8 +118,8 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
     const unsubTemplates = window.api.env.onTemplatesChanged((tmpls) => {
       setTemplates(tmpls)
     })
-    // Poll as fallback — catch state transitions even if events are missed
-    const interval = setInterval(loadEnvironments, 3000)
+    // Poll as fallback — push events handle most updates, this is just a safety net
+    const interval = setInterval(loadEnvironments, 30000)
     // Also refresh when the window regains focus (user switches back from a Claude session)
     const onFocus = () => { loadEnvironments() }
     window.addEventListener('focus', onFocus)

@@ -5,11 +5,15 @@
  */
 
 import { app } from 'electron'
-import * as fs from 'fs'
+import { promises as fsp } from 'fs'
 import * as path from 'path'
-import { execFile, execFileSync } from 'child_process'
+import { execFile } from 'child_process'
 import { promisify } from 'util'
 const execFileAsync = promisify(execFile)
+
+async function pathExists(p: string): Promise<boolean> {
+  try { await fsp.access(p); return true } catch { return false }
+}
 import { getEnvDaemonClient, EnvDaemonClient } from './env-daemon-client'
 import { allocatePorts, isPortInUse } from './port-allocator'
 import { removeWorktree, isWorktree, getBareRepoForWorktree, pruneAllBareRepos, migrateReposToBare } from '../shared/git-worktree'
@@ -61,13 +65,15 @@ export function wireEnvDaemonEvents(): void {
     appendActivity({ source: 'env', name: envId, summary: `Service "${service}" crashed (exit ${exitCode}) in environment "${envId}"`, level: 'error' })
 
     // Auto-restart crashed service if policy is 'on-crash'
-    if (getRestartPolicy(envId) === 'on-crash') {
-      setTimeout(() => {
-        getEnvDaemonClient().restartService(envId, service).catch(err => {
-          console.warn(`[env-manager] auto-restart of ${service} in ${envId} failed:`, err)
-        })
-      }, 5000)
-    }
+    getRestartPolicy(envId).then(policy => {
+      if (policy === 'on-crash') {
+        setTimeout(() => {
+          getEnvDaemonClient().restartService(envId, service).catch(err => {
+            console.warn(`[env-manager] auto-restart of ${service} in ${envId} failed:`, err)
+          })
+        }, 5000)
+      }
+    }).catch(() => {})
   })
 
   client.on('connected', () => {
@@ -118,7 +124,7 @@ export async function initEnvDaemon(): Promise<void> {
     } catch { /* envd may have no environments yet */ }
 
     // Watch for new environments created by the Instance Agent
-    startWatchingForNewEnvironments()
+    await startWatchingForNewEnvironments()
   } catch (err) {
     console.error('[env-manager] failed to init envd:', err)
   }
@@ -126,23 +132,23 @@ export async function initEnvDaemon(): Promise<void> {
 
 const knownTemplates = new Set<string>()
 
-function startWatchingForNewEnvironments(): void {
+async function startWatchingForNewEnvironments(): Promise<void> {
   if (watchInterval) return
-  if (!fs.existsSync(ENVIRONMENTS_DIR)) fs.mkdirSync(ENVIRONMENTS_DIR, { recursive: true })
-  ensureTemplatesDir()
+  if (!await pathExists(ENVIRONMENTS_DIR)) await fsp.mkdir(ENVIRONMENTS_DIR, { recursive: true })
+  await ensureTemplatesDir()
 
   // Poll every 5 seconds for new instance.json files AND new templates
   watchInterval = setInterval(async () => {
     // Watch instances
     try {
-      const entries = fs.readdirSync(ENVIRONMENTS_DIR)
+      const entries = await fsp.readdir(ENVIRONMENTS_DIR)
       for (const entry of entries) {
         const manifestPath = path.join(ENVIRONMENTS_DIR, entry, 'instance.json')
         if (knownManifests.has(manifestPath)) continue
-        if (!fs.existsSync(manifestPath)) continue
+        if (!await pathExists(manifestPath)) continue
 
         try {
-          const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as InstanceManifest
+          const manifest = JSON.parse(await fsp.readFile(manifestPath, 'utf-8')) as InstanceManifest
           if (manifest.version === 2 && manifest.id) {
             knownManifests.add(manifestPath)
             const client = getEnvDaemonClient()
@@ -156,7 +162,7 @@ function startWatchingForNewEnvironments(): void {
     // Watch templates — notify renderer when new ones appear
     try {
       let newTemplate = false
-      for (const file of fs.readdirSync(TEMPLATES_DIR)) {
+      for (const file of await fsp.readdir(TEMPLATES_DIR)) {
         if (!file.endsWith('.json')) continue
         const fp = path.join(TEMPLATES_DIR, file)
         if (!knownTemplates.has(fp)) {
@@ -165,24 +171,24 @@ function startWatchingForNewEnvironments(): void {
         }
       }
       if (newTemplate) {
-        broadcast('env:templates-changed', listTemplates())
+        broadcast('env:templates-changed', await listTemplates())
       }
     } catch { /* ignore */ }
   }, 5000)
 }
 
 async function syncEnvironmentsFromDisk(): Promise<void> {
-  if (!fs.existsSync(ENVIRONMENTS_DIR)) return
+  if (!await pathExists(ENVIRONMENTS_DIR)) return
 
   const client = getEnvDaemonClient()
-  const entries = fs.readdirSync(ENVIRONMENTS_DIR)
+  const entries = await fsp.readdir(ENVIRONMENTS_DIR)
 
   for (const entry of entries) {
     const manifestPath = path.join(ENVIRONMENTS_DIR, entry, 'instance.json')
-    if (!fs.existsSync(manifestPath)) continue
+    if (!await pathExists(manifestPath)) continue
 
     try {
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as InstanceManifest
+      const manifest = JSON.parse(await fsp.readFile(manifestPath, 'utf-8')) as InstanceManifest
       if (manifest.version === 2 && manifest.id) {
         knownManifests.add(manifestPath)
         await client.register(manifest)
@@ -195,19 +201,19 @@ async function syncEnvironmentsFromDisk(): Promise<void> {
 
 const TEMPLATES_DIR = colonyPaths.templates
 
-function ensureTemplatesDir(): void {
-  if (!fs.existsSync(TEMPLATES_DIR)) fs.mkdirSync(TEMPLATES_DIR, { recursive: true })
+async function ensureTemplatesDir(): Promise<void> {
+  if (!await pathExists(TEMPLATES_DIR)) await fsp.mkdir(TEMPLATES_DIR, { recursive: true })
 }
 
-export function listTemplates(): EnvironmentTemplate[] {
-  ensureTemplatesDir()
+export async function listTemplates(): Promise<EnvironmentTemplate[]> {
+  await ensureTemplatesDir()
   const templates: EnvironmentTemplate[] = []
 
   // 1. User templates (from ~/.claude-colony/environment-templates/)
-  for (const file of fs.readdirSync(TEMPLATES_DIR)) {
+  for (const file of await fsp.readdir(TEMPLATES_DIR)) {
     if (!file.endsWith('.json')) continue
     try {
-      const content = fs.readFileSync(path.join(TEMPLATES_DIR, file), 'utf-8')
+      const content = await fsp.readFile(path.join(TEMPLATES_DIR, file), 'utf-8')
       const t = JSON.parse(content) as EnvironmentTemplate
       t.source = t.source || 'user'
       templates.push(t)
@@ -238,27 +244,27 @@ export function listTemplates(): EnvironmentTemplate[] {
   return templates.sort((a, b) => a.name.localeCompare(b.name))
 }
 
-export function getTemplate(id: string): EnvironmentTemplate | null {
-  const templates = listTemplates()
+export async function getTemplate(id: string): Promise<EnvironmentTemplate | null> {
+  const templates = await listTemplates()
   return templates.find(t => t.id === id) || null
 }
 
-export function saveTemplate(template: EnvironmentTemplate): void {
-  ensureTemplatesDir()
+export async function saveTemplate(template: EnvironmentTemplate): Promise<void> {
+  await ensureTemplatesDir()
   const safeName = template.name.replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase()
   const filePath = path.join(TEMPLATES_DIR, `${safeName}.json`)
   template.updatedAt = new Date().toISOString()
-  fs.writeFileSync(filePath, JSON.stringify(template, null, 2), 'utf-8')
+  await fsp.writeFile(filePath, JSON.stringify(template, null, 2), 'utf-8')
 }
 
-export function deleteTemplate(id: string): boolean {
-  ensureTemplatesDir()
-  for (const file of fs.readdirSync(TEMPLATES_DIR)) {
+export async function deleteTemplate(id: string): Promise<boolean> {
+  await ensureTemplatesDir()
+  for (const file of await fsp.readdir(TEMPLATES_DIR)) {
     if (!file.endsWith('.json')) continue
     try {
-      const content = JSON.parse(fs.readFileSync(path.join(TEMPLATES_DIR, file), 'utf-8'))
+      const content = JSON.parse(await fsp.readFile(path.join(TEMPLATES_DIR, file), 'utf-8'))
       if (content.id === id) {
-        fs.unlinkSync(path.join(TEMPLATES_DIR, file))
+        await fsp.unlink(path.join(TEMPLATES_DIR, file))
         return true
       }
     } catch { /* skip */ }
@@ -273,18 +279,18 @@ export function deleteTemplate(id: string): boolean {
 export async function refreshRepoConfigs(): Promise<void> {
   try {
     clearRepoConfigCache()
-    const repos = getRepos()
+    const repos = await getRepos()
     let loaded = 0
     for (const repo of repos) {
       const localPath = repo.localPath
-      if (!localPath || !fs.existsSync(localPath)) continue
+      if (!localPath || !await pathExists(localPath)) continue
       // Fetch latest for bare repos so .colony/ discovery reads current remote state
       if (localPath.endsWith('.git')) {
         try {
           await execFileAsync('git', ['fetch', 'origin', '--prune'], { cwd: localPath, timeout: 15000 })
         } catch { /* non-fatal */ }
       }
-      const config = getRepoConfig(localPath, `${repo.owner}/${repo.name}`)
+      const config = await getRepoConfig(localPath, `${repo.owner}/${repo.name}`)
       if (config) loaded++
     }
     console.log(`[env-manager] refreshed .colony/ configs: ${loaded}/${repos.length} repos have configs`)
@@ -316,12 +322,12 @@ export async function createEnvironment(opts: CreateEnvironmentOpts): Promise<In
   const name = slugify(opts.name)
   const envDir = opts.targetDir ? path.join(opts.targetDir, name) : path.join(ENVIRONMENTS_DIR, name)
 
-  if (fs.existsSync(envDir)) throw new Error(`Environment '${name}' already exists at ${envDir}`)
+  if (await pathExists(envDir)) throw new Error(`Environment '${name}' already exists at ${envDir}`)
 
   // Load template if specified
   let template: EnvironmentTemplate | null = null
   if (opts.templateId) {
-    template = getTemplate(opts.templateId)
+    template = await getTemplate(opts.templateId)
     if (!template) throw new Error(`Template '${opts.templateId}' not found`)
   }
 
@@ -329,8 +335,8 @@ export async function createEnvironment(opts: CreateEnvironmentOpts): Promise<In
   const baseBranch = opts.baseBranch || opts.target || template?.branches?.default || 'develop'
 
   // Create directory
-  fs.mkdirSync(envDir, { recursive: true })
-  fs.mkdirSync(path.join(envDir, 'logs'), { recursive: true })
+  await fsp.mkdir(envDir, { recursive: true })
+  await fsp.mkdir(path.join(envDir, 'logs'), { recursive: true })
 
   // Build paths from template repos
   const paths: Record<string, string> = { root: envDir }
@@ -349,7 +355,7 @@ export async function createEnvironment(opts: CreateEnvironmentOpts): Promise<In
   // Build repos lookup so templates can reference ${repos.backend.localPath} etc.
   // Enrich with localPath from the tracked repo registry if not set in the template.
   // Prefer a working-tree clone over the bare repo (bare repos end with .git and lack a working tree).
-  const trackedRepos = getRepos()
+  const trackedRepos = await getRepos()
   const repos: Record<string, any> = {}
   if (template?.repos) {
     for (const repo of template.repos) {
@@ -361,7 +367,7 @@ export async function createEnvironment(opts: CreateEnvironmentOpts): Promise<In
         } else if (tracked?.localPath?.endsWith('.git')) {
           // Bare repo — check for a working-tree clone at common locations
           const homeProjects = path.join(app.getPath('home'), 'projects', repo.name)
-          if (fs.existsSync(path.join(homeProjects, '.git'))) {
+          if (await pathExists(path.join(homeProjects, '.git'))) {
             enriched.localPath = homeProjects
           }
         }
@@ -382,7 +388,7 @@ export async function createEnvironment(opts: CreateEnvironmentOpts): Promise<In
   const remotes: Record<string, string> = {}
   if (template?.repos) {
     for (const repo of template.repos) {
-      remotes[repo.as] = repo.remoteUrl || gitRemoteUrl(repo.owner, repo.name)
+      remotes[repo.as] = repo.remoteUrl || await gitRemoteUrl(repo.owner, repo.name)
     }
   }
 
@@ -423,7 +429,7 @@ export async function createEnvironment(opts: CreateEnvironmentOpts): Promise<In
     console.error(`[env-manager] WARNING: ${unresolved.length} unresolved template variable(s) in manifest: ${unresolved.join(', ')}`)
   }
 
-  fs.writeFileSync(path.join(envDir, 'instance.json'), manifestJson, 'utf-8')
+  await fsp.writeFile(path.join(envDir, 'instance.json'), manifestJson, 'utf-8')
 
   // Write initial state.json with all services stopped
   writeState(envDir, emptyState(manifest.id, Object.keys(services)))
@@ -440,26 +446,26 @@ export async function createEnvironment(opts: CreateEnvironmentOpts): Promise<In
  * Delegates to env-setup.ts for the actual pipeline execution.
  */
 export async function setupEnvironment(envId: string): Promise<void> {
-  const envDir = findEnvDir(envId)
+  const envDir = await findEnvDir(envId)
   if (!envDir) throw new Error(`Environment ${envId} not found`)
   return runSetup(envDir, getTemplate)
 }
 
 // ---- Helpers ----
 
-function findEnvDir(envId: string): string | null {
+async function findEnvDir(envId: string): Promise<string | null> {
   // Check the environment index first (fast lookup)
   const index = allEnvDirs()
   const indexed = index.find(e => e.id === envId)
   if (indexed) return indexed.dir
 
   // Fallback: scan default environments directory
-  if (fs.existsSync(ENVIRONMENTS_DIR)) {
-    for (const entry of fs.readdirSync(ENVIRONMENTS_DIR)) {
+  if (await pathExists(ENVIRONMENTS_DIR)) {
+    for (const entry of await fsp.readdir(ENVIRONMENTS_DIR)) {
       const manifestPath = path.join(ENVIRONMENTS_DIR, entry, 'instance.json')
-      if (!fs.existsSync(manifestPath)) continue
+      if (!await pathExists(manifestPath)) continue
       try {
-        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'))
+        const manifest = JSON.parse(await fsp.readFile(manifestPath, 'utf-8'))
         if (manifest.id === envId) {
           const dir = manifest.paths?.root || path.join(ENVIRONMENTS_DIR, entry)
           addToIndex(envId, dir) // auto-heal index
@@ -497,12 +503,12 @@ export async function listEnvironments(): Promise<EnvStatus[]> {
     return daemonStatus
   } catch {
     // Daemon unreachable — build status from disk
-    return listEnvironmentsFromDisk()
+    return await listEnvironmentsFromDisk()
   }
 }
 
 /** Fallback: read manifests + state.json from disk when daemon is unavailable */
-function listEnvironmentsFromDisk(): EnvStatus[] {
+async function listEnvironmentsFromDisk(): Promise<EnvStatus[]> {
   const results: EnvStatus[] = []
   const seen = new Set<string>()
 
@@ -510,18 +516,18 @@ function listEnvironmentsFromDisk(): EnvStatus[] {
   const dirs: string[] = allEnvDirs().map(e => e.dir)
 
   // Also scan default environments directory for any not in the index
-  if (fs.existsSync(ENVIRONMENTS_DIR)) {
-    for (const entry of fs.readdirSync(ENVIRONMENTS_DIR)) {
+  if (await pathExists(ENVIRONMENTS_DIR)) {
+    for (const entry of await fsp.readdir(ENVIRONMENTS_DIR)) {
       const d = path.join(ENVIRONMENTS_DIR, entry)
-      if (fs.existsSync(path.join(d, 'instance.json'))) dirs.push(d)
+      if (await pathExists(path.join(d, 'instance.json'))) dirs.push(d)
     }
   }
 
   for (const envDir of dirs) {
     const manifestPath = path.join(envDir, 'instance.json')
-    if (!fs.existsSync(manifestPath)) continue
+    if (!await pathExists(manifestPath)) continue
     try {
-      const manifest: InstanceManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'))
+      const manifest: InstanceManifest = JSON.parse(await fsp.readFile(manifestPath, 'utf-8'))
       if (seen.has(manifest.id)) continue
       seen.add(manifest.id)
 
@@ -549,12 +555,13 @@ function listEnvironmentsFromDisk(): EnvStatus[] {
       // Resolve live git branch from the first repo subdirectory
       let liveBranch = manifest.git?.branch || ''
       try {
-        const entries = fs.readdirSync(envDir, { withFileTypes: true })
+        const entries = await fsp.readdir(envDir, { withFileTypes: true })
         for (const entry of entries) {
           if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === 'logs') continue
           const subdir = path.join(envDir, entry.name)
           try {
-            liveBranch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: subdir, encoding: 'utf-8', timeout: 2000 }).trim()
+            const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: subdir, encoding: 'utf-8', timeout: 2000 })
+            liveBranch = stdout.trim()
             break
           } catch { /* not a git repo, try next */ }
         }
@@ -604,13 +611,13 @@ export async function getEnvironmentLogs(envId: string, service: string, lines?:
 }
 
 export async function teardownEnvironment(envId: string): Promise<void> {
-  const envDir = findEnvDir(envId)
+  const envDir = await findEnvDir(envId)
   if (!envDir) throw new Error(`Environment ${envId} not found`)
 
   // Read manifest to get environment slug for branch cleanup
   let envSlug: string | undefined
   try {
-    const manifest = JSON.parse(fs.readFileSync(path.join(envDir, 'instance.json'), 'utf-8')) as InstanceManifest
+    const manifest = JSON.parse(await fsp.readFile(path.join(envDir, 'instance.json'), 'utf-8')) as InstanceManifest
     envSlug = manifest.name
   } catch { /* continue without slug */ }
 
@@ -629,12 +636,12 @@ export async function teardownEnvironment(envId: string): Promise<void> {
   // For each repo subdirectory that is a worktree, remove it from the bare repo's
   // worktree list and delete the per-env tracking branch.
   try {
-    if (fs.existsSync(envDir)) {
-      const entries = fs.readdirSync(envDir)
+    if (await pathExists(envDir)) {
+      const entries = await fsp.readdir(envDir)
       for (const entry of entries) {
         const subdir = path.join(envDir, entry)
         try {
-          if (!fs.statSync(subdir).isDirectory()) continue
+          if (!(await fsp.stat(subdir)).isDirectory()) continue
         } catch { continue }
 
         if (isWorktree(subdir)) {
@@ -655,7 +662,7 @@ export async function teardownEnvironment(envId: string): Promise<void> {
 
   // Delete files — always runs even if worktree cleanup failed
   try {
-    fs.rmSync(envDir, { recursive: true, force: true })
+    await fsp.rm(envDir, { recursive: true, force: true })
   } catch (err) {
     console.error(`[env-manager] failed to remove ${envDir}:`, err)
   }
@@ -664,13 +671,13 @@ export async function teardownEnvironment(envId: string): Promise<void> {
 /**
  * Get the manifest for an environment by ID.
  */
-export function getManifest(envId: string): InstanceManifest | null {
-  const envDir = findEnvDir(envId)
+export async function getManifest(envId: string): Promise<InstanceManifest | null> {
+  const envDir = await findEnvDir(envId)
   if (!envDir) return null
 
   const manifestPath = path.join(envDir, 'instance.json')
   try {
-    return JSON.parse(fs.readFileSync(manifestPath, 'utf-8'))
+    return JSON.parse(await fsp.readFile(manifestPath, 'utf-8'))
   } catch {
     return null
   }
@@ -682,11 +689,11 @@ export function getManifest(envId: string): InstanceManifest | null {
  * Re-resolves: ports, services, hooks, resources, urls.
  */
 export async function fixEnvironment(envId: string): Promise<{ fixed: string[] }> {
-  const manifest = getManifest(envId)
+  const manifest = await getManifest(envId)
   if (!manifest) throw new Error(`Environment ${envId} not found`)
 
   const templateId = (manifest as any).meta?.templateId
-  const template = templateId ? getTemplate(templateId) : null
+  const template = templateId ? await getTemplate(templateId) : null
   if (!template) throw new Error(`No template found for environment ${manifest.name} — cannot re-resolve`)
 
   const fixed: string[] = []
@@ -782,9 +789,9 @@ export async function fixEnvironment(envId: string): Promise<{ fixed: string[] }
   }
 
   // Save and re-register
-  const envDirPath = findEnvDir(envId)
+  const envDirPath = await findEnvDir(envId)
   if (!envDirPath) throw new Error(`Environment directory not found for ${envId}`)
-  fs.writeFileSync(path.join(envDirPath, 'instance.json'), manifestJson, 'utf-8')
+  await fsp.writeFile(path.join(envDirPath, 'instance.json'), manifestJson, 'utf-8')
   await getEnvDaemonClient().register(updated).catch(() => {})
 
   if (fixed.length === 0) fixed.push('no changes needed')
@@ -794,35 +801,35 @@ export async function fixEnvironment(envId: string): Promise<{ fixed: string[] }
 
 // ---- Restart Policy ----
 
-function getRestartPolicy(envId: string): 'manual' | 'on-crash' {
-  const manifest = getManifest(envId)
+async function getRestartPolicy(envId: string): Promise<'manual' | 'on-crash'> {
+  const manifest = await getManifest(envId)
   return (manifest?.meta?.restartPolicy as 'manual' | 'on-crash') || 'manual'
 }
 
-export function setRestartPolicy(envId: string, policy: 'manual' | 'on-crash'): void {
-  const manifest = getManifest(envId)
+export async function setRestartPolicy(envId: string, policy: 'manual' | 'on-crash'): Promise<void> {
+  const manifest = await getManifest(envId)
   if (!manifest) throw new Error(`Environment ${envId} not found`)
   manifest.meta = { ...manifest.meta, restartPolicy: policy }
-  saveManifest(envId, manifest)
+  await saveManifest(envId, manifest)
 }
 
 // ---- Purpose Tag ----
 
 export type PurposeTag = 'interactive' | 'background' | 'nightly'
 
-export function getPurposeTag(envId: string): PurposeTag | null {
-  const manifest = getManifest(envId)
+export async function getPurposeTag(envId: string): Promise<PurposeTag | null> {
+  const manifest = await getManifest(envId)
   return (manifest?.meta?.purposeTag as PurposeTag) || null
 }
 
-export function setPurposeTag(envId: string, tag: PurposeTag | null): void {
-  const manifest = getManifest(envId)
+export async function setPurposeTag(envId: string, tag: PurposeTag | null): Promise<void> {
+  const manifest = await getManifest(envId)
   if (!manifest) throw new Error(`Environment ${envId} not found`)
   manifest.meta = { ...manifest.meta, purposeTag: tag ?? undefined }
-  saveManifest(envId, manifest)
+  await saveManifest(envId, manifest)
 }
 
-export function saveManifest(envId: string, manifest: InstanceManifest): void {
+export async function saveManifest(envId: string, manifest: InstanceManifest): Promise<void> {
   // Validate required fields to prevent malformed data on disk
   if (!manifest || typeof manifest !== 'object') throw new Error('Invalid manifest: not an object')
   if (!manifest.id || !manifest.name) throw new Error('Invalid manifest: missing id or name')
@@ -831,11 +838,11 @@ export function saveManifest(envId: string, manifest: InstanceManifest): void {
   if (!manifest.ports || typeof manifest.ports !== 'object') throw new Error('Invalid manifest: missing ports')
   if (!manifest.paths || typeof manifest.paths !== 'object') throw new Error('Invalid manifest: missing paths')
 
-  const envDir = findEnvDir(envId)
+  const envDir = await findEnvDir(envId)
   if (!envDir) throw new Error(`Environment ${envId} not found`)
 
   const manifestPath = path.join(envDir, 'instance.json')
-  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8')
+  await fsp.writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8')
   // Re-register with envd
   getEnvDaemonClient().register(manifest).catch(() => {})
 }

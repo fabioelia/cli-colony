@@ -1,20 +1,35 @@
-import { readFileSync, existsSync, readdirSync, statSync, openSync, readSync, closeSync, createReadStream } from 'fs'
+import { promises as fsp } from 'fs'
 import { join } from 'path'
-import { execSync } from 'child_process'
+import { execFile } from 'child_process'
+import { createReadStream } from 'fs'
 import { createInterface } from 'readline'
 import { app } from 'electron'
 import { getRecentSessions, discoverSessionId } from './recent-sessions'
 import { getAllInstances } from './instance-manager'
 import type { CliSession } from '../shared/types'
 
-export function scanSessions(limit = 50): CliSession[] {
+/** Run a command and return stdout, or null on error. */
+function run(cmd: string, args: string[], timeout = 5000): Promise<string | null> {
+  return new Promise((resolve) => {
+    execFile(cmd, args, { encoding: 'utf-8', timeout }, (err, stdout) => {
+      if (err) resolve(null)
+      else resolve(stdout)
+    })
+  })
+}
+
+export async function scanSessions(limit = 50): Promise<CliSession[]> {
   const home = app.getPath('home')
   const historyPath = join(home, '.claude', 'history.jsonl')
 
-  if (!existsSync(historyPath)) return []
+  try {
+    await fsp.stat(historyPath)
+  } catch {
+    return []
+  }
 
   try {
-    const content = readFileSync(historyPath, 'utf-8')
+    const content = await fsp.readFile(historyPath, 'utf-8')
     const lines = content.trim().split('\n')
 
     // First pass: collect first message, last message, count, and last /rename per session
@@ -60,7 +75,7 @@ export function scanSessions(limit = 50): CliSession[] {
     }
 
     // Cross-reference with recent sessions opened in this app
-    const recent = getRecentSessions()
+    const recent = await getRecentSessions()
     const recentSessionIds = new Set(
       recent.filter((r) => r.sessionId).map((r) => r.sessionId!)
     )
@@ -69,18 +84,18 @@ export function scanSessions(limit = 50): CliSession[] {
     const customTitles = new Map<string, string>()
     try {
       const projectsDir = join(home, '.claude', 'projects')
-      if (existsSync(projectsDir)) {
-        const projectDirs = readdirSync(projectsDir)
+      try {
+        const projectDirs = await fsp.readdir(projectsDir)
         for (const dir of projectDirs) {
           const dirPath = join(projectsDir, dir)
           try {
-            const files = readdirSync(dirPath).filter((f: string) => f.endsWith('.jsonl'))
+            const files = (await fsp.readdir(dirPath)).filter((f: string) => f.endsWith('.jsonl'))
             for (const file of files) {
               const sessionId = file.replace('.jsonl', '')
               if (customTitles.has(sessionId)) continue
               try {
                 // Only read the first few lines — customTitle is usually first
-                const fd = readFileSync(join(dirPath, file), 'utf-8')
+                const fd = await fsp.readFile(join(dirPath, file), 'utf-8')
                 const firstLines = fd.slice(0, 500).split('\n')
                 for (const line of firstLines) {
                   try {
@@ -95,7 +110,7 @@ export function scanSessions(limit = 50): CliSession[] {
             }
           } catch { /* skip */ }
         }
-      }
+      } catch { /* projectsDir doesn't exist */ }
     } catch { /* skip */ }
 
     // Build session list
@@ -141,7 +156,8 @@ export interface ExternalSession {
 
 export async function scanExternalSessions(): Promise<ExternalSession[]> {
   try {
-    const psOutput = execSync('ps aux', { encoding: 'utf-8', timeout: 5000 })
+    const psOutput = await run('ps', ['aux'])
+    if (!psOutput) return []
 
     const instances = await getAllInstances()
     const managedPids = new Set(instances.map(i => i.pid).filter(Boolean))
@@ -167,16 +183,16 @@ export async function scanExternalSessions(): Promise<ExternalSession[]> {
       let sessionId = resumeMatch ? resumeMatch[1] : null
 
       if (!cwd) {
-        try {
-          const lsofCwd = execSync(`lsof -p ${pid} -d cwd -Fn 2>/dev/null`, { encoding: 'utf-8', timeout: 3000 })
+        const lsofCwd = await run('lsof', ['-p', String(pid), '-d', 'cwd', '-Fn'], 3000)
+        if (lsofCwd) {
           const cwdMatch = lsofCwd.match(/\nn(.+)/)
           if (cwdMatch) cwd = cwdMatch[1]
-        } catch { /* skip */ }
+        }
       }
 
       if (!sessionId) {
         // Use shared session discovery with 24h recency window for external sessions
-        sessionId = discoverSessionId(pid, cwd || '', 86400000)
+        sessionId = await discoverSessionId(pid, cwd || '', 86400000)
       }
 
       external.push({ pid, name, cwd, sessionId, args: fullCmd.slice(0, 200) })
@@ -195,21 +211,22 @@ export interface SessionMessage {
   type?: string
 }
 
-export function readSessionMessages(sessionId: string, limit: number = 50): { messages: SessionMessage[]; project: string | null } {
+export async function readSessionMessages(sessionId: string, limit: number = 50): Promise<{ messages: SessionMessage[]; project: string | null }> {
   const home = app.getPath('home')
   const projectsDir = join(home, '.claude', 'projects')
-  if (!existsSync(projectsDir)) return { messages: [], project: null }
+  try { await fsp.stat(projectsDir) } catch { return { messages: [], project: null } }
 
   let sessionFile: string | null = null
   let projectPath: string | null = null
   try {
-    for (const dir of readdirSync(projectsDir)) {
+    for (const dir of await fsp.readdir(projectsDir)) {
       const candidate = join(projectsDir, dir, `${sessionId}.jsonl`)
-      if (existsSync(candidate)) {
+      try {
+        await fsp.stat(candidate)
         sessionFile = candidate
         projectPath = dir.replace(/-/g, '/')
         break
-      }
+      } catch { /* doesn't exist */ }
     }
   } catch { /* skip */ }
 
@@ -217,18 +234,18 @@ export function readSessionMessages(sessionId: string, limit: number = 50): { me
 
   try {
     const MAX_READ = 2 * 1024 * 1024
-    const stat = statSync(sessionFile)
+    const stat = await fsp.stat(sessionFile)
     let content: string
     if (stat.size > MAX_READ) {
-      const fd = openSync(sessionFile, 'r')
+      const fh = await fsp.open(sessionFile, 'r')
       const buf = Buffer.alloc(MAX_READ)
-      readSync(fd, buf, 0, MAX_READ, stat.size - MAX_READ)
-      closeSync(fd)
+      await fh.read(buf, 0, MAX_READ, stat.size - MAX_READ)
+      await fh.close()
       const str = buf.toString('utf-8')
       const nl = str.indexOf('\n')
       content = nl >= 0 ? str.slice(nl + 1) : str
     } else {
-      content = readFileSync(sessionFile, 'utf-8')
+      content = await fsp.readFile(sessionFile, 'utf-8')
     }
 
     const lines = content.trim().split('\n')
@@ -290,16 +307,16 @@ export interface SessionSearchResult {
 export async function searchSessions(query: string): Promise<SessionSearchResult[]> {
   const home = app.getPath('home')
   const projectsDir = join(home, '.claude', 'projects')
-  if (!existsSync(projectsDir)) return []
+  try { await fsp.stat(projectsDir) } catch { return [] }
 
   const q = query.toLowerCase()
   const results: SessionSearchResult[] = []
 
-  for (const dir of readdirSync(projectsDir)) {
+  for (const dir of await fsp.readdir(projectsDir)) {
     if (results.length >= 30) break
     const dirPath = join(projectsDir, dir)
     try {
-      const files = readdirSync(dirPath).filter((f: string) => f.endsWith('.jsonl'))
+      const files = (await fsp.readdir(dirPath)).filter((f: string) => f.endsWith('.jsonl'))
       for (const file of files) {
         if (results.length >= 30) break
         const sessionId = file.replace('.jsonl', '')
@@ -352,27 +369,24 @@ export interface TakeoverResult {
 export async function takeoverSession(opts: { pid: number; sessionId: string | null; name: string; cwd: string }): Promise<TakeoverResult> {
   let cwd = opts.cwd
   if (!cwd) {
-    try {
-      const lsofCwd = execSync(`lsof -p ${opts.pid} -d cwd -Fn 2>/dev/null`, {
-        encoding: 'utf-8', timeout: 3000,
-      })
+    const lsofCwd = await run('lsof', ['-p', String(opts.pid), '-d', 'cwd', '-Fn'], 3000)
+    if (lsofCwd) {
       const cwdMatch = lsofCwd.match(/\nn(.+)/)
       if (cwdMatch) cwd = cwdMatch[1]
-    } catch { /* */ }
+    }
   }
 
   if (opts.sessionId && !cwd) {
     const home = app.getPath('home')
     const projectsDir = join(home, '.claude', 'projects')
     try {
-      if (existsSync(projectsDir)) {
-        for (const dir of readdirSync(projectsDir)) {
-          const candidate = join(projectsDir, dir, `${opts.sessionId}.jsonl`)
-          if (existsSync(candidate)) {
-            cwd = '/' + dir.substring(1).replace(/-/g, '/')
-            break
-          }
-        }
+      for (const dir of await fsp.readdir(projectsDir)) {
+        const candidate = join(projectsDir, dir, `${opts.sessionId}.jsonl`)
+        try {
+          await fsp.stat(candidate)
+          cwd = '/' + dir.substring(1).replace(/-/g, '/')
+          break
+        } catch { /* doesn't exist */ }
       }
     } catch { /* */ }
   }

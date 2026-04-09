@@ -142,6 +142,7 @@ export interface ClaudeManagerAPI {
   }
   window: {
     toggleFullScreen: () => Promise<boolean>
+    onFullScreenChanged: (cb: (isFullScreen: boolean) => void) => () => void
   }
   github: {
     authStatus: () => Promise<boolean>
@@ -554,6 +555,7 @@ const api: ClaudeManagerAPI = {
   },
   window: {
     toggleFullScreen: () => ipcRenderer.invoke('window:toggleFullScreen'),
+    onFullScreenChanged: (cb) => { const l = (_e: any, isFS: boolean) => cb(isFS); ipcRenderer.on('window:fullscreen-changed', l); return () => ipcRenderer.removeListener('window:fullscreen-changed', l) },
   },
   github: {
     authStatus: () => ipcRenderer.invoke('github:authStatus'),

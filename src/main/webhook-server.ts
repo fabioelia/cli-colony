@@ -90,8 +90,8 @@ function sendJson(res: ServerResponse, status: number, body: Record<string, unkn
 }
 
 /** Check API auth — required only when `apiToken` setting is configured. */
-function checkApiAuth(req: IncomingMessage): boolean {
-  const token = getSetting('apiToken')
+async function checkApiAuth(req: IncomingMessage): Promise<boolean> {
+  const token = await getSetting('apiToken')
   if (!token) return true
   return verifyGenericToken(token, req)
 }
@@ -100,7 +100,7 @@ async function handleApiRequest(req: IncomingMessage, res: ServerResponse): Prom
   const url = req.url || '/'
   const method = req.method || 'GET'
 
-  if (!checkApiAuth(req)) {
+  if (!await checkApiAuth(req)) {
     sendJson(res, 401, { error: 'Unauthorized' })
     return
   }

@@ -1,4 +1,4 @@
-import { Tray, Menu, BrowserWindow, nativeImage, app } from 'electron'
+import { Tray, Menu, BrowserWindow, nativeImage, app, screen } from 'electron'
 import { join } from 'path'
 import { getAllInstances, ClaudeInstance } from './instance-manager'
 
@@ -62,9 +62,15 @@ export async function updateTrayMenu(mainWindow: BrowserWindow | null): Promise<
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.show()
           mainWindow.focus()
-          if (process.platform === 'darwin') {
-            app.dock?.show()
-          }
+          // Center on current display
+          const bounds = mainWindow.getBounds()
+          const display = screen.getDisplayNearestPoint({ x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 })
+          const { width: dw, height: dh, x: dx, y: dy } = display.workArea
+          mainWindow.setPosition(
+            Math.round(dx + (dw - bounds.width) / 2),
+            Math.round(dy + (dh - bounds.height) / 2),
+          )
+          if (process.platform === 'darwin') app.dock?.show()
         }
       },
     },

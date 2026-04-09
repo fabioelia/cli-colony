@@ -28,6 +28,9 @@ export class DaemonClient extends BaseDaemonClient {
       case 'list-changed':
         this.emit('list-changed', msg.instances)
         break
+      case 'comments':
+        this.emit('comments', msg.instanceId, msg.comments)
+        break
       case 'pong':
         break
     }

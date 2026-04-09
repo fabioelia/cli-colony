@@ -37,7 +37,7 @@ export function registerEnvHandlers(): void {
   ipcMain.handle('env:logs', (_e, envId: string, service: string, lines?: number) => getEnvironmentLogs(envId, service, lines))
   ipcMain.handle('env:restartService', (_e, envId: string, service: string) => restartServiceInEnv(envId, service))
   ipcMain.handle('env:manifest', (_e, envId: string) => getManifest(envId))
-  ipcMain.handle('env:saveManifest', (_e, envId: string, manifest: any) => saveManifest(envId, manifest))
+  ipcMain.handle('env:saveManifest', async (_e, envId: string, manifest: any) => { await saveManifest(envId, manifest) })
   ipcMain.handle('env:fix', async (_e, envId: string) => fixEnvironment(envId))
   ipcMain.handle('env:setRestartPolicy', (_e, envId: string, policy: 'manual' | 'on-crash') => setRestartPolicy(envId, policy))
   ipcMain.handle('env:launchSessionWhenReady', async (
@@ -65,11 +65,11 @@ export function registerEnvHandlers(): void {
   // Templates
   ipcMain.handle('env:listTemplates', () => listTemplates())
   ipcMain.handle('env:getTemplate', (_e, id: string) => getTemplate(id))
-  ipcMain.handle('env:saveTemplate', (_e, template: any) => { saveTemplate(template); return true })
+  ipcMain.handle('env:saveTemplate', async (_e, template: any) => { await saveTemplate(template); return true })
   ipcMain.handle('env:deleteTemplate', (_e, id: string) => deleteTemplate(id))
   ipcMain.handle('env:refreshTemplates', async () => {
     await refreshRepoConfigs().catch(err => console.warn('[env] refreshRepoConfigs failed:', err))
-    return listTemplates()
+    return await listTemplates()
   })
 
   // File picker for prompt hooks — shows hidden files so .env is visible
@@ -89,7 +89,7 @@ export function registerEnvHandlers(): void {
   })
 
   // Repo .colony/ config
-  ipcMain.handle('colony:repoConfig', (_e, repoPath: string) => {
+  ipcMain.handle('colony:repoConfig', async (_e, repoPath: string) => {
     return getRepoConfig(repoPath)
   })
   ipcMain.handle('colony:allRepoConfigs', () => {

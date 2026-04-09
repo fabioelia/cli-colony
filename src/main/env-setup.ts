@@ -40,7 +40,7 @@ function execAsync(cmd: string, opts?: { cwd?: string; timeout?: number; stdio?:
  */
 export async function runSetup(
   envDir: string,
-  getTemplate: (id: string) => EnvironmentTemplate | null,
+  getTemplate: (id: string) => Promise<EnvironmentTemplate | null>,
 ): Promise<void> {
   const manifestPath = path.join(envDir, 'instance.json')
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as InstanceManifest
@@ -78,7 +78,7 @@ export async function runSetup(
 
   // Load the template to get repo info
   const templateId = (manifest.meta as any)?.templateId
-  const template = templateId ? getTemplate(templateId) : null
+  const template = templateId ? await getTemplate(templateId) : null
   const branch = manifest.git?.branch || 'develop'
   logSetup(`Template: ${template?.name || 'none'}, Branch: ${branch}`)
 
@@ -90,7 +90,7 @@ export async function runSetup(
         const targetDir = manifest.paths[repo.as] || path.join(envDir, repo.name)
         if (fs.existsSync(targetDir)) continue // already set up
 
-        const remoteUrl = repo.remoteUrl || gitRemoteUrl(repo.owner, repo.name)
+        const remoteUrl = repo.remoteUrl || await gitRemoteUrl(repo.owner, repo.name)
 
         logSetup(`Setting up ${repo.owner}/${repo.name} as worktree...`)
 

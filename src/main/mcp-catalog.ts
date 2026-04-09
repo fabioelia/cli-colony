@@ -1,4 +1,4 @@
-import * as fs from 'fs'
+import { promises as fsp } from 'fs'
 import * as path from 'path'
 import { expandEnvVars } from '../shared/utils'
 import { colonyPaths } from '../shared/colony-paths'
@@ -12,18 +12,17 @@ export interface McpServerDef {
   env?: Record<string, string>
 }
 
-export function readCatalog(): McpServerDef[] {
+export async function readCatalog(): Promise<McpServerDef[]> {
   try {
-    if (!fs.existsSync(colonyPaths.mcpCatalog)) return []
-    return JSON.parse(fs.readFileSync(colonyPaths.mcpCatalog, 'utf-8')) as McpServerDef[]
+    return JSON.parse(await fsp.readFile(colonyPaths.mcpCatalog, 'utf-8')) as McpServerDef[]
   } catch {
     return []
   }
 }
 
-export function writeCatalog(servers: McpServerDef[]): void {
-  fs.mkdirSync(path.dirname(colonyPaths.mcpCatalog), { recursive: true })
-  fs.writeFileSync(colonyPaths.mcpCatalog, JSON.stringify(servers, null, 2), 'utf-8')
+export async function writeCatalog(servers: McpServerDef[]): Promise<void> {
+  await fsp.mkdir(path.dirname(colonyPaths.mcpCatalog), { recursive: true })
+  await fsp.writeFile(colonyPaths.mcpCatalog, JSON.stringify(servers, null, 2), 'utf-8')
 }
 
 /**
@@ -32,8 +31,8 @@ export function writeCatalog(servers: McpServerDef[]): void {
  * Expands environment variables in command arguments (e.g., $HOME, ${VAR}).
  * Custom env variables defined per server take precedence over system env.
  */
-export function buildMcpConfig(serverNames: string[], configId: string): string | null {
-  const catalog = readCatalog()
+export async function buildMcpConfig(serverNames: string[], configId: string): Promise<string | null> {
+  const catalog = await readCatalog()
   const selected = catalog.filter((s) => serverNames.includes(s.name))
   if (selected.length === 0) return null
 
@@ -51,15 +50,15 @@ export function buildMcpConfig(serverNames: string[], configId: string): string 
   }
   if (Object.keys(mcpServers).length === 0) return null
 
-  fs.mkdirSync(colonyPaths.mcpConfigs, { recursive: true })
+  await fsp.mkdir(colonyPaths.mcpConfigs, { recursive: true })
   const configPath = path.join(colonyPaths.mcpConfigs, `${configId}.json`)
-  fs.writeFileSync(configPath, JSON.stringify({ mcpServers }, null, 2), 'utf-8')
+  await fsp.writeFile(configPath, JSON.stringify({ mcpServers }, null, 2), 'utf-8')
   return configPath
 }
 
 /** Delete a previously-written config file (called on session exit). */
-export function cleanMcpConfigFile(filePath: string): void {
+export async function cleanMcpConfigFile(filePath: string): Promise<void> {
   try {
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+    await fsp.unlink(filePath)
   } catch { /* ignore */ }
 }

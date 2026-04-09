@@ -1,5 +1,5 @@
 import { ipcMain, app } from 'electron'
-import * as fs from 'fs'
+import { promises as fsp } from 'fs'
 import { join } from 'path'
 import { colonyPaths } from '../../shared/colony-paths'
 import {
@@ -31,12 +31,11 @@ export function registerGitHubHandlers(): void {
   ipcMain.handle('github:savePrMemory', (_e, content: string) => savePrMemory(content))
   ipcMain.handle('github:getPrMemoryPath', () => getPrMemoryPath())
   ipcMain.handle('github:getPrWorkspacePath', () => getPrWorkspacePath())
-  ipcMain.handle('github:getCommentsFile', (_e, repoSlug: string, prNumber: number) => {
+  ipcMain.handle('github:getCommentsFile', async (_e, repoSlug: string, prNumber: number) => {
     const commentsDir = colonyPaths.prComments
     const safeSlug = repoSlug.replace(/\//g, '-')
     const filePath = join(commentsDir, `${safeSlug}-${prNumber}.md`)
-    if (!fs.existsSync(filePath)) return null
-    return fs.readFileSync(filePath, 'utf-8')
+    try { return await fsp.readFile(filePath, 'utf-8') } catch { return null }
   })
   ipcMain.handle('github:fetchChecks', (_e, repo: GitHubRepo, prNumber: number) => fetchChecks(repo, prNumber))
   ipcMain.handle('github:fetchCheckLogs', (_e, repo: GitHubRepo, prNumber: number, checkName: string) => fetchCheckLogs(repo, prNumber, checkName))

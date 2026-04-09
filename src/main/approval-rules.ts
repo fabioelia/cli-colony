@@ -3,7 +3,7 @@
  * Evaluates pipeline actions against rules to auto-approve, require approval, or escalate.
  */
 
-import * as fs from 'fs'
+import { promises as fsp } from 'fs'
 import * as path from 'path'
 import { v4 as uuid } from 'uuid'
 import { ApprovalRule } from '../shared/types'
@@ -36,19 +36,15 @@ let _cache: ApprovalRule[] | null = null
 /**
  * Load approval rules from storage.
  */
-export function loadApprovalRules(): ApprovalRule[] {
+export async function loadApprovalRules(): Promise<ApprovalRule[]> {
   if (_cache !== null) return _cache
   try {
     const rulesPath = colonyPaths.approvalRulesJson
-    if (!fs.existsSync(rulesPath)) {
-      _cache = []
-      return []
-    }
-    const content = fs.readFileSync(rulesPath, 'utf-8')
+    const content = await fsp.readFile(rulesPath, 'utf-8')
     _cache = JSON.parse(content) as ApprovalRule[]
     return _cache
-  } catch (error) {
-    console.error('[approval-rules] Failed to load rules:', error)
+  } catch (error: any) {
+    if (error?.code !== 'ENOENT') console.error('[approval-rules] Failed to load rules:', error)
     _cache = []
     return []
   }
@@ -57,14 +53,11 @@ export function loadApprovalRules(): ApprovalRule[] {
 /**
  * Save approval rules to storage.
  */
-export function saveApprovalRules(rules: ApprovalRule[]): void {
+export async function saveApprovalRules(rules: ApprovalRule[]): Promise<void> {
   try {
-    const govDir = colonyPaths.governance
-    if (!fs.existsSync(govDir)) {
-      fs.mkdirSync(govDir, { recursive: true })
-    }
+    await fsp.mkdir(colonyPaths.governance, { recursive: true })
     const rulesPath = colonyPaths.approvalRulesJson
-    fs.writeFileSync(rulesPath, JSON.stringify(rules, null, 2), 'utf-8')
+    await fsp.writeFile(rulesPath, JSON.stringify(rules, null, 2), 'utf-8')
     _cache = rules
   } catch (error) {
     console.error('[approval-rules] Failed to save rules:', error)
@@ -75,13 +68,13 @@ export function saveApprovalRules(rules: ApprovalRule[]): void {
 /**
  * Create a new approval rule.
  */
-export function createRule(
+export async function createRule(
   name: string,
   type: 'file_pattern' | 'cost_threshold' | 'risk_level',
   condition: string,
   action: 'auto_approve' | 'require_approval' | 'require_escalation'
-): ApprovalRule {
-  const rules = loadApprovalRules()
+): Promise<ApprovalRule> {
+  const rules = await loadApprovalRules()
   const newRule: ApprovalRule = {
     id: uuid(),
     name,
@@ -92,30 +85,30 @@ export function createRule(
     createdAt: new Date().toISOString(),
   }
   rules.push(newRule)
-  saveApprovalRules(rules)
+  await saveApprovalRules(rules)
   return newRule
 }
 
 /**
  * Update an approval rule by ID.
  */
-export function updateRule(id: string, updates: Partial<ApprovalRule>): boolean {
-  const rules = loadApprovalRules()
+export async function updateRule(id: string, updates: Partial<ApprovalRule>): Promise<boolean> {
+  const rules = await loadApprovalRules()
   const idx = rules.findIndex((r) => r.id === id)
   if (idx === -1) return false
   rules[idx] = { ...rules[idx], ...updates }
-  saveApprovalRules(rules)
+  await saveApprovalRules(rules)
   return true
 }
 
 /**
  * Delete an approval rule by ID.
  */
-export function deleteRule(id: string): boolean {
-  const rules = loadApprovalRules()
+export async function deleteRule(id: string): Promise<boolean> {
+  const rules = await loadApprovalRules()
   const filtered = rules.filter((r) => r.id !== id)
   if (filtered.length === rules.length) return false
-  saveApprovalRules(filtered)
+  await saveApprovalRules(filtered)
   return true
 }
 
@@ -143,12 +136,12 @@ function globToMatcher(pattern: string): (str: string) => boolean {
  * Match an action against approval rules.
  * Returns the first enabled rule that matches, or null if none match.
  */
-export function matchRules(
+export async function matchRules(
   actionType: string,
   estimatedCostUsd: number,
   diffFiles: string[] = []
-): ApprovalRule | null {
-  const rules = loadApprovalRules()
+): Promise<ApprovalRule | null> {
+  const rules = await loadApprovalRules()
 
   for (const rule of rules) {
     if (!rule.enabled) continue

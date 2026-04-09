@@ -7,7 +7,7 @@
  * Updated on demand (before launching prompts) and periodically.
  */
 
-import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync } from 'fs'
+import { promises as fsp } from 'fs'
 import { join, basename } from 'path'
 import { app } from 'electron'
 import { getAllInstances } from './instance-manager'
@@ -22,8 +22,13 @@ import { colonyPaths } from '../shared/colony-paths'
 const COLONY_DIR = colonyPaths.root
 const CONTEXT_PATH = colonyPaths.colonyContext
 
+/** Check if a path exists (async replacement for existsSync). */
+async function pathExists(p: string): Promise<boolean> {
+  try { await fsp.stat(p); return true } catch { return false }
+}
+
 export async function updateColonyContext(): Promise<string> {
-  if (!existsSync(COLONY_DIR)) mkdirSync(COLONY_DIR, { recursive: true })
+  await fsp.mkdir(COLONY_DIR, { recursive: true })
 
   const lines: string[] = [
     '# Colony Context',
@@ -62,8 +67,9 @@ export async function updateColonyContext(): Promise<string> {
   // GitHub repos and PR summary
   try {
     const configPath = join(COLONY_DIR, 'github.json')
-    if (existsSync(configPath)) {
-      const config = JSON.parse(readFileSync(configPath, 'utf-8'))
+    if (await pathExists(configPath)) {
+      const raw = await fsp.readFile(configPath, 'utf-8')
+      const config = JSON.parse(raw)
       const repos = config.repos || []
       if (repos.length > 0) {
         lines.push('## GitHub Repositories', '')
@@ -76,14 +82,14 @@ export async function updateColonyContext(): Promise<string> {
 
     // PR context file reference
     const prContextPath = join(COLONY_DIR, 'pr-workspace', 'pr-context.md')
-    if (existsSync(prContextPath)) {
+    if (await pathExists(prContextPath)) {
       lines.push(`**PR data:** Read ${prContextPath} for full PR details, descriptions, and comment file references.`, '')
     }
   } catch { /* */ }
 
   // PR Memory reference
   const prMemoryPath = join(COLONY_DIR, 'pr-workspace', 'pr-memory.md')
-  if (existsSync(prMemoryPath)) {
+  if (await pathExists(prMemoryPath)) {
     lines.push(`**PR Memory:** ${prMemoryPath} — persistent knowledge from PR reviews and discussions.`, '')
   }
 
@@ -149,15 +155,16 @@ export async function updateColonyContext(): Promise<string> {
   // Task queues
   try {
     const queueDir = join(COLONY_DIR, 'task-queues')
-    if (existsSync(queueDir)) {
-      const files = readdirSync(queueDir).filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'))
+    if (await pathExists(queueDir)) {
+      const allFiles = await fsp.readdir(queueDir)
+      const files = allFiles.filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'))
       if (files.length > 0) {
         lines.push('## Task Queues', '')
         for (const f of files) {
           // Extract output paths from task prompts
           const outputDirs = new Set<string>()
           try {
-            const content = readFileSync(join(queueDir, f), 'utf-8')
+            const content = await fsp.readFile(join(queueDir, f), 'utf-8')
             const matches = content.match(/~\/\.claude-colony\/outputs\/[^\s"']+/g)
             if (matches) {
               for (const m of matches) {
@@ -180,8 +187,9 @@ export async function updateColonyContext(): Promise<string> {
   // Handoffs
   try {
     const handoffDir = join(COLONY_DIR, 'handoffs')
-    if (existsSync(handoffDir)) {
-      const files = readdirSync(handoffDir).filter((f) => f.endsWith('.md'))
+    if (await pathExists(handoffDir)) {
+      const allFiles = await fsp.readdir(handoffDir)
+      const files = allFiles.filter((f) => f.endsWith('.md'))
       if (files.length > 0) {
         lines.push('## Recent Handoffs', '')
         for (const f of files.slice(-10)) {
@@ -203,7 +211,7 @@ export async function updateColonyContext(): Promise<string> {
   lines.push('')
 
   const content = lines.join('\n')
-  writeFileSync(CONTEXT_PATH, content, 'utf-8')
+  await fsp.writeFile(CONTEXT_PATH, content, 'utf-8')
   return CONTEXT_PATH
 }
 
@@ -214,13 +222,13 @@ export function getColonyContextPath(): string {
 /**
  * Returns a string to append to any prompt that makes it Colony-aware.
  */
-export function getColonyContextInstruction(workingDirectory?: string): string {
+export async function getColonyContextInstruction(workingDirectory?: string): Promise<string> {
   let instruction = `\n\nA Colony context file exists at ${CONTEXT_PATH}. It describes all active sessions, repos, agents, task queues, and handoffs in this workspace. Read it if you need broader context about what else is happening.`
 
   // Append repo-specific context if .colony/context.md exists
   if (workingDirectory) {
     try {
-      const repoContext = getRepoContext(workingDirectory)
+      const repoContext = await getRepoContext(workingDirectory)
       if (repoContext) {
         instruction += `\n\n--- Project Context ---\n${repoContext}`
       }

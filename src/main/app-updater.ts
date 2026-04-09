@@ -44,8 +44,8 @@ export function getUpdateStatus(): UpdateStatus {
 /**
  * Record the user's auto-check preference and (re-)start the daily timer if enabled.
  */
-export function setAutoUpdateEnabled(enabled: boolean): void {
-  setSetting('autoUpdateEnabled', enabled ? 'true' : 'false')
+export async function setAutoUpdateEnabled(enabled: boolean): Promise<void> {
+  await setSetting('autoUpdateEnabled', enabled ? 'true' : 'false')
   if (enabled) {
     scheduleDailyCheck()
     // Fire an immediate check after enabling so users see feedback
@@ -56,14 +56,14 @@ export function setAutoUpdateEnabled(enabled: boolean): void {
   }
 }
 
-export function isAutoUpdateEnabled(): boolean {
-  return getSetting('autoUpdateEnabled') !== 'false'
+export async function isAutoUpdateEnabled(): Promise<boolean> {
+  return await getSetting('autoUpdateEnabled') !== 'false'
 }
 
 function scheduleDailyCheck(): void {
   if (dailyTimer) clearInterval(dailyTimer)
-  dailyTimer = setInterval(() => {
-    if (!isAutoUpdateEnabled()) return
+  dailyTimer = setInterval(async () => {
+    if (!await isAutoUpdateEnabled()) return
     void runCheck('scheduled')
   }, DAILY_MS)
 }
@@ -104,7 +104,7 @@ async function runCheck(source: 'startup' | 'scheduled' | 'focus' | 'manual'): P
     await autoUpdaterInstance.checkForUpdates()
     mergeStatus({ lastCheckAt: Date.now() })
     // Persist lastCheckAt for Settings display across app restarts
-    setSetting('autoUpdateLastCheckAt', String(Date.now()))
+    await setSetting('autoUpdateLastCheckAt', String(Date.now()))
   } catch (err: any) {
     const msg = err?.message || String(err)
     // Silently swallow "no published releases yet" — not a user-visible error
@@ -146,12 +146,12 @@ export function quitAndInstall(): void {
  * Initialise the auto-updater. Called once from index.ts after `app.whenReady`.
  * In dev mode we register no-op state and skip loading electron-updater entirely.
  */
-export function initAppUpdater(mainWindow: BrowserWindow | null): void {
+export async function initAppUpdater(mainWindow: BrowserWindow | null): Promise<void> {
   const packaged = app.isPackaged
   mergeStatus({ enabledInEnv: packaged })
 
   // Restore lastCheckAt from settings so the Settings panel doesn't look stale across restarts
-  const persistedLast = Number(getSetting('autoUpdateLastCheckAt') || 0) || null
+  const persistedLast = Number(await getSetting('autoUpdateLastCheckAt') || 0) || null
   if (persistedLast) mergeStatus({ lastCheckAt: persistedLast })
 
   if (!packaged) {

@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import * as fs from 'fs'
+import { promises as fsp } from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import { colonyPaths } from '../../shared/colony-paths'
@@ -7,17 +7,17 @@ import type { OutputEntry } from '../../shared/types'
 
 const MAX_READ_BYTES = 32 * 1024 // 32KB cap
 
-function safeReadDir(dir: string, depth: number): { name: string; path: string; mtime: number }[] {
+async function safeReadDir(dir: string, depth: number): Promise<{ name: string; path: string; mtime: number }[]> {
   const entries: { name: string; path: string; mtime: number }[] = []
   try {
-    const items = fs.readdirSync(dir, { withFileTypes: true })
+    const items = await fsp.readdir(dir, { withFileTypes: true })
     for (const item of items) {
       const fullPath = path.join(dir, item.name)
       if (item.isDirectory() && depth < 2) {
-        entries.push(...safeReadDir(fullPath, depth + 1))
+        entries.push(...await safeReadDir(fullPath, depth + 1))
       } else if (item.isFile()) {
         try {
-          const stat = fs.statSync(fullPath)
+          const stat = await fsp.stat(fullPath)
           entries.push({ name: item.name, path: fullPath, mtime: stat.mtimeMs })
         } catch { /* skip */ }
       }
@@ -43,7 +43,7 @@ function extractAgentId(filePath: string): string {
 }
 
 export function registerOutputsHandlers(): void {
-  ipcMain.handle('outputs:list', (): OutputEntry[] => {
+  ipcMain.handle('outputs:list', async (): Promise<OutputEntry[]> => {
     const colonyBase = path.join(os.homedir(), '.claude-colony')
     const outputsDir = path.join(colonyBase, 'outputs')
     const personasDir = path.join(colonyBase, 'personas')
@@ -51,11 +51,11 @@ export function registerOutputsHandlers(): void {
     const results: OutputEntry[] = []
 
     // Scan outputs/ (depth 2)
-    if (fs.existsSync(outputsDir)) {
-      const files = safeReadDir(outputsDir, 0)
+    try {
+      const files = await safeReadDir(outputsDir, 0)
       for (const f of files) {
         try {
-          const stat = fs.statSync(f.path)
+          const stat = await fsp.stat(f.path)
           results.push({
             path: f.path,
             name: path.basename(f.path),
@@ -66,38 +66,36 @@ export function registerOutputsHandlers(): void {
           })
         } catch { /* skip */ }
       }
-    }
+    } catch { /* dir doesn't exist */ }
 
     // Scan personas/*.brief.md
-    if (fs.existsSync(personasDir)) {
-      try {
-        const items = fs.readdirSync(personasDir, { withFileTypes: true })
-        for (const item of items) {
-          if (item.isFile() && item.name.endsWith('.brief.md')) {
-            const fullPath = path.join(personasDir, item.name)
-            try {
-              const stat = fs.statSync(fullPath)
-              const personaId = item.name.replace('.brief.md', '')
-              results.push({
-                path: fullPath,
-                name: item.name,
-                agentId: personaId,
-                mtime: stat.mtimeMs,
-                sizeBytes: stat.size,
-                type: 'brief',
-              })
-            } catch { /* skip */ }
-          }
+    try {
+      const items = await fsp.readdir(personasDir, { withFileTypes: true })
+      for (const item of items) {
+        if (item.isFile() && item.name.endsWith('.brief.md')) {
+          const fullPath = path.join(personasDir, item.name)
+          try {
+            const stat = await fsp.stat(fullPath)
+            const personaId = item.name.replace('.brief.md', '')
+            results.push({
+              path: fullPath,
+              name: item.name,
+              agentId: personaId,
+              mtime: stat.mtimeMs,
+              sizeBytes: stat.size,
+              type: 'brief',
+            })
+          } catch { /* skip */ }
         }
-      } catch { /* skip */ }
-    }
+      }
+    } catch { /* dir doesn't exist */ }
 
     // Sort newest first
     results.sort((a, b) => b.mtime - a.mtime)
     return results
   })
 
-  ipcMain.handle('outputs:read', (_e, filePath: string): { content: string } | { error: string } => {
+  ipcMain.handle('outputs:read', async (_e, filePath: string): Promise<{ content: string } | { error: string }> => {
     const colonyBase = path.join(os.homedir(), '.claude-colony')
     // Path traversal guard
     const resolved = path.resolve(filePath)
@@ -105,11 +103,11 @@ export function registerOutputsHandlers(): void {
       return { error: 'Access denied: path outside .claude-colony' }
     }
     try {
-      const stat = fs.statSync(resolved)
-      const buf = Buffer.alloc(MAX_READ_BYTES)
-      const fd = fs.openSync(resolved, 'r')
-      const bytesRead = fs.readSync(fd, buf, 0, Math.min(MAX_READ_BYTES, stat.size), 0)
-      fs.closeSync(fd)
+      const stat = await fsp.stat(resolved)
+      const fh = await fsp.open(resolved, 'r')
+      const buf = Buffer.alloc(Math.min(MAX_READ_BYTES, stat.size))
+      const { bytesRead } = await fh.read(buf, 0, buf.length, 0)
+      await fh.close()
       const content = buf.slice(0, bytesRead).toString('utf-8')
       const truncated = stat.size > MAX_READ_BYTES
       return { content: truncated ? content + '\n\n…(truncated at 32KB)' : content }

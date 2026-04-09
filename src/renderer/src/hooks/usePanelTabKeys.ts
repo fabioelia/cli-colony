@@ -58,9 +58,13 @@ export function computeTabKeyAction<T extends string>(
   tabs: readonly T[],
   active: T
 ): T | null {
-  if (!(e.metaKey || e.ctrlKey) || !e.shiftKey) return null
-  if (e.key !== '{' && e.key !== '}') return null
-  const next = computeNextPanelTab(tabs, active, e.key === '}' ? 'next' : 'prev')
+  if (!(e.metaKey || e.ctrlKey)) return null
+  // Cmd+{ / Cmd+} (with Shift) or Cmd+[ / Cmd+] (without Shift)
+  // macOS Electron sometimes reports '['/']' instead of '{'/'}' when Cmd is held
+  const isNext = e.key === '}' || (e.key === ']' && !e.shiftKey)
+  const isPrev = e.key === '{' || (e.key === '[' && !e.shiftKey)
+  if (!isNext && !isPrev) return null
+  const next = computeNextPanelTab(tabs, active, isNext ? 'next' : 'prev')
   if (next === null) return null
   e.preventDefault?.()
   e.stopPropagation?.()
