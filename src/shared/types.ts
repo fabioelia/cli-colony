@@ -204,11 +204,13 @@ export interface ApprovalRequest {
 }
 
 export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'blocked'
+export type TaskPriority = 'critical' | 'high' | 'medium' | 'low'
 
 export interface TaskBoardItem {
   id: string
   title: string
   status: TaskStatus
+  priority?: TaskPriority
   assignee?: string
   notes?: string
   created?: string

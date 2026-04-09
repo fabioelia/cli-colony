@@ -875,7 +875,7 @@ export const helpContent: Record<string, HelpEntry> = {
   },
 
   tasksBoard: {
-    title: 'Shared Task Board',
+    title: 'Task Board',
     description: 'A shared coordination board backed by ~/.claude-colony/colony-tasks.json. All Colony personas and sessions can read and write tasks, making it a lightweight shared primitive for multi-agent workflows.',
     zones: [
       {
@@ -884,27 +884,44 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Active count', detail: 'Badge showing the number of tasks not yet Done.' },
           { label: 'Refresh', detail: 'Re-read the task board from disk.', icon: 'RefreshCw' },
-          { label: 'Add task', detail: 'Open the new-task form. Fill in title, status, assignee, and optional tags/notes, then click Save.', icon: 'Plus' },
+          { label: 'New task', detail: 'Open the new-task form. Fill in title, status, priority, assignee, and optional tags/description.', icon: 'Plus' },
         ],
       },
       {
-        name: 'Columns',
+        name: 'Filter bar',
+        position: 'Below header',
+        items: [
+          { label: 'Search', detail: 'Filter tasks by title or description text.', icon: 'Search' },
+          { label: 'Priority filter', detail: 'Show only tasks of a specific priority (Critical, High, Medium, Low).' },
+          { label: 'Assignee filter', detail: 'Show only tasks assigned to a specific person. Populated from existing task assignees.' },
+          { label: 'Clear filters', detail: 'Remove all active filters and show all tasks.' },
+        ],
+      },
+      {
+        name: 'Board columns',
         position: 'Main area',
         items: [
-          { label: 'To Do', detail: 'Tasks not yet started.' },
-          { label: 'In Progress', detail: 'Tasks currently being worked on.' },
-          { label: 'Blocked', detail: 'Tasks that are stuck and waiting on something.' },
-          { label: 'Done', detail: 'Completed tasks. Only shown when at least one task is done.' },
-          { label: 'Task card', detail: 'Click a card to expand it. Expanded cards show notes, last-updated time, and quick status-change buttons.' },
-          { label: 'Edit task', detail: 'Pencil icon (hover to reveal) opens an inline edit form to change title, status, assignee, tags, or notes.', icon: 'Pencil' },
-          { label: 'Delete task', detail: 'Trash icon (hover to reveal) deletes the task after confirmation.', icon: 'Trash2' },
+          { label: 'To Do / In Progress / Blocked / Done', detail: 'All four columns are always visible, even when empty. Each shows a task count in the header.' },
+          { label: 'Quick add (+)', detail: 'Click the + icon in a column header to quickly add a task directly to that column.', icon: 'Plus' },
+          { label: 'Priority sorting', detail: 'Tasks within each column are sorted by priority (Critical first) then by most recently updated.' },
+          { label: 'Task card', detail: 'Shows priority dot, title (1 line), assignee badge, description preview (2 lines), relative timestamp, and tags. Click to open the detail panel.' },
         ],
       },
       {
-        name: 'File Format',
+        name: 'Detail panel',
+        position: 'Right sidebar',
+        items: [
+          { label: 'Task details', detail: 'Click a card to open the detail panel showing full title, priority, status, assignee, tags, description, and timestamps.' },
+          { label: 'Edit task', detail: 'Click the pencil icon to edit all task fields including priority and a larger description area.', icon: 'Pencil' },
+          { label: 'Move to', detail: 'Quick status-change buttons to move the task between columns.' },
+          { label: 'Delete task', detail: 'Trash icon deletes the task after confirmation.', icon: 'Trash2' },
+        ],
+      },
+      {
+        name: 'File format',
         position: 'Background',
         items: [
-          { label: 'colony-tasks.json', detail: 'Stored at ~/.claude-colony/colony-tasks.json. Can be written by any persona or external script. Supports an array of task objects or { tasks: [...] }.' },
+          { label: 'colony-tasks.json', detail: 'Stored at ~/.claude-colony/colony-tasks.json. Can be written by any persona or external script. The priority field is optional (defaults to medium).' },
           { label: 'Live updates', detail: 'The board watches the file for external changes and refreshes automatically when another agent writes to it.' },
         ],
       },
