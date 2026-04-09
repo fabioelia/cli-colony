@@ -119,6 +119,11 @@ input, select {
   background: none;
 }
 
+/* Daemon failed banner — red variant for connection failures */
+.daemon-failed-banner {
+  background: linear-gradient(135deg, #c0392b 0%, #a93226 100%) !important;
+}
+
 /* App update banner — same pattern as daemon banner, stacked below it */
 .app-update-banner {
   position: fixed;
@@ -1487,7 +1492,13 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .terminal-wrapper.hidden {
-  display: none;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+  overflow: hidden;
 }
 
 .terminal-container {

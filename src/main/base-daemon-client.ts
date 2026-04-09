@@ -142,6 +142,25 @@ export abstract class BaseDaemonClient extends EventEmitter {
     this._connected = false
   }
 
+  /**
+   * Force-kill the daemon process via its PID file. Used during init retries
+   * when the daemon is alive but unresponsive (e.g. stuck subscribe).
+   */
+  killDaemonProcess(): void {
+    try {
+      if (!fs.existsSync(this.pidPath)) return
+      const pid = parseInt(fs.readFileSync(this.pidPath, 'utf-8').trim(), 10)
+      if (pid > 0) {
+        process.kill(pid, 'SIGKILL')
+        console.log(`[${this.label}] killed stale daemon process ${pid}`)
+      }
+      try { fs.unlinkSync(this.pidPath) } catch { /* */ }
+      try { fs.unlinkSync(this.socketPath) } catch { /* */ }
+    } catch (err) {
+      console.error(`[${this.label}] killDaemonProcess failed:`, err)
+    }
+  }
+
   // ---- Daemon process management ----
 
   private async ensureDaemon(): Promise<void> {

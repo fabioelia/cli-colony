@@ -95,6 +95,7 @@ export interface ClaudeManagerAPI {
     restart: () => Promise<void>
     getVersion: () => Promise<{ running: number; expected: number }>
     onVersionMismatch: (cb: (info: { running: number; expected: number }) => void) => () => void
+    onConnectionFailed: (cb: (info: { error: string }) => void) => () => void
   }
   settings: {
     getAll: () => Promise<Record<string, string>>
@@ -337,6 +338,7 @@ export interface ClaudeManagerAPI {
     gitRevert: (dir: string, file: string) => Promise<boolean>
     scoreOutput: (dir: string) => Promise<ScoreCard>
     getComments: (instanceId: string) => Promise<ColonyComment[]>
+    onComments: (callback: (data: { instanceId: string; comments: ColonyComment[] }) => void) => () => void
     getCoordinatorTeam: (sessionId: string) => Promise<CoordinatorTeam | null>
     getContextUsage: (sessionId: string) => Promise<ContextUsage | null>
     tokenizeApproximate: (text: string) => Promise<number>
@@ -522,6 +524,11 @@ const api: ClaudeManagerAPI = {
       const handler = (_e: any, info: { running: number; expected: number }) => cb(info)
       ipcRenderer.on('daemon:version-mismatch', handler)
       return () => ipcRenderer.removeListener('daemon:version-mismatch', handler)
+    },
+    onConnectionFailed: (cb) => {
+      const handler = (_e: any, info: { error: string }) => cb(info)
+      ipcRenderer.on('daemon:connection-failed', handler)
+      return () => ipcRenderer.removeListener('daemon:connection-failed', handler)
     },
   },
   settings: {
@@ -785,6 +792,11 @@ const api: ClaudeManagerAPI = {
     gitRevert: (dir, file) => ipcRenderer.invoke('session:gitRevert', dir, file),
     scoreOutput: (dir) => ipcRenderer.invoke('session:scoreOutput', dir),
     getComments: (instanceId) => ipcRenderer.invoke('session:getComments', instanceId),
+    onComments: (callback) => {
+      const listener = (_e: any, data: { instanceId: string; comments: ColonyComment[] }) => callback(data)
+      ipcRenderer.on('session:comments', listener)
+      return () => ipcRenderer.removeListener('session:comments', listener)
+    },
     getCoordinatorTeam: (sessionId) => ipcRenderer.invoke('session:getCoordinatorTeam', sessionId) as Promise<CoordinatorTeam | null>,
     getContextUsage: (sessionId) => ipcRenderer.invoke('session:getContextUsage', sessionId),
     tokenizeApproximate: (text) => ipcRenderer.invoke('session:tokenizeApproximate', text),

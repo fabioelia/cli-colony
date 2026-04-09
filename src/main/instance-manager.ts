@@ -13,7 +13,7 @@ import { getDaemonClient, DaemonClient } from './daemon-client'
 import { getDefaultArgs, getSetting, getDefaultCliBackend } from './settings'
 import { notify } from './notifications'
 import { DAEMON_VERSION } from '../daemon/protocol'
-import type { CliBackend } from '../shared/types'
+import type { CliBackend, ColonyComment } from '../shared/types'
 import { trackOpened, trackClosed } from './recent-sessions'
 import { broadcast } from './broadcast'
 import { buildMcpConfig, cleanMcpConfigFile } from './mcp-catalog'
@@ -136,6 +136,11 @@ export function wireDaemonEvents(): void {
   client.on('list-changed', (instances: ClaudeInstance[]) => {
     broadcast('instance:list', instances)
     onInstanceListChanged?.()
+  })
+
+  // Forward comments push
+  client.on('comments', (instanceId: string, comments: ColonyComment[]) => {
+    broadcast('session:comments', { instanceId, comments })
   })
 
   client.on('disconnected', () => {
@@ -276,9 +281,23 @@ export async function restartDaemon(): Promise<void> {
 
 /**
  * Connect to the daemon and wire up events.
- * Call this once during app startup.
+ * Call this once during app startup. Retries up to 3 times with a stale-daemon
+ * kill between attempts so a hung daemon doesn't permanently block the app.
  */
 export async function initDaemon(): Promise<void> {
   wireDaemonEvents()
-  await getDaemonClient().connect()
+  const client = getDaemonClient()
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await client.connect()
+      return
+    } catch (err) {
+      console.error(`[instance-manager] daemon connect attempt ${attempt}/3 failed:`, err)
+      if (attempt < 3) {
+        client.killDaemonProcess()
+        await new Promise((r) => setTimeout(r, 2000))
+      }
+    }
+  }
+  throw new Error('daemon init failed after 3 attempts')
 }

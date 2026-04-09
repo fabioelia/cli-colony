@@ -521,6 +521,7 @@ app.whenReady().then(() => {
     } catch { /* ignore */ }
   }).catch((err) => {
     console.error('[app] daemon init failed:', err)
+    broadcast('daemon:connection-failed', { error: err instanceof Error ? err.message : String(err) })
   })
 
   // Connect to environment daemon (spawns it if not running)

@@ -86,6 +86,7 @@ export default function App() {
     total: { cpu: number; memory: number }
   } | null>(null)
   const [daemonStale, setDaemonStale] = useState(false)
+  const [daemonFailed, setDaemonFailed] = useState(false)
   const [envPromptRequest, setEnvPromptRequest] = useState<{ requestId: string; envId: string; hookName: string; prompt: string; promptType: string; defaultPath?: string; defaultPathValid?: boolean; options?: string[] } | null>(null)
   const [showWelcome, setShowWelcome] = useState(false)
   const [forkModalInst, setForkModalInst] = useState<ClaudeInstance | null>(null)
@@ -126,7 +127,10 @@ export default function App() {
     const unsubVersion = window.api.daemon.onVersionMismatch(() => {
       setDaemonStale(true)
     })
-    return unsubVersion
+    const unsubFailed = window.api.daemon.onConnectionFailed(() => {
+      setDaemonFailed(true)
+    })
+    return () => { unsubVersion(); unsubFailed() }
   }, [])
 
   // Listen for environment prompt requests (file picker etc.) — must be at app level
@@ -850,6 +854,66 @@ export default function App() {
   const runningCount = instances.filter((i) => i.status === 'running').length
   const activeModel = active?.args.find((_, i, arr) => arr[i - 1] === '--model') || null
 
+  // Stable per-instance callbacks for TerminalView (avoids new refs every render)
+  const regularInstancesRef = useRef(regularInstances)
+  regularInstancesRef.current = regularInstances
+  const instanceCallbacksRef = useRef(new Map<string, {
+    onSplit: () => void
+    onSpawnChild: () => void
+    onFork: () => void
+    onArenaWin: () => void
+    onFocusLeft: () => void
+    onFocusRight: () => void
+  }>())
+  const handleSearchClose = useCallback(() => setSearchOpen(false), [])
+  // Create stable callbacks per instance (created once, use refs for current values)
+  for (const inst of regularInstances) {
+    let cbs = instanceCallbacksRef.current.get(inst.id)
+    if (!cbs) {
+      const id = inst.id
+      cbs = {
+        onSplit: () => {
+          const others = regularInstancesRef.current.filter((i) => i.id !== id)
+          if (others.length === 1) handleSplitWith(others[0].id)
+          else if (others.length > 1) setShowSplitPicker(true)
+        },
+        onSpawnChild: async () => {
+          const current = regularInstancesRef.current.find(i => i.id === id)
+          if (!current) return
+          const child = await window.api.instance.create({
+            name: `${current.name} → child`,
+            workingDirectory: current.workingDirectory,
+            parentId: id,
+            cliBackend: current.cliBackend ?? 'claude',
+          })
+          setActiveId(child.id)
+        },
+        onFork: async () => {
+          const current = regularInstancesRef.current.find(i => i.id === id)
+          if (!current) return
+          let hint = ''
+          try {
+            const buf = await window.api.instance.buffer(id)
+            const clean = stripAnsi(buf)
+            const lines = clean.split('\n').filter((l) => l.trim()).slice(-3)
+            hint = lines.join('\n')
+          } catch { /* best-effort */ }
+          setForkModalHint(hint)
+          setForkModalInst(current)
+        },
+        onArenaWin: () => handleArenaWin(id),
+        onFocusLeft: () => setFocusedPane('left'),
+        onFocusRight: () => setFocusedPane('right'),
+      }
+      instanceCallbacksRef.current.set(id, cbs)
+    }
+  }
+  // Clean up stale entries
+  const currentIds = new Set(regularInstances.map(i => i.id))
+  for (const id of instanceCallbacksRef.current.keys()) {
+    if (!currentIds.has(id)) instanceCallbacksRef.current.delete(id)
+  }
+
   return (
     <div className="app">
       {createPortal(<AppUpdateBanner />, document.body)}
@@ -867,6 +931,23 @@ export default function App() {
             setInstances(prev => instancesEqual(prev, list) ? prev : list)
           }}>Restart Daemon</button>
           <button className="daemon-update-dismiss" onClick={() => setDaemonStale(false)}>Dismiss</button>
+        </div>,
+        document.body
+      )}
+      {daemonFailed && createPortal(
+        <div className="daemon-update-banner daemon-failed-banner">
+          <span>Daemon connection failed — sessions and environments unavailable.</span>
+          <button onClick={async () => {
+            setDaemonFailed(false)
+            try {
+              await window.api.daemon.restart()
+              const list = await window.api.instance.list()
+              setInstances(prev => instancesEqual(prev, list) ? prev : list)
+            } catch {
+              setDaemonFailed(true)
+            }
+          }}>Retry</button>
+          <button className="daemon-update-dismiss" onClick={() => setDaemonFailed(false)}>Dismiss</button>
         </div>,
         document.body
       )}
@@ -934,50 +1015,23 @@ export default function App() {
                 onKill={handleKill}
                 onRestart={handleRestart}
                 onRemove={handleRemove}
-                onSplit={() => {
-                  // Open split with a picker for the right pane
-                  const others = regularInstances.filter((i) => i.id !== inst.id)
-                  if (others.length === 1) {
-                    handleSplitWith(others[0].id)
-                  } else if (others.length > 1) {
-                    setShowSplitPicker(true)
-                  }
-                }}
+                onSplit={instanceCallbacksRef.current.get(inst.id)!.onSplit}
                 onCloseSplit={handleCloseSplitView}
-                onSpawnChild={async () => {
-                  const child = await window.api.instance.create({
-                    name: `${inst.name} → child`,
-                    workingDirectory: inst.workingDirectory,
-                    parentId: inst.id,
-                    cliBackend: inst.cliBackend ?? 'claude',
-                  })
-                  setActiveId(child.id)
-                }}
-                onFork={async () => {
-                  // Pre-populate with last 3 lines of terminal output as hint
-                  let hint = ''
-                  try {
-                    const buf = await window.api.instance.buffer(inst.id)
-                    const clean = stripAnsi(buf)
-                    const lines = clean.split('\n').filter((l) => l.trim()).slice(-3)
-                    hint = lines.join('\n')
-                  } catch { /* best-effort */ }
-                  setForkModalHint(hint)
-                  setForkModalInst(inst)
-                }}
+                onSpawnChild={instanceCallbacksRef.current.get(inst.id)!.onSpawnChild}
+                onFork={instanceCallbacksRef.current.get(inst.id)!.onFork}
                 isSplit={isSplit}
                 arenaMode={isSplit && arenaMode}
                 arenaBlind={isSplit && arenaMode && arenaBlind}
                 paneLabel={isLeft ? 'A' : 'B'}
                 arenaVoted={arenaWinnerId !== null}
                 arenaWinnerId={arenaWinnerId}
-                onArenaWin={() => handleArenaWin(inst.id)}
+                onArenaWin={instanceCallbacksRef.current.get(inst.id)!.onArenaWin}
                 terminalsRef={terminalsRef}
                 searchOpen={isFocused && searchOpen}
-                onSearchClose={() => setSearchOpen(false)}
+                onSearchClose={handleSearchClose}
                 fontSize={fontSize}
                 focused={isFocused}
-                onFocusPane={() => setFocusedPane(isLeft ? 'left' : 'right')}
+                onFocusPane={isLeft ? instanceCallbacksRef.current.get(inst.id)!.onFocusLeft : instanceCallbacksRef.current.get(inst.id)!.onFocusRight}
                 outputBytes={outputBytes.get(inst.id) || 0}
               />
             </div>
