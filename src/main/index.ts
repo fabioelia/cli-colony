@@ -76,6 +76,7 @@ esac
 import { broadcast } from './broadcast'
 import { seedDefaultPipelines, startPipelines, getPipelineList } from './pipeline-engine'
 import { cleanupStaleForkGroups } from './fork-manager'
+import { flushReplayBuffers } from './replay-manager'
 import { startWebhookServer, stopWebhookServer } from './webhook-server'
 import { initAppUpdater, shutdownAppUpdater } from './app-updater'
 import { colonyPaths } from '../shared/colony-paths'
@@ -564,6 +565,8 @@ app.on('before-quit', () => {
   app.isQuitting = true
   // Snapshot running sessions BEFORE disconnect so we know what to restore
   snapshotRunning()
+  // Flush pending replay events to disk
+  flushReplayBuffers()
   // Stop webhook HTTP server
   stopWebhookServer()
   // Tear down auto-updater timers

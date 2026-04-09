@@ -27,10 +27,21 @@ import type { ForkGroup } from '../../shared/types'
 
 type View = SidebarView | 'agent-editor'
 
-/** Older daemons may omit cliBackend; keep renderer stable. */
-function withCliBackend(inst: ClaudeInstance): ClaudeInstance {
-  if (inst.cliBackend === 'cursor-agent') return inst
-  return { ...inst, cliBackend: 'claude' as const }
+/** Shallow-compare two instance lists to avoid unnecessary React re-renders */
+function instancesEqual(prev: ClaudeInstance[], next: ClaudeInstance[]): boolean {
+  if (prev.length !== next.length) return false
+  for (let i = 0; i < prev.length; i++) {
+    const a = prev[i], b = next[i]
+    if (a.id !== b.id || a.status !== b.status || a.activity !== b.activity ||
+        a.name !== b.name || a.color !== b.color || a.gitBranch !== b.gitBranch ||
+        a.pinned !== b.pinned || a.roleTag !== b.roleTag ||
+        a.tokenUsage.input !== b.tokenUsage.input || a.tokenUsage.output !== b.tokenUsage.output ||
+        a.exitCode !== b.exitCode || a.pendingSteer !== b.pendingSteer ||
+        a.mcpServers.length !== b.mcpServers.length || a.childIds.length !== b.childIds.length) {
+      return false
+    }
+  }
+  return true
 }
 
 export default function App() {
@@ -93,7 +104,7 @@ export default function App() {
   splitRef.current = { splitId, focusedPane }
 
   useEffect(() => {
-    window.api.instance.list().then((list) => setInstances(list.map(withCliBackend)))
+    window.api.instance.list().then((list) => setInstances(prev => instancesEqual(prev, list) ? prev : list))
     window.api.sessions.restorable().then(setRestorableSessions)
     window.api.settings.getAll().then((s) => {
       if (s.fontSize) {
@@ -131,7 +142,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const unsub = window.api.instance.onListUpdate((list) => setInstances(list.map(withCliBackend)))
+    const unsub = window.api.instance.onListUpdate((list) => setInstances(prev => instancesEqual(prev, list) ? prev : list))
     return unsub
   }, [])
 
@@ -345,14 +356,26 @@ export default function App() {
     return () => unsubs.forEach((u) => u())
   }, []) // empty deps — runs once, uses refs for fresh values
 
-  // Resource monitor: poll every 5 seconds
+  // Resource monitor: poll every 15 seconds, only when the window is focused
   useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | null = null
     const poll = () => {
+      if (document.hidden) return
       window.api.resources.getUsage().then(setResourceUsage).catch(() => {})
     }
-    poll() // initial
-    const interval = setInterval(poll, 5000)
-    return () => clearInterval(interval)
+    const start = () => {
+      poll()
+      if (interval) clearInterval(interval)
+      interval = setInterval(poll, 15000)
+    }
+    const stop = () => { if (interval) { clearInterval(interval); interval = null } }
+    const onVisChange = () => { document.hidden ? stop() : start() }
+    document.addEventListener('visibilitychange', onVisChange)
+    if (!document.hidden) start()
+    return () => {
+      stop()
+      document.removeEventListener('visibilitychange', onVisChange)
+    }
   }, [])
 
   const handleCreate = useCallback(async (opts: {
@@ -851,7 +874,7 @@ export default function App() {
             setDaemonStale(false)
             await window.api.daemon.restart()
             const list = await window.api.instance.list()
-            setInstances(list.map(withCliBackend))
+            setInstances(prev => instancesEqual(prev, list) ? prev : list)
           }}>Restart Daemon</button>
           <button className="daemon-update-dismiss" onClick={() => setDaemonStale(false)}>Dismiss</button>
         </div>,
@@ -899,19 +922,24 @@ export default function App() {
         }}
       />
       <div className={`main ${isSplit ? 'split' : ''}`}>
-        {/* All terminals stay mounted */}
-        {regularInstances.map((inst) => {
+        {/* Only mount visible terminals — hidden instances keep their Terminal alive in terminalsRef */}
+        {regularInstances
+          .filter((inst) => {
+            const isLeft = showTerminal && inst.id === activeId
+            const isRight = isSplit && inst.id === splitId
+            return isLeft || isRight
+          })
+          .map((inst) => {
           const isLeft = showTerminal && inst.id === activeId
           const isRight = isSplit && inst.id === splitId
-          const isVisible = isLeft || isRight
-          const isFocused = isVisible && (
+          const isFocused = (
             !isSplit || (isLeft && focusedPane === 'left') || (isRight && focusedPane === 'right')
           )
           return (
             <div
               key={inst.id}
-              className={`terminal-wrapper ${isVisible ? 'visible' : 'hidden'}`}
-              style={isSplit && isVisible ? {
+              className="terminal-wrapper visible"
+              style={isSplit ? {
                 flex: `0 0 calc(${isLeft ? splitRatio * 100 : (1 - splitRatio) * 100}% - 2px)`,
                 order: isLeft ? 0 : 2,
               } : undefined}

@@ -51,21 +51,52 @@ export function readReplay(instanceId: string): ReplayEvent[] {
   }
 }
 
-/** Append a replay event to the instance's replay file (capped at MAX_EVENTS). */
-export function appendReplayEvent(instanceId: string, event: ReplayEvent): void {
+// In-memory event buffers per instance, flushed to disk periodically
+const _eventBuffers = new Map<string, ReplayEvent[]>()
+let _flushTimer: ReturnType<typeof setTimeout> | null = null
+const FLUSH_INTERVAL = 5000
+
+function scheduleFlush(): void {
+  if (_flushTimer) return
+  _flushTimer = setTimeout(() => {
+    _flushTimer = null
+    flushAllBuffers()
+  }, FLUSH_INTERVAL)
+}
+
+function flushAllBuffers(): void {
   const dir = colonyPaths.sessions
   try {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-  } catch {
-    return
+  } catch { return }
+
+  for (const [instanceId, buffer] of _eventBuffers) {
+    if (buffer.length === 0) continue
+    const existing = readReplay(instanceId)
+    existing.push(...buffer)
+    const capped = existing.length > MAX_EVENTS ? existing.slice(-MAX_EVENTS) : existing
+    try {
+      fs.writeFileSync(replayFilePath(instanceId), JSON.stringify(capped), 'utf-8')
+    } catch { /* ignore write errors */ }
+    buffer.length = 0
   }
-  const existing = readReplay(instanceId)
-  existing.push(event)
-  // Cap at MAX_EVENTS
-  const capped = existing.length > MAX_EVENTS ? existing.slice(-MAX_EVENTS) : existing
-  try {
-    fs.writeFileSync(replayFilePath(instanceId), JSON.stringify(capped, null, 2), 'utf-8')
-  } catch { /* ignore write errors */ }
+}
+
+/** Append a replay event to the instance's in-memory buffer (flushed every 5s). */
+export function appendReplayEvent(instanceId: string, event: ReplayEvent): void {
+  let buffer = _eventBuffers.get(instanceId)
+  if (!buffer) {
+    buffer = []
+    _eventBuffers.set(instanceId, buffer)
+  }
+  buffer.push(event)
+  scheduleFlush()
+}
+
+/** Force-flush pending replay events to disk (e.g., on app quit). */
+export function flushReplayBuffers(): void {
+  if (_flushTimer) { clearTimeout(_flushTimer); _flushTimer = null }
+  flushAllBuffers()
 }
 
 function replayFilePath(instanceId: string): string {
