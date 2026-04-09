@@ -10,6 +10,7 @@ import type {
   PendingLaunchRecord, UpdateStatus, UpdateInfo,
   OnboardingState, OnboardingChecklistKey, PrerequisitesStatus,
   WorktreeInfo,
+  PersonaMemory, PersonaMemorySituation, PersonaMemoryLearning, PersonaMemoryLogEntry,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -24,6 +25,7 @@ export type {
   PendingLaunchRecord, UpdateStatus, UpdateInfo,
   OnboardingState, OnboardingChecklistKey, PrerequisitesStatus,
   WorktreeInfo,
+  PersonaMemory, PersonaMemorySituation, PersonaMemoryLearning, PersonaMemoryLogEntry,
 }
 
 
@@ -242,6 +244,19 @@ export interface ClaudeManagerAPI {
     getRunHistory: (personaId: string) => Promise<PersonaRunEntry[]>
     onStatus: (cb: (personas: PersonaInfo[]) => void) => () => void
     onRun: (cb: (data: { persona: string; instanceId: string }) => void) => () => void
+  }
+  personaMemory: {
+    get: (personaId: string) => Promise<PersonaMemory>
+    migrate: (personaId: string) => Promise<boolean>
+    setSituations: (personaId: string, situations: PersonaMemorySituation[]) => Promise<PersonaMemory>
+    addSituation: (personaId: string, situation: PersonaMemorySituation) => Promise<PersonaMemory>
+    updateSituation: (personaId: string, index: number, updates: Partial<PersonaMemorySituation>) => Promise<PersonaMemory>
+    removeSituation: (personaId: string, index: number) => Promise<PersonaMemory>
+    addLearning: (personaId: string, text: string) => Promise<PersonaMemory>
+    removeLearning: (personaId: string, index: number) => Promise<PersonaMemory>
+    setLearnings: (personaId: string, learnings: PersonaMemoryLearning[]) => Promise<PersonaMemory>
+    addLogEntry: (personaId: string, summary: string) => Promise<PersonaMemory>
+    setLog: (personaId: string, entries: PersonaMemoryLogEntry[]) => Promise<PersonaMemory>
   }
   tasksBoard: {
     list: () => Promise<TaskBoardItem[]>
@@ -690,6 +705,19 @@ const api: ClaudeManagerAPI = {
       ipcRenderer.on('persona:run', l)
       return () => ipcRenderer.removeListener('persona:run', l)
     },
+  },
+  personaMemory: {
+    get: (personaId) => ipcRenderer.invoke('persona:memory:get', personaId),
+    migrate: (personaId) => ipcRenderer.invoke('persona:memory:migrate', personaId),
+    setSituations: (personaId, situations) => ipcRenderer.invoke('persona:memory:setSituations', personaId, situations),
+    addSituation: (personaId, situation) => ipcRenderer.invoke('persona:memory:addSituation', personaId, situation),
+    updateSituation: (personaId, index, updates) => ipcRenderer.invoke('persona:memory:updateSituation', personaId, index, updates),
+    removeSituation: (personaId, index) => ipcRenderer.invoke('persona:memory:removeSituation', personaId, index),
+    addLearning: (personaId, text) => ipcRenderer.invoke('persona:memory:addLearning', personaId, text),
+    removeLearning: (personaId, index) => ipcRenderer.invoke('persona:memory:removeLearning', personaId, index),
+    setLearnings: (personaId, learnings) => ipcRenderer.invoke('persona:memory:setLearnings', personaId, learnings),
+    addLogEntry: (personaId, summary) => ipcRenderer.invoke('persona:memory:addLogEntry', personaId, summary),
+    setLog: (personaId, entries) => ipcRenderer.invoke('persona:memory:setLog', personaId, entries),
   },
   env: {
     list: () => ipcRenderer.invoke('env:list'),

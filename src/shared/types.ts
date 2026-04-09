@@ -284,6 +284,31 @@ export interface PersonaInfo {
   lastSkipped?: number | null
 }
 
+// ---- Persona Memory (structured sidecar) ----
+
+export interface PersonaMemorySituation {
+  status: 'delegated' | 'pending' | 'done' | 'blocked'
+  text: string
+  outputPath?: string
+  updatedAt: string
+}
+
+export interface PersonaMemoryLearning {
+  text: string
+  addedAt: string
+}
+
+export interface PersonaMemoryLogEntry {
+  timestamp: string
+  summary: string
+}
+
+export interface PersonaMemory {
+  activeSituations: PersonaMemorySituation[]
+  learnings: PersonaMemoryLearning[]
+  sessionLog: PersonaMemoryLogEntry[]
+}
+
 export interface PersonaArtifact {
   name: string
   sizeBytes: number

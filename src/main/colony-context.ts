@@ -14,6 +14,7 @@ import { getAllInstances } from './instance-manager'
 import { scanAgents } from './agent-scanner'
 import { getRepoContext } from './repo-config-loader'
 import { getPersonaList } from './persona-manager'
+import { readPersonaMemory } from './persona-memory'
 import { listEnvironments } from './env-manager'
 import { getPipelineList } from './pipeline-engine'
 
@@ -147,6 +148,17 @@ export async function updateColonyContext(): Promise<string> {
         const status = p.activeSessionId ? 'running' : p.enabled ? 'enabled' : 'disabled'
         lines.push(`- **${p.name}** (${status}) — model: ${p.model}, runs: ${p.runCount}${p.schedule ? `, schedule: ${p.schedule}` : ''}`)
         lines.push(`  File: ${p.filePath}`)
+        // Include active (non-done) situations from structured sidecar
+        try {
+          const mem = readPersonaMemory(p.id)
+          const active = mem.activeSituations.filter(s => s.status !== 'done')
+          if (active.length > 0) {
+            for (const s of active.slice(0, 5)) {
+              lines.push(`  - [${s.status.toUpperCase()}] ${s.text.slice(0, 120)}`)
+            }
+            if (active.length > 5) lines.push(`  - ... and ${active.length - 5} more`)
+          }
+        } catch { /* no sidecar yet */ }
       }
       lines.push('')
     }

@@ -24,6 +24,7 @@ import type { PersonaInfo } from '../shared/types'
 import { JsonFile } from '../shared/json-file'
 import { appendActivity } from './activity-manager'
 import { appendRunEntry } from './persona-run-history'
+import { migrateFromMarkdown, readPersonaMemory } from './persona-memory'
 
 const PERSONAS_DIR = colonyPaths.personas
 const STATE_PATH = colonyPaths.personaState
@@ -154,7 +155,15 @@ function parseStringArray(val: string): string[] {
 export function loadPersonas(): void {
   ensureDir()
   loadState()
-  console.log(`[persona] loaded ${readdirSync(PERSONAS_DIR).filter(f => f.endsWith('.md')).length} persona files`)
+  const mdFiles = readdirSync(PERSONAS_DIR).filter(f => f.endsWith('.md'))
+  // Auto-migrate markdown sections to structured .memory.json sidecars
+  let migrated = 0
+  for (const file of mdFiles) {
+    const personaId = file.replace('.md', '')
+    if (migrateFromMarkdown(personaId)) migrated++
+  }
+  if (migrated > 0) console.log(`[persona] migrated ${migrated} persona(s) to structured memory`)
+  console.log(`[persona] loaded ${mdFiles.length} persona files`)
 }
 
 export function getPersonaList(): PersonaInfo[] {
