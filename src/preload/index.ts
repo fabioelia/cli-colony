@@ -3,7 +3,7 @@ import type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
-  ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
+  TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
   PersonaRunEntry, ScoreCard, ApprovalRule, ApprovalRuleType, ApprovalRuleAction,
   CoordinatorTeam, BatchConfig, BatchRun, TeamMetrics, WorkerStats, TeamMetricsEntry, ContextUsage,
@@ -16,7 +16,7 @@ export type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
-  ReplayEvent, TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
+  TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
   PersonaRunEntry, ScoreCard, ApprovalRule, ApprovalRuleType, ApprovalRuleAction,
   CoordinatorTeam, BatchConfig, BatchRun, TeamMetrics, WorkerStats, TeamMetricsEntry, ContextUsage,
@@ -329,7 +329,6 @@ export interface ClaudeManagerAPI {
     clearAuditLog: () => Promise<void>
   }
   session: {
-    getReplay: (instanceId: string) => Promise<ReplayEvent[]>
     sendMessage: (targetName: string, text: string) => Promise<boolean>
     steer: (instanceId: string, message: string) => Promise<boolean>
     getAttributedCommits: (dir?: string) => Promise<CommitAttribution[]>
@@ -762,7 +761,6 @@ const api: ClaudeManagerAPI = {
     clearAuditLog: () => ipcRenderer.invoke('mcp:clearAuditLog'),
   },
   session: {
-    getReplay: (instanceId) => ipcRenderer.invoke('session:getReplay', instanceId),
     sendMessage: (targetName, text) => ipcRenderer.invoke('session:sendMessage', targetName, text),
     steer: (instanceId, message) => ipcRenderer.invoke('session:steer', instanceId, message),
     getAttributedCommits: (dir) => ipcRenderer.invoke('session:getAttributedCommits', dir),

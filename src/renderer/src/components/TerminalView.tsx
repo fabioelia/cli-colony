@@ -5,9 +5,9 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, History, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation, MessageCircleWarning, ThumbsUp, Sparkles, Bot, BarChart3 } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation, MessageCircleWarning, ThumbsUp, Sparkles, Bot, BarChart3 } from 'lucide-react'
 import { TeamMetricsPanel } from './TeamMetricsPanel'
-import type { EnvStatus, EnvServiceStatus, ReplayEvent, GitDiffEntry, ColonyComment, ScoreCard, CoordinatorTeam, CoordinatorWorker } from '../../../shared/types'
+import type { EnvStatus, EnvServiceStatus, GitDiffEntry, ColonyComment, ScoreCard, CoordinatorTeam, CoordinatorWorker } from '../../../shared/types'
 import { buildDiagnosePrompt } from '../../../shared/env-prompts'
 import '@xterm/xterm/css/xterm.css'
 import type { ClaudeInstance } from '../types'
@@ -215,7 +215,7 @@ function FileTreeNode({ node, depth, selectedPath, expandedPaths, filter, onTogg
   )
 }
 
-type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'replay' | 'changes' | 'team' | 'metrics'
+type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'changes' | 'team' | 'metrics'
 
 export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane, outputBytes = 0 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -268,10 +268,6 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const logsEndRef = useRef<HTMLDivElement>(null)
   const [logsAutoScroll, setLogsAutoScroll] = useState(true)
   const logsInitialized = useRef(false)
-  // Replay tab state
-  const [replayEvents, setReplayEvents] = useState<ReplayEvent[]>([])
-  const [replayLoading, setReplayLoading] = useState(false)
-  const [replayExpanded, setReplayExpanded] = useState<Set<number>>(new Set())
   // Changes tab state
   const [gitChanges, setGitChanges] = useState<GitDiffEntry[]>([])
   const [gitChangesLoading, setGitChangesLoading] = useState(false)
@@ -578,29 +574,6 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   }, [viewTab, fileTree, loadFileTree])
 
   // Load replay events when tab switches to replay
-  useEffect(() => {
-    if (viewTab !== 'replay') return
-    setReplayLoading(true)
-    window.api.session.getReplay(instance.id).then((events) => {
-      setReplayEvents(events)
-      setReplayLoading(false)
-    }).catch(() => {
-      setReplayEvents([])
-      setReplayLoading(false)
-    })
-  }, [viewTab, instance.id])
-
-  // Background poll while replay tab is active and session is running
-  useEffect(() => {
-    if (viewTab !== 'replay' || instance.status !== 'running') return
-    const pollId = setInterval(() => {
-      window.api.session.getReplay(instance.id).then((events) => {
-        setReplayEvents(events)
-      }).catch(() => {})
-    }, 5000)
-    return () => clearInterval(pollId)
-  }, [viewTab, instance.status, instance.id])
-
   // Load git changes when switching to changes tab
   const loadGitChanges = useCallback(() => {
     if (!instance.dir) return
@@ -1055,7 +1028,6 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const visibleViewTabs = useMemo<ViewTab[]>(() => [
     'session', 'shell', 'files',
     ...(envName ? (['services', 'logs'] as ViewTab[]) : []),
-    'replay',
     ...(instance.dir ? (['changes'] as ViewTab[]) : []),
     ...(instance.roleTag === 'Coordinator' ? (['team', 'metrics'] as ViewTab[]) : []),
   ], [envName, instance.dir, instance.roleTag])
@@ -1117,13 +1089,6 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 <ScrollText size={12} /> Logs
               </button>
             )}
-            <button
-              className={`terminal-tab ${viewTab === 'replay' ? 'active' : ''}`}
-              onClick={(e) => { e.stopPropagation(); setViewTab('replay') }}
-              title="Tool call replay log"
-            >
-              <History size={12} /> Replay
-            </button>
             {instance.dir && (
               <button
                 className={`terminal-tab ${viewTab === 'changes' ? 'active' : ''}`}
@@ -1163,7 +1128,6 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           {viewTab === 'shell' && <HelpPopover topic="terminalTab" />}
           {viewTab === 'services' && <HelpPopover topic="servicesTab" />}
           {viewTab === 'logs' && <HelpPopover topic="logsTab" />}
-          {viewTab === 'replay' && <HelpPopover topic="replayTab" />}
           {viewTab === 'changes' && <HelpPopover topic="changesTab" />}
           {viewTab === 'team' && <HelpPopover topic="teamTab" />}
           {(instance.gitRepo || instance.gitBranch) && (
@@ -1954,89 +1918,6 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               </div>
             )}
             <div ref={logsEndRef} />
-          </div>
-        </div>
-      )}
-      {viewTab === 'replay' && (
-        <div className="replay-panel">
-          <div className="replay-panel-header">
-            <span className="replay-panel-title">
-              <History size={13} /> Tool Call Replay
-            </span>
-            <button
-              className="replay-refresh-btn"
-              title="Refresh"
-              onClick={() => {
-                setReplayLoading(true)
-                window.api.session.getReplay(instance.id).then((events) => {
-                  setReplayEvents(events)
-                  setReplayLoading(false)
-                }).catch(() => {
-                  setReplayEvents([])
-                  setReplayLoading(false)
-                })
-              }}
-            >
-              <RefreshCw size={12} />
-            </button>
-          </div>
-          <div className="replay-panel-content">
-            {replayLoading && (
-              <div className="replay-empty">Loading...</div>
-            )}
-            {!replayLoading && replayEvents.length === 0 && (
-              <div className="replay-empty">No tool calls recorded yet.</div>
-            )}
-            {!replayLoading && replayEvents.map((event, i) => {
-              const expanded = replayExpanded.has(i)
-              const tsDate = new Date(event.ts)
-              const relTime = (() => {
-                const diffMs = Date.now() - tsDate.getTime()
-                const diffSec = Math.floor(diffMs / 1000)
-                if (diffSec < 60) return `${diffSec}s ago`
-                if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`
-                const h = Math.floor(diffSec / 3600)
-                const m = Math.floor((diffSec % 3600) / 60)
-                return m > 0 ? `${h}h ${m}m ago` : `${h}h ago`
-              })()
-              return (
-                <div
-                  key={i}
-                  className={`replay-event ${expanded ? 'expanded' : ''}`}
-                  onClick={() => setReplayExpanded(prev => {
-                    const next = new Set(prev)
-                    if (next.has(i)) next.delete(i)
-                    else next.add(i)
-                    return next
-                  })}
-                >
-                  <div className="replay-event-header">
-                    <span className="replay-event-tool">{event.tool}</span>
-                    <span className="replay-event-input">{event.inputSummary}</span>
-                    <span className="replay-event-time" title={event.ts}>
-                      <Clock size={10} /> {relTime}
-                    </span>
-                    <ChevronRight size={12} className={`replay-event-chevron ${expanded ? 'expanded' : ''}`} />
-                  </div>
-                  {expanded && (
-                    <div className="replay-event-body">
-                      <div className="replay-event-section">
-                        <span className="replay-event-label">Input (preview)</span>
-                        <pre className="replay-event-pre">{event.inputSummary || '(none)'}</pre>
-                      </div>
-                      <div className="replay-event-section">
-                        <span className="replay-event-label">Output (preview)</span>
-                        <pre className="replay-event-pre">{event.outputSummary || '(none)'}</pre>
-                      </div>
-                      <div className="replay-event-section">
-                        <span className="replay-event-label">Timestamp</span>
-                        <span className="replay-event-ts">{event.ts}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
           </div>
         </div>
       )}

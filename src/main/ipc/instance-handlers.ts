@@ -18,7 +18,6 @@ import {
 import { getDaemonClient } from '../daemon-client'
 import { sendPromptWhenReady } from '../send-prompt-when-ready'
 import { stripAnsi } from '../../shared/utils'
-import { readReplay } from '../replay-manager'
 
 export interface ChildProcess {
   pid: number
@@ -242,32 +241,14 @@ export function registerInstanceHandlers(): void {
     })
   })
 
-  // AI-generated summary of a session's terminal snapshot.
-  // Uses two sources in priority order:
-  //   1. Replay log — tool call timeline (≥3 events), unaffected by context compaction
-  //   2. Terminal buffer — broader 200-line window with compaction lines filtered
+  // AI-generated summary of a session's terminal buffer.
   ipcMain.handle('session:summarize', async (_e, id: string): Promise<string> => {
-    let contextText = ''
-
-    // Source 1: replay log (most reliable — independent of context compaction)
-    const replayEvents = readReplay(id)
-    if (replayEvents.length >= 3) {
-      const lines = replayEvents
-        .slice(-40)
-        .map(e => `[${e.tool}] ${e.inputSummary}${e.outputSummary ? ' → ' + e.outputSummary : ''}`)
-      contextText = lines.join('\n')
-    }
-
-    // Source 2: terminal buffer — broader window, skip compaction header lines
-    if (!contextText) {
-      const COMPACTION_RE = /context.*(?:compacted|summarized)|conversation.*continued.*previous.*context/i
-      const rawBuf = await client.getInstanceBuffer(id).catch(() => '')
-      const clean = stripAnsi(rawBuf)
-      const lines = clean.split('\n').filter(l => l.trim())
-      // Use a wider window and strip lines that look like compaction headers
-      const relevant = lines.slice(-200).filter(l => !COMPACTION_RE.test(l))
-      contextText = relevant.slice(-80).join('\n')
-    }
+    const COMPACTION_RE = /context.*(?:compacted|summarized)|conversation.*continued.*previous.*context/i
+    const rawBuf = await client.getInstanceBuffer(id).catch(() => '')
+    const clean = stripAnsi(rawBuf)
+    const lines = clean.split('\n').filter(l => l.trim())
+    const relevant = lines.slice(-200).filter(l => !COMPACTION_RE.test(l))
+    const contextText = relevant.slice(-80).join('\n')
 
     if (contextText.length < 200) {
       return 'Not enough context to summarize.'
@@ -296,11 +277,6 @@ export function registerInstanceHandlers(): void {
       })
       proc.on('error', reject)
     })
-  })
-
-  // Read session replay events (tool call audit log)
-  ipcMain.handle('session:getReplay', (_e, instanceId: string) => {
-    return readReplay(instanceId)
   })
 
   // Inline code annotations emitted by a session via COLONY_COMMENT sentinels

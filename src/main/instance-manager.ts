@@ -17,7 +17,6 @@ import type { CliBackend, ColonyComment } from '../shared/types'
 import { trackOpened, trackClosed } from './recent-sessions'
 import { broadcast } from './broadcast'
 import { buildMcpConfig, cleanMcpConfigFile } from './mcp-catalog'
-import { processOutput, clearPending } from './replay-manager'
 import { scanNewCommits } from './commit-attributor'
 
 export type { ClaudeInstance } from '../daemon/protocol'
@@ -57,10 +56,9 @@ export function wireDaemonEvents(): void {
 
   const client = getDaemonClient()
 
-  // Forward output to renderer and collect replay events
+  // Forward output to renderer
   client.on('output', (instanceId: string, data: string) => {
     broadcast('instance:output', { id: instanceId, data })
-    processOutput(instanceId, data)
   })
 
   // Forward activity changes + notify when Claude finishes processing
@@ -92,7 +90,6 @@ export function wireDaemonEvents(): void {
   // Forward exit events + handle auto-cleanup + track session closure
   client.on('exited', (instanceId: string, exitCode: number) => {
     broadcast('instance:exited', { id: instanceId, exitCode })
-    clearPending(instanceId)
     trackClosed(instanceId, 'exited')
     onSessionExitCallback?.(instanceId)
 

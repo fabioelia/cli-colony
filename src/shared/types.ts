@@ -216,13 +216,6 @@ export interface TaskBoardItem {
   tags?: string[]
 }
 
-export interface ReplayEvent {
-  ts: string           // ISO timestamp
-  tool: string         // e.g. "Read", "Edit", "Bash"
-  inputSummary: string // truncated to 200 chars
-  outputSummary: string // truncated to 200 chars
-}
-
 /** Inline code annotation emitted by a review agent via COLONY_COMMENT sentinel */
 export interface ColonyComment {
   file: string

@@ -4916,7 +4916,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-family: var(--font-sans, system-ui);
 }
 
-/* ===== Replay Panel ===== */
+/* ===== List Panel (shared by Changes, Team, Metrics tabs) ===== */
 .replay-panel {
   display: flex;
   flex-direction: column;
