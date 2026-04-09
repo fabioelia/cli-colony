@@ -35,6 +35,7 @@ import { ensureRepoClones } from './github'
 import { loadPersonas, startWatcher as startPersonaWatcher, startScheduler as startPersonaScheduler, onSessionExit as onPersonaSessionExit, runPersona, getPersonaList, addWhisper } from './persona-manager'
 import { initTriggerWatcher } from './persona-triggers'
 import { recordWorkerExit } from './team-metrics'
+import { collectSessionArtifact } from './session-artifacts'
 
 const COLONY_CLI_SCRIPT = `#!/bin/bash
 # colony — control Colony environments from the command line.
@@ -490,6 +491,7 @@ app.whenReady().then(async () => {
   setOnInstanceListChanged(() => updateTrayMenu(mainWindow))
   setOnSessionExit((instanceId) => {
     onPersonaSessionExit(instanceId)
+    collectSessionArtifact(instanceId).catch(() => {})
     // Record worker metrics if this is a Worker session
     getAllInstances().then(instances => {
       const inst = instances.find(i => i.id === instanceId)

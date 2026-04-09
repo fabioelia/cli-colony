@@ -11,6 +11,7 @@ import type {
   OnboardingState, OnboardingChecklistKey, PrerequisitesStatus,
   WorktreeInfo,
   PersonaMemory, PersonaMemorySituation, PersonaMemoryLearning, PersonaMemoryLogEntry,
+  SessionArtifact, SessionArtifactCommit,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -26,6 +27,7 @@ export type {
   OnboardingState, OnboardingChecklistKey, PrerequisitesStatus,
   WorktreeInfo,
   PersonaMemory, PersonaMemorySituation, PersonaMemoryLearning, PersonaMemoryLogEntry,
+  SessionArtifact, SessionArtifactCommit,
 }
 
 
@@ -439,6 +441,13 @@ export interface ClaudeManagerAPI {
     remove: (worktreeId: string) => Promise<boolean>
     forEnv: (envId: string) => Promise<WorktreeInfo[]>
     onChanged: (cb: () => void) => () => void
+  }
+  artifacts: {
+    list: () => Promise<SessionArtifact[]>
+    get: (sessionId: string) => Promise<SessionArtifact | null>
+    collect: (sessionId: string) => Promise<SessionArtifact | null>
+    clear: () => Promise<boolean>
+    tagPipeline: (sessionId: string, pipelineRunId: string) => Promise<boolean>
   }
 }
 
@@ -928,6 +937,13 @@ const api: ClaudeManagerAPI = {
       ipcRenderer.on('worktree:changed', l)
       return () => ipcRenderer.removeListener('worktree:changed', l)
     },
+  },
+  artifacts: {
+    list: () => ipcRenderer.invoke('artifacts:list'),
+    get: (sessionId) => ipcRenderer.invoke('artifacts:get', sessionId),
+    collect: (sessionId) => ipcRenderer.invoke('artifacts:collect', sessionId),
+    clear: () => ipcRenderer.invoke('artifacts:clear'),
+    tagPipeline: (sessionId, pipelineRunId) => ipcRenderer.invoke('artifacts:tagPipeline', sessionId, pipelineRunId),
   },
 }
 

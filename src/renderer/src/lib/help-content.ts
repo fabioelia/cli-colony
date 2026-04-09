@@ -697,7 +697,8 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Terminal tab', detail: 'A raw shell in the same directory for running commands alongside Claude.' },
           { label: 'Services tab', detail: 'Appears when an environment is attached. Manage services.' },
           { label: 'Logs tab', detail: 'Appears when an environment is attached. Stream service logs.' },
-          { label: 'Tab navigation', detail: 'Cmd+Shift+{ / Cmd+Shift+} cycles through the visible tabs (Session, Terminal, Files, Changes, plus Services/Logs when an environment is attached and Team/Metrics for Coordinator sessions). Works even when focus is inside a terminal or input — the Cmd+Shift combo never conflicts with typing `{`/`}`. Same shortcut works in Environments (Instances ↔ Templates).' },
+          { label: 'Artifacts tab', detail: 'Auto-generated proof-of-work bundle: commits, changed files, duration, cost. Collected on session exit.' },
+          { label: 'Tab navigation', detail: 'Cmd+Shift+{ / Cmd+Shift+} cycles through the visible tabs (Session, Terminal, Files, Changes, Artifacts, plus Services/Logs when an environment is attached and Team/Metrics for Coordinator sessions). Works even when focus is inside a terminal or input — the Cmd+Shift combo never conflicts with typing `{`/`}`. Same shortcut works in Environments (Instances ↔ Templates).' },
         ],
       },
       {
@@ -991,6 +992,49 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'COLONY_COMMENT sentinel', detail: 'Review agents emit `COLONY_COMMENT:<file>:<line>:<severity>:<message>` lines. The daemon strips these from terminal output and stores them. Polled every 3 seconds while the session is running.' },
           { label: 'Severity chips', detail: 'ERROR (red), WARN (amber), INFO (blue) — color-coded left border and label next to the line number.' },
           { label: 'Line number', detail: 'L<N> shows which source line the comment refers to.' },
+        ],
+      },
+    ],
+  },
+  artifactsTab: {
+    title: 'Session Artifacts',
+    description: 'Auto-generated proof-of-work bundles collected when a session exits. Shows commits made, files changed, duration, cost, and branch info. Artifacts are stored persistently (up to 200) and can also be collected manually for running sessions.',
+    zones: [
+      {
+        name: 'Header',
+        position: 'Top bar',
+        items: [
+          { label: 'Refresh', detail: 'Reload the artifact for this session.', icon: 'RefreshCw' },
+          { label: 'Collect Now', detail: 'Manually collect an artifact snapshot for a running session. Only appears when no artifact exists yet.', icon: 'Sparkles' },
+        ],
+      },
+      {
+        name: 'Summary Card',
+        position: 'Top of content area',
+        items: [
+          { label: 'Session name', detail: 'The name of the session that produced this artifact.' },
+          { label: 'Persona badge', detail: 'Shows the persona name if this was a persona-driven session.' },
+          { label: 'Pipeline badge', detail: 'Appears when the artifact was produced by a pipeline run.' },
+          { label: 'Exit code', detail: 'Green for exit 0 (success), red for non-zero.' },
+          { label: 'Branch / Duration / Cost', detail: 'Git branch, session duration in minutes, and API cost in USD.' },
+          { label: '+/- totals', detail: 'Total insertions (green) and deletions (red) across all changed files.' },
+        ],
+      },
+      {
+        name: 'Commits',
+        position: 'Below summary',
+        items: [
+          { label: 'Commit hash', detail: 'Short (7-char) commit hash in accent color.' },
+          { label: 'Commit message', detail: 'First line of the commit message.' },
+        ],
+      },
+      {
+        name: 'Changed Files',
+        position: 'Below commits',
+        items: [
+          { label: 'Status letter', detail: 'M = modified, A = added, D = deleted, R = renamed.' },
+          { label: 'File path', detail: 'Relative path of the changed file.' },
+          { label: '+/- counts', detail: 'Per-file insertion and deletion counts.' },
         ],
       },
     ],

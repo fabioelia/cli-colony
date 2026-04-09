@@ -13,6 +13,7 @@ import EmptyStateHook from './EmptyStateHook'
 import EnvironmentLogViewer from './EnvironmentLogViewer'
 import NewEnvironmentDialog from './NewEnvironmentDialog'
 import { usePanelTabKeys } from '../hooks/usePanelTabKeys'
+import { formatTime } from '../lib/constants'
 
 import type { EnvStatus, EnvServiceStatus, EnvironmentTemplate } from '../../../shared/types'
 
@@ -881,6 +882,9 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                     {t.source && t.source !== 'user' && (
                       <span className="env-tpl-source" title={`From ${t.source}`}>{t.source.replace('repo:', '')}</span>
                     )}
+                    <span className="env-tpl-modified" title={(t.updatedAt || t.createdAt) ? new Date(t.updatedAt || t.createdAt).toLocaleString() : ''}>
+                      <Clock size={10} /> {formatTime(new Date(t.updatedAt || t.createdAt).getTime())}
+                    </span>
                   </div>
                   <button className="env-btn env-btn-primary env-btn-sm" onClick={(e) => { e.stopPropagation(); setCreateDialogMode('instance'); setCreateDialogTemplate(t); setShowCreateDialog(true) }}>
                     <Plus size={11} /> New Instance

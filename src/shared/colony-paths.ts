@@ -54,6 +54,7 @@ export const colonyPaths = {
   worktrees: path.join(ROOT, 'worktrees'),
   forks: path.join(ROOT, 'forks'),
   forkGroups: path.join(ROOT, 'fork-groups.json'),
+  sessionArtifacts: path.join(ROOT, 'session-artifacts.json'),
   sessionTemplates: path.join(ROOT, 'session-templates.json'),
   governance: path.join(ROOT, 'governance'),
   approvalRulesJson: path.join(ROOT, 'governance', 'approval-rules.json'),
