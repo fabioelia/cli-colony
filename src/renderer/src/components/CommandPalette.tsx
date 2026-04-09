@@ -218,6 +218,18 @@ export default function CommandPalette({
     }
 
     items.push({
+      id: 'show-welcome',
+      label: 'Show Welcome',
+      detail: 'Replay the first-run welcome screen',
+      icon: <Play size={14} />,
+      section: 'Actions',
+      keywords: 'welcome onboarding tour replay first run',
+      onExecute: () => {
+        window.api.onboarding.replay()
+      },
+    })
+
+    items.push({
       id: 'search-sessions',
       label: 'Search All Sessions',
       detail: 'Deep search across session names, messages, and projects',

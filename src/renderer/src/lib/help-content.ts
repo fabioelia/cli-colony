@@ -610,6 +610,15 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Onboarding Section',
+        position: 'Above Scheduler Log',
+        items: [
+          { label: 'Replay welcome screen', detail: 'Re-opens the first-run welcome modal with the feature tour and prerequisite checks. Also available via the command palette ("Show Welcome").', icon: 'RotateCcw' },
+          { label: 'Activation checklist', detail: 'Read-only progress tracker showing which key actions you\'ve completed: created a session, ran a prompt, created a persona, connected GitHub, ran a pipeline.' },
+          { label: 'Reset all onboarding state', detail: 'Clears the activation checklist and re-shows the welcome screen. Useful for QA testing or if you want a fresh start.', icon: 'Trash2' },
+        ],
+      },
+      {
         name: 'Logs Section',
         position: 'Bottom section',
         items: [

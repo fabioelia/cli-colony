@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X, TrendingUp, Download, Search, Shield, CheckCircle2, Ban } from 'lucide-react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X, TrendingUp, Download, Search, Shield, CheckCircle2, Ban, Sparkles, Check, Circle } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import BatchExecutionSettings from './BatchExecutionSettings'
 import AppUpdateSettings from './AppUpdateSettings'
 import { parseShellArgs } from '../../../shared/utils'
-import type { McpAuditEntry, CommitAttribution, CostQuotas, CostAuditEntry, CostAuditStatus, ApprovalRule, ApprovalRuleType, ApprovalRuleAction } from '../../../preload'
+import type { McpAuditEntry, CommitAttribution, CostQuotas, CostAuditEntry, CostAuditStatus, ApprovalRule, ApprovalRuleType, ApprovalRuleAction, OnboardingState } from '../../../preload'
 import type { SessionTemplate } from '../../../shared/types'
 
 interface Props {
@@ -72,6 +72,8 @@ export default function SettingsPanel({ onBack }: Props) {
 
   const [showBatchSection, setShowBatchSection] = useState(false)
   const [showUpdateSection, setShowUpdateSection] = useState(false)
+  const [showOnboardingSection, setShowOnboardingSection] = useState(false)
+  const [onboardingState, setOnboardingState] = useState<OnboardingState | null>(null)
   const [approvalRuleFormError, setApprovalRuleFormError] = useState<string | null>(null)
   const [approvalRuleFormName, setApprovalRuleFormName] = useState('')
   const [approvalRuleFormType, setApprovalRuleFormType] = useState<ApprovalRuleType>('file_pattern')
@@ -103,6 +105,7 @@ export default function SettingsPanel({ onBack }: Props) {
     window.api.governance.getQuotas().then(setCostQuotas).catch(() => {})
     window.api.governance.auditLog().then(setGovernanceAuditLog).catch(() => {})
     window.api.approvalRules.list().then(setApprovalRules).catch(() => {})
+    window.api.onboarding.getState().then(setOnboardingState).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -1455,6 +1458,76 @@ export default function SettingsPanel({ onBack }: Props) {
         onToggleExpand={() => setShowBatchSection(!showBatchSection)}
       />
 
+      {/* Onboarding */}
+      <div className={`settings-section settings-logs-section ${showOnboardingSection ? '' : 'collapsed'}`}>
+        <div className="settings-section-title">
+          <Sparkles size={12} />
+          Onboarding
+          <div className="settings-logs-actions">
+            <button
+              className="settings-logs-toggle"
+              onClick={() => setShowOnboardingSection(!showOnboardingSection)}
+              title={showOnboardingSection ? 'Hide' : 'Show'}
+            >
+              {showOnboardingSection ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            </button>
+          </div>
+        </div>
+        {showOnboardingSection && onboardingState && (
+          <div className="onboarding-settings">
+            <div className="settings-row">
+              <span className="settings-row-label">Replay welcome screen</span>
+              <button
+                className="panel-header-btn"
+                onClick={async () => {
+                  const s = await window.api.onboarding.replay()
+                  setOnboardingState(s)
+                }}
+              >
+                <RotateCcw size={12} /> Replay
+              </button>
+            </div>
+            <p className="settings-help settings-help-bottom">Re-opens the first-run welcome modal with feature tour and prerequisite checks.</p>
+
+            <div className="onboarding-checklist">
+              <label className="settings-row-label" style={{ marginBottom: '6px', display: 'block' }}>Activation checklist</label>
+              {([
+                ['createdSession', 'Created a session'],
+                ['ranFirstPrompt', 'Ran first prompt'],
+                ['createdPersona', 'Created a persona'],
+                ['connectedGitHub', 'Connected GitHub'],
+                ['ranPipeline', 'Ran a pipeline'],
+              ] as const).map(([key, label]) => (
+                <div key={key} className="onboarding-checklist-item">
+                  {onboardingState.checklist[key]
+                    ? <Check size={14} style={{ color: 'var(--success)' }} />
+                    : <Circle size={14} style={{ color: 'var(--text-secondary)', opacity: 0.4 }} />
+                  }
+                  <span style={{ color: onboardingState.checklist[key] ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                    {label}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="settings-row" style={{ marginTop: '12px' }}>
+              <span className="settings-row-label">Reset all onboarding state</span>
+              <button
+                className="panel-header-btn"
+                style={{ color: 'var(--danger)' }}
+                onClick={async () => {
+                  const s = await window.api.onboarding.reset()
+                  setOnboardingState(s)
+                }}
+              >
+                <Trash2 size={12} /> Reset
+              </button>
+            </div>
+            <p className="settings-help settings-help-bottom">Clears the checklist and re-shows the welcome screen on next app open.</p>
+          </div>
+        )}
+      </div>
+
       {/* Scheduler Log */}
       <div className={`settings-section settings-logs-section ${showSchedulerLogs ? '' : 'collapsed'}`}>
         <div className="settings-section-title">
@@ -1548,6 +1621,16 @@ export default function SettingsPanel({ onBack }: Props) {
         .mcp-env-add:hover {
           border-color: var(--accent);
           color: var(--accent);
+        }
+        .onboarding-checklist {
+          margin: 8px 0;
+        }
+        .onboarding-checklist-item {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 4px 0;
+          font-size: 13px;
         }
       `}</style>
     </div>
