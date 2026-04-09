@@ -15120,7 +15120,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-muted);
 }
 .persona-sort-dropdown select {
-  background: var(--bg-panel);
+  background: var(--bg-surface);
   color: var(--text-secondary);
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -15146,9 +15146,9 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-muted);
 }
 .persona-stat-chip.good { color: var(--success); }
-.persona-stat-chip.warn { color: var(--warning, #f59e0b); }
+.persona-stat-chip.warn { color: var(--warning); }
 .persona-stat-chip.bad { color: var(--danger); }
-.persona-stat-chip.cost { color: var(--accent-blue); }
+.persona-stat-chip.cost { color: var(--accent); }
 
 /* ===== Persona Analytics Tab ===== */
 .persona-analytics-tab {
@@ -15171,7 +15171,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   margin-top: 8px;
   padding: 4px 12px;
   background: var(--accent);
-  color: var(--bg);
+  color: var(--bg-primary);
   border: none;
   border-radius: 4px;
   font-size: 11px;
@@ -15201,7 +15201,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-variant-numeric: tabular-nums;
 }
 .persona-analytics-stat-value.good { color: var(--success); }
-.persona-analytics-stat-value.warn { color: var(--warning, #f59e0b); }
+.persona-analytics-stat-value.warn { color: var(--warning); }
 .persona-analytics-stat-value.bad { color: var(--danger); }
 .persona-analytics-stat-label {
   font-size: 9px;

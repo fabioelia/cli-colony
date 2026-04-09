@@ -696,7 +696,7 @@ function PersonaAnalyticsTab({ analytics, personaName, onRun }: {
                   width={10}
                   height={h}
                   rx={2}
-                  fill="var(--accent-blue)"
+                  fill="var(--accent)"
                   opacity={0.75}
                 />
               )
