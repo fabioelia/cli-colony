@@ -12,8 +12,15 @@ import type { AuditResult, GitHubRepo } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
 import EmptyStateHook from './EmptyStateHook'
 import CronEditor from './CronEditor'
+import PipelineFlowDiagram from './PipelineFlowDiagram'
 import { describeCron } from '../../../shared/cron'
 import { slugify } from '../../../shared/utils'
+
+interface ActionShape {
+  type: string
+  name?: string
+  stages?: ActionShape[]
+}
 
 interface PipelineInfo {
   name: string
@@ -33,6 +40,7 @@ interface PipelineInfo {
   debugLog: string[]
   budget?: { maxCostUsd: number; warnAt: number } | null
   lastRunStoppedBudget?: boolean
+  actionShape?: ActionShape
 }
 
 interface Props {
@@ -137,7 +145,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [memoryDirty, setMemoryDirty] = useState(false)
   const [outputFiles, setOutputFiles] = useState<Array<{ name: string; path: string; size: number; modified: number }>>([])
   const [outputPreview, setOutputPreview] = useState<{ name: string; content: string } | null>(null)
-  const [expandedTab, setExpandedTab] = useState<'yaml' | 'docs' | 'memory' | 'outputs' | 'history' | 'debug'>('yaml')
+  const [expandedTab, setExpandedTab] = useState<'yaml' | 'flow' | 'docs' | 'memory' | 'outputs' | 'history' | 'debug'>('yaml')
   type StageTrace = { index: number; actionType: string; sessionName?: string; model?: string; durationMs: number; startedAt?: number; completedAt?: number; success: boolean; error?: string; responseSnippet?: string; subStages?: StageTrace[] }
   const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; stages?: StageTrace[] }>>([])
   const [expandedHistoryRows, setExpandedHistoryRows] = useState<Set<number>>(new Set())
@@ -723,6 +731,12 @@ action:
                       <FileText size={11} /> Config
                     </button>
                     <button
+                      className={`pipeline-tab ${expandedTab === 'flow' ? 'active' : ''}`}
+                      onClick={() => setExpandedTab('flow')}
+                    >
+                      <GitBranch size={11} /> Flow
+                    </button>
+                    <button
                       className={`pipeline-tab ${expandedTab === 'memory' ? 'active' : ''}`}
                       onClick={() => setExpandedTab('memory')}
                     >
@@ -789,6 +803,14 @@ action:
                     value={editingContent}
                     onChange={(e) => { setEditingContent(e.target.value); setDirty(true) }}
                     spellCheck={false}
+                  />
+                ) : expandedTab === 'flow' ? (
+                  <PipelineFlowDiagram
+                    actionShape={p.actionShape}
+                    triggerType={p.triggerType}
+                    cron={p.cron}
+                    running={p.running}
+                    lastHistory={historyEntries[0]}
                   />
                 ) : expandedTab === 'outputs' ? (
                   <div className="pipeline-outputs">

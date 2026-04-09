@@ -381,6 +381,7 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Pipeline Resources',
         position: 'Tabs within expanded card',
         items: [
+          { label: 'Flow', detail: 'SVG node graph of the pipeline structure. Shows trigger → action → sub-stages as connected nodes. Parallel actions fork and rejoin via diamond nodes. Nodes are color-coded by last-run status: green (success), red (failure), gray (no data). Active stages pulse when the pipeline is running.', icon: 'GitBranch' },
           { label: 'Memory', detail: 'Per-pipeline memory file. Sessions are told to append learnings here.' },
           { label: 'Outputs', detail: 'Configurable output directory for pipeline-generated files.' },
           { label: 'History', detail: 'Ring buffer of the last 20 poll runs: timestamp, trigger type, whether an action fired, success/failure, and duration. Click rows with a chevron (▶) to expand per-stage details — stage type, session name, reviewer response snippet (diff_review stages), individual duration, and a △ badge on any stage whose status changed from the prior run.', icon: 'Clock' },

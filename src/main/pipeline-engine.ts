@@ -139,6 +139,12 @@ interface PipelineState {
   lastRunStoppedBudget?: boolean
 }
 
+export interface ActionShape {
+  type: string
+  name?: string
+  stages?: ActionShape[]
+}
+
 export interface PipelineInfo {
   name: string
   description: string
@@ -158,6 +164,7 @@ export interface PipelineInfo {
   debugLog: string[]
   budget?: { maxCostUsd: number; warnAt: number } | null
   lastRunStoppedBudget?: boolean
+  actionShape?: ActionShape
 }
 
 const MAX_DEBUG_ITERATIONS = 20
@@ -2067,6 +2074,14 @@ export function stopPipelines(): void {
   log('All pipelines stopped')
 }
 
+function toActionShape(action: ActionDef): ActionShape {
+  return {
+    type: action.type,
+    name: action.name || undefined,
+    stages: action.stages?.map(toActionShape),
+  }
+}
+
 export function getPipelineList(): PipelineInfo[] {
   const result: PipelineInfo[] = []
   for (const [name, p] of pipelines) {
@@ -2089,6 +2104,7 @@ export function getPipelineList(): PipelineInfo[] {
       debugLog: p.state.debugLog || [],
       budget: p.def.budget ? { maxCostUsd: p.def.budget.max_cost_usd, warnAt: p.def.budget.warn_at ?? p.def.budget.max_cost_usd * 0.75 } : null,
       lastRunStoppedBudget: p.state.lastRunStoppedBudget ?? false,
+      actionShape: toActionShape(p.def.action),
     })
   }
   return result

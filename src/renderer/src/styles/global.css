@@ -10684,6 +10684,79 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-variant-numeric: tabular-nums;
 }
 
+/* ===== Pipeline Flow Diagram ===== */
+.pipeline-flow-diagram {
+  padding: 16px;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+}
+
+.pipeline-flow-diagram svg {
+  display: block;
+}
+
+.flow-edge {
+  stroke: var(--text-muted);
+  stroke-width: 1.5;
+  fill: none;
+  opacity: 0.5;
+}
+
+.flow-node {
+  fill: var(--bg-input);
+  stroke-width: 2;
+}
+
+.flow-node-trigger {
+  fill: color-mix(in srgb, var(--accent) 10%, var(--bg-input));
+}
+
+.flow-node-active {
+  animation: flow-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes flow-pulse {
+  0%, 100% { stroke-opacity: 1; }
+  50% { stroke-opacity: 0.3; }
+}
+
+.flow-diamond {
+  fill: var(--bg-input);
+  stroke-width: 2;
+}
+
+.flow-node-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 4px;
+  font-size: 11px;
+  color: var(--text);
+  overflow: hidden;
+}
+
+.flow-node-icon {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+}
+
+.flow-node-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.flow-empty {
+  padding: 24px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
 /* ===== Session Deps / Orchestrate Panel ===== */
 .session-deps-panel {
   flex: 1;
