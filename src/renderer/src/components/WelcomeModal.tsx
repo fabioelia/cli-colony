@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
-import { CheckCircle2, XCircle, AlertTriangle, Loader2, X as XIcon } from 'lucide-react'
+import {
+  CheckCircle2, XCircle, AlertTriangle, Loader2, X as XIcon,
+  Monitor, Server, Bot, Zap, Layers, ChevronDown, ChevronRight,
+} from 'lucide-react'
 import type { PrerequisitesStatus } from '../../../shared/types'
 
 interface Props {
-  /** Called when the user finishes or skips — the parent closes the modal. */
   onClose: () => void
 }
 
@@ -15,6 +17,13 @@ interface RowProps {
   error?: string
   loading?: boolean
 }
+
+const FEATURES = [
+  { icon: Monitor, title: 'Sessions', desc: 'Run multiple Claude agents side-by-side on your codebase' },
+  { icon: Server, title: 'Environments', desc: 'Spin up full dev stacks from templates — backend, frontend, workers, DB' },
+  { icon: Bot, title: 'Personas', desc: 'AI agents with persistent memory that run on a schedule' },
+  { icon: Zap, title: 'Pipelines', desc: 'Automated workflows triggered by time, git events, or approvals' },
+] as const
 
 function PrereqRow({ ok, optional, label, detail, error, loading }: RowProps): JSX.Element {
   let icon: JSX.Element
@@ -45,12 +54,16 @@ function PrereqRow({ ok, optional, label, detail, error, loading }: RowProps): J
 export default function WelcomeModal({ onClose }: Props): JSX.Element {
   const [prereqs, setPrereqs] = useState<PrerequisitesStatus | null>(null)
   const [loading, setLoading] = useState(true)
+  const [templateCount, setTemplateCount] = useState<number>(0)
+  const [prereqsOpen, setPrereqsOpen] = useState(true)
 
   const runCheck = useCallback(async () => {
     setLoading(true)
     try {
       const result = await window.api.prerequisites.check()
       setPrereqs(result)
+      // Auto-collapse prereqs if everything passes
+      if (result.ready) setPrereqsOpen(false)
     } finally {
       setLoading(false)
     }
@@ -58,9 +71,10 @@ export default function WelcomeModal({ onClose }: Props): JSX.Element {
 
   useEffect(() => {
     runCheck()
+    // Count environment templates
+    window.api.env.listTemplates().then((t: any[]) => setTemplateCount(t.length)).catch(() => {})
   }, [runCheck])
 
-  // Escape key = Skip for now (dismiss without blocking)
   useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
@@ -86,10 +100,7 @@ export default function WelcomeModal({ onClose }: Props): JSX.Element {
   const ready = prereqs?.ready ?? false
 
   return (
-    <div
-      className="welcome-modal-backdrop"
-      onClick={handleSkip}
-    >
+    <div className="welcome-modal-backdrop" onClick={handleSkip}>
       <div
         className="welcome-modal"
         onClick={(e) => e.stopPropagation()}
@@ -100,66 +111,111 @@ export default function WelcomeModal({ onClose }: Props): JSX.Element {
         <button
           className="welcome-close"
           onClick={handleSkip}
-          title="Skip for now — you can replay this from the command palette (Show Welcome)."
+          title="Skip for now"
           aria-label="Close welcome"
         >
           <XIcon size={14} />
         </button>
 
+        {/* Section A — Value Prop + Feature Discovery */}
         <h2 id="welcome-title" className="welcome-title">Welcome to Colony</h2>
-        <p className="welcome-subtitle">Run multiple Claude agents in parallel on your codebase.</p>
+        <p className="welcome-subtitle">
+          Orchestrate AI agents, dev environments, and automated workflows — all from one desktop app.
+        </p>
 
-        <div className="welcome-prereqs">
-          <div className="welcome-prereqs-header">Prerequisites</div>
-          <PrereqRow
-            loading={loading}
-            ok={prereqs?.claude.ok ?? false}
-            label="Claude CLI"
-            detail={prereqs?.claude.detail}
-            error={prereqs?.claude.error}
-          />
-          <PrereqRow
-            loading={loading}
-            ok={prereqs?.auth.ok ?? false}
-            label="Anthropic auth"
-            detail={prereqs?.auth.detail}
-            error={prereqs?.auth.error}
-          />
-          <PrereqRow
-            loading={loading}
-            ok={prereqs?.git.ok ?? false}
-            label="Git user.email"
-            detail={prereqs?.git.detail}
-            error={prereqs?.git.error}
-          />
-          <PrereqRow
-            loading={loading}
-            optional
-            ok={prereqs?.github.ok ?? false}
-            label="GitHub token"
-            detail={prereqs?.github.detail}
-            error={prereqs?.github.error}
-          />
+        <div className="welcome-features">
+          {FEATURES.map(({ icon: Icon, title, desc }) => (
+            <div key={title} className="welcome-feature-card">
+              <Icon size={20} className="welcome-feature-icon" />
+              <div className="welcome-feature-body">
+                <div className="welcome-feature-title">{title}</div>
+                <div className="welcome-feature-desc">{desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="welcome-plus">
+          Plus: GitHub PR tracking, task queues, agent definitions, and MCP server management.
+        </p>
+
+        {/* Template callout */}
+        <div className="welcome-template-callout">
+          <Layers size={14} />
+          {templateCount > 0 ? (
+            <span>You have {templateCount} environment template{templateCount > 1 ? 's' : ''} ready to use.</span>
+          ) : (
+            <span>Create your first environment template from an existing project — Colony will snapshot your services, ports, and hooks into a reusable blueprint.</span>
+          )}
         </div>
 
+        {/* Section B — Prerequisites (collapsible) */}
+        <div className="welcome-prereqs">
+          <button
+            className="welcome-prereqs-header"
+            onClick={() => setPrereqsOpen(!prereqsOpen)}
+            type="button"
+          >
+            {prereqsOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            <span>Prerequisites</span>
+            {!loading && prereqs && (
+              <span className={`welcome-prereqs-badge ${ready ? 'ok' : 'missing'}`}>
+                {ready ? 'All good' : 'Action needed'}
+              </span>
+            )}
+          </button>
+          {prereqsOpen && (
+            <div className="welcome-prereqs-body">
+              <PrereqRow
+                loading={loading}
+                ok={prereqs?.claude.ok ?? false}
+                label="Claude CLI"
+                detail={prereqs?.claude.detail}
+                error={prereqs?.claude.error}
+              />
+              <PrereqRow
+                loading={loading}
+                ok={prereqs?.auth.ok ?? false}
+                label="Anthropic auth"
+                detail={prereqs?.auth.detail}
+                error={prereqs?.auth.error}
+              />
+              <PrereqRow
+                loading={loading}
+                ok={prereqs?.git.ok ?? false}
+                label="Git user.email"
+                detail={prereqs?.git.detail}
+                error={prereqs?.git.error}
+              />
+              <PrereqRow
+                loading={loading}
+                optional
+                ok={prereqs?.github.ok ?? false}
+                label="GitHub token"
+                detail={prereqs?.github.detail}
+                error={prereqs?.github.error}
+              />
+              <button
+                className="welcome-btn-recheck"
+                onClick={runCheck}
+                disabled={loading}
+              >
+                Re-check
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Section C — Actions */}
         <div className="welcome-actions">
           <button
             className="welcome-btn-primary"
             onClick={handleStart}
             disabled={loading || !ready}
             title={ready
-              ? 'Close this modal and open the Sessions empty state to begin.'
+              ? 'Close this modal and start using Colony.'
               : 'Install the missing prerequisites above first — or click Skip to continue anyway.'}
           >
-            Start your first session
-          </button>
-          <button
-            className="welcome-btn-secondary"
-            onClick={runCheck}
-            disabled={loading}
-            title="Re-run the prerequisite checks after installing something."
-          >
-            Re-check
+            Get started
           </button>
         </div>
         <button className="welcome-skip" onClick={handleSkip}>

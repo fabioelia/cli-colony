@@ -15746,23 +15746,97 @@ body:has(.daemon-update-banner) .app-update-banner {
 .welcome-subtitle {
   font-size: 13px;
   color: var(--text-secondary);
-  margin: 0 0 20px;
+  margin: 0 0 16px;
   line-height: 1.4;
 }
+/* Feature discovery grid */
+.welcome-features {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.welcome-feature-card {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+}
+.welcome-feature-icon { color: var(--accent); flex-shrink: 0; margin-top: 2px; }
+.welcome-feature-body { min-width: 0; }
+.welcome-feature-title { font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 2px; }
+.welcome-feature-desc { font-size: 11px; color: var(--text-muted); line-height: 1.35; }
+.welcome-plus {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0 0 12px;
+  text-align: center;
+}
+.welcome-template-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+.welcome-template-callout svg { flex-shrink: 0; color: var(--text-muted); margin-top: 1px; }
+/* Prerequisites section — collapsible */
 .welcome-prereqs {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
 }
 .welcome-prereqs-header {
-  font-size: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border: none;
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
-  margin-bottom: 6px;
+  cursor: pointer;
 }
+.welcome-prereqs-header:hover { color: var(--text-secondary); }
+.welcome-prereqs-badge {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.welcome-prereqs-badge.ok { background: rgba(16, 185, 129, 0.15); color: var(--success); }
+.welcome-prereqs-badge.missing { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
+.welcome-prereqs-body { padding: 4px 4px 8px; }
+.welcome-btn-recheck {
+  margin: 6px 10px 0;
+  padding: 4px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+}
+.welcome-btn-recheck:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.welcome-btn-recheck:disabled { opacity: 0.4; cursor: not-allowed; }
 .welcome-prereq-row {
   display: flex;
   align-items: flex-start;
@@ -15813,17 +15887,6 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .welcome-btn-primary:hover:not(:disabled) { opacity: 0.9; }
 .welcome-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
-.welcome-btn-secondary {
-  padding: 9px 16px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 13px;
-  cursor: pointer;
-}
-.welcome-btn-secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-.welcome-btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
 .welcome-skip {
   display: block;
   margin: 0 auto 10px;
