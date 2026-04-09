@@ -3348,3 +3348,274 @@ dedup:
     expect(callOpts.model).toBeUndefined()
   })
 })
+
+// ---- Launch-session auto-close tests ----
+
+const AUTO_CLOSE_YAML = `
+name: Auto Close Pipe
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: launch-session
+  prompt: Do auto-close work
+dedup:
+  key: "{{timestamp}}"
+`
+
+const AUTO_CLOSE_CUSTOM_TIMEOUT_YAML = `
+name: Custom Timeout Pipe
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: launch-session
+  prompt: Do custom timeout work
+  timeout_minutes: 5
+dedup:
+  key: "{{timestamp}}"
+`
+
+describe('pipeline-engine: launch-session auto-close', () => {
+  let mod: typeof import('../pipeline-engine')
+  const mockCreateInstance = vi.fn()
+  const mockKillInstance = vi.fn()
+  const mockAppendActivity = vi.fn()
+  // Track activity listeners so we can fire them in tests
+  let activityListeners: Array<(id: string, activity: string) => void> = []
+  const mockDaemonClient = {
+    on: vi.fn((event: string, cb: any) => { if (event === 'activity') activityListeners.push(cb) }),
+    removeListener: vi.fn((event: string, cb: any) => {
+      if (event === 'activity') activityListeners = activityListeners.filter(l => l !== cb)
+    }),
+    getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
+    writeToInstance: vi.fn(),
+  }
+
+  function setupAutoCloseMocks(fsMock: ReturnType<typeof buildFsMock>) {
+    vi.doMock('electron', () => ({
+      app: { getPath: vi.fn().mockReturnValue('/mock/home') },
+    }))
+    vi.doMock('../../shared/colony-paths', () => ({
+      colonyPaths: {
+        root: MOCK_ROOT,
+        pipelines: PIPELINES_DIR,
+        schedulerLog: `${MOCK_ROOT}/scheduler.log`,
+      },
+    }))
+    vi.doMock('fs', () => fsMock)
+    vi.doMock('../broadcast', () => ({ broadcast: mockBroadcast }))
+    vi.doMock('../repo-config-loader', () => ({ getAllRepoConfigs: mockGetAllRepoConfigs }))
+    vi.doMock('../instance-manager', () => ({
+      createInstance: mockCreateInstance,
+      getAllInstances: vi.fn().mockResolvedValue([]),
+      killInstance: mockKillInstance,
+    }))
+    vi.doMock('../daemon-client', () => ({
+      getDaemonClient: vi.fn().mockReturnValue(mockDaemonClient),
+    }))
+    vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
+    vi.doMock('../github', () => ({
+      getRepos: vi.fn().mockReturnValue([]),
+      fetchPRs: vi.fn().mockResolvedValue([]),
+      fetchChecks: vi.fn().mockResolvedValue({ checks: [] }),
+      gh: vi.fn().mockResolvedValue('{}'),
+    }))
+    vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
+    vi.doMock('../activity-manager', () => ({ appendActivity: mockAppendActivity }))
+    vi.doMock('../notifications', () => ({ notify: vi.fn() }))
+  }
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+    mockCreateInstance.mockReset().mockResolvedValue({ id: 'inst-auto-1' })
+    mockKillInstance.mockReset().mockResolvedValue(undefined)
+    mockAppendActivity.mockReset()
+    activityListeners = []
+    mockDaemonClient.on.mockReset().mockImplementation((event: string, cb: any) => {
+      if (event === 'activity') activityListeners.push(cb)
+    })
+    mockDaemonClient.removeListener.mockReset().mockImplementation((event: string, cb: any) => {
+      if (event === 'activity') activityListeners = activityListeners.filter(l => l !== cb)
+    })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  it('registers an activity listener on the daemon client after launch', async () => {
+    const fs = buildFsMock(['ac.yaml'], { 'ac.yaml': AUTO_CLOSE_YAML })
+    setupAutoCloseMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Auto Close Pipe')
+    await flushPromises()
+
+    expect(mockDaemonClient.on).toHaveBeenCalledWith('activity', expect.any(Function))
+    expect(activityListeners.length).toBe(1)
+  })
+
+  it('kills session after 5s delay when activity listener fires "waiting"', async () => {
+    const fs = buildFsMock(['ac.yaml'], { 'ac.yaml': AUTO_CLOSE_YAML })
+    setupAutoCloseMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Auto Close Pipe')
+    await flushPromises()
+
+    // Simulate session finishing — fire activity=waiting for the launched instance
+    for (const listener of [...activityListeners]) listener('inst-auto-1', 'waiting')
+    await flushPromises()
+
+    // Kill should not happen immediately
+    expect(mockKillInstance).not.toHaveBeenCalled()
+
+    // Advance 5s — the delayed kill fires
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(mockKillInstance).toHaveBeenCalledWith('inst-auto-1')
+  })
+
+  it('removes the activity listener after session finishes', async () => {
+    const fs = buildFsMock(['ac.yaml'], { 'ac.yaml': AUTO_CLOSE_YAML })
+    setupAutoCloseMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Auto Close Pipe')
+    await flushPromises()
+
+    expect(activityListeners.length).toBe(1)
+
+    // Fire "waiting" — listener should be removed
+    for (const listener of [...activityListeners]) listener('inst-auto-1', 'waiting')
+    await flushPromises()
+
+    expect(mockDaemonClient.removeListener).toHaveBeenCalledWith('activity', expect.any(Function))
+  })
+
+  it('force-kills session after default 10-minute timeout', async () => {
+    const fs = buildFsMock(['ac.yaml'], { 'ac.yaml': AUTO_CLOSE_YAML })
+    setupAutoCloseMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Auto Close Pipe')
+    await flushPromises()
+
+    // No activity event — advance to 10 minutes
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+
+    expect(mockKillInstance).toHaveBeenCalledWith('inst-auto-1')
+    expect(mockDaemonClient.removeListener).toHaveBeenCalledWith('activity', expect.any(Function))
+  })
+
+  it('uses custom timeout_minutes when specified', async () => {
+    const fs = buildFsMock(['ac.yaml'], { 'ac.yaml': AUTO_CLOSE_CUSTOM_TIMEOUT_YAML })
+    setupAutoCloseMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Custom Timeout Pipe')
+    await flushPromises()
+
+    // Should NOT kill at 4 minutes
+    await vi.advanceTimersByTimeAsync(4 * 60_000)
+    expect(mockKillInstance).not.toHaveBeenCalled()
+
+    // Should kill at 5 minutes
+    await vi.advanceTimersByTimeAsync(1 * 60_000)
+    expect(mockKillInstance).toHaveBeenCalledWith('inst-auto-1')
+  })
+
+  it('prevents double-kill: activity listener ignored after timeout fires', async () => {
+    const fs = buildFsMock(['ac.yaml'], { 'ac.yaml': AUTO_CLOSE_YAML })
+    setupAutoCloseMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Auto Close Pipe')
+    await flushPromises()
+
+    // Force-kill via timeout first
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    expect(mockKillInstance).toHaveBeenCalledTimes(1)
+
+    // Now fire the activity listener — should be a no-op due to autoCloseResolved flag
+    for (const listener of [...activityListeners]) listener('inst-auto-1', 'waiting')
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(5000)
+
+    // killInstance should still only have been called once (from the timeout)
+    expect(mockKillInstance).toHaveBeenCalledTimes(1)
+  })
+
+  it('prevents double-kill: timeout ignored after activity listener fires', async () => {
+    const fs = buildFsMock(['ac.yaml'], { 'ac.yaml': AUTO_CLOSE_YAML })
+    setupAutoCloseMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Auto Close Pipe')
+    await flushPromises()
+
+    // Activity listener fires first
+    for (const listener of [...activityListeners]) listener('inst-auto-1', 'waiting')
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(mockKillInstance).toHaveBeenCalledTimes(1)
+
+    // Advance past timeout — should be a no-op due to autoCloseResolved flag
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    expect(mockKillInstance).toHaveBeenCalledTimes(1)
+  })
+
+  it('ignores activity events for different instance IDs', async () => {
+    const fs = buildFsMock(['ac.yaml'], { 'ac.yaml': AUTO_CLOSE_YAML })
+    setupAutoCloseMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Auto Close Pipe')
+    await flushPromises()
+
+    // Fire activity for a DIFFERENT instance
+    for (const listener of [...activityListeners]) listener('other-inst-id', 'waiting')
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(5000)
+
+    // killInstance should NOT have been called (wrong instance)
+    expect(mockKillInstance).not.toHaveBeenCalled()
+  })
+
+  it('ignores activity events with non-waiting status', async () => {
+    const fs = buildFsMock(['ac.yaml'], { 'ac.yaml': AUTO_CLOSE_YAML })
+    setupAutoCloseMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Auto Close Pipe')
+    await flushPromises()
+
+    // Fire activity with "running" (not "waiting") — should be ignored
+    for (const listener of [...activityListeners]) listener('inst-auto-1', 'running')
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(5000)
+
+    // killInstance should NOT have been called (status is not "waiting")
+    expect(mockKillInstance).not.toHaveBeenCalled()
+  })
+})
