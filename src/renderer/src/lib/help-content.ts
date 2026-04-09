@@ -1075,6 +1075,49 @@ export const helpContent: Record<string, HelpEntry> = {
       },
     ],
   },
+  review: {
+    title: 'Review Dashboard',
+    description: 'Cross-session diff review — see uncommitted changes across all running and stopped sessions in one view. Expands inline to show per-file diffs with insertion/deletion stats.',
+    zones: [
+      {
+        name: 'Header',
+        position: 'Top bar',
+        items: [
+          { label: 'Filter toggle', detail: 'Switch between "Changed" (only sessions with uncommitted changes) and "All" (every session with a working directory).', icon: 'Filter' },
+          { label: 'Refresh', detail: 'Manually re-fetch git changes for all sessions. Also auto-refreshes every 30 seconds.', icon: 'RefreshCw' },
+        ],
+      },
+      {
+        name: 'Summary Bar',
+        position: 'Below header',
+        items: [
+          { label: 'Change totals', detail: 'Total files changed, sessions with changes, and aggregate insertions/deletions across all sessions.' },
+        ],
+      },
+      {
+        name: 'Session Cards',
+        position: 'Main area',
+        items: [
+          { label: 'Session name', detail: 'Color-coded dot + session name. Click to expand and see per-file changes.' },
+          { label: 'Status badge', detail: 'Shows whether the session is running or exited.' },
+          { label: 'File count + stats', detail: 'Number of changed files with total insertions (green) and deletions (red).' },
+          { label: 'Branch name', detail: 'Git branch the session is working on, if available.' },
+          { label: 'Open in terminal', detail: 'Jump to this session in the Sessions view.', icon: 'Terminal' },
+          { label: 'Copy branch', detail: 'Copy the branch name to clipboard.', icon: 'Copy' },
+        ],
+      },
+      {
+        name: 'Expanded File List',
+        position: 'Below card when expanded',
+        items: [
+          { label: 'File status', detail: 'A = Added (green), M = Modified (yellow), D = Deleted (red), R = Renamed, ? = Untracked.' },
+          { label: 'File path', detail: 'Full path of the changed file in monospace font.' },
+          { label: 'Insertions / Deletions', detail: 'Per-file line counts: green for additions, red for removals.' },
+        ],
+      },
+    ],
+  },
+
   teamMetrics: {
     title: 'Team Metrics Dashboard',
     description: 'Real-time performance analytics for multi-worker teams. Track team-level success rates, duration trends, and per-worker efficiency metrics across 7-day or 30-day windows. Accessible in Coordinator sessions (Metrics tab) or as a standalone panel.',

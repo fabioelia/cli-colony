@@ -18,6 +18,7 @@ import PipelinesPanel from './components/PipelinesPanel'
 import EnvironmentsPanel from './components/EnvironmentsPanel'
 import PersonasPanel from './components/PersonasPanel'
 import OutputsPanel from './components/OutputsPanel'
+import ReviewPanel from './components/ReviewPanel'
 import QuickPromptDialog from './components/QuickPromptDialog'
 import ForkModal from './components/ForkModal'
 import ArenaLaunchDialog from './components/ArenaLaunchDialog'
@@ -1600,6 +1601,15 @@ export default function App() {
           />
         )}
         {view === 'outputs' && <OutputsPanel />}
+        {view === 'review' && (
+          <ReviewPanel
+            instances={instances}
+            onFocusInstance={(id) => {
+              setActiveId(id)
+              setView('instances')
+            }}
+          />
+        )}
         <div style={{ display: view === 'github' ? 'contents' : 'none' }}>
           <GitHubPanel
             onBack={() => setView('instances')}

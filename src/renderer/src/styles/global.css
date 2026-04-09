@@ -5262,6 +5262,163 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-muted);
 }
 
+/* ===== Review Dashboard ===== */
+.review-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg-primary);
+}
+
+.review-summary {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+
+.review-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.review-card {
+  border-bottom: 1px solid var(--border);
+}
+
+.review-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  min-width: 0;
+}
+.review-card-header:hover {
+  background: var(--bg-hover);
+}
+
+.review-card-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+}
+
+.review-card-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.review-card-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.review-card-status {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.review-card-status.running {
+  color: var(--success);
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+.review-card-status.exited {
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+}
+
+.review-card-stats {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.review-card-branch {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono, monospace);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+  margin-left: auto;
+}
+
+.review-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.review-card-header:hover .review-card-actions {
+  opacity: 1;
+}
+
+.review-card-files {
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.review-file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 36px;
+  font-size: 11px;
+}
+.review-file-row:hover {
+  background: var(--bg-hover);
+}
+
+.review-file-status {
+  font-weight: 600;
+  font-family: var(--font-mono, monospace);
+  min-width: 12px;
+  flex-shrink: 0;
+}
+
+.review-file-name {
+  font-family: var(--font-mono, monospace);
+  color: var(--text-secondary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.review-file-stats {
+  font-size: 10px;
+  flex-shrink: 0;
+  display: flex;
+  gap: 3px;
+}
+
 /* ===== Terminal Drag Drop Overlay ===== */
 .terminal-container.drag-over {
   outline: 2px dashed var(--accent);

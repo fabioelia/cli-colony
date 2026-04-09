@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, FileDown, GitFork, ChevronDown, ChevronRight, Trophy, BookTemplate, FolderOpen, Crown } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, FileDown, GitFork, ChevronDown, ChevronRight, Trophy, BookTemplate, FolderOpen, Crown, GitCompare } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate } from '../../../shared/types'
@@ -15,7 +15,7 @@ import HelpPopover from './HelpPopover'
 import ExternalSessionPopover from './ExternalSessionPopover'
 import { COLORS, formatTime, cliBackendLabel, formatInstanceCmd } from '../lib/constants'
 
-export type SidebarView = 'instances' | 'agents' | 'github' | 'sessions' | 'settings' | 'logs' | 'tasks' | 'pipelines' | 'environments' | 'personas' | 'outputs'
+export type SidebarView = 'instances' | 'agents' | 'github' | 'sessions' | 'settings' | 'logs' | 'tasks' | 'pipelines' | 'environments' | 'personas' | 'outputs' | 'review'
 
 // ---- Memoized per-instance row ----
 
@@ -627,6 +627,12 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             <button className={`sidebar-nav-btn ${view === 'outputs' ? 'active' : ''}`} onClick={() => onViewChange('outputs')}>
               <span className="sidebar-nav-icon"><FolderOpen size={17} /></span>
               <span className="sidebar-nav-label">Outputs</span>
+            </button>
+          </Tooltip>
+          <Tooltip text="Review" detail="Cross-session diff review dashboard" position="bottom">
+            <button className={`sidebar-nav-btn ${view === 'review' ? 'active' : ''}`} onClick={() => onViewChange('review')}>
+              <span className="sidebar-nav-icon"><GitCompare size={17} /></span>
+              <span className="sidebar-nav-label">Review</span>
             </button>
           </Tooltip>
         </div>
