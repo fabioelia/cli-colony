@@ -3,7 +3,7 @@ import { useFileDrop } from '../hooks/useFileDrop'
 import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
   ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote, ArrowRightCircle, Save, Loader2,
-  Hourglass, ArrowRight, FolderOpen, Search, Check, Bot,
+  Hourglass, ArrowRight, FolderOpen, Search, Check, Bot, BarChart3, ArrowUpDown, DollarSign, TrendingUp,
 } from 'lucide-react'
 import EmptyStateHook from './EmptyStateHook'
 import { marked } from 'marked'
@@ -13,7 +13,7 @@ import CronEditor from './CronEditor'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import { describeCron } from '../../../shared/cron'
 
-import type { PersonaInfo, ClaudeInstance, PersonaArtifact, PersonaRunEntry } from '../../../shared/types'
+import type { PersonaInfo, ClaudeInstance, PersonaArtifact, PersonaRunEntry, PersonaAnalytics } from '../../../shared/types'
 
 interface Props {
   onBack: () => void
@@ -156,6 +156,45 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
   const [chatResponse, setChatResponse] = useState<string | null>(null)
   const [chatLoading, setChatLoading] = useState(false)
 
+  // Sort
+  const [sortBy, setSortBy] = useState<'name' | 'lastRun' | 'runs' | 'cost' | 'successRate'>('name')
+
+  // Analytics cache — keyed by persona ID
+  const [analyticsCache, setAnalyticsCache] = useState<Record<string, PersonaAnalytics>>({})
+  const fetchAnalytics = useCallback(async (personaId: string) => {
+    if (analyticsCache[personaId]) return
+    try {
+      const a = await window.api.persona.getAnalytics(personaId)
+      setAnalyticsCache(prev => ({ ...prev, [personaId]: a }))
+    } catch { /* non-fatal */ }
+  }, [analyticsCache])
+
+  // Fetch analytics for all personas on mount
+  useEffect(() => {
+    personas.forEach(p => fetchAnalytics(p.id))
+  }, [personas]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sort personas
+  const sortedPersonas = [...personas].sort((a, b) => {
+    const aa = analyticsCache[a.id]
+    const ab = analyticsCache[b.id]
+    switch (sortBy) {
+      case 'lastRun': {
+        const ta = a.lastRun ? new Date(a.lastRun).getTime() : 0
+        const tb = b.lastRun ? new Date(b.lastRun).getTime() : 0
+        return tb - ta
+      }
+      case 'runs':
+        return (ab?.totalRuns ?? b.runCount) - (aa?.totalRuns ?? a.runCount)
+      case 'cost':
+        return (ab?.totalCostUsd ?? 0) - (aa?.totalCostUsd ?? 0)
+      case 'successRate':
+        return (ab?.successRate ?? 0) - (aa?.successRate ?? 0)
+      default:
+        return a.name.localeCompare(b.name)
+    }
+  })
+
   // Persona Edit Modal state
   const [editMetaPersona, setEditMetaPersona] = useState<PersonaInfo | null>(null)
 
@@ -297,6 +336,16 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
       <div className="panel-header">
         <h2><User size={16} /> Personas</h2>
         <div className="panel-header-spacer" />
+        <div className="persona-sort-dropdown">
+          <ArrowUpDown size={11} />
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
+            <option value="name">Name</option>
+            <option value="lastRun">Last Run</option>
+            <option value="runs">Runs</option>
+            <option value="cost">Cost</option>
+            <option value="successRate">Success Rate</option>
+          </select>
+        </div>
         <HelpPopover topic="personas" align="right" />
         <div className="panel-header-actions">
           <button className="panel-header-btn primary" onClick={() => setShowNewDialog(true)}>
@@ -390,13 +439,14 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
       )}
 
       <div className="personas-list list-mode">
-        {personas.map((persona) => (
+        {sortedPersonas.map((persona) => (
           <PersonaCard
             key={persona.id}
             persona={persona}
             expanded={expandedId === persona.id}
             instances={instances}
             allPersonas={personas}
+            analytics={analyticsCache[persona.id] ?? null}
             onToggleExpand={() => setExpandedId(expandedId === persona.id ? null : persona.id)}
             onRun={() => handleRun(persona.id)}
             onStop={() => handleStop(persona.id)}
@@ -538,11 +588,159 @@ function PersonaRunSparkline({ entries }: { entries: PersonaRunEntry[] }) {
   )
 }
 
+function PersonaAnalyticsTab({ analytics, personaName, onRun }: {
+  analytics: PersonaAnalytics | null
+  personaName: string
+  onRun: () => void
+}) {
+  if (!analytics || analytics.totalRuns === 0) {
+    return (
+      <div className="persona-outputs-tab">
+        <div className="persona-analytics-empty">
+          <BarChart3 size={24} style={{ opacity: 0.3, marginBottom: 8 }} />
+          <div>No runs yet</div>
+          <button className="persona-analytics-run-btn" onClick={onRun}>
+            <Play size={11} /> Run Now
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const avgDurMin = Math.floor(analytics.avgDurationMs / 60000)
+  const avgDurSec = Math.floor((analytics.avgDurationMs % 60000) / 1000)
+  const avgDur = avgDurMin > 0 ? `${avgDurMin}m ${avgDurSec}s` : `${avgDurSec}s`
+
+  // Build daily cost bars for last 7 days
+  const now = Date.now()
+  const dayMs = 24 * 60 * 60 * 1000
+  const dailyCosts: number[] = []
+  for (let d = 6; d >= 0; d--) {
+    const dayStart = now - (d + 1) * dayMs
+    const dayEnd = now - d * dayMs
+    const cost = analytics.recentRuns
+      .filter(r => { const t = new Date(r.timestamp).getTime(); return t >= dayStart && t < dayEnd })
+      .reduce((s, r) => s + (r.costUsd ?? 0), 0)
+    dailyCosts.push(cost)
+  }
+  const maxCost = Math.max(...dailyCosts, 0.01)
+
+  // Sparkline: last 30 runs, x=time, y=duration, color=success/fail
+  const sparkRuns = analytics.recentRuns.slice(0, 20).reverse()
+  const maxDur = Math.max(...sparkRuns.map(r => r.durationMs), 1)
+
+  return (
+    <div className="persona-outputs-tab persona-analytics-tab">
+      {/* Summary stats */}
+      <div className="persona-analytics-stats">
+        <div className="persona-analytics-stat">
+          <span className="persona-analytics-stat-value">{analytics.totalRuns}</span>
+          <span className="persona-analytics-stat-label">Total Runs</span>
+        </div>
+        <div className="persona-analytics-stat">
+          <span className={`persona-analytics-stat-value ${analytics.successRate >= 80 ? 'good' : analytics.successRate >= 50 ? 'warn' : 'bad'}`}>
+            {analytics.successRate.toFixed(1)}%
+          </span>
+          <span className="persona-analytics-stat-label">Success Rate</span>
+        </div>
+        <div className="persona-analytics-stat">
+          <span className="persona-analytics-stat-value">{avgDur}</span>
+          <span className="persona-analytics-stat-label">Avg Duration</span>
+        </div>
+        <div className="persona-analytics-stat">
+          <span className="persona-analytics-stat-value">${analytics.totalCostUsd.toFixed(2)}</span>
+          <span className="persona-analytics-stat-label">Total Cost</span>
+        </div>
+        <div className="persona-analytics-stat">
+          <span className="persona-analytics-stat-value">${analytics.costLast7d.toFixed(2)}</span>
+          <span className="persona-analytics-stat-label">Cost (7d)</span>
+        </div>
+      </div>
+
+      {/* Run history sparkline */}
+      {sparkRuns.length > 1 && (
+        <div className="persona-analytics-chart">
+          <div className="persona-analytics-chart-label">Run Duration</div>
+          <svg width="100%" height={40} viewBox={`0 0 ${sparkRuns.length * 14} 40`} preserveAspectRatio="none">
+            {sparkRuns.map((r, i) => {
+              const h = Math.max(4, (r.durationMs / maxDur) * 36)
+              return (
+                <rect
+                  key={i}
+                  x={i * 14}
+                  y={40 - h}
+                  width={10}
+                  height={h}
+                  rx={2}
+                  fill={r.success ? 'var(--accent)' : 'var(--danger)'}
+                  opacity={0.75}
+                />
+              )
+            })}
+          </svg>
+        </div>
+      )}
+
+      {/* Daily cost bar chart */}
+      {analytics.costLast7d > 0 && (
+        <div className="persona-analytics-chart">
+          <div className="persona-analytics-chart-label">Daily Cost (7d)</div>
+          <svg width="100%" height={40} viewBox="0 0 98 40" preserveAspectRatio="none">
+            {dailyCosts.map((c, i) => {
+              const h = Math.max(c > 0 ? 4 : 0, (c / maxCost) * 36)
+              return (
+                <rect
+                  key={i}
+                  x={i * 14}
+                  y={40 - h}
+                  width={10}
+                  height={h}
+                  rx={2}
+                  fill="var(--accent-blue)"
+                  opacity={0.75}
+                />
+              )
+            })}
+          </svg>
+        </div>
+      )}
+
+      {/* Recent runs table */}
+      <div className="persona-analytics-table">
+        <div className="persona-analytics-table-header">
+          <span>Status</span>
+          <span>When</span>
+          <span>Duration</span>
+          <span>Cost</span>
+        </div>
+        {analytics.recentRuns.slice(0, 10).map((r, i) => {
+          const secs = (Date.now() - new Date(r.timestamp).getTime()) / 1000
+          const ago = secs < 60 ? 'just now' : secs < 3600 ? `${Math.floor(secs / 60)}m ago` : secs < 86400 ? `${Math.floor(secs / 3600)}h ago` : `${Math.floor(secs / 86400)}d ago`
+          const durMin = Math.floor(r.durationMs / 60000)
+          const durSec = Math.floor((r.durationMs % 60000) / 1000)
+          const dur = durMin > 0 ? `${durMin}m ${durSec}s` : `${durSec}s`
+          return (
+            <div key={i} className="persona-analytics-table-row">
+              <span className={`persona-history-status ${r.success ? 'success' : 'fail'}`}>
+                {r.success ? <Check size={11} /> : <X size={11} />}
+              </span>
+              <span>{ago}</span>
+              <span>{dur}</span>
+              <span>{r.costUsd !== undefined ? `$${r.costUsd.toFixed(2)}` : '—'}</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 interface PersonaCardProps {
   persona: PersonaInfo
   expanded: boolean
   instances: ClaudeInstance[]
   allPersonas: PersonaInfo[]
+  analytics: PersonaAnalytics | null
   onToggleExpand: () => void
   onRun: () => void
   onStop: () => void
@@ -558,13 +756,13 @@ interface PersonaCardProps {
 }
 
 function PersonaCard({
-  persona, expanded, instances, allPersonas,
+  persona, expanded, instances, allPersonas, analytics,
   onToggleExpand, onRun, onStop, onToggle, onDelete, onFocusInstance, onViewFile, onEditFile, onEditMeta, onScheduleSave, onWhisper, onDeleteNote
 }: PersonaCardProps) {
   const [editingSchedule, setEditingSchedule] = useState(false)
   const [whisperOpen, setWhisperOpen] = useState(false)
   const [whisperText, setWhisperText] = useState('')
-  const [activeTab, setActiveTab] = useState<'content' | 'outputs' | 'history'>('content')
+  const [activeTab, setActiveTab] = useState<'content' | 'outputs' | 'history' | 'analytics'>('content')
   const [artifacts, setArtifacts] = useState<PersonaArtifact[] | null>(null)
   const [viewingArtifact, setViewingArtifact] = useState<{ name: string; content: string } | null>(null)
   const [runHistory, setRunHistory] = useState<PersonaRunEntry[] | null>(null)
@@ -649,6 +847,18 @@ function PersonaCard({
             <span className="persona-list-cron-chip" title={persona.schedule}>{describeCron(persona.schedule)}</span>
           )}
           <span className="persona-list-model">{persona.model || 'sonnet'}</span>
+          {analytics && analytics.totalRuns > 0 && (
+            <span className="persona-list-stats">
+              <span className={`persona-stat-chip ${analytics.successRate >= 80 ? 'good' : analytics.successRate >= 50 ? 'warn' : 'bad'}`} title={`Success rate: ${analytics.successRate}%`}>
+                {Math.round(analytics.successRate)}%
+              </span>
+              {analytics.costLast7d > 0 && (
+                <span className="persona-stat-chip cost" title={`Cost last 7 days: $${analytics.costLast7d.toFixed(2)}`}>
+                  ${analytics.costLast7d < 1 ? analytics.costLast7d.toFixed(2) : analytics.costLast7d.toFixed(0)}
+                </span>
+              )}
+            </span>
+          )}
           <div className="persona-list-actions" onClick={(e) => e.stopPropagation()}>
             {!isRunning ? (
               <Tooltip text="Run persona">
@@ -764,6 +974,10 @@ function PersonaCard({
               className={`persona-card-tab${activeTab === 'history' ? ' active' : ''}`}
               onClick={() => setActiveTab('history')}
             ><Clock size={10} /> History</button>
+            <button
+              className={`persona-card-tab${activeTab === 'analytics' ? ' active' : ''}`}
+              onClick={() => setActiveTab('analytics')}
+            ><BarChart3 size={10} /> Analytics</button>
           </div>
 
           {activeTab === 'outputs' && (
@@ -820,6 +1034,10 @@ function PersonaCard({
                 </>
               )}
             </div>
+          )}
+
+          {activeTab === 'analytics' && (
+            <PersonaAnalyticsTab analytics={analytics} personaName={persona.name} onRun={onRun} />
           )}
 
           {activeTab === 'content' && <>

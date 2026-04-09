@@ -693,6 +693,14 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--accent);
 }
 
+.sidebar-version {
+  font-size: 9px;
+  color: var(--text-muted);
+  margin-left: auto;
+  font-family: var(--font-mono, monospace);
+  opacity: 0.6;
+}
+
 /* ===== Activity Feed ===== */
 .sidebar-activity-badge {
   position: absolute;
@@ -15103,6 +15111,139 @@ body:has(.daemon-update-banner) .app-update-banner {
   min-width: 48px;
   text-align: right;
 }
+
+/* ===== Persona Sort Dropdown ===== */
+.persona-sort-dropdown {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+}
+.persona-sort-dropdown select {
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+.persona-sort-dropdown select:hover { border-color: var(--border-active); }
+
+/* ===== Persona Stat Chips (card row) ===== */
+.persona-list-stats {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+}
+.persona-stat-chip {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-variant-numeric: tabular-nums;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+.persona-stat-chip.good { color: var(--success); }
+.persona-stat-chip.warn { color: var(--warning, #f59e0b); }
+.persona-stat-chip.bad { color: var(--danger); }
+.persona-stat-chip.cost { color: var(--accent-blue); }
+
+/* ===== Persona Analytics Tab ===== */
+.persona-analytics-tab {
+  padding: 8px 0;
+}
+.persona-analytics-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+  gap: 4px;
+}
+.persona-analytics-run-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 4px 12px;
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.persona-analytics-run-btn:hover { opacity: 0.85; }
+.persona-analytics-stats {
+  display: flex;
+  gap: 2px;
+  padding: 0 12px 8px;
+  flex-wrap: wrap;
+}
+.persona-analytics-stat {
+  flex: 1;
+  min-width: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 4px;
+  background: var(--bg-hover);
+  border-radius: 6px;
+}
+.persona-analytics-stat-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.persona-analytics-stat-value.good { color: var(--success); }
+.persona-analytics-stat-value.warn { color: var(--warning, #f59e0b); }
+.persona-analytics-stat-value.bad { color: var(--danger); }
+.persona-analytics-stat-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-top: 2px;
+}
+.persona-analytics-chart {
+  padding: 6px 12px;
+}
+.persona-analytics-chart-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.persona-analytics-chart svg {
+  display: block;
+  overflow: visible;
+}
+.persona-analytics-table {
+  padding: 4px 0;
+}
+.persona-analytics-table-header {
+  display: grid;
+  grid-template-columns: 28px 1fr 80px 64px;
+  padding: 4px 12px;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--border);
+}
+.persona-analytics-table-row {
+  display: grid;
+  grid-template-columns: 28px 1fr 80px 64px;
+  align-items: center;
+  padding: 4px 12px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.persona-analytics-table-row:hover { background: var(--bg-hover); }
 
 /* ===== Persona Edit Meta Modal ===== */
 .persona-edit-meta-modal {

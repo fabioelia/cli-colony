@@ -11,7 +11,7 @@ import type {
   OnboardingState, OnboardingChecklistKey, PrerequisitesStatus,
   WorktreeInfo,
   PersonaMemory, PersonaMemorySituation, PersonaMemoryLearning, PersonaMemoryLogEntry,
-  SessionArtifact, SessionArtifactCommit,
+  SessionArtifact, SessionArtifactCommit, PersonaAnalytics,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -27,7 +27,7 @@ export type {
   OnboardingState, OnboardingChecklistKey, PrerequisitesStatus,
   WorktreeInfo,
   PersonaMemory, PersonaMemorySituation, PersonaMemoryLearning, PersonaMemoryLogEntry,
-  SessionArtifact, SessionArtifactCommit,
+  SessionArtifact, SessionArtifactCommit, PersonaAnalytics,
 }
 
 
@@ -244,6 +244,7 @@ export interface ClaudeManagerAPI {
     readArtifact: (personaId: string, filename: string) => Promise<string | null>
     ask: (query: string) => Promise<string>
     getRunHistory: (personaId: string) => Promise<PersonaRunEntry[]>
+    getAnalytics: (personaId: string) => Promise<PersonaAnalytics>
     onStatus: (cb: (personas: PersonaInfo[]) => void) => () => void
     onRun: (cb: (data: { persona: string; instanceId: string }) => void) => () => void
   }
@@ -713,6 +714,7 @@ const api: ClaudeManagerAPI = {
     readArtifact: (personaId, filename) => ipcRenderer.invoke('persona:readArtifact', personaId, filename),
     ask: (query) => ipcRenderer.invoke('persona:ask', query),
     getRunHistory: (personaId) => ipcRenderer.invoke('persona:getRunHistory', personaId),
+    getAnalytics: (personaId) => ipcRenderer.invoke('persona:analytics', personaId),
     onStatus: (cb) => {
       const l = (_e: any, data: PersonaInfo[]) => cb(data)
       ipcRenderer.on('persona:status', l)

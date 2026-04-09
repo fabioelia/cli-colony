@@ -5,7 +5,7 @@ import {
   togglePersona, getPersonasDir, setPersonaSchedule, addWhisper, deleteNote,
   updatePersonaMeta, getPersonaArtifacts, readPersonaArtifact, askPersonas,
 } from '../persona-manager'
-import { getRunHistory } from '../persona-run-history'
+import { getRunHistory, getPersonaAnalytics } from '../persona-run-history'
 
 export function registerPersonaHandlers(): void {
   ipcMain.handle('persona:list', () => getPersonaList())
@@ -25,4 +25,5 @@ export function registerPersonaHandlers(): void {
   ipcMain.handle('persona:readArtifact', (_e, personaId: string, filename: string) => readPersonaArtifact(personaId, filename))
   ipcMain.handle('persona:ask', (_e, query: string) => askPersonas(query))
   ipcMain.handle('persona:getRunHistory', (_e, personaId: string) => getRunHistory(personaId))
+  ipcMain.handle('persona:analytics', (_e, personaId: string) => getPersonaAnalytics(personaId))
 }

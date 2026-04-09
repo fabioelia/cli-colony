@@ -324,6 +324,15 @@ export interface PersonaRunEntry {
   costUsd?: number
 }
 
+export interface PersonaAnalytics {
+  totalRuns: number
+  successRate: number  // 0–100
+  avgDurationMs: number
+  totalCostUsd: number
+  costLast7d: number
+  recentRuns: PersonaRunEntry[]
+}
+
 export interface AuditResult {
   severity: 'HIGH' | 'MEDIUM' | 'LOW'
   panel: string
