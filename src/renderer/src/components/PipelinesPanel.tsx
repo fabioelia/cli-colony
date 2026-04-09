@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import type { AuditResult, GitHubRepo } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
+import EmptyStateHook from './EmptyStateHook'
 import CronEditor from './CronEditor'
 import { describeCron } from '../../../shared/cron'
 import { slugify } from '../../../shared/utils'
@@ -592,13 +593,13 @@ action:
       </div>
 
       {pipelines.length === 0 && (
-        <div className="pipelines-empty">
-          <ZapOff size={28} />
-          <p>No pipelines found</p>
-          <p className="pipelines-empty-hint">
-            Create YAML files in ~/.claude-colony/pipelines/ to get started.
-          </p>
-        </div>
+        <EmptyStateHook
+          icon={Zap}
+          title="Pipelines"
+          hook="No pipelines yet. Automate recurring work with triggers and handoffs."
+          keyCap="L"
+          cta={{ label: 'New Pipeline', onClick: openAutomationWizard }}
+        />
       )}
 
       <div className={`pipelines-list${listMode ? ' list-mode' : ''}`}>

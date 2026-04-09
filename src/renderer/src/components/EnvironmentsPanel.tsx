@@ -9,6 +9,7 @@ import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import { buildTemplateEditPrompt, buildDiagnosePrompt } from '../../../shared/env-prompts'
 import Tooltip from './Tooltip'
 import HelpPopover from './HelpPopover'
+import EmptyStateHook from './EmptyStateHook'
 import EnvironmentLogViewer from './EnvironmentLogViewer'
 import NewEnvironmentDialog from './NewEnvironmentDialog'
 import { usePanelTabKeys } from '../hooks/usePanelTabKeys'
@@ -436,14 +437,13 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
           </div>
         )}
         {environments.length === 0 && (
-          <div className="env-empty">
-            <Server size={48} style={{ opacity: 0.3 }} />
-            <p>No environments yet.</p>
-            <p className="env-empty-detail">Create one to run a full Newton stack.</p>
-            <button className="env-btn env-btn-primary" onClick={() => setShowCreateDialog(true)}>
-              <Plus size={14} /> New Environment
-            </button>
-          </div>
+          <EmptyStateHook
+            icon={Server}
+            title="Environments"
+            hook="No environments yet. A sandboxed stack — backend + frontend + workers."
+            keyCap="E"
+            cta={{ label: 'New Environment', onClick: () => setShowCreateDialog(true) }}
+          />
         )}
 
         {environments.filter(env => !tagFilter || purposeTags[env.id] === tagFilter).map(env => {

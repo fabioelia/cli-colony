@@ -9,6 +9,7 @@ import type { PersonaInfo } from '../../../shared/types'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import Tooltip from './Tooltip'
 import HelpPopover from './HelpPopover'
+import EmptyStateHook from './EmptyStateHook'
 import { shouldSyncClaudeSlashCommands } from '../lib/claude-slash-sync'
 
 function resolveRelativeUrl(href: string, repoSlug: string, branch: string): string {
@@ -681,13 +682,13 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
       )}
 
       {repos.length === 0 && !showAddRepo && (
-        <div className="github-empty">
-          <GitPullRequest size={24} />
-          <p>No repositories configured.</p>
-          <button className="github-empty-btn" onClick={() => setShowAddRepo(true)} title="Add repository">
-            <Plus size={14} /> Add a Repository
-          </button>
-        </div>
+        <EmptyStateHook
+          icon={GitPullRequest}
+          title="Pull Requests"
+          hook="No repos connected. Track pull requests from your GitHub repositories."
+          keyCap="G"
+          cta={{ label: 'Add Repository', onClick: () => setShowAddRepo(true) }}
+        />
       )}
 
       {/* Filters */}

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Plus, RefreshCw, Download, Upload, Pencil, Play, ChevronRight, Bot, FolderOpen } from 'lucide-react'
+import { Plus, RefreshCw, Download, Upload, Pencil, Play, ChevronRight, FolderOpen, FileCode } from 'lucide-react'
+import EmptyStateHook from './EmptyStateHook'
 import type { AgentDef } from '../types'
 import { COLOR_MAP } from '../lib/constants'
 import Tooltip from './Tooltip'
@@ -191,13 +192,13 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
       </div>
 
       {agents.length === 0 && (
-        <div className="agents-empty-state">
-          <Bot size={32} />
-          <p>No agents found</p>
-          <p className="agents-empty-hint">
-            Create agents in <code>~/.claude/agents/</code> or use the button below.
-          </p>
-        </div>
+        <EmptyStateHook
+          icon={FileCode}
+          title="Agents"
+          hook="No agents yet. They encapsulate a specific task with its own instructions."
+          keyCap="A"
+          cta={{ label: 'Create Agent', onClick: () => setAddingTo({ scope: 'personal' }) }}
+        />
       )}
 
       <div className="agents-section">

@@ -19,6 +19,15 @@ export interface HelpZone {
   items: HelpItem[]
 }
 
+export interface HelpEmptyState {
+  /** Hook copy shown below the title (≤2 lines) */
+  hook: string
+  /** Aspirational keyboard badge (not functional) */
+  keyCap?: string
+  /** CTA label for the empty state action button */
+  ctaLabel?: string
+}
+
 export interface HelpEntry {
   title: string
   description: string
@@ -27,6 +36,8 @@ export interface HelpEntry {
   /** Zone-structured content — groups of items by visual region */
   zones?: HelpZone[]
   shortcuts?: Array<{ keys: string; action: string }>
+  /** Empty state copy for the panel's zero-content view */
+  emptyState?: HelpEmptyState
 }
 
 export const helpContent: Record<string, HelpEntry> = {
@@ -166,6 +177,11 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
     ],
+    emptyState: {
+      hook: 'No agents yet. They encapsulate a specific task with its own instructions.',
+      keyCap: 'A',
+      ctaLabel: 'Create Agent',
+    },
   },
 
   github: {
@@ -236,6 +252,11 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
     ],
+    emptyState: {
+      hook: 'No repos connected. Track pull requests from your GitHub repositories.',
+      keyCap: 'G',
+      ctaLabel: 'Add Repository',
+    },
   },
 
   tasks: {
@@ -299,6 +320,11 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
     ],
+    emptyState: {
+      hook: 'No task queues yet. Batch work for a persona to process. (beta)',
+      keyCap: 'K',
+      ctaLabel: 'New Queue',
+    },
   },
 
   pipelines: {
@@ -371,6 +397,11 @@ export const helpContent: Record<string, HelpEntry> = {
     shortcuts: [
       { keys: 'Cmd+Shift+F', action: 'Fire the first enabled pipeline from anywhere' },
     ],
+    emptyState: {
+      hook: 'No pipelines yet. Automate recurring work with triggers and handoffs.',
+      keyCap: 'L',
+      ctaLabel: 'New Pipeline',
+    },
   },
 
   environments: {
@@ -447,6 +478,11 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
     ],
+    emptyState: {
+      hook: 'No environments yet. A sandboxed stack — backend + frontend + workers.',
+      keyCap: 'E',
+      ctaLabel: 'New Environment',
+    },
   },
 
   settings: {
@@ -642,6 +678,11 @@ export const helpContent: Record<string, HelpEntry> = {
     shortcuts: [
       { keys: 'Cmd+Shift+P', action: 'Run the first enabled idle persona from anywhere' },
     ],
+    emptyState: {
+      hook: 'No personas yet. They shape how your agents think and schedule.',
+      keyCap: 'P',
+      ctaLabel: 'Create Persona',
+    },
   },
 
   // Per-session tabs
@@ -922,6 +963,9 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
     ],
+    emptyState: {
+      hook: 'Nothing here yet. Run a persona or pipeline to generate an artifact.',
+    },
   },
   changesTab: {
     title: 'Changes (Git Diff)',

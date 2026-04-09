@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { FolderOpen, FileText, Clock, RefreshCw, Search } from 'lucide-react'
+import { FolderOpen, FileText, Clock, RefreshCw, Search, FileOutput } from 'lucide-react'
 import { marked } from 'marked'
 import HelpPopover from './HelpPopover'
+import EmptyStateHook from './EmptyStateHook'
 import type { OutputEntry } from '../../../shared/types'
 
 type FilterType = 'all' | 'briefs' | 'artifacts'
@@ -134,11 +135,15 @@ export default function OutputsPanel() {
           </div>
           <div className="outputs-list">
             {filteredEntries.length === 0 ? (
-              <div className="outputs-empty">
-                {entries.length === 0
-                  ? 'No outputs yet — run a persona or pipeline to generate artifacts.'
-                  : 'No results for this filter.'}
-              </div>
+              entries.length === 0 ? (
+                <EmptyStateHook
+                  icon={FileOutput}
+                  title="Outputs"
+                  hook="Nothing here yet. Run a persona or pipeline to generate an artifact."
+                />
+              ) : (
+                <div className="outputs-empty">No results for this filter.</div>
+              )
             ) : (
               filteredEntries.map((entry) => (
                 <button

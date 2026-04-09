@@ -3,8 +3,9 @@ import { useFileDrop } from '../hooks/useFileDrop'
 import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
   ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote, ArrowRightCircle, Save, Loader2,
-  Hourglass, ArrowRight, FolderOpen, Search, Check,
+  Hourglass, ArrowRight, FolderOpen, Search, Check, Bot,
 } from 'lucide-react'
+import EmptyStateHook from './EmptyStateHook'
 import { marked } from 'marked'
 import HelpPopover from './HelpPopover'
 import Tooltip from './Tooltip'
@@ -379,13 +380,13 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
       )}
 
       {personas.length === 0 && !showNewDialog && (
-        <div className="persona-empty">
-          <User size={28} />
-          <p>No personas defined</p>
-          <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-            Create a persona to define an autonomous agent with a role, objectives, and schedule.
-          </p>
-        </div>
+        <EmptyStateHook
+          icon={Bot}
+          title="Personas"
+          hook="No personas yet. They shape how your agents think and schedule."
+          keyCap="P"
+          cta={{ label: 'Create Persona', onClick: () => setShowNewDialog(true) }}
+        />
       )}
 
       <div className="personas-list list-mode">

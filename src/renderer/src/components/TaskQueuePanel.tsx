@@ -5,10 +5,11 @@ import {
   Plus, Trash2, Play, Square, Save, FileText, CheckCircle, XCircle,
   Loader, Clock, ListOrdered, Layers, FolderOpen, File, Zap,
   MessageSquare, Send, ChevronDown, ChevronRight, Code, BookOpen,
-  LayoutList, LayoutGrid
+  LayoutList, LayoutGrid, ListChecks
 } from 'lucide-react'
 import type { ClaudeInstance } from '../types'
 import HelpPopover from './HelpPopover'
+import EmptyStateHook from './EmptyStateHook'
 
 interface TaskDef { prompt: string; directory?: string; name?: string }
 interface QueueDef { name: string; mode: 'parallel' | 'sequential'; tasks: TaskDef[] }
@@ -556,11 +557,13 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
 
       {/* Empty state */}
       {!selectedFile && !editingNew && queueFiles.length === 0 && (
-        <div className="task-queue-empty-state">
-          <ListOrdered size={28} />
-          <p>Define batch tasks as YAML</p>
-          <p className="task-queue-empty-hint">Use the prompt above to create task queues with the assistant.</p>
-        </div>
+        <EmptyStateHook
+          icon={ListChecks}
+          title="Task Queues"
+          hook="No task queues yet. Batch work for a persona to process. (beta)"
+          keyCap="K"
+          cta={{ label: 'New Queue', onClick: handleNew }}
+        />
       )}
 
       {/* Convert Modal */}
