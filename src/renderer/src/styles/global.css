@@ -480,7 +480,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .instance-info-process-kill:hover {
   color: var(--danger);
-  background: rgba(255, 80, 80, 0.1);
+  background: rgba(239, 68, 68, 0.1);
 }
 
 .instance-info-process-meta {
@@ -4608,7 +4608,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   flex-shrink: 0;
 }
 .services-panel-status-dot.running { background: var(--success); box-shadow: 0 0 4px rgba(16, 185, 129, 0.4); }
-.services-panel-status-dot.stopped { background: #4b5563; }
+.services-panel-status-dot.stopped { background: var(--text-muted); }
 .services-panel-status-dot.crashed { background: var(--danger); box-shadow: 0 0 4px rgba(239, 68, 68, 0.4); }
 .services-panel-status-dot.starting { background: var(--warning); animation: pulse-dot 1.5s infinite; }
 
@@ -5044,7 +5044,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   flex-shrink: 0;
 }
 .logs-filter-dot.running { background: var(--success); }
-.logs-filter-dot.stopped { background: #4b5563; }
+.logs-filter-dot.stopped { background: var(--text-muted); }
 .logs-filter-dot.crashed { background: var(--danger); }
 .logs-filter-dot.starting { background: var(--warning); }
 
