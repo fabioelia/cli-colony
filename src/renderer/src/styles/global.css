@@ -15924,7 +15924,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   padding: 4px 8px; border-bottom: 1px solid var(--border);
   font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
 }
-.arena-leaderboard-table td { padding: 6px 8px; border-bottom: 1px solid var(--border-subtle, var(--border)); }
+.arena-leaderboard-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
 .arena-lb-rank { color: var(--text-muted); width: 24px; }
 .arena-lb-name { color: var(--text-primary); font-weight: 500; }
 .arena-lb-wins { color: var(--success); width: 32px; text-align: center; }
