@@ -16,15 +16,18 @@ async function readStats(): Promise<ArenaStats> {
 }
 
 export function registerArenaHandlers(): void {
-  ipcMain.handle('arena:recordWinner', async (_e, winnerKey: string, loserKey: string): Promise<boolean> => {
+  ipcMain.handle('arena:recordWinner', async (_e, winnerKey: string, loserKey: string | string[]): Promise<boolean> => {
     try {
       const stats = await readStats()
+      const loserKeys = Array.isArray(loserKey) ? loserKey : [loserKey]
       if (!stats[winnerKey]) stats[winnerKey] = { wins: 0, losses: 0, totalRuns: 0 }
-      if (!stats[loserKey]) stats[loserKey] = { wins: 0, losses: 0, totalRuns: 0 }
       stats[winnerKey].wins++
       stats[winnerKey].totalRuns++
-      stats[loserKey].losses++
-      stats[loserKey].totalRuns++
+      for (const lk of loserKeys) {
+        if (!stats[lk]) stats[lk] = { wins: 0, losses: 0, totalRuns: 0 }
+        stats[lk].losses++
+        stats[lk].totalRuns++
+      }
       const dir = join(app.getPath('home'), '.claude-colony')
       await fsp.mkdir(dir, { recursive: true })
       await fsp.writeFile(STATS_PATH, JSON.stringify(stats, null, 2), 'utf-8')

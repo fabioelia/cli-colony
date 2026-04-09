@@ -762,15 +762,22 @@ export default function App() {
   }, [splitId, activeId])
 
   const handleArenaWin = useCallback(async (winnerInstId: string) => {
-    if (!activeId || !splitId || arenaWinnerId !== null) return
+    if (arenaWinnerId !== null) return
     const winner = instances.find((i) => i.id === winnerInstId)
-    const loserInstId = winnerInstId === activeId ? splitId : activeId
-    const loser = instances.find((i) => i.id === loserInstId)
-    if (!winner || !loser) return
+    if (!winner) return
+    // Collect losers: all other sessions in the arena
+    const arenaIds = gridPanes.some(p => p !== null)
+      ? gridPanes.filter((p): p is string => p !== null)
+      : [activeId, splitId].filter((p): p is string => !!p)
+    const loserNames = arenaIds
+      .filter(id => id !== winnerInstId)
+      .map(id => instances.find((i) => i.id === id)?.name)
+      .filter((n): n is string => !!n)
+    if (loserNames.length === 0) return
     setArenaWinnerId(winnerInstId)
     setArenaBlind(false)
-    await window.api.arena.recordWinner(winner.name, loser.name)
-  }, [activeId, splitId, arenaWinnerId, instances])
+    await window.api.arena.recordWinner(winner.name, loserNames)
+  }, [activeId, splitId, arenaWinnerId, instances, gridPanes])
 
   const openArenaStats = useCallback(async () => {
     const stats = await window.api.arena.getStats()
@@ -1199,8 +1206,8 @@ export default function App() {
                 onSpawnChild={instanceCallbacksRef.current.get(inst.id)!.onSpawnChild}
                 onFork={instanceCallbacksRef.current.get(inst.id)!.onFork}
                 isSplit={isSplit || showGrid}
-                arenaMode={isSplit && arenaMode}
-                arenaBlind={isSplit && arenaMode && arenaBlind}
+                arenaMode={(isSplit || showGrid) && arenaMode}
+                arenaBlind={(isSplit || showGrid) && arenaMode && arenaBlind}
                 paneLabel={showGrid ? (['1','2','3','4'][gridIdx] as any) : isLeft ? 'A' : 'B'}
                 arenaVoted={arenaWinnerId !== null}
                 arenaWinnerId={arenaWinnerId}
@@ -1257,6 +1264,34 @@ export default function App() {
             </div>
           )
         })}
+
+        {/* Grid arena controls — toggle bar spanning both columns */}
+        {showGrid && (
+          <div className="grid-arena-bar" style={{ gridColumn: '1 / -1' }}>
+            <button
+              className={`grid-arena-toggle${arenaMode ? ' active' : ''}`}
+              onClick={() => {
+                const next = !arenaMode
+                setArenaMode(next)
+                if (!next) { setArenaBlind(false); setArenaWinnerId(null) }
+              }}
+              title={arenaMode ? 'Disable Arena mode' : 'Enable Arena mode — shared input bar'}
+              aria-label="Toggle Arena mode"
+            >
+              <Swords size={11} /> Arena
+            </button>
+            {arenaMode && (
+              <button
+                className={`grid-arena-toggle${arenaBlind ? ' active' : ''}`}
+                onClick={() => setArenaBlind((b) => !b)}
+                title={arenaBlind ? 'Reveal session identities' : 'Hide session identities until you vote'}
+                aria-label="Toggle blind mode"
+              >
+                <EyeOff size={11} /> Blind
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Split divider */}
         {isSplit && (
@@ -1333,9 +1368,21 @@ export default function App() {
           </div>
         )}
 
-        {/* Arena input bar — full-width row below both panes when active */}
-        {isSplit && arenaMode && (
-          <div className="arena-input-bar" style={{ order: 100 }}>
+        {/* Arena input bar — full-width row below panes when active */}
+        {(isSplit || showGrid) && arenaMode && (() => {
+          const arenaIds = showGrid
+            ? gridPanes.filter((p): p is string => p !== null)
+            : [activeId, splitId].filter((p): p is string => !!p)
+          const sendToAll = () => {
+            if (!arenaText.trim() || arenaIds.length < 2) return
+            for (const id of arenaIds) window.api.instance.write(id, arenaText + '\n')
+            setArenaText('')
+            setArenaWinnerId(null)
+            setArenaBlind(false)
+            if (arenaTextareaRef.current) arenaTextareaRef.current.style.height = ''
+          }
+          return (
+          <div className="arena-input-bar" style={{ order: 100, gridColumn: showGrid ? '1 / -1' : undefined }}>
             <textarea
               ref={arenaTextareaRef}
               className="arena-textarea"
@@ -1348,31 +1395,17 @@ export default function App() {
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
-                  if (!arenaText.trim() || !activeId || !splitId) return
-                  window.api.instance.write(activeId, arenaText + '\n')
-                  window.api.instance.write(splitId, arenaText + '\n')
-                  setArenaText('')
-                  setArenaWinnerId(null)
-                  setArenaBlind(false)
-                  if (arenaTextareaRef.current) arenaTextareaRef.current.style.height = ''
+                  sendToAll()
                 }
               }}
-              placeholder="Send to both sessions... (Enter to send, Shift+Enter for newline)"
+              placeholder={`Send to ${arenaIds.length} sessions... (Enter to send, Shift+Enter for newline)`}
             />
             <button
               className="arena-send-btn"
-              disabled={!arenaText.trim()}
-              onClick={() => {
-                if (!arenaText.trim() || !activeId || !splitId) return
-                window.api.instance.write(activeId, arenaText + '\n')
-                window.api.instance.write(splitId, arenaText + '\n')
-                setArenaText('')
-                setArenaWinnerId(null)
-                setArenaBlind(false)
-                if (arenaTextareaRef.current) arenaTextareaRef.current.style.height = ''
-              }}
+              disabled={!arenaText.trim() || arenaIds.length < 2}
+              onClick={sendToAll}
             >
-              Send to both
+              Send to {arenaIds.length}
             </button>
             <div className="arena-stats-container">
               <button
@@ -1415,7 +1448,8 @@ export default function App() {
               })()}
             </div>
           </div>
-        )}
+          )
+        })()}
 
         {/* Agent editor */}
         {editingAgent && (

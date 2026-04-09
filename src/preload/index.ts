@@ -350,7 +350,7 @@ export interface ClaudeManagerAPI {
     getLastRun: (panel: string) => Promise<{ ts: number; issueCount: number } | null>
   }
   arena: {
-    recordWinner: (winnerKey: string, loserKey: string) => Promise<boolean>
+    recordWinner: (winnerKey: string, loserKey: string | string[]) => Promise<boolean>
     getStats: () => Promise<ArenaStats>
   }
   fork: {
