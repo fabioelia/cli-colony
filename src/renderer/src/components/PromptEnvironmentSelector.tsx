@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { AlertCircle, HelpCircle } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 
 interface Instance {
@@ -74,35 +74,37 @@ export default function PromptEnvironmentSelector({
   }
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/30">
-      <div className="bg-bg-secondary rounded-lg shadow-lg p-6 w-96 border border-border">
-        <div className="flex items-center justify-between mb-4 gap-2">
-          <h2 className="text-lg font-semibold">Environment for "{promptLabel}"</h2>
+    <div className="dialog-overlay" onClick={onCancel}>
+      <div className="dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="env-selector-header">
+          <h2>Environment for &ldquo;{promptLabel}&rdquo;</h2>
           <HelpPopover topic="github" align="left" />
         </div>
 
-        <div className="space-y-4 mb-6">
+        <div className="env-selector-options">
           {/* Create New Option */}
-          <label className="flex items-start gap-3 cursor-pointer p-3 rounded border border-border hover:bg-bg-tertiary transition-colors" style={{ borderColor: mode === 'create' ? 'var(--accent)' : undefined }}>
+          <label
+            className={`env-selector-option ${mode === 'create' ? 'active' : ''}`}
+            onClick={() => setMode('create')}
+          >
             <input
               type="radio"
               name="env-mode"
               value="create"
               checked={mode === 'create'}
               onChange={() => setMode('create')}
-              className="mt-1"
             />
-            <div className="flex-1">
-              <div className="font-medium">Create new environment</div>
-              <div className="text-xs text-text-tertiary mt-1">Set up a fresh instance with all deps installed</div>
+            <div className="env-selector-option-body">
+              <div className="env-selector-option-title">Create new environment</div>
+              <div className="env-selector-option-desc">Set up a fresh instance with all deps installed</div>
             </div>
           </label>
 
           {/* Reuse Existing Option */}
-          <label className="flex items-start gap-3 p-3 rounded border transition-colors" style={{
-            borderColor: mode === 'reuse' ? 'var(--accent)' : !hasRunningInstances ? 'var(--text-muted)' : 'var(--border)',
-            cursor: hasRunningInstances ? 'pointer' : 'not-allowed',
-          }}>
+          <label
+            className={`env-selector-option ${mode === 'reuse' ? 'active' : ''} ${!hasRunningInstances ? 'disabled' : ''}`}
+            onClick={() => { if (hasRunningInstances) setMode('reuse') }}
+          >
             <input
               type="radio"
               name="env-mode"
@@ -110,12 +112,13 @@ export default function PromptEnvironmentSelector({
               checked={mode === 'reuse'}
               onChange={() => setMode('reuse')}
               disabled={!hasRunningInstances}
-              className="mt-1"
             />
-            <div className="flex-1" style={{ opacity: hasRunningInstances ? 1 : 0.6 }}>
-              <div className="font-medium">Reuse existing</div>
-              <div className="text-xs text-text-tertiary mt-1">
-                {hasRunningInstances ? `${runningInstances.length} running instance${runningInstances.length !== 1 ? 's' : ''} available` : 'No running instances'}
+            <div className="env-selector-option-body">
+              <div className="env-selector-option-title">Reuse existing</div>
+              <div className="env-selector-option-desc">
+                {hasRunningInstances
+                  ? `${runningInstances.length} running instance${runningInstances.length !== 1 ? 's' : ''} available`
+                  : 'No running instances'}
               </div>
             </div>
           </label>
@@ -123,12 +126,11 @@ export default function PromptEnvironmentSelector({
 
         {/* Instance Dropdown */}
         {mode === 'reuse' && hasRunningInstances && (
-          <div className="mb-6">
-            <label className="text-xs font-medium text-text-secondary mb-2 block">Select instance:</label>
+          <div className="dialog-field">
+            <label>Select instance:</label>
             <select
               value={selectedInstanceId || ''}
               onChange={(e) => setSelectedInstanceId(e.target.value)}
-              className="w-full px-3 py-2 rounded border border-border bg-bg-tertiary text-text-primary text-sm"
             >
               <option value="">— Choose instance —</option>
               {runningInstances.map((inst) => (
@@ -141,31 +143,22 @@ export default function PromptEnvironmentSelector({
           </div>
         )}
 
-        {/* Gotcha Warning */}
+        {/* Setup Warning */}
         {mode === 'create' && (
-          <div className="flex gap-2 p-3 rounded bg-amber-900/20 border border-amber-700/40 text-sm text-amber-100 mb-6">
-            <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
-            <div>
-              Setup typically takes 30–60s. You can type in the terminal immediately; input will be queued until ready.
-            </div>
+          <div className="dialog-notice">
+            <AlertCircle size={14} />
+            <span>Setup typically takes 30–60s. You can type in the terminal immediately; input will be queued until ready.</span>
           </div>
         )}
 
-        {/* Actions */}
-        <div className="flex gap-3 justify-end">
+        <div className="dialog-actions">
+          <button className="cancel" onClick={onCancel} disabled={isLoading}>Cancel</button>
           <button
-            onClick={onCancel}
-            disabled={isLoading}
-            className="px-4 py-2 rounded border border-border hover:bg-bg-tertiary disabled:opacity-50 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
+            className="confirm"
             onClick={handleNext}
             disabled={isNextDisabled || isLoading}
-            className="px-4 py-2 rounded bg-accent text-text-primary hover:opacity-90 disabled:opacity-50 transition-colors"
           >
-            {isLoading ? 'Loading...' : 'Next'}
+            {isLoading ? 'Loading…' : 'Next'}
           </button>
         </div>
       </div>
