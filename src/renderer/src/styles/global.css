@@ -10704,12 +10704,12 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .flow-node {
-  fill: var(--bg-input);
+  fill: var(--bg-surface);
   stroke-width: 2;
 }
 
 .flow-node-trigger {
-  fill: color-mix(in srgb, var(--accent) 10%, var(--bg-input));
+  fill: color-mix(in srgb, var(--accent) 10%, var(--bg-surface));
 }
 
 .flow-node-active {
@@ -10722,7 +10722,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .flow-diamond {
-  fill: var(--bg-input);
+  fill: var(--bg-surface);
   stroke-width: 2;
 }
 
@@ -10733,7 +10733,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   height: 100%;
   padding: 0 4px;
   font-size: 11px;
-  color: var(--text);
+  color: var(--text-primary);
   overflow: hidden;
 }
 
