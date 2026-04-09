@@ -45,6 +45,7 @@ interface PersonaState {
   sessionStartedAt: string | null
   sessionWorkingDir: string | null
   triggeredBy: string | null
+  triggerType: string | null
   lastSkipped: number | null
 }
 
@@ -66,7 +67,7 @@ function saveState(): void {
 
 function getState(name: string): PersonaState {
   if (!stateCache[name]) {
-    stateCache[name] = { lastRunAt: null, runCount: 0, activeSessionId: null, enabled: false, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null, triggeredBy: null, lastSkipped: null }
+    stateCache[name] = { lastRunAt: null, runCount: 0, activeSessionId: null, enabled: false, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null, triggeredBy: null, triggerType: null, lastSkipped: null }
   }
   return stateCache[name]
 }
@@ -94,6 +95,8 @@ interface PersonaFrontmatter {
    * Not used for can_push: false personas.
    */
   conflict_group?: string
+  /** Session timeout in minutes for cron-triggered runs (default: 10). */
+  session_timeout_minutes?: number
   /**
    * Optional run condition. Currently supports 'new_commits' — skip run if no
    * commits have been made since the last run in the persona's working_directory.
@@ -121,6 +124,7 @@ function parseFrontmatter(content: string): PersonaFrontmatter | null {
     on_complete_run: parseStringArray(val('on_complete_run')),
     can_invoke: parseStringArray(val('can_invoke')),
     auto_memory_extraction: val('auto_memory_extraction') !== 'false',
+    session_timeout_minutes: parseInt(val('session_timeout_minutes')) || undefined,
     conflict_group: val('conflict_group') || undefined,
     run_condition: val('run_condition') || undefined,
   }
@@ -626,31 +630,41 @@ Example:
 
 // ---- Send trigger when CLI is ready ----
 
-function sendTriggerWhenReady(instanceId: string, message: string): void {
+function sendTriggerWhenReady(instanceId: string, message: string, timeoutMinutes?: number): void {
   // Use the shared sendPromptWhenReady, then watch for persona completion
   sendPromptWhenReady(instanceId, {
     prompt: message,
     onSent: () => {
       console.log(`[persona] sent trigger to ${instanceId}`)
 
-      // After sending, watch for the next 'waiting' = persona finished its work
       const client = getDaemonClient()
+      let resolved = false
+      let absoluteTimeout: ReturnType<typeof setTimeout> | null = null
+
+      // After sending, watch for the next 'waiting' = persona finished its work
       const onFinished = (id: string, activity: string) => {
         if (id !== instanceId || activity !== 'waiting') return
+        if (resolved) return
+        resolved = true
         client.removeListener('activity', onFinished)
+        if (absoluteTimeout) clearTimeout(absoluteTimeout)
         console.log(`[persona] session ${instanceId} finished, killing in 5s`)
         setTimeout(async () => {
-          try {
-            await killInstance(instanceId)
-          } catch { /* already gone */ }
+          try { await killInstance(instanceId) } catch { /* already gone */ }
         }, 5000)
       }
       client.on('activity', onFinished)
 
-      // Safety cleanup after 10 minutes
-      setTimeout(() => {
-        client.removeListener('activity', onFinished)
-      }, 600_000)
+      // Absolute timeout: force-kill if still running (only for non-manual triggers)
+      if (timeoutMinutes != null) {
+        absoluteTimeout = setTimeout(async () => {
+          if (resolved) return
+          resolved = true
+          client.removeListener('activity', onFinished)
+          console.log(`[persona] session ${instanceId} still running after ${timeoutMinutes}min, force-killing`)
+          try { await killInstance(instanceId) } catch { /* already gone */ }
+        }, timeoutMinutes * 60_000)
+      }
     },
   })
 }
@@ -764,13 +778,16 @@ export async function runPersona(fileName: string, trigger: TriggerSource = { ty
   })
 
   const kickoff = buildKickoff(filePath, trigger, customMessage)
-  sendTriggerWhenReady(inst.id, kickoff)
+  // Only apply auto-close timeout for non-manual triggers
+  const timeoutMinutes = trigger.type !== 'manual' ? (fm.session_timeout_minutes || 10) : undefined
+  sendTriggerWhenReady(inst.id, kickoff, timeoutMinutes)
 
   // Update state
   state.activeSessionId = inst.id
   state.lastRunAt = new Date().toISOString()
   state.sessionStartedAt = state.lastRunAt
   state.sessionWorkingDir = cwd
+  state.triggerType = trigger.type
   state.triggeredBy = trigger.type === 'handoff' ? (trigger.from ?? null) : null
   state.runCount++
   saveState()
@@ -1137,6 +1154,8 @@ function schedulerLog(msg: string): void {
 
 let schedulerInterval: ReturnType<typeof setInterval> | null = null
 let lastCronMinute = -1
+/** Tracks when we first observed a persona session in 'waiting' state (for stale detection). */
+const _waitingSince = new Map<string, number>()
 
 export function startScheduler(): void {
   if (schedulerInterval) return
@@ -1152,11 +1171,30 @@ export function startScheduler(): void {
       let reconciled = false
       for (const persona of reconcileSnapshot) {
         if (!persona.activeSessionId) continue
-        const exists = instances.find(i => i.id === persona.activeSessionId && i.status === 'running')
-        if (!exists) {
+        const inst = instances.find(i => i.id === persona.activeSessionId && i.status === 'running')
+        if (!inst) {
           const state = getState(persona.name)
           state.activeSessionId = null
+          _waitingSince.delete(persona.activeSessionId)
           reconciled = true
+          continue
+        }
+
+        // Stale waiting detection: if cron-triggered and waiting > 60s, force-kill.
+        // Catches the race where the activity listener missed the 'waiting' transition.
+        const state = getState(persona.name)
+        if (state.triggerType === 'cron' && inst.activity === 'waiting') {
+          if (!_waitingSince.has(persona.activeSessionId)) {
+            _waitingSince.set(persona.activeSessionId, Date.now())
+          } else if (Date.now() - _waitingSince.get(persona.activeSessionId)! > 60_000) {
+            schedulerLog(`session ${persona.activeSessionId} for "${persona.name}" waiting > 60s (cron), killing`)
+            try { await killInstance(persona.activeSessionId) } catch { /* already gone */ }
+            _waitingSince.delete(persona.activeSessionId)
+            state.activeSessionId = null
+            reconciled = true
+          }
+        } else {
+          _waitingSince.delete(persona.activeSessionId)
         }
       }
       if (reconciled) {
