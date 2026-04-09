@@ -9,6 +9,7 @@
   --bg-secondary: #16213e;
   --bg-tertiary: #0f3460;
   --bg-surface: #1e2a4a;
+  --bg-hover: rgba(255, 255, 255, 0.06);
   --text-primary: #e0e0e0;
   --text-secondary: #a0a0b0;
   --text-muted: #6b6b80;
@@ -11412,7 +11413,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .env-fix-dropdown {
   z-index: 10000;
-  background: var(--bg-secondary, #1e1e2e);
+  background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 4px;
@@ -11435,14 +11436,14 @@ body:has(.daemon-update-banner) .app-update-banner {
   border: none;
   border-radius: 6px;
   background: none;
-  color: var(--text-primary, #e0e0e0);
+  color: var(--text-primary);
   cursor: pointer;
   text-align: left;
   font-size: 12px;
 }
 
 .env-fix-dropdown-item:hover {
-  background: var(--bg-hover, rgba(255, 255, 255, 0.06));
+  background: var(--bg-hover);
 }
 
 .env-fix-dropdown-item > svg {
