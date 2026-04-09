@@ -15905,7 +15905,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-muted);
   margin: 0;
 }
-.welcome-footer-tip kbd {
+.welcome-footer-tip code {
   font-family: inherit;
   background: var(--bg-secondary);
   border: 1px solid var(--border);

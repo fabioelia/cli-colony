@@ -222,7 +222,7 @@ export default function WelcomeModal({ onClose }: Props): JSX.Element {
           Skip for now
         </button>
         <p className="welcome-footer-tip">
-          Replay this anytime from the command palette (<kbd>Show Welcome</kbd>).
+          Replay this anytime from the command palette (<code>Show Welcome</code>).
         </p>
       </div>
     </div>
