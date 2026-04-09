@@ -12,7 +12,7 @@ interface Props {
 }
 
 const MODEL_COLORS: Record<string, string> = {
-  opus: '#8b5cf6', // purple — no canonical CSS var for this hue
+  opus: 'var(--accent-purple)',
   sonnet: 'var(--accent)',
   haiku: 'var(--success)',
 }

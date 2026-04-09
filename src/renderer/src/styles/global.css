@@ -21,6 +21,7 @@
   --success: #10b981;
   --warning: #f59e0b;
   --danger: #ef4444;
+  --accent-purple: #8b5cf6;
   --sidebar-width: 300px;
   --titlebar-pad: 48px;
 }
@@ -1354,7 +1355,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-radius: 3px;
   vertical-align: middle;
   line-height: 16px;
-  background: rgba(139, 92, 246, 0.15);
+  background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
   color: #a78bfa;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -1364,7 +1365,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .instance-role-badge.role-coder        { background: rgba(16, 185, 129, 0.15); color: #34d399; }
 .instance-role-badge.role-tester       { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
 .instance-role-badge.role-reviewer     { background: rgba(239, 68, 68, 0.15);  color: var(--danger); }
-.instance-role-badge.role-researcher   { background: rgba(139, 92, 246, 0.15); color: #a78bfa; }
+.instance-role-badge.role-researcher   { background: color-mix(in srgb, var(--accent-purple) 15%, transparent); color: #a78bfa; }
 .instance-role-badge.role-coordinator  { background: rgba(217, 119, 6, 0.15); color: #d97706; }
 .instance-role-badge.role-worker       { background: rgba(107, 114, 128, 0.15); color: var(--text-secondary); }
 
@@ -4442,7 +4443,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   letter-spacing: 0.02em;
 }
 .role-chip:hover { background: var(--bg-surface); color: var(--text-primary); }
-.role-chip.active { background: rgba(139, 92, 246, 0.15); color: #a78bfa; border-color: rgba(139, 92, 246, 0.3); }
+.role-chip.active { background: color-mix(in srgb, var(--accent-purple) 15%, transparent); color: #a78bfa; border-color: color-mix(in srgb, var(--accent-purple) 30%, transparent); }
 
 /* Split picker */
 .split-picker-list {
@@ -8986,7 +8987,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
-  color: #8b5cf6;
+  color: var(--accent-purple);
 }
 
 .convert-pipeline-header h3 {
@@ -9117,7 +9118,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .convert-pipeline-checkbox input[type="checkbox"] {
-  accent-color: #8b5cf6;
+  accent-color: var(--accent-purple);
 }
 
 .convert-pipeline-actions {
@@ -9149,7 +9150,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   padding: 6px 14px;
   border-radius: 6px;
   border: none;
-  background: #8b5cf6;
+  background: var(--accent-purple);
   color: white;
   font-size: 12px;
   font-weight: 500;
@@ -9189,9 +9190,9 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .task-queue-pipeline-btn {
-  background: rgba(139, 92, 246, 0.15);
-  border-color: rgba(139, 92, 246, 0.3);
-  color: #8b5cf6;
+  background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+  border-color: color-mix(in srgb, var(--accent-purple) 30%, transparent);
+  color: var(--accent-purple);
 }
 
 .task-queue-pipeline-btn:hover {
