@@ -1097,7 +1097,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Welcome modal',
         items: [
           { label: 'Claude CLI', detail: 'The Claude command-line tool must be installed (brew install anthropic/tap/claude) and respond to claude --version within 3 seconds.', icon: 'Terminal' },
-          { label: 'Anthropic auth', detail: 'Claude needs valid credentials at ~/.claude/config.json. Run `claude` once and sign in to set this up.', icon: 'Key' },
+          { label: 'Anthropic auth', detail: 'Claude CLI must be signed in. Run `claude` and follow the login prompt, then verify with `claude auth status`.', icon: 'Key' },
           { label: 'Git user.email', detail: 'Colony commits on your behalf, so git needs a global user.email configured (git config --global user.email "you@example.com").', icon: 'GitBranch' },
           { label: 'GitHub token', detail: 'Optional — enables the PR tab, environment auto-clone, and webhook pipelines. Connect later in Settings > GitHub.', icon: 'Github' },
         ],

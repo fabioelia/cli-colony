@@ -105,41 +105,71 @@ describe('prerequisites', () => {
   })
 
   describe('checkAnthropicAuth', () => {
-    it('returns ok:true when ~/.claude/config.json exists and parses', async () => {
-      mockFs.existsSync.mockImplementation((p: string) =>
-        typeof p === 'string' && p.includes('config.json'))
-      mockFs.readFileSync.mockReturnValue('{"key":"value"}')
+    it('returns ok:true with email when loggedIn is true', async () => {
+      mockSpawn.mockReturnValueOnce(fakeChild(0, '{"loggedIn":true,"email":"user@example.com"}', ''))
       const mod = await loadModule()
-      const result = mod.checkAnthropicAuth()
+      const p = mod.checkAnthropicAuth()
+      await vi.advanceTimersByTimeAsync(10)
+      const result = await p
       expect(result.ok).toBe(true)
-      expect(result.detail).toContain('config.json')
+      expect(result.detail).toBe('user@example.com')
     })
 
-    it('returns ok:true with warning when config exists but is unparseable', async () => {
-      mockFs.existsSync.mockImplementation((p: string) =>
-        typeof p === 'string' && p.includes('config.json'))
-      mockFs.readFileSync.mockReturnValue('{broken json')
+    it('returns ok:true with "authenticated" when no email in response', async () => {
+      mockSpawn.mockReturnValueOnce(fakeChild(0, '{"loggedIn":true}', ''))
       const mod = await loadModule()
-      const result = mod.checkAnthropicAuth()
+      const p = mod.checkAnthropicAuth()
+      await vi.advanceTimersByTimeAsync(10)
+      const result = await p
       expect(result.ok).toBe(true)
-      expect(result.detail).toContain('unparseable')
+      expect(result.detail).toBe('authenticated')
     })
 
-    it('falls back to .credentials.json', async () => {
-      mockFs.existsSync.mockImplementation((p: string) =>
-        typeof p === 'string' && p.includes('.credentials.json'))
-      mockFs.readFileSync.mockReturnValue('{"cred":true}')
+    it('returns ok:false when loggedIn is false', async () => {
+      mockSpawn.mockReturnValueOnce(fakeChild(0, '{"loggedIn":false}', ''))
       const mod = await loadModule()
-      const result = mod.checkAnthropicAuth()
-      expect(result.ok).toBe(true)
-      expect(result.detail).toContain('.credentials.json')
-    })
-
-    it('returns ok:false when no config file exists', async () => {
-      const mod = await loadModule()
-      const result = mod.checkAnthropicAuth()
+      const p = mod.checkAnthropicAuth()
+      await vi.advanceTimersByTimeAsync(10)
+      const result = await p
       expect(result.ok).toBe(false)
-      expect(result.error).toContain('No Claude config')
+      expect(result.error).toContain('not signed in')
+    })
+
+    it('returns ok:true when output is non-JSON but exit 0', async () => {
+      mockSpawn.mockReturnValueOnce(fakeChild(0, 'Logged in as user@example.com\nvia claude.ai', ''))
+      const mod = await loadModule()
+      const p = mod.checkAnthropicAuth()
+      await vi.advanceTimersByTimeAsync(10)
+      const result = await p
+      expect(result.ok).toBe(true)
+      expect(result.detail).toBe('Logged in as user@example.com')
+    })
+
+    it('returns ok:false when CLI not found (ENOENT)', async () => {
+      mockSpawn.mockReturnValueOnce(fakeChild(-1, '', 'ENOENT'))
+      const mod = await loadModule()
+      const p = mod.checkAnthropicAuth()
+      await vi.advanceTimersByTimeAsync(10)
+      const result = await p
+      expect(result.ok).toBe(false)
+      expect(result.error).toContain('not found')
+    })
+
+    it('returns ok:false on timeout', async () => {
+      const handlers: Record<string, Function> = {}
+      const child = {
+        stdout: { on: vi.fn() },
+        stderr: { on: vi.fn() },
+        on: vi.fn((event: string, cb: Function) => { handlers[event] = cb }),
+        kill: vi.fn(),
+      }
+      mockSpawn.mockReturnValueOnce(child)
+      const mod = await loadModule()
+      const p = mod.checkAnthropicAuth()
+      await vi.advanceTimersByTimeAsync(3100)
+      const result = await p
+      expect(result.ok).toBe(false)
+      expect(result.error).toContain('timed out')
     })
   })
 
@@ -214,18 +244,17 @@ describe('prerequisites', () => {
 
   describe('checkAllPrerequisites', () => {
     it('returns ready:true when claude + auth + git all pass', async () => {
+      // Promise.all order: checkClaudeCli, checkAnthropicAuth, checkGitConfig, checkGitHubToken
       // claude --version
       mockSpawn.mockReturnValueOnce(fakeChild(0, 'claude v1.0', ''))
+      // claude auth status
+      mockSpawn.mockReturnValueOnce(fakeChild(0, '{"loggedIn":true,"email":"u@e.com"}', ''))
       // git --version
       mockSpawn.mockReturnValueOnce(fakeChild(0, 'git version 2.40.0', ''))
       // gh auth status (github check)
       mockSpawn.mockReturnValueOnce(fakeChild(0, '', 'Logged in'))
       // git config user.email
       mockSpawn.mockReturnValueOnce(fakeChild(0, 'user@example.com', ''))
-      // Auth is sync (file check)
-      mockFs.existsSync.mockImplementation((p: string) =>
-        typeof p === 'string' && p.includes('config.json'))
-      mockFs.readFileSync.mockReturnValue('{}')
 
       const mod = await loadModule()
       const p = mod.checkAllPrerequisites()
@@ -240,13 +269,11 @@ describe('prerequisites', () => {
 
     it('returns ready:false when claude CLI is missing', async () => {
       mockSpawn
-        .mockReturnValueOnce(fakeChild(127, '', 'ENOENT'))
-        .mockReturnValueOnce(fakeChild(0, 'git version 2.40.0', ''))
-        .mockReturnValueOnce(fakeChild(1, '', ''))
-        .mockReturnValueOnce(fakeChild(0, 'user@example.com', ''))
-      mockFs.existsSync.mockImplementation((p: string) =>
-        typeof p === 'string' && p.includes('config.json'))
-      mockFs.readFileSync.mockReturnValue('{}')
+        .mockReturnValueOnce(fakeChild(127, '', 'ENOENT'))  // claude --version
+        .mockReturnValueOnce(fakeChild(0, '{"loggedIn":true}', ''))  // claude auth status
+        .mockReturnValueOnce(fakeChild(0, 'git version 2.40.0', ''))  // git --version
+        .mockReturnValueOnce(fakeChild(1, '', ''))  // gh auth status
+        .mockReturnValueOnce(fakeChild(0, 'user@example.com', ''))  // git config user.email
 
       const mod = await loadModule()
       const p = mod.checkAllPrerequisites()
@@ -256,15 +283,29 @@ describe('prerequisites', () => {
       expect(result.claude.ok).toBe(false)
     })
 
+    it('returns ready:false when auth fails', async () => {
+      mockSpawn
+        .mockReturnValueOnce(fakeChild(0, 'claude v1.0', ''))  // claude --version
+        .mockReturnValueOnce(fakeChild(0, '{"loggedIn":false}', ''))  // claude auth status
+        .mockReturnValueOnce(fakeChild(0, 'git version 2.40.0', ''))  // git --version
+        .mockReturnValueOnce(fakeChild(0, '', 'Logged in'))  // gh auth status
+        .mockReturnValueOnce(fakeChild(0, 'user@example.com', ''))  // git config user.email
+
+      const mod = await loadModule()
+      const p = mod.checkAllPrerequisites()
+      await vi.advanceTimersByTimeAsync(10)
+      const result = await p
+      expect(result.ready).toBe(false)
+      expect(result.auth.ok).toBe(false)
+    })
+
     it('ready:true even when github is missing (it is optional)', async () => {
       mockSpawn
-        .mockReturnValueOnce(fakeChild(0, 'claude v1.0', ''))
-        .mockReturnValueOnce(fakeChild(0, 'git version 2.40.0', ''))
-        .mockReturnValueOnce(fakeChild(1, '', 'not logged in'))
-        .mockReturnValueOnce(fakeChild(0, 'user@example.com', ''))
-      mockFs.existsSync.mockImplementation((p: string) =>
-        typeof p === 'string' && p.includes('config.json'))
-      mockFs.readFileSync.mockReturnValue('{}')
+        .mockReturnValueOnce(fakeChild(0, 'claude v1.0', ''))  // claude --version
+        .mockReturnValueOnce(fakeChild(0, '{"loggedIn":true}', ''))  // claude auth status
+        .mockReturnValueOnce(fakeChild(0, 'git version 2.40.0', ''))  // git --version
+        .mockReturnValueOnce(fakeChild(1, '', 'not logged in'))  // gh auth status
+        .mockReturnValueOnce(fakeChild(0, 'user@example.com', ''))  // git config user.email
 
       const mod = await loadModule()
       const p = mod.checkAllPrerequisites()

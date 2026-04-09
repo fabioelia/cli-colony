@@ -92,33 +92,32 @@ export async function checkClaudeCli(): Promise<PrerequisiteCheck> {
 }
 
 /**
- * Check that an Anthropic auth config exists. Claude CLI stores credentials in
- * ~/.claude/config.json (or ~/.claude/.credentials.json on newer builds). We
- * accept either as proof of auth setup — parsing the contents is deliberately
- * skipped because the shape is not public API.
+ * Check that the user is authenticated with the Claude CLI by running
+ * `claude auth status`, which outputs JSON with a `loggedIn` boolean.
+ * Falls back gracefully if the CLI is too old to support this subcommand.
  */
-export function checkAnthropicAuth(): PrerequisiteCheck {
-  const home = os.homedir()
-  const candidates = [
-    join(home, '.claude', 'config.json'),
-    join(home, '.claude', '.credentials.json'),
-  ]
-  for (const p of candidates) {
-    if (existsSync(p)) {
-      try {
-        JSON.parse(readFileSync(p, 'utf-8'))
-        return { ok: true, detail: p }
-      } catch {
-        // File exists but isn't valid JSON — still treat as a signal the user
-        // has started Claude CLI at least once, but surface a warning.
-        return { ok: true, detail: `${p} (unparseable, may need refresh)` }
+export async function checkAnthropicAuth(): Promise<PrerequisiteCheck> {
+  const result = await runCommand('claude', ['auth', 'status'])
+  if (result.code === 0 && result.stdout.trim()) {
+    try {
+      const parsed = JSON.parse(result.stdout.trim())
+      if (parsed.loggedIn) {
+        return { ok: true, detail: parsed.email || 'authenticated' }
       }
+      return { ok: false, error: 'Claude CLI installed but not signed in — run `claude` and follow the login prompt' }
+    } catch {
+      // Non-JSON output but exit code 0 — treat as ok
+      return { ok: true, detail: result.stdout.trim().split('\n')[0] }
     }
   }
-  return {
-    ok: false,
-    error: 'No Claude config at ~/.claude/config.json — run `claude` once to sign in',
+  // claude command failed entirely — CLI might be too old or missing
+  if (result.stderr.includes('ENOENT') || result.stderr.includes('not found')) {
+    return { ok: false, error: 'Claude CLI not found — install first (see above)' }
   }
+  if (result.stderr.includes('timeout')) {
+    return { ok: false, error: 'Auth check timed out — run `claude auth status` manually' }
+  }
+  return { ok: false, error: 'Could not check auth — run `claude auth status` manually' }
 }
 
 /**
@@ -172,12 +171,12 @@ export async function checkGitHubToken(): Promise<PrerequisiteCheck> {
  * (claude, auth, git) are all satisfied; github is optional.
  */
 export async function checkAllPrerequisites(): Promise<PrerequisitesStatus> {
-  const [claude, git, github] = await Promise.all([
+  const [claude, auth, git, github] = await Promise.all([
     checkClaudeCli(),
+    checkAnthropicAuth(),
     checkGitConfig(),
     checkGitHubToken(),
   ])
-  const auth = checkAnthropicAuth()
   const status: PrerequisitesStatus = {
     claude,
     auth,
