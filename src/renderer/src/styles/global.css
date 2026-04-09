@@ -10,6 +10,7 @@
   --bg-tertiary: #0f3460;
   --bg-surface: #1e2a4a;
   --bg-hover: rgba(255, 255, 255, 0.06);
+  --bg-active: rgba(255, 255, 255, 0.10);
   --text-primary: #e0e0e0;
   --text-secondary: #a0a0b0;
   --text-muted: #6b6b80;
@@ -14951,7 +14952,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .outputs-row.active {
-  background: var(--bg-active, rgba(99, 102, 241, 0.12));
+  background: var(--bg-active);
 }
 
 .outputs-row-icon {
