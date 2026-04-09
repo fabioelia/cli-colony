@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   CheckCircle2, XCircle, AlertTriangle, Loader2, X as XIcon,
-  Monitor, Server, Bot, Zap, Layers, ChevronDown, ChevronRight,
+  TerminalSquare, Server, Bot, Zap, Layers, ChevronDown, ChevronRight,
 } from 'lucide-react'
 import type { PrerequisitesStatus } from '../../../shared/types'
 
@@ -19,7 +19,7 @@ interface RowProps {
 }
 
 const FEATURES = [
-  { icon: Monitor, title: 'Sessions', desc: 'Run multiple Claude agents side-by-side on your codebase' },
+  { icon: TerminalSquare, title: 'Sessions', desc: 'Run multiple Claude agents side-by-side on your codebase' },
   { icon: Server, title: 'Environments', desc: 'Spin up full dev stacks from templates — backend, frontend, workers, DB' },
   { icon: Bot, title: 'Personas', desc: 'AI agents with persistent memory that run on a schedule' },
   { icon: Zap, title: 'Pipelines', desc: 'Automated workflows triggered by time, git events, or approvals' },
@@ -213,7 +213,7 @@ export default function WelcomeModal({ onClose }: Props): JSX.Element {
             disabled={loading || !ready}
             title={ready
               ? 'Close this modal and start using Colony.'
-              : 'Install the missing prerequisites above first — or click Skip to continue anyway.'}
+              : 'Install the missing prerequisites above first — or click "Skip for now" to continue anyway.'}
           >
             Get started
           </button>
