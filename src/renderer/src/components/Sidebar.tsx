@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, FileDown, GitFork, ChevronDown, ChevronRight, Trophy, BookTemplate, FolderOpen, Crown } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
@@ -16,6 +16,202 @@ import ExternalSessionPopover from './ExternalSessionPopover'
 import { COLORS, formatTime, cliBackendLabel, formatInstanceCmd } from '../lib/constants'
 
 export type SidebarView = 'instances' | 'agents' | 'github' | 'sessions' | 'settings' | 'logs' | 'tasks' | 'pipelines' | 'environments' | 'personas' | 'outputs'
+
+// ---- Memoized per-instance row ----
+
+interface InstanceItemCallbacks {
+  onSelect: (id: string) => void
+  onKill: (id: string) => void
+  onRestart: (id: string) => void
+  onRemove: (id: string) => void
+  onPin: (id: string) => void
+  onUnpin: (id: string) => void
+  onContextMenu: (id: string, x: number, y: number) => void
+  onColorClick: (id: string, e: React.MouseEvent) => void
+  onInfoClick: (id: string, e: React.MouseEvent) => void
+  onStartRename: (inst: ClaudeInstance) => void
+  onCommitRename: () => void
+  onCancelRename: () => void
+  onRenameChange: (v: string) => void
+  onHandoff: (inst: ClaudeInstance) => void
+}
+
+interface InstanceItemProps {
+  inst: ClaudeInstance
+  isActive: boolean
+  shortcutIndex: number | null
+  isUnread: boolean
+  ctxLevel: 'amber' | 'red' | null
+  splitBadge: 'left' | 'right' | 'indicator' | null
+  focusedPane: 'left' | 'right'
+  isRenaming: boolean
+  renameValue: string
+  renameRef: React.RefObject<HTMLInputElement | null>
+  callbacks: InstanceItemCallbacks
+}
+
+function dirName(path: string) {
+  const parts = path.split('/')
+  return parts[parts.length - 1] || path
+}
+
+const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcutIndex, isUnread, ctxLevel, splitBadge, focusedPane, isRenaming, renameValue, renameRef, callbacks }: InstanceItemProps) {
+  return (
+    <div
+      className={`instance-item ${isActive ? 'active' : ''}`}
+      role="button"
+      tabIndex={0}
+      onClick={() => callbacks.onSelect(inst.id)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); callbacks.onSelect(inst.id) } }}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        callbacks.onContextMenu(inst.id, Math.min(e.clientX, window.innerWidth - 200), Math.min(e.clientY, window.innerHeight - 150))
+      }}
+    >
+      {shortcutIndex && (
+        <span className="instance-shortcut" title={`Cmd+${shortcutIndex}`}>{shortcutIndex}</span>
+      )}
+      <div
+        className={`instance-dot clickable ${inst.status === 'running' && inst.activity === 'busy' ? 'pulsing' : ''}`}
+        style={{
+          backgroundColor: inst.color,
+          color: inst.color,
+          opacity: inst.status === 'exited' ? 0.4 : 1,
+        }}
+        onClick={(e) => { e.stopPropagation(); callbacks.onColorClick(inst.id, e) }}
+        title="Change color"
+      />
+      <div className="instance-info">
+        {isRenaming ? (
+          <input
+            ref={renameRef}
+            className="rename-input"
+            value={renameValue}
+            onChange={(e) => callbacks.onRenameChange(e.target.value)}
+            onBlur={callbacks.onCommitRename}
+            onKeyDown={(e) => {
+              e.stopPropagation()
+              if (e.key === 'Enter') callbacks.onCommitRename()
+              if (e.key === 'Escape') callbacks.onCancelRename()
+            }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <>
+          <div className="instance-name">
+            {inst.pinned && <span className="instance-pin-icon" title="Pinned"><Pin size={11} /></span>}
+            {inst.name}
+          </div>
+          {(() => {
+            const badges: Array<{ node: React.ReactNode; label: string }> = []
+            if (splitBadge === 'left')
+              badges.push({ node: <span key="sl" className={`split-badge ${focusedPane === 'left' ? 'focused' : ''}`} title="Left split pane">L</span>, label: 'L' })
+            if (splitBadge === 'right')
+              badges.push({ node: <span key="sr" className={`split-badge ${focusedPane === 'right' ? 'focused' : ''}`} title="Right split pane">R</span>, label: 'R' })
+            if (splitBadge === 'indicator')
+              badges.push({ node: <span key="si" className="split-indicator" title="Split with another session"><Columns2 size={11} /></span>, label: 'split' })
+            if (inst.status === 'running' && inst.activity === 'waiting')
+              badges.push({ node: <span key="at" className="instance-attention-badge" title="Waiting for your input">your turn</span>, label: 'your turn' })
+            else if (isUnread)
+              badges.push({ node: <span key="ur" className="instance-unread-badge" title="New output you haven't seen">new</span>, label: 'new' })
+            if (ctxLevel)
+              badges.push({ node: <button key="cx" className={`instance-ctx-badge ${ctxLevel}`} title={ctxLevel === 'red' ? 'Context near limit · Click to export handoff doc' : 'Context building up · Click to export handoff doc'} onClick={(e) => { e.stopPropagation(); callbacks.onHandoff(inst) }}>ctx</button>, label: `ctx (${ctxLevel})` })
+            if (inst.roleTag) {
+              if (inst.roleTag === 'Coordinator') {
+                badges.push({ node: <span key="ro" className="instance-coordinator-badge" title="Coordinator role — manages worker sessions"><Crown size={14} /></span>, label: 'Coordinator' })
+              } else {
+                badges.push({ node: <span key="ro" className={`instance-role-badge role-${inst.roleTag.toLowerCase()}`} title={`Role: ${inst.roleTag}`}>{ROLE_ABBREV[inst.roleTag] ?? inst.roleTag.slice(0, 4)}</span>, label: inst.roleTag })
+              }
+            }
+            if (inst.mcpServers.length > 0)
+              badges.push({ node: <span key="mc" className="instance-mcp-badge" title={inst.mcpServers.join(', ')}>MCP {inst.mcpServers.length}</span>, label: `MCP ${inst.mcpServers.length}` })
+            if (inst.cliBackend === 'cursor-agent')
+              badges.push({ node: <span key="cl" className="instance-cli-badge" title="CLI for this session">{cliBackendLabel(inst.cliBackend)}</span>, label: cliBackendLabel(inst.cliBackend) })
+            if (inst.pendingSteer)
+              badges.push({ node: <span key="ps" className="instance-steer-badge" title="Steering message queued — will be delivered when session is next idle">Steer</span>, label: 'Steer' })
+            if (badges.length === 0) return null
+            return (
+              <div className="instance-badges">
+                {badges.map(b => b.node)}
+              </div>
+            )
+          })()}
+          </>
+        )}
+        <div className="instance-meta">
+          {inst.parentId && <span className="instance-child-indicator" title="Child session">↳ </span>}
+          {dirName(inst.workingDirectory)}
+          {inst.gitBranch && (
+            <span className="instance-branch-badge" title={`Branch: ${inst.gitBranch}${inst.gitRepo ? ` · ${inst.gitRepo}` : ''}`}>
+              <GitPullRequest size={9} /> {inst.gitBranch}
+            </span>
+          )}
+          {inst.childIds?.length > 0 && <span className="instance-parent-badge" title={`${inst.childIds.length} child session${inst.childIds.length > 1 ? 's' : ''}`}> · {inst.childIds.length} child{inst.childIds.length > 1 ? 'ren' : ''}</span>}
+        </div>
+      </div>
+      <div className="instance-item-right">
+        {inst.status !== 'running' && (
+          <span className={`instance-status ${(inst.exitCode == null || inst.exitCode === 0) ? 'done' : 'exited'}`}>
+            {(inst.exitCode == null || inst.exitCode === 0) ? 'done' : `err ${inst.exitCode}`}
+          </span>
+        )}
+        <div className="instance-item-actions">
+          <Tooltip text="Export Handoff Doc" detail="Generate a markdown snapshot to paste into a new session and restore context">
+            <button aria-label="Export Handoff Doc" onClick={(e) => { e.stopPropagation(); callbacks.onHandoff(inst) }}><FileDown size={13} /></button>
+          </Tooltip>
+          <Tooltip text="Session Info" detail="View command, directory, PID, and MCP servers">
+            <button aria-label="Info" onClick={(e) => { e.stopPropagation(); callbacks.onInfoClick(inst.id, e) }}><Info size={13} /></button>
+          </Tooltip>
+          <Tooltip text="Rename" detail="Change the session display name">
+            <button aria-label="Rename" onClick={(e) => { e.stopPropagation(); callbacks.onStartRename(inst) }}><Pencil size={13} /></button>
+          </Tooltip>
+          <Tooltip text={inst.pinned ? 'Unpin Session' : 'Pin Session'} detail={inst.pinned ? 'Remove from pinned section' : 'Keep at the top of the sidebar'}>
+            <button
+              aria-label={inst.pinned ? 'Unpin' : 'Pin'}
+              onClick={(e) => { e.stopPropagation(); inst.pinned ? callbacks.onUnpin(inst.id) : callbacks.onPin(inst.id) }}
+            >
+              {inst.pinned ? <PinOff size={13} /> : <Pin size={13} />}
+            </button>
+          </Tooltip>
+          {inst.status === 'running' ? (
+            <Tooltip text="Kill Session" detail="Terminate the CLI process for this session">
+              <button className="danger" aria-label="Kill" onClick={(e) => { e.stopPropagation(); callbacks.onKill(inst.id) }}><Square size={13} /></button>
+            </Tooltip>
+          ) : (
+            <>
+              <Tooltip text="Restart" detail="Launch a new session in the same directory">
+                <button aria-label="Restart" onClick={(e) => { e.stopPropagation(); callbacks.onRestart(inst.id) }}><Play size={13} /></button>
+              </Tooltip>
+              <Tooltip text="Remove" detail="Remove this stopped session from the list">
+                <button className="danger" aria-label="Remove" onClick={(e) => { e.stopPropagation(); callbacks.onRemove(inst.id) }}><Trash2 size={13} /></button>
+              </Tooltip>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}, (prev, next) => {
+  // Custom comparator — only re-render when this item's data actually changed
+  const a = prev.inst, b = next.inst
+  return a.id === b.id && a.status === b.status && a.activity === b.activity &&
+    a.name === b.name && a.color === b.color && a.pinned === b.pinned &&
+    a.gitBranch === b.gitBranch && a.roleTag === b.roleTag &&
+    a.exitCode === b.exitCode && a.pendingSteer === b.pendingSteer &&
+    a.mcpServers.length === b.mcpServers.length &&
+    a.cliBackend === b.cliBackend && a.childIds.length === b.childIds.length &&
+    a.workingDirectory === b.workingDirectory && a.parentId === b.parentId &&
+    (a.gitRepo || '') === (b.gitRepo || '') &&
+    prev.isActive === next.isActive &&
+    prev.shortcutIndex === next.shortcutIndex &&
+    prev.isUnread === next.isUnread &&
+    prev.ctxLevel === next.ctxLevel &&
+    prev.splitBadge === next.splitBadge &&
+    prev.focusedPane === next.focusedPane &&
+    prev.isRenaming === next.isRenaming &&
+    prev.renameValue === next.renameValue &&
+    prev.callbacks === next.callbacks
+})
 
 interface Props {
   instances: ClaudeInstance[]
@@ -47,7 +243,7 @@ interface Props {
   onForkSession?: (id: string) => void
 }
 
-export default function Sidebar({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onRestoreAll, restorableCount, unreadIds, outputBytes, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop, forkGroups = [], onForkSession }: Props) {
+function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onRestoreAll, restorableCount, unreadIds, outputBytes, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop, forkGroups = [], onForkSession }: Props) {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [runningEnvCount, setRunningEnvCount] = useState(0)
@@ -55,17 +251,14 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
   const [forkSectionOpen, setForkSectionOpen] = useState(true)
 
   useEffect(() => {
-    const load = () => {
-      window.api.env.list().then(envs => {
-        setRunningEnvCount(envs.filter(e => e.status === 'running' || e.status === 'partial').length)
-      }).catch(() => {})
-    }
-    load()
+    // Load initial count, then rely on push subscription for updates (no polling needed)
+    window.api.env.list().then(envs => {
+      setRunningEnvCount(envs.filter(e => e.status === 'running' || e.status === 'partial').length)
+    }).catch(() => {})
     const unsub = window.api.env.onStatusUpdate((envs) => {
       setRunningEnvCount(envs.filter(e => e.status === 'running' || e.status === 'partial').length)
     })
-    const interval = setInterval(load, 5000)
-    return () => { unsub(); clearInterval(interval) }
+    return unsub
   }, [])
   const [popoverId, setPopoverId] = useState<string | null>(null)
   const [popoverType, setPopoverType] = useState<'color' | 'info' | null>(null)
@@ -134,10 +327,21 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
   const [handoffSummary, setHandoffSummary] = useState<string | null>(null)
   const [handoffSumError, setHandoffSumError] = useState<string | null>(null)
 
+  // Lazy-load session history — defer to avoid blocking initial render
+  const sessionsLoadedRef = useRef(false)
+  const [sessionsReady, setSessionsReady] = useState(false)
   useEffect(() => {
-    window.api.sessions.list(500).then(setSessions)
-    window.api.sessions.external().then(setExternalSessions)
-  }, [])
+    if (view !== 'instances' || sessionsLoadedRef.current) return
+    sessionsLoadedRef.current = true
+    // Defer so initial render completes first
+    const timer = setTimeout(() => {
+      Promise.all([
+        window.api.sessions.list(500).then(setSessions),
+        window.api.sessions.external().then(setExternalSessions),
+      ]).then(() => setSessionsReady(true))
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [view])
 
   useEffect(() => {
     window.api.sessionTemplates.list().then(setTemplates).catch(() => {})
@@ -291,11 +495,6 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
     return `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m`
   }
 
-  const dirName = (path: string) => {
-    const parts = path.split('/')
-    return parts[parts.length - 1] || path
-  }
-
   const filteredSessions = sessionSearch
     ? sessions.filter((s) => {
         const q = sessionSearch.toLowerCase()
@@ -305,173 +504,67 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
       })
     : sessions
 
-  const pinned = instances.filter((i) => i.pinned)
-  const running = instances.filter((i) => i.status === 'running' && !i.pinned)
-  const exited = instances.filter((i) => i.status !== 'running' && !i.pinned)
-  // Visual order for Cmd+N shortcuts
-  const orderedInstances = [...pinned, ...running, ...exited]
-  const instanceIndex = (id: string) => {
-    const idx = orderedInstances.findIndex((i) => i.id === id)
-    return idx >= 0 && idx < 9 ? idx + 1 : null // 1-indexed, max 9
-  }
+  const { pinned, running, exited, orderedInstances } = useMemo(() => {
+    const p = instances.filter((i) => i.pinned)
+    const r = instances.filter((i) => i.status === 'running' && !i.pinned)
+    const e = instances.filter((i) => i.status !== 'running' && !i.pinned)
+    return { pinned: p, running: r, exited: e, orderedInstances: [...p, ...r, ...e] }
+  }, [instances])
 
-  const handleKeyDown = (e: React.KeyboardEvent, action: () => void) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      action()
+  const instanceIndexMap = useMemo(() => {
+    const m = new Map<string, number | null>()
+    for (let idx = 0; idx < orderedInstances.length; idx++) {
+      m.set(orderedInstances[idx].id, idx < 9 ? idx + 1 : null)
     }
-  }
+    return m
+  }, [orderedInstances])
 
-  const ctxLevel = (bytes: number): 'amber' | 'red' | null => {
+  const ctxLevelFor = (bytes: number): 'amber' | 'red' | null => {
     if (bytes >= 600_000) return 'red'
     if (bytes >= 250_000) return 'amber'
     return null
   }
 
-  const renderInstance = (inst: ClaudeInstance) => (
-    <div
-      key={inst.id}
-      className={`instance-item ${inst.id === activeId ? 'active' : ''}`}
-      role="button"
-      tabIndex={0}
-      onClick={() => onSelect(inst.id)}
-      onKeyDown={(e) => handleKeyDown(e, () => onSelect(inst.id))}
-      onContextMenu={(e) => {
-        e.preventDefault()
-        const x = Math.min(e.clientX, window.innerWidth - 200)
-        const y = Math.min(e.clientY, window.innerHeight - 150)
-        setContextMenu({ id: inst.id, x, y })
-      }}
-    >
-      {instanceIndex(inst.id) && (
-        <span className="instance-shortcut" title={`Cmd+${instanceIndex(inst.id)}`}>{instanceIndex(inst.id)}</span>
-      )}
-      <div
-        className={`instance-dot clickable ${inst.status === 'running' && inst.activity === 'busy' ? 'pulsing' : ''}`}
-        style={{
-          backgroundColor: inst.color,
-          color: inst.color,
-          opacity: inst.status === 'exited' ? 0.4 : 1,
-        }}
-        onClick={(e) => {
-          e.stopPropagation()
-          togglePopover(inst.id, 'color', e)
-        }}
-        title="Change color"
+  // Stable callbacks ref for InstanceItem — avoids new objects on every render
+  const itemCallbacksRef = useRef<InstanceItemCallbacks>(null!)
+  if (!itemCallbacksRef.current) {
+    itemCallbacksRef.current = {} as InstanceItemCallbacks
+  }
+  // Update to latest closures every render (ref identity stays stable)
+  Object.assign(itemCallbacksRef.current, {
+    onSelect, onKill, onRestart, onRemove, onPin, onUnpin,
+    onContextMenu: (id: string, x: number, y: number) => setContextMenu({ id, x, y }),
+    onColorClick: (id: string, e: React.MouseEvent) => togglePopover(id, 'color', e),
+    onInfoClick: (id: string, e: React.MouseEvent) => togglePopover(id, 'info', e),
+    onStartRename: startRename,
+    onCommitRename: commitRename,
+    onCancelRename: () => setRenamingId(null),
+    onRenameChange: setRenameValue,
+    onHandoff: (inst: ClaudeInstance) => { setHandoffInst(inst); setHandoffCopied(false) },
+  } satisfies InstanceItemCallbacks)
+
+  const renderItem = (inst: ClaudeInstance) => {
+    const splitBadge: 'left' | 'right' | 'indicator' | null =
+      splitId && inst.id === activeId ? 'left' :
+      splitId && inst.id === splitId ? 'right' :
+      inst.id !== activeId && inst.id !== splitId && splitPairs.has(inst.id) ? 'indicator' : null
+    return (
+      <InstanceItem
+        key={inst.id}
+        inst={inst}
+        isActive={inst.id === activeId}
+        shortcutIndex={instanceIndexMap.get(inst.id) ?? null}
+        isUnread={unreadIds.has(inst.id)}
+        ctxLevel={inst.status === 'running' ? ctxLevelFor(outputBytes.get(inst.id) || 0) : null}
+        splitBadge={splitBadge}
+        focusedPane={focusedPane}
+        isRenaming={renamingId === inst.id}
+        renameValue={renamingId === inst.id ? renameValue : ''}
+        renameRef={renameRef}
+        callbacks={itemCallbacksRef.current}
       />
-      <div className="instance-info">
-        {renamingId === inst.id ? (
-          <input
-            ref={renameRef}
-            className="rename-input"
-            value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
-            onBlur={commitRename}
-            onKeyDown={(e) => {
-              e.stopPropagation()
-              if (e.key === 'Enter') commitRename()
-              if (e.key === 'Escape') setRenamingId(null)
-            }}
-            onClick={(e) => e.stopPropagation()}
-          />
-        ) : (
-          <>
-          <div className="instance-name">
-            {inst.pinned && <span className="instance-pin-icon" title="Pinned"><Pin size={11} /></span>}
-            {inst.name}
-          </div>
-          {(() => {
-            // Build ordered badge list for the dedicated badge row
-            const badges: Array<{ node: React.ReactNode; label: string }> = []
-            if (splitId && inst.id === activeId)
-              badges.push({ node: <span key="sl" className={`split-badge ${focusedPane === 'left' ? 'focused' : ''}`} title="Left split pane">L</span>, label: 'L' })
-            if (splitId && inst.id === splitId)
-              badges.push({ node: <span key="sr" className={`split-badge ${focusedPane === 'right' ? 'focused' : ''}`} title="Right split pane">R</span>, label: 'R' })
-            if (inst.id !== activeId && inst.id !== splitId && splitPairs.has(inst.id))
-              badges.push({ node: <span key="si" className="split-indicator" title="Split with another session"><Columns2 size={11} /></span>, label: 'split' })
-            // "your turn" and "new" both mean "look at this" — show at most one
-            if (inst.status === 'running' && inst.activity === 'waiting')
-              badges.push({ node: <span key="at" className="instance-attention-badge" title="Waiting for your input">your turn</span>, label: 'your turn' })
-            else if (unreadIds.has(inst.id))
-              badges.push({ node: <span key="ur" className="instance-unread-badge" title="New output you haven't seen">new</span>, label: 'new' })
-            const level = inst.status === 'running' ? ctxLevel(outputBytes.get(inst.id) || 0) : null
-            if (level)
-              badges.push({ node: <button key="cx" className={`instance-ctx-badge ${level}`} title={level === 'red' ? 'Context near limit · Click to export handoff doc' : 'Context building up · Click to export handoff doc'} onClick={(e) => { e.stopPropagation(); setHandoffInst(inst); setHandoffCopied(false) }}>ctx</button>, label: `ctx (${level})` })
-            if (inst.roleTag) {
-              if (inst.roleTag === 'Coordinator') {
-                badges.push({ node: <span key="ro" className="instance-coordinator-badge" title="Coordinator role — manages worker sessions"><Crown size={14} /></span>, label: 'Coordinator' })
-              } else {
-                badges.push({ node: <span key="ro" className={`instance-role-badge role-${inst.roleTag.toLowerCase()}`} title={`Role: ${inst.roleTag}`}>{ROLE_ABBREV[inst.roleTag] ?? inst.roleTag.slice(0, 4)}</span>, label: inst.roleTag })
-              }
-            }
-            if (inst.mcpServers.length > 0)
-              badges.push({ node: <span key="mc" className="instance-mcp-badge" title={inst.mcpServers.join(', ')}>MCP {inst.mcpServers.length}</span>, label: `MCP ${inst.mcpServers.length}` })
-            if (inst.cliBackend === 'cursor-agent')
-              badges.push({ node: <span key="cl" className="instance-cli-badge" title="CLI for this session">{cliBackendLabel(inst.cliBackend)}</span>, label: cliBackendLabel(inst.cliBackend) })
-            if (inst.pendingSteer)
-              badges.push({ node: <span key="ps" className="instance-steer-badge" title="Steering message queued — will be delivered when session is next idle">Steer</span>, label: 'Steer' })
-            if (badges.length === 0) return null
-            return (
-              <div className="instance-badges">
-                {badges.map(b => b.node)}
-              </div>
-            )
-          })()}
-          </>
-        )}
-        <div className="instance-meta">
-          {inst.parentId && <span className="instance-child-indicator" title="Child session">↳ </span>}
-          {dirName(inst.workingDirectory)}
-          {inst.gitBranch && (
-            <span className="instance-branch-badge" title={`Branch: ${inst.gitBranch}${inst.gitRepo ? ` · ${inst.gitRepo}` : ''}`}>
-              <GitPullRequest size={9} /> {inst.gitBranch}
-            </span>
-          )}
-          {inst.childIds?.length > 0 && <span className="instance-parent-badge" title={`${inst.childIds.length} child session${inst.childIds.length > 1 ? 's' : ''}`}> · {inst.childIds.length} child{inst.childIds.length > 1 ? 'ren' : ''}</span>}
-        </div>
-      </div>
-      <div className="instance-item-right">
-        {inst.status !== 'running' && (
-          <span className={`instance-status ${(inst.exitCode == null || inst.exitCode === 0) ? 'done' : 'exited'}`}>
-            {(inst.exitCode == null || inst.exitCode === 0) ? 'done' : `err ${inst.exitCode}`}
-          </span>
-        )}
-        <div className="instance-item-actions">
-          <Tooltip text="Export Handoff Doc" detail="Generate a markdown snapshot to paste into a new session and restore context">
-            <button aria-label="Export Handoff Doc" onClick={(e) => { e.stopPropagation(); setHandoffInst(inst); setHandoffCopied(false) }}><FileDown size={13} /></button>
-          </Tooltip>
-          <Tooltip text="Session Info" detail="View command, directory, PID, and MCP servers">
-            <button aria-label="Info" onClick={(e) => { e.stopPropagation(); togglePopover(inst.id, 'info', e) }}><Info size={13} /></button>
-          </Tooltip>
-          <Tooltip text="Rename" detail="Change the session display name">
-            <button aria-label="Rename" onClick={(e) => { e.stopPropagation(); startRename(inst) }}><Pencil size={13} /></button>
-          </Tooltip>
-          <Tooltip text={inst.pinned ? 'Unpin Session' : 'Pin Session'} detail={inst.pinned ? 'Remove from pinned section' : 'Keep at the top of the sidebar'}>
-            <button
-              aria-label={inst.pinned ? 'Unpin' : 'Pin'}
-              onClick={(e) => { e.stopPropagation(); inst.pinned ? onUnpin(inst.id) : onPin(inst.id) }}
-            >
-              {inst.pinned ? <PinOff size={13} /> : <Pin size={13} />}
-            </button>
-          </Tooltip>
-          {inst.status === 'running' ? (
-            <Tooltip text="Kill Session" detail="Terminate the CLI process for this session">
-              <button className="danger" aria-label="Kill" onClick={(e) => { e.stopPropagation(); onKill(inst.id) }}><Square size={13} /></button>
-            </Tooltip>
-          ) : (
-            <>
-              <Tooltip text="Restart" detail="Launch a new session in the same directory">
-                <button aria-label="Restart" onClick={(e) => { e.stopPropagation(); onRestart(inst.id) }}><Play size={13} /></button>
-              </Tooltip>
-              <Tooltip text="Remove" detail="Remove this stopped session from the list">
-                <button className="danger" aria-label="Remove" onClick={(e) => { e.stopPropagation(); onRemove(inst.id) }}><Trash2 size={13} /></button>
-              </Tooltip>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  )
+    )
+  }
 
   return (
     <div className="sidebar" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
@@ -684,13 +777,13 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
         {pinned.length > 0 && (
           <>
             <div className="instance-list-divider">Pinned</div>
-            {pinned.map(renderInstance)}
+            {pinned.map(renderItem)}
           </>
         )}
         {running.length > 0 && (
           <>
             {pinned.length > 0 && <div className="instance-list-divider">Active</div>}
-            {running.map(renderInstance)}
+            {running.map(renderItem)}
           </>
         )}
         {exited.length > 0 && (running.length > 0 || pinned.length > 0) && (
@@ -703,7 +796,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
             )}
           </div>
         )}
-        {exited.map(renderInstance)}
+        {exited.map(renderItem)}
         {instances.length === 0 && (
           <div className="instance-list-empty">No sessions · press Cmd+T or click New Session to start</div>
         )}
@@ -871,7 +964,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
               role="button"
               tabIndex={0}
               onClick={() => onResumeSession(s)}
-              onKeyDown={(e) => handleKeyDown(e, () => onResumeSession(s))}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onResumeSession(s) } }}
               onMouseEnter={(e) => {
                 const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
                 // Clamp so popover doesn't go off-screen bottom
@@ -910,7 +1003,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
               )}
             </div>
           ))}
-          {filteredSessions.length === 0 && (
+          {filteredSessions.length === 0 && sessionsReady && (
             <div className="instance-list-empty">
               {sessionSearch ? 'No matches' : 'No sessions'}
             </div>
@@ -1221,3 +1314,7 @@ export default function Sidebar({ instances, activeId, view, onSelect, onNew, on
     </div>
   )
 }
+
+const Sidebar = React.memo(SidebarInner)
+
+export default Sidebar
