@@ -23,6 +23,8 @@ import QuickPromptDialog from './components/QuickPromptDialog'
 import ForkModal from './components/ForkModal'
 import ArenaLaunchDialog from './components/ArenaLaunchDialog'
 import ArenaLeaderboard from './components/ArenaLeaderboard'
+import { loadPresets } from './components/WorkspacePresets'
+import type { WorkspacePreset } from './components/WorkspacePresets'
 import AppUpdateBanner from './components/AppUpdateBanner'
 import WelcomeModal from './components/WelcomeModal'
 import { stripAnsi } from '../../shared/utils'
@@ -920,6 +922,44 @@ export default function App() {
     }
   }, [activeId, isGrid, splitId, handleExitGrid, handleEnterGrid, handleToggleSplit])
 
+  // Load a workspace preset: restore view, layout, and sidebar width
+  const handleLoadPreset = useCallback((preset: WorkspacePreset) => {
+    setView(preset.view)
+    // Restore sidebar width
+    document.documentElement.style.setProperty('--sidebar-width', preset.sidebarWidth + 'px')
+    localStorage.setItem('sidebar-width', String(preset.sidebarWidth))
+    // Restore layout mode
+    const currentlyGrid = gridPanes.some(p => p !== null)
+    const currentlySplit = !currentlyGrid && splitPairs.size > 0
+    if (preset.layout === '4-up') {
+      if (!currentlyGrid) handleEnterGrid()
+    } else if (preset.layout === '2-up') {
+      if (currentlyGrid) handleExitGrid()
+      if (!splitPairs.has(activeId || '')) handleToggleSplit()
+    } else {
+      // single
+      if (currentlyGrid) handleExitGrid()
+      if (currentlySplit) handleCloseSplitView()
+    }
+  }, [gridPanes, splitPairs, activeId, handleEnterGrid, handleExitGrid, handleToggleSplit, handleCloseSplitView])
+
+  // Cmd+Shift+1-5 for workspace presets
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey) return
+      const num = parseInt(e.key, 10)
+      if (num >= 1 && num <= 5) {
+        e.preventDefault()
+        const presets = loadPresets()
+        if (num - 1 < presets.length) {
+          handleLoadPreset(presets[num - 1])
+        }
+      }
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [handleLoadPreset])
+
   // Direct keyboard handler for zoom (fallback for when menu accelerators don't fire)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -1205,6 +1245,8 @@ export default function App() {
         forkGroups={forkGroups}
         onForkSession={handleForkSession}
         gridPanes={showGrid ? gridPanes : undefined}
+        currentLayout={showGrid ? '4-up' : isSplit ? '2-up' : 'single'}
+        onLoadPreset={handleLoadPreset}
       />
       <div className={`main ${showGrid ? 'grid-4' : isSplit ? 'split' : ''}`}>
         {/* All terminals stay mounted (xterm doesn't support re-open); expensive effects gated on focused prop */}

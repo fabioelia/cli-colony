@@ -13,6 +13,8 @@ const ROLE_ABBREV: Record<string, string> = {
 import Tooltip from './Tooltip'
 import HelpPopover from './HelpPopover'
 import ExternalSessionPopover from './ExternalSessionPopover'
+import WorkspacePresets from './WorkspacePresets'
+import type { WorkspacePreset } from './WorkspacePresets'
 import { COLORS, formatTime, cliBackendLabel, formatInstanceCmd } from '../lib/constants'
 
 export type SidebarView = 'instances' | 'agents' | 'github' | 'sessions' | 'settings' | 'logs' | 'tasks' | 'pipelines' | 'environments' | 'personas' | 'outputs' | 'review'
@@ -242,9 +244,11 @@ interface Props {
   forkGroups?: ForkGroup[]
   onForkSession?: (id: string) => void
   gridPanes?: (string | null)[]
+  currentLayout?: 'single' | '2-up' | '4-up'
+  onLoadPreset?: (preset: WorkspacePreset) => void
 }
 
-function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onRestoreAll, restorableCount, unreadIds, outputBytes, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop, forkGroups = [], onForkSession, gridPanes }: Props) {
+function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onRestoreAll, restorableCount, unreadIds, outputBytes, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop, forkGroups = [], onForkSession, gridPanes, currentLayout = 'single', onLoadPreset }: Props) {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [appVersion, setAppVersion] = useState<string | null>(null)
@@ -1320,6 +1324,13 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             </div>
           )}
         </div>
+        {onLoadPreset && (
+          <WorkspacePresets
+            currentView={view}
+            currentLayout={currentLayout}
+            onLoadPreset={onLoadPreset}
+          />
+        )}
         <Tooltip text="Settings" position="top">
           <button className={`sidebar-footer-btn ${view === 'settings' ? 'active' : ''}`} onClick={() => onViewChange(view === 'settings' ? 'instances' : 'settings')}>
             <Settings size={14} />
