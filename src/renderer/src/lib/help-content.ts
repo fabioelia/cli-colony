@@ -606,7 +606,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'cost_threshold rule', detail: 'Compares estimated action cost against a threshold (e.g. < 0.10). Low-cost formatting or validation runs auto-approve; expensive operations require approval.' },
           { label: 'risk_level rule', detail: 'Infers risk from action type (plan/wait → low, diff_review/session → medium). Match with pipe-separated levels (e.g. low|medium) to auto-approve safe actions.' },
           { label: 'Rule precedence', detail: 'Rules are evaluated in order — first match wins. Disabled rules are skipped.' },
-          { label: 'Auto-approve audit trail', detail: 'Auto-approved actions still appear in the governance audit log for compliance (autoApproved: true).' },
+          { label: 'Auto-approve audit trail', detail: 'Auto-approved actions are logged for compliance (autoApproved: true).' },
         ],
       },
       {

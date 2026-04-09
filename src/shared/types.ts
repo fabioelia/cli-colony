@@ -394,36 +394,6 @@ export interface OutputEntry {
   type: 'brief' | 'artifact'
 }
 
-// Cost governance types (EU AI Act compliance)
-export type CostAuditStatus = 'OK' | 'WARNED' | 'THROTTLED' | 'BLOCKED'
-
-export interface CostQuotaEntry {
-  teamId: string
-  projectId: string
-  agentId?: string
-  hardLimitUsd: number
-  warnThresholdUsd: number
-}
-
-export interface CostQuotas {
-  quotas: CostQuotaEntry[]
-  metadata: {
-    lastUpdated: string
-    version: string
-  }
-}
-
-export interface CostAuditEntry {
-  timestamp: string
-  teamId: string
-  projectId: string
-  agentId?: string
-  sessionId?: string
-  costUsd: number
-  status: CostAuditStatus
-  reason?: string
-}
-
 // Scoped Approval Gate Builder types
 export type ApprovalRuleType = 'file_pattern' | 'cost_threshold' | 'risk_level'
 export type ApprovalRuleAction = 'auto_approve' | 'require_approval' | 'require_escalation'

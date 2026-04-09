@@ -29,7 +29,6 @@ import { registerArenaHandlers } from './ipc/arena-handlers'
 import { registerForkHandlers } from './ipc/fork-handlers'
 import { registerSessionTemplateHandlers } from './ipc/session-template-handlers'
 import { registerOutputsHandlers } from './ipc/outputs-handlers'
-import { registerGovernanceHandlers } from './ipc/governance-handlers'
 import { registerApprovalRulesHandlers } from './ipc/approval-rules-handlers'
 import { registerBatchHandlers } from './ipc/batch-handlers'
 import { registerTeamHandlers } from './ipc/team-handlers'
@@ -56,7 +55,6 @@ export function registerIpcHandlers(): void {
   registerForkHandlers()
   registerSessionTemplateHandlers()
   registerOutputsHandlers()
-  registerGovernanceHandlers()
   registerApprovalRulesHandlers()
   registerBatchHandlers()
   registerTeamHandlers()

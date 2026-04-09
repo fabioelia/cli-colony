@@ -55,8 +55,6 @@ export const colonyPaths = {
   forkGroups: path.join(ROOT, 'fork-groups.json'),
   sessionTemplates: path.join(ROOT, 'session-templates.json'),
   governance: path.join(ROOT, 'governance'),
-  costQuotasJson: path.join(ROOT, 'governance', 'cost-quotas.json'),
-  costAuditLog: path.join(ROOT, 'governance', 'cost-audit.jsonl'),
   approvalRulesJson: path.join(ROOT, 'governance', 'approval-rules.json'),
   onboardingStateJson: path.join(ROOT, 'onboarding-state.json'),
 

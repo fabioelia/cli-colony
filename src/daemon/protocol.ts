@@ -17,9 +17,6 @@ export interface CreateOpts {
   parentId?: string
   cliBackend?: CliBackend
   model?: string
-  // Cost governance context (EU AI Act compliance)
-  teamId?: string
-  projectId?: string
 }
 
 // ---- Client → Daemon requests ----
@@ -59,6 +56,7 @@ export type DaemonEvent =
   | { type: 'exited'; instanceId: string; exitCode: number }
   | { type: 'activity'; instanceId: string; activity: 'busy' | 'waiting' }
   | { type: 'list-changed'; instances: ClaudeInstance[] }
+  | { type: 'comments'; instanceId: string; comments: unknown[] }
   | { type: 'pong' }
 
 export type DaemonMessage = DaemonResponse | DaemonEvent
@@ -70,7 +68,7 @@ export type DaemonMessage = DaemonResponse | DaemonEvent
  * requires a daemon restart to pick up. The client checks this on connect
  * and shows a banner if stale.
  */
-export const DAEMON_VERSION = 18
+export const DAEMON_VERSION = 20
 
 export const SOCKET_PATH_SUFFIX = '.claude-colony/daemon.sock'
 export const PID_PATH_SUFFIX = '.claude-colony/daemon.pid'
