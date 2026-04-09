@@ -4985,10 +4985,6 @@ body:has(.daemon-update-banner) .app-update-banner {
 .replay-event:hover {
   background: var(--bg-hover);
 }
-.replay-event.expanded {
-  background: var(--bg-surface);
-}
-
 .replay-event-header {
   display: flex;
   align-items: center;
@@ -5027,57 +5023,6 @@ body:has(.daemon-update-banner) .app-update-banner {
   gap: 3px;
   font-size: 10px;
   color: var(--text-muted);
-}
-
-.replay-event-chevron {
-  flex-shrink: 0;
-  color: var(--text-muted);
-  transition: transform 0.15s;
-}
-.replay-event-chevron.expanded {
-  transform: rotate(90deg);
-}
-
-.replay-event-body {
-  padding: 0 12px 8px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.replay-event-section {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.replay-event-label {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.replay-event-pre {
-  margin: 0;
-  font-size: 11px;
-  font-family: var(--font-mono, monospace);
-  color: var(--text-primary);
-  background: var(--bg-primary);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 6px 8px;
-  white-space: pre-wrap;
-  word-break: break-all;
-  max-height: 120px;
-  overflow-y: auto;
-}
-
-.replay-event-ts {
-  font-size: 10px;
-  color: var(--text-muted);
-  font-family: var(--font-mono, monospace);
 }
 
 /* ===== Terminal Drag Drop Overlay ===== */

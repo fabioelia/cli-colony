@@ -23,7 +23,6 @@ beforeEach(() => {
       mcp: { list: vi.fn().mockResolvedValue([]), getAuditLog: vi.fn().mockResolvedValue([]) },
       session: { getAttributedCommits: vi.fn().mockResolvedValue([]) },
       sessionTemplates: { list: vi.fn().mockResolvedValue([]) },
-      governance: { getQuotas: vi.fn().mockResolvedValue({ quotas: [] }), auditLog: vi.fn().mockResolvedValue([]) },
       approvalRules: { list: vi.fn().mockResolvedValue([]) },
       onboarding: {
         getState: vi.fn().mockResolvedValue(mockOnboardingState),

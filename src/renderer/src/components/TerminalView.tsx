@@ -573,7 +573,6 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     }
   }, [viewTab, fileTree, loadFileTree])
 
-  // Load replay events when tab switches to replay
   // Load git changes when switching to changes tab
   const loadGitChanges = useCallback(() => {
     if (!instance.dir) return
