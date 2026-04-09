@@ -86,7 +86,7 @@ export default function App() {
     total: { cpu: number; memory: number }
   } | null>(null)
   const [daemonStale, setDaemonStale] = useState(false)
-  const [envPromptRequest, setEnvPromptRequest] = useState<{ requestId: string; envId: string; hookName: string; prompt: string; promptType: string; defaultPath?: string; options?: string[] } | null>(null)
+  const [envPromptRequest, setEnvPromptRequest] = useState<{ requestId: string; envId: string; hookName: string; prompt: string; promptType: string; defaultPath?: string; defaultPathValid?: boolean; options?: string[] } | null>(null)
   const [showWelcome, setShowWelcome] = useState(false)
   const [forkModalInst, setForkModalInst] = useState<ClaudeInstance | null>(null)
   const [forkModalHint, setForkModalHint] = useState('')
@@ -146,18 +146,21 @@ export default function App() {
     return unsub
   }, [])
 
-  // Track unread: output on non-visible terminals marks them unread
-  // Smart dedup: track recent output per instance, only trigger on genuinely new content
+  // Single onOutput listener — handles both unread tracking and output byte counting
   useEffect(() => {
-    const recentOutput = new Map<string, string>() // last seen clean text per instance
-    const novelBytes = new Map<string, number>()   // accumulated novel bytes
+    const recentOutput = new Map<string, string>()
+    const novelBytes = new Map<string, number>()
     const THRESHOLD = 80
 
     const unsub = window.api.instance.onOutput(({ id, data }) => {
+      // Output byte accumulator (cheap — always runs)
+      const acc = outputBytesAccRef.current
+      acc.set(id, (acc.get(id) || 0) + data.length)
+
+      // Unread tracking — skip if user is looking at this instance
       const { activeId: currentActive, view: currentView } = activeViewRef.current
       const isVisible = currentView === 'instances' && id === currentActive
       if (isVisible) {
-        // Reset tracking when user is looking at it
         novelBytes.delete(id)
         recentOutput.delete(id)
         return
@@ -173,25 +176,21 @@ export default function App() {
       // what we've already seen (or vice versa), it's a TUI redraw
       const prev = recentOutput.get(id) || ''
       if (prev.includes(clean) || clean.includes(prev)) {
-        // Redraw — update the snapshot but don't count as novel
         recentOutput.set(id, clean)
         return
       }
 
-      // Check character-level novelty: how many chars in `clean` are NOT in `prev`?
-      // This catches status line updates where only the timer/counter changes
+      // Check character-level novelty
       const prevChars = new Set(prev.split(''))
       let novelCount = 0
       for (const ch of clean) {
         if (!prevChars.has(ch)) novelCount++
       }
-      // If less than 30% of chars are novel, it's a minor update (timer tick, spinner)
       if (clean.length > 10 && novelCount / clean.length < 0.3) {
         recentOutput.set(id, clean)
         return
       }
 
-      // Genuinely new content
       recentOutput.set(id, clean)
       const total = (novelBytes.get(id) || 0) + clean.length
       novelBytes.set(id, total)
@@ -206,7 +205,11 @@ export default function App() {
         })
       }
     })
-    return unsub
+    // Flush accumulated bytes to state every 15s so renders stay infrequent
+    const timer = setInterval(() => {
+      setOutputBytes(new Map(outputBytesAccRef.current))
+    }, 15_000)
+    return () => { unsub(); clearInterval(timer) }
   }, [])
 
   useEffect(() => {
@@ -215,19 +218,6 @@ export default function App() {
       setView('instances')
     })
     return unsub
-  }, [])
-
-  // Track total PTY bytes per session as a proxy for context budget consumption
-  useEffect(() => {
-    const unsub = window.api.instance.onOutput(({ id, data }) => {
-      const acc = outputBytesAccRef.current
-      acc.set(id, (acc.get(id) || 0) + data.length)
-    })
-    // Flush accumulated bytes to state every 15s so renders stay infrequent
-    const timer = setInterval(() => {
-      setOutputBytes(new Map(outputBytesAccRef.current))
-    }, 15_000)
-    return () => { unsub(); clearInterval(timer) }
   }, [])
 
   // Remove stale entries when sessions are removed
@@ -922,24 +912,19 @@ export default function App() {
         }}
       />
       <div className={`main ${isSplit ? 'split' : ''}`}>
-        {/* Only mount visible terminals — hidden instances keep their Terminal alive in terminalsRef */}
-        {regularInstances
-          .filter((inst) => {
-            const isLeft = showTerminal && inst.id === activeId
-            const isRight = isSplit && inst.id === splitId
-            return isLeft || isRight
-          })
-          .map((inst) => {
+        {/* All terminals stay mounted (xterm doesn't support re-open); expensive effects gated on focused prop */}
+        {regularInstances.map((inst) => {
           const isLeft = showTerminal && inst.id === activeId
           const isRight = isSplit && inst.id === splitId
-          const isFocused = (
+          const isVisible = isLeft || isRight
+          const isFocused = isVisible && (
             !isSplit || (isLeft && focusedPane === 'left') || (isRight && focusedPane === 'right')
           )
           return (
             <div
               key={inst.id}
-              className="terminal-wrapper visible"
-              style={isSplit ? {
+              className={`terminal-wrapper ${isVisible ? 'visible' : 'hidden'}`}
+              style={isSplit && isVisible ? {
                 flex: `0 0 calc(${isLeft ? splitRatio * 100 : (1 - splitRatio) * 100}% - 2px)`,
                 order: isLeft ? 0 : 2,
               } : undefined}
@@ -1400,7 +1385,14 @@ export default function App() {
       {/* Environment prompt modal — rendered at app root so it works on any panel */}
       {envPromptRequest && createPortal(
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}
-          onClick={() => { window.api.env.respondToPrompt({ requestId: envPromptRequest.requestId, cancelled: true }); setEnvPromptRequest(null) }}>
+          onClick={() => { window.api.env.respondToPrompt({ requestId: envPromptRequest.requestId, cancelled: true }); setEnvPromptRequest(null) }}
+          onKeyDown={e => {
+            if (e.key === 'Escape') {
+              window.api.env.respondToPrompt({ requestId: envPromptRequest.requestId, cancelled: true }); setEnvPromptRequest(null)
+            } else if (e.key === 'Enter' && envPromptRequest.promptType === 'file' && envPromptRequest.defaultPathValid) {
+              window.api.env.respondToPrompt({ requestId: envPromptRequest.requestId, filePath: envPromptRequest.defaultPath }); setEnvPromptRequest(null)
+            }
+          }}>
           <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 10, padding: 24, width: 460, maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -1418,8 +1410,8 @@ export default function App() {
             {envPromptRequest.promptType === 'file' && (
               <>
                 {envPromptRequest.defaultPath && (
-                  <div style={{ background: 'var(--bg-secondary)', borderRadius: 6, padding: '8px 12px', margin: '0 0 20px', fontSize: 12, color: 'var(--text-muted)', wordBreak: 'break-all' }}>
-                    Default: <code style={{ color: 'var(--text-primary)' }}>{envPromptRequest.defaultPath}</code>
+                  <div style={{ background: 'var(--bg-secondary)', borderRadius: 6, padding: '8px 12px', margin: '0 0 20px', fontSize: 12, color: 'var(--text-muted)', wordBreak: 'break-all', fontFamily: 'monospace' }}>
+                    {envPromptRequest.defaultPath}
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
@@ -1427,7 +1419,7 @@ export default function App() {
                     onClick={() => { window.api.env.respondToPrompt({ requestId: envPromptRequest.requestId, cancelled: true }); setEnvPromptRequest(null) }}>
                     Skip
                   </button>
-                  <button style={{ padding: '7px 16px', borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}
+                  <button style={{ padding: '7px 16px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 13 }}
                     onClick={async () => {
                       const filePath = await window.api.env.pickFile({
                         title: 'Select .env file',
@@ -1441,6 +1433,16 @@ export default function App() {
                     }}>
                     Browse…
                   </button>
+                  {envPromptRequest.defaultPathValid && (
+                    <button style={{ padding: '7px 16px', borderRadius: 6, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}
+                      autoFocus
+                      onClick={() => {
+                        window.api.env.respondToPrompt({ requestId: envPromptRequest.requestId, filePath: envPromptRequest.defaultPath })
+                        setEnvPromptRequest(null)
+                      }}>
+                      Use this file
+                    </button>
+                  )}
                 </div>
               </>
             )}

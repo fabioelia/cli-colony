@@ -198,10 +198,12 @@ export async function runSetup(
             logSetup(`  Auto-selected: ${selectedFile} (found at default path)`)
           } else {
             logSetup(`  Waiting for user to select file...`)
+            const defaultPathValid = !!(hook.defaultPath && fs.existsSync(hook.defaultPath))
             const responsePromise = waitForResponse()
             broadcast('env:prompt-request', {
               requestId, envId, hookName: hook.name,
               prompt: hook.prompt, promptType: 'file', defaultPath: hook.defaultPath,
+              defaultPathValid,
             })
             const response = await responsePromise
             if (response.cancelled || !response.filePath) {
