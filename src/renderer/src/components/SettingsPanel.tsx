@@ -1031,10 +1031,10 @@ export default function SettingsPanel({ onBack }: Props) {
                           padding: '6px 8px',
                           marginTop: '4px',
                           fontSize: '12px',
-                          border: '1px solid var(--border-muted)',
+                          border: '1px solid var(--border)',
                           borderRadius: '4px',
                           backgroundColor: 'var(--bg-secondary)',
-                          color: 'var(--text)',
+                          color: 'var(--text-primary)',
                         }}
                       />
                     </div>
@@ -1048,10 +1048,10 @@ export default function SettingsPanel({ onBack }: Props) {
                           padding: '6px 8px',
                           marginTop: '4px',
                           fontSize: '12px',
-                          border: '1px solid var(--border-muted)',
+                          border: '1px solid var(--border)',
                           borderRadius: '4px',
                           backgroundColor: 'var(--bg-secondary)',
-                          color: 'var(--text)',
+                          color: 'var(--text-primary)',
                         }}
                       >
                         <option value="file_pattern">File Pattern</option>
@@ -1071,10 +1071,10 @@ export default function SettingsPanel({ onBack }: Props) {
                           padding: '6px 8px',
                           marginTop: '4px',
                           fontSize: '12px',
-                          border: '1px solid var(--border-muted)',
+                          border: '1px solid var(--border)',
                           borderRadius: '4px',
                           backgroundColor: 'var(--bg-secondary)',
-                          color: 'var(--text)',
+                          color: 'var(--text-primary)',
                         }}
                       />
                     </div>
@@ -1088,10 +1088,10 @@ export default function SettingsPanel({ onBack }: Props) {
                           padding: '6px 8px',
                           marginTop: '4px',
                           fontSize: '12px',
-                          border: '1px solid var(--border-muted)',
+                          border: '1px solid var(--border)',
                           borderRadius: '4px',
                           backgroundColor: 'var(--bg-secondary)',
-                          color: 'var(--text)',
+                          color: 'var(--text-primary)',
                         }}
                       >
                         <option value="auto_approve">Auto-Approve</option>
@@ -1128,7 +1128,7 @@ export default function SettingsPanel({ onBack }: Props) {
                   <>
                     <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
                       <thead>
-                        <tr style={{ borderBottom: '1px solid var(--border-muted)' }}>
+                        <tr style={{ borderBottom: '1px solid var(--border)' }}>
                           <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600' }}>Name</th>
                           <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600' }}>Type</th>
                           <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600' }}>Condition</th>
@@ -1139,7 +1139,7 @@ export default function SettingsPanel({ onBack }: Props) {
                       </thead>
                       <tbody>
                         {approvalRules.map((rule) => (
-                          <tr key={rule.id} style={{ borderBottom: '1px solid var(--border-muted)' }}>
+                          <tr key={rule.id} style={{ borderBottom: '1px solid var(--border)' }}>
                             <td style={{ padding: '6px 8px' }}>{rule.name}</td>
                             <td style={{ padding: '6px 8px' }}>
                               <span style={{ fontSize: '10px', padding: '2px 6px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '2px' }}>
