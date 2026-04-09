@@ -1,0 +1,137 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+# Only one release build at a time; cancel in-flight if a new push arrives
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check for releasable commits
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      bump: ${{ steps.check.outputs.bump }}
+      new_version: ${{ steps.check.outputs.new_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version bump from commits
+        id: check
+        run: |
+          # Find the last release tag (vX.Y.Z), or use root commit if none
+          LAST_TAG=$(git tag -l 'v*' --sort=-v:refname | head -1)
+          if [ -z "$LAST_TAG" ]; then
+            RANGE="HEAD"
+          else
+            RANGE="${LAST_TAG}..HEAD"
+          fi
+
+          echo "Checking commits in range: $RANGE"
+          COMMITS=$(git log --pretty=format:"%s" $RANGE)
+          echo "$COMMITS"
+
+          BUMP=""
+          # Check for breaking changes first (major bump)
+          if echo "$COMMITS" | grep -qE '^(feat|fix|refactor|perf|ux)!:'; then
+            BUMP="major"
+          # Then features (minor bump)
+          elif echo "$COMMITS" | grep -qE '^feat(\(.+\))?:'; then
+            BUMP="minor"
+          # Then fixes / ux / perf (patch bump)
+          elif echo "$COMMITS" | grep -qE '^(fix|ux|perf)(\(.+\))?:'; then
+            BUMP="patch"
+          fi
+
+          if [ -z "$BUMP" ]; then
+            echo "No releasable commits found — skipping"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Bump type: $BUMP"
+
+          # Read current version from package.json
+          CURRENT=$(node -p "require('./package.json').version")
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+
+          case "$BUMP" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "Version: $CURRENT -> $NEW_VERSION"
+
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
+          echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build & Release (${{ matrix.os }})
+    needs: check
+    if: needs.check.outputs.should_release == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+
+      - name: Set version in package.json
+        run: |
+          node -e "
+            const pkg = require('./package.json');
+            pkg.version = '${{ needs.check.outputs.new_version }}';
+            require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          echo "Building version ${{ needs.check.outputs.new_version }}"
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build app
+        run: npm run build
+
+      - name: Package & publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --mac --publish always
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          LAST_TAG=$(git tag -l 'v*' --sort=-v:refname | head -1)
+          if [ -z "$LAST_TAG" ]; then
+            RANGE="HEAD"
+          else
+            RANGE="${LAST_TAG}..HEAD"
+          fi
+
+          {
+            echo "notes<<NOTES_EOF"
+            git log --pretty=format:"- %s" $RANGE | grep -E '^- (feat|fix|ux|perf)(\(.+\))?[!]?:'
+            echo ""
+            echo "NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Tag release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ needs.check.outputs.new_version }}" -m "Release v${{ needs.check.outputs.new_version }}"
+          git push origin "v${{ needs.check.outputs.new_version }}"

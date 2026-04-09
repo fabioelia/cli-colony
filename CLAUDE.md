@@ -24,6 +24,40 @@ Always run `npx tsc --noEmit` after changes and `npm run build` before testing.
 - `src/renderer/` — React UI. Components in `src/renderer/src/components/`.
 - `src/shared/` — Types and utilities shared between main/renderer/daemon.
 
+## Commit Convention
+
+All commits MUST use [Conventional Commits](https://www.conventionalcommits.org/) format. The CI pipeline reads commit types to decide when to cut a release.
+
+**Format:** `type: short description`
+
+| Type | When to use | Triggers release? |
+|------|-------------|-------------------|
+| `feat:` | New user-facing feature or capability | **Yes** — bumps minor (1.2.0 → 1.3.0) |
+| `fix:` | Bug fix | **Yes** — bumps patch (1.2.0 → 1.2.1) |
+| `ux:` | Visual/UX polish (CSS, layout, copy) | **Yes** — bumps patch |
+| `perf:` | Performance improvement | **Yes** — bumps patch |
+| `refactor:` | Code restructuring, no behavior change | No |
+| `test:` | Adding or updating tests | No |
+| `chore:` | Build, deps, tooling, CI | No |
+| `docs:` | Documentation only | No |
+
+**Rules:**
+- Keep the first line under 72 characters
+- Use imperative mood ("add", "fix", "remove" — not "added", "fixes")
+- Body is optional; use it for context on *why*, not *what*
+- Breaking changes: add `!` after type (e.g., `feat!: redesign pipeline schema`) — bumps major
+- Scope is optional: `feat(pipelines): add cron preview`
+
+**Examples:**
+```
+feat: add fullscreen-aware titlebar padding
+fix: tab clicks swallowed by drag region in fullscreen
+ux: template card shows last-modified badge
+refactor: convert sync FS calls to async in main process
+test: add usePanelTabKeys cycle tests for Cmd+[ / Cmd+]
+chore: add GitHub Actions release workflow
+```
+
 ## Critical Rules
 
 ### Help Content Must Stay in Sync

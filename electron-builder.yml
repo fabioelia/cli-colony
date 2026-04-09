@@ -27,4 +27,4 @@ asarUnpack:
 publish:
   provider: github
   owner: fabioelia
-  repo: claude-electron
+  repo: cli-colony
