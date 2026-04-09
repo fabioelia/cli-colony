@@ -1051,7 +1051,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .preset-save-input {
   flex: 1;
-  background: var(--bg-input);
+  background: var(--bg-primary);
   border: 1px solid var(--border);
   border-radius: 4px;
   color: var(--text-primary);
