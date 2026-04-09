@@ -12634,7 +12634,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .persona-card.disabled {
   opacity: 0.55;
-  border-left-color: #374151;
+  border-left-color: var(--border);
 }
 .persona-card.disabled .persona-card-name {
   color: var(--text-muted);
@@ -12948,7 +12948,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   width: 28px;
   height: 15px;
   border-radius: 999px;
-  background: #374151;
+  background: var(--border-active);
   transition: background 0.2s;
   flex-shrink: 0;
 }
