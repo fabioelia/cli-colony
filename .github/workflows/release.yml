@@ -140,3 +140,12 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag "v${{ needs.check.outputs.new_version }}" -m "Release v${{ needs.check.outputs.new_version }}"
           git push origin "v${{ needs.check.outputs.new_version }}"
+
+      - name: Publish release (draft → public)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "v${{ needs.check.outputs.new_version }}" \
+            --draft=false \
+            --title "v${{ needs.check.outputs.new_version }}" \
+            --notes "${{ steps.notes.outputs.notes }}"
