@@ -2201,8 +2201,8 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                     {artifact.personaName && (
                       <span style={{
                         fontSize: '9px', fontWeight: 600, padding: '1px 5px', borderRadius: '4px',
-                        background: 'rgba(99,102,241,0.15)', color: 'var(--accent)',
-                        border: '1px solid rgba(99,102,241,0.3)',
+                        background: 'rgba(59,130,246,0.15)', color: 'var(--accent)',
+                        border: '1px solid rgba(59,130,246,0.3)',
                       }}>{artifact.personaName}</span>
                     )}
                     {artifact.pipelineRunId && (
