@@ -1224,7 +1224,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .instance-role-badge.role-reviewer     { background: rgba(239, 68, 68, 0.15);  color: var(--danger); }
 .instance-role-badge.role-researcher   { background: rgba(139, 92, 246, 0.15); color: #a78bfa; }
 .instance-role-badge.role-coordinator  { background: rgba(217, 119, 6, 0.15); color: #d97706; }
-.instance-role-badge.role-worker       { background: rgba(107, 114, 128, 0.15); color: #9ca3af; }
+.instance-role-badge.role-worker       { background: rgba(107, 114, 128, 0.15); color: var(--text-secondary); }
 
 .instance-coordinator-badge {
   display: inline-flex;
@@ -11201,7 +11201,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .env-badge-stopped {
   background: rgba(107, 114, 128, 0.15);
-  color: #9ca3af;
+  color: var(--text-secondary);
 }
 
 .env-badge-partial {
@@ -11403,7 +11403,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .env-card-stopped {
-  border-left: 3px solid #4b5563;
+  border-left: 3px solid var(--text-muted);
 }
 
 .env-card-partial {
@@ -12618,7 +12618,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .persona-card {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-left: 3px solid #4b5563;
+  border-left: 3px solid var(--text-muted);
   border-radius: 8px;
   overflow: hidden;
   transition: border-color 0.15s, opacity 0.15s;
@@ -12845,10 +12845,10 @@ body:has(.daemon-update-banner) .app-update-banner {
   animation: pulse 2s infinite;
 }
 .persona-card-status-dot.idle {
-  background: #4b5563;
+  background: var(--text-muted);
 }
 .persona-card-status-dot.disabled {
-  background: #374151;
+  background: var(--text-muted);
   opacity: 0.5;
 }
 
@@ -13316,7 +13316,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .persona-permission-badge.denied {
   background: rgba(107, 114, 128, 0.08);
-  color: #4b5563;
+  color: var(--text-muted);
 }
 
 .persona-session-log {
