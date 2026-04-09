@@ -21,6 +21,11 @@
   --warning: #f59e0b;
   --danger: #ef4444;
   --sidebar-width: 300px;
+  --titlebar-pad: 48px;
+}
+
+body.fullscreen {
+  --titlebar-pad: 8px;
 }
 
 html, body, #root {
@@ -216,7 +221,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .sidebar-header {
-  padding: 44px 8px 12px;
+  padding: var(--titlebar-pad) 8px 12px;
   -webkit-app-region: drag;
   border-bottom: 1px solid var(--border);
 }
@@ -1338,14 +1343,14 @@ body:has(.daemon-update-banner) .app-update-banner {
   top: 0;
   left: 0;
   right: 0;
-  height: 44px;
+  height: var(--titlebar-pad);
   -webkit-app-region: drag;
   z-index: 10;
   pointer-events: auto;
 }
 
 .terminal-header {
-  padding: 48px 16px 8px;
+  padding: var(--titlebar-pad) 16px 8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1367,6 +1372,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   display: flex;
   align-items: center;
   gap: 10px;
+  -webkit-app-region: no-drag;
 }
 
 .terminal-header-name {
@@ -2498,7 +2504,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .agents-panel {
   flex: 1;
   overflow-y: auto;
-  padding: 48px 32px 24px;
+  padding: var(--titlebar-pad) 32px 24px;
 }
 
 .agents-panel-toolbar {
@@ -2824,7 +2830,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .agent-editor-header-area {
-  padding: 44px 80px 0 16px;
+  padding: var(--titlebar-pad) 80px 0 16px;
   background: var(--bg-primary);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
@@ -2914,7 +2920,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .logs-viewer-header {
-  padding: 48px 16px 8px;
+  padding: var(--titlebar-pad) 16px 8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2974,7 +2980,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .settings-panel {
   flex: 1;
   overflow-y: auto;
-  padding: 48px 32px 40px;
+  padding: var(--titlebar-pad) 32px 40px;
   max-width: 560px;
 }
 
@@ -3601,7 +3607,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .sessions-header {
-  padding: 48px 24px 12px;
+  padding: var(--titlebar-pad) 24px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -5136,7 +5142,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .github-panel {
   flex: 1;
   overflow-y: auto;
-  padding: 48px 24px 24px;
+  padding: var(--titlebar-pad) 24px 24px;
 }
 
 .github-panel .settings-header {
@@ -5172,7 +5178,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  padding: 48px 24px;
+  padding: var(--titlebar-pad) 24px;
   color: var(--text-muted);
   text-align: center;
 }
@@ -8233,7 +8239,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 44px 16px 12px;
+  padding: var(--titlebar-pad) 16px 12px;
   gap: 8px;
 }
 
@@ -9209,7 +9215,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 44px 16px 12px;
+  padding: var(--titlebar-pad) 16px 12px;
   gap: 12px;
 }
 
@@ -10244,7 +10250,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .session-deps-header {
-  padding: 44px 16px 0;
+  padding: var(--titlebar-pad) 16px 0;
   border-bottom: 1px solid var(--border);
 }
 
@@ -10757,7 +10763,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   flex-direction: column;
   height: 100%;
   overflow: hidden;
-  padding: 44px 16px 0;
+  padding: var(--titlebar-pad) 16px 0;
 }
 
 /* env-panel-header — replaced by .panel-header */
@@ -12419,7 +12425,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .env-log-header-area {
-  padding: 44px 16px 0;
+  padding: var(--titlebar-pad) 16px 0;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   -webkit-app-region: drag;
@@ -12489,7 +12495,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 44px 16px 12px;
+  padding: var(--titlebar-pad) 16px 12px;
   gap: 12px;
 }
 
@@ -14324,7 +14330,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 /* ── Tasks View wrapper (Queue / Board sub-tabs) ─────────────────────────── */
-.tasks-view-wrapper { display: flex; flex-direction: column; height: 100%; overflow: hidden; padding-top: 44px; -webkit-app-region: drag; }
+.tasks-view-wrapper { display: flex; flex-direction: column; height: 100%; overflow: hidden; padding-top: var(--titlebar-pad); -webkit-app-region: drag; }
 .tasks-view-tabs { display: flex; gap: 2px; padding: 6px 12px 0; border-bottom: 1px solid var(--border); background: var(--bg-secondary); flex-shrink: 0; -webkit-app-region: no-drag; }
 .tasks-view-tab { background: none; border: none; padding: 5px 12px; font-size: 11px; color: var(--text-muted); cursor: pointer; border-radius: 4px 4px 0 0; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .tasks-view-tab:hover { color: var(--text-primary); }
@@ -14413,7 +14419,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .tasks-board-card-footer { display: flex; align-items: center; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
 .tasks-board-card-time { font-size: 10px; color: var(--text-muted); }
 .tasks-board-tag { font-size: 9px; color: var(--accent); background: rgba(59,130,246,0.1); border-radius: 10px; padding: 1px 5px; }
-.tasks-board-source-tag { color: var(--success); background: rgba(52,211,153,0.1); }
+.tasks-board-source-tag { color: var(--success); background: rgba(16,185,129,0.1); }
 
 /* Status move buttons */
 .tasks-board-card-actions { display: flex; flex-wrap: wrap; gap: 4px; }
