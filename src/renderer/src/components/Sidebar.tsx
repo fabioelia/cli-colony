@@ -247,9 +247,14 @@ interface Props {
 function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onRestoreAll, restorableCount, unreadIds, outputBytes, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop, forkGroups = [], onForkSession, gridPanes }: Props) {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [appVersion, setAppVersion] = useState<string | null>(null)
   const [runningEnvCount, setRunningEnvCount] = useState(0)
   const [expandedForkGroups, setExpandedForkGroups] = useState<Set<string>>(new Set())
   const [forkSectionOpen, setForkSectionOpen] = useState(true)
+
+  useEffect(() => {
+    window.api.appUpdate.getStatus().then((s: any) => s?.currentVersion && setAppVersion(s.currentVersion)).catch(() => {})
+  }, [])
 
   useEffect(() => {
     // Load initial count, then rely on push subscription for updates (no polling needed)
@@ -1320,6 +1325,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             <Settings size={14} />
           </button>
         </Tooltip>
+        {appVersion && <span className="sidebar-version">v{appVersion}</span>}
       </div>
     </div>
   )
