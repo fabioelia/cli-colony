@@ -216,6 +216,12 @@ export interface TaskBoardItem {
   created?: string
   updated?: string
   tags?: string[]
+  /** Who created this task — persona ID (e.g. 'colony-developer') or 'user' for manual. */
+  source?: string
+  /** Which project/repo this relates to (e.g. 'claude-electron'). */
+  project?: string
+  /** Absolute path where the work happens. Not displayed, used for filtering. */
+  workingDirectory?: string
 }
 
 /** Inline code annotation emitted by a review agent via COLONY_COMMENT sentinel */

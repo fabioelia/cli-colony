@@ -894,6 +894,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Search', detail: 'Filter tasks by title or description text.', icon: 'Search' },
           { label: 'Priority filter', detail: 'Show only tasks of a specific priority (Critical, High, Medium, Low).' },
           { label: 'Assignee filter', detail: 'Show only tasks assigned to a specific person. Populated from existing task assignees.' },
+          { label: 'Source filter', detail: 'Filter by who created the task — User or a specific persona (e.g. colony-product). Green badge on cards.' },
           { label: 'Clear filters', detail: 'Remove all active filters and show all tasks.' },
         ],
       },
@@ -904,7 +905,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'To Do / In Progress / Blocked / Done', detail: 'All four columns are always visible, even when empty. Each shows a task count in the header.' },
           { label: 'Quick add (+)', detail: 'Click the + icon in a column header to quickly add a task directly to that column.', icon: 'Plus' },
           { label: 'Priority sorting', detail: 'Tasks within each column are sorted by priority (Critical first) then by most recently updated.' },
-          { label: 'Task card', detail: 'Shows priority dot, title (1 line), assignee badge, description preview (2 lines), relative timestamp, and tags. Click to open the detail panel.' },
+          { label: 'Task card', detail: 'Shows priority dot, title (1 line), assignee badge, description preview (2 lines), relative timestamp, tags, source badge (green), and project badge. Click to open the detail panel.' },
         ],
       },
       {

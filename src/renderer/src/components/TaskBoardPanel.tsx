@@ -143,6 +143,7 @@ export default function TaskBoardPanel() {
   const [filterText, setFilterText] = useState('')
   const [filterPriority, setFilterPriority] = useState<'all' | TaskPriority>('all')
   const [filterAssignee, setFilterAssignee] = useState('all')
+  const [filterSource, setFilterSource] = useState('all')
 
   // Detail panel
   const [detailItem, setDetailItem] = useState<TaskBoardItem | null>(null)
@@ -178,6 +179,13 @@ export default function TaskBoardPanel() {
     return Array.from(set).sort()
   }, [items])
 
+  // Unique sources for filter dropdown
+  const sources = useMemo(() => {
+    const set = new Set<string>()
+    items.forEach(i => { if (i.source) set.add(i.source) })
+    return Array.from(set).sort()
+  }, [items])
+
   // Filter + sort
   const filtered = useMemo(() => {
     let result = items
@@ -194,8 +202,11 @@ export default function TaskBoardPanel() {
     if (filterAssignee !== 'all') {
       result = result.filter(i => i.assignee === filterAssignee)
     }
+    if (filterSource !== 'all') {
+      result = result.filter(i => (i.source || 'user') === filterSource)
+    }
     return result
-  }, [items, filterText, filterPriority, filterAssignee])
+  }, [items, filterText, filterPriority, filterAssignee, filterSource])
 
   const grouped = useMemo(() => {
     const g: Record<TaskStatus, TaskBoardItem[]> = { todo: [], in_progress: [], blocked: [], done: [] }
@@ -205,7 +216,7 @@ export default function TaskBoardPanel() {
     return g
   }, [filtered])
 
-  const activeFilterCount = (filterText ? 1 : 0) + (filterPriority !== 'all' ? 1 : 0) + (filterAssignee !== 'all' ? 1 : 0)
+  const activeFilterCount = (filterText ? 1 : 0) + (filterPriority !== 'all' ? 1 : 0) + (filterAssignee !== 'all' ? 1 : 0) + (filterSource !== 'all' ? 1 : 0)
   const activeCount = items.filter(i => i.status !== 'done').length
 
   // Handlers
@@ -266,6 +277,7 @@ export default function TaskBoardPanel() {
     setFilterText('')
     setFilterPriority('all')
     setFilterAssignee('all')
+    setFilterSource('all')
   }
 
   return (
@@ -321,6 +333,17 @@ export default function TaskBoardPanel() {
           >
             <option value="all">All assignees</option>
             {assignees.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+        )}
+        {sources.length > 0 && (
+          <select
+            className="tasks-board-filter-select"
+            value={filterSource}
+            onChange={e => setFilterSource(e.target.value)}
+          >
+            <option value="all">All sources</option>
+            <option value="user">User</option>
+            {sources.filter(s => s !== 'user').map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         )}
         {activeFilterCount > 0 && (
@@ -453,7 +476,7 @@ export default function TaskBoardPanel() {
                     {item.notes && (
                       <div className="tasks-board-card-notes">{item.notes}</div>
                     )}
-                    {/* Footer: relative time + tags */}
+                    {/* Footer: relative time + tags + source/project */}
                     <div className="tasks-board-card-footer">
                       {(item.updated || item.created) && (
                         <span className="tasks-board-card-time">{relativeTime(item.updated || item.created)}</span>
@@ -461,6 +484,8 @@ export default function TaskBoardPanel() {
                       {item.tags?.map(tag => (
                         <span key={tag} className="tasks-board-tag">{tag}</span>
                       ))}
+                      {item.source && <span className="tasks-board-tag tasks-board-source-tag">{item.source}</span>}
+                      {item.project && <span className="tasks-board-tag">{item.project}</span>}
                     </div>
                   </div>
                 ))}
@@ -599,6 +624,24 @@ export default function TaskBoardPanel() {
                     <div className="tasks-board-detail-field-row">
                       <span className="tasks-board-detail-field-label">Assignee</span>
                       <span>{detailItem.assignee}</span>
+                    </div>
+                  )}
+
+                  {/* Source + Project */}
+                  {(detailItem.source || detailItem.project) && (
+                    <div className="tasks-board-detail-field-row">
+                      {detailItem.source && (
+                        <>
+                          <span className="tasks-board-detail-field-label">Source</span>
+                          <span className="tasks-board-tag tasks-board-source-tag">{detailItem.source}</span>
+                        </>
+                      )}
+                      {detailItem.project && (
+                        <>
+                          <span className="tasks-board-detail-field-label">Project</span>
+                          <span className="tasks-board-tag">{detailItem.project}</span>
+                        </>
+                      )}
                     </div>
                   )}
 

@@ -394,6 +394,19 @@ async function buildPlanningPrompt(fm: PersonaFrontmatter, state: PersonaState, 
     ? `## Colony Knowledge\n\n${knowledgeEntries}\n\n`
     : ''
 
+  // Read task board and filter to this persona's assigned tasks
+  let yourTasksSection = ''
+  try {
+    const raw = readFileSync(colonyPaths.taskBoard, 'utf-8')
+    const tasks = JSON.parse(raw)
+    const arr = Array.isArray(tasks) ? tasks : (tasks?.tasks || [])
+    const mine = arr.filter((t: any) => t.assignee === personaId && t.status !== 'done')
+    if (mine.length > 0) {
+      const lines = mine.map((t: any) => `- [${t.status}] ${t.title}${t.priority ? ` (${t.priority})` : ''}${t.notes ? `: ${t.notes.slice(0, 80)}` : ''}`)
+      yourTasksSection = `## Your Tasks\n\nThese tasks are assigned to you on the shared task board:\n${lines.join('\n')}\n\n`
+    }
+  } catch { /* no task board or read error */ }
+
   const whispers = parseWhispers(readFileSync(filePath, 'utf-8'))
   const whispersSection = whispers.length > 0
     ? `## User Notes
@@ -441,7 +454,7 @@ Active Situations, Learnings, and Session Log.
 
 ${await getColonySnapshot()}
 
-${knowledgeSection}${whispersSection}## Planning Loop
+${knowledgeSection}${yourTasksSection}${whispersSection}## Planning Loop
 
 Execute this cycle every session:
 
@@ -523,7 +536,7 @@ actions:
     prompt: "Run the daily check"
 \`\`\`
 
-**Task Queues** — YAML files in \`~/.claude-colony/task-queues/\`. Use \`TaskCreate\` / \`TaskUpdate\` tools to manage in-progress tasks; write new queue YAMLs directly for new workflows.
+**Task Queues** — YAML files in \`~/.claude-colony/task-queues/\`. Write new queue YAMLs directly for batch workflows.
 \`\`\`yaml
 # ~/.claude-colony/task-queues/my-queue.yaml
 name: "My Queue"
@@ -531,6 +544,20 @@ tasks:
   - id: task-1
     prompt: "Do the thing"
 \`\`\`
+
+### Shared Task Board
+
+The colony has a shared task board at \`~/.claude-colony/colony-tasks.json\` visible to all personas and the user. Use it to:
+- Track work items that span multiple sessions (e.g. "implement split view" → todo → in_progress → done)
+- Create tasks for other personas (set \`assignee\` to the target persona ID)
+- Signal blocked work (set \`status: 'blocked'\` with a note explaining why)
+
+When creating tasks, always set:
+- \`source\`: your persona ID (e.g. 'colony-product')
+- \`project\`: the project name (e.g. 'claude-electron')
+- \`priority\`: 'critical' | 'high' | 'medium' | 'low'
+
+Use the TaskCreate tool to add tasks and TaskUpdate to change status/notes.
 
 **Output paths** — Write task results to \`~/.claude-colony/outputs/<task-slug>.md\` so other sessions can find them.
 
