@@ -17,6 +17,7 @@ async function pathExists(p: string): Promise<boolean> {
 import { getEnvDaemonClient, EnvDaemonClient } from './env-daemon-client'
 import { allocatePorts, isPortInUse } from './port-allocator'
 import { removeWorktree, isWorktree, getBareRepoForWorktree, pruneAllBareRepos, migrateReposToBare } from '../shared/git-worktree'
+import { unmountAllForEnv } from './worktree-manager'
 import { buildContext, resolveTemplate as resolveTemplateVars, findUnresolved } from '../shared/template-resolver'
 import { readAndReconcileState, emptyState, writeState } from '../shared/env-state'
 import { addToIndex, removeFromIndex, allEnvDirs } from '../shared/env-index'
@@ -622,19 +623,23 @@ export async function teardownEnvironment(envId: string): Promise<void> {
   } catch { /* continue without slug */ }
 
   // Delegate to the daemon: stops services, waits for them to die, runs hooks, unregisters.
-  // This runs in the daemon process so it doesn't block the Electron main process.
   try {
     await getEnvDaemonClient().teardown(envId)
   } catch (err) {
     console.error(`[env-manager] daemon teardown failed (continuing with cleanup):`, err)
-    // Fallback: try to at least stop + unregister
     try { await getEnvDaemonClient().stop(envId) } catch { /* */ }
     try { await getEnvDaemonClient().unregister(envId) } catch { /* */ }
   }
 
-  // Clean up worktrees before deleting directories.
-  // For each repo subdirectory that is a worktree, remove it from the bare repo's
-  // worktree list and delete the per-env tracking branch.
+  // Unmount standalone worktrees (new system) — worktrees survive env teardown
+  try {
+    await unmountAllForEnv(envId)
+  } catch (err) {
+    console.error(`[env-manager] worktree unmount failed (continuing):`, err)
+  }
+
+  // Clean up legacy in-env worktrees (old system — worktrees inside envDir).
+  // Only removes worktrees that live inside the env directory itself.
   try {
     if (await pathExists(envDir)) {
       const entries = await fsp.readdir(envDir)
@@ -647,20 +652,20 @@ export async function teardownEnvironment(envId: string): Promise<void> {
         if (isWorktree(subdir)) {
           const bareDir = getBareRepoForWorktree(subdir)
           if (bareDir) {
-            console.log(`[env-manager] removing worktree: ${subdir} from ${bareDir}`)
+            console.log(`[env-manager] removing legacy in-env worktree: ${subdir} from ${bareDir}`)
             await removeWorktree(bareDir, subdir, envSlug)
           }
         }
       }
     }
   } catch (err) {
-    console.error(`[env-manager] worktree cleanup failed (continuing with rm):`, err)
+    console.error(`[env-manager] legacy worktree cleanup failed (continuing with rm):`, err)
   }
 
   // Remove from index
   removeFromIndex(envId)
 
-  // Delete files — always runs even if worktree cleanup failed
+  // Delete env directory — only contains config, logs, and legacy worktrees (not standalone ones)
   try {
     await fsp.rm(envDir, { recursive: true, force: true })
   } catch (err) {

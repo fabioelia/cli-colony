@@ -141,24 +141,30 @@ export async function ensureBareRepo(
 }
 
 /**
- * Create a worktree from a bare repo for an environment.
+ * Create a worktree from a bare repo.
  *
- * Creates a per-environment tracking branch: env/<envSlug>/<branch>
- * that tracks origin/<branch>. This avoids git's restriction on two
+ * Creates a tracking branch that avoids git's restriction on two
  * worktrees checking out the same branch.
  *
+ * Branch naming:
+ *   - Standalone worktrees (slug starts with "wt-"): wt/<id>/<branch>
+ *   - Legacy environment worktrees: env/<envSlug>/<branch>
+ *
  * @param bareRepoDir - Path to the bare repo (.git directory)
- * @param worktreePath - Where to create the worktree (the env repo dir)
+ * @param worktreePath - Where to create the worktree
  * @param branch - The remote branch to track (e.g. "develop")
- * @param envSlug - The environment slug for branch naming
+ * @param slug - Identifier for branch naming (env slug or "wt-<id>")
  */
 export async function addWorktree(
   bareRepoDir: string,
   worktreePath: string,
   branch: string,
-  envSlug: string,
+  slug: string,
 ): Promise<void> {
-  const localBranch = `env/${envSlug}/${branch}`
+  // Standalone worktrees use wt/<id>/<branch>; legacy env worktrees use env/<slug>/<branch>
+  const localBranch = slug.startsWith('wt-')
+    ? `wt/${slug.slice(3)}/${branch}`
+    : `env/${slug}/${branch}`
 
   // Ensure the remote branch exists
   try {
@@ -215,16 +221,16 @@ export async function addWorktree(
 
 /**
  * Remove a worktree cleanly. Removes the worktree entry from the bare repo
- * and deletes the per-environment tracking branch.
+ * and deletes the tracking branch.
  *
  * @param bareRepoDir - Path to the bare repo
  * @param worktreePath - Path to the worktree to remove
- * @param envSlug - The environment slug (for branch cleanup)
+ * @param slug - Identifier for branch cleanup (env slug or "wt-<id>")
  */
 export async function removeWorktree(
   bareRepoDir: string,
   worktreePath: string,
-  envSlug?: string,
+  slug?: string,
 ): Promise<void> {
   // Remove the worktree registration
   try {
@@ -236,11 +242,12 @@ export async function removeWorktree(
     } catch { /* non-fatal */ }
   }
 
-  // Clean up the per-env tracking branch
-  if (envSlug) {
+  // Clean up tracking branches
+  if (slug) {
+    // Standalone worktrees: wt/<id>/*; legacy env worktrees: env/<slug>/*
+    const branchPrefix = slug.startsWith('wt-') ? `wt/${slug.slice(3)}` : `env/${slug}`
     try {
-      // Find and delete all branches matching env/<slug>/*
-      const branches = gitExec(`git branch --list "env/${envSlug}/*"`, { cwd: bareRepoDir })
+      const branches = gitExec(`git branch --list "${branchPrefix}/*"`, { cwd: bareRepoDir })
         .trim()
         .split('\n')
         .map(b => b.trim().replace(/^\* /, ''))

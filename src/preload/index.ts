@@ -9,6 +9,7 @@ import type {
   CoordinatorTeam, BatchConfig, BatchRun, TeamMetrics, WorkerStats, TeamMetricsEntry, ContextUsage,
   PendingLaunchRecord, UpdateStatus, UpdateInfo,
   OnboardingState, OnboardingChecklistKey, PrerequisitesStatus,
+  WorktreeInfo,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -22,6 +23,7 @@ export type {
   CoordinatorTeam, BatchConfig, BatchRun, TeamMetrics, WorkerStats, TeamMetricsEntry, ContextUsage,
   PendingLaunchRecord, UpdateStatus, UpdateInfo,
   OnboardingState, OnboardingChecklistKey, PrerequisitesStatus,
+  WorktreeInfo,
 }
 
 
@@ -412,6 +414,16 @@ export interface ClaudeManagerAPI {
   }
   prerequisites: {
     check: () => Promise<PrerequisitesStatus>
+  }
+  worktree: {
+    list: () => Promise<WorktreeInfo[]>
+    get: (id: string) => Promise<WorktreeInfo | null>
+    create: (owner: string, name: string, branch: string, repoAlias: string, remoteUrl?: string) => Promise<WorktreeInfo>
+    mount: (worktreeId: string, envId: string) => Promise<WorktreeInfo>
+    unmount: (worktreeId: string) => Promise<WorktreeInfo>
+    remove: (worktreeId: string) => Promise<boolean>
+    forEnv: (envId: string) => Promise<WorktreeInfo[]>
+    onChanged: (cb: () => void) => () => void
   }
 }
 
@@ -874,6 +886,20 @@ const api: ClaudeManagerAPI = {
   },
   prerequisites: {
     check: () => ipcRenderer.invoke('prerequisites:check'),
+  },
+  worktree: {
+    list: () => ipcRenderer.invoke('worktree:list'),
+    get: (id) => ipcRenderer.invoke('worktree:get', id),
+    create: (owner, name, branch, repoAlias, remoteUrl) => ipcRenderer.invoke('worktree:create', owner, name, branch, repoAlias, remoteUrl),
+    mount: (worktreeId, envId) => ipcRenderer.invoke('worktree:mount', worktreeId, envId),
+    unmount: (worktreeId) => ipcRenderer.invoke('worktree:unmount', worktreeId),
+    remove: (worktreeId) => ipcRenderer.invoke('worktree:remove', worktreeId),
+    forEnv: (envId) => ipcRenderer.invoke('worktree:forEnv', envId),
+    onChanged: (cb) => {
+      const l = () => cb()
+      ipcRenderer.on('worktree:changed', l)
+      return () => ipcRenderer.removeListener('worktree:changed', l)
+    },
   },
 }
 

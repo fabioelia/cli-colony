@@ -51,6 +51,7 @@ export const colonyPaths = {
   taskBoard: path.join(ROOT, 'colony-tasks.json'),
   triggers: path.join(ROOT, 'triggers'),
   bin: path.join(ROOT, 'bin'),
+  worktrees: path.join(ROOT, 'worktrees'),
   forks: path.join(ROOT, 'forks'),
   forkGroups: path.join(ROOT, 'fork-groups.json'),
   sessionTemplates: path.join(ROOT, 'session-templates.json'),
@@ -66,6 +67,9 @@ export const colonyPaths = {
 
   /** Build an environment instance path */
   envDir: (envName: string) => path.join(ROOT, 'environments', envName),
+
+  /** Build a worktree directory path */
+  worktreeDir: (worktreeId: string) => path.join(ROOT, 'worktrees', worktreeId),
 
   /** Build a template file path */
   templateFile: (safeName: string) => path.join(ROOT, 'environment-templates', `${safeName}.json`),

@@ -569,3 +569,22 @@ export interface OnboardingState {
   checklist: Record<OnboardingChecklistKey, boolean>
 }
 
+/** A standalone worktree decoupled from any specific environment. */
+export interface WorktreeInfo {
+  id: string
+  /** Owner/name of the GitHub repo (e.g. "Newton-Research-Inc/newton") */
+  repo: { owner: string; name: string }
+  /** The remote branch this worktree tracks (e.g. "develop") */
+  branch: string
+  /** Absolute path to the worktree directory */
+  path: string
+  /** Absolute path to the bare repo this worktree belongs to */
+  bareRepoPath: string
+  /** ISO timestamp when this worktree was created */
+  createdAt: string
+  /** ID of the environment this worktree is currently mounted to, or null */
+  mountedEnvId: string | null
+  /** Repo alias used in the environment template (e.g. "backend", "frontend") */
+  repoAlias: string
+}
+

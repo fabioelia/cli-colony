@@ -11,6 +11,7 @@ import { exec as nodeExec } from 'child_process'
 import { ipcMain } from 'electron'
 import { getEnvDaemonClient } from './env-daemon-client'
 import { ensureBareRepo, addWorktree } from '../shared/git-worktree'
+import { createWorktree, mountWorktree } from './worktree-manager'
 import { broadcast } from './broadcast'
 import { gitRemoteUrl } from './settings'
 import { loadShellEnv } from '../shared/shell-env'
@@ -83,38 +84,37 @@ export async function runSetup(
   logSetup(`Template: ${template?.name || 'none'}, Branch: ${branch}`)
 
   try {
-    // Phase 1: Create worktrees from bare repos (replaces git clone)
+    // Phase 1: Create standalone worktrees via worktree-manager, then mount to this env
     updateStep('Clone repos', 'running')
+    const mountedWorktrees: Record<string, string> = {} // repoAlias -> worktreeId
     if (template?.repos) {
       for (const repo of template.repos) {
-        const targetDir = manifest.paths[repo.as] || path.join(envDir, repo.name)
-        if (fs.existsSync(targetDir)) continue // already set up
+        const existingDir = manifest.paths[repo.as] || path.join(envDir, repo.name)
+        if (fs.existsSync(existingDir)) continue // already set up (legacy or retry)
 
         const remoteUrl = repo.remoteUrl || await gitRemoteUrl(repo.owner, repo.name)
+        logSetup(`Setting up ${repo.owner}/${repo.name} as standalone worktree...`)
 
-        logSetup(`Setting up ${repo.owner}/${repo.name} as worktree...`)
+        // Create worktree in ~/.claude-colony/worktrees/<id>/<repo-name>/
+        const wtInfo = await createWorktree(repo.owner, repo.name, branch, repo.as, remoteUrl)
+        logSetup(`  Worktree created: ${wtInfo.path} (id: ${wtInfo.id})`)
 
-        // 1. Ensure bare repo exists (shared object store)
-        const bareDir = await ensureBareRepo(repo.owner, repo.name, remoteUrl)
-        logSetup(`  Bare repo ready: ${bareDir}`)
+        // Mount to this environment
+        await mountWorktree(wtInfo.id, envId)
+        mountedWorktrees[repo.as] = wtInfo.id
 
-        // 2. Fetch the target branch
+        // Update manifest paths to point to the worktree's actual location
+        manifest.paths[repo.as] = wtInfo.path
+
+        // Set remote URL in the worktree (ensures push/pull work correctly)
         try {
-          await execAsync(`git fetch origin "${branch}"`, { cwd: bareDir, timeout: 60000 })
-        } catch (fetchErr: any) {
-          logSetup(`  Warning: fetch of branch "${branch}" failed: ${fetchErr.message}`)
-          // Continue -- the branch may already be available from the initial clone
-        }
-
-        // 3. Create worktree with per-env tracking branch
-        await addWorktree(bareDir, targetDir, branch, manifest.name)
-        logSetup(`  Worktree created: ${targetDir} (branch: env/${manifest.name}/${branch})`)
-
-        // 4. Set remote URL in the worktree (ensures push/pull work correctly)
-        try {
-          await execAsync(`git remote set-url origin "${remoteUrl}"`, { cwd: targetDir, timeout: 5000 })
+          await execAsync(`git remote set-url origin "${remoteUrl}"`, { cwd: wtInfo.path, timeout: 5000 })
         } catch { /* ignore -- bare repo already has the correct remote */ }
       }
+    }
+    // Store worktree mount mapping in manifest meta
+    if (Object.keys(mountedWorktrees).length > 0) {
+      manifest.meta = { ...manifest.meta, mountedWorktrees }
     }
     updateStep('Clone repos', 'done')
 
