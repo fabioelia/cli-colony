@@ -4,16 +4,21 @@
  * - Initialises the updater on `app.whenReady()` (called from index.ts).
  * - Runs a daily check when `autoUpdate.enabled !== 'false'` (default on).
  * - Also checks once on window focus, debounced to 6h.
- * - Dev mode (`!app.isPackaged`) is a no-op — just reports back `enabledInEnv: false`.
+ * - Dev mode (`!app.isPackaged`): checks `git fetch` for new commits on origin/main,
+ *   "download" runs `git pull && yarn install`, "install" restarts the process.
  * - Broadcasts status events to the renderer so the banner + settings panel stay live.
  */
 
 import { app } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { autoUpdater } from 'electron-updater'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import { broadcast } from './broadcast'
 import { getSetting, setSetting } from './settings'
 import type { UpdateStatus, UpdateInfo } from '../shared/types'
+
+const execFileAsync = promisify(execFile)
 
 const DAILY_MS = 24 * 60 * 60 * 1000
 const FOCUS_DEBOUNCE_MS = 6 * 60 * 60 * 1000  // 6 hours
@@ -82,20 +87,24 @@ export async function checkForUpdatesManual(): Promise<UpdateStatus> {
  * don't hammer the release server when the user alt-tabs.
  */
 export function checkOnFocus(): void {
-  if (!isAutoUpdateEnabled()) return
   const now = Date.now()
   if (now - lastFocusCheckAt < FOCUS_DEBOUNCE_MS) return
   lastFocusCheckAt = now
-  void runCheck('focus')
+  isAutoUpdateEnabled().then(enabled => {
+    if (enabled) void runCheck('focus')
+  }).catch(() => {})
 }
 
 async function runCheck(source: 'startup' | 'scheduled' | 'focus' | 'manual'): Promise<void> {
+  if (devMode) {
+    await devCheck()
+    return
+  }
   if (!autoUpdaterInstance) {
-    // Dev mode or updater not initialised — just record the attempt
     mergeStatus({
       state: 'not-available',
       lastCheckAt: Date.now(),
-      lastError: status.enabledInEnv ? null : 'Updates disabled in development mode',
+      lastError: 'Updates not available',
     })
     return
   }
@@ -122,7 +131,96 @@ function isBenignNoReleaseError(msg: string): boolean {
   return /404|ENOENT|not found|no published versions|Cannot find latest/i.test(msg)
 }
 
+// ---- Dev-mode git-based updater ----
+
+let devMode = false
+let devRepoDir: string | null = null
+
+async function git(...args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync('git', args, { cwd: devRepoDir! })
+  return stdout.trim()
+}
+
+async function devCheck(): Promise<void> {
+  if (!devRepoDir) return
+  mergeStatus({ state: 'checking', lastError: null })
+  try {
+    await git('fetch', 'origin', 'main', '--quiet')
+    const countStr = await git('rev-list', 'HEAD..origin/main', '--count')
+    const behind = parseInt(countStr, 10) || 0
+    mergeStatus({ lastCheckAt: Date.now() })
+    await setSetting('autoUpdateLastCheckAt', String(Date.now()))
+
+    if (behind === 0) {
+      mergeStatus({ state: 'not-available' })
+      return
+    }
+
+    // Get the latest commit message for release notes
+    const log = await git('log', 'HEAD..origin/main', '--pretty=format:%s', '--reverse')
+    const commits = log.split('\n').filter(Boolean)
+    const notes = commits.map(c => `- ${c}`).join('\n')
+
+    const info: UpdateInfo = {
+      version: `${behind} commit${behind === 1 ? '' : 's'} behind`,
+      releaseNotes: notes,
+    }
+    mergeStatus({ state: 'available', info })
+    broadcast('app:updateAvailable', info)
+  } catch (err: any) {
+    console.warn('[app-updater] dev git check failed:', err?.message)
+    mergeStatus({ state: 'error', lastError: err?.message || String(err), lastCheckAt: Date.now() })
+  }
+}
+
+async function devDownload(): Promise<void> {
+  if (!devRepoDir) return
+  try {
+    mergeStatus({ state: 'downloading', downloadPercent: 0 })
+    // Pull latest
+    mergeStatus({ downloadPercent: 30 })
+    await git('pull', 'origin', 'main', '--ff-only')
+    // Install dependencies
+    mergeStatus({ downloadPercent: 60 })
+    await execFileAsync('yarn', ['install'], { cwd: devRepoDir })
+    mergeStatus({ downloadPercent: 100 })
+
+    const info: UpdateInfo = {
+      version: 'latest',
+      releaseNotes: 'Pulled latest from origin/main and installed dependencies.',
+    }
+    mergeStatus({ state: 'ready', info, downloadPercent: 100 })
+    broadcast('app:updateReady', info)
+  } catch (err: any) {
+    console.error('[app-updater] dev pull failed:', err?.message)
+    mergeStatus({ state: 'error', lastError: err?.message || String(err) })
+  }
+}
+
+function devQuitAndInstall(): void {
+  // Relaunch the electron app — works in dev mode with electron-vite
+  app.relaunch()
+  app.quit()
+}
+
+function initDevUpdater(mainWindow: BrowserWindow | null): void {
+  devMode = true
+  // app.getAppPath() returns the project root in dev (electron-vite)
+  devRepoDir = app.getAppPath()
+
+  if (mainWindow) {
+    mainWindow.on('focus', () => checkOnFocus())
+  }
+
+  // Check on startup (delayed) + schedule periodic checks
+  setTimeout(() => void devCheck(), 10_000)
+  scheduleDailyCheck()
+}
+
+// ---- Shared download/install wrappers ----
+
 export async function downloadUpdate(): Promise<void> {
+  if (devMode) return devDownload()
   if (!autoUpdaterInstance) return
   try {
     mergeStatus({ state: 'downloading', downloadPercent: 0 })
@@ -133,6 +231,7 @@ export async function downloadUpdate(): Promise<void> {
 }
 
 export function quitAndInstall(): void {
+  if (devMode) return devQuitAndInstall()
   if (!autoUpdaterInstance) return
   try {
     autoUpdaterInstance.quitAndInstall()
@@ -155,7 +254,9 @@ export async function initAppUpdater(mainWindow: BrowserWindow | null): Promise<
   if (persistedLast) mergeStatus({ lastCheckAt: persistedLast })
 
   if (!packaged) {
-    console.log('[app-updater] dev mode — auto-update disabled')
+    console.log('[app-updater] dev mode — using git-based update detection')
+    mergeStatus({ enabledInEnv: true })
+    initDevUpdater(mainWindow)
     return
   }
 

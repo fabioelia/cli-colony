@@ -59,19 +59,20 @@ export default function AppUpdateBanner() {
   }
 
   const version = info?.version || 'new version'
+  const isDev = version.includes('commit')
 
   return (
     <div className="app-update-banner">
       {state === 'available' && (
         <>
           <span>
-            <strong>Update available</strong> — v{version} is ready to download.
+            <strong>Update available</strong> — {isDev ? version : `v${version} is ready to download`}.
           </span>
           <button
             onClick={handleDownload}
-            title="Download the update in the background — your sessions keep running"
+            title={isDev ? 'Pull latest from origin/main and run yarn install' : 'Download the update in the background — your sessions keep running'}
           >
-            Download
+            {isDev ? 'Pull & Install' : 'Download'}
           </button>
           <button
             className="app-update-dismiss"
@@ -98,7 +99,7 @@ export default function AppUpdateBanner() {
       {state === 'ready' && (
         <>
           <span>
-            <strong>Update ready</strong> — v{version}. Install and restart to apply.
+            <strong>Update ready</strong> — {isDev ? 'pulled and installed. Restart to apply.' : `v${version}. Install and restart to apply.`}
           </span>
           <button
             onClick={handleInstall}
