@@ -211,7 +211,7 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'PR Cards',
         position: 'Inside expanded repo',
         items: [
-          { label: 'Needs Your Attention', detail: 'Pinned section showing PRs where your review is requested, you are assigned, or your PR has failing CI. Click a row to jump to that PR.', icon: 'AlertCircle' },
+          { label: 'Needs Your Attention', detail: 'Pinned section showing PRs where your review is requested, you are assigned, or your PR has failing CI. Click a row to jump to that PR. Quick action chips below let you summarize status, fix failing CI, or draft review notes in one click.', icon: 'AlertCircle' },
           { label: 'PR row', detail: 'Shows title, author, branch, labels, and review status (approved/changes requested/pending). Age badge (Xd) turns amber after 4 days, red after 7.' },
           { label: 'Ready / Blocked badges', detail: '"Ready" (green) means approved + all checks passed. "Blocked" (red) means changes were requested.' },
           { label: 'Review Requested', detail: 'Amber badge appears when your review is requested on a PR.', icon: 'Eye' },

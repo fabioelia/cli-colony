@@ -167,8 +167,8 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     }
   }, [instances, assistantId])
 
-  const handleAsk = async () => {
-    const q = askInput.trim()
+  const handleAsk = async (directPrompt?: string) => {
+    const q = (directPrompt || askInput).trim()
     if (!q) return
     setAskInput('')
 
@@ -809,6 +809,21 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
               <span className="github-attention-reason">{reason}</span>
             </div>
           ))}
+          <div className="github-attention-actions">
+            <button className="panel-ask-chip" onClick={() => handleAsk('Look at the PRs that need my attention (review-requested, assigned, or failing CI) and give me a brief status summary for each: what\'s blocking, what needs my action, and what\'s close to merging.')}>
+              Summarize status
+            </button>
+            {attentionPRs.some(a => a.reason === 'Your PR has failing CI') && (
+              <button className="panel-ask-chip" onClick={() => handleAsk('Look at my PRs with failing CI checks and diagnose the failures. For each failing PR, tell me what\'s broken and suggest a fix.')}>
+                Fix failing CI
+              </button>
+            )}
+            {attentionPRs.some(a => a.reason === 'Review requested') && (
+              <button className="panel-ask-chip" onClick={() => handleAsk('For each PR where my review is requested, read the diff and comments, then draft review notes I can use — highlight concerns, questions, and whether it\'s ready to approve.')}>
+                Draft review notes
+              </button>
+            )}
+          </div>
         </div>
       )}
 
