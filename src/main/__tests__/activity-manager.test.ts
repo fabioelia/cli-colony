@@ -21,14 +21,15 @@ function buildFsMock(existingEvents: object[] = []) {
     [ACTIVITY_LOG]: JSON.stringify(existingEvents),
   }
   return {
-    existsSync: vi.fn().mockImplementation((p: string) => p in contents),
-    readFileSync: vi.fn().mockImplementation((p: string, _enc?: string) => {
-      if (p in contents) return contents[p]
-      throw new Error(`Unexpected readFileSync: ${p}`)
-    }),
-    writeFileSync: vi.fn().mockImplementation((p: string, data: string) => {
-      contents[p] = data
-    }),
+    promises: {
+      readFile: vi.fn().mockImplementation(async (p: string) => {
+        if (p in contents) return contents[p]
+        throw new Error(`ENOENT: no such file: ${p}`)
+      }),
+      writeFile: vi.fn().mockImplementation(async (p: string, data: string) => {
+        contents[p] = data
+      }),
+    },
   }
 }
 
@@ -61,13 +62,13 @@ describe('activity-manager: appendActivity', () => {
     vi.restoreAllMocks()
   })
 
-  it('appends an event with generated id and timestamp', () => {
+  it('appends an event with generated id and timestamp', async () => {
     const before = Date.now()
-    mod.appendActivity({ source: 'persona', name: 'Colony Developer', summary: 'Colony Developer fired', level: 'info' })
+    await mod.appendActivity({ source: 'persona', name: 'Colony Developer', summary: 'Colony Developer fired', level: 'info' })
     const after = Date.now()
 
-    expect(fsMock.writeFileSync).toHaveBeenCalledOnce()
-    const written = JSON.parse(fsMock.writeFileSync.mock.calls[0][1]) as Array<{
+    expect(fsMock.promises.writeFile).toHaveBeenCalledOnce()
+    const written = JSON.parse(fsMock.promises.writeFile.mock.calls[0][1]) as Array<{
       id: string; timestamp: string; source: string; name: string; summary: string; level: string
     }>
     expect(written).toHaveLength(1)
@@ -81,24 +82,24 @@ describe('activity-manager: appendActivity', () => {
     expect(ts).toBeLessThanOrEqual(after)
   })
 
-  it('writes only the new event when starting from empty log', () => {
-    mod.appendActivity({ source: 'pipeline', name: 'Solo', summary: 'Solo fired', level: 'info' })
-    const written = JSON.parse(fsMock.writeFileSync.mock.calls[0][1])
+  it('writes only the new event when starting from empty log', async () => {
+    await mod.appendActivity({ source: 'pipeline', name: 'Solo', summary: 'Solo fired', level: 'info' })
+    const written = JSON.parse(fsMock.promises.writeFile.mock.calls[0][1])
     expect(written).toHaveLength(1)
     expect(written[0].source).toBe('pipeline')
     expect(written[0].name).toBe('Solo')
   })
 
-  it('increments unreadCount on each append', () => {
+  it('increments unreadCount on each append', async () => {
     expect(mod.getUnreadCount()).toBe(0)
-    mod.appendActivity({ source: 'pipeline', name: 'Pipe', summary: 'Fired', level: 'info' })
+    await mod.appendActivity({ source: 'pipeline', name: 'Pipe', summary: 'Fired', level: 'info' })
     expect(mod.getUnreadCount()).toBe(1)
-    mod.appendActivity({ source: 'env', name: 'work', summary: 'Started', level: 'info' })
+    await mod.appendActivity({ source: 'env', name: 'work', summary: 'Started', level: 'info' })
     expect(mod.getUnreadCount()).toBe(2)
   })
 
-  it('broadcasts activity:new with event and unreadCount', () => {
-    mod.appendActivity({ source: 'persona', name: 'Test', summary: 'Test ran', level: 'info' })
+  it('broadcasts activity:new with event and unreadCount', async () => {
+    await mod.appendActivity({ source: 'persona', name: 'Test', summary: 'Test ran', level: 'info' })
     expect(mockBroadcast).toHaveBeenCalledWith(
       'activity:new',
       expect.objectContaining({
@@ -147,9 +148,9 @@ describe('activity-manager: appendActivity with pre-existing events', () => {
     vi.restoreAllMocks()
   })
 
-  it('appends to existing events', () => {
-    mod.appendActivity({ source: 'env', name: 'work', summary: 'New event', level: 'info' })
-    const written = JSON.parse(fsMock.writeFileSync.mock.calls[0][1])
+  it('appends to existing events', async () => {
+    await mod.appendActivity({ source: 'env', name: 'work', summary: 'New event', level: 'info' })
+    const written = JSON.parse(fsMock.promises.writeFile.mock.calls[0][1])
     expect(written).toHaveLength(3)
     expect(written[0].id).toBe('1-abc')
     expect(written[1].id).toBe('2-def')
@@ -184,24 +185,24 @@ describe('activity-manager: appendActivity ring-buffer trimming', () => {
     vi.restoreAllMocks()
   })
 
-  it('keeps exactly 100 events when adding one to a full log', () => {
-    mod.appendActivity({ source: 'persona', name: 'Colony Dev', summary: 'New', level: 'info' })
-    const written = JSON.parse(fsMock.writeFileSync.mock.calls[0][1])
+  it('keeps exactly 100 events when adding one to a full log', async () => {
+    await mod.appendActivity({ source: 'persona', name: 'Colony Dev', summary: 'New', level: 'info' })
+    const written = JSON.parse(fsMock.promises.writeFile.mock.calls[0][1])
     expect(written).toHaveLength(100)
   })
 
-  it('evicts oldest events from the front', () => {
-    mod.appendActivity({ source: 'persona', name: 'Colony Dev', summary: 'Latest', level: 'info' })
-    const written = JSON.parse(fsMock.writeFileSync.mock.calls[0][1])
+  it('evicts oldest events from the front', async () => {
+    await mod.appendActivity({ source: 'persona', name: 'Colony Dev', summary: 'Latest', level: 'info' })
+    const written = JSON.parse(fsMock.promises.writeFile.mock.calls[0][1])
     // oldest event (id '0-old') should be removed
     expect(written[0].id).toBe('1-old')
     // newest event should be last
     expect(written[99].summary).toBe('Latest')
   })
 
-  it('still increments unreadCount even when trimming', () => {
+  it('still increments unreadCount even when trimming', async () => {
     expect(mod.getUnreadCount()).toBe(0)
-    mod.appendActivity({ source: 'env', name: 'work', summary: 'X', level: 'warn' })
+    await mod.appendActivity({ source: 'env', name: 'work', summary: 'X', level: 'warn' })
     expect(mod.getUnreadCount()).toBe(1)
   })
 })
@@ -220,13 +221,14 @@ describe('activity-manager: listActivity', () => {
 
   it('returns empty array when log file does not exist', async () => {
     const fsMock = {
-      existsSync: vi.fn().mockReturnValue(false),
-      readFileSync: vi.fn(),
-      writeFileSync: vi.fn(),
+      promises: {
+        readFile: vi.fn().mockRejectedValue(new Error('ENOENT')),
+        writeFile: vi.fn(),
+      },
     }
     setupMocks(fsMock)
     mod = await import('../activity-manager')
-    expect(mod.listActivity()).toEqual([])
+    expect(await mod.listActivity()).toEqual([])
   })
 
   it('returns parsed events from log file', async () => {
@@ -236,18 +238,19 @@ describe('activity-manager: listActivity', () => {
     const fsMock = buildFsMock(events)
     setupMocks(fsMock)
     mod = await import('../activity-manager')
-    expect(mod.listActivity()).toEqual(events)
+    expect(await mod.listActivity()).toEqual(events)
   })
 
   it('returns empty array when log file contains invalid JSON', async () => {
     const fsMock = {
-      existsSync: vi.fn().mockReturnValue(true),
-      readFileSync: vi.fn().mockReturnValue('not valid json {{'),
-      writeFileSync: vi.fn(),
+      promises: {
+        readFile: vi.fn().mockResolvedValue('not valid json {{'),
+        writeFile: vi.fn(),
+      },
     }
     setupMocks(fsMock)
     mod = await import('../activity-manager')
-    expect(mod.listActivity()).toEqual([])
+    expect(await mod.listActivity()).toEqual([])
   })
 
   it('returns multiple events in order', async () => {
@@ -259,7 +262,7 @@ describe('activity-manager: listActivity', () => {
     const fsMock = buildFsMock(events)
     setupMocks(fsMock)
     mod = await import('../activity-manager')
-    const result = mod.listActivity()
+    const result = await mod.listActivity()
     expect(result).toHaveLength(3)
     expect(result[0].summary).toBe('First')
     expect(result[2].summary).toBe('Third')
@@ -285,16 +288,16 @@ describe('activity-manager: getUnreadCount', () => {
     expect(mod.getUnreadCount()).toBe(0)
   })
 
-  it('returns correct count after multiple appends', () => {
-    mod.appendActivity({ source: 'pipeline', name: 'Pipe', summary: 'A', level: 'info' })
-    mod.appendActivity({ source: 'pipeline', name: 'Pipe', summary: 'B', level: 'info' })
-    mod.appendActivity({ source: 'pipeline', name: 'Pipe', summary: 'C', level: 'info' })
+  it('returns correct count after multiple appends', async () => {
+    await mod.appendActivity({ source: 'pipeline', name: 'Pipe', summary: 'A', level: 'info' })
+    await mod.appendActivity({ source: 'pipeline', name: 'Pipe', summary: 'B', level: 'info' })
+    await mod.appendActivity({ source: 'pipeline', name: 'Pipe', summary: 'C', level: 'info' })
     expect(mod.getUnreadCount()).toBe(3)
   })
 
-  it('returns 0 after markRead resets counter', () => {
-    mod.appendActivity({ source: 'persona', name: 'ColDev', summary: 'X', level: 'info' })
-    mod.appendActivity({ source: 'persona', name: 'ColDev', summary: 'Y', level: 'info' })
+  it('returns 0 after markRead resets counter', async () => {
+    await mod.appendActivity({ source: 'persona', name: 'ColDev', summary: 'X', level: 'info' })
+    await mod.appendActivity({ source: 'persona', name: 'ColDev', summary: 'Y', level: 'info' })
     expect(mod.getUnreadCount()).toBe(2)
     mod.markRead()
     expect(mod.getUnreadCount()).toBe(0)
@@ -316,15 +319,15 @@ describe('activity-manager: markRead', () => {
     vi.restoreAllMocks()
   })
 
-  it('resets unreadCount to 0', () => {
-    mod.appendActivity({ source: 'env', name: 'work', summary: 'Env started', level: 'info' })
-    mod.appendActivity({ source: 'env', name: 'work', summary: 'Env stopped', level: 'warn' })
+  it('resets unreadCount to 0', async () => {
+    await mod.appendActivity({ source: 'env', name: 'work', summary: 'Env started', level: 'info' })
+    await mod.appendActivity({ source: 'env', name: 'work', summary: 'Env stopped', level: 'warn' })
     mod.markRead()
     expect(mod.getUnreadCount()).toBe(0)
   })
 
-  it('broadcasts activity:unread with count 0', () => {
-    mod.appendActivity({ source: 'pipeline', name: 'Pipe', summary: 'Fired', level: 'info' })
+  it('broadcasts activity:unread with count 0', async () => {
+    await mod.appendActivity({ source: 'pipeline', name: 'Pipe', summary: 'Fired', level: 'info' })
     mockBroadcast.mockReset()
     mod.markRead()
     expect(mockBroadcast).toHaveBeenCalledOnce()
@@ -338,10 +341,10 @@ describe('activity-manager: markRead', () => {
     expect(mockBroadcast).toHaveBeenCalledTimes(2)
   })
 
-  it('after markRead, new appends increment from 0 again', () => {
-    mod.appendActivity({ source: 'persona', name: 'ColDev', summary: 'Before', level: 'info' })
+  it('after markRead, new appends increment from 0 again', async () => {
+    await mod.appendActivity({ source: 'persona', name: 'ColDev', summary: 'Before', level: 'info' })
     mod.markRead()
-    mod.appendActivity({ source: 'persona', name: 'ColDev', summary: 'After', level: 'info' })
+    await mod.appendActivity({ source: 'persona', name: 'ColDev', summary: 'After', level: 'info' })
     expect(mod.getUnreadCount()).toBe(1)
   })
 })
@@ -353,11 +356,10 @@ describe('activity-manager: appendActivity with fs write failure', () => {
     vi.resetModules()
     mockBroadcast.mockReset()
     const fsMock = {
-      existsSync: vi.fn().mockReturnValue(false),
-      readFileSync: vi.fn(),
-      writeFileSync: vi.fn().mockImplementation(() => {
-        throw new Error('ENOSPC: no space left on device')
-      }),
+      promises: {
+        readFile: vi.fn().mockRejectedValue(new Error('ENOENT')),
+        writeFile: vi.fn().mockRejectedValue(new Error('ENOSPC: no space left on device')),
+      },
     }
     setupMocks(fsMock)
     mod = await import('../activity-manager')
@@ -367,19 +369,19 @@ describe('activity-manager: appendActivity with fs write failure', () => {
     vi.restoreAllMocks()
   })
 
-  it('does not throw when writeFileSync fails', () => {
-    expect(() =>
+  it('does not throw when writeFile fails', async () => {
+    await expect(
       mod.appendActivity({ source: 'pipeline', name: 'Pipe', summary: 'Test', level: 'info' })
-    ).not.toThrow()
+    ).resolves.not.toThrow()
   })
 
-  it('still increments unreadCount even if write fails', () => {
-    mod.appendActivity({ source: 'pipeline', name: 'Pipe', summary: 'Test', level: 'info' })
+  it('still increments unreadCount even if write fails', async () => {
+    await mod.appendActivity({ source: 'pipeline', name: 'Pipe', summary: 'Test', level: 'info' })
     expect(mod.getUnreadCount()).toBe(1)
   })
 
-  it('still broadcasts activity:new even if write fails', () => {
-    mod.appendActivity({ source: 'pipeline', name: 'Pipe', summary: 'Test', level: 'info' })
+  it('still broadcasts activity:new even if write fails', async () => {
+    await mod.appendActivity({ source: 'pipeline', name: 'Pipe', summary: 'Test', level: 'info' })
     expect(mockBroadcast).toHaveBeenCalledWith('activity:new', expect.any(Object))
   })
 })

@@ -143,27 +143,28 @@ const mockGetAllRepoConfigs = vi.fn(() => [])
 
 function buildFsMock(fileNames: string[], fileContents: Record<string, string>, stateJson?: string) {
   return {
-    existsSync: vi.fn().mockImplementation((p: string) => {
-      if (p === PIPELINES_DIR) return true
-      if (p === STATE_PATH) return stateJson !== undefined
-      return false
-    }),
-    readFileSync: vi.fn().mockImplementation((p: string, _enc?: string) => {
-      if (p === STATE_PATH) return stateJson ?? '{}'
-      const key = Object.keys(fileContents).find(k => p.endsWith(k))
-      if (key) return fileContents[key]
-      throw new Error(`Unexpected readFileSync: ${p}`)
-    }),
-    writeFileSync: vi.fn(),
-    mkdirSync: vi.fn(),
-    readdirSync: vi.fn().mockImplementation((p: string) => {
-      if (p === PIPELINES_DIR) return fileNames
-      return []
-    }),
-    appendFileSync: vi.fn(),
-    statSync: vi.fn().mockImplementation((p: string) => {
-      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
-    }),
+    promises: {
+      access: vi.fn().mockImplementation(async (p: string) => {
+        if (p === PIPELINES_DIR) return
+        if (p === STATE_PATH && stateJson !== undefined) return
+        throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
+      }),
+      readFile: vi.fn().mockImplementation(async (p: string, _enc?: string) => {
+        if (p === STATE_PATH) return stateJson ?? '{}'
+        const key = Object.keys(fileContents).find(k => p.endsWith(k))
+        if (key) return fileContents[key]
+        throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
+      }),
+      writeFile: vi.fn().mockResolvedValue(undefined),
+      mkdir: vi.fn().mockResolvedValue(undefined),
+      readdir: vi.fn().mockImplementation(async (p: string) => {
+        if (p === PIPELINES_DIR) return fileNames
+        return []
+      }),
+      stat: vi.fn().mockImplementation(async (p: string) => {
+        throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
+      }),
+    },
   }
 }
 
@@ -193,7 +194,7 @@ describe('fireWebhookPipeline', () => {
     vi.doMock('../notifications', () => ({ notify: vi.fn() }))
 
     const { loadPipelines, fireWebhookPipeline } = await import('../pipeline-engine')
-    loadPipelines()
+    await loadPipelines()
 
     const result = fireWebhookPipeline('nonexistent-slug', { test: true })
     expect(result.ok).toBe(false)
@@ -222,7 +223,7 @@ describe('fireWebhookPipeline', () => {
     vi.doMock('../notifications', () => ({ notify: vi.fn() }))
 
     const { loadPipelines, fireWebhookPipeline } = await import('../pipeline-engine')
-    loadPipelines()
+    await loadPipelines()
 
     // The slug for "My CI Webhook" should be "my-ci-webhook"
     const result = fireWebhookPipeline('my-ci-webhook', { action: 'opened', pull_request: { title: 'Fix bug', number: 1 } })
@@ -250,7 +251,7 @@ describe('fireWebhookPipeline', () => {
     vi.doMock('../notifications', () => ({ notify: vi.fn() }))
 
     const { loadPipelines, getWebhookTriggers } = await import('../pipeline-engine')
-    loadPipelines()
+    await loadPipelines()
 
     const triggers = getWebhookTriggers()
     expect(triggers).toHaveLength(1)

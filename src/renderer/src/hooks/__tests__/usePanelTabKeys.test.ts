@@ -160,10 +160,16 @@ describe('computeTabKeyAction', () => {
     expect(typed.stopPropagation).not.toHaveBeenCalled()
   })
 
-  it('does NOT fire without the Shift modifier', () => {
-    const e = makeEvent({ meta: true, key: '{' })
-    expect(computeTabKeyAction(e, tabs, 'session')).toBeNull()
-    expect(e.preventDefault).not.toHaveBeenCalled()
+  it('advances on Cmd+] (no Shift — macOS Electron variant)', () => {
+    const e = makeEvent({ meta: true, shift: false, key: ']' })
+    expect(computeTabKeyAction(e, tabs, 'session')).toBe('shell')
+    expect(e.preventDefault).toHaveBeenCalledTimes(1)
+  })
+
+  it('moves back on Cmd+[ (no Shift — macOS Electron variant)', () => {
+    const e = makeEvent({ meta: true, shift: false, key: '[' })
+    expect(computeTabKeyAction(e, tabs, 'shell')).toBe('session')
+    expect(e.preventDefault).toHaveBeenCalledTimes(1)
   })
 
   it('does NOT fire without Cmd or Ctrl', () => {

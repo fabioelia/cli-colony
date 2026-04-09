@@ -82,92 +82,92 @@ describe('resolvePrompt', () => {
   })
 
   describe('pr.status computed field', () => {
-    it('sets status to "draft" for draft PRs', () => {
-      const result = resolvePrompt(makePrompt('{{pr.status}}'), makePR({ draft: true, state: 'open' }), makeRepo())
+    it('sets status to "draft" for draft PRs', async () => {
+      const result = await resolvePrompt(makePrompt('{{pr.status}}'), makePR({ draft: true, state: 'open' }), makeRepo())
       expect(result).toBe('draft')
     })
 
-    it('sets status to the PR state for non-draft PRs', () => {
-      const result = resolvePrompt(makePrompt('{{pr.status}}'), makePR({ draft: false, state: 'open' }), makeRepo())
+    it('sets status to the PR state for non-draft PRs', async () => {
+      const result = await resolvePrompt(makePrompt('{{pr.status}}'), makePR({ draft: false, state: 'open' }), makeRepo())
       expect(result).toBe('open')
     })
 
-    it('sets status to "merged" for merged non-draft PRs', () => {
-      const result = resolvePrompt(makePrompt('{{pr.status}}'), makePR({ draft: false, state: 'merged' }), makeRepo())
+    it('sets status to "merged" for merged non-draft PRs', async () => {
+      const result = await resolvePrompt(makePrompt('{{pr.status}}'), makePR({ draft: false, state: 'merged' }), makeRepo())
       expect(result).toBe('merged')
     })
   })
 
   describe('pr.assignees / reviewers / labels formatting', () => {
-    it('formats empty assignees as "none"', () => {
-      const result = resolvePrompt(makePrompt('{{pr.assignees}}'), makePR({ assignees: [] }), makeRepo())
+    it('formats empty assignees as "none"', async () => {
+      const result = await resolvePrompt(makePrompt('{{pr.assignees}}'), makePR({ assignees: [] }), makeRepo())
       expect(result).toBe('none')
     })
 
-    it('joins multiple assignees with ", "', () => {
-      const result = resolvePrompt(makePrompt('{{pr.assignees}}'), makePR({ assignees: ['alice', 'bob'] }), makeRepo())
+    it('joins multiple assignees with ", "', async () => {
+      const result = await resolvePrompt(makePrompt('{{pr.assignees}}'), makePR({ assignees: ['alice', 'bob'] }), makeRepo())
       expect(result).toBe('alice, bob')
     })
 
-    it('formats empty reviewers as "none"', () => {
-      const result = resolvePrompt(makePrompt('{{pr.reviewers}}'), makePR({ reviewers: [] }), makeRepo())
+    it('formats empty reviewers as "none"', async () => {
+      const result = await resolvePrompt(makePrompt('{{pr.reviewers}}'), makePR({ reviewers: [] }), makeRepo())
       expect(result).toBe('none')
     })
 
-    it('joins multiple reviewers with ", "', () => {
-      const result = resolvePrompt(makePrompt('{{pr.reviewers}}'), makePR({ reviewers: ['carol', 'dave'] }), makeRepo())
+    it('joins multiple reviewers with ", "', async () => {
+      const result = await resolvePrompt(makePrompt('{{pr.reviewers}}'), makePR({ reviewers: ['carol', 'dave'] }), makeRepo())
       expect(result).toBe('carol, dave')
     })
 
-    it('formats empty labels as "none"', () => {
-      const result = resolvePrompt(makePrompt('{{pr.labels}}'), makePR({ labels: [] }), makeRepo())
+    it('formats empty labels as "none"', async () => {
+      const result = await resolvePrompt(makePrompt('{{pr.labels}}'), makePR({ labels: [] }), makeRepo())
       expect(result).toBe('none')
     })
 
-    it('joins multiple labels with ", "', () => {
-      const result = resolvePrompt(makePrompt('{{pr.labels}}'), makePR({ labels: ['bug', 'urgent'] }), makeRepo())
+    it('joins multiple labels with ", "', async () => {
+      const result = await resolvePrompt(makePrompt('{{pr.labels}}'), makePR({ labels: ['bug', 'urgent'] }), makeRepo())
       expect(result).toBe('bug, urgent')
     })
   })
 
   describe('pr.reviewDecision', () => {
-    it('defaults to "none" when reviewDecision is empty string', () => {
-      const result = resolvePrompt(makePrompt('{{pr.reviewDecision}}'), makePR({ reviewDecision: '' }), makeRepo())
+    it('defaults to "none" when reviewDecision is empty string', async () => {
+      const result = await resolvePrompt(makePrompt('{{pr.reviewDecision}}'), makePR({ reviewDecision: '' }), makeRepo())
       expect(result).toBe('none')
     })
 
-    it('passes through a non-empty reviewDecision', () => {
-      const result = resolvePrompt(makePrompt('{{pr.reviewDecision}}'), makePR({ reviewDecision: 'APPROVED' }), makeRepo())
+    it('passes through a non-empty reviewDecision', async () => {
+      const result = await resolvePrompt(makePrompt('{{pr.reviewDecision}}'), makePR({ reviewDecision: 'APPROVED' }), makeRepo())
       expect(result).toBe('APPROVED')
     })
   })
 
   describe('pr.description', () => {
-    it('sets description to empty string when body is empty', () => {
-      const result = resolvePrompt(makePrompt('{{pr.description}}'), makePR({ body: '' }), makeRepo())
+    it('sets description to empty string when body is empty', async () => {
+      const result = await resolvePrompt(makePrompt('{{pr.description}}'), makePR({ body: '' }), makeRepo())
       expect(result).toBe('')
     })
 
-    it('sets description to the PR body', () => {
-      const result = resolvePrompt(makePrompt('{{pr.description}}'), makePR({ body: 'Fixes the bug.' }), makeRepo())
+    it('sets description to the PR body', async () => {
+      const result = await resolvePrompt(makePrompt('{{pr.description}}'), makePR({ body: 'Fixes the bug.' }), makeRepo())
       expect(result).toBe('Fixes the bug.')
     })
   })
 
   describe('repo context', () => {
-    it('calls gitRemoteUrl with repo owner and name', () => {
-      resolvePrompt(makePrompt('{{repo.remoteUrl}}'), makePR(), makeRepo({ owner: 'acme', name: 'app' }))
+    it('calls gitRemoteUrl with repo owner and name', async () => {
+      await resolvePrompt(makePrompt('{{repo.remoteUrl}}'), makePR(), makeRepo({ owner: 'acme', name: 'app' }))
       expect(mockGitRemoteUrl).toHaveBeenCalledWith('acme', 'app')
     })
 
-    it('injects remoteUrl from gitRemoteUrl into the template', () => {
+    it('injects remoteUrl from gitRemoteUrl into the template', async () => {
       mockGitRemoteUrl.mockReturnValue('https://github.com/acme/app.git')
-      const result = resolvePrompt(makePrompt('{{repo.remoteUrl}}'), makePR(), makeRepo({ owner: 'acme', name: 'app' }))
+      const result = await resolvePrompt(makePrompt('{{repo.remoteUrl}}'), makePR(), makeRepo({ owner: 'acme', name: 'app' }))
       expect(result).toBe('https://github.com/acme/app.git')
     })
 
-    it('exposes repo owner and name in the template', () => {
-      const result = resolvePrompt(
+    it('exposes repo owner and name in the template', async () => {
+      const result = await resolvePrompt(
         makePrompt('{{repo.owner}}/{{repo.name}}'),
         makePR(),
         makeRepo({ owner: 'acme', name: 'widgets' }),
@@ -177,15 +177,15 @@ describe('resolvePrompt', () => {
   })
 
   describe('reviewer field', () => {
-    it('defaults reviewer to "unknown" when no user is cached', () => {
-      const result = resolvePrompt(makePrompt('{{reviewer}}'), makePR(), makeRepo())
+    it('defaults reviewer to "unknown" when no user is cached', async () => {
+      const result = await resolvePrompt(makePrompt('{{reviewer}}'), makePR(), makeRepo())
       expect(result).toBe('unknown')
     })
   })
 
   describe('PR fields available in template', () => {
-    it('exposes pr.number and pr.title', () => {
-      const result = resolvePrompt(
+    it('exposes pr.number and pr.title', async () => {
+      const result = await resolvePrompt(
         makePrompt('PR #{{pr.number}}: {{pr.title}}'),
         makePR({ number: 99, title: 'My Change' }),
         makeRepo(),
@@ -193,8 +193,8 @@ describe('resolvePrompt', () => {
       expect(result).toBe('PR #99: My Change')
     })
 
-    it('exposes pr.branch and pr.baseBranch', () => {
-      const result = resolvePrompt(
+    it('exposes pr.branch and pr.baseBranch', async () => {
+      const result = await resolvePrompt(
         makePrompt('{{pr.branch}} → {{pr.baseBranch}}'),
         makePR({ branch: 'feat/foo', baseBranch: 'develop' }),
         makeRepo(),

@@ -13,7 +13,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // ---- Mutable mock state ----
 
 const mockExecFileSync = vi.fn()
-const mockGetRepos = vi.fn().mockReturnValue([])
+const mockGetRepos = vi.fn().mockResolvedValue([])
 const mockReaddirSync = vi.fn().mockReturnValue([])
 const mockStatSync = vi.fn()
 
@@ -40,7 +40,7 @@ async function loadModule() {
   // session-router imports from './github' and './instance-manager' / './session-scanner'
   // We only need the pure/testable exports
   vi.doMock('../instance-manager', () => ({ getAllInstances: vi.fn().mockResolvedValue([]) }))
-  vi.doMock('../session-scanner', () => ({ scanSessions: vi.fn().mockReturnValue([]) }))
+  vi.doMock('../session-scanner', () => ({ scanSessions: vi.fn().mockResolvedValue([]) }))
 
   return await import('../session-router')
 }
@@ -49,7 +49,7 @@ describe('session-router: nameMatchesBranch', () => {
   let mod: Awaited<ReturnType<typeof loadModule>>
 
   beforeEach(async () => {
-    mockGetRepos.mockReturnValue([])
+    mockGetRepos.mockResolvedValue([])
     mod = await loadModule()
   })
 
@@ -106,114 +106,114 @@ describe('session-router: scoreSessionDir', () => {
 
   beforeEach(async () => {
     mockExecFileSync.mockReset()
-    mockGetRepos.mockReturnValue([])
+    mockGetRepos.mockResolvedValue([])
     mockReaddirSync.mockReturnValue([])
     mockStatSync.mockReset()
     mod = await loadModule()
   })
 
-  it('returns 0 when no criteria match', () => {
+  it('returns 0 when no criteria match', async () => {
     mockExecFileSync.mockReturnValue('different-branch\n')
-    const score = mod.scoreSessionDir('/projects/app', 'My Session', null, { gitBranch: 'feature/foo' })
+    const score = await mod.scoreSessionDir('/projects/app', 'My Session', null, { gitBranch: 'feature/foo' })
     expect(score).toBe(0)
   })
 
-  it('scores +15 for live branch exact match', () => {
+  it('scores +15 for live branch exact match', async () => {
     mockExecFileSync.mockReturnValue('feature/foo\n')
-    const score = mod.scoreSessionDir('/projects/app', '', null, { gitBranch: 'feature/foo' })
+    const score = await mod.scoreSessionDir('/projects/app', '', null, { gitBranch: 'feature/foo' })
     expect(score).toBe(15)
   })
 
-  it('scores +10 for metadata branch match when live branch misses', () => {
+  it('scores +10 for metadata branch match when live branch misses', async () => {
     mockExecFileSync.mockImplementation(() => { throw new Error('not a git repo') })
-    const score = mod.scoreSessionDir('/projects/app', '', 'feature/foo', { gitBranch: 'feature/foo' })
+    const score = await mod.scoreSessionDir('/projects/app', '', 'feature/foo', { gitBranch: 'feature/foo' })
     expect(score).toBe(10)
   })
 
-  it('does not double-count: live branch wins, metadata branch ignored', () => {
+  it('does not double-count: live branch wins, metadata branch ignored', async () => {
     mockExecFileSync.mockReturnValue('feature/foo\n')
-    const score = mod.scoreSessionDir('/projects/app', '', 'feature/foo', { gitBranch: 'feature/foo' })
+    const score = await mod.scoreSessionDir('/projects/app', '', 'feature/foo', { gitBranch: 'feature/foo' })
     // live branch gives 15; metadata branch check only runs when score===0
     expect(score).toBe(15)
   })
 
-  it('scores +5 for exact working directory match', () => {
+  it('scores +5 for exact working directory match', async () => {
     mockExecFileSync.mockImplementation(() => { throw new Error() })
-    const score = mod.scoreSessionDir('/projects/app', '', null, { workingDirectory: '/projects/app' })
+    const score = await mod.scoreSessionDir('/projects/app', '', null, { workingDirectory: '/projects/app' })
     expect(score).toBe(5)
   })
 
-  it('scores +3 for working directory prefix match', () => {
+  it('scores +3 for working directory prefix match', async () => {
     mockExecFileSync.mockImplementation(() => { throw new Error() })
-    const score = mod.scoreSessionDir('/projects/app/subdir', '', null, { workingDirectory: '/projects/app' })
+    const score = await mod.scoreSessionDir('/projects/app/subdir', '', null, { workingDirectory: '/projects/app' })
     expect(score).toBe(3)
   })
 
-  it('scores +4 when repo name is a suffix of the directory', () => {
+  it('scores +4 when repo name is a suffix of the directory', async () => {
     mockExecFileSync.mockImplementation(() => { throw new Error() })
-    const score = mod.scoreSessionDir('/projects/my-repo', '', null, { repoName: 'my-repo' })
+    const score = await mod.scoreSessionDir('/projects/my-repo', '', null, { repoName: 'my-repo' })
     expect(score).toBe(4)
   })
 
-  it('scores +4 when repo name appears as a path segment', () => {
+  it('scores +4 when repo name appears as a path segment', async () => {
     mockExecFileSync.mockImplementation(() => { throw new Error() })
-    const score = mod.scoreSessionDir('/projects/my-repo/frontend', '', null, { repoName: 'my-repo' })
+    const score = await mod.scoreSessionDir('/projects/my-repo/frontend', '', null, { repoName: 'my-repo' })
     expect(score).toBe(4)
   })
 
-  it('scores +8 when PR number appears in session name (#N format)', () => {
+  it('scores +8 when PR number appears in session name (#N format)', async () => {
     mockExecFileSync.mockImplementation(() => { throw new Error() })
-    const score = mod.scoreSessionDir('/projects/app', 'Fix #42', null, { prNumber: 42 })
+    const score = await mod.scoreSessionDir('/projects/app', 'Fix #42', null, { prNumber: 42 })
     expect(score).toBe(8)
   })
 
-  it('scores +8 when PR number appears in session name (pr N format)', () => {
+  it('scores +8 when PR number appears in session name (pr N format)', async () => {
     mockExecFileSync.mockImplementation(() => { throw new Error() })
-    const score = mod.scoreSessionDir('/projects/app', 'Review PR 42', null, { prNumber: 42 })
+    const score = await mod.scoreSessionDir('/projects/app', 'Review PR 42', null, { prNumber: 42 })
     expect(score).toBe(8)
   })
 
-  it('scores +6 when session name contains branch exactly', () => {
+  it('scores +6 when session name contains branch exactly', async () => {
     mockExecFileSync.mockImplementation(() => { throw new Error() })
-    const score = mod.scoreSessionDir('/projects/app', 'feature/login-refactor session', null, {
+    const score = await mod.scoreSessionDir('/projects/app', 'feature/login-refactor session', null, {
       gitBranch: 'feature/login-refactor',
     })
     expect(score).toBe(6)
   })
 
-  it('scores +5 when session name partially matches branch (word-level)', () => {
+  it('scores +5 when session name partially matches branch (word-level)', async () => {
     mockExecFileSync.mockImplementation(() => { throw new Error() })
     // "login refactor" → words ['login', 'refactor'], both in 'feature/login-refactor' → +5
-    const score = mod.scoreSessionDir('/projects/app', 'login refactor', null, {
+    const score = await mod.scoreSessionDir('/projects/app', 'login refactor', null, {
       gitBranch: 'feature/login-refactor',
     })
     expect(score).toBe(5)
   })
 
-  it('applies wrong-repo penalty: -10 when dir is inside a different tracked repo', () => {
-    mockGetRepos.mockReturnValue([
+  it('applies wrong-repo penalty: -10 when dir is inside a different tracked repo', async () => {
+    mockGetRepos.mockResolvedValue([
       { name: 'other-repo', owner: 'org' },
       { name: 'my-repo', owner: 'org' },
     ])
     mockExecFileSync.mockImplementation(() => { throw new Error() })
     // Dir is inside other-repo, but match is for my-repo
-    const score = mod.scoreSessionDir('/projects/other-repo', '', null, { repoName: 'my-repo' })
+    const score = await mod.scoreSessionDir('/projects/other-repo', '', null, { repoName: 'my-repo' })
     // Would have gotten +4 for subdir check of my-repo? No — the dir is /projects/other-repo
     // not ending with /my-repo. So no initial score → penalty never applies (penalty only when score > 0)
     expect(score).toBe(0)
   })
 
-  it('penalty applies only when score > 0 (no false penalties)', () => {
-    mockGetRepos.mockReturnValue([{ name: 'other-repo', owner: 'org' }])
+  it('penalty applies only when score > 0 (no false penalties)', async () => {
+    mockGetRepos.mockResolvedValue([{ name: 'other-repo', owner: 'org' }])
     mockExecFileSync.mockImplementation(() => { throw new Error() })
     // Dir not matching any criteria → score stays 0, penalty clause is not reached
-    const score = mod.scoreSessionDir('/projects/other-repo', '', null, { repoName: 'my-repo' })
+    const score = await mod.scoreSessionDir('/projects/other-repo', '', null, { repoName: 'my-repo' })
     expect(score).toBeGreaterThanOrEqual(0)
   })
 
-  it('combines multiple signals: branch + working dir', () => {
+  it('combines multiple signals: branch + working dir', async () => {
     mockExecFileSync.mockReturnValue('feature/foo\n')
-    const score = mod.scoreSessionDir('/projects/app', '', null, {
+    const score = await mod.scoreSessionDir('/projects/app', '', null, {
       gitBranch: 'feature/foo',
       workingDirectory: '/projects/app',
     })
@@ -221,9 +221,9 @@ describe('session-router: scoreSessionDir', () => {
     expect(score).toBe(20)
   })
 
-  it('combines branch match and PR number in session name', () => {
+  it('combines branch match and PR number in session name', async () => {
     mockExecFileSync.mockReturnValue('feature/login\n')
-    const score = mod.scoreSessionDir('/projects/app', 'PR #99 login fix', null, {
+    const score = await mod.scoreSessionDir('/projects/app', 'PR #99 login fix', null, {
       gitBranch: 'feature/login',
       prNumber: 99,
     })
@@ -233,9 +233,9 @@ describe('session-router: scoreSessionDir', () => {
     expect(score).toBe(23)
   })
 
-  it('getLiveBranch returns null on execFileSync error — no score from live branch', () => {
+  it('getLiveBranch returns null on execFileSync error — no score from live branch', async () => {
     mockExecFileSync.mockImplementation(() => { throw new Error('not a repo') })
-    const score = mod.scoreSessionDir('/tmp/not-a-repo', '', null, { gitBranch: 'main' })
+    const score = await mod.scoreSessionDir('/tmp/not-a-repo', '', null, { gitBranch: 'main' })
     expect(score).toBe(0)
   })
 })

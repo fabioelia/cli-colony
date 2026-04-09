@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import * as fs from 'fs'
 import {
   loadApprovalRules,
   saveApprovalRules,
@@ -20,15 +19,26 @@ vi.doMock('../../shared/colony-paths', () => ({
   },
 }))
 
-// Mock fs operations
-vi.mock('fs', { spy: true })
+// Mock fs.promises
+const mockFsp = vi.hoisted(() => ({
+  readFile: vi.fn(),
+  writeFile: vi.fn(),
+  mkdir: vi.fn(),
+  access: vi.fn(),
+}))
+
+vi.mock('fs', () => ({
+  promises: mockFsp,
+}))
 
 describe('approval-rules', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearCache()
-    // Reset fs mocks
-    vi.mocked(fs.existsSync).mockReturnValue(false)
+    // Default: readFile rejects with ENOENT (file does not exist)
+    mockFsp.readFile.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
+    mockFsp.writeFile.mockResolvedValue(undefined)
+    mockFsp.mkdir.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -36,13 +46,12 @@ describe('approval-rules', () => {
   })
 
   describe('loadApprovalRules', () => {
-    it('returns empty array when rules file does not exist', () => {
-      vi.mocked(fs.existsSync).mockReturnValue(false)
-      const rules = loadApprovalRules()
+    it('returns empty array when rules file does not exist', async () => {
+      const rules = await loadApprovalRules()
       expect(rules).toEqual([])
     })
 
-    it('reads and parses rules from file', () => {
+    it('reads and parses rules from file', async () => {
       const mockRules: ApprovalRule[] = [
         {
           id: 'rule-1',
@@ -54,33 +63,29 @@ describe('approval-rules', () => {
           createdAt: '2026-04-07T00:00:00Z',
         },
       ]
-      vi.mocked(fs.existsSync).mockReturnValue(true)
-      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(mockRules))
-      const rules = loadApprovalRules()
+      mockFsp.readFile.mockResolvedValue(JSON.stringify(mockRules))
+      const rules = await loadApprovalRules()
       expect(rules).toEqual(mockRules)
     })
 
-    it('returns cached rules on second call', () => {
+    it('returns cached rules on second call', async () => {
       const mockRules: ApprovalRule[] = []
-      vi.mocked(fs.existsSync).mockReturnValue(true)
-      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(mockRules))
-      loadApprovalRules()
-      const rules = loadApprovalRules()
+      mockFsp.readFile.mockResolvedValue(JSON.stringify(mockRules))
+      await loadApprovalRules()
+      const rules = await loadApprovalRules()
       expect(rules).toEqual(mockRules)
-      expect(vi.mocked(fs.readFileSync)).toHaveBeenCalledTimes(1)
+      expect(mockFsp.readFile).toHaveBeenCalledTimes(1)
     })
   })
 
   describe('saveApprovalRules', () => {
-    it('creates governance directory if missing', () => {
-      vi.mocked(fs.existsSync).mockReturnValue(false)
+    it('creates governance directory if missing', async () => {
       const rules: ApprovalRule[] = []
-      saveApprovalRules(rules)
-      expect(vi.mocked(fs.mkdirSync)).toHaveBeenCalled()
+      await saveApprovalRules(rules)
+      expect(mockFsp.mkdir).toHaveBeenCalled()
     })
 
-    it('writes rules to file', () => {
-      vi.mocked(fs.existsSync).mockReturnValue(true)
+    it('writes rules to file', async () => {
       const rules: ApprovalRule[] = [
         {
           id: 'rule-1',
@@ -92,27 +97,26 @@ describe('approval-rules', () => {
           createdAt: '2026-04-07T00:00:00Z',
         },
       ]
-      saveApprovalRules(rules)
-      expect(vi.mocked(fs.writeFileSync)).toHaveBeenCalled()
+      await saveApprovalRules(rules)
+      expect(mockFsp.writeFile).toHaveBeenCalled()
     })
 
-    it('clears cache after saving', () => {
-      vi.mocked(fs.existsSync).mockReturnValue(false)
+    it('clears cache after saving', async () => {
       const rules: ApprovalRule[] = []
-      saveApprovalRules(rules)
+      await saveApprovalRules(rules)
       clearCache()
-      expect(loadApprovalRules()).toEqual([])
+      expect(await loadApprovalRules()).toEqual([])
     })
   })
 
   describe('createRule', () => {
     beforeEach(() => {
-      vi.mocked(fs.existsSync).mockReturnValue(false)
-      vi.mocked(fs.writeFileSync).mockReturnValue(undefined)
+      mockFsp.writeFile.mockResolvedValue(undefined)
+      mockFsp.mkdir.mockResolvedValue(undefined)
     })
 
-    it('generates a new rule with id and enabled:true', () => {
-      const rule = createRule('Test', 'file_pattern', '*.md', 'auto_approve')
+    it('generates a new rule with id and enabled:true', async () => {
+      const rule = await createRule('Test', 'file_pattern', '*.md', 'auto_approve')
       expect(rule.id).toBeDefined()
       expect(rule.name).toBe('Test')
       expect(rule.type).toBe('file_pattern')
@@ -122,20 +126,19 @@ describe('approval-rules', () => {
       expect(rule.createdAt).toBeDefined()
     })
 
-    it('persists rule to storage', () => {
-      createRule('Test', 'risk_level', 'high', 'require_approval')
-      expect(vi.mocked(fs.writeFileSync)).toHaveBeenCalled()
+    it('persists rule to storage', async () => {
+      await createRule('Test', 'risk_level', 'high', 'require_approval')
+      expect(mockFsp.writeFile).toHaveBeenCalled()
     })
   })
 
   describe('updateRule', () => {
-    it('returns false if rule not found', () => {
-      vi.mocked(fs.existsSync).mockReturnValue(false)
-      const found = updateRule('nonexistent', { enabled: false })
+    it('returns false if rule not found', async () => {
+      const found = await updateRule('nonexistent', { enabled: false })
       expect(found).toBe(false)
     })
 
-    it('merges partial updates and saves', () => {
+    it('merges partial updates and saves', async () => {
       const mockRule: ApprovalRule = {
         id: 'rule-1',
         name: 'Original',
@@ -145,23 +148,21 @@ describe('approval-rules', () => {
         enabled: true,
         createdAt: '2026-04-07T00:00:00Z',
       }
-      vi.mocked(fs.existsSync).mockReturnValue(true)
-      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify([mockRule]))
-      vi.mocked(fs.writeFileSync).mockReturnValue(undefined)
-      const found = updateRule('rule-1', { enabled: false })
+      mockFsp.readFile.mockResolvedValue(JSON.stringify([mockRule]))
+      mockFsp.writeFile.mockResolvedValue(undefined)
+      const found = await updateRule('rule-1', { enabled: false })
       expect(found).toBe(true)
-      expect(vi.mocked(fs.writeFileSync)).toHaveBeenCalled()
+      expect(mockFsp.writeFile).toHaveBeenCalled()
     })
   })
 
   describe('deleteRule', () => {
-    it('returns false if rule not found', () => {
-      vi.mocked(fs.existsSync).mockReturnValue(false)
-      const found = deleteRule('nonexistent')
+    it('returns false if rule not found', async () => {
+      const found = await deleteRule('nonexistent')
       expect(found).toBe(false)
     })
 
-    it('removes rule from list and saves', () => {
+    it('removes rule from list and saves', async () => {
       const mockRules: ApprovalRule[] = [
         {
           id: 'rule-1',
@@ -182,23 +183,21 @@ describe('approval-rules', () => {
           createdAt: '2026-04-07T00:00:00Z',
         },
       ]
-      vi.mocked(fs.existsSync).mockReturnValue(true)
-      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(mockRules))
-      vi.mocked(fs.writeFileSync).mockReturnValue(undefined)
-      const found = deleteRule('rule-1')
+      mockFsp.readFile.mockResolvedValue(JSON.stringify(mockRules))
+      mockFsp.writeFile.mockResolvedValue(undefined)
+      const found = await deleteRule('rule-1')
       expect(found).toBe(true)
-      expect(vi.mocked(fs.writeFileSync)).toHaveBeenCalled()
+      expect(mockFsp.writeFile).toHaveBeenCalled()
     })
   })
 
   describe('matchRules', () => {
-    it('returns null when no rules exist', () => {
-      vi.mocked(fs.existsSync).mockReturnValue(false)
-      const rule = matchRules('launch-session', 0.02, [])
+    it('returns null when no rules exist', async () => {
+      const rule = await matchRules('launch-session', 0.02, [])
       expect(rule).toBeNull()
     })
 
-    it('skips disabled rules', () => {
+    it('skips disabled rules', async () => {
       const mockRules: ApprovalRule[] = [
         {
           id: 'rule-1',
@@ -210,14 +209,13 @@ describe('approval-rules', () => {
           createdAt: '2026-04-07T00:00:00Z',
         },
       ]
-      vi.mocked(fs.existsSync).mockReturnValue(true)
-      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(mockRules))
-      const rule = matchRules('launch-session', 0.02, [])
+      mockFsp.readFile.mockResolvedValue(JSON.stringify(mockRules))
+      const rule = await matchRules('launch-session', 0.02, [])
       expect(rule).toBeNull()
     })
 
     describe('file_pattern matching', () => {
-      it('matches single glob pattern', () => {
+      it('matches single glob pattern', async () => {
         const mockRules: ApprovalRule[] = [
           {
             id: 'rule-1',
@@ -229,13 +227,12 @@ describe('approval-rules', () => {
             createdAt: '2026-04-07T00:00:00Z',
           },
         ]
-        vi.mocked(fs.existsSync).mockReturnValue(true)
-        vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(mockRules))
-        const rule = matchRules('diff_review', 0.02, ['README.md'])
+        mockFsp.readFile.mockResolvedValue(JSON.stringify(mockRules))
+        const rule = await matchRules('diff_review', 0.02, ['README.md'])
         expect(rule).toEqual(mockRules[0])
       })
 
-      it('does not match mismatched glob pattern', () => {
+      it('does not match mismatched glob pattern', async () => {
         const mockRules: ApprovalRule[] = [
           {
             id: 'rule-1',
@@ -247,13 +244,12 @@ describe('approval-rules', () => {
             createdAt: '2026-04-07T00:00:00Z',
           },
         ]
-        vi.mocked(fs.existsSync).mockReturnValue(true)
-        vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(mockRules))
-        const rule = matchRules('diff_review', 0.02, ['script.ts'])
+        mockFsp.readFile.mockResolvedValue(JSON.stringify(mockRules))
+        const rule = await matchRules('diff_review', 0.02, ['script.ts'])
         expect(rule).toBeNull()
       })
 
-      it('matches comma-separated glob patterns', () => {
+      it('matches comma-separated glob patterns', async () => {
         const mockRules: ApprovalRule[] = [
           {
             id: 'rule-1',
@@ -265,15 +261,14 @@ describe('approval-rules', () => {
             createdAt: '2026-04-07T00:00:00Z',
           },
         ]
-        vi.mocked(fs.existsSync).mockReturnValue(true)
-        vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(mockRules))
-        const rule = matchRules('diff_review', 0.02, ['notes.txt'])
+        mockFsp.readFile.mockResolvedValue(JSON.stringify(mockRules))
+        const rule = await matchRules('diff_review', 0.02, ['notes.txt'])
         expect(rule).toEqual(mockRules[0])
       })
     })
 
     describe('cost_threshold matching', () => {
-      it('matches cost < threshold', () => {
+      it('matches cost < threshold', async () => {
         const mockRules: ApprovalRule[] = [
           {
             id: 'rule-1',
@@ -285,13 +280,12 @@ describe('approval-rules', () => {
             createdAt: '2026-04-07T00:00:00Z',
           },
         ]
-        vi.mocked(fs.existsSync).mockReturnValue(true)
-        vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(mockRules))
-        const rule = matchRules('plan', 0.01, [])
+        mockFsp.readFile.mockResolvedValue(JSON.stringify(mockRules))
+        const rule = await matchRules('plan', 0.01, [])
         expect(rule).toEqual(mockRules[0])
       })
 
-      it('does not match cost above threshold', () => {
+      it('does not match cost above threshold', async () => {
         const mockRules: ApprovalRule[] = [
           {
             id: 'rule-1',
@@ -303,13 +297,12 @@ describe('approval-rules', () => {
             createdAt: '2026-04-07T00:00:00Z',
           },
         ]
-        vi.mocked(fs.existsSync).mockReturnValue(true)
-        vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(mockRules))
-        const rule = matchRules('maker-checker', 0.15, [])
+        mockFsp.readFile.mockResolvedValue(JSON.stringify(mockRules))
+        const rule = await matchRules('maker-checker', 0.15, [])
         expect(rule).toBeNull()
       })
 
-      it('matches cost >= threshold', () => {
+      it('matches cost >= threshold', async () => {
         const mockRules: ApprovalRule[] = [
           {
             id: 'rule-1',
@@ -321,15 +314,14 @@ describe('approval-rules', () => {
             createdAt: '2026-04-07T00:00:00Z',
           },
         ]
-        vi.mocked(fs.existsSync).mockReturnValue(true)
-        vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(mockRules))
-        const rule = matchRules('maker-checker', 0.05, [])
+        mockFsp.readFile.mockResolvedValue(JSON.stringify(mockRules))
+        const rule = await matchRules('maker-checker', 0.05, [])
         expect(rule).toEqual(mockRules[0])
       })
     })
 
     describe('risk_level matching', () => {
-      it('matches low risk action against low condition', () => {
+      it('matches low risk action against low condition', async () => {
         const mockRules: ApprovalRule[] = [
           {
             id: 'rule-1',
@@ -341,13 +333,12 @@ describe('approval-rules', () => {
             createdAt: '2026-04-07T00:00:00Z',
           },
         ]
-        vi.mocked(fs.existsSync).mockReturnValue(true)
-        vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(mockRules))
-        const rule = matchRules('wait_for_session', 0, [])
+        mockFsp.readFile.mockResolvedValue(JSON.stringify(mockRules))
+        const rule = await matchRules('wait_for_session', 0, [])
         expect(rule).toEqual(mockRules[0])
       })
 
-      it('does not match medium action against low condition', () => {
+      it('does not match medium action against low condition', async () => {
         const mockRules: ApprovalRule[] = [
           {
             id: 'rule-1',
@@ -359,13 +350,12 @@ describe('approval-rules', () => {
             createdAt: '2026-04-07T00:00:00Z',
           },
         ]
-        vi.mocked(fs.existsSync).mockReturnValue(true)
-        vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(mockRules))
-        const rule = matchRules('diff_review', 0.02, [])
+        mockFsp.readFile.mockResolvedValue(JSON.stringify(mockRules))
+        const rule = await matchRules('diff_review', 0.02, [])
         expect(rule).toBeNull()
       })
 
-      it('matches pipe-separated risk levels', () => {
+      it('matches pipe-separated risk levels', async () => {
         const mockRules: ApprovalRule[] = [
           {
             id: 'rule-1',
@@ -377,14 +367,13 @@ describe('approval-rules', () => {
             createdAt: '2026-04-07T00:00:00Z',
           },
         ]
-        vi.mocked(fs.existsSync).mockReturnValue(true)
-        vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(mockRules))
-        const rule = matchRules('diff_review', 0.02, [])
+        mockFsp.readFile.mockResolvedValue(JSON.stringify(mockRules))
+        const rule = await matchRules('diff_review', 0.02, [])
         expect(rule).toEqual(mockRules[0])
       })
     })
 
-    it('returns first matching rule (precedence)', () => {
+    it('returns first matching rule (precedence)', async () => {
       const mockRules: ApprovalRule[] = [
         {
           id: 'rule-1',
@@ -405,9 +394,8 @@ describe('approval-rules', () => {
           createdAt: '2026-04-07T00:00:00Z',
         },
       ]
-      vi.mocked(fs.existsSync).mockReturnValue(true)
-      vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(mockRules))
-      const rule = matchRules('plan', 0.01, [])
+      mockFsp.readFile.mockResolvedValue(JSON.stringify(mockRules))
+      const rule = await matchRules('plan', 0.01, [])
       expect(rule?.id).toBe('rule-1')
     })
   })

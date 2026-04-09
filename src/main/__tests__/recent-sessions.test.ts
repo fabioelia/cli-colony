@@ -12,18 +12,22 @@ const MOCK_ROOT = '/mock/.claude-colony'
 const MOCK_SESSIONS_FILE = `${MOCK_ROOT}/recent-sessions.json`
 const MOCK_SNAPSHOT_FILE = `${MOCK_ROOT}/restore-snapshot.json`
 
-// Mutable mock state for fs
-const mockFs = {
-  existsSync: vi.fn().mockReturnValue(false),
-  readFileSync: vi.fn().mockReturnValue('[]'),
-  writeFileSync: vi.fn(),
-  mkdirSync: vi.fn(),
-  readdirSync: vi.fn().mockReturnValue([]),
-  statSync: vi.fn(),
-  unlinkSync: vi.fn(),
+// Mutable mock state for fs.promises
+const mockFsp = {
+  readFile: vi.fn().mockResolvedValue('[]'),
+  writeFile: vi.fn().mockResolvedValue(undefined),
+  mkdir: vi.fn().mockResolvedValue(undefined),
+  readdir: vi.fn().mockResolvedValue([]),
+  stat: vi.fn().mockResolvedValue({ isDirectory: () => true, mtimeMs: Date.now() }),
+  unlink: vi.fn().mockResolvedValue(undefined),
 }
 
-const mockExecSync = vi.fn()
+// Sync mocks for snapshotRunningSync
+const mockReadFileSync = vi.fn().mockReturnValue('[]')
+const mockWriteFileSync = vi.fn()
+const mockMkdirSync = vi.fn()
+
+const mockExecFile = vi.fn()
 
 function makeSession(overrides: Partial<RecentSession> = {}): RecentSession {
   return {
@@ -46,14 +50,16 @@ describe('recent-sessions', () => {
   beforeEach(async () => {
     vi.resetModules()
 
-    mockFs.existsSync.mockReset().mockReturnValue(false)
-    mockFs.readFileSync.mockReset().mockReturnValue('[]')
-    mockFs.writeFileSync.mockReset()
-    mockFs.mkdirSync.mockReset()
-    mockFs.readdirSync.mockReset().mockReturnValue([])
-    mockFs.statSync.mockReset()
-    mockFs.unlinkSync.mockReset()
-    mockExecSync.mockReset()
+    mockFsp.readFile.mockReset().mockResolvedValue('[]')
+    mockFsp.writeFile.mockReset().mockResolvedValue(undefined)
+    mockFsp.mkdir.mockReset().mockResolvedValue(undefined)
+    mockFsp.readdir.mockReset().mockResolvedValue([])
+    mockFsp.stat.mockReset().mockResolvedValue({ isDirectory: () => true, mtimeMs: Date.now() })
+    mockFsp.unlink.mockReset().mockResolvedValue(undefined)
+    mockReadFileSync.mockReset().mockReturnValue('[]')
+    mockWriteFileSync.mockReset()
+    mockMkdirSync.mockReset()
+    mockExecFile.mockReset()
 
     vi.doMock('electron', () => ({
       app: { getPath: vi.fn().mockReturnValue('/mock/home') },
@@ -67,17 +73,14 @@ describe('recent-sessions', () => {
     }))
 
     vi.doMock('fs', () => ({
-      existsSync: mockFs.existsSync,
-      readFileSync: mockFs.readFileSync,
-      writeFileSync: mockFs.writeFileSync,
-      mkdirSync: mockFs.mkdirSync,
-      readdirSync: mockFs.readdirSync,
-      statSync: mockFs.statSync,
-      unlinkSync: mockFs.unlinkSync,
+      promises: mockFsp,
+      readFileSync: mockReadFileSync,
+      writeFileSync: mockWriteFileSync,
+      mkdirSync: mockMkdirSync,
     }))
 
     vi.doMock('child_process', () => ({
-      execSync: mockExecSync,
+      execFile: mockExecFile,
     }))
 
     mod = await import('../recent-sessions')
@@ -89,30 +92,29 @@ describe('recent-sessions', () => {
   })
 
   describe('getRecentSessions', () => {
-    it('returns empty array when file does not exist', () => {
-      mockFs.existsSync.mockReturnValue(false)
-      expect(mod.getRecentSessions()).toEqual([])
+    it('returns empty array when file does not exist', async () => {
+      mockFsp.readFile.mockRejectedValue(new Error('ENOENT'))
+      expect(await mod.getRecentSessions()).toEqual([])
     })
 
-    it('returns parsed sessions from file', () => {
+    it('returns parsed sessions from file', async () => {
       const sessions = [makeSession()]
-      mockFs.existsSync.mockReturnValue(true)
-      mockFs.readFileSync.mockReturnValue(JSON.stringify(sessions))
-      expect(mod.getRecentSessions()).toHaveLength(1)
-      expect(mod.getRecentSessions()[0].instanceId).toBe('inst-001')
+      mockFsp.readFile.mockResolvedValue(JSON.stringify(sessions))
+      const result = await mod.getRecentSessions()
+      expect(result).toHaveLength(1)
+      expect(result[0].instanceId).toBe('inst-001')
     })
 
-    it('returns empty array when file is corrupted', () => {
-      mockFs.existsSync.mockReturnValue(true)
-      mockFs.readFileSync.mockReturnValue('{invalid json')
-      expect(mod.getRecentSessions()).toEqual([])
+    it('returns empty array when file is corrupted', async () => {
+      mockFsp.readFile.mockResolvedValue('{invalid json')
+      expect(await mod.getRecentSessions()).toEqual([])
     })
   })
 
   describe('trackOpened', () => {
-    it('prepends a new session to the list', () => {
-      mockFs.existsSync.mockReturnValue(false) // no existing file
-      mod.trackOpened({
+    it('prepends a new session to the list', async () => {
+      mockFsp.readFile.mockRejectedValue(new Error('ENOENT')) // no existing file
+      await mod.trackOpened({
         instanceName: 'my-session',
         instanceId: 'inst-001',
         sessionId: 'sess-abc',
@@ -120,18 +122,17 @@ describe('recent-sessions', () => {
         color: '#00ff00',
         args: [],
       })
-      const written = JSON.parse(mockFs.writeFileSync.mock.calls[0][1] as string) as RecentSession[]
+      const written = JSON.parse(mockFsp.writeFile.mock.calls[0][1] as string) as RecentSession[]
       expect(written).toHaveLength(1)
       expect(written[0].instanceName).toBe('my-session')
       expect(written[0].exitType).toBe('running')
       expect(written[0].closedAt).toBeNull()
     })
 
-    it('prepends to existing sessions (most recent first)', () => {
+    it('prepends to existing sessions (most recent first)', async () => {
       const existing = [makeSession({ instanceId: 'old-inst', instanceName: 'old' })]
-      mockFs.existsSync.mockReturnValue(true)
-      mockFs.readFileSync.mockReturnValue(JSON.stringify(existing))
-      mod.trackOpened({
+      mockFsp.readFile.mockResolvedValue(JSON.stringify(existing))
+      await mod.trackOpened({
         instanceName: 'new-session',
         instanceId: 'new-inst',
         sessionId: null,
@@ -139,18 +140,17 @@ describe('recent-sessions', () => {
         color: '#0000ff',
         args: [],
       })
-      const written = JSON.parse(mockFs.writeFileSync.mock.calls[0][1] as string) as RecentSession[]
+      const written = JSON.parse(mockFsp.writeFile.mock.calls[0][1] as string) as RecentSession[]
       expect(written[0].instanceName).toBe('new-session')
       expect(written[1].instanceName).toBe('old')
     })
 
-    it('limits stored sessions to 50', () => {
+    it('limits stored sessions to 50', async () => {
       const existing = Array.from({ length: 50 }, (_, i) =>
         makeSession({ instanceId: `inst-${i}`, instanceName: `session-${i}` })
       )
-      mockFs.existsSync.mockReturnValue(true)
-      mockFs.readFileSync.mockReturnValue(JSON.stringify(existing))
-      mod.trackOpened({
+      mockFsp.readFile.mockResolvedValue(JSON.stringify(existing))
+      await mod.trackOpened({
         instanceName: 'newest',
         instanceId: 'inst-new',
         sessionId: null,
@@ -158,173 +158,162 @@ describe('recent-sessions', () => {
         color: '#fff',
         args: [],
       })
-      const written = JSON.parse(mockFs.writeFileSync.mock.calls[0][1] as string) as RecentSession[]
+      const written = JSON.parse(mockFsp.writeFile.mock.calls[0][1] as string) as RecentSession[]
       expect(written).toHaveLength(50)
       expect(written[0].instanceName).toBe('newest')
     })
   })
 
   describe('trackClosed', () => {
-    it('marks a running session as closed with exitType', () => {
+    it('marks a running session as closed with exitType', async () => {
       const sessions = [makeSession({ instanceId: 'inst-001', closedAt: null, exitType: 'running', sessionId: 'sess-abc' })]
-      mockFs.existsSync.mockReturnValue(true)
-      mockFs.readFileSync.mockReturnValue(JSON.stringify(sessions))
-      mod.trackClosed('inst-001', 'exited')
-      const written = JSON.parse(mockFs.writeFileSync.mock.calls[0][1] as string) as RecentSession[]
+      mockFsp.readFile.mockResolvedValue(JSON.stringify(sessions))
+      await mod.trackClosed('inst-001', 'exited')
+      const written = JSON.parse(mockFsp.writeFile.mock.calls[0][1] as string) as RecentSession[]
       expect(written[0].exitType).toBe('exited')
       expect(written[0].closedAt).not.toBeNull()
     })
 
-    it('does not close a session that is already closed', () => {
+    it('does not close a session that is already closed', async () => {
       const closedAt = new Date().toISOString()
       const sessions = [makeSession({ instanceId: 'inst-001', closedAt, exitType: 'exited' })]
-      mockFs.existsSync.mockReturnValue(true)
-      mockFs.readFileSync.mockReturnValue(JSON.stringify(sessions))
-      mod.trackClosed('inst-001', 'killed')
-      // writeFileSync should not have been called (no match)
-      expect(mockFs.writeFileSync).not.toHaveBeenCalled()
+      mockFsp.readFile.mockResolvedValue(JSON.stringify(sessions))
+      await mod.trackClosed('inst-001', 'killed')
+      // writeFile should not have been called (no match)
+      expect(mockFsp.writeFile).not.toHaveBeenCalled()
     })
 
-    it('ignores unknown instance IDs', () => {
+    it('ignores unknown instance IDs', async () => {
       const sessions = [makeSession({ instanceId: 'inst-001' })]
-      mockFs.existsSync.mockReturnValue(true)
-      mockFs.readFileSync.mockReturnValue(JSON.stringify(sessions))
-      mod.trackClosed('inst-999', 'exited')
-      expect(mockFs.writeFileSync).not.toHaveBeenCalled()
+      mockFsp.readFile.mockResolvedValue(JSON.stringify(sessions))
+      await mod.trackClosed('inst-999', 'exited')
+      expect(mockFsp.writeFile).not.toHaveBeenCalled()
     })
   })
 
   describe('updateSessionId', () => {
-    it('updates sessionId for matching instance with null sessionId', () => {
+    it('updates sessionId for matching instance with null sessionId', async () => {
       const sessions = [makeSession({ instanceId: 'inst-001', sessionId: null })]
-      mockFs.existsSync.mockReturnValue(true)
-      mockFs.readFileSync.mockReturnValue(JSON.stringify(sessions))
-      mod.updateSessionId('inst-001', 'newly-discovered-id')
-      const written = JSON.parse(mockFs.writeFileSync.mock.calls[0][1] as string) as RecentSession[]
+      mockFsp.readFile.mockResolvedValue(JSON.stringify(sessions))
+      await mod.updateSessionId('inst-001', 'newly-discovered-id')
+      const written = JSON.parse(mockFsp.writeFile.mock.calls[0][1] as string) as RecentSession[]
       expect(written[0].sessionId).toBe('newly-discovered-id')
     })
 
-    it('does not overwrite an already-set sessionId', () => {
+    it('does not overwrite an already-set sessionId', async () => {
       const sessions = [makeSession({ instanceId: 'inst-001', sessionId: 'existing-sess' })]
-      mockFs.existsSync.mockReturnValue(true)
-      mockFs.readFileSync.mockReturnValue(JSON.stringify(sessions))
-      mod.updateSessionId('inst-001', 'new-sess')
+      mockFsp.readFile.mockResolvedValue(JSON.stringify(sessions))
+      await mod.updateSessionId('inst-001', 'new-sess')
       // Should not have written (no match because sessionId was already set)
-      expect(mockFs.writeFileSync).not.toHaveBeenCalled()
+      expect(mockFsp.writeFile).not.toHaveBeenCalled()
     })
   })
 
   describe('snapshotRunning', () => {
-    it('does nothing when there are no running sessions', () => {
+    it('does nothing when there are no running sessions', async () => {
       const sessions = [makeSession({ closedAt: new Date().toISOString(), exitType: 'exited' })]
-      mockFs.existsSync.mockReturnValue(true)
-      mockFs.readFileSync.mockReturnValue(JSON.stringify(sessions))
-      mod.snapshotRunning()
-      expect(mockFs.writeFileSync).not.toHaveBeenCalled()
+      mockFsp.readFile.mockResolvedValue(JSON.stringify(sessions))
+      await mod.snapshotRunning()
+      expect(mockFsp.writeFile).not.toHaveBeenCalled()
     })
 
-    it('does nothing when running sessions have no sessionId', () => {
+    it('does nothing when running sessions have no sessionId', async () => {
       const sessions = [makeSession({ closedAt: null, exitType: 'running', sessionId: null })]
-      mockFs.existsSync.mockReturnValue(true)
-      mockFs.readFileSync.mockReturnValue(JSON.stringify(sessions))
-      mod.snapshotRunning()
-      expect(mockFs.writeFileSync).not.toHaveBeenCalled()
+      mockFsp.readFile.mockResolvedValue(JSON.stringify(sessions))
+      await mod.snapshotRunning()
+      expect(mockFsp.writeFile).not.toHaveBeenCalled()
     })
 
-    it('writes running sessions with sessionIds to snapshot file', () => {
+    it('writes running sessions with sessionIds to snapshot file', async () => {
       const sessions = [
         makeSession({ instanceId: 'inst-001', sessionId: 'sess-1', closedAt: null, exitType: 'running' }),
         makeSession({ instanceId: 'inst-002', sessionId: null, closedAt: null, exitType: 'running' }),
       ]
-      mockFs.existsSync.mockReturnValue(true)
-      mockFs.readFileSync.mockReturnValue(JSON.stringify(sessions))
-      mod.snapshotRunning()
+      mockFsp.readFile.mockResolvedValue(JSON.stringify(sessions))
+      await mod.snapshotRunning()
       // Should write only the session with a sessionId
-      const snapshot = JSON.parse(mockFs.writeFileSync.mock.calls[0][1] as string) as RecentSession[]
+      const snapshot = JSON.parse(mockFsp.writeFile.mock.calls[0][1] as string) as RecentSession[]
       expect(snapshot).toHaveLength(1)
       expect(snapshot[0].sessionId).toBe('sess-1')
     })
 
-    it('deduplicates by sessionId, keeping the most recent openedAt', () => {
+    it('deduplicates by sessionId, keeping the most recent openedAt', async () => {
       const older = makeSession({ instanceId: 'inst-001', sessionId: 'sess-dup', openedAt: '2026-01-01T00:00:00.000Z', closedAt: null, exitType: 'running' })
       const newer = makeSession({ instanceId: 'inst-002', sessionId: 'sess-dup', openedAt: '2026-01-02T00:00:00.000Z', closedAt: null, exitType: 'running' })
-      mockFs.existsSync.mockReturnValue(true)
-      mockFs.readFileSync.mockReturnValue(JSON.stringify([older, newer]))
-      mod.snapshotRunning()
-      const snapshot = JSON.parse(mockFs.writeFileSync.mock.calls[0][1] as string) as RecentSession[]
+      mockFsp.readFile.mockResolvedValue(JSON.stringify([older, newer]))
+      await mod.snapshotRunning()
+      const snapshot = JSON.parse(mockFsp.writeFile.mock.calls[0][1] as string) as RecentSession[]
       expect(snapshot).toHaveLength(1)
       expect(snapshot[0].instanceId).toBe('inst-002') // the newer one
     })
   })
 
   describe('getRestorableSessions', () => {
-    it('returns empty array when snapshot file does not exist', () => {
-      mockFs.existsSync.mockImplementation((p) => p !== MOCK_SNAPSHOT_FILE)
-      expect(mod.getRestorableSessions()).toEqual([])
+    it('returns empty array when snapshot file does not exist', async () => {
+      mockFsp.readFile.mockRejectedValue(new Error('ENOENT'))
+      expect(await mod.getRestorableSessions()).toEqual([])
     })
 
-    it('returns sessions from snapshot file', () => {
+    it('returns sessions from snapshot file', async () => {
       const snapshot = [makeSession({ sessionId: 'sess-restore' })]
-      mockFs.existsSync.mockImplementation((p) => p === MOCK_SNAPSHOT_FILE)
-      mockFs.readFileSync.mockReturnValue(JSON.stringify(snapshot))
-      const result = mod.getRestorableSessions()
+      mockFsp.readFile.mockResolvedValue(JSON.stringify(snapshot))
+      const result = await mod.getRestorableSessions()
       expect(result).toHaveLength(1)
       expect(result[0].sessionId).toBe('sess-restore')
     })
 
-    it('excludes sessions already running in the daemon', () => {
+    it('excludes sessions already running in the daemon', async () => {
       const snapshot = [
         makeSession({ sessionId: 'sess-already-running' }),
         makeSession({ instanceId: 'inst-002', sessionId: 'sess-to-restore' }),
       ]
-      mockFs.existsSync.mockImplementation((p) => p === MOCK_SNAPSHOT_FILE)
-      mockFs.readFileSync.mockReturnValue(JSON.stringify(snapshot))
-      const result = mod.getRestorableSessions(new Set(['sess-already-running']))
+      mockFsp.readFile.mockResolvedValue(JSON.stringify(snapshot))
+      const result = await mod.getRestorableSessions(new Set(['sess-already-running']))
       expect(result).toHaveLength(1)
       expect(result[0].sessionId).toBe('sess-to-restore')
     })
 
-    it('excludes sessions with null sessionId', () => {
+    it('excludes sessions with null sessionId', async () => {
       const snapshot = [makeSession({ sessionId: null })]
-      mockFs.existsSync.mockImplementation((p) => p === MOCK_SNAPSHOT_FILE)
-      mockFs.readFileSync.mockReturnValue(JSON.stringify(snapshot))
-      const result = mod.getRestorableSessions()
+      mockFsp.readFile.mockResolvedValue(JSON.stringify(snapshot))
+      const result = await mod.getRestorableSessions()
       expect(result).toHaveLength(0)
     })
 
-    it('returns empty array on corrupt snapshot file', () => {
-      mockFs.existsSync.mockImplementation((p) => p === MOCK_SNAPSHOT_FILE)
-      mockFs.readFileSync.mockReturnValue('{bad json}')
-      expect(mod.getRestorableSessions()).toEqual([])
+    it('returns empty array on corrupt snapshot file', async () => {
+      mockFsp.readFile.mockResolvedValue('{bad json}')
+      // The production code catches the JSON.parse error
+      expect(await mod.getRestorableSessions()).toEqual([])
     })
   })
 
   describe('clearRestorable', () => {
-    it('deletes snapshot file if it exists', () => {
-      mockFs.existsSync.mockImplementation((p) => p === MOCK_SNAPSHOT_FILE)
-      mockFs.readFileSync.mockReturnValue('[]') // main sessions file is empty
-      mod.clearRestorable()
-      expect(mockFs.unlinkSync).toHaveBeenCalledWith(MOCK_SNAPSHOT_FILE)
+    it('deletes snapshot file', async () => {
+      // load() for main sessions returns empty
+      mockFsp.readFile.mockResolvedValue('[]')
+      await mod.clearRestorable()
+      expect(mockFsp.unlink).toHaveBeenCalled()
     })
 
-    it('does not throw when snapshot file does not exist', () => {
-      mockFs.existsSync.mockReturnValue(false)
-      mockFs.readFileSync.mockReturnValue('[]')
-      expect(() => mod.clearRestorable()).not.toThrow()
+    it('does not throw when snapshot file does not exist', async () => {
+      mockFsp.unlink.mockRejectedValue(new Error('ENOENT'))
+      mockFsp.readFile.mockResolvedValue('[]')
+      await expect(mod.clearRestorable()).resolves.not.toThrow()
     })
 
-    it('marks running sessions as exited', () => {
+    it('marks running sessions as exited', async () => {
       const sessions = [
         makeSession({ instanceId: 'inst-001', closedAt: null, exitType: 'running' }),
         makeSession({ instanceId: 'inst-002', closedAt: new Date().toISOString(), exitType: 'exited' }),
       ]
-      mockFs.existsSync.mockImplementation((p) => p === MOCK_SESSIONS_FILE)
-      mockFs.readFileSync.mockImplementation((p) => {
-        if (p === MOCK_SESSIONS_FILE) return JSON.stringify(sessions)
-        return '[]'
+      mockFsp.readFile.mockResolvedValue(JSON.stringify(sessions))
+      await mod.clearRestorable()
+      // writeFile is called for saving the sessions (after the unlink call)
+      const writeCall = mockFsp.writeFile.mock.calls.find((c: any[]) => {
+        try { JSON.parse(c[1] as string); return true } catch { return false }
       })
-      mod.clearRestorable()
-      const written = JSON.parse(mockFs.writeFileSync.mock.calls[0][1] as string) as RecentSession[]
+      expect(writeCall).toBeDefined()
+      const written = JSON.parse(writeCall![1] as string) as RecentSession[]
       const inst1 = written.find((s) => s.instanceId === 'inst-001')
       expect(inst1?.exitType).toBe('exited')
       expect(inst1?.closedAt).not.toBeNull()
@@ -332,58 +321,74 @@ describe('recent-sessions', () => {
   })
 
   describe('discoverSessionId', () => {
-    it('returns session ID found via lsof', () => {
+    it('returns session ID found via lsof', async () => {
       const uuid = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
-      mockExecSync.mockReturnValue(
-        `node  123  user  txt  /home/user/.claude/projects/-Users-app/${uuid}.jsonl\n`
-      )
-      const result = mod.discoverSessionId(123, '/Users/app')
+      mockExecFile.mockImplementation((cmd: string, args: string[], opts: any, cb: Function) => {
+        cb(null, `node  123  user  txt  /home/user/.claude/projects/-Users-app/${uuid}.jsonl\n`, '')
+      })
+      const result = await mod.discoverSessionId(123, '/Users/app')
       expect(result).toBe(uuid)
     })
 
-    it('skips lsof when pid is null', () => {
-      mockExecSync.mockReturnValue('some output')
+    it('skips lsof when pid is null', async () => {
       // With null pid and no claude project dirs, returns null
-      const result = mod.discoverSessionId(null, '/projects/app')
-      expect(mockExecSync).not.toHaveBeenCalled()
+      mockFsp.stat.mockRejectedValue(new Error('ENOENT'))
+      mockFsp.readdir.mockRejectedValue(new Error('ENOENT'))
+      const result = await mod.discoverSessionId(null, '/projects/app')
+      expect(mockExecFile).not.toHaveBeenCalled()
       expect(result).toBeNull()
     })
 
-    it('returns null when lsof finds no matching jsonl', () => {
-      mockExecSync.mockReturnValue('no jsonl files here')
+    it('returns null when lsof finds no matching jsonl', async () => {
+      mockExecFile.mockImplementation((cmd: string, args: string[], opts: any, cb: Function) => {
+        cb(null, 'no jsonl files here', '')
+      })
       // No project dir either
-      mockFs.existsSync.mockReturnValue(false)
-      const result = mod.discoverSessionId(999, '/projects/app')
+      mockFsp.stat.mockRejectedValue(new Error('ENOENT'))
+      mockFsp.readdir.mockRejectedValue(new Error('ENOENT'))
+      const result = await mod.discoverSessionId(999, '/projects/app')
       expect(result).toBeNull()
     })
 
-    it('falls back to filesystem scan when lsof finds nothing', () => {
+    it('falls back to filesystem scan when lsof finds nothing', async () => {
       const uuid = 'b2c3d4e5-f6a7-8901-bcde-f12345678901'
       const now = Date.now()
 
       // lsof returns nothing useful
-      mockExecSync.mockReturnValue('')
+      mockExecFile.mockImplementation((cmd: string, args: string[], opts: any, cb: Function) => {
+        cb(null, '', '')
+      })
 
       const projectDir = '/mock/home/.claude/projects/-projects-myapp'
-      mockFs.existsSync.mockImplementation((p) => p === projectDir)
-      mockFs.readdirSync.mockReturnValue([`${uuid}.jsonl`] as unknown as ReturnType<typeof mockFs.readdirSync>)
-      mockFs.statSync.mockReturnValue({ mtimeMs: now - 5000 } as ReturnType<typeof mockFs.statSync>) // 5s old, within 60s window
+      // stat for projectDir succeeds (isDirectory)
+      mockFsp.stat.mockImplementation(async (p: string) => {
+        if (p === projectDir) return { isDirectory: () => true }
+        if (p.endsWith(`${uuid}.jsonl`)) return { mtimeMs: now - 5000 }
+        throw new Error('ENOENT')
+      })
+      mockFsp.readdir.mockResolvedValue([`${uuid}.jsonl`])
 
-      const result = mod.discoverSessionId(123, '/projects/myapp')
+      const result = await mod.discoverSessionId(123, '/projects/myapp')
       expect(result).toBe(uuid)
     })
 
-    it('returns null when filesystem file is too old', () => {
+    it('returns null when filesystem file is too old', async () => {
       const uuid = 'c3d4e5f6-a7b8-9012-cdef-123456789012'
       const old = Date.now() - 120_000 // 2 minutes old
 
-      mockExecSync.mockReturnValue('')
-      const projectDir = '/mock/home/.claude/projects/-projects-stale'
-      mockFs.existsSync.mockImplementation((p) => p === projectDir)
-      mockFs.readdirSync.mockReturnValue([`${uuid}.jsonl`] as unknown as ReturnType<typeof mockFs.readdirSync>)
-      mockFs.statSync.mockReturnValue({ mtimeMs: old } as ReturnType<typeof mockFs.statSync>)
+      mockExecFile.mockImplementation((cmd: string, args: string[], opts: any, cb: Function) => {
+        cb(new Error('no lsof'), '', '')
+      })
 
-      const result = mod.discoverSessionId(null, '/projects/stale', 60_000)
+      const projectDir = '/mock/home/.claude/projects/-projects-stale'
+      mockFsp.stat.mockImplementation(async (p: string) => {
+        if (p === projectDir) return { isDirectory: () => true }
+        if (p.endsWith(`${uuid}.jsonl`)) return { mtimeMs: old }
+        throw new Error('ENOENT')
+      })
+      mockFsp.readdir.mockResolvedValue([`${uuid}.jsonl`])
+
+      const result = await mod.discoverSessionId(null, '/projects/stale', 60_000)
       expect(result).toBeNull()
     })
   })

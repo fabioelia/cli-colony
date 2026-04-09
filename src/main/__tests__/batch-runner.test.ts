@@ -12,6 +12,8 @@ describe('batch-runner', () => {
     tmpDir = path.join(os.tmpdir(), `batch-test-${Date.now()}-${Math.random()}`)
     fs.mkdirSync(tmpDir, { recursive: true })
 
+    vi.resetModules()
+
     // Fresh module import with mocked colony-paths
     vi.doMock('../../shared/colony-paths', () => ({
       colonyPaths: { root: tmpDir },
@@ -28,7 +30,7 @@ describe('batch-runner', () => {
     }
   })
 
-  it('returns default batch config', async () => {
+  it('returns default batch config', () => {
     const config = mod.getDefaultBatchConfig()
     expect(config).toEqual({
       enabled: false,
@@ -54,7 +56,7 @@ tasks:
 `
     fs.writeFileSync(yamlFile, content, 'utf-8')
 
-    const tasks = mod.parseTaskQueue(yamlFile)
+    const tasks = await mod.parseTaskQueue(yamlFile)
     expect(tasks).not.toBeNull()
     expect(tasks).toHaveLength(2)
     expect(tasks?.[0]).toEqual({
@@ -66,7 +68,7 @@ tasks:
   })
 
   it('returns null for missing task queue file', async () => {
-    const result = mod.parseTaskQueue('/nonexistent/path.yaml')
+    const result = await mod.parseTaskQueue('/nonexistent/path.yaml')
     expect(result).toBeNull()
   })
 
@@ -74,12 +76,12 @@ tasks:
     const yamlFile = path.join(tmpDir, 'bad.yaml')
     fs.writeFileSync(yamlFile, 'invalid: : : yaml', 'utf-8')
 
-    const result = mod.parseTaskQueue(yamlFile)
+    const result = await mod.parseTaskQueue(yamlFile)
     // parseYaml will try to parse it, but it won't have a tasks array
     expect(result).toBeNull()
   })
 
-  it('creates a new batch run', async () => {
+  it('creates a new batch run', () => {
     const run = mod.createBatchRun(5)
     expect(run.id).toBeDefined()
     expect(run.taskCount).toBe(5)
@@ -92,7 +94,7 @@ tasks:
     expect(run.createdAt).toBeDefined()
   })
 
-  it('adds tasks to batch run and updates counts', async () => {
+  it('adds tasks to batch run and updates counts', () => {
     const run = mod.createBatchRun(3)
 
     mod.addTaskToBatchRun(run, {
@@ -130,7 +132,7 @@ tasks:
     expect(run.tasks).toHaveLength(3)
   })
 
-  it('completes batch run with timestamp', async () => {
+  it('completes batch run with timestamp', () => {
     const run = mod.createBatchRun(1)
     expect(run.completedAt).toBeUndefined()
 
@@ -138,7 +140,7 @@ tasks:
     expect(run.completedAt).toBeDefined()
   })
 
-  it('generates batch report markdown', async () => {
+  it('generates batch report markdown', () => {
     const run = mod.createBatchRun(3)
     run.startedAt = '2026-04-08T12:00:00Z'
     run.completedAt = '2026-04-08T12:05:00Z'
@@ -190,17 +192,19 @@ tasks:
     }
 
     // Append all runs (ring buffer should trim to 100)
-    runs.forEach(run => mod.appendBatchHistory(run))
+    for (const run of runs) {
+      await mod.appendBatchHistory(run)
+    }
 
     // Retrieve history
-    const retrieved = mod.getBatchHistory(150)
+    const retrieved = await mod.getBatchHistory(150)
     expect(retrieved).toHaveLength(100) // max 100
     expect(retrieved[0].id).toBe(runs[50].id) // first 50 trimmed
     expect(retrieved[99].id).toBe(runs[149].id) // last one
   })
 
   it('handles empty history file gracefully', async () => {
-    const history = mod.getBatchHistory(20)
+    const history = await mod.getBatchHistory(20)
     expect(history).toEqual([])
   })
 
@@ -209,10 +213,10 @@ tasks:
     for (let i = 0; i < 30; i++) {
       const run = mod.createBatchRun(1)
       runs.push(run)
-      mod.appendBatchHistory(run)
+      await mod.appendBatchHistory(run)
     }
 
-    const history = mod.getBatchHistory(10)
+    const history = await mod.getBatchHistory(10)
     expect(history).toHaveLength(10)
     // Should be the last 10
     expect(history[9].id).toBe(runs[29].id)

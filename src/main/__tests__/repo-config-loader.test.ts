@@ -3,7 +3,7 @@
  *
  * No Electron dependency — repo-config-loader only uses fs/path/crypto/child_process.
  * Strategy: real temp directories (no mocking needed for most tests).
- * execSync('git remote get-url origin') fails in a plain tmpdir, falling back to basename.
+ * execFile('git remote get-url origin') fails in a plain tmpdir, falling back to basename.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
@@ -87,80 +87,80 @@ describe('findColonyDir', () => {
 // ---- loadRepoConfig ----
 
 describe('loadRepoConfig', () => {
-  it('returns null when no .colony/ directory exists', () => {
+  it('returns null when no .colony/ directory exists', async () => {
     const repoRoot = mkdir('repo')
-    expect(loadRepoConfig(repoRoot)).toBeNull()
+    expect(await loadRepoConfig(repoRoot)).toBeNull()
   })
 
-  it('returns config with repoSlug = basename when no git remote', () => {
+  it('returns config with repoSlug = basename when no git remote', async () => {
     mkdir('my-project', '.colony')
     const repoRoot = path.join(tmpDir, 'my-project')
-    const result = loadRepoConfig(repoRoot)
+    const result = await loadRepoConfig(repoRoot)
     // .colony exists but no config.yaml — still returns a result
     expect(result).not.toBeNull()
     expect(result!.repoSlug).toBe('my-project')
     expect(result!.repoPath).toBe(repoRoot)
   })
 
-  it('loads config.yaml when present with name field', () => {
+  it('loads config.yaml when present with name field', async () => {
     write('repo/.colony/config.yaml', 'name: My Project\ndescription: Test repo\n')
     const repoRoot = path.join(tmpDir, 'repo')
-    const result = loadRepoConfig(repoRoot)
+    const result = await loadRepoConfig(repoRoot)
     expect(result).not.toBeNull()
     expect(result!.config).not.toBeNull()
     expect(result!.config!.name).toBe('My Project')
   })
 
-  it('returns config=null when config.yaml has no name field', () => {
+  it('returns config=null when config.yaml has no name field', async () => {
     write('repo/.colony/config.yaml', 'description: No name here\n')
     const repoRoot = path.join(tmpDir, 'repo')
-    const result = loadRepoConfig(repoRoot)
+    const result = await loadRepoConfig(repoRoot)
     expect(result).not.toBeNull()
     expect(result!.config).toBeNull()
   })
 
-  it('skips config.yaml that is invalid YAML', () => {
+  it('skips config.yaml that is invalid YAML', async () => {
     write('repo/.colony/config.yaml', ': invalid: {{ yaml')
     const repoRoot = path.join(tmpDir, 'repo')
-    const result = loadRepoConfig(repoRoot)
+    const result = await loadRepoConfig(repoRoot)
     expect(result).not.toBeNull()
     expect(result!.config).toBeNull()
   })
 
-  it('loads templates from templates/ subdirectory', () => {
+  it('loads templates from templates/ subdirectory', async () => {
     write('repo/.colony/templates/my-template.yaml',
       'name: My Template\ndescription: A test template\nprojectType: custom\n')
     const repoRoot = path.join(tmpDir, 'repo')
-    const result = loadRepoConfig(repoRoot)
+    const result = await loadRepoConfig(repoRoot)
     expect(result).not.toBeNull()
     expect(result!.templates).toHaveLength(1)
     expect(result!.templates[0].name).toBe('My Template')
     expect(result!.templates[0].source).toContain('repo:')
   })
 
-  it('skips template YAML files without name field', () => {
+  it('skips template YAML files without name field', async () => {
     write('repo/.colony/templates/bad.yaml', 'description: No name\n')
     const repoRoot = path.join(tmpDir, 'repo')
-    const result = loadRepoConfig(repoRoot)
+    const result = await loadRepoConfig(repoRoot)
     expect(result!.templates).toHaveLength(0)
   })
 
-  it('skips non-yaml files in templates/', () => {
+  it('skips non-yaml files in templates/', async () => {
     write('repo/.colony/templates/README.md', '# templates')
     write('repo/.colony/templates/good.yaml', 'name: Good\n')
     const repoRoot = path.join(tmpDir, 'repo')
-    const result = loadRepoConfig(repoRoot)
+    const result = await loadRepoConfig(repoRoot)
     expect(result!.templates).toHaveLength(1)
   })
 
-  it('assigns template id with repo: prefix and repoSlug', () => {
+  it('assigns template id with repo: prefix and repoSlug', async () => {
     write('repo/.colony/templates/env.yaml', 'name: Env Template\n')
     const repoRoot = path.join(tmpDir, 'repo')
-    const result = loadRepoConfig(repoRoot)
+    const result = await loadRepoConfig(repoRoot)
     expect(result!.templates[0].id).toBe('repo:repo:Env Template')
   })
 
-  it('loads pipelines from pipelines/ subdirectory', () => {
+  it('loads pipelines from pipelines/ subdirectory', async () => {
     write('repo/.colony/pipelines/ci.yaml', [
       'name: CI Pipeline',
       'trigger:',
@@ -171,21 +171,21 @@ describe('loadRepoConfig', () => {
       '  prompt: Run CI',
     ].join('\n'))
     const repoRoot = path.join(tmpDir, 'repo')
-    const result = loadRepoConfig(repoRoot)
+    const result = await loadRepoConfig(repoRoot)
     expect(result!.pipelines).toHaveLength(1)
     expect(result!.pipelines[0].name).toBe('CI Pipeline')
     expect(result!.pipelines[0].fileName).toBe('ci.yaml')
     expect(result!.pipelines[0].source).toContain('repo:')
   })
 
-  it('skips pipeline YAML without required name/trigger/action fields', () => {
+  it('skips pipeline YAML without required name/trigger/action fields', async () => {
     write('repo/.colony/pipelines/bad.yaml', 'name: Incomplete Pipeline\n')
     const repoRoot = path.join(tmpDir, 'repo')
-    const result = loadRepoConfig(repoRoot)
+    const result = await loadRepoConfig(repoRoot)
     expect(result!.pipelines).toHaveLength(0)
   })
 
-  it('loads prompts from prompts/ subdirectory', () => {
+  it('loads prompts from prompts/ subdirectory', async () => {
     write('repo/.colony/prompts/custom.yaml', [
       'prompts:',
       '  - id: p1',
@@ -194,14 +194,14 @@ describe('loadRepoConfig', () => {
       '    scope: pr',
     ].join('\n'))
     const repoRoot = path.join(tmpDir, 'repo')
-    const result = loadRepoConfig(repoRoot)
+    const result = await loadRepoConfig(repoRoot)
     expect(result!.prompts).toHaveLength(1)
     expect(result!.prompts[0].id).toBe('p1')
     expect(result!.prompts[0].label).toBe('Run Tests')
     expect(result!.prompts[0].source).toContain('repo:')
   })
 
-  it('defaults prompt scope to "pr" when not specified', () => {
+  it('defaults prompt scope to "pr" when not specified', async () => {
     write('repo/.colony/prompts/no-scope.yaml', [
       'prompts:',
       '  - id: p2',
@@ -209,36 +209,36 @@ describe('loadRepoConfig', () => {
       '    prompt: Please review',
     ].join('\n'))
     const repoRoot = path.join(tmpDir, 'repo')
-    const result = loadRepoConfig(repoRoot)
+    const result = await loadRepoConfig(repoRoot)
     expect(result!.prompts[0].scope).toBe('pr')
   })
 
-  it('skips prompts missing required id/label/prompt fields', () => {
+  it('skips prompts missing required id/label/prompt fields', async () => {
     write('repo/.colony/prompts/partial.yaml', [
       'prompts:',
       '  - id: p3',
       '    label: Missing prompt field',
     ].join('\n'))
     const repoRoot = path.join(tmpDir, 'repo')
-    const result = loadRepoConfig(repoRoot)
+    const result = await loadRepoConfig(repoRoot)
     expect(result!.prompts).toHaveLength(0)
   })
 
-  it('loads context.md when present', () => {
+  it('loads context.md when present', async () => {
     write('repo/.colony/context.md', '# Context\nThis is the project context.')
     const repoRoot = path.join(tmpDir, 'repo')
-    const result = loadRepoConfig(repoRoot)
+    const result = await loadRepoConfig(repoRoot)
     expect(result!.context).toContain('This is the project context.')
   })
 
-  it('sets context to null when context.md is absent', () => {
+  it('sets context to null when context.md is absent', async () => {
     mkdir('repo', '.colony')
     const repoRoot = path.join(tmpDir, 'repo')
-    const result = loadRepoConfig(repoRoot)
+    const result = await loadRepoConfig(repoRoot)
     expect(result!.context).toBeNull()
   })
 
-  it('computes hashes for pipeline files', () => {
+  it('computes hashes for pipeline files', async () => {
     write('repo/.colony/pipelines/ci.yaml', [
       'name: CI',
       'trigger:',
@@ -249,7 +249,7 @@ describe('loadRepoConfig', () => {
       '  prompt: Run CI',
     ].join('\n'))
     const repoRoot = path.join(tmpDir, 'repo')
-    const result = loadRepoConfig(repoRoot)
+    const result = await loadRepoConfig(repoRoot)
     expect(result!.hashes.pipelines['ci.yaml']).toBeDefined()
     expect(result!.hashes.pipelines['ci.yaml']).toHaveLength(64) // sha256 hex
   })
@@ -258,45 +258,45 @@ describe('loadRepoConfig', () => {
 // ---- getRepoConfig (caching) ----
 
 describe('getRepoConfig', () => {
-  it('returns null for a directory with no .colony/', () => {
+  it('returns null for a directory with no .colony/', async () => {
     const repoRoot = mkdir('no-colony')
-    expect(getRepoConfig(repoRoot)).toBeNull()
+    expect(await getRepoConfig(repoRoot)).toBeNull()
   })
 
-  it('returns config for a directory with .colony/', () => {
+  it('returns config for a directory with .colony/', async () => {
     write('cached-repo/.colony/config.yaml', 'name: Cached\n')
     const repoRoot = path.join(tmpDir, 'cached-repo')
-    const result = getRepoConfig(repoRoot)
+    const result = await getRepoConfig(repoRoot)
     expect(result).not.toBeNull()
     expect(result!.config!.name).toBe('Cached')
   })
 
-  it('returns the same object on second call (cache hit)', () => {
+  it('returns the same object on second call (cache hit)', async () => {
     write('cachetest/.colony/config.yaml', 'name: CacheTest\n')
     const repoRoot = path.join(tmpDir, 'cachetest')
-    const first = getRepoConfig(repoRoot)
-    const second = getRepoConfig(repoRoot)
+    const first = await getRepoConfig(repoRoot)
+    const second = await getRepoConfig(repoRoot)
     expect(first).toBe(second) // same object reference = cache hit
   })
 
-  it('getAllRepoConfigs returns all cached configs', () => {
+  it('getAllRepoConfigs returns all cached configs', async () => {
     write('repo-a/.colony/config.yaml', 'name: A\n')
     write('repo-b/.colony/config.yaml', 'name: B\n')
     const repoA = path.join(tmpDir, 'repo-a')
     const repoB = path.join(tmpDir, 'repo-b')
-    getRepoConfig(repoA)
-    getRepoConfig(repoB)
+    await getRepoConfig(repoA)
+    await getRepoConfig(repoB)
     const all = getAllRepoConfigs()
     const names = all.map(c => c.config?.name).sort()
     expect(names).toEqual(['A', 'B'])
   })
 
-  it('clearRepoConfigCache removes a specific repo', () => {
+  it('clearRepoConfigCache removes a specific repo', async () => {
     write('cached/.colony/config.yaml', 'name: Cacheable\n')
     const repoRoot = path.join(tmpDir, 'cached')
-    const first = getRepoConfig(repoRoot)
+    const first = await getRepoConfig(repoRoot)
     clearRepoConfigCache(repoRoot)
-    const second = getRepoConfig(repoRoot)
+    const second = await getRepoConfig(repoRoot)
     // After clearing, fresh load — still returns valid config but different object
     expect(first).not.toBe(second)
     expect(second!.config!.name).toBe('Cacheable')

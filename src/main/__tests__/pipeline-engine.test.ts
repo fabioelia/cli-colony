@@ -59,9 +59,9 @@ const mockScheduleTimer = vi.hoisted(() => vi.fn())
 // ---- Test helpers ----
 
 /**
- * Build a fresh fs mock. readdirSync returns `fileNames` from PIPELINES_DIR.
- * readFileSync returns `fileContents[path]` or throws.
- * existsSync returns true for PIPELINES_DIR; false for STATE_PATH.
+ * Build a fresh fs mock. promises.readdir returns `fileNames` from PIPELINES_DIR.
+ * promises.readFile returns `fileContents[path]` or throws ENOENT.
+ * promises.access resolves for PIPELINES_DIR; rejects for STATE_PATH.
  */
 function buildFsMock(
   fileNames: string[],
@@ -70,30 +70,35 @@ function buildFsMock(
   statMtimes?: Record<string, number>,  // path → mtime for file-poll tests
 ) {
   return {
-    existsSync: vi.fn().mockImplementation((p: string) => {
-      if (p === PIPELINES_DIR) return true
-      if (p === STATE_PATH) return stateJson !== undefined
-      return false
-    }),
-    readFileSync: vi.fn().mockImplementation((p: string, _enc?: string) => {
-      if (p === STATE_PATH) return stateJson ?? '{}'
-      const key = Object.keys(fileContents).find(k => p.endsWith(k))
-      if (key) return fileContents[key]
-      throw new Error(`Unexpected readFileSync: ${p}`)
-    }),
-    writeFileSync: vi.fn(),
-    mkdirSync: vi.fn(),
-    readdirSync: vi.fn().mockImplementation((p: string) => {
-      if (p === PIPELINES_DIR) return fileNames
-      return []
-    }),
-    appendFileSync: vi.fn(),
-    statSync: vi.fn().mockImplementation((p: string) => {
-      if (statMtimes && p in statMtimes) {
-        return { mtimeMs: statMtimes[p], isDirectory: () => false }
-      }
-      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
-    }),
+    promises: {
+      access: vi.fn().mockImplementation(async (p: string) => {
+        if (p === PIPELINES_DIR) return
+        if (p === STATE_PATH && stateJson !== undefined) return
+        throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
+      }),
+      readFile: vi.fn().mockImplementation(async (p: string, _enc?: string) => {
+        if (p === STATE_PATH) {
+          if (stateJson !== undefined) return stateJson
+          return '{}'
+        }
+        const key = Object.keys(fileContents).find(k => p.endsWith(k))
+        if (key) return fileContents[key]
+        throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
+      }),
+      writeFile: vi.fn().mockResolvedValue(undefined),
+      mkdir: vi.fn().mockResolvedValue(undefined),
+      readdir: vi.fn().mockImplementation(async (p: string) => {
+        if (p === PIPELINES_DIR) return fileNames
+        return []
+      }),
+      stat: vi.fn().mockImplementation(async (p: string) => {
+        if (statMtimes && p in statMtimes) {
+          return { mtimeMs: statMtimes[p], isDirectory: () => false }
+        }
+        throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
+      }),
+      appendFile: vi.fn().mockResolvedValue(undefined),
+    },
   }
 }
 
@@ -152,7 +157,7 @@ describe('pipeline-engine: YAML parsing via loadPipelines', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     const list = mod.getPipelineList()
     expect(list).toHaveLength(1)
@@ -170,7 +175,7 @@ describe('pipeline-engine: YAML parsing via loadPipelines', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     expect(mod.getPipelineList()).toHaveLength(0)
   })
 
@@ -180,7 +185,7 @@ describe('pipeline-engine: YAML parsing via loadPipelines', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     expect(mod.getPipelineList()).toHaveLength(0)
   })
 
@@ -190,7 +195,7 @@ describe('pipeline-engine: YAML parsing via loadPipelines', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     expect(mod.getPipelineList()).toHaveLength(0)
   })
 
@@ -200,7 +205,7 @@ describe('pipeline-engine: YAML parsing via loadPipelines', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     const list = mod.getPipelineList()
     expect(list[0].enabled).toBe(true)
   })
@@ -211,7 +216,7 @@ describe('pipeline-engine: YAML parsing via loadPipelines', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     expect(mod.getPipelineList()[0].enabled).toBe(false)
   })
 
@@ -223,7 +228,7 @@ describe('pipeline-engine: YAML parsing via loadPipelines', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     // Pipeline should load successfully (not be rejected)
     expect(mod.getPipelineList()).toHaveLength(1)
     expect(mod.getPipelineList()[0].name).toBe('My Pipeline')
@@ -234,7 +239,7 @@ describe('pipeline-engine: YAML parsing via loadPipelines', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     const list = mod.getPipelineList()
     expect(list).toHaveLength(1)
     expect(list[0].cron).toBe('0 9 * * 1-5')
@@ -250,7 +255,7 @@ describe('pipeline-engine: YAML parsing via loadPipelines', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     expect(mod.getPipelineList()).toHaveLength(2)
     const names = mod.getPipelineList().map(p => p.name)
     expect(names).toContain('My Pipeline')
@@ -265,7 +270,7 @@ describe('pipeline-engine: YAML parsing via loadPipelines', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     expect(mod.getPipelineList()).toHaveLength(1)
   })
 
@@ -274,7 +279,7 @@ describe('pipeline-engine: YAML parsing via loadPipelines', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     expect(mod.getPipelineList()).toHaveLength(0)
   })
 })
@@ -300,7 +305,7 @@ describe('pipeline-engine: getPipelineList fields', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     const p = mod.getPipelineList()[0]
     expect(p.fireCount).toBe(0)
     expect(p.lastPollAt).toBeNull()
@@ -327,7 +332,7 @@ describe('pipeline-engine: getPipelineList fields', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     const p = mod.getPipelineList()[0]
     expect(p.fireCount).toBe(7)
     expect(p.lastFiredAt).toBe('2026-04-01T10:05:00.000Z')
@@ -355,7 +360,7 @@ dedup:
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     const p = mod.getPipelineList()[0]
     expect(p.outputsDir).toBe('~/.claude-colony/outputs/my-pipe')
   })
@@ -380,31 +385,26 @@ describe('pipeline-engine: file operations', () => {
   it('getPipelineContent returns file content', async () => {
     const content = 'name: Test\ntrigger:\n  type: cron\n'
     const fs = buildFsMock([], {})
-    // Override readFileSync to handle the specific path
-    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+    // Override readFile to handle the specific path
+    fs.promises.readFile.mockImplementation(async (p: string, _enc?: string) => {
       if (p === `${PIPELINES_DIR}/test.yaml`) return content
       if (p === STATE_PATH) return '{}'
-      throw new Error(`Unexpected readFileSync: ${p}`)
-    })
-    fs.existsSync.mockImplementation((p: string) => {
-      if (p === `${PIPELINES_DIR}/test.yaml`) return true
-      if (p === PIPELINES_DIR) return true
-      return false
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    const result = mod.getPipelineContent('test.yaml')
+    const result = await mod.getPipelineContent('test.yaml')
     expect(result).toBe(content)
   })
 
   it('getPipelineContent returns null when file not found', async () => {
     const fs = buildFsMock([], {})
-    fs.readFileSync.mockImplementation(() => { throw new Error('ENOENT') })
+    fs.promises.readFile.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    const result = mod.getPipelineContent('missing.yaml')
+    const result = await mod.getPipelineContent('missing.yaml')
     expect(result).toBeNull()
   })
 
@@ -413,7 +413,7 @@ describe('pipeline-engine: file operations', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    expect(mod.getPipelinesDir()).toBe(PIPELINES_DIR)
+    expect(await mod.getPipelinesDir()).toBe(PIPELINES_DIR)
   })
 })
 
@@ -438,40 +438,40 @@ describe('pipeline-engine: togglePipeline', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
-    expect(mod.togglePipeline('No Such Pipeline', false)).toBe(false)
+    await mod.loadPipelines()
+    expect(await mod.togglePipeline('No Such Pipeline', false)).toBe(false)
   })
 
   it('returns true when toggling a known pipeline', async () => {
     const fs = buildFsMock(['pipe.yaml'], { 'pipe.yaml': VALID_YAML })
     // togglePipeline reads + writes the YAML file; provide the content for re-read
-    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+    fs.promises.readFile.mockImplementation(async (p: string, _enc?: string) => {
       if (p === STATE_PATH) return '{}'
       if (p.endsWith('pipe.yaml')) return VALID_YAML
-      throw new Error(`Unexpected readFileSync: ${p}`)
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
-    const result = mod.togglePipeline('My Pipeline', false)
+    await mod.loadPipelines()
+    const result = await mod.togglePipeline('My Pipeline', false)
     expect(result).toBe(true)
   })
 
   it('updates enabled state in getPipelineList after toggling off', async () => {
     const fs = buildFsMock(['pipe.yaml'], { 'pipe.yaml': VALID_YAML })
-    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+    fs.promises.readFile.mockImplementation(async (p: string, _enc?: string) => {
       if (p === STATE_PATH) return '{}'
       if (p.endsWith('pipe.yaml')) return VALID_YAML
-      throw new Error(`Unexpected readFileSync: ${p}`)
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     expect(mod.getPipelineList()[0].enabled).toBe(true)
 
-    mod.togglePipeline('My Pipeline', false)
+    await mod.togglePipeline('My Pipeline', false)
     expect(mod.getPipelineList()[0].enabled).toBe(false)
   })
 })
@@ -494,14 +494,11 @@ describe('pipeline-engine: setPipelineCron', () => {
 
   it('returns false when file does not exist', async () => {
     const fs = buildFsMock([], {})
-    fs.readFileSync.mockImplementation((p: string) => {
-      if (p === STATE_PATH) return '{}'
-      throw new Error('ENOENT')
-    })
+    fs.promises.readFile.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    expect(mod.setPipelineCron('missing.yaml', '0 9 * * *')).toBe(false)
+    expect(await mod.setPipelineCron('missing.yaml', '0 9 * * *')).toBe(false)
   })
 
   it('inserts cron field after interval line when not present', async () => {
@@ -518,18 +515,18 @@ dedup:
 `
     const fs = buildFsMock(['pipe.yaml'], { 'pipe.yaml': content })
     let capturedWrite = ''
-    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+    fs.promises.readFile.mockImplementation(async (p: string, _enc?: string) => {
       if (p === STATE_PATH) return '{}'
       if (p.endsWith('pipe.yaml')) return content
-      throw new Error(`Unexpected: ${p}`)
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
-    fs.writeFileSync.mockImplementation((_p: string, data: string) => {
+    fs.promises.writeFile.mockImplementation(async (_p: string, data: string) => {
       capturedWrite = data
     })
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    const result = mod.setPipelineCron('pipe.yaml', '0 9 * * 1-5')
+    const result = await mod.setPipelineCron('pipe.yaml', '0 9 * * 1-5')
     expect(result).toBe(true)
     expect(capturedWrite).toContain('cron: "0 9 * * 1-5"')
   })
@@ -549,18 +546,18 @@ dedup:
 `
     const fs = buildFsMock(['pipe.yaml'], { 'pipe.yaml': content })
     let capturedWrite = ''
-    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+    fs.promises.readFile.mockImplementation(async (p: string, _enc?: string) => {
       if (p === STATE_PATH) return '{}'
       if (p.endsWith('pipe.yaml')) return content
-      throw new Error(`Unexpected: ${p}`)
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
-    fs.writeFileSync.mockImplementation((_p: string, data: string) => {
+    fs.promises.writeFile.mockImplementation(async (_p: string, data: string) => {
       capturedWrite = data
     })
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.setPipelineCron('pipe.yaml', '0 10 * * *')
+    await mod.setPipelineCron('pipe.yaml', '0 10 * * *')
     expect(capturedWrite).toContain('cron: "0 10 * * *"')
     expect(capturedWrite).not.toContain('cron: "0 8 * * *"')
   })
@@ -580,18 +577,18 @@ dedup:
 `
     const fs = buildFsMock(['pipe.yaml'], { 'pipe.yaml': content })
     let capturedWrite = ''
-    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+    fs.promises.readFile.mockImplementation(async (p: string, _enc?: string) => {
       if (p === STATE_PATH) return '{}'
       if (p.endsWith('pipe.yaml')) return content
-      throw new Error(`Unexpected: ${p}`)
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
-    fs.writeFileSync.mockImplementation((_p: string, data: string) => {
+    fs.promises.writeFile.mockImplementation(async (_p: string, data: string) => {
       capturedWrite = data
     })
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.setPipelineCron('pipe.yaml', null)
+    await mod.setPipelineCron('pipe.yaml', null)
     expect(capturedWrite).not.toContain('cron:')
   })
 })
@@ -616,20 +613,20 @@ describe('pipeline-engine: debug log persistence', () => {
     const debugPath = `${PIPELINES_DIR}/My-Pipeline.debug.json`
     const entries = ['[12:00:00] poll started', '---', '[12:00:01] condition not met']
     const fs = buildFsMock(['my.yaml'], { 'my.yaml': VALID_YAML })
-    fs.existsSync.mockImplementation((p: string) => {
-      if (p === PIPELINES_DIR) return true
-      if (p === debugPath) return true
-      return false
+    fs.promises.access.mockImplementation(async (p: string) => {
+      if (p === PIPELINES_DIR) return
+      if (p === debugPath) return
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
-    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+    fs.promises.readFile.mockImplementation(async (p: string, _enc?: string) => {
       if (p.endsWith('my.yaml')) return VALID_YAML
       if (p === debugPath) return JSON.stringify({ entries, savedAt: new Date().toISOString() })
-      throw new Error(`Unexpected readFileSync: ${p}`)
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     const list = mod.getPipelineList()
     expect(list).toHaveLength(1)
@@ -641,7 +638,7 @@ describe('pipeline-engine: debug log persistence', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     const list = mod.getPipelineList()
     expect(list[0].debugLog).toEqual([])
@@ -650,20 +647,20 @@ describe('pipeline-engine: debug log persistence', () => {
   it('falls back to empty debugLog when the debug file is malformed JSON', async () => {
     const debugPath = `${PIPELINES_DIR}/My-Pipeline.debug.json`
     const fs = buildFsMock(['my.yaml'], { 'my.yaml': VALID_YAML })
-    fs.existsSync.mockImplementation((p: string) => {
-      if (p === PIPELINES_DIR) return true
-      if (p === debugPath) return true
-      return false
+    fs.promises.access.mockImplementation(async (p: string) => {
+      if (p === PIPELINES_DIR) return
+      if (p === debugPath) return
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
-    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+    fs.promises.readFile.mockImplementation(async (p: string, _enc?: string) => {
       if (p.endsWith('my.yaml')) return VALID_YAML
       if (p === debugPath) return 'not valid json{'
-      throw new Error(`Unexpected readFileSync: ${p}`)
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    expect(() => mod.loadPipelines()).not.toThrow()
+    await expect(mod.loadPipelines()).resolves.toBeUndefined()
     const list = mod.getPipelineList()
     expect(list[0].debugLog).toEqual([])
   })
@@ -671,20 +668,20 @@ describe('pipeline-engine: debug log persistence', () => {
   it('falls back to empty debugLog when entries field is not an array', async () => {
     const debugPath = `${PIPELINES_DIR}/My-Pipeline.debug.json`
     const fs = buildFsMock(['my.yaml'], { 'my.yaml': VALID_YAML })
-    fs.existsSync.mockImplementation((p: string) => {
-      if (p === PIPELINES_DIR) return true
-      if (p === debugPath) return true
-      return false
+    fs.promises.access.mockImplementation(async (p: string) => {
+      if (p === PIPELINES_DIR) return
+      if (p === debugPath) return
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
-    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+    fs.promises.readFile.mockImplementation(async (p: string, _enc?: string) => {
       if (p.endsWith('my.yaml')) return VALID_YAML
       if (p === debugPath) return JSON.stringify({ entries: 'oops', savedAt: '' })
-      throw new Error(`Unexpected readFileSync: ${p}`)
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     const list = mod.getPipelineList()
     expect(list[0].debugLog).toEqual([])
   })
@@ -739,9 +736,9 @@ dedup:
   key: daily
 `
 
-// Flush all pending microtasks (handles nested promise chains)
+// Flush all pending microtasks (handles nested promise chains in fully-async code)
 async function flushPromises() {
-  for (let i = 0; i < 10; i++) await Promise.resolve()
+  for (let i = 0; i < 50; i++) await Promise.resolve()
 }
 
 describe('pipeline-engine: auto-pause on consecutive failures', () => {
@@ -782,7 +779,14 @@ describe('pipeline-engine: auto-pause on consecutive failures', () => {
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
     }))
-    vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
+    vi.doMock('../daemon-client', () => ({
+      getDaemonClient: vi.fn().mockReturnValue({
+        on: vi.fn(),
+        removeListener: vi.fn(),
+        getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
+        writeToInstance: vi.fn(),
+      }),
+    }))
     vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
     vi.doMock('../github', () => ({
       getRepos: vi.fn().mockReturnValue([]),
@@ -799,20 +803,20 @@ describe('pipeline-engine: auto-pause on consecutive failures', () => {
     const fs = buildFsMock(['cron.yaml'], { 'cron.yaml': CRON_YAML })
     setupAutoMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
     expect(mod.getPipelineList()[0].consecutiveFailures).toBe(0)
   })
 
   it('increments consecutiveFailures after each failed poll', async () => {
     const fs = buildFsMock(['cron.yaml'], { 'cron.yaml': CRON_YAML })
-    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+    fs.promises.readFile.mockImplementation(async (p: string, _enc?: string) => {
       if (p === STATE_PATH) return '{}'
       if (p.endsWith('cron.yaml')) return CRON_YAML
-      throw new Error(`Unexpected: ${p}`)
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
     setupAutoMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Cron Pipe')
     await flushPromises()
@@ -826,17 +830,17 @@ describe('pipeline-engine: auto-pause on consecutive failures', () => {
   it('auto-pauses pipeline after 3 consecutive failures', async () => {
     const fs = buildFsMock(['cron.yaml'], { 'cron.yaml': CRON_YAML })
     let capturedWrite = ''
-    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+    fs.promises.readFile.mockImplementation(async (p: string, _enc?: string) => {
       if (p === STATE_PATH) return '{}'
       if (p.endsWith('cron.yaml')) return CRON_YAML
-      throw new Error(`Unexpected: ${p}`)
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
-    fs.writeFileSync.mockImplementation((_p: string, data: string) => {
+    fs.promises.writeFile.mockImplementation(async (_p: string, data: string) => {
       if (typeof data === 'string' && data.includes('enabled:')) capturedWrite = data
     })
     setupAutoMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     for (let i = 0; i < 3; i++) {
       mod.triggerPollNow('Cron Pipe')
@@ -850,14 +854,14 @@ describe('pipeline-engine: auto-pause on consecutive failures', () => {
 
   it('emits a warn activity event when auto-pausing', async () => {
     const fs = buildFsMock(['cron.yaml'], { 'cron.yaml': CRON_YAML })
-    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+    fs.promises.readFile.mockImplementation(async (p: string, _enc?: string) => {
       if (p === STATE_PATH) return '{}'
       if (p.endsWith('cron.yaml')) return CRON_YAML
-      throw new Error(`Unexpected: ${p}`)
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
     setupAutoMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     for (let i = 0; i < 3; i++) {
       mod.triggerPollNow('Cron Pipe')
@@ -875,16 +879,16 @@ describe('pipeline-engine: auto-pause on consecutive failures', () => {
   it('resets consecutiveFailures to 0 on successful poll', async () => {
     // Two failures then success — counter should go back to 0
     const fs = buildFsMock(['cron.yaml'], { 'cron.yaml': CRON_YAML })
-    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+    fs.promises.readFile.mockImplementation(async (p: string, _enc?: string) => {
       if (p === STATE_PATH) return '{}'
       if (p.endsWith('cron.yaml')) return CRON_YAML
-      throw new Error(`Unexpected: ${p}`)
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
     setupAutoMocks(fs)
 
     // Fail twice
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Cron Pipe')
     await flushPromises()
@@ -916,7 +920,7 @@ describe('pipeline-engine: auto-pause on consecutive failures', () => {
     const fs = buildFsMock(['cron.yaml'], { 'cron.yaml': CRON_YAML }, savedState)
     setupAutoMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     expect(mod.getPipelineList()[0].consecutiveFailures).toBe(2)
   })
@@ -925,14 +929,14 @@ describe('pipeline-engine: auto-pause on consecutive failures', () => {
     // Use a timestamp-based dedup key so each poll evaluates independently
     const uniqueKeyYaml = CRON_YAML.replace('key: daily', 'key: "{{timestamp}}"')
     const fs = buildFsMock(['cron.yaml'], { 'cron.yaml': uniqueKeyYaml })
-    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+    fs.promises.readFile.mockImplementation(async (p: string, _enc?: string) => {
       if (p === STATE_PATH) return '{}'
       if (p.endsWith('cron.yaml')) return uniqueKeyYaml
-      throw new Error(`Unexpected: ${p}`)
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
     setupAutoMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     // Two failures
     mod.triggerPollNow('Cron Pipe')
@@ -1014,7 +1018,14 @@ describe('pipeline-engine: approval gates', () => {
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
     }))
-    vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
+    vi.doMock('../daemon-client', () => ({
+      getDaemonClient: vi.fn().mockReturnValue({
+        on: vi.fn(),
+        removeListener: vi.fn(),
+        getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
+        writeToInstance: vi.fn(),
+      }),
+    }))
     vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
     vi.doMock('../github', () => ({
       getRepos: vi.fn().mockReturnValue([]),
@@ -1031,7 +1042,7 @@ describe('pipeline-engine: approval gates', () => {
     const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': APPROVAL_YAML })
     setupApprovalMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Guarded Pipe')
     await flushPromises()
@@ -1051,7 +1062,7 @@ describe('pipeline-engine: approval gates', () => {
     const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': APPROVAL_YAML })
     setupApprovalMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Guarded Pipe')
     await flushPromises()
@@ -1065,7 +1076,7 @@ describe('pipeline-engine: approval gates', () => {
     const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': APPROVAL_YAML })
     setupApprovalMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Guarded Pipe')
     await flushPromises()
@@ -1080,7 +1091,7 @@ describe('pipeline-engine: approval gates', () => {
     const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': fixedKeyYaml })
     setupApprovalMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Guarded Pipe')
     await flushPromises()
@@ -1094,7 +1105,7 @@ describe('pipeline-engine: approval gates', () => {
     const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': APPROVAL_YAML })
     setupApprovalMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Guarded Pipe')
     await flushPromises()
@@ -1112,7 +1123,7 @@ describe('pipeline-engine: approval gates', () => {
     const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': APPROVAL_YAML })
     setupApprovalMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Guarded Pipe')
     await flushPromises()
@@ -1130,7 +1141,7 @@ describe('pipeline-engine: approval gates', () => {
     const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': fixedKeyYaml })
     setupApprovalMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Guarded Pipe')
     await flushPromises()
@@ -1148,7 +1159,7 @@ describe('pipeline-engine: approval gates', () => {
     const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': fixedKeyYaml })
     setupApprovalMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Guarded Pipe')
     await flushPromises()
@@ -1166,7 +1177,7 @@ describe('pipeline-engine: approval gates', () => {
     const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': fixedKeyYaml })
     setupApprovalMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Guarded Pipe')
     await flushPromises()
@@ -1185,7 +1196,7 @@ describe('pipeline-engine: approval gates', () => {
     const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': APPROVAL_YAML })
     setupApprovalMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     expect(await mod.approveAction('unknown-id')).toBe(false)
     expect(mod.dismissAction('unknown-id')).toBe(false)
@@ -1248,7 +1259,14 @@ describe('pipeline-engine: approval expiry (sweepExpiredApprovals)', () => {
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
     }))
-    vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
+    vi.doMock('../daemon-client', () => ({
+      getDaemonClient: vi.fn().mockReturnValue({
+        on: vi.fn(),
+        removeListener: vi.fn(),
+        getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
+        writeToInstance: vi.fn(),
+      }),
+    }))
     vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
     vi.doMock('../github', () => ({
       getRepos: vi.fn().mockReturnValue([]),
@@ -1265,7 +1283,7 @@ describe('pipeline-engine: approval expiry (sweepExpiredApprovals)', () => {
     const fs = buildFsMock(['ttl.yaml'], { 'ttl.yaml': APPROVAL_TTL_YAML })
     setupTtlMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     const before = Date.now()
     mod.triggerPollNow('Ttl Pipe')
@@ -1284,7 +1302,7 @@ describe('pipeline-engine: approval expiry (sweepExpiredApprovals)', () => {
     const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': APPROVAL_YAML })
     setupTtlMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Guarded Pipe')
     await flushPromises()
@@ -1301,7 +1319,7 @@ describe('pipeline-engine: approval expiry (sweepExpiredApprovals)', () => {
     const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': APPROVAL_YAML })
     setupTtlMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Guarded Pipe')
     await flushPromises()
@@ -1324,7 +1342,7 @@ describe('pipeline-engine: approval expiry (sweepExpiredApprovals)', () => {
     const fs = buildFsMock(['ttl.yaml'], { 'ttl.yaml': APPROVAL_TTL_YAML })
     setupTtlMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Ttl Pipe')
     await flushPromises()
@@ -1342,7 +1360,7 @@ describe('pipeline-engine: approval expiry (sweepExpiredApprovals)', () => {
     const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': APPROVAL_YAML })
     setupTtlMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Guarded Pipe')
     await flushPromises()
@@ -1360,7 +1378,7 @@ describe('pipeline-engine: approval expiry (sweepExpiredApprovals)', () => {
     const fs = buildFsMock(['guarded.yaml'], { 'guarded.yaml': fixedKeyYaml })
     setupTtlMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Guarded Pipe')
     await flushPromises()
@@ -1427,7 +1445,7 @@ describe('pipeline-engine: maker-checker YAML parsing', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     const list = mod.getPipelineList()
     expect(list).toHaveLength(1)
     expect(list[0].name).toBe('MC Pipe')
@@ -1440,7 +1458,7 @@ describe('pipeline-engine: maker-checker YAML parsing', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     expect(mod.getPipelineList()).toHaveLength(0)
   })
 
@@ -1450,7 +1468,7 @@ describe('pipeline-engine: maker-checker YAML parsing', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     expect(mod.getPipelineList()).toHaveLength(0)
   })
 
@@ -1463,7 +1481,7 @@ describe('pipeline-engine: maker-checker YAML parsing', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     expect(mod.getPipelineList()).toHaveLength(0)
   })
 
@@ -1474,7 +1492,7 @@ describe('pipeline-engine: maker-checker YAML parsing', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     // Pipeline loads successfully — defaults are applied at runtime, not parse time
     expect(mod.getPipelineList()).toHaveLength(1)
   })
@@ -1522,7 +1540,14 @@ describe('pipeline-engine: file-poll trigger', () => {
       createInstance: fpCreateInstance,
       getAllInstances: fpGetAllInstances,
     }))
-    vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
+    vi.doMock('../daemon-client', () => ({
+      getDaemonClient: vi.fn().mockReturnValue({
+        on: vi.fn(),
+        removeListener: vi.fn(),
+        getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
+        writeToInstance: vi.fn(),
+      }),
+    }))
     vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
     vi.doMock('../notifications', () => ({ notify: vi.fn() }))
     vi.doMock('../github', () => ({
@@ -1555,7 +1580,7 @@ describe('pipeline-engine: file-poll trigger', () => {
     setupFilePollMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     const list = mod.getPipelineList()
     expect(list).toHaveLength(1)
     expect(list[0].triggerType).toBe('file-poll')
@@ -1580,7 +1605,7 @@ describe('pipeline-engine: file-poll trigger', () => {
   it('fires runPoll when watched file mtime increases (via timer)', async () => {
     let mtime = 1000
     const fs = buildFsMock(['fw.yaml'], { 'fw.yaml': FILE_POLL_YAML })
-    fs.statSync.mockImplementation((p: string) => {
+    fs.promises.stat.mockImplementation(async (p: string) => {
       if (p === '/watched/file.txt') return { mtimeMs: mtime, isDirectory: () => false }
       throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
@@ -1602,7 +1627,7 @@ describe('pipeline-engine: file-poll trigger', () => {
     })
     setupFilePollMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('File Watcher')
     await flushPromises()
@@ -1613,7 +1638,7 @@ describe('pipeline-engine: file-poll trigger', () => {
   it('debounces: timer does not re-fire within 10s of last fire', async () => {
     let mtime = 1000
     const fs = buildFsMock(['fw.yaml'], { 'fw.yaml': FILE_POLL_YAML })
-    fs.statSync.mockImplementation((p: string) => {
+    fs.promises.stat.mockImplementation(async (p: string) => {
       if (p === '/watched/file.txt') return { mtimeMs: mtime, isDirectory: () => false }
       throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
@@ -1662,7 +1687,16 @@ dedup:
   key: daily
 `
 
-  const mockExecSync = vi.fn()
+  const mockExecFile: any = vi.fn()
+  // Node's execFile has a custom promisify symbol — mock it so promisify returns { stdout, stderr }
+  mockExecFile[Symbol.for('nodejs.util.promisify.custom')] = vi.fn(async (...args: any[]) => {
+    return new Promise((resolve, reject) => {
+      mockExecFile(...args, (err: any, stdout: string, stderr: string) => {
+        if (err) reject(err)
+        else resolve({ stdout, stderr })
+      })
+    })
+  })
   const mockCreateInstance = vi.fn().mockResolvedValue({ id: 'inst-1' })
   const mockSendPromptWhenReady = vi.fn()
 
@@ -1678,14 +1712,21 @@ dedup:
       },
     }))
     vi.doMock('fs', () => fsMock)
-    vi.doMock('child_process', () => ({ execSync: mockExecSync }))
+    vi.doMock('child_process', () => ({ execFile: mockExecFile }))
     vi.doMock('../broadcast', () => ({ broadcast: vi.fn() }))
     vi.doMock('../repo-config-loader', () => ({ getAllRepoConfigs: vi.fn().mockReturnValue([]) }))
     vi.doMock('../instance-manager', () => ({
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
     }))
-    vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
+    vi.doMock('../daemon-client', () => ({
+      getDaemonClient: vi.fn().mockReturnValue({
+        on: vi.fn(),
+        removeListener: vi.fn(),
+        getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
+        writeToInstance: vi.fn(),
+      }),
+    }))
     vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: mockSendPromptWhenReady }))
     vi.doMock('../notifications', () => ({ notify: vi.fn() }))
     vi.doMock('../github', () => ({
@@ -1701,7 +1742,7 @@ dedup:
   beforeEach(() => {
     vi.resetModules()
     vi.useFakeTimers()
-    mockExecSync.mockReset()
+    mockExecFile.mockReset()
     mockCreateInstance.mockReset().mockResolvedValue({ id: 'inst-1' })
     mockSendPromptWhenReady.mockReset()
   })
@@ -1716,7 +1757,7 @@ dedup:
     const fs = buildFsMock(['art.yaml'], { 'art.yaml': ARTIFACT_YAML })
     setupArtifactMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     const list = mod.getPipelineList()
     expect(list).toHaveLength(1)
@@ -1729,7 +1770,7 @@ dedup:
     const fs = buildFsMock(['art.yaml'], { 'art.yaml': ARTIFACT_YAML })
     setupArtifactMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
     // Should load — prompt is present even with artifactOutputs
     expect(mod.getPipelineList()).toHaveLength(1)
   })
@@ -1741,39 +1782,41 @@ dedup:
       { 'art.yaml': ARTIFACT_YAML },
       undefined,
     )
-    // existsSync: pipelines dir = true, artifacts dir = false (newly created), no input artifacts
-    fs.existsSync.mockImplementation((p: string) => {
-      if (p === PIPELINES_DIR) return true
-      return false
+    mockExecFile.mockImplementation((_cmd: string, _args: string[], _opts: any, cb: Function) => {
+      cb(null, 'diff output', '')
     })
-    mockExecSync.mockReturnValue(Buffer.from('diff output'))
     setupArtifactMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Artifact Pipeline')
-    await Promise.resolve() // flush microtasks
+    await flushPromises()
 
-    // execSync should have been called for "diff" and "log" artifact outputs
-    const execCalls = mockExecSync.mock.calls
+    // execFile should have been called for "diff" and "log" artifact outputs via sh -c
+    const execCalls = mockExecFile.mock.calls
     expect(execCalls.length).toBeGreaterThanOrEqual(2)
-    const cmds = execCalls.map((c: any[]) => c[0])
+    const cmds = execCalls.map((c: any[]) => c[1][1]) // args[1] is the command after '-c'
     expect(cmds).toContain('git diff HEAD')
     expect(cmds).toContain('git log --oneline -5')
   })
 
   it('captureArtifacts: saves artifacts to COLONY_DIR/artifacts/<name>.txt', async () => {
     const fs = buildFsMock(['art.yaml'], { 'art.yaml': ARTIFACT_YAML })
-    fs.existsSync.mockImplementation((p: string) => p === PIPELINES_DIR)
-    mockExecSync.mockReturnValue(Buffer.from('captured content'))
+    fs.promises.access.mockImplementation(async (p: string) => {
+      if (p === PIPELINES_DIR) return
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
+    })
+    mockExecFile.mockImplementation((_cmd: string, _args: string[], _opts: any, cb: Function) => {
+      cb(null, 'captured content', '')
+    })
     setupArtifactMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Artifact Pipeline')
-    await Promise.resolve()
+    await flushPromises()
 
-    const writes = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls
+    const writes = (fs.promises.writeFile as ReturnType<typeof vi.fn>).mock.calls
     const artifactWrites = writes.filter((c: any[]) => String(c[0]).includes('/artifacts/'))
     expect(artifactWrites.length).toBeGreaterThanOrEqual(2)
     const paths = artifactWrites.map((c: any[]) => String(c[0]))
@@ -1784,26 +1827,28 @@ dedup:
   it('loadArtifactPreamble: artifact contents are prepended to prompt', async () => {
     const artifactContent = 'previous result content'
     const fs = buildFsMock(['art.yaml'], { 'art.yaml': ARTIFACT_YAML })
-    fs.existsSync.mockImplementation((p: string) => {
-      if (p === PIPELINES_DIR) return true
-      if (p.endsWith('prev-result.txt')) return true
-      return false
+    fs.promises.access.mockImplementation(async (p: string) => {
+      if (p === PIPELINES_DIR) return
+      if (p.endsWith('prev-result.txt')) return
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
-    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+    fs.promises.readFile.mockImplementation(async (p: string, _enc?: string) => {
       if (p.endsWith('prev-result.txt')) return artifactContent
       if (p.includes('.yaml')) return ARTIFACT_YAML
-      throw new Error(`unexpected: ${p}`)
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
-    mockExecSync.mockReturnValue(Buffer.from(''))
+    mockExecFile.mockImplementation((_cmd: string, _args: string[], _opts: any, cb: Function) => {
+      cb(null, '', '')
+    })
     setupArtifactMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Artifact Pipeline')
-    await Promise.resolve()
+    await flushPromises()
 
-    // Prompt file (writeFileSync) should contain the artifact preamble
-    const writes = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls
+    // Prompt file (writeFile) should contain the artifact preamble
+    const writes = (fs.promises.writeFile as ReturnType<typeof vi.fn>).mock.calls
     const promptWrite = writes.find((c: any[]) => String(c[0]).includes('pipeline-prompts'))
     expect(promptWrite).toBeDefined()
     const promptContent = String(promptWrite![1])
@@ -1815,11 +1860,16 @@ dedup:
 
   it('captureArtifacts: skips silently when execSync throws', async () => {
     const fs = buildFsMock(['art.yaml'], { 'art.yaml': ARTIFACT_YAML })
-    fs.existsSync.mockImplementation((p: string) => p === PIPELINES_DIR)
-    mockExecSync.mockImplementation(() => { throw new Error('git not a repo') })
+    fs.promises.access.mockImplementation(async (p: string) => {
+      if (p === PIPELINES_DIR) return
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
+    })
+    mockExecFile.mockImplementation((_cmd: string, _args: string[], _opts: any, cb: Function) => {
+      cb(new Error('git not a repo'), '', '')
+    })
     setupArtifactMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     // Should not throw — errors are swallowed in captureArtifacts
     expect(() => mod.triggerPollNow('Artifact Pipeline')).not.toThrow()
@@ -1850,7 +1900,7 @@ dedup:
   key: daily
 `
 
-  const mockExecSync = vi.fn()
+  const mockExecFile2 = vi.fn()
   const mockCreateInstance = vi.fn().mockResolvedValue({ id: 'inst-1' })
   const mockSendPromptWhenReady = vi.fn()
 
@@ -1866,14 +1916,21 @@ dedup:
       },
     }))
     vi.doMock('fs', () => fsMock)
-    vi.doMock('child_process', () => ({ execSync: mockExecSync }))
+    vi.doMock('child_process', () => ({ execFile: mockExecFile2 }))
     vi.doMock('../broadcast', () => ({ broadcast: vi.fn() }))
     vi.doMock('../repo-config-loader', () => ({ getAllRepoConfigs: vi.fn().mockReturnValue([]) }))
     vi.doMock('../instance-manager', () => ({
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
     }))
-    vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
+    vi.doMock('../daemon-client', () => ({
+      getDaemonClient: vi.fn().mockReturnValue({
+        on: vi.fn(),
+        removeListener: vi.fn(),
+        getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
+        writeToInstance: vi.fn(),
+      }),
+    }))
     vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: mockSendPromptWhenReady }))
     vi.doMock('../notifications', () => ({ notify: vi.fn() }))
     vi.doMock('../github', () => ({
@@ -1889,7 +1946,7 @@ dedup:
   beforeEach(() => {
     vi.resetModules()
     vi.useFakeTimers()
-    mockExecSync.mockReset()
+    mockExecFile2.mockReset()
     mockCreateInstance.mockReset().mockResolvedValue({ id: 'inst-1' })
     mockSendPromptWhenReady.mockReset()
   })
@@ -1903,24 +1960,25 @@ dedup:
   it('handoffInputs: content wrapped in narrative framing and prepended to prompt', async () => {
     const handoffContent = 'Decisions Made: Use async handlers\nFocus for Next Stage: auth module only'
     const fs = buildFsMock(['handoff.yaml'], { 'handoff.yaml': HANDOFF_YAML })
-    fs.existsSync.mockImplementation((p: string) => {
-      if (p === PIPELINES_DIR) return true
-      if (p.endsWith('review-briefing.txt')) return true
-      return false
+    fs.promises.access.mockImplementation(async (p: string) => {
+      if (p === PIPELINES_DIR) return
+      if (p.endsWith('review-briefing.txt')) return
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
-    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+    fs.promises.readFile.mockImplementation(async (p: string, _enc?: string) => {
       if (p.endsWith('review-briefing.txt')) return handoffContent
       if (p.includes('.yaml')) return HANDOFF_YAML
-      throw new Error(`unexpected: ${p}`)
+      if (p === STATE_PATH) return '{}'
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
     setupHandoffMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Handoff Pipeline')
-    await Promise.resolve()
+    await flushPromises()
 
-    const writes = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls
+    const writes = (fs.promises.writeFile as ReturnType<typeof vi.fn>).mock.calls
     const promptWrite = writes.find((c: any[]) => String(c[0]).includes('pipeline-prompts'))
     expect(promptWrite).toBeDefined()
     const promptContent = String(promptWrite![1])
@@ -1932,38 +1990,38 @@ dedup:
 
   it('handoffInputs: missing file is silently skipped', async () => {
     const fs = buildFsMock(['handoff.yaml'], { 'handoff.yaml': HANDOFF_YAML })
-    fs.existsSync.mockImplementation((p: string) => p === PIPELINES_DIR)
-    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
-      if (p.includes('.yaml')) return HANDOFF_YAML
-      throw new Error(`unexpected: ${p}`)
+    fs.promises.access.mockImplementation(async (p: string) => {
+      if (p === PIPELINES_DIR) return
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
     setupHandoffMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     expect(() => mod.triggerPollNow('Handoff Pipeline')).not.toThrow()
   })
 
   it('handoffInputs: framing text includes decision and focus instructions', async () => {
     const fs = buildFsMock(['handoff.yaml'], { 'handoff.yaml': HANDOFF_YAML })
-    fs.existsSync.mockImplementation((p: string) => {
-      if (p === PIPELINES_DIR) return true
-      if (p.endsWith('review-briefing.txt')) return true
-      return false
+    fs.promises.access.mockImplementation(async (p: string) => {
+      if (p === PIPELINES_DIR) return
+      if (p.endsWith('review-briefing.txt')) return
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
-    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+    fs.promises.readFile.mockImplementation(async (p: string, _enc?: string) => {
       if (p.endsWith('review-briefing.txt')) return 'context data'
       if (p.includes('.yaml')) return HANDOFF_YAML
-      throw new Error(`unexpected: ${p}`)
+      if (p === STATE_PATH) return '{}'
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
     setupHandoffMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Handoff Pipeline')
-    await Promise.resolve()
+    await flushPromises()
 
-    const writes = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls
+    const writes = (fs.promises.writeFile as ReturnType<typeof vi.fn>).mock.calls
     const promptWrite = writes.find((c: any[]) => String(c[0]).includes('pipeline-prompts'))
     const promptContent = String(promptWrite![1])
     expect(promptContent).toContain('do not re-litigate them')
@@ -1972,26 +2030,27 @@ dedup:
 
   it('handoffInputs + artifactInputs: handoff precedes artifact in prompt', async () => {
     const fs = buildFsMock(['handoff.yaml'], { 'handoff.yaml': HANDOFF_YAML })
-    fs.existsSync.mockImplementation((p: string) => {
-      if (p === PIPELINES_DIR) return true
-      if (p.endsWith('review-briefing.txt')) return true
-      if (p.endsWith('raw-diff.txt')) return true
-      return false
+    fs.promises.access.mockImplementation(async (p: string) => {
+      if (p === PIPELINES_DIR) return
+      if (p.endsWith('review-briefing.txt')) return
+      if (p.endsWith('raw-diff.txt')) return
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
-    fs.readFileSync.mockImplementation((p: string, _enc?: string) => {
+    fs.promises.readFile.mockImplementation(async (p: string, _enc?: string) => {
       if (p.endsWith('review-briefing.txt')) return 'HANDOFF_CONTENT'
       if (p.endsWith('raw-diff.txt')) return 'RAW_ARTIFACT_CONTENT'
       if (p.includes('.yaml')) return HANDOFF_YAML
-      throw new Error(`unexpected: ${p}`)
+      if (p === STATE_PATH) return '{}'
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
     setupHandoffMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Handoff Pipeline')
-    await Promise.resolve()
+    await flushPromises()
 
-    const writes = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls
+    const writes = (fs.promises.writeFile as ReturnType<typeof vi.fn>).mock.calls
     const promptWrite = writes.find((c: any[]) => String(c[0]).includes('pipeline-prompts'))
     const promptContent = String(promptWrite![1])
     const handoffPos = promptContent.indexOf('--- Stage Handoff from Prior Stage ---')
@@ -2038,7 +2097,14 @@ describe('pipeline-engine: run history', () => {
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
     }))
-    vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
+    vi.doMock('../daemon-client', () => ({
+      getDaemonClient: vi.fn().mockReturnValue({
+        on: vi.fn(),
+        removeListener: vi.fn(),
+        getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
+        writeToInstance: vi.fn(),
+      }),
+    }))
     vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
     vi.doMock('../github', () => ({
       getRepos: vi.fn().mockReturnValue([]),
@@ -2053,13 +2119,11 @@ describe('pipeline-engine: run history', () => {
 
   it('getHistory returns [] when history file does not exist', async () => {
     const fs = buildFsMock(['cron.yaml'], { 'cron.yaml': CRON_YAML })
-    // existsSync returns false for all paths except PIPELINES_DIR
-    fs.existsSync.mockImplementation((p: string) => p === PIPELINES_DIR)
     setupHistoryMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
-    expect(mod.getHistory('Cron Pipe')).toEqual([])
+    expect(await mod.getHistory('Cron Pipe')).toEqual([])
   })
 
   it('getHistory returns parsed entries when file exists', async () => {
@@ -2071,12 +2135,15 @@ describe('pipeline-engine: run history', () => {
       'cron.yaml': CRON_YAML,
       'Cron-Pipe.history.json': JSON.stringify(entries),
     })
-    fs.existsSync.mockImplementation((p: string) => p === PIPELINES_DIR || p.endsWith('.history.json'))
+    fs.promises.access.mockImplementation(async (p: string) => {
+      if (p === PIPELINES_DIR || p.endsWith('.history.json')) return
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
+    })
     setupHistoryMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
-    const result = mod.getHistory('Cron Pipe')
+    const result = await mod.getHistory('Cron Pipe')
     expect(result).toHaveLength(2)
     expect(result[0].trigger).toBe('cron')
     expect(result[0].actionExecuted).toBe(true)
@@ -2088,17 +2155,19 @@ describe('pipeline-engine: run history', () => {
       'cron.yaml': CRON_YAML,
       'Cron-Pipe.history.json': '{ not valid json [[[',
     })
-    fs.existsSync.mockImplementation((p: string) => p === PIPELINES_DIR || p.endsWith('.history.json'))
+    fs.promises.access.mockImplementation(async (p: string) => {
+      if (p === PIPELINES_DIR || p.endsWith('.history.json')) return
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
+    })
     setupHistoryMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
-    expect(mod.getHistory('Cron Pipe')).toEqual([])
+    expect(await mod.getHistory('Cron Pipe')).toEqual([])
   })
 
   it('runPoll writes a history entry to disk after cron fires', async () => {
     const fs = buildFsMock(['cron.yaml'], { 'cron.yaml': CRON_YAML })
-    fs.existsSync.mockImplementation((p: string) => p === PIPELINES_DIR)
     setupHistoryMocks(fs)
     mod = await import('../pipeline-engine')
     await mod.startPipelines()
@@ -2107,8 +2176,8 @@ describe('pipeline-engine: run history', () => {
     mod.triggerPollNow('Cron Pipe')
     await flushPromises()
 
-    // writeFileSync should be called with the history path
-    const historyCalls = fs.writeFileSync.mock.calls.filter(
+    // writeFile should be called with the history path
+    const historyCalls = fs.promises.writeFile.mock.calls.filter(
       (c: unknown[]) => typeof c[0] === 'string' && c[0].endsWith('Cron-Pipe.history.json')
     )
     expect(historyCalls.length).toBeGreaterThan(0)
@@ -2124,7 +2193,6 @@ describe('pipeline-engine: run history', () => {
 
   it('runPoll includes stage trace when action fires', async () => {
     const fs = buildFsMock(['cron.yaml'], { 'cron.yaml': CRON_YAML })
-    fs.existsSync.mockImplementation((p: string) => p === PIPELINES_DIR)
     setupHistoryMocks(fs)
     mod = await import('../pipeline-engine')
     await mod.startPipelines()
@@ -2132,7 +2200,7 @@ describe('pipeline-engine: run history', () => {
     mod.triggerPollNow('Cron Pipe')
     await flushPromises()
 
-    const historyCalls = fs.writeFileSync.mock.calls.filter(
+    const historyCalls = fs.promises.writeFile.mock.calls.filter(
       (c: unknown[]) => typeof c[0] === 'string' && c[0].endsWith('Cron-Pipe.history.json')
     )
     expect(historyCalls.length).toBeGreaterThan(0)
@@ -2208,7 +2276,7 @@ describe('pipeline-engine: diff_review YAML parsing', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     const list = mod.getPipelineList()
     expect(list).toHaveLength(1)
     expect(list[0].name).toBe('Diff Review Minimal')
@@ -2220,7 +2288,7 @@ describe('pipeline-engine: diff_review YAML parsing', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     const list = mod.getPipelineList()
     expect(list).toHaveLength(1)
     expect(list[0].name).toBe('Diff Review Pipe')
@@ -2245,13 +2313,18 @@ dedup:
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     // Missing action.type means action.type is undefined, not 'diff_review' — prompt also absent → rejected
     expect(mod.getPipelineList()).toHaveLength(0)
   })
 
   it('stage trace records diff_review actionType', async () => {
-    const mockSpawnSync = vi.fn().mockReturnValue({ status: 0, stdout: Buffer.from(''), stderr: Buffer.from('') })
+    const mockExecFileDR = vi.fn().mockImplementation(
+      (_cmd: string, _args: string[], _opts: unknown, cb?: Function) => {
+        if (cb) { cb(null, '', ''); return }
+        return { stdout: '', stderr: '' }
+      }
+    )
     const mockCreateInstance2 = vi.fn().mockResolvedValue({ id: 'dr-inst' })
     const mockGetDaemon = vi.fn().mockReturnValue({
       getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0.05 } }),
@@ -2263,14 +2336,17 @@ dedup:
     vi.useFakeTimers()
 
     const fs = buildFsMock(['dr.yaml'], { 'dr.yaml': DIFF_REVIEW_MINIMAL_YAML })
-    fs.existsSync.mockImplementation((p: string) => p === PIPELINES_DIR)
+    fs.promises.access.mockImplementation(async (p: string) => {
+      if (p === PIPELINES_DIR) return
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
+    })
 
     vi.doMock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/home') } }))
     vi.doMock('../../shared/colony-paths', () => ({
       colonyPaths: { root: MOCK_ROOT, pipelines: PIPELINES_DIR, schedulerLog: `${MOCK_ROOT}/scheduler.log` },
     }))
     vi.doMock('fs', () => fs)
-    vi.doMock('child_process', () => ({ execSync: vi.fn(), spawnSync: mockSpawnSync }))
+    vi.doMock('child_process', () => ({ execFile: mockExecFileDR }))
     vi.doMock('../broadcast', () => ({ broadcast: mockBroadcast }))
     vi.doMock('../repo-config-loader', () => ({ getAllRepoConfigs: vi.fn().mockReturnValue([]) }))
     vi.doMock('../instance-manager', () => ({
@@ -2290,14 +2366,14 @@ dedup:
     vi.doMock('../activity-manager', () => ({ appendActivity: vi.fn() }))
 
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Diff Review Minimal')
     await flushPromises()
 
-    // spawnSync used for git rev-parse validation — should have been called
+    // execFile used for git rev-parse validation — should have been called
     // (no diff found since stdout is empty → stage passes as 'No changes')
-    const historyCalls = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls.filter(
+    const historyCalls = (fs.promises.writeFile as ReturnType<typeof vi.fn>).mock.calls.filter(
       (c: unknown[]) => typeof c[0] === 'string' && c[0].endsWith('Diff-Review-Minimal.history.json')
     )
     expect(historyCalls.length).toBeGreaterThan(0)
@@ -2387,7 +2463,7 @@ describe('pipeline-engine: parallel stage YAML parsing', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     const list = mod.getPipelineList()
     expect(list).toHaveLength(1)
     expect(list[0].name).toBe('Parallel Pipe')
@@ -2401,7 +2477,7 @@ describe('pipeline-engine: parallel stage YAML parsing', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     // Pipeline loaded = normalization did not crash
     expect(mod.getPipelineList()).toHaveLength(1)
   })
@@ -2411,7 +2487,7 @@ describe('pipeline-engine: parallel stage YAML parsing', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     expect(mod.getPipelineList()).toHaveLength(0)
   })
 
@@ -2420,7 +2496,7 @@ describe('pipeline-engine: parallel stage YAML parsing', () => {
     setupMocks(fs)
     mod = await import('../pipeline-engine')
 
-    mod.loadPipelines()
+    await mod.loadPipelines()
     expect(mod.getPipelineList()).toHaveLength(0)
   })
 })
@@ -2478,7 +2554,7 @@ describe('pipeline-engine: plan stage YAML parsing', () => {
     const fs = buildFsMock(['plan.yaml'], { 'plan.yaml': PLAN_YAML })
     setupMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
     const list = mod.getPipelineList()
     expect(list).toHaveLength(1)
     expect(list[0].name).toBe('Plan Pipe')
@@ -2489,7 +2565,7 @@ describe('pipeline-engine: plan stage YAML parsing', () => {
     const fs = buildFsMock(['plan.yaml'], { 'plan.yaml': PLAN_YAML_AUTO })
     setupMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
     const list = mod.getPipelineList()
     expect(list).toHaveLength(1)
     expect(list[0].name).toBe('Plan Auto Pipe')
@@ -2500,7 +2576,7 @@ describe('pipeline-engine: plan stage YAML parsing', () => {
     const fs = buildFsMock(['plan.yaml'], { 'plan.yaml': yaml })
     setupMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
     expect(mod.getPipelineList()).toHaveLength(0)
   })
 })
@@ -2533,16 +2609,16 @@ describe('pipeline-engine: plan stage approval gate behavior', () => {
 
   function buildPlanFsMock(yaml: string, planContent = '1. Implement X\n2. Write tests') {
     const base = buildFsMock(['plan.yaml'], { 'plan.yaml': yaml })
-    base.existsSync = vi.fn().mockImplementation((p: string) => {
-      if (p === PIPELINES_DIR) return true
-      if (p === STATE_PATH) return false
-      if (p.includes('plan-output.md')) return true
-      return false
+    base.promises.access.mockImplementation(async (p: string) => {
+      if (p === PIPELINES_DIR) return
+      if (p.includes('plan-output.md')) return
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
-    base.readFileSync = vi.fn().mockImplementation((p: string) => {
+    base.promises.readFile.mockImplementation(async (p: string, _enc?: string) => {
       if (p.includes('plan-output.md')) return planContent
       if (p.endsWith('plan.yaml')) return yaml
-      throw new Error(`Unexpected readFileSync: ${p}`)
+      if (p === STATE_PATH) return '{}'
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
     return base
   }
@@ -2594,7 +2670,7 @@ describe('pipeline-engine: plan stage approval gate behavior', () => {
     const fs = buildPlanFsMock(PLAN_YAML)
     setupPlanMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Plan Pipe')
     await flushPromises()
@@ -2616,7 +2692,7 @@ describe('pipeline-engine: plan stage approval gate behavior', () => {
     const fs = buildPlanFsMock(PLAN_YAML)
     setupPlanMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Plan Pipe')
     await flushPromises()
@@ -2636,7 +2712,7 @@ describe('pipeline-engine: plan stage approval gate behavior', () => {
     const fs = buildPlanFsMock(PLAN_YAML)
     setupPlanMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Plan Pipe')
     await flushPromises()
@@ -2656,7 +2732,7 @@ describe('pipeline-engine: plan stage approval gate behavior', () => {
     const fs = buildPlanFsMock(PLAN_YAML_AUTO)
     setupPlanMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Plan Auto Pipe')
     await flushPromises()
@@ -2670,7 +2746,7 @@ describe('pipeline-engine: plan stage approval gate behavior', () => {
     const fs = buildPlanFsMock(PLAN_YAML)
     setupPlanMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Plan Pipe')
     await flushPromises()
@@ -2726,7 +2802,7 @@ describe('pipeline-engine: wait_for_session YAML parsing', () => {
     const fs = buildFsMock(['wait.yaml'], { 'wait.yaml': WAIT_SESSION_YAML })
     setupMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
     const list = mod.getPipelineList()
     expect(list).toHaveLength(1)
     expect(list[0].name).toBe('Wait Pipe')
@@ -2738,7 +2814,7 @@ describe('pipeline-engine: wait_for_session YAML parsing', () => {
     const fs = buildFsMock(['wait.yaml'], { 'wait.yaml': yaml })
     setupMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
     expect(mod.getPipelineList()).toHaveLength(0)
   })
 
@@ -2749,7 +2825,7 @@ describe('pipeline-engine: wait_for_session YAML parsing', () => {
     const fs = buildFsMock(['wait.yaml'], { 'wait.yaml': yaml })
     setupMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
     // prompt-based validation is skipped; wait_for_session with no session_name is rejected
     expect(mod.getPipelineList()).toHaveLength(0)
   })
@@ -2780,7 +2856,14 @@ describe('pipeline-engine: wait_for_session behavior', () => {
       createInstance: mockCreateInstance,
       getAllInstances,
     }))
-    vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
+    vi.doMock('../daemon-client', () => ({
+      getDaemonClient: vi.fn().mockReturnValue({
+        on: vi.fn(),
+        removeListener: vi.fn(),
+        getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
+        writeToInstance: vi.fn(),
+      }),
+    }))
     vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
     vi.doMock('../notifications', () => ({ notify: vi.fn() }))
     vi.doMock('../github', () => ({
@@ -2810,7 +2893,7 @@ describe('pipeline-engine: wait_for_session behavior', () => {
 
   /** Read the history entries that were written to the fs mock. */
   function getWrittenHistory(fs: ReturnType<typeof buildFsMock>): Array<{ success: boolean; actionExecuted: boolean }> {
-    const calls = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls
+    const calls = (fs.promises.writeFile as ReturnType<typeof vi.fn>).mock.calls
     const histFile = calls.find(([p]: [string]) => p.endsWith('Wait-Pipe.history.json'))
     if (!histFile) return []
     return JSON.parse(histFile[1])
@@ -2826,7 +2909,7 @@ describe('pipeline-engine: wait_for_session behavior', () => {
     const fs = buildFsMock(['wait.yaml'], { 'wait.yaml': WAIT_SESSION_YAML })
     setupWaitMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     // Trigger the pipeline — fires wait_for_session
     mod.triggerPollNow('Wait Pipe')
@@ -2849,7 +2932,7 @@ describe('pipeline-engine: wait_for_session behavior', () => {
     const fs = buildFsMock(['wait.yaml'], { 'wait.yaml': WAIT_SESSION_YAML })
     setupWaitMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Wait Pipe')
     await flushPromises()
@@ -2870,7 +2953,7 @@ describe('pipeline-engine: wait_for_session behavior', () => {
     const fs = buildFsMock(['wait.yaml'], { 'wait.yaml': WAIT_SESSION_YAML })
     setupWaitMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Wait Pipe')
     await flushPromises()
@@ -2893,7 +2976,7 @@ describe('pipeline-engine: wait_for_session behavior', () => {
     const fs = buildFsMock(['wait.yaml'], { 'wait.yaml': WAIT_SESSION_YAML })
     setupWaitMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Wait Pipe')
     await flushPromises()
@@ -2916,15 +2999,15 @@ describe('pipeline-engine: wait_for_session behavior', () => {
     const fs = buildFsMock(['wait.yaml'], { 'wait.yaml': yamlWithArtifact })
     setupWaitMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Wait Pipe')
     await flushPromises()
     await vi.advanceTimersByTimeAsync(1_000)
     await flushPromises()
 
-    // writeFileSync should have been called with the artifact path
-    const writeCalls = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls
+    // writeFile should have been called with the artifact path
+    const writeCalls = (fs.promises.writeFile as ReturnType<typeof vi.fn>).mock.calls
     const artifactCall = writeCalls.find(([p]: [string]) => p.includes('wait-result.txt'))
     expect(artifactCall).toBeDefined()
     expect(artifactCall![1]).toContain('exited cleanly')
@@ -2998,15 +3081,14 @@ budget:
 
   function buildBudgetFsMock(yaml: string) {
     const base = buildFsMock(['budget.yaml'], { 'budget.yaml': yaml })
-    base.existsSync = vi.fn().mockImplementation((p: string) => {
-      if (p === PIPELINES_DIR) return true
-      if (p === STATE_PATH) return false
-      return false
+    base.promises.access.mockImplementation(async (p: string) => {
+      if (p === PIPELINES_DIR) return
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
-    base.readFileSync = vi.fn().mockImplementation((p: string) => {
+    base.promises.readFile.mockImplementation(async (p: string, _enc?: string) => {
       if (p.endsWith('budget.yaml')) return yaml
       if (p === STATE_PATH) return '{}'
-      throw new Error(`Unexpected readFileSync: ${p}`)
+      throw Object.assign(new Error(`ENOENT: ${p}`), { code: 'ENOENT' })
     })
     return base
   }
@@ -3058,7 +3140,7 @@ budget:
     const fs = buildBudgetFsMock(BUDGET_PLAN_YAML)
     setupBudgetMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     const p = mod.getPipelineList()[0]
     expect(p.budget).not.toBeNull()
@@ -3071,7 +3153,7 @@ budget:
     const fs = buildBudgetFsMock(BUDGET_NO_WARN_AT_YAML)
     setupBudgetMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     const p = mod.getPipelineList()[0]
     expect(p.budget?.maxCostUsd).toBe(0.40)
@@ -3085,7 +3167,7 @@ budget:
     const fs = buildBudgetFsMock(BUDGET_PLAN_YAML)
     setupBudgetMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Budget Pipe')
     await flushPromises()
@@ -3106,7 +3188,7 @@ budget:
     const fs = buildBudgetFsMock(BUDGET_PLAN_YAML)
     setupBudgetMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Budget Pipe')
     await flushPromises()
@@ -3114,7 +3196,7 @@ budget:
     await flushPromises()
 
     // Check history written to fs
-    const writeCalls = (fs.writeFileSync as ReturnType<typeof vi.fn>).mock.calls
+    const writeCalls = (fs.promises.writeFile as ReturnType<typeof vi.fn>).mock.calls
     const histCall = writeCalls.find(([p]: [string]) => typeof p === 'string' && p.includes('Budget-Pipe.history.json'))
     expect(histCall).toBeDefined()
     const history = JSON.parse(histCall![1] as string)
@@ -3135,7 +3217,7 @@ budget:
     const fs = buildBudgetFsMock(BUDGET_PLAN_YAML)
     setupBudgetMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Budget Pipe')
     await flushPromises()
@@ -3204,7 +3286,14 @@ describe('pipeline-engine: per-stage model selection', () => {
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
     }))
-    vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
+    vi.doMock('../daemon-client', () => ({
+      getDaemonClient: vi.fn().mockReturnValue({
+        on: vi.fn(),
+        removeListener: vi.fn(),
+        getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
+        writeToInstance: vi.fn(),
+      }),
+    }))
     vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
     vi.doMock('../github', () => ({
       getRepos: vi.fn().mockReturnValue([]),
@@ -3221,7 +3310,7 @@ describe('pipeline-engine: per-stage model selection', () => {
     const fs = buildFsMock(['model.yaml'], { 'model.yaml': MODEL_YAML })
     setupModelMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('Model Pipe')
     await flushPromises()
@@ -3249,7 +3338,7 @@ dedup:
     const fs = buildFsMock(['nomodel.yaml'], { 'nomodel.yaml': yaml })
     setupModelMocks(fs)
     mod = await import('../pipeline-engine')
-    mod.loadPipelines()
+    await mod.loadPipelines()
 
     mod.triggerPollNow('No Model Pipe')
     await flushPromises()

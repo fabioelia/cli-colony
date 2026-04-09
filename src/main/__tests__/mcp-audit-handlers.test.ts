@@ -10,33 +10,33 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const MOCK_HOME = '/mock/home'
 const MOCK_AUDIT_PATH = `${MOCK_HOME}/.claude-colony/mcp-audit.json`
 
-// Shared fs mock — reset per test
-const mockFs = {
-  existsSync: vi.fn(),
-  readFileSync: vi.fn(),
-  writeFileSync: vi.fn(),
-  mkdirSync: vi.fn(),
-  unlinkSync: vi.fn(),
+// Shared fs.promises mock — reset per test
+const mockFsp = {
+  readFile: vi.fn(),
+  writeFile: vi.fn(),
+  mkdir: vi.fn(),
+  unlink: vi.fn(),
 }
 
 function setupMocks(fileExists: boolean, fileContent?: string) {
-  mockFs.existsSync.mockReset().mockImplementation((p: string) => {
-    if (p === MOCK_AUDIT_PATH) return fileExists
-    return false
+  mockFsp.readFile.mockReset().mockImplementation(async (p: string, _enc?: string) => {
+    if (p === MOCK_AUDIT_PATH) {
+      if (!fileExists) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      return fileContent ?? '[]'
+    }
+    throw new Error(`Unexpected readFile: ${p}`)
   })
-  mockFs.readFileSync.mockReset().mockImplementation((p: string, _enc?: string) => {
-    if (p === MOCK_AUDIT_PATH) return fileContent ?? '[]'
-    throw new Error(`Unexpected readFileSync: ${p}`)
-  })
-  mockFs.writeFileSync.mockReset()
-  mockFs.mkdirSync.mockReset()
-  mockFs.unlinkSync.mockReset()
+  mockFsp.writeFile.mockReset().mockResolvedValue(undefined)
+  mockFsp.mkdir.mockReset().mockResolvedValue(undefined)
+  mockFsp.unlink.mockReset().mockResolvedValue(undefined)
 
   vi.doMock('electron', () => ({
     app: { getPath: vi.fn().mockReturnValue(MOCK_HOME) },
     ipcMain: { handle: vi.fn() },
   }))
-  vi.doMock('fs', () => mockFs)
+  vi.doMock('fs', () => ({
+    promises: mockFsp,
+  }))
 }
 
 describe('mcp-audit-handlers', () => {
@@ -47,9 +47,8 @@ describe('mcp-audit-handlers', () => {
   it('getAuditLog() returns [] when file does not exist', async () => {
     setupMocks(false)
     const mod = await import('../ipc/mcp-audit-handlers')
-    const result = mod.getAuditLog()
+    const result = await mod.getAuditLog()
     expect(result).toEqual([])
-    expect(mockFs.readFileSync).not.toHaveBeenCalled()
   })
 
   it('appendAuditEntry() writes entry and trims to 500', async () => {
@@ -65,7 +64,7 @@ describe('mcp-audit-handlers', () => {
     setupMocks(true, JSON.stringify(existing))
 
     const mod = await import('../ipc/mcp-audit-handlers')
-    mod.appendAuditEntry({
+    await mod.appendAuditEntry({
       sessionId: 'new-session',
       sessionName: 'New Session',
       serverName: 'test-server',
@@ -73,8 +72,8 @@ describe('mcp-audit-handlers', () => {
       outcome: 'approved',
     })
 
-    expect(mockFs.writeFileSync).toHaveBeenCalledOnce()
-    const [writePath, writeContent] = mockFs.writeFileSync.mock.calls[0]
+    expect(mockFsp.writeFile).toHaveBeenCalledOnce()
+    const [writePath, writeContent] = mockFsp.writeFile.mock.calls[0]
     expect(writePath).toBe(MOCK_AUDIT_PATH)
     const written = JSON.parse(writeContent as string)
     // 499 + 1 = 500, stays at 500
@@ -98,7 +97,7 @@ describe('mcp-audit-handlers', () => {
     setupMocks(true, JSON.stringify(existing))
 
     const mod = await import('../ipc/mcp-audit-handlers')
-    mod.appendAuditEntry({
+    await mod.appendAuditEntry({
       sessionId: 'extra',
       sessionName: 'Extra',
       serverName: 'srv',
@@ -106,7 +105,7 @@ describe('mcp-audit-handlers', () => {
       outcome: 'denied',
     })
 
-    const [, writeContent] = mockFs.writeFileSync.mock.calls[0]
+    const [, writeContent] = mockFsp.writeFile.mock.calls[0]
     const written = JSON.parse(writeContent as string)
     // 502 + 1 = 503, trimmed to 500
     expect(written).toHaveLength(500)
@@ -117,15 +116,16 @@ describe('mcp-audit-handlers', () => {
   it('clearAuditLog() deletes the file when it exists', async () => {
     setupMocks(true)
     const mod = await import('../ipc/mcp-audit-handlers')
-    mod.clearAuditLog()
-    expect(mockFs.unlinkSync).toHaveBeenCalledWith(MOCK_AUDIT_PATH)
+    await mod.clearAuditLog()
+    expect(mockFsp.unlink).toHaveBeenCalledWith(MOCK_AUDIT_PATH)
   })
 
-  it('clearAuditLog() does nothing when file does not exist', async () => {
+  it('clearAuditLog() does not throw when file does not exist', async () => {
     setupMocks(false)
+    mockFsp.unlink.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
     const mod = await import('../ipc/mcp-audit-handlers')
-    mod.clearAuditLog()
-    expect(mockFs.unlinkSync).not.toHaveBeenCalled()
+    await mod.clearAuditLog()
+    // Should not throw — ENOENT is silently ignored
   })
 
   it('getAuditLog() returns newest first, max 100', async () => {
@@ -141,7 +141,7 @@ describe('mcp-audit-handlers', () => {
     setupMocks(true, JSON.stringify(entries))
 
     const mod = await import('../ipc/mcp-audit-handlers')
-    const result = mod.getAuditLog()
+    const result = await mod.getAuditLog()
 
     // Should return max 100 entries
     expect(result).toHaveLength(100)

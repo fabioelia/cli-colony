@@ -12,12 +12,14 @@ const mockJsonFileRead = vi.hoisted(() => vi.fn())
 const mockJsonFileWrite = vi.hoisted(() => vi.fn())
 const mockExecFile = vi.hoisted(() => vi.fn())
 const mockExecSync = vi.hoisted(() => vi.fn())
-const mockFs = vi.hoisted(() => ({
-  existsSync: vi.fn().mockReturnValue(false),
-  readFileSync: vi.fn().mockReturnValue(''),
-  writeFileSync: vi.fn(),
-  mkdirSync: vi.fn(),
-  readdirSync: vi.fn().mockReturnValue([]),
+const mockFsp = vi.hoisted(() => ({
+  stat: vi.fn().mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' })),
+  readFile: vi.fn().mockResolvedValue(''),
+  writeFile: vi.fn().mockResolvedValue(undefined),
+  mkdir: vi.fn().mockResolvedValue(undefined),
+  readdir: vi.fn().mockResolvedValue([]),
+  access: vi.fn().mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' })),
+  unlink: vi.fn().mockResolvedValue(undefined),
 }))
 const mockGetAllRepoConfigs = vi.hoisted(() => vi.fn().mockReturnValue([]))
 const mockGetRepoConfig = vi.hoisted(() => vi.fn().mockReturnValue(null))
@@ -63,11 +65,7 @@ function setupMocks(): void {
   }))
 
   vi.doMock('fs', () => ({
-    existsSync: mockFs.existsSync,
-    readFileSync: mockFs.readFileSync,
-    writeFileSync: mockFs.writeFileSync,
-    mkdirSync: mockFs.mkdirSync,
-    readdirSync: mockFs.readdirSync,
+    promises: mockFsp,
   }))
 
   vi.doMock('child_process', () => ({
@@ -97,9 +95,11 @@ describe('github module', () => {
     vi.resetAllMocks()
 
     mockJsonFileRead.mockReturnValue({ repos: [], prompts: DEFAULT_PROMPTS })
-    mockFs.existsSync.mockReturnValue(false)
-    mockFs.readFileSync.mockReturnValue('')
-    mockFs.readdirSync.mockReturnValue([])
+    mockFsp.stat.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
+    mockFsp.readFile.mockResolvedValue('')
+    mockFsp.readdir.mockResolvedValue([])
+    mockFsp.writeFile.mockResolvedValue(undefined)
+    mockFsp.mkdir.mockResolvedValue(undefined)
     mockGetAllRepoConfigs.mockReturnValue([])
     mockGitRemoteUrl.mockReturnValue('git@github.com:test/repo.git')
     mockEnsureBareRepo.mockResolvedValue(undefined)
@@ -197,47 +197,50 @@ describe('github module', () => {
   // ---- Config CRUD ----
 
   describe('getRepos', () => {
-    it('returns empty array when no repos configured', () => {
+    it('returns empty array when no repos configured', async () => {
       mockJsonFileRead.mockReturnValue({ repos: [], prompts: [] })
-      expect(mod.getRepos()).toEqual([])
+      expect(await mod.getRepos()).toEqual([])
     })
 
-    it('returns repos with resolved localPath', () => {
+    it('returns repos with resolved localPath', async () => {
       mockJsonFileRead.mockReturnValue({
         repos: [{ owner: 'acme', name: 'web', localPath: undefined }],
         prompts: [],
       })
-      // resolveCloneDir checks existsSync for bare, new, legacy paths
-      mockFs.existsSync.mockReturnValue(false)
-      const repos = mod.getRepos()
+      // pathExists uses fsp.stat — reject = not exists
+      mockFsp.stat.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
+      const repos = await mod.getRepos()
       expect(repos).toHaveLength(1)
       expect(repos[0].owner).toBe('acme')
       // localPath should be set to bareRepoDir since none exist
       expect(repos[0].localPath).toBe(`${MOCK_ROOT}/repos/acme/web.git`)
     })
 
-    it('sets cloned=true when bare clone dir exists', () => {
+    it('sets cloned=true when bare clone dir exists', async () => {
       mockJsonFileRead.mockReturnValue({
         repos: [{ owner: 'acme', name: 'web' }],
         prompts: [],
       })
-      // existsSync returns true for the bare dir path
-      mockFs.existsSync.mockImplementation((p: string) => p === `${MOCK_ROOT}/repos/acme/web.git`)
-      const repos = mod.getRepos()
+      // stat resolves for the bare dir path (exists), rejects for others
+      mockFsp.stat.mockImplementation(async (p: string) => {
+        if (p === `${MOCK_ROOT}/repos/acme/web.git`) return { isDirectory: () => true }
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      })
+      const repos = await mod.getRepos()
       expect((repos[0] as any).cloned).toBe(true)
     })
 
-    it('saves config when localPath is updated', () => {
+    it('saves config when localPath is updated', async () => {
       mockJsonFileRead.mockReturnValue({
         repos: [{ owner: 'acme', name: 'web', localPath: '/old/path' }],
         prompts: [],
       })
-      mockFs.existsSync.mockImplementation((p: string) => {
-        if (p === '/old/path') return false // old path gone
-        if (p === `${MOCK_ROOT}/repos/acme/web.git`) return true
-        return false
+      mockFsp.stat.mockImplementation(async (p: string) => {
+        if (p === '/old/path') throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+        if (p === `${MOCK_ROOT}/repos/acme/web.git`) return { isDirectory: () => true }
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
       })
-      mod.getRepos()
+      await mod.getRepos()
       expect(mockJsonFileWrite).toHaveBeenCalled()
     })
   })
@@ -329,56 +332,58 @@ describe('github module', () => {
   // ---- Prompts ----
 
   describe('getPrompts', () => {
-    it('returns default prompts when no review prompt exists', () => {
+    it('returns default prompts when no review prompt exists', async () => {
       mockJsonFileRead.mockReturnValue({ repos: [], prompts: DEFAULT_PROMPTS })
-      const prompts = mod.getPrompts()
+      const prompts = await mod.getPrompts()
       // Should prepend BASIC_REVIEW_PROMPT since no colony-feedback pipeline
       expect(prompts[0].id).toBe('review')
       expect(prompts.length).toBe(DEFAULT_PROMPTS.length + 1)
     })
 
-    it('does not inject review prompt when one already exists', () => {
+    it('does not inject review prompt when one already exists', async () => {
       const withReview = [...DEFAULT_PROMPTS, { id: 'review', label: 'My Review', prompt: 'custom', scope: 'pr' as const }]
       mockJsonFileRead.mockReturnValue({ repos: [], prompts: withReview })
-      const prompts = mod.getPrompts()
+      const prompts = await mod.getPrompts()
       expect(prompts).toEqual(withReview)
     })
 
-    it('injects colony-review when colony-feedback pipeline is enabled', () => {
+    it('injects colony-review when colony-feedback pipeline is enabled', async () => {
       mockJsonFileRead.mockReturnValue({ repos: [], prompts: DEFAULT_PROMPTS })
-      mockFs.existsSync.mockImplementation((p: string) =>
-        p === `${MOCK_ROOT}/pipelines/colony-feedback.yaml`
-      )
-      mockFs.readFileSync.mockReturnValue('enabled: true\nname: Colony Feedback')
-      const prompts = mod.getPrompts()
+      mockFsp.stat.mockImplementation(async (p: string) => {
+        if (p === `${MOCK_ROOT}/pipelines/colony-feedback.yaml`) return { isFile: () => true }
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      })
+      mockFsp.readFile.mockResolvedValue('enabled: true\nname: Colony Feedback')
+      const prompts = await mod.getPrompts()
       expect(prompts[0].id).toBe('colony-review')
     })
 
-    it('falls back to basic review when pipeline file exists but disabled', () => {
+    it('falls back to basic review when pipeline file exists but disabled', async () => {
       mockJsonFileRead.mockReturnValue({ repos: [], prompts: DEFAULT_PROMPTS })
-      mockFs.existsSync.mockImplementation((p: string) =>
-        p === `${MOCK_ROOT}/pipelines/colony-feedback.yaml`
-      )
-      mockFs.readFileSync.mockReturnValue('enabled: false\nname: Colony Feedback')
-      const prompts = mod.getPrompts()
+      mockFsp.stat.mockImplementation(async (p: string) => {
+        if (p === `${MOCK_ROOT}/pipelines/colony-feedback.yaml`) return { isFile: () => true }
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      })
+      mockFsp.readFile.mockResolvedValue('enabled: false\nname: Colony Feedback')
+      const prompts = await mod.getPrompts()
       expect(prompts[0].id).toBe('review')
     })
 
-    it('merges repo-defined prompts without duplicates', () => {
+    it('merges repo-defined prompts without duplicates', async () => {
       mockJsonFileRead.mockReturnValue({ repos: [], prompts: DEFAULT_PROMPTS })
       mockGetAllRepoConfigs.mockReturnValue([
         { repoSlug: 'test/repo', prompts: [{ id: 'repo-custom', label: 'Repo Custom', prompt: 'custom', scope: 'pr' }], pipelines: [], templates: [] },
       ])
-      const prompts = mod.getPrompts()
+      const prompts = await mod.getPrompts()
       expect(prompts.some(p => p.id === 'repo-custom')).toBe(true)
     })
 
-    it('does not add repo prompts that collide with existing IDs', () => {
+    it('does not add repo prompts that collide with existing IDs', async () => {
       mockJsonFileRead.mockReturnValue({ repos: [], prompts: DEFAULT_PROMPTS })
       mockGetAllRepoConfigs.mockReturnValue([
         { repoSlug: 'test/repo', prompts: [{ id: 'summarize', label: 'Dup', prompt: 'dup', scope: 'pr' }], pipelines: [], templates: [] },
       ])
-      const prompts = mod.getPrompts()
+      const prompts = await mod.getPrompts()
       const summaries = prompts.filter(p => p.id === 'summarize')
       expect(summaries).toHaveLength(1)
     })
@@ -397,7 +402,7 @@ describe('github module', () => {
   // ---- resolvePrompt ----
 
   describe('resolvePrompt', () => {
-    it('resolves mustache template with pr and repo context', () => {
+    it('resolves mustache template with pr and repo context', async () => {
       const prompt = {
         id: 'test',
         label: 'Test',
@@ -426,11 +431,11 @@ describe('github module', () => {
         headSha: 'abc123',
       }
       const repo = { owner: 'test', name: 'repo' }
-      const result = mod.resolvePrompt(prompt, pr, repo)
+      const result = await mod.resolvePrompt(prompt, pr, repo)
       expect(result).toBe('Review PR #42 (Fix bug) on test/repo')
     })
 
-    it('resolves status as draft when pr.draft is true', () => {
+    it('resolves status as draft when pr.draft is true', async () => {
       const prompt = { id: 't', label: 'T', prompt: 'Status: {{pr.status}}', scope: 'pr' as const }
       const pr = {
         number: 1, title: '', body: '', author: '', assignees: [], reviewers: [],
@@ -438,10 +443,10 @@ describe('github module', () => {
         updatedAt: '', additions: 0, deletions: 0, reviewDecision: '', labels: [],
         comments: [], headSha: '',
       }
-      expect(mod.resolvePrompt(prompt, pr, { owner: 'o', name: 'n' })).toBe('Status: draft')
+      expect(await mod.resolvePrompt(prompt, pr, { owner: 'o', name: 'n' })).toBe('Status: draft')
     })
 
-    it('falls back to none for empty assignees/reviewers/labels/reviewDecision', () => {
+    it('falls back to none for empty assignees/reviewers/labels/reviewDecision', async () => {
       const prompt = {
         id: 't', label: 'T',
         prompt: 'A:{{pr.assignees}} R:{{pr.reviewers}} L:{{pr.labels}} D:{{pr.reviewDecision}}',
@@ -453,11 +458,11 @@ describe('github module', () => {
         updatedAt: '', additions: 0, deletions: 0, reviewDecision: '', labels: [],
         comments: [], headSha: '',
       }
-      const result = mod.resolvePrompt(prompt, pr, { owner: 'o', name: 'n' })
+      const result = await mod.resolvePrompt(prompt, pr, { owner: 'o', name: 'n' })
       expect(result).toBe('A:none R:none L:none D:none')
     })
 
-    it('joins multiple assignees with commas', () => {
+    it('joins multiple assignees with commas', async () => {
       const prompt = { id: 't', label: 'T', prompt: '{{pr.assignees}}', scope: 'pr' as const }
       const pr = {
         number: 1, title: '', body: '', author: '', assignees: ['alice', 'bob'], reviewers: [],
@@ -465,10 +470,10 @@ describe('github module', () => {
         updatedAt: '', additions: 0, deletions: 0, reviewDecision: '', labels: [],
         comments: [], headSha: '',
       }
-      expect(mod.resolvePrompt(prompt, pr, { owner: 'o', name: 'n' })).toBe('alice, bob')
+      expect(await mod.resolvePrompt(prompt, pr, { owner: 'o', name: 'n' })).toBe('alice, bob')
     })
 
-    it('includes repo.remoteUrl via gitRemoteUrl', () => {
+    it('includes repo.remoteUrl via gitRemoteUrl', async () => {
       mockGitRemoteUrl.mockReturnValue('git@github.com:abc/xyz.git')
       const prompt = { id: 't', label: 'T', prompt: '{{repo.remoteUrl}}', scope: 'pr' as const }
       const pr = {
@@ -477,90 +482,95 @@ describe('github module', () => {
         updatedAt: '', additions: 0, deletions: 0, reviewDecision: '', labels: [],
         comments: [], headSha: '',
       }
-      expect(mod.resolvePrompt(prompt, pr, { owner: 'abc', name: 'xyz' })).toBe('git@github.com:abc/xyz.git')
+      expect(await mod.resolvePrompt(prompt, pr, { owner: 'abc', name: 'xyz' })).toBe('git@github.com:abc/xyz.git')
     })
   })
 
   // ---- PR Workspace ----
 
   describe('getPrWorkspacePath', () => {
-    it('creates directory if it does not exist', () => {
-      mockFs.existsSync.mockReturnValue(false)
-      const result = mod.getPrWorkspacePath()
+    it('creates directory if it does not exist', async () => {
+      mockFsp.stat.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
+      const result = await mod.getPrWorkspacePath()
       expect(result).toBe(`${MOCK_ROOT}/pr-workspace`)
-      expect(mockFs.mkdirSync).toHaveBeenCalledWith(`${MOCK_ROOT}/pr-workspace`, { recursive: true })
+      expect(mockFsp.mkdir).toHaveBeenCalledWith(`${MOCK_ROOT}/pr-workspace`, { recursive: true })
     })
 
-    it('returns path without creating if it already exists', () => {
-      mockFs.existsSync.mockReturnValue(true)
-      mod.getPrWorkspacePath()
-      expect(mockFs.mkdirSync).not.toHaveBeenCalled()
+    it('returns path without creating if it already exists', async () => {
+      mockFsp.stat.mockResolvedValue({ isDirectory: () => true })
+      mockFsp.mkdir.mockClear()
+      await mod.getPrWorkspacePath()
+      expect(mockFsp.mkdir).not.toHaveBeenCalled()
     })
   })
 
   describe('getPrMemory', () => {
-    it('returns file contents when file exists', () => {
-      mockFs.existsSync.mockImplementation((p: string) => p === `${MOCK_ROOT}/pr-workspace/pr-memory.md`)
-      mockFs.readFileSync.mockReturnValue('# PR Memory\nSome content')
-      expect(mod.getPrMemory()).toBe('# PR Memory\nSome content')
+    it('returns file contents when file exists', async () => {
+      mockFsp.stat.mockImplementation(async (p: string) => {
+        if (p === `${MOCK_ROOT}/pr-workspace/pr-memory.md`) return { isFile: () => true }
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      })
+      mockFsp.readFile.mockResolvedValue('# PR Memory\nSome content')
+      expect(await mod.getPrMemory()).toBe('# PR Memory\nSome content')
     })
 
-    it('returns empty string when file does not exist', () => {
-      mockFs.existsSync.mockReturnValue(false)
-      expect(mod.getPrMemory()).toBe('')
+    it('returns empty string when file does not exist', async () => {
+      mockFsp.stat.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
+      expect(await mod.getPrMemory()).toBe('')
     })
 
-    it('returns empty string on read error', () => {
-      mockFs.existsSync.mockReturnValue(true)
-      mockFs.readFileSync.mockImplementation(() => { throw new Error('read error') })
-      expect(mod.getPrMemory()).toBe('')
+    it('returns empty string on read error', async () => {
+      mockFsp.stat.mockResolvedValue({ isFile: () => true })
+      mockFsp.readFile.mockRejectedValue(new Error('read error'))
+      expect(await mod.getPrMemory()).toBe('')
     })
   })
 
   describe('savePrMemory', () => {
-    it('writes content and returns true', () => {
-      expect(mod.savePrMemory('new content')).toBe(true)
-      expect(mockFs.writeFileSync).toHaveBeenCalledWith(
+    it('writes content and returns true', async () => {
+      expect(await mod.savePrMemory('new content')).toBe(true)
+      expect(mockFsp.writeFile).toHaveBeenCalledWith(
         `${MOCK_ROOT}/pr-workspace/pr-memory.md`,
         'new content',
         'utf-8'
       )
     })
 
-    it('returns false on write error', () => {
-      mockFs.writeFileSync.mockImplementation(() => { throw new Error('write failed') })
-      expect(mod.savePrMemory('data')).toBe(false)
+    it('returns false on write error', async () => {
+      mockFsp.writeFile.mockRejectedValue(new Error('write failed'))
+      expect(await mod.savePrMemory('data')).toBe(false)
     })
   })
 
   describe('getPrMemoryPath', () => {
-    it('creates file with default content when it does not exist', () => {
-      mockFs.existsSync.mockReturnValue(false)
-      const path = mod.getPrMemoryPath()
+    it('creates file with default content when it does not exist', async () => {
+      mockFsp.stat.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
+      const path = await mod.getPrMemoryPath()
       expect(path).toBe(`${MOCK_ROOT}/pr-workspace/pr-memory.md`)
       // Should create workspace dir + memory file
-      expect(mockFs.mkdirSync).toHaveBeenCalled()
-      expect(mockFs.writeFileSync).toHaveBeenCalledWith(
+      expect(mockFsp.mkdir).toHaveBeenCalled()
+      expect(mockFsp.writeFile).toHaveBeenCalledWith(
         expect.stringContaining('pr-memory.md'),
         expect.stringContaining('# PR Memory'),
         'utf-8'
       )
     })
 
-    it('does not overwrite when file exists', () => {
-      mockFs.existsSync.mockReturnValue(true)
-      mod.getPrMemoryPath()
-      // writeFileSync should not be called for the memory file content
-      expect(mockFs.writeFileSync).not.toHaveBeenCalled()
+    it('does not overwrite when file exists', async () => {
+      mockFsp.stat.mockResolvedValue({ isFile: () => true })
+      mockFsp.writeFile.mockClear()
+      await mod.getPrMemoryPath()
+      // writeFile should not be called for the memory file content
+      expect(mockFsp.writeFile).not.toHaveBeenCalled()
     })
   })
 
   // ---- writePrContext ----
 
   describe('writePrContext', () => {
-    it('writes markdown with PR data', () => {
-      // getPrWorkspacePath needs existsSync to return true to skip mkdir
-      mockFs.existsSync.mockReturnValue(true)
+    it('writes markdown with PR data', async () => {
+      // getPrWorkspacePath needs stat to resolve (path exists)
+      mockFsp.stat.mockResolvedValue({ isDirectory: () => true })
       const prs = {
         'test/repo': [{
           number: 1,
@@ -584,11 +594,11 @@ describe('github module', () => {
           headSha: 'abc',
         }],
       }
-      const contextPath = mod.writePrContext(prs)
+      const contextPath = await mod.writePrContext(prs)
       expect(contextPath).toBe(`${MOCK_ROOT}/pr-workspace/pr-context.md`)
 
-      // Check that writeFileSync was called for context and comment files
-      const contextCall = mockFs.writeFileSync.mock.calls.find(
+      // Check that writeFile was called for context and comment files
+      const contextCall = mockFsp.writeFile.mock.calls.find(
         (c: any[]) => (c[0] as string).endsWith('pr-context.md')
       )
       expect(contextCall).toBeDefined()
@@ -602,10 +612,10 @@ describe('github module', () => {
       expect(content).toContain('Description text')
     })
 
-    it('skips repos with no PRs', () => {
-      mockFs.existsSync.mockReturnValue(true)
-      mod.writePrContext({ 'empty/repo': [] })
-      const contextCall = mockFs.writeFileSync.mock.calls.find(
+    it('skips repos with no PRs', async () => {
+      mockFsp.stat.mockResolvedValue({ isDirectory: () => true })
+      await mod.writePrContext({ 'empty/repo': [] })
+      const contextCall = mockFsp.writeFile.mock.calls.find(
         (c: any[]) => (c[0] as string).endsWith('pr-context.md')
       )
       expect(contextCall).toBeDefined()
@@ -613,8 +623,8 @@ describe('github module', () => {
       expect(content).not.toContain('empty/repo')
     })
 
-    it('writes comment files for PRs with comments', () => {
-      mockFs.existsSync.mockReturnValue(true)
+    it('writes comment files for PRs with comments', async () => {
+      mockFsp.stat.mockResolvedValue({ isDirectory: () => true })
       const prs = {
         'org/app': [{
           number: 5, title: 'PR5', body: '', author: 'a', assignees: [], reviewers: [],
@@ -627,8 +637,8 @@ describe('github module', () => {
           headSha: 'def',
         }],
       }
-      mod.writePrContext(prs)
-      const commentCall = mockFs.writeFileSync.mock.calls.find(
+      await mod.writePrContext(prs)
+      const commentCall = mockFsp.writeFile.mock.calls.find(
         (c: any[]) => (c[0] as string).includes('org-app-5.md')
       )
       expect(commentCall).toBeDefined()
@@ -638,8 +648,8 @@ describe('github module', () => {
       expect(commentContent).toContain('(file: src/main.ts)')
     })
 
-    it('handles PRs with no comments', () => {
-      mockFs.existsSync.mockReturnValue(true)
+    it('handles PRs with no comments', async () => {
+      mockFsp.stat.mockResolvedValue({ isDirectory: () => true })
       const prs = {
         'org/app': [{
           number: 3, title: 'PR3', body: '', author: 'a', assignees: [], reviewers: [],
@@ -648,8 +658,8 @@ describe('github module', () => {
           reviewDecision: '', labels: [], comments: [], headSha: '',
         }],
       }
-      mod.writePrContext(prs)
-      const contextCall = mockFs.writeFileSync.mock.calls.find(
+      await mod.writePrContext(prs)
+      const contextCall = mockFsp.writeFile.mock.calls.find(
         (c: any[]) => (c[0] as string).endsWith('pr-context.md')
       )
       const content = contextCall![1] as string
@@ -660,9 +670,9 @@ describe('github module', () => {
   // ---- getRemovalImpact ----
 
   describe('getRemovalImpact', () => {
-    it('returns empty impact when nothing references the repo', () => {
-      mockFs.existsSync.mockReturnValue(false)
-      const impact = mod.getRemovalImpact('org', 'app')
+    it('returns empty impact when nothing references the repo', async () => {
+      mockFsp.stat.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
+      const impact = await mod.getRemovalImpact('org', 'app')
       expect(impact.slug).toBe('org/app')
       expect(impact.pipelineFiles).toEqual([])
       expect(impact.personaFiles).toEqual([])
@@ -673,37 +683,37 @@ describe('github module', () => {
       expect(impact.bareClonePath).toBe(`${MOCK_ROOT}/repos/org/app.git`)
     })
 
-    it('finds pipeline files referencing the repo', () => {
-      mockFs.existsSync.mockImplementation((p: string) => {
-        if (p === `${MOCK_ROOT}/pipelines`) return true
-        return false
+    it('finds pipeline files referencing the repo', async () => {
+      mockFsp.stat.mockImplementation(async (p: string) => {
+        if (p === `${MOCK_ROOT}/pipelines`) return { isDirectory: () => true }
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
       })
-      mockFs.readdirSync.mockImplementation((p: string) => {
+      mockFsp.readdir.mockImplementation(async (p: string) => {
         if (p === `${MOCK_ROOT}/pipelines`) return ['ci.yaml', 'deploy.yml', 'other.txt']
         return []
       })
-      mockFs.readFileSync.mockImplementation((p: string) => {
+      mockFsp.readFile.mockImplementation(async (p: string) => {
         if ((p as string).includes('ci.yaml')) return 'repo: org/app\ntrigger: push'
         if ((p as string).includes('deploy.yml')) return 'no reference here'
         return ''
       })
-      const impact = mod.getRemovalImpact('org', 'app')
+      const impact = await mod.getRemovalImpact('org', 'app')
       expect(impact.pipelineFiles).toHaveLength(1)
       expect(impact.pipelineFiles[0].fileName).toBe('ci.yaml')
       expect(impact.pipelineFiles[0].matchingLines[0]).toContain('org/app')
     })
 
-    it('finds environments referencing the repo', () => {
-      mockFs.existsSync.mockImplementation((p: string) => {
-        if (p === `${MOCK_ROOT}/environments`) return true
-        if (p.endsWith('manifest.json')) return true
-        return false
+    it('finds environments referencing the repo', async () => {
+      mockFsp.stat.mockImplementation(async (p: string) => {
+        if (p === `${MOCK_ROOT}/environments`) return { isDirectory: () => true }
+        if (p.endsWith('manifest.json')) return { isFile: () => true }
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
       })
-      mockFs.readdirSync.mockImplementation((p: string) => {
+      mockFsp.readdir.mockImplementation(async (p: string) => {
         if (p === `${MOCK_ROOT}/environments`) return ['env-1']
         return []
       })
-      mockFs.readFileSync.mockImplementation((p: string) => {
+      mockFsp.readFile.mockImplementation(async (p: string) => {
         if ((p as string).includes('manifest.json')) {
           return JSON.stringify({
             displayName: 'My Env',
@@ -714,36 +724,39 @@ describe('github module', () => {
         }
         return ''
       })
-      const impact = mod.getRemovalImpact('org', 'app')
+      const impact = await mod.getRemovalImpact('org', 'app')
       expect(impact.environments).toHaveLength(1)
       expect(impact.environments[0].name).toBe('My Env')
       expect(impact.environments[0].branch).toBe('main')
     })
 
-    it('counts PR comment files', () => {
-      mockFs.existsSync.mockImplementation((p: string) => {
-        if (p === `${MOCK_ROOT}/pr-workspace/comments`) return true
-        return false
+    it('counts PR comment files', async () => {
+      mockFsp.stat.mockImplementation(async (p: string) => {
+        if (p === `${MOCK_ROOT}/pr-workspace/comments`) return { isDirectory: () => true }
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
       })
-      mockFs.readdirSync.mockImplementation((p: string) => {
+      mockFsp.readdir.mockImplementation(async (p: string) => {
         if (p === `${MOCK_ROOT}/pr-workspace/comments`) return ['org-app-1.md', 'org-app-5.md', 'other-repo-2.md']
         return []
       })
-      const impact = mod.getRemovalImpact('org', 'app')
+      const impact = await mod.getRemovalImpact('org', 'app')
       expect(impact.prCommentFiles).toBe(2)
     })
 
-    it('reports bare clone existence', () => {
-      mockFs.existsSync.mockImplementation((p: string) => p === `${MOCK_ROOT}/repos/org/app.git`)
-      const impact = mod.getRemovalImpact('org', 'app')
+    it('reports bare clone existence', async () => {
+      mockFsp.stat.mockImplementation(async (p: string) => {
+        if (p === `${MOCK_ROOT}/repos/org/app.git`) return { isDirectory: () => true }
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      })
+      const impact = await mod.getRemovalImpact('org', 'app')
       expect(impact.bareCloneExists).toBe(true)
     })
 
-    it('includes repo pipelines from .colony/ config', () => {
+    it('includes repo pipelines from .colony/ config', async () => {
       mockGetAllRepoConfigs.mockReturnValue([
         { repoSlug: 'org/app', pipelines: [{ name: 'CI', enabled: true }, { name: 'Deploy', enabled: false }], prompts: [], templates: [] },
       ])
-      const impact = mod.getRemovalImpact('org', 'app')
+      const impact = await mod.getRemovalImpact('org', 'app')
       expect(impact.repoPipelines).toHaveLength(2)
       expect(impact.repoPipelines[0]).toEqual({ name: 'CI', enabled: true })
     })
@@ -786,7 +799,7 @@ describe('github module', () => {
           cb(null, '', '')
         }
       })
-      mockFs.existsSync.mockReturnValue(false) // no bare repo for refreshBareRepoConfig
+      mockFsp.stat.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' })) // no bare repo for refreshBareRepoConfig
 
       const prs = await mod.fetchPRs({ owner: 'org', name: 'repo' })
       expect(prs).toHaveLength(1)
@@ -814,7 +827,7 @@ describe('github module', () => {
           cb(null, '{"author":"eve","body":"Review comment","createdAt":"2026-01-03","path":"src/app.ts"}\n', '')
         }
       })
-      mockFs.existsSync.mockReturnValue(false)
+      mockFsp.stat.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
 
       const prs = await mod.fetchPRs({ owner: 'org', name: 'repo' })
       expect(prs[0].comments).toHaveLength(2) // 1 general + 1 review
@@ -913,23 +926,26 @@ describe('github module', () => {
   // ---- ensureRepoClones ----
 
   describe('ensureRepoClones', () => {
-    it('triggers bare clone for repos without existing bare dir', () => {
+    it('triggers bare clone for repos without existing bare dir', async () => {
       mockJsonFileRead.mockReturnValue({
         repos: [{ owner: 'a', name: 'b' }],
         prompts: [],
       })
-      mockFs.existsSync.mockReturnValue(false)
-      mod.ensureRepoClones()
+      mockFsp.stat.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
+      await mod.ensureRepoClones()
       expect(mockEnsureBareRepo).toHaveBeenCalledWith('a', 'b', 'git@github.com:test/repo.git')
     })
 
-    it('skips repos that already have bare clones', () => {
+    it('skips repos that already have bare clones', async () => {
       mockJsonFileRead.mockReturnValue({
         repos: [{ owner: 'a', name: 'b' }],
         prompts: [],
       })
-      mockFs.existsSync.mockImplementation((p: string) => p === `${MOCK_ROOT}/repos/a/b.git`)
-      mod.ensureRepoClones()
+      mockFsp.stat.mockImplementation(async (p: string) => {
+        if (p === `${MOCK_ROOT}/repos/a/b.git`) return { isDirectory: () => true }
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      })
+      await mod.ensureRepoClones()
       expect(mockEnsureBareRepo).not.toHaveBeenCalled()
     })
   })

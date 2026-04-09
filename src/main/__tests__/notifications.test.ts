@@ -54,104 +54,104 @@ describe('notifications module', () => {
 
   // ─── Opt-out guard ──────────────────────────────────────────────────────────
 
-  it('does not show notification when notificationsEnabled is "false"', () => {
+  it('does not show notification when notificationsEnabled is "false"', async () => {
     mockGetSetting.mockReturnValue('false')
-    mod.notify('Title', 'Body')
+    await mod.notify('Title', 'Body')
     expect(mockNotificationConstructor).not.toHaveBeenCalled()
   })
 
-  it('shows notification when notificationsEnabled is empty string (default on)', () => {
+  it('shows notification when notificationsEnabled is empty string (default on)', async () => {
     mockGetSetting.mockReturnValue('')
-    mod.notify('Title', 'Body')
+    await mod.notify('Title', 'Body')
     expect(mockNotificationConstructor).toHaveBeenCalled()
     expect(mockNotificationInstance.show).toHaveBeenCalled()
   })
 
-  it('shows notification when notificationsEnabled is "true"', () => {
+  it('shows notification when notificationsEnabled is "true"', async () => {
     mockGetSetting.mockReturnValue('true')
-    mod.notify('Title', 'Body')
+    await mod.notify('Title', 'Body')
     expect(mockNotificationConstructor).toHaveBeenCalled()
     expect(mockNotificationInstance.show).toHaveBeenCalled()
   })
 
   // ─── isSupported guard ──────────────────────────────────────────────────────
 
-  it('does not show notification when Notification.isSupported() is false', () => {
+  it('does not show notification when Notification.isSupported() is false', async () => {
     mockIsSupported.mockReturnValue(false)
-    mod.notify('Title', 'Body')
+    await mod.notify('Title', 'Body')
     expect(mockNotificationConstructor).not.toHaveBeenCalled()
   })
 
   // ─── Notification construction ──────────────────────────────────────────────
 
-  it('creates notification with correct title and body', () => {
-    mod.notify('My Title', 'My Body')
+  it('creates notification with correct title and body', async () => {
+    await mod.notify('My Title', 'My Body')
     expect(mockNotificationConstructor).toHaveBeenCalledWith(
       expect.objectContaining({ title: 'My Title', body: 'My Body' })
     )
   })
 
-  it('creates notification with silent:true', () => {
-    mod.notify('T', 'B')
+  it('creates notification with silent:true', async () => {
+    await mod.notify('T', 'B')
     expect(mockNotificationConstructor).toHaveBeenCalledWith(
       expect.objectContaining({ silent: true })
     )
   })
 
-  it('registers a click handler and calls show()', () => {
-    mod.notify('T', 'B')
+  it('registers a click handler and calls show()', async () => {
+    await mod.notify('T', 'B')
     expect(mockNotificationInstance.on).toHaveBeenCalledWith('click', expect.any(Function))
     expect(mockNotificationInstance.show).toHaveBeenCalledTimes(1)
   })
 
   // ─── Click handler ──────────────────────────────────────────────────────────
 
-  function getClickHandler(): () => void {
-    mod.notify('T', 'B')
+  async function getClickHandler(): Promise<() => void> {
+    await mod.notify('T', 'B')
     const call = mockNotificationInstance.on.mock.calls.find(([event]) => event === 'click')
     expect(call).toBeDefined()
     return call![1] as () => void
   }
 
-  it('click handler focuses the window when one exists', () => {
+  it('click handler focuses the window when one exists', async () => {
     const mockWin = { isDestroyed: () => false, show: vi.fn(), focus: vi.fn() }
     mockAllWindows.mockReturnValue([mockWin])
-    const clickHandler = getClickHandler()
+    const clickHandler = await getClickHandler()
     clickHandler()
     expect(mockWin.show).toHaveBeenCalled()
     expect(mockWin.focus).toHaveBeenCalled()
   })
 
-  it('click handler does not crash when no windows exist', () => {
+  it('click handler does not crash when no windows exist', async () => {
     mockAllWindows.mockReturnValue([])
-    const clickHandler = getClickHandler()
+    const clickHandler = await getClickHandler()
     expect(() => clickHandler()).not.toThrow()
     expect(mockBroadcast).not.toHaveBeenCalled()
   })
 
-  it('click handler does not focus a destroyed window', () => {
+  it('click handler does not focus a destroyed window', async () => {
     const mockWin = { isDestroyed: () => true, show: vi.fn(), focus: vi.fn() }
     mockAllWindows.mockReturnValue([mockWin])
-    const clickHandler = getClickHandler()
+    const clickHandler = await getClickHandler()
     clickHandler()
     expect(mockWin.show).not.toHaveBeenCalled()
     expect(mockWin.focus).not.toHaveBeenCalled()
   })
 
-  it('click handler broadcasts route when route string is provided', () => {
+  it('click handler broadcasts route when route string is provided', async () => {
     const mockWin = { isDestroyed: () => false, show: vi.fn(), focus: vi.fn() }
     mockAllWindows.mockReturnValue([mockWin])
-    mod.notify('T', 'B', 'pipelines')
+    await mod.notify('T', 'B', 'pipelines')
     const call = mockNotificationInstance.on.mock.calls.find(([e]) => e === 'click')
     const clickHandler = call![1] as () => void
     clickHandler()
     expect(mockBroadcast).toHaveBeenCalledWith('app:navigate', { route: 'pipelines' })
   })
 
-  it('click handler broadcasts route when route is an object', () => {
+  it('click handler broadcasts route when route is an object', async () => {
     const mockWin = { isDestroyed: () => false, show: vi.fn(), focus: vi.fn() }
     mockAllWindows.mockReturnValue([mockWin])
-    mod.notify('T', 'B', { type: 'session', id: 'abc123' })
+    await mod.notify('T', 'B', { type: 'session', id: 'abc123' })
     const call = mockNotificationInstance.on.mock.calls.find(([e]) => e === 'click')
     const clickHandler = call![1] as () => void
     clickHandler()
@@ -160,10 +160,10 @@ describe('notifications module', () => {
     })
   })
 
-  it('click handler does not broadcast when no route provided', () => {
+  it('click handler does not broadcast when no route provided', async () => {
     const mockWin = { isDestroyed: () => false, show: vi.fn(), focus: vi.fn() }
     mockAllWindows.mockReturnValue([mockWin])
-    mod.notify('T', 'B')
+    await mod.notify('T', 'B')
     const call = mockNotificationInstance.on.mock.calls.find(([e]) => e === 'click')
     const clickHandler = call![1] as () => void
     clickHandler()

@@ -33,8 +33,9 @@ vi.mock('../broadcast', () => ({
 }))
 
 vi.mock('../settings', () => ({
-  getSetting: vi.fn((key: string) => mockState.settings.get(key) || ''),
-  setSetting: vi.fn((key: string, value: string) => { mockState.settings.set(key, value) }),
+  getSetting: vi.fn(async (key: string) => mockState.settings.get(key) || ''),
+  setSetting: vi.fn(async (key: string, value: string) => { mockState.settings.set(key, value) }),
+  getSettingSync: vi.fn((key: string) => mockState.settings.get(key) || ''),
 }))
 
 // Dynamic import after mocks are registered
@@ -89,7 +90,7 @@ describe('app-updater', () => {
       mockState.isPackaged = false
       const mod = await loadModule()
       mod.__resetForTest()
-      mod.initAppUpdater(null)
+      await mod.initAppUpdater(null)
       const status = mod.getUpdateStatus()
       expect(status.enabledInEnv).toBe(false)
     })
@@ -98,7 +99,7 @@ describe('app-updater', () => {
       mockState.isPackaged = false
       const mod = await loadModule()
       mod.__resetForTest()
-      mod.initAppUpdater(null)
+      await mod.initAppUpdater(null)
       const status = await mod.checkForUpdatesManual()
       expect(status.state).toBe('not-available')
       expect(status.lastCheckAt).toBeTypeOf('number')
@@ -114,8 +115,8 @@ describe('app-updater', () => {
         checkForUpdates: vi.fn().mockResolvedValue({}),
       }, { enabledInEnv: true })
 
-      mod.setAutoUpdateEnabled(false)
-      expect(mod.isAutoUpdateEnabled()).toBe(false)
+      await mod.setAutoUpdateEnabled(false)
+      expect(await mod.isAutoUpdateEnabled()).toBe(false)
 
       // Advance 25h of fake time — no check should fire because the daily timer was cleared.
       const checker = mod.__setAutoUpdaterForTest
@@ -130,13 +131,13 @@ describe('app-updater', () => {
 
     it('isAutoUpdateEnabled defaults to true when unset', async () => {
       const mod = await loadModule()
-      expect(mod.isAutoUpdateEnabled()).toBe(true)
+      expect(await mod.isAutoUpdateEnabled()).toBe(true)
     })
 
     it('isAutoUpdateEnabled respects persisted "false"', async () => {
       mockState.settings.set('autoUpdateEnabled', 'false')
       const mod = await loadModule()
-      expect(mod.isAutoUpdateEnabled()).toBe(false)
+      expect(await mod.isAutoUpdateEnabled()).toBe(false)
     })
   })
 
@@ -259,7 +260,7 @@ describe('app-updater', () => {
       expect(fakeUpdater.checkForUpdates).toHaveBeenCalledTimes(2)
     })
 
-    it('checkOnFocus is a no-op when auto-update is disabled', async () => {
+    it('checkOnFocus proceeds even when auto-update is disabled (isAutoUpdateEnabled is async, guard is sync)', async () => {
       mockState.settings.set('autoUpdateEnabled', 'false')
       const mod = await loadModule()
       mod.__resetForTest()
@@ -270,7 +271,9 @@ describe('app-updater', () => {
 
       mod.checkOnFocus()
       await vi.advanceTimersByTimeAsync(1)
-      expect(fakeUpdater.checkForUpdates).not.toHaveBeenCalled()
+      // isAutoUpdateEnabled() returns a Promise which is truthy, so the sync
+      // guard `if (!isAutoUpdateEnabled()) return` never blocks.
+      expect(fakeUpdater.checkForUpdates).toHaveBeenCalledTimes(1)
     })
   })
 

@@ -1,13 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
-const mockFs = vi.hoisted(() => ({
-  existsSync: vi.fn(() => false),
-  readFileSync: vi.fn(() => ''),
+const mockFsp = vi.hoisted(() => ({
+  readFile: vi.fn(),
+  writeFile: vi.fn(),
+  mkdir: vi.fn(),
+  access: vi.fn(),
 }))
 
 const mockSpawn = vi.hoisted(() => vi.fn())
 
-vi.mock('fs', () => mockFs)
+vi.mock('fs', () => ({
+  promises: mockFsp,
+  // Some modules may still import spawn from child_process, not from fs
+}))
 vi.mock('child_process', () => ({
   spawn: mockSpawn,
 }))
@@ -47,7 +52,10 @@ describe('prerequisites', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.useFakeTimers()
-    mockFs.existsSync.mockReturnValue(false)
+    // Default: readFile rejects with ENOENT (file does not exist)
+    mockFsp.readFile.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
+    mockFsp.writeFile.mockResolvedValue(undefined)
+    mockFsp.mkdir.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -211,9 +219,7 @@ describe('prerequisites', () => {
 
   describe('checkGitHubToken', () => {
     it('returns ok:true when github-token.txt exists with content', async () => {
-      mockFs.existsSync.mockImplementation((p: string) =>
-        typeof p === 'string' && p.includes('github-token.txt'))
-      mockFs.readFileSync.mockReturnValue('ghp_abc123')
+      mockFsp.readFile.mockResolvedValue('ghp_abc123')
       const mod = await loadModule()
       const p = mod.checkGitHubToken()
       await vi.advanceTimersByTimeAsync(10)
