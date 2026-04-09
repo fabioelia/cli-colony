@@ -113,8 +113,17 @@ function loadWindowState(): WindowState {
   return {}
 }
 
-function saveWindowState(): void {
+let _saveWindowTimer: ReturnType<typeof setTimeout> | null = null
+
+function saveWindowState(immediate = false): void {
   if (!mainWindow || mainWindow.isDestroyed()) return
+  if (!immediate) {
+    // Debounce: move/resize fire at 60fps during drag
+    if (_saveWindowTimer) clearTimeout(_saveWindowTimer)
+    _saveWindowTimer = setTimeout(() => saveWindowState(true), 500)
+    return
+  }
+  _saveWindowTimer = null
   try {
     const bounds = mainWindow.getBounds()
     const state: WindowState = {
@@ -178,7 +187,7 @@ function createWindow(): void {
   mainWindow.on('leave-full-screen', stateChangeHandler)
 
   mainWindow.on('close', (event) => {
-    saveWindowState()
+    saveWindowState(true)
     if (process.platform === 'darwin' && !app.isQuitting) {
       const keepInTray = getSetting('keepInTray') !== 'false'
       if (keepInTray) {

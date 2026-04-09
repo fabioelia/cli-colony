@@ -9,7 +9,7 @@ import * as net from 'net'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as pty from 'node-pty'
-import { execSync } from 'child_process'
+import { execSync, execFile } from 'child_process'
 import {
   DAEMON_VERSION,
 } from './protocol'
@@ -45,6 +45,7 @@ interface InternalInstance extends ClaudeInstance {
   outputBuffer: string[]
   cleanupTimer: ReturnType<typeof setTimeout> | null
   _lastSnapshot: string
+  _lastBufferLen: number
   _activityInterval: ReturnType<typeof setInterval> | null
   _handoffRequested: boolean
   _userInputReceived: boolean
@@ -53,6 +54,8 @@ interface InternalInstance extends ClaudeInstance {
   comments: ColonyComment[]
   /** Partial line buffer for sentinel detection across PTY data chunks */
   _lineBuffer: string
+  /** Timestamp of last async git branch resolution */
+  _gitBranchResolvedAt: number
 }
 
 const instances = new Map<string, InternalInstance>()
@@ -92,28 +95,27 @@ function nextColor(): string {
 
 let instanceCounter = 0
 
-function resolveGitBranch(cwd: string): string | null {
+// Synchronous git resolution — only used during initial instance creation (one-time cost)
+function resolveGitBranchSync(cwd: string): string | null {
   try {
     return execSync('git rev-parse --abbrev-ref HEAD', { cwd, encoding: 'utf-8', timeout: 2000 }).trim() || null
   } catch {
-    // Not a git repo — try subdirectories (e.g., environment roots contain repo dirs)
-    return resolveGitInSubdir(cwd, 'branch')
+    return resolveGitInSubdirSync(cwd, 'branch')
   }
 }
 
-function resolveGitRepo(cwd: string): string | null {
+function resolveGitRepoSync(cwd: string): string | null {
   try {
     const url = execSync('git config --get remote.origin.url', { cwd, encoding: 'utf-8', timeout: 2000 }).trim()
     if (!url) return null
     const match = url.match(/[/:]([\w.-]+)\/([\w.-]+?)(?:\.git)?$/)
     return match ? `${match[1]}/${match[2]}` : null
   } catch {
-    return resolveGitInSubdir(cwd, 'repo')
+    return resolveGitInSubdirSync(cwd, 'repo')
   }
 }
 
-/** Walk one level into subdirectories to find a git repo */
-function resolveGitInSubdir(cwd: string, type: 'branch' | 'repo'): string | null {
+function resolveGitInSubdirSync(cwd: string, type: 'branch' | 'repo'): string | null {
   try {
     const entries = fs.readdirSync(cwd, { withFileTypes: true })
     for (const entry of entries) {
@@ -134,16 +136,55 @@ function resolveGitInSubdir(cwd: string, type: 'branch' | 'repo'): string | null
   return null
 }
 
-function toSerializable(inst: InternalInstance): ClaudeInstance {
-  // Always re-resolve branch (it changes when sessions checkout branches)
-  // Only resolve repo once (it doesn't change)
-  if (inst.status === 'running') {
-    inst.gitBranch = resolveGitBranch(inst.workingDirectory)
-  } else if (!inst.gitBranch) {
-    inst.gitBranch = resolveGitBranch(inst.workingDirectory)
-  }
-  if (!inst.gitRepo) inst.gitRepo = resolveGitRepo(inst.workingDirectory)
+// Async git resolution — used by periodic background refresh (never blocks event loop)
+const GIT_BRANCH_TTL = 15_000 // 15 seconds
 
+function execFileAsync(cmd: string, args: string[], cwd: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, { cwd, encoding: 'utf-8', timeout: 3000 }, (err, stdout) => {
+      if (err) reject(err)
+      else resolve((stdout as string).trim())
+    })
+  })
+}
+
+async function resolveGitBranchAsync(cwd: string): Promise<string | null> {
+  try {
+    return await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], cwd) || null
+  } catch {
+    // Try one level of subdirectories
+    try {
+      const entries = fs.readdirSync(cwd, { withFileTypes: true })
+      for (const entry of entries) {
+        if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === 'logs') continue
+        try {
+          return await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], path.join(cwd, entry.name)) || null
+        } catch { /* not a git repo */ }
+      }
+    } catch { /* can't read dir */ }
+    return null
+  }
+}
+
+/** Periodically refresh git branches for running instances without blocking the event loop */
+function startGitBranchRefresher(): void {
+  setInterval(async () => {
+    for (const inst of instances.values()) {
+      if (inst.status !== 'running') continue
+      if (Date.now() - inst._gitBranchResolvedAt < GIT_BRANCH_TTL) continue
+      const branch = await resolveGitBranchAsync(inst.workingDirectory)
+      inst._gitBranchResolvedAt = Date.now()
+      if (branch !== inst.gitBranch) {
+        inst.gitBranch = branch
+        notifyListChanged()
+      }
+    }
+  }, GIT_BRANCH_TTL)
+}
+
+function toSerializable(inst: InternalInstance): ClaudeInstance {
+  // Git branch/repo are resolved asynchronously by the background refresher.
+  // No blocking I/O here — just return cached values.
   return {
     id: inst.id,
     name: inst.name,
@@ -253,13 +294,13 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
       id, name, color, status: 'exited', activity: 'waiting',
       workingDirectory: cwd, createdAt: new Date().toISOString(),
       exitCode: -1, pid: null, args: argv, cliBackend,
-      gitBranch: resolveGitBranch(cwd), gitRepo: resolveGitRepo(cwd),
+      gitBranch: resolveGitBranchSync(cwd), gitRepo: resolveGitRepoSync(cwd),
       tokenUsage: { input: 0, output: 0 },
       pinned: false, mcpServers: [], roleTag: null,
       parentId: opts.parentId || null, childIds: [],
       pty: null, outputBuffer: [`Failed to spawn ${command}: ${err}\r\n`],
-      cleanupTimer: null, _lastSnapshot: '', _activityInterval: null, _handoffRequested: false, _userInputReceived: false,
-      _sessionIdTimer: null, comments: [], _lineBuffer: '',
+      cleanupTimer: null, _lastSnapshot: '', _lastBufferLen: 0, _activityInterval: null, _handoffRequested: false, _userInputReceived: false,
+      _sessionIdTimer: null, comments: [], _lineBuffer: '', _gitBranchResolvedAt: Date.now(),
     }
     instances.set(id, instance)
     notifyListChanged()
@@ -270,13 +311,13 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
     id, name, color, status: 'running', activity: 'busy',
     workingDirectory: cwd, createdAt: new Date().toISOString(),
     exitCode: null, pid: ptyProcess.pid,
-    args: argv, cliBackend, gitBranch: resolveGitBranch(cwd), gitRepo: resolveGitRepo(cwd),
-    tokenUsage: { input: 0, output: 0, cost: 0 },
+    args: argv, cliBackend, gitBranch: resolveGitBranchSync(cwd), gitRepo: resolveGitRepoSync(cwd),
+    tokenUsage: { input: 0, output: 0 },
     pinned: false, mcpServers: [], roleTag: null,
     parentId: opts.parentId || null, childIds: [],
     pty: ptyProcess, outputBuffer: [],
-    cleanupTimer: null, _lastSnapshot: '', _activityInterval: null, _handoffRequested: false, _userInputReceived: false,
-    _sessionIdTimer: null, comments: [], _lineBuffer: '',
+    cleanupTimer: null, _lastSnapshot: '', _lastBufferLen: 0, _activityInterval: null, _handoffRequested: false, _userInputReceived: false,
+    _sessionIdTimer: null, comments: [], _lineBuffer: '', _gitBranchResolvedAt: Date.now(),
   }
 
   // Register this child with its parent
@@ -296,8 +337,9 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
   ptyProcess.onData((data) => {
     // Fast path: send data immediately (keystroke echo path)
     instance.outputBuffer.push(data)
-    if (instance.outputBuffer.length > 10000) {
-      instance.outputBuffer.splice(0, instance.outputBuffer.length - 5000)
+    if (instance.outputBuffer.length > 5000) {
+      // Reassign instead of splice to avoid O(N) in-place shift
+      instance.outputBuffer = instance.outputBuffer.slice(-2500)
     }
     broadcastEvent({ type: 'output', instanceId: id, data: Buffer.from(data).toString('base64') })
 
@@ -375,9 +417,9 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
       instance._activityInterval = setInterval(activityCheck, NORMAL_INTERVAL)
     }
 
-    const tail = instance.outputBuffer.slice(-200).join('')
-    const changed = tail !== instance._lastSnapshot
-    instance._lastSnapshot = tail
+    const currentLen = instance.outputBuffer.length
+    const changed = currentLen !== instance._lastBufferLen
+    instance._lastBufferLen = currentLen
     const newActivity = changed ? 'busy' : 'waiting'
     if (newActivity !== instance.activity) {
       instance.activity = newActivity
@@ -854,6 +896,8 @@ function main(): void {
     log(`listening on ${SOCKET_PATH}`)
     // Set socket permissions so only the user can connect
     try { fs.chmodSync(SOCKET_PATH, 0o700) } catch { /* */ }
+    // Start async git branch resolver (never blocks event loop)
+    startGitBranchRefresher()
   })
 
   server.on('error', (err) => {
