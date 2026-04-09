@@ -4918,7 +4918,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 /* ===== List Panel (shared by Changes, Team, Metrics tabs) ===== */
-.replay-panel {
+.changes-panel {
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -4926,7 +4926,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: var(--bg-primary);
 }
 
-.replay-panel-header {
+.changes-panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -4936,7 +4936,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   flex-shrink: 0;
 }
 
-.replay-panel-title {
+.changes-panel-title {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -4947,7 +4947,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   letter-spacing: 0.5px;
 }
 
-.replay-refresh-btn {
+.changes-refresh-btn {
   background: none;
   border: none;
   color: var(--text-muted);
@@ -4957,18 +4957,18 @@ body:has(.daemon-update-banner) .app-update-banner {
   display: flex;
   align-items: center;
 }
-.replay-refresh-btn:hover {
+.changes-refresh-btn:hover {
   color: var(--text-primary);
   background: var(--bg-hover);
 }
 
-.replay-panel-content {
+.changes-panel-content {
   flex: 1;
   overflow-y: auto;
   padding: 4px 0;
 }
 
-.replay-empty {
+.changes-empty {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4979,14 +4979,14 @@ body:has(.daemon-update-banner) .app-update-banner {
   padding: 24px;
 }
 
-.replay-event {
+.changes-event {
   border-bottom: 1px solid var(--border);
   cursor: pointer;
 }
-.replay-event:hover {
+.changes-event:hover {
   background: var(--bg-hover);
 }
-.replay-event-header {
+.changes-event-header {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -4994,7 +4994,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   min-width: 0;
 }
 
-.replay-event-tool {
+.changes-event-tool {
   flex-shrink: 0;
   font-size: 11px;
   font-weight: 600;
@@ -5006,7 +5006,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-family: var(--font-mono, monospace);
 }
 
-.replay-event-input {
+.changes-event-input {
   flex: 1;
   font-size: 11px;
   color: var(--text-secondary);
@@ -5017,7 +5017,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   min-width: 0;
 }
 
-.replay-event-time {
+.changes-event-time {
   flex-shrink: 0;
   display: flex;
   align-items: center;

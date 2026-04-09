@@ -1921,14 +1921,14 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
         </div>
       )}
       {viewTab === 'changes' && (
-        <div className="replay-panel">
-          <div className="replay-panel-header">
-            <span className="replay-panel-title">
+        <div className="changes-panel">
+          <div className="changes-panel-header">
+            <span className="changes-panel-title">
               <GitCompare size={13} /> Git Changes
             </span>
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
               <button
-                className="replay-refresh-btn"
+                className="changes-refresh-btn"
                 title="Refresh"
                 onClick={loadGitChanges}
               >
@@ -1937,7 +1937,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               {gitChanges.length > 0 && (
                 <>
                   <button
-                    className="replay-refresh-btn"
+                    className="changes-refresh-btn"
                     title="Score output quality with AI"
                     disabled={scoreCardLoading}
                     onClick={handleScoreOutput}
@@ -1946,7 +1946,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                     {scoreCardLoading ? <RotateCw size={12} className="spinning" /> : <Sparkles size={12} />}
                   </button>
                   <button
-                    className="replay-refresh-btn"
+                    className="changes-refresh-btn"
                     title="Revert all changes"
                     disabled={revertingAll}
                     onClick={handleRevertAll}
@@ -1958,10 +1958,10 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               )}
             </div>
           </div>
-          <div className="replay-panel-content">
-            {gitChangesLoading && <div className="replay-empty">Loading...</div>}
+          <div className="changes-panel-content">
+            {gitChangesLoading && <div className="changes-empty">Loading...</div>}
             {!gitChangesLoading && gitChanges.length === 0 && (
-              <div className="replay-empty">No uncommitted changes.</div>
+              <div className="changes-empty">No uncommitted changes.</div>
             )}
             {!gitChangesLoading && gitChanges.map((entry) => {
               const fileComments = colonyComments.filter(c => {
@@ -1969,9 +1969,9 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 return normalised === entry.file || normalised.endsWith('/' + entry.file) || entry.file.endsWith('/' + normalised)
               })
               return (
-                <div key={entry.file} className="replay-event" style={{ cursor: 'default' }}>
-                  <div className="replay-event-header" style={{ alignItems: 'center' }}>
-                    <span className="replay-event-tool" title={entry.status === 'A' ? 'Added' : entry.status === 'D' ? 'Deleted' : entry.status === 'R' ? 'Renamed' : 'Modified'} style={{
+                <div key={entry.file} className="changes-event" style={{ cursor: 'default' }}>
+                  <div className="changes-event-header" style={{ alignItems: 'center' }}>
+                    <span className="changes-event-tool" title={entry.status === 'A' ? 'Added' : entry.status === 'D' ? 'Deleted' : entry.status === 'R' ? 'Renamed' : 'Modified'} style={{
                       color: entry.status === 'A' ? 'var(--success)'
                         : entry.status === 'D' ? 'var(--danger)'
                         : 'var(--warning)',
@@ -1980,10 +1980,10 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                     }}>
                       {entry.status}
                     </span>
-                    <span className="replay-event-input" style={{ flex: 1, fontFamily: 'monospace', fontSize: '11px' }}>
+                    <span className="changes-event-input" style={{ flex: 1, fontFamily: 'monospace', fontSize: '11px' }}>
                       {entry.file}
                     </span>
-                    <span className="replay-event-time" style={{ fontSize: '10px', opacity: 0.7 }}>
+                    <span className="changes-event-time" style={{ fontSize: '10px', opacity: 0.7 }}>
                       {entry.insertions > 0 && <span style={{ color: 'var(--success)' }}>+{entry.insertions}</span>}
                       {entry.insertions > 0 && entry.deletions > 0 && ' '}
                       {entry.deletions > 0 && <span style={{ color: 'var(--danger)' }}>-{entry.deletions}</span>}
@@ -1995,7 +1995,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                       </span>
                     )}
                     <button
-                      className="replay-refresh-btn"
+                      className="changes-refresh-btn"
                       title={`Revert ${entry.file}`}
                       disabled={reverting.has(entry.file)}
                       onClick={() => handleRevert(entry.file)}
@@ -2075,7 +2075,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                     {scoreCard.testCoverage === 'good' ? 'Tests OK' : scoreCard.testCoverage === 'partial' ? 'Tests' : 'No Tests'}
                   </span>
                   <button
-                    className="replay-refresh-btn"
+                    className="changes-refresh-btn"
                     title="Dismiss"
                     onClick={() => setScoreCard(null)}
                     style={{ marginLeft: '4px' }}
@@ -2092,14 +2092,14 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
         </div>
       )}
       {viewTab === 'team' && instance.roleTag === 'Coordinator' && (
-        <div className="replay-panel">
-          <div className="replay-panel-header">
-            <span className="replay-panel-title">
+        <div className="changes-panel">
+          <div className="changes-panel-header">
+            <span className="changes-panel-title">
               <Bot size={13} /> Coordinator Team
             </span>
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
               <button
-                className="replay-refresh-btn"
+                className="changes-refresh-btn"
                 title="Refresh"
                 onClick={() => {
                   setTeamLoading(true)
@@ -2116,14 +2116,14 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               </button>
             </div>
           </div>
-          <div className="replay-panel-content">
-            {teamLoading && <div className="replay-empty">Loading workers...</div>}
+          <div className="changes-panel-content">
+            {teamLoading && <div className="changes-empty">Loading workers...</div>}
             {!teamLoading && (!coordinatorTeam || coordinatorTeam.workers.length === 0) && (
-              <div className="replay-empty">No worker sessions active.</div>
+              <div className="changes-empty">No worker sessions active.</div>
             )}
             {!teamLoading && coordinatorTeam && coordinatorTeam.workers.map((worker: CoordinatorWorker) => (
-              <div key={worker.id} className="replay-event" style={{ cursor: 'default' }}>
-                <div className="replay-event-header" style={{ alignItems: 'center' }}>
+              <div key={worker.id} className="changes-event" style={{ cursor: 'default' }}>
+                <div className="changes-event-header" style={{ alignItems: 'center' }}>
                   <span style={{
                     fontSize: '11px',
                     fontWeight: 600,
@@ -2178,7 +2178,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
         </div>
       )}
       {viewTab === 'metrics' && instance.roleTag === 'Coordinator' && (
-        <div className="replay-panel">
+        <div className="changes-panel">
           <TeamMetricsPanel coordinatorSessionId={instance.id} />
         </div>
       )}
