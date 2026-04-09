@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { Swords, BarChart3, X as XIcon, EyeOff } from 'lucide-react'
+import { Swords, BarChart3, X as XIcon, EyeOff, Trophy, Rocket } from 'lucide-react'
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
 import { createPortal } from 'react-dom'
 import type { ClaudeInstance, AgentDef, CliSession, RecentSession, CliBackend, ArenaStats } from './types'
@@ -20,6 +20,8 @@ import PersonasPanel from './components/PersonasPanel'
 import OutputsPanel from './components/OutputsPanel'
 import QuickPromptDialog from './components/QuickPromptDialog'
 import ForkModal from './components/ForkModal'
+import ArenaLaunchDialog from './components/ArenaLaunchDialog'
+import ArenaLeaderboard from './components/ArenaLeaderboard'
 import AppUpdateBanner from './components/AppUpdateBanner'
 import WelcomeModal from './components/WelcomeModal'
 import { stripAnsi } from '../../shared/utils'
@@ -75,6 +77,9 @@ export default function App() {
   const [arenaWinnerId, setArenaWinnerId] = useState<string | null>(null)
   const [arenaStatsOpen, setArenaStatsOpen] = useState(false)
   const [arenaStats, setArenaStats] = useState<ArenaStats>({})
+  const [arenaLaunchOpen, setArenaLaunchOpen] = useState(false)
+  const [arenaWorktreeIds, setArenaWorktreeIds] = useState<string[]>([])
+  const [arenaLeaderboardOpen, setArenaLeaderboardOpen] = useState(false)
   const [unreadIds, setUnreadIds] = useState<Set<string>>(new Set())
   const [fontSize, setFontSize] = useState(13)
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
@@ -785,6 +790,33 @@ export default function App() {
     setArenaStatsOpen(true)
   }, [])
 
+  const handleArenaLaunch = useCallback((result: { instances: string[]; worktrees: string[] }) => {
+    const { instances: ids, worktrees: wtIds } = result
+    // Populate grid with the new instance IDs
+    const panes: (string | null)[] = [null, null, null, null]
+    ids.forEach((id, i) => { if (i < 4) panes[i] = id })
+    setGridPanes(panes)
+    setFocusedGridIdx(0)
+    if (ids[0]) setActiveId(ids[0])
+    setArenaMode(true)
+    setArenaBlind(false)
+    setArenaWinnerId(null)
+    setArenaWorktreeIds(wtIds)
+    setSplitPairs(new Map())
+    setView('instances')
+  }, [])
+
+  const handleArenaCleanup = useCallback(async () => {
+    if (arenaWorktreeIds.length === 0) return
+    const ok = confirm(`Remove ${arenaWorktreeIds.length} arena worktree${arenaWorktreeIds.length > 1 ? 's' : ''}?`)
+    if (!ok) {
+      setArenaWorktreeIds([])
+      return
+    }
+    await window.api.arena.cleanupWorktrees(arenaWorktreeIds)
+    setArenaWorktreeIds([])
+  }, [arenaWorktreeIds])
+
   const handlePickSplit = useCallback((id: string) => {
     if (!activeId) return
     setSplitPairs((prev) => {
@@ -838,7 +870,9 @@ export default function App() {
     setGridPanes([null, null, null, null])
     setFocusedGridIdx(0)
     if (first) setActiveId(first)
-  }, [gridPanes])
+    // Prompt to clean up arena worktrees if any
+    if (arenaWorktreeIds.length > 0) handleArenaCleanup()
+  }, [gridPanes, arenaWorktreeIds, handleArenaCleanup])
 
   // Close one grid pane — if 1 or fewer remain, exit grid mode
   const handleCloseGridPane = useCallback((idx: number) => {
@@ -1290,6 +1324,23 @@ export default function App() {
                 <EyeOff size={11} /> Blind
               </button>
             )}
+            <div style={{ flex: 1 }} />
+            <button
+              className="grid-arena-toggle"
+              onClick={() => setArenaLaunchOpen(true)}
+              title="Launch Arena — create worktrees and spawn parallel sessions"
+              aria-label="Launch Arena"
+            >
+              <Rocket size={11} /> Launch
+            </button>
+            <button
+              className="grid-arena-toggle"
+              onClick={() => setArenaLeaderboardOpen(true)}
+              title="Arena leaderboard — cumulative win/loss stats"
+              aria-label="Leaderboard"
+            >
+              <Trophy size={11} /> Board
+            </button>
           </div>
         )}
 
@@ -1781,6 +1832,16 @@ export default function App() {
         </div>,
         document.body
       )}
+      {arenaLaunchOpen && (
+        <ArenaLaunchDialog
+          onClose={() => setArenaLaunchOpen(false)}
+          onLaunch={handleArenaLaunch}
+        />
+      )}
+      <ArenaLeaderboard
+        open={arenaLeaderboardOpen}
+        onClose={() => setArenaLeaderboardOpen(false)}
+      />
     </div>
   )
 }

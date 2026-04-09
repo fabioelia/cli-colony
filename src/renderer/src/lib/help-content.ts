@@ -725,7 +725,10 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'N-way comparison', detail: 'Arena works in both 2-up split (2 sessions) and 4-up grid (up to 4 sessions). In grid mode, voting picks one winner — all other sessions are recorded as losers.' },
           { label: 'Pick winner', detail: 'Trophy button in each pane header — click to mark that session as the winner of the current round. All buttons disable until the next prompt is sent. Win/loss totals are persisted across sessions.', icon: 'Trophy' },
           { label: 'Stats', detail: 'BarChart3 button in the Arena toolbar — shows win rates per session sorted by win percentage (e.g. "Colony QA: 5W / 2L (71%)").', icon: 'BarChart3' },
-          { label: 'Use case', detail: 'Compare models, personas, or approaches on the same task — evaluate quality, speed, and style side-by-side. 4-up grid enables N-way comparison that neither Cursor nor Windsurf offers.' },
+          { label: 'Launch Arena', detail: 'Rocket button in the grid controls bar. Opens a dialog to create N isolated worktrees from a repo+branch and spawn one session per pane — fully automated arena setup. Supports 2-4 agents, optional shared prompt, and per-agent model overrides.', icon: 'Rocket' },
+          { label: 'Leaderboard', detail: 'Trophy button in the grid controls bar. Shows cumulative win/loss stats across all arena sessions, persisted in localStorage. Sorted by win rate.', icon: 'Trophy' },
+          { label: 'Arena cleanup', detail: 'When exiting grid mode after an arena launch, you are prompted to remove the temporary worktrees. Declining keeps them for manual inspection.' },
+          { label: 'Use case', detail: 'Compare models, personas, or approaches on the same task — evaluate quality, speed, and style side-by-side. 4-up grid enables N-way comparison that neither Cursor nor Windsurf offers. Launch Arena automates the entire setup.' },
         ],
       },
       {

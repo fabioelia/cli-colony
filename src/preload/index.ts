@@ -369,6 +369,15 @@ export interface ClaudeManagerAPI {
   arena: {
     recordWinner: (winnerKey: string, loserKey: string | string[]) => Promise<boolean>
     getStats: () => Promise<ArenaStats>
+    launchWithWorktrees: (opts: {
+      owner: string
+      repoName: string
+      branch: string
+      count: number
+      prompt?: string
+      models?: (string | null)[]
+    }) => Promise<{ instances: string[]; worktrees: string[] }>
+    cleanupWorktrees: (worktreeIds: string[]) => Promise<number>
   }
   fork: {
     create: (parentId: string, opts: {
@@ -836,6 +845,8 @@ const api: ClaudeManagerAPI = {
   arena: {
     recordWinner: (winnerKey, loserKey) => ipcRenderer.invoke('arena:recordWinner', winnerKey, loserKey),
     getStats: () => ipcRenderer.invoke('arena:getStats'),
+    launchWithWorktrees: (opts) => ipcRenderer.invoke('arena:launchWithWorktrees', opts),
+    cleanupWorktrees: (ids) => ipcRenderer.invoke('arena:cleanupWorktrees', ids),
   },
   fork: {
     create: (parentId, opts) => ipcRenderer.invoke('fork:create', parentId, opts),
