@@ -278,7 +278,7 @@ export default function TaskQueuePanel({ instances, onFocusInstance, onLaunchIns
     <div className="task-queue-panel">
       {/* Header */}
       <div className="panel-header">
-        <h2>Tasks</h2>
+        <h2><ListChecks size={16} /> Tasks</h2>
         <div className="panel-header-spacer" />
         <HelpPopover topic="tasks" align="right" />
         <div className="panel-header-actions">

@@ -179,7 +179,7 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
   return (
     <div className="agents-panel">
       <div className="panel-header">
-        <h2>Agents</h2>
+        <h2><FileCode size={16} /> Agents</h2>
         <div className="panel-header-spacer" />
         <HelpPopover topic="agents" align="right" />
         <div className="panel-header-actions">

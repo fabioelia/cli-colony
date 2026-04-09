@@ -3,7 +3,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { Download, AlertCircle } from 'lucide-react'
+import { Download, AlertCircle, BarChart3 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import type { TeamMetrics } from '../../../shared/types'
 
@@ -102,7 +102,7 @@ export const TeamMetricsPanel: React.FC<TeamMetricsPanelProps> = ({ coordinatorS
     <div className="team-metrics-panel">
       {/* Panel header following convention */}
       <div className="panel-header">
-        <h2>Team Metrics</h2>
+        <h2><BarChart3 size={16} /> Team Metrics</h2>
         <div className="panel-header-spacer" />
         <HelpPopover topic="teamMetrics" align="right" />
         <div className="panel-header-actions">

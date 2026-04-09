@@ -578,7 +578,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
       <div className="github-panel">
         <div className="panel-header">
           <button className="panel-header-back" onClick={onBack} title="Back"><ArrowLeft size={16} /></button>
-          <h2>GitHub</h2>
+          <h2><GitPullRequest size={16} /> GitHub</h2>
         </div>
         <div className="github-auth-error">
           <GitPullRequest size={32} />

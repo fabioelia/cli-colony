@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronRight, Play, Settings, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react'
+import { ChevronDown, ChevronRight, Settings, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import type { BatchConfig, BatchRun } from '../../../shared/types'
 
@@ -164,7 +164,7 @@ export default function BatchExecutionSettings({ isExpanded, onToggleExpand }: P
                   className="settings-btn-secondary"
                   style={{ flex: 1 }}
                 >
-                  {loading ? '...' : 'Run Now'}
+                  {loading ? 'Running…' : 'Run Now'}
                 </button>
               </div>
             </>
