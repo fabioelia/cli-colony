@@ -43,6 +43,8 @@ const shellEnv = loadShellEnv()
 interface InternalInstance extends ClaudeInstance {
   pty: pty.IPty | null
   outputBuffer: string[]
+  /** Cached joined output — invalidated on push */
+  _joinedCache: string | null
   cleanupTimer: ReturnType<typeof setTimeout> | null
   _lastSnapshot: string
   _lastBufferLen: number
@@ -225,9 +227,15 @@ function broadcastEvent(event: DaemonEvent): void {
   }
 }
 
+let _listDirty = false
 function notifyListChanged(): void {
-  broadcastEvent({ type: 'list-changed', instances: getAllInstances() })
-  resetIdleTimer()
+  if (_listDirty) return
+  _listDirty = true
+  setImmediate(() => {
+    _listDirty = false
+    broadcastEvent({ type: 'list-changed', instances: getAllInstances() })
+    resetIdleTimer()
+  })
 }
 
 // ---- Simple UUID (avoid importing uuid in daemon) ----
@@ -298,7 +306,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
       tokenUsage: { input: 0, output: 0 },
       pinned: false, mcpServers: [], roleTag: null,
       parentId: opts.parentId || null, childIds: [],
-      pty: null, outputBuffer: [`Failed to spawn ${command}: ${err}\r\n`],
+      pty: null, outputBuffer: [`Failed to spawn ${command}: ${err}\r\n`], _joinedCache: null,
       cleanupTimer: null, _lastSnapshot: '', _lastBufferLen: 0, _activityInterval: null, _handoffRequested: false, _userInputReceived: false,
       _sessionIdTimer: null, comments: [], _lineBuffer: '', _gitBranchResolvedAt: Date.now(),
     }
@@ -315,7 +323,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
     tokenUsage: { input: 0, output: 0 },
     pinned: false, mcpServers: [], roleTag: null,
     parentId: opts.parentId || null, childIds: [],
-    pty: ptyProcess, outputBuffer: [],
+    pty: ptyProcess, outputBuffer: [], _joinedCache: null,
     cleanupTimer: null, _lastSnapshot: '', _lastBufferLen: 0, _activityInterval: null, _handoffRequested: false, _userInputReceived: false,
     _sessionIdTimer: null, comments: [], _lineBuffer: '', _gitBranchResolvedAt: Date.now(),
   }
@@ -337,6 +345,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
   ptyProcess.onData((data) => {
     // Fast path: send data immediately (keystroke echo path)
     instance.outputBuffer.push(data)
+    instance._joinedCache = null // invalidate cache
     if (instance.outputBuffer.length > 5000) {
       // Reassign instead of splice to avoid O(N) in-place shift
       instance.outputBuffer = instance.outputBuffer.slice(-2500)
@@ -363,12 +372,9 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
             const sev = rest.slice(colonIdx2 + 1, colonIdx3)
             const message = rest.slice(colonIdx3 + 1)
             if (!isNaN(lineNum) && ['error', 'warn', 'info'].includes(sev) && message) {
-              instance.comments.push({
-                file,
-                line: lineNum,
-                severity: sev as ColonyComment['severity'],
-                message,
-              })
+              if (instance.comments.length >= 500) instance.comments = instance.comments.slice(-250)
+              instance.comments.push({ file, line: lineNum, severity: sev as ColonyComment['severity'], message })
+              broadcastEvent({ type: 'comments', instanceId: id, comments: instance.comments })
             }
           }
         }
@@ -667,7 +673,11 @@ function restartInstance(id: string, defaultArgs?: string[]): ClaudeInstance | n
 
 function getInstanceBuffer(id: string): string {
   const inst = instances.get(id)
-  return inst ? inst.outputBuffer.join('') : ''
+  if (!inst) return ''
+  if (inst._joinedCache === null) {
+    inst._joinedCache = inst.outputBuffer.join('')
+  }
+  return inst._joinedCache
 }
 
 // ---- Socket server ----
