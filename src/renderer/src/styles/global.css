@@ -14392,7 +14392,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 /* Card layout */
 .tasks-board-card { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; padding: 7px 9px; cursor: pointer; transition: border-color 0.1s; }
 .tasks-board-card:hover { border-color: var(--accent); }
-.tasks-board-card.selected { border-color: var(--accent); background: rgba(99,102,241,0.05); }
+.tasks-board-card.selected { border-color: var(--accent); background: rgba(59,130,246,0.05); }
 
 /* Card header: priority dot + title + assignee */
 .tasks-board-card-header { display: flex; align-items: center; gap: 6px; }
@@ -14406,7 +14406,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 /* Card footer: time + tags */
 .tasks-board-card-footer { display: flex; align-items: center; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
 .tasks-board-card-time { font-size: 10px; color: var(--text-muted); }
-.tasks-board-tag { font-size: 9px; color: var(--accent); background: rgba(99,102,241,0.1); border-radius: 10px; padding: 1px 5px; }
+.tasks-board-tag { font-size: 9px; color: var(--accent); background: rgba(59,130,246,0.1); border-radius: 10px; padding: 1px 5px; }
 
 /* Status move buttons */
 .tasks-board-card-actions { display: flex; flex-wrap: wrap; gap: 4px; }
