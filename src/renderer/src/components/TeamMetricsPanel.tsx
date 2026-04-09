@@ -40,7 +40,7 @@ function SimpleBarChart({ data, height = 160 }: { data: BarDatum[]; height?: num
               y={y}
               width={barWidth}
               height={barH}
-              fill="var(--accent-primary, #34d399)"
+              fill="var(--accent)"
               rx={2}
             >
               <title>{`${d.label}: ${d.value}`}</title>

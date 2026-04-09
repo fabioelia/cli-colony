@@ -15174,7 +15174,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .team-metrics-window-btn.active {
-  background: var(--accent-primary);
+  background: var(--accent);
   color: white;
 }
 
@@ -15222,7 +15222,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .team-metrics-card-value {
   font-size: 16px;
   font-weight: 600;
-  color: var(--accent-primary);
+  color: var(--accent);
   font-family: Menlo, Monaco, monospace;
 }
 
@@ -15305,7 +15305,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .team-metrics-worker-name {
   font-weight: 500;
-  color: var(--accent-primary);
+  color: var(--accent);
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
