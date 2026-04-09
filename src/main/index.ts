@@ -404,10 +404,12 @@ function buildAppMenu(): void {
     {
       label: 'View',
       submenu: [
-        { role: 'reload' as const },
-        { role: 'forceReload' as const },
-        { role: 'toggleDevTools' as const },
-        { type: 'separator' as const },
+        ...(is.dev ? [
+          { role: 'reload' as const },
+          { role: 'forceReload' as const },
+          { role: 'toggleDevTools' as const },
+          { type: 'separator' as const },
+        ] : []),
         {
           label: 'Zoom In',
           accelerator: 'CmdOrCtrl+=',
