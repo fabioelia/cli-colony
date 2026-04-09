@@ -803,8 +803,8 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .activity-source-persona {
-  background: rgba(52, 211, 153, 0.15);
-  color: #34d399;
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
 }
 
 .activity-source-pipeline {
