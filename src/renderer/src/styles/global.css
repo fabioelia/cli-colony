@@ -4126,8 +4126,8 @@ body:has(.daemon-update-banner) .app-update-banner {
   padding: 0 3px;
 }
 .services-tab-badge.danger {
-  background: rgba(255, 80, 80, 0.2);
-  color: #f66;
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--danger);
 }
 .services-tab-badge.success {
   background: rgba(16, 185, 129, 0.15);
@@ -6819,7 +6819,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   width: 400px;
   max-height: 520px;
   overflow-y: auto;
-  background: var(--bg-surface, #1e1e2e);
+  background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 16px;
@@ -6989,7 +6989,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .help-shortcut-row kbd {
   display: inline-block;
   padding: 2px 6px;
-  background: var(--bg-tertiary, #2a2a3e);
+  background: var(--bg-tertiary);
   border: 1px solid var(--border);
   border-radius: 4px;
   font-family: var(--font-mono, monospace);
