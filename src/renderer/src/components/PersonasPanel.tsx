@@ -4,12 +4,14 @@ import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
   ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote, ArrowRightCircle, Save, Loader2,
   Hourglass, ArrowRight, FolderOpen, Search, Check, Bot, BarChart3, ArrowUpDown, DollarSign, TrendingUp,
+  CalendarClock,
 } from 'lucide-react'
 import EmptyStateHook from './EmptyStateHook'
 import { marked } from 'marked'
 import HelpPopover from './HelpPopover'
 import Tooltip from './Tooltip'
 import CronEditor from './CronEditor'
+import PersonaScheduleHeatmap from './PersonaScheduleHeatmap'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import { describeCron } from '../../../shared/cron'
 
@@ -158,6 +160,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
 
   // Sort
   const [sortBy, setSortBy] = useState<'name' | 'lastRun' | 'runs' | 'cost' | 'successRate'>('name')
+  const [panelView, setPanelView] = useState<'list' | 'schedule'>('list')
 
   // Analytics cache — keyed by persona ID
   const [analyticsCache, setAnalyticsCache] = useState<Record<string, PersonaAnalytics>>({})
@@ -335,17 +338,23 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
     <div className="personas-panel">
       <div className="panel-header">
         <h2><User size={16} /> Personas</h2>
-        <div className="panel-header-spacer" />
-        <div className="persona-sort-dropdown">
-          <ArrowUpDown size={11} />
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
-            <option value="name">Name</option>
-            <option value="lastRun">Last Run</option>
-            <option value="runs">Runs</option>
-            <option value="cost">Cost</option>
-            <option value="successRate">Success Rate</option>
-          </select>
+        <div className="panel-header-tabs">
+          <button className={`panel-header-tab${panelView === 'list' ? ' active' : ''}`} onClick={() => setPanelView('list')}>List</button>
+          <button className={`panel-header-tab${panelView === 'schedule' ? ' active' : ''}`} onClick={() => setPanelView('schedule')}><CalendarClock size={11} /> Schedule</button>
         </div>
+        <div className="panel-header-spacer" />
+        {panelView === 'list' && (
+          <div className="persona-sort-dropdown">
+            <ArrowUpDown size={11} />
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
+              <option value="name">Name</option>
+              <option value="lastRun">Last Run</option>
+              <option value="runs">Runs</option>
+              <option value="cost">Cost</option>
+              <option value="successRate">Success Rate</option>
+            </select>
+          </div>
+        )}
         <HelpPopover topic="personas" align="right" />
         <div className="panel-header-actions">
           <button className="panel-header-btn primary" onClick={() => setShowNewDialog(true)}>
@@ -354,6 +363,11 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
         </div>
       </div>
 
+      {panelView === 'schedule' && (
+        <PersonaScheduleHeatmap personas={personas} />
+      )}
+
+      {panelView === 'list' && <>
       {/* Persona Chat — ask about session logs and briefs */}
       <div className="personas-ask-bar">
         <Search size={13} className="personas-ask-icon" />
@@ -468,6 +482,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
           />
         ))}
       </div>
+      </>}
 
       {/* Markdown viewer modal */}
       {viewingPersona && (

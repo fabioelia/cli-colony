@@ -629,7 +629,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Top bar',
         items: [
           { label: 'New button', detail: 'Create a new persona from a blank template with a name.', icon: 'Plus' },
-          { label: 'List view toggle', detail: 'Switch between card view (expanded cards with session previews) and list view (compact one-row-per-persona table showing schedule, last run, and model at a glance). Preference is persisted.', icon: 'LayoutList' },
+          { label: 'List / Schedule tabs', detail: 'List shows persona cards. Schedule shows a 24-hour heatmap of when each persona fires, with overlap indicators and actual run dots.', icon: 'CalendarClock' },
         ],
       },
       {
@@ -676,6 +676,17 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Edit persona settings', detail: 'Click the Pencil icon (list view) to open a quick-edit modal for schedule, model, max sessions, and enabled state — without touching the raw markdown.', icon: 'Pencil' },
           { label: 'View File', detail: 'Open a read-only preview of the persona\'s raw markdown file.', icon: 'FileText' },
           { label: 'Edit File', detail: 'Open the persona\'s markdown file in a text editor. Edit any section and save — useful for updating Role, Objectives, or manually fixing the Active Situations block.', icon: 'Pencil' },
+        ],
+      },
+      {
+        name: 'Schedule Heatmap',
+        position: 'Schedule tab',
+        items: [
+          { label: 'Timeline grid', detail: '24-hour timeline (00–23) with one row per enabled persona that has a cron schedule. Thin bars show when each persona is scheduled to fire.' },
+          { label: 'Day selector', detail: 'Navigate between days with arrow buttons. "Today" button returns to current day. Only past days have actual run data.', icon: 'ChevronLeft' },
+          { label: 'Overlap bands', detail: 'Red-tinted vertical bands highlight minutes where 3+ personas fire simultaneously. Hover for count and time.' },
+          { label: 'Run dots', detail: 'Green dots = actual runs that fired on time. Amber dots = runs that fired >2 minutes late vs the closest scheduled time.' },
+          { label: 'Disabled personas', detail: 'Shown as dimmed rows so you can see the full schedule picture even when some personas are toggled off.' },
         ],
       },
     ],

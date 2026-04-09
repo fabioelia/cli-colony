@@ -93,6 +93,27 @@ export function describeCron(expr: string): string {
   return expr
 }
 
+/** Returns all fire times for a given day (minute-resolution). Returned as {hour, minute} pairs sorted chronologically. */
+export function cronFireTimesForDay(expr: string, date?: Date): { hour: number; minute: number }[] {
+  if (!expr?.trim()) return []
+  const fields = expr.trim().split(/\s+/)
+  if (fields.length !== 5) return []
+  const [minF, hourF, domF, monthF, dowF] = fields
+  const d = date ? new Date(date) : new Date()
+  // Check day-level fields (dom, month, dow)
+  if (!cronFieldMatches(domF, d.getDate())) return []
+  if (!cronFieldMatches(monthF, d.getMonth() + 1)) return []
+  if (!cronFieldMatches(dowF, d.getDay())) return []
+  const times: { hour: number; minute: number }[] = []
+  for (let h = 0; h < 24; h++) {
+    if (!cronFieldMatches(hourF, h)) continue
+    for (let m = 0; m < 60; m++) {
+      if (cronFieldMatches(minF, m)) times.push({ hour: h, minute: m })
+    }
+  }
+  return times
+}
+
 /** Returns the next N timestamps when this cron expression will fire, starting from `from` (default now). */
 export function nextRuns(expr: string, count: number, from?: Date): Date[] {
   if (!expr?.trim()) return []

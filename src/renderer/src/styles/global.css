@@ -15524,6 +15524,146 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-radius: 4px;
 }
 
+/* ===== Persona Schedule Heatmap ===== */
+.schedule-heatmap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px;
+  flex: 1;
+  min-height: 0;
+}
+.schedule-heatmap-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.schedule-heatmap-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.schedule-heatmap-nav button {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  padding: 2px 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+.schedule-heatmap-nav button:hover { border-color: var(--border-active); color: var(--text-primary); }
+.schedule-heatmap-nav button:disabled { opacity: 0.4; cursor: default; }
+.schedule-heatmap-date {
+  font-weight: 500;
+  color: var(--text-primary);
+  min-width: 120px;
+  text-align: center;
+}
+.schedule-heatmap-today {
+  font-size: 11px;
+  padding: 2px 8px !important;
+}
+.schedule-heatmap-scroll {
+  overflow-x: auto;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+}
+.schedule-heatmap-svg {
+  display: block;
+}
+.schedule-hour-label {
+  fill: var(--text-muted);
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+}
+.schedule-grid-line {
+  stroke: var(--border);
+  stroke-width: 0.5;
+  stroke-dasharray: 2 4;
+}
+.schedule-row-bg {
+  fill: rgba(255,255,255,0.015);
+}
+.schedule-persona-label {
+  fill: var(--text-primary);
+  font-size: 11px;
+  font-weight: 500;
+}
+.schedule-persona-label.disabled {
+  fill: var(--text-muted);
+  opacity: 0.6;
+}
+.schedule-cron-chip {
+  fill: var(--text-muted);
+  font-size: 9px;
+  font-family: var(--font-mono, monospace);
+}
+.schedule-fire-bar {
+  fill: var(--accent);
+  opacity: 0.7;
+  rx: 1;
+}
+.schedule-fire-bar.disabled {
+  fill: var(--text-muted);
+  opacity: 0.3;
+}
+.schedule-run-dot {
+  fill: var(--success);
+  stroke: var(--bg-primary);
+  stroke-width: 1;
+}
+.schedule-run-dot.late {
+  fill: var(--warning, #f59e0b);
+}
+.schedule-overlap-band {
+  fill: rgba(239,68,68,0.12);
+}
+.schedule-heatmap-legend {
+  display: flex;
+  gap: 16px;
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 2px 0;
+}
+.schedule-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.schedule-legend-bar {
+  display: inline-block;
+  width: 2px;
+  height: 12px;
+  background: var(--accent);
+  opacity: 0.7;
+  border-radius: 1px;
+}
+.schedule-legend-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.schedule-legend-dot.green { background: var(--success); }
+.schedule-legend-dot.amber { background: var(--warning, #f59e0b); }
+.schedule-legend-overlap {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  background: rgba(239,68,68,0.12);
+  border: 1px solid rgba(239,68,68,0.3);
+  border-radius: 2px;
+}
+
 /* ---- Session Templates ---- */
 .template-popover {
   position: absolute;
