@@ -287,7 +287,7 @@ export default function NewEnvironmentDialog({ onClose, onCreated, onLaunchInsta
             <div className="env-dialog-actions">
               <button className="env-btn env-btn-secondary" onClick={onClose}>Cancel</button>
               <button className="env-btn env-btn-primary" onClick={handleCreateInstance} disabled={!selectedTemplate}>
-                <Plus size={13} /> Create Instance
+                <Plus size={13} /> Create Environment
               </button>
             </div>
           </>
