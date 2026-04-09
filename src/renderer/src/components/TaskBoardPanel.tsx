@@ -29,9 +29,9 @@ const PRIORITY_LABEL: Record<TaskPriority, string> = {
 }
 
 const PRIORITY_COLOR: Record<TaskPriority, string> = {
-  critical: '#ef4444',
+  critical: 'var(--danger)',
   high: '#f97316',
-  medium: '#eab308',
+  medium: 'var(--warning)',
   low: '#60a5fa',
 }
 
