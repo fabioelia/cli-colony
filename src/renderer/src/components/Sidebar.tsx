@@ -449,6 +449,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const [templates, setTemplates] = useState<SessionTemplate[]>([])
   const [showTemplatePopover, setShowTemplatePopover] = useState(false)
   const [savedTemplateId, setSavedTemplateId] = useState<string | null>(null)
+  const [exportedId, setExportedId] = useState<string | null>(null)
   const newSessionBtnRef = useRef<HTMLButtonElement>(null)
   const [sessions, setSessions] = useState<CliSession[]>([])
   const [sessionSearch, setSessionSearch] = useState('')
@@ -1483,6 +1484,32 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
               title="Clone this session's config into a new session"
             >
               <Copy size={12} /> Clone
+            </button>
+            <button
+              className="context-menu-item"
+              onClick={async (e) => {
+                const id = contextMenu.id
+                setContextMenu(null)
+                try {
+                  if (e.shiftKey) {
+                    await window.api.session.exportMarkdownToFile(id)
+                  } else {
+                    const md = await window.api.session.exportMarkdown(id)
+                    await navigator.clipboard.writeText(md)
+                    setExportedId(id)
+                    setTimeout(() => setExportedId(null), 2000)
+                  }
+                } catch (err) {
+                  console.error('Export failed:', err)
+                }
+              }}
+              title="Export session as markdown (Shift+click to save as file)"
+            >
+              {exportedId === contextMenu.id ? (
+                'Copied!'
+              ) : (
+                <><FileDown size={12} /> Export Markdown</>
+              )}
             </button>
             <button
               className="context-menu-item"

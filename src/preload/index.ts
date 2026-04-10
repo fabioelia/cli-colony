@@ -371,6 +371,8 @@ export interface ClaudeManagerAPI {
     getCoordinatorTeam: (sessionId: string) => Promise<CoordinatorTeam | null>
     getContextUsage: (sessionId: string) => Promise<ContextUsage | null>
     tokenizeApproximate: (text: string) => Promise<number>
+    exportMarkdown: (instanceId: string) => Promise<string>
+    exportMarkdownToFile: (instanceId: string) => Promise<boolean>
   }
   git: {
     stage: (cwd: string, files: string[]) => Promise<void>
@@ -876,6 +878,8 @@ const api: ClaudeManagerAPI = {
     getCoordinatorTeam: (sessionId) => ipcRenderer.invoke('session:getCoordinatorTeam', sessionId) as Promise<CoordinatorTeam | null>,
     getContextUsage: (sessionId) => ipcRenderer.invoke('session:getContextUsage', sessionId),
     tokenizeApproximate: (text) => ipcRenderer.invoke('session:tokenizeApproximate', text),
+    exportMarkdown: (instanceId) => ipcRenderer.invoke('session:exportMarkdown', instanceId),
+    exportMarkdownToFile: (instanceId) => ipcRenderer.invoke('session:exportMarkdownToFile', instanceId),
   },
   audit: {
     runPanel: (panel, context) => ipcRenderer.invoke('audit:runPanel', panel, context),

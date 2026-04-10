@@ -1,4 +1,7 @@
-import { ipcMain } from 'electron'
+import { ipcMain, dialog } from 'electron'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
+import { promises as fsp } from 'fs'
 import {
   scanSessions, scanExternalSessions, readSessionMessages,
   searchSessions, takeoverSession,
@@ -6,7 +9,11 @@ import {
 import { getRestorableSessions, clearRestorable, getRecentSessions } from '../recent-sessions'
 import { getAllInstances } from '../instance-manager'
 import { getContextUsage, tokenizeApproximate } from '../context-counter'
-import type { CoordinatorTeam, ContextUsage } from '../../shared/types'
+import { getArtifact } from '../session-artifacts'
+import { getDaemonClient } from '../daemon-client'
+import type { CoordinatorTeam, ContextUsage, GitDiffEntry } from '../../shared/types'
+
+const execFileAsync = promisify(execFile)
 
 export function registerSessionHandlers(): void {
   ipcMain.handle('sessions:list', (_e, limit?: number) => scanSessions(limit))
@@ -70,4 +77,196 @@ export function registerSessionHandlers(): void {
   ipcMain.handle('session:tokenizeApproximate', (_e, text: string): number => {
     return tokenizeApproximate(text)
   })
+
+  ipcMain.handle('session:exportMarkdown', async (_e, instanceId: string): Promise<string> => {
+    return buildExportMarkdown(instanceId)
+  })
+
+  ipcMain.handle('session:exportMarkdownToFile', async (_e, instanceId: string): Promise<boolean> => {
+    const md = await buildExportMarkdown(instanceId)
+    const result = await dialog.showSaveDialog({
+      defaultPath: 'session-export.md',
+      filters: [{ name: 'Markdown', extensions: ['md'] }],
+    })
+    if (result.canceled || !result.filePath) return false
+    await fsp.writeFile(result.filePath, md, 'utf-8')
+    return true
+  })
+}
+
+// ---- Export Markdown helpers ----
+
+async function getFileDiff(dir: string, filePath: string, fileStatus: string): Promise<string> {
+  try {
+    if (fileStatus === 'A' || fileStatus === '?') {
+      const { stdout } = await execFileAsync('cat', [filePath], { encoding: 'utf-8', timeout: 5000, cwd: dir })
+      return stdout.split('\n').map(l => '+' + l).join('\n')
+    }
+    const { stdout: staged } = await execFileAsync('git', ['diff', '--cached', '--', filePath], { encoding: 'utf-8', timeout: 5000, cwd: dir })
+    if (staged.trim()) return staged
+    const { stdout } = await execFileAsync('git', ['diff', 'HEAD', '--', filePath], { encoding: 'utf-8', timeout: 5000, cwd: dir })
+    return stdout
+  } catch {
+    return ''
+  }
+}
+
+async function getLiveChanges(dir: string): Promise<GitDiffEntry[]> {
+  try {
+    const [numStat, nameStat] = await Promise.all([
+      execFileAsync('git', ['diff', '--numstat', 'HEAD'], { encoding: 'utf-8', timeout: 5000, cwd: dir }),
+      execFileAsync('git', ['diff', '--name-status', 'HEAD'], { encoding: 'utf-8', timeout: 5000, cwd: dir }),
+    ])
+    const statusMap = new Map<string, string>()
+    for (const line of nameStat.stdout.split('\n')) {
+      const parts = line.split('\t')
+      if (parts.length >= 2) statusMap.set(parts[parts.length - 1].trim(), parts[0].trim().charAt(0))
+    }
+    const entries: GitDiffEntry[] = []
+    for (const line of numStat.stdout.split('\n')) {
+      const parts = line.split('\t')
+      if (parts.length < 3) continue
+      const file = parts[2].trim()
+      if (!file) continue
+      const ins = parts[0] === '-' ? 0 : parseInt(parts[0], 10)
+      const del = parts[1] === '-' ? 0 : parseInt(parts[1], 10)
+      const rawStatus = statusMap.get(file) ?? 'M'
+      const status = (['M', 'A', 'D', 'R'].includes(rawStatus) ? rawStatus : 'M') as GitDiffEntry['status']
+      entries.push({ file, insertions: ins, deletions: del, status })
+    }
+    return entries
+  } catch {
+    return []
+  }
+}
+
+async function getLiveCommits(dir: string, afterIso: string): Promise<Array<{ hash: string; shortMsg: string }>> {
+  try {
+    const { stdout } = await execFileAsync('git', ['log', '--format=%H|%s', `--after=${afterIso}`], { cwd: dir, encoding: 'utf-8', timeout: 5000 })
+    if (!stdout.trim()) return []
+    return stdout.trim().split('\n').map(line => {
+      const idx = line.indexOf('|')
+      return idx === -1 ? null : { hash: line.slice(0, idx).trim(), shortMsg: line.slice(idx + 1).trim() }
+    }).filter(Boolean) as Array<{ hash: string; shortMsg: string }>
+  } catch {
+    return []
+  }
+}
+
+async function getLiveBranch(dir: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: dir, encoding: 'utf-8', timeout: 3000 })
+    return stdout.trim() || null
+  } catch {
+    return null
+  }
+}
+
+const MAX_DIFF_LINES = 200
+
+async function buildExportMarkdown(instanceId: string): Promise<string> {
+  const client = getDaemonClient()
+  const inst = await client.getInstance(instanceId).catch(() => null)
+  const artifact = await getArtifact(instanceId)
+
+  const name = inst?.name ?? artifact?.sessionName ?? 'Unknown session'
+  const dir = inst?.workingDirectory ?? artifact?.workingDirectory ?? ''
+  const startedAt = inst?.createdAt ?? artifact?.sessionStartedAt
+  const cost = inst?.tokenUsage?.cost ?? artifact?.costUsd
+
+  // Duration
+  let durationStr = ''
+  if (startedAt) {
+    const ms = (artifact?.durationMs) ?? (Date.now() - new Date(startedAt).getTime())
+    const mins = Math.round(ms / 60000)
+    durationStr = mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h ${mins % 60}m`
+  }
+
+  // Branch
+  const branch = artifact?.gitBranch ?? (dir ? await getLiveBranch(dir) : null)
+
+  // First message (prompt)
+  let prompt = ''
+  // Try to find the CLI session ID from instance args (--resume <id>)
+  const resumeIdx = inst?.args?.indexOf('--resume')
+  const cliSessionId = resumeIdx !== undefined && resumeIdx >= 0 ? inst?.args?.[resumeIdx + 1] : null
+  if (cliSessionId) {
+    try {
+      const { messages } = await readSessionMessages(cliSessionId, 5)
+      const userMsg = messages.find(m => m.role === 'user')
+      if (userMsg) prompt = userMsg.text
+    } catch { /* ignore */ }
+  }
+
+  // Changes and commits
+  let changes: GitDiffEntry[] = artifact?.changes ?? []
+  let commits = artifact?.commits ?? []
+  if (changes.length === 0 && dir) changes = await getLiveChanges(dir)
+  if (commits.length === 0 && dir && startedAt) commits = await getLiveCommits(dir, new Date(startedAt).toISOString())
+
+  // Build markdown
+  const lines: string[] = []
+  lines.push(`# Session: ${name}`)
+  lines.push('')
+  if (startedAt) lines.push(`**Date:** ${new Date(startedAt).toLocaleString()}`)
+  if (durationStr) lines.push(`**Duration:** ${durationStr}`)
+  if (cost !== undefined) lines.push(`**Cost:** $${cost.toFixed(4)}`)
+  if (branch) lines.push(`**Branch:** \`${branch}\``)
+  lines.push('')
+
+  if (prompt) {
+    lines.push('## Prompt')
+    lines.push('')
+    lines.push(prompt)
+    lines.push('')
+  }
+
+  if (commits.length > 0) {
+    lines.push('## Commits')
+    lines.push('')
+    for (const c of commits) {
+      lines.push(`- \`${c.hash.slice(0, 7)}\` ${c.shortMsg}`)
+    }
+    lines.push('')
+  }
+
+  if (changes.length > 0) {
+    const totalIns = changes.reduce((s, c) => s + c.insertions, 0)
+    const totalDel = changes.reduce((s, c) => s + c.deletions, 0)
+    lines.push(`## Changes (${changes.length} files, +${totalIns} −${totalDel})`)
+    lines.push('')
+
+    for (const change of changes) {
+      lines.push(`### ${change.file} (+${change.insertions} −${change.deletions})`)
+      lines.push('')
+
+      // Binary files: skip diff
+      const isBinary = change.insertions === 0 && change.deletions === 0 && change.status === 'M'
+      if (isBinary) {
+        lines.push('*Binary file changed*')
+        lines.push('')
+        continue
+      }
+
+      if (dir) {
+        const diff = await getFileDiff(dir, change.file, change.status)
+        if (diff) {
+          const diffLines = diff.split('\n')
+          if (diffLines.length > MAX_DIFF_LINES) {
+            lines.push('```diff')
+            lines.push(diffLines.slice(0, MAX_DIFF_LINES).join('\n'))
+            lines.push('```')
+            lines.push(`*... truncated, ${diffLines.length - MAX_DIFF_LINES} more lines*`)
+          } else {
+            lines.push('```diff')
+            lines.push(diff)
+            lines.push('```')
+          }
+          lines.push('')
+        }
+      }
+    }
+  }
+
+  return lines.join('\n')
 }
