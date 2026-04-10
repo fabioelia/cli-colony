@@ -125,6 +125,7 @@ describe('notifications module', () => {
   it('click handler does not crash when no windows exist', async () => {
     mockAllWindows.mockReturnValue([])
     const clickHandler = await getClickHandler()
+    mockBroadcast.mockClear() // clear the notification:new broadcast from notify()
     expect(() => clickHandler()).not.toThrow()
     expect(mockBroadcast).not.toHaveBeenCalled()
   })
@@ -160,13 +161,14 @@ describe('notifications module', () => {
     })
   })
 
-  it('click handler does not broadcast when no route provided', async () => {
+  it('click handler does not broadcast navigate when no route provided', async () => {
     const mockWin = { isDestroyed: () => false, show: vi.fn(), focus: vi.fn() }
     mockAllWindows.mockReturnValue([mockWin])
     await mod.notify('T', 'B')
     const call = mockNotificationInstance.on.mock.calls.find(([e]) => e === 'click')
     const clickHandler = call![1] as () => void
+    mockBroadcast.mockClear() // clear the notification:new broadcast from notify()
     clickHandler()
-    expect(mockBroadcast).not.toHaveBeenCalled()
+    expect(mockBroadcast).not.toHaveBeenCalledWith('app:navigate', expect.anything())
   })
 })

@@ -1,5 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
+// Mock child_process so dev-mode git calls don't hit real filesystem
+const mockExecFile = vi.hoisted(() => {
+  const fn = vi.fn((_cmd, _args, _opts, cb) => { cb?.(null, '', '') }) as any
+  fn[Symbol.for('nodejs.util.promisify.custom')] = vi.fn(async () => ({ stdout: '', stderr: '' }))
+  return fn
+})
+vi.mock('child_process', () => ({ execFile: mockExecFile }))
+
 // Mock the real electron-updater module before importing app-updater —
 // we don't want its AppUpdater touching the filesystem during tests.
 vi.mock('electron-updater', () => ({
@@ -23,7 +31,10 @@ const mockState = vi.hoisted(() => ({
 vi.mock('electron', () => ({
   app: {
     getVersion: vi.fn(() => mockState.version),
+    getAppPath: vi.fn(() => '/mock/app-path'),
     get isPackaged() { return mockState.isPackaged },
+    relaunch: vi.fn(),
+    quit: vi.fn(),
   },
   ipcMain: { handle: vi.fn() },
 }))
@@ -86,13 +97,14 @@ describe('app-updater', () => {
   })
 
   describe('dev mode (unpackaged)', () => {
-    it('initAppUpdater is a no-op: no timers, enabledInEnv=false', async () => {
+    it('initAppUpdater in dev mode enables git-based updates', async () => {
       mockState.isPackaged = false
       const mod = await loadModule()
       mod.__resetForTest()
       await mod.initAppUpdater(null)
       const status = mod.getUpdateStatus()
-      expect(status.enabledInEnv).toBe(false)
+      // Dev mode uses git-based update detection — enabledInEnv is true
+      expect(status.enabledInEnv).toBe(true)
     })
 
     it('checkForUpdatesManual in dev mode records state without network I/O', async () => {
@@ -260,7 +272,7 @@ describe('app-updater', () => {
       expect(fakeUpdater.checkForUpdates).toHaveBeenCalledTimes(2)
     })
 
-    it('checkOnFocus proceeds even when auto-update is disabled (isAutoUpdateEnabled is async, guard is sync)', async () => {
+    it('checkOnFocus respects disabled auto-update setting', async () => {
       mockState.settings.set('autoUpdateEnabled', 'false')
       const mod = await loadModule()
       mod.__resetForTest()
@@ -271,9 +283,8 @@ describe('app-updater', () => {
 
       mod.checkOnFocus()
       await vi.advanceTimersByTimeAsync(1)
-      // isAutoUpdateEnabled() returns a Promise which is truthy, so the sync
-      // guard `if (!isAutoUpdateEnabled()) return` never blocks.
-      expect(fakeUpdater.checkForUpdates).toHaveBeenCalledTimes(1)
+      // isAutoUpdateEnabled() properly resolves to false, so no check fires.
+      expect(fakeUpdater.checkForUpdates).not.toHaveBeenCalled()
     })
   })
 
