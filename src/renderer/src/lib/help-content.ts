@@ -146,6 +146,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Multi-select', detail: 'Click the checkbox icon (next to group-by) or Cmd+click any session to enter select mode. A floating action bar appears for bulk Stop, Restart, or Remove. Cmd+A selects all visible sessions; Escape exits. Remove only affects stopped sessions.', icon: 'CheckSquare' },
           { label: 'Permission mode', detail: 'Choose Autonomous (default — full permissions) or Supervised (Claude asks before risky actions) when creating a session. Supervised sessions show a shield icon in the sidebar.', icon: 'Shield' },
           { label: 'Shortcut numbers', detail: 'Numbers 1-9 shown next to sessions for quick Cmd+N jumping.' },
+          { label: 'Trigger chain', detail: 'Click the info icon on a session that has a parent or children to see its full trigger chain — the tree of sessions that spawned from the same root. Click any node to navigate to that session. Useful for tracing persona orchestration chains.', icon: 'Info' },
           { label: 'Repo Memory', detail: 'Place a `.colony/memory.md` file in a repo to automatically inject its conventions, architecture decisions, and team notes into every Colony session started in that directory. Same pattern as AGENTS.md — no UI needed.' },
         ],
       },

@@ -565,6 +565,33 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 10px;
 }
 
+.trigger-chain-node {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-secondary);
+  border-radius: 3px;
+}
+.trigger-chain-node:hover {
+  background: var(--bg-hover);
+}
+.trigger-chain-node.current {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.trigger-chain-branch {
+  color: var(--text-tertiary);
+  font-family: monospace;
+}
+.trigger-chain-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ===== Sessions panel (bottom) ===== */
 .sidebar-sessions {
   flex: 1;

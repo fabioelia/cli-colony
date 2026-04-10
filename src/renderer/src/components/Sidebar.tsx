@@ -67,6 +67,48 @@ function dirName(path: string) {
   return parts[parts.length - 1] || path
 }
 
+interface TriggerChainNode {
+  id: string
+  name: string
+  status: 'running' | 'exited'
+  depth: number
+}
+
+function buildTriggerChain(inst: ClaudeInstance, allInstances: ClaudeInstance[]): TriggerChainNode[] {
+  const byId = new Map(allInstances.map((i) => [i.id, i]))
+
+  // Walk up to root ancestor (cap at depth 5)
+  let root = inst
+  const ancestors: ClaudeInstance[] = []
+  for (let i = 0; i < 5 && root.parentId; i++) {
+    const parent = byId.get(root.parentId)
+    if (!parent) break
+    ancestors.unshift(parent)
+    root = parent
+  }
+
+  // DFS from root, collecting nodes with depth
+  const result: TriggerChainNode[] = []
+  const visit = (node: ClaudeInstance, depth: number) => {
+    result.push({ id: node.id, name: node.name, status: node.status, depth })
+    if (depth >= 5) return
+    for (const childId of node.childIds) {
+      const child = byId.get(childId)
+      if (child) visit(child, depth + 1)
+    }
+  }
+  visit(root, 0)
+
+  // If root is below ancestors (shouldn't happen, but guard against it)
+  if (ancestors.length > 0 && result[0]?.id !== ancestors[0]?.id) {
+    // ancestors[0] is the true root — build from there
+    result.length = 0
+    visit(ancestors[0], 0)
+  }
+
+  return result
+}
+
 const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcutIndex, isUnread, ctxLevel, splitBadge, focusedPane, isRenaming, renameValue, renameRef, isEditingNote, noteValue, noteRef, onCommitNote, onCancelNote, onNoteChange, callbacks, selectMode, isSelected, onToggleSelect }: InstanceItemProps) {
   return (
     <div
@@ -1201,6 +1243,27 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                 ))}
               </>
             )}
+            {(inst.parentId || (inst.childIds?.length ?? 0) > 0) && (() => {
+              const chain = buildTriggerChain(inst, instances)
+              return (
+                <>
+                  <div className="instance-info-divider" />
+                  <div className="instance-info-section-label">Trigger Chain</div>
+                  {chain.map((node) => (
+                    <div
+                      key={node.id}
+                      className={`trigger-chain-node${node.id === inst.id ? ' current' : ''}`}
+                      style={{ paddingLeft: node.depth * 12 }}
+                      onClick={() => { onSelect(node.id); setPopoverId(null); setPopoverType(null); setInstancePopoverPos(null) }}
+                    >
+                      <span className={`status-dot ${node.status === 'running' ? 'running' : 'exited'}`} />
+                      {node.depth > 0 && <span className="trigger-chain-branch">&ensp;{'└─'}</span>}
+                      <span className="trigger-chain-name" title={node.name}>{node.name.length > 30 ? node.name.slice(0, 30) + '…' : node.name}</span>
+                    </div>
+                  ))}
+                </>
+              )
+            })()}
           </div>
         )
       })()}
