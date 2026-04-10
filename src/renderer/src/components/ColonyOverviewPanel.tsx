@@ -77,7 +77,19 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const pendingApprovals = approvals
   const inProgressTasks = useMemo(() => tasks.filter(t => t.status === 'in_progress'), [tasks])
   const blockedTasks = useMemo(() => tasks.filter(t => t.status === 'blocked'), [tasks])
-  const recentActivity = useMemo(() => activity.slice(0, 8), [activity])
+  const [activitySourceFilter, setActivitySourceFilter] = useState<'all' | 'persona' | 'pipeline' | 'env'>('all')
+  const [activityLevelFilter, setActivityLevelFilter] = useState<'all' | 'info' | 'warn' | 'error'>('all')
+  const [activityExpanded, setActivityExpanded] = useState(false)
+
+  const filteredActivity = useMemo(() => {
+    let items = activity
+    if (activitySourceFilter !== 'all') items = items.filter(e => e.source === activitySourceFilter)
+    if (activityLevelFilter !== 'all') items = items.filter(e => e.level === activityLevelFilter)
+    return items.slice(0, activityExpanded ? 50 : 20)
+  }, [activity, activitySourceFilter, activityLevelFilter, activityExpanded])
+
+  const warnCount = useMemo(() => activity.filter(e => e.level === 'warn').length, [activity])
+  const errorCount = useMemo(() => activity.filter(e => e.level === 'error').length, [activity])
 
   return (
     <div className="colony-overview">
@@ -215,11 +227,29 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
         {/* Recent activity */}
         <div className="overview-section">
           <h3><Activity size={14} /> Recent Activity</h3>
-          {recentActivity.length === 0 ? (
+          <div className="activity-filters">
+            <div className="activity-filter-row">
+              {(['all', 'persona', 'pipeline', 'env'] as const).map(s => (
+                <button key={s} className={`activity-filter-chip${activitySourceFilter === s ? ' active' : ''}`} onClick={() => setActivitySourceFilter(s)}>
+                  {s === 'all' ? 'All' : s === 'env' ? 'Env' : s.charAt(0).toUpperCase() + s.slice(1)}
+                </button>
+              ))}
+            </div>
+            <div className="activity-filter-row">
+              {(['all', 'info', 'warn', 'error'] as const).map(l => (
+                <button key={l} className={`activity-filter-chip${activityLevelFilter === l ? ' active' : ''}`} onClick={() => setActivityLevelFilter(l)}>
+                  {l === 'all' ? 'All' : l.charAt(0).toUpperCase() + l.slice(1)}
+                  {l === 'warn' && warnCount > 0 && <span className="filter-badge warn">{warnCount}</span>}
+                  {l === 'error' && errorCount > 0 && <span className="filter-badge error">{errorCount}</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+          {filteredActivity.length === 0 ? (
             <div className="overview-empty-hint">No activity recorded yet</div>
           ) : (
             <div className="overview-activity-list">
-              {recentActivity.map(ev => (
+              {filteredActivity.map(ev => (
                 <div key={ev.id} className="overview-activity-item">
                   <span className={`overview-activity-dot activity-${ev.level}`} />
                   <span className="overview-activity-source">{ev.name}</span>
@@ -228,6 +258,11 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                 </div>
               ))}
             </div>
+          )}
+          {!activityExpanded && activity.length > 20 && (
+            <button className="activity-show-more" onClick={() => setActivityExpanded(true)}>
+              Show more ({activity.length - 20} older)
+            </button>
           )}
         </div>
 

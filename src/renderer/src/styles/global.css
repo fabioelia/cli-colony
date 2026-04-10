@@ -17820,11 +17820,32 @@ body:has(.daemon-update-banner) .app-update-banner {
 .badge-busy { background: rgba(59, 130, 246, 0.15); color: var(--accent); }
 .badge-waiting { background: rgba(107, 107, 128, 0.12); color: var(--text-muted); }
 .badge-role { background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border); }
+/* Activity filters */
+.activity-filters { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.activity-filter-row { display: flex; gap: 4px; }
+.activity-filter-chip {
+  padding: 2px 8px; border-radius: 10px; font-size: 11px;
+  background: var(--bg-secondary); color: var(--text-secondary);
+  border: 1px solid var(--border); cursor: pointer;
+  display: flex; align-items: center; gap: 4px;
+}
+.activity-filter-chip.active { background: var(--accent-blue); color: white; border-color: var(--accent-blue); }
+.activity-filter-chip:hover:not(.active) { border-color: var(--border-active); }
+.filter-badge { padding: 0 4px; border-radius: 6px; font-size: 10px; }
+.filter-badge.warn { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+.filter-badge.error { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+.activity-show-more {
+  width: 100%; padding: 4px; margin-top: 4px; font-size: 11px; color: var(--text-muted);
+  background: none; border: 1px dashed var(--border); border-radius: 4px; cursor: pointer;
+}
+.activity-show-more:hover { border-color: var(--border-active); color: var(--text-secondary); }
 /* Activity list */
 .overview-activity-list {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  max-height: 300px;
+  overflow-y: auto;
 }
 .overview-activity-item {
   display: flex;

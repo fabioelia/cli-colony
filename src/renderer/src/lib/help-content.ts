@@ -72,6 +72,16 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Recent Activity',
+        position: 'Below running sessions',
+        items: [
+          { label: 'Source filter chips', detail: 'Filter events by source: All, Persona, Pipeline, or Env. Chips are toggles — click to select one.' },
+          { label: 'Level filter chips', detail: 'Filter by severity: All, Info, Warn, or Error. Warn and Error chips show badge counts when events exist. Filters combine with source filter (AND).' },
+          { label: 'Show more', detail: 'Expands from 20 events (default) to 50. The activity manager stores up to 100 events total.' },
+          { label: 'Live updates', detail: 'New events from personas, pipelines, and environments appear at the top in real-time, respecting active filters.' },
+        ],
+      },
+      {
         name: 'Quick Actions',
         position: 'Bottom',
         items: [
