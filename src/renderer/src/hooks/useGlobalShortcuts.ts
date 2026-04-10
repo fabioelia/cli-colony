@@ -13,7 +13,6 @@ interface ShortcutHandlers {
  *
  * Cmd+N  — open New Session dialog
  * Cmd+Shift+P — navigate to Personas panel (or trigger first enabled persona if already there)
- * Cmd+Shift+F — navigate to Pipelines panel (or trigger first enabled pipeline if already there)
  *
  * Guards: ignores events inside terminal inputs, text inputs, and textareas.
  */
@@ -51,19 +50,7 @@ export function useGlobalShortcuts({ onNewSession, onNavigate, currentView }: Sh
         return
       }
 
-      if (e.key === 'F' && e.shiftKey && !e.altKey) {
-        e.preventDefault()
-        if (currentView === 'pipelines') {
-          // Already on pipelines — trigger first enabled pipeline
-          window.api.pipeline.list().then((pipelines) => {
-            const first = pipelines.find(p => p.enabled)
-            if (first) window.api.pipeline.triggerNow(first.name).catch(() => { /* silently ignore */ })
-          }).catch(() => { /* silently ignore */ })
-        } else {
-          onNavigate('pipelines')
-        }
-        return
-      }
+      // Cmd+Shift+F is handled by the Electron menu accelerator (Global Search)
     }
 
     // Use capture phase so we get events before child components

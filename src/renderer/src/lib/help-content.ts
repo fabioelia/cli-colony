@@ -481,9 +481,7 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
     ],
-    shortcuts: [
-      { keys: 'Cmd+Shift+F', action: 'Fire the first enabled pipeline from anywhere' },
-    ],
+    shortcuts: [],
     emptyState: {
       hook: 'No pipelines yet. Automate recurring work with triggers and handoffs.',
       keyCap: 'L',
