@@ -1545,18 +1545,19 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
               className="context-menu-item"
               onClick={async (e) => {
                 const id = contextMenu.id
-                setContextMenu(null)
                 try {
                   if (e.shiftKey) {
+                    setContextMenu(null)
                     await window.api.session.exportMarkdownToFile(id)
                   } else {
                     const md = await window.api.session.exportMarkdown(id)
                     await navigator.clipboard.writeText(md)
                     setExportedId(id)
-                    setTimeout(() => setExportedId(null), 2000)
+                    setTimeout(() => { setExportedId(null); setContextMenu(null) }, 800)
                   }
                 } catch (err) {
                   console.error('Export failed:', err)
+                  setContextMenu(null)
                 }
               }}
               title="Export session as markdown (Shift+click to save as file)"
