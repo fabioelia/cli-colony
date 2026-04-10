@@ -814,6 +814,16 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Tool Deferred Banner',
+        position: 'Above terminal (exited sessions only)',
+        items: [
+          { label: 'Tool deferred', detail: 'Appears when Claude Code exits because a hook deferred a tool call. The session is paused, waiting for human approval.', icon: 'AlertTriangle' },
+          { label: 'Approve', detail: 'Restart the session with --resume, re-evaluating the deferred tool. The hook will run again.', icon: 'Play' },
+          { label: 'Deny', detail: 'Dismiss the banner without restarting. The session stays exited — you can resume it manually later.' },
+          { label: 'Sidebar badge', detail: 'An amber "Defer" badge appears on the session tile when a tool is deferred.' },
+        ],
+      },
+      {
         name: 'Terminal',
         position: 'Main area',
         items: [

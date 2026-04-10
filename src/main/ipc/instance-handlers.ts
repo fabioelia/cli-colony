@@ -284,6 +284,11 @@ export function registerInstanceHandlers(): void {
     return getDaemonClient().getInstanceComments(instanceId)
   })
 
+  // Clear tool-deferred info — dismiss the deferred banner without restarting.
+  ipcMain.handle('instance:clearToolDeferred', async (_e, instanceId: string): Promise<boolean> => {
+    return getDaemonClient().clearToolDeferred(instanceId)
+  })
+
   // Session steering — queue or immediately deliver a redirect message to a session.
   // If the session is waiting: delivers immediately. If busy: queues for next waiting transition.
   ipcMain.handle('session:steer', async (_e, instanceId: string, message: string): Promise<boolean> => {

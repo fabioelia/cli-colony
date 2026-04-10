@@ -31,6 +31,7 @@ export interface ClaudeInstance {
   roleTag: SessionRole | null
   lastSessionId?: string
   pendingSteer?: string
+  toolDeferredInfo?: { toolName: string; toolArgs?: string; sessionId: string }
 }
 
 export interface AgentDef {

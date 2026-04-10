@@ -31,6 +31,9 @@ export class DaemonClient extends BaseDaemonClient {
       case 'comments':
         this.emit('comments', msg.instanceId, msg.comments)
         break
+      case 'tool-deferred':
+        this.emit('tool-deferred', msg.instanceId, msg.sessionId, msg.toolName)
+        break
       case 'pong':
         break
     }
@@ -104,6 +107,10 @@ export class DaemonClient extends BaseDaemonClient {
 
   async getInstanceComments(id: string): Promise<ColonyComment[]> {
     return (await this.request({ type: 'get-comments', reqId: this.nextReqId(), instanceId: id }) as ColonyComment[]) || []
+  }
+
+  async clearToolDeferred(id: string): Promise<boolean> {
+    return await this.request({ type: 'clear-tool-deferred', reqId: this.nextReqId(), instanceId: id }) as boolean
   }
 
   async shutdownDaemon(): Promise<void> {

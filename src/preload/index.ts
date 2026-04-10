@@ -73,6 +73,8 @@ export interface ClaudeManagerAPI {
     onListUpdate: (callback: (instances: ClaudeInstance[]) => void) => () => void
     onFocus: (callback: (data: { id: string }) => void) => () => void
     onActivity: (callback: (data: { id: string; activity: 'busy' | 'waiting' }) => void) => () => void
+    onToolDeferred: (callback: (data: { id: string; sessionId: string; toolName?: string }) => void) => () => void
+    clearToolDeferred: (id: string) => Promise<boolean>
   }
   shellPty: {
     create: (instanceId: string, cwd: string) => Promise<{ pid: number }>
@@ -515,6 +517,12 @@ const api: ClaudeManagerAPI = {
       ipcRenderer.on('instance:activity', listener)
       return () => ipcRenderer.removeListener('instance:activity', listener)
     },
+    onToolDeferred: (callback) => {
+      const listener = (_e: any, data: { id: string; sessionId: string; toolName?: string }) => callback(data)
+      ipcRenderer.on('instance:tool-deferred', listener)
+      return () => ipcRenderer.removeListener('instance:tool-deferred', listener)
+    },
+    clearToolDeferred: (id) => ipcRenderer.invoke('instance:clearToolDeferred', id),
   },
   shellPty: {
     create: (instanceId, cwd) => ipcRenderer.invoke('shell-pty:create', instanceId, cwd),

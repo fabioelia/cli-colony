@@ -227,6 +227,13 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const [dragOver, setDragOver] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [viewTab, setViewTab] = useState<ViewTab>('session')
+  const [deferredDismissed, setDeferredDismissed] = useState(false)
+  // Reset dismissed state when a new deferred event arrives
+  const deferredToolRef = useRef(instance.toolDeferredInfo?.toolName)
+  if (instance.toolDeferredInfo?.toolName !== deferredToolRef.current) {
+    deferredToolRef.current = instance.toolDeferredInfo?.toolName
+    if (instance.toolDeferredInfo) setDeferredDismissed(false)
+  }
   const shellContainerRef = useRef<HTMLDivElement>(null)
   const shellTermRef = useRef<{ term: Terminal; fitAddon: FitAddon; unsub?: () => void } | null>(null)
   const shellCreatedRef = useRef(false)
@@ -2385,6 +2392,35 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
       {viewTab === 'metrics' && instance.roleTag === 'Coordinator' && (
         <div className="changes-panel">
           <TeamMetricsPanel coordinatorSessionId={instance.id} />
+        </div>
+      )}
+      {viewTab === 'session' && instance.toolDeferredInfo && !deferredDismissed && (
+        <div className="tool-deferred-banner">
+          <AlertTriangle size={16} className="tool-deferred-icon" />
+          <div className="tool-deferred-content">
+            <span className="tool-deferred-heading">Tool deferred</span>
+            <span className="tool-deferred-tool">{instance.toolDeferredInfo.toolName}</span>
+          </div>
+          <div className="tool-deferred-actions">
+            <button
+              className="tool-deferred-btn approve"
+              onClick={() => {
+                setDeferredDismissed(true)
+                onRestart(instance.id)
+              }}
+            >
+              <Play size={12} /> Approve
+            </button>
+            <button
+              className="tool-deferred-btn deny"
+              onClick={() => {
+                setDeferredDismissed(true)
+                window.api.instance.clearToolDeferred(instance.id).catch(() => {})
+              }}
+            >
+              <X size={12} /> Deny
+            </button>
+          </div>
         </div>
       )}
       <div

@@ -87,6 +87,18 @@ export function wireDaemonEvents(): void {
     }
   })
 
+  // Forward tool-deferred events + desktop notification
+  client.on('tool-deferred', async (instanceId: string, sessionId: string, toolName?: string) => {
+    broadcast('instance:tool-deferred', { id: instanceId, sessionId, toolName })
+    const inst = await client.getInstance(instanceId).catch(() => null)
+    const name = inst?.name || 'Session'
+    notify(
+      'Tool Deferred',
+      `${name}: ${toolName || 'A tool'} needs approval`,
+      { type: 'session', id: instanceId }
+    )
+  })
+
   // Forward exit events + handle auto-cleanup + track session closure
   client.on('exited', async (instanceId: string, exitCode: number) => {
     broadcast('instance:exited', { id: instanceId, exitCode })

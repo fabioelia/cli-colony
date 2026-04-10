@@ -209,6 +209,7 @@ function toSerializable(inst: InternalInstance): ClaudeInstance {
     roleTag: inst.roleTag,
     lastSessionId: inst.lastSessionId,
     pendingSteer: inst.pendingSteer,
+    toolDeferredInfo: inst.toolDeferredInfo,
   }
 }
 
@@ -498,6 +499,20 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
     instance.pendingSteer = undefined
     instance.comments = []
     instance._lineBuffer = ''
+
+    // Detect tool-deferred exit: scan last ~2KB of output buffer
+    const tail = instance.outputBuffer.slice(-100).join('')
+    const tailChunk = tail.slice(-2048)
+    if (/tool[_\s-]deferred/i.test(tailChunk)) {
+      const sessionId = instance.lastSessionId || ''
+      // Try to extract tool name from output (e.g., "Tool deferred: Bash" or "tool_name: Bash")
+      const toolMatch = tailChunk.match(/(?:tool[_\s-](?:deferred|name))[:\s]+["']?(\w[\w-]*)/i)
+      const toolName = toolMatch?.[1] || 'unknown'
+      instance.toolDeferredInfo = { toolName, sessionId }
+      log(`instance ${id}: tool-deferred detected (tool=${toolName}, session=${sessionId})`)
+      broadcastEvent({ type: 'tool-deferred', instanceId: id, sessionId, toolName })
+    }
+
     broadcastEvent({ type: 'exited', instanceId: id, exitCode })
     notifyListChanged()
   })
@@ -769,6 +784,15 @@ function handleRequest(req: DaemonRequest, socket: net.Socket): void {
       case 'buffer': {
         const buf = getInstanceBuffer(req.instanceId)
         send({ type: 'ok', reqId: req.reqId, data: Buffer.from(buf).toString('base64') })
+        break
+      }
+      case 'clear-tool-deferred': {
+        const inst = instances.get(req.instanceId)
+        if (inst) {
+          inst.toolDeferredInfo = undefined
+          notifyListChanged()
+        }
+        send({ type: 'ok', reqId: req.reqId, data: !!inst })
         break
       }
       case 'subscribe': {

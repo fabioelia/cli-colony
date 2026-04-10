@@ -131,6 +131,8 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
               badges.push({ node: <span key="cl" className="instance-cli-badge" title="CLI for this session">{cliBackendLabel(inst.cliBackend)}</span>, label: cliBackendLabel(inst.cliBackend) })
             if (inst.pendingSteer)
               badges.push({ node: <span key="ps" className="instance-steer-badge" title="Steering message queued — will be delivered when session is next idle">Steer</span>, label: 'Steer' })
+            if (inst.toolDeferredInfo)
+              badges.push({ node: <span key="td" className="instance-deferred-badge" title={`Tool deferred: ${inst.toolDeferredInfo.toolName}`}>Defer</span>, label: 'Defer' })
             if (badges.length === 0) return null
             return (
               <div className="instance-badges">
@@ -200,6 +202,7 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
     a.name === b.name && a.color === b.color && a.pinned === b.pinned &&
     a.gitBranch === b.gitBranch && a.roleTag === b.roleTag &&
     a.exitCode === b.exitCode && a.pendingSteer === b.pendingSteer &&
+    a.toolDeferredInfo?.toolName === b.toolDeferredInfo?.toolName &&
     a.mcpServers.length === b.mcpServers.length &&
     a.cliBackend === b.cliBackend && a.childIds.length === b.childIds.length &&
     a.workingDirectory === b.workingDirectory && a.parentId === b.parentId &&
