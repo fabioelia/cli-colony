@@ -1163,7 +1163,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Status letter', detail: 'M = modified, A = added, D = deleted, R = renamed. Color-coded: amber for M, green for A, red for D.' },
           { label: 'File path', detail: 'Relative path of the changed file within the working directory. Click to expand inline diff.' },
           { label: '+/- counts', detail: 'Number of inserted lines (green) and deleted lines (red) in the diff.' },
-          { label: 'Inline diff', detail: 'Click any file row to expand a color-coded unified diff below it. Green for additions, red for deletions, with line numbers and syntax highlighting (language auto-detected from file extension). Diffs are fetched lazily and cached. Large diffs (500+ lines) are truncated with a "Show full diff" button. Binary files show a placeholder.' },
+          { label: 'Inline diff', detail: 'Click any file row to expand a color-coded diff below it with syntax highlighting (language auto-detected from file extension). Toggle between Unified (interleaved) and Split (side-by-side) view using the button in the top-right. Split view aligns old code on the left and new code on the right, with empty padding rows for unmatched lines. Mode preference persists in localStorage. Large diffs (500+ lines) are truncated with a "Show full diff" button. Binary files show a placeholder.' },
           { label: 'Revert button', detail: 'Reverts that single file to HEAD via `git checkout HEAD -- <file>`. Confirmation required.', icon: 'Undo2' },
           { label: 'Empty state', detail: 'Shows "No uncommitted changes" when the working tree is clean.' },
         ],
@@ -1292,7 +1292,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'File status', detail: 'A = Added (green), M = Modified (yellow), D = Deleted (red), R = Renamed, ? = Untracked.' },
           { label: 'File path', detail: 'Full path of the changed file in monospace font. Click to expand inline diff.' },
-          { label: 'Inline diff', detail: 'Click any file row to expand a line-level unified diff. Color-coded additions/deletions with gutter line numbers and syntax highlighting (auto-detected from file extension). Lazy-loaded and cached per session.' },
+          { label: 'Inline diff', detail: 'Click any file row to expand a line-level diff with syntax highlighting (auto-detected from file extension). Toggle Unified/Split view in the toolbar — Split shows old vs. new side-by-side. Lazy-loaded and cached per session.' },
           { label: 'Insertions / Deletions', detail: 'Per-file line counts: green for additions, red for removals.' },
         ],
       },
