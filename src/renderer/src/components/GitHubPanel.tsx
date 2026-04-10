@@ -98,6 +98,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const [checksByPR, setChecksByPR] = useState<Record<string, PRChecks>>({})
   const [checksLoading, setChecksLoading] = useState<Set<string>>(new Set())
   const checksFetchedRef = useRef<Set<string>>(new Set())
+  const repoRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [checkLogContent, setCheckLogContent] = useState<string | null>(null)
   const [checkLogName, setCheckLogName] = useState<string | null>(null)
 
@@ -799,7 +800,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
             <div
               key={prKey}
               className="github-attention-row"
-              onClick={() => { setExpandedRepo(slug); setExpandedPR(prKey) }}
+              onClick={() => { setExpandedRepo(slug); setExpandedPR(prKey); setTimeout(() => { repoRefs.current[slug]?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }, 50) }}
             >
               <span className="github-attention-repo">{slug}#{pr.number}</span>
               <span className="github-attention-title">{pr.title}</span>
@@ -833,7 +834,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
           const isLoading = loadingRepo === slug
 
           return (
-            <div key={slug} className="github-repo">
+            <div key={slug} className="github-repo" ref={el => { repoRefs.current[slug] = el }}>
               <div className="github-repo-header" onClick={() => handleToggleRepo(repo)}>
                 {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 <span className="github-repo-name"><span className="github-repo-owner">{repo.owner}/</span>{repo.name}</span>
