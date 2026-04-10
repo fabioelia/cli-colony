@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, FileDown, GitFork, ChevronDown, ChevronRight, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, FileDown, GitFork, ChevronDown, ChevronRight, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate } from '../../../shared/types'
@@ -50,6 +50,9 @@ interface InstanceItemProps {
   renameValue: string
   renameRef: React.RefObject<HTMLInputElement | null>
   callbacks: InstanceItemCallbacks
+  selectMode: boolean
+  isSelected: boolean
+  onToggleSelect: (id: string) => void
 }
 
 function dirName(path: string) {
@@ -57,19 +60,32 @@ function dirName(path: string) {
   return parts[parts.length - 1] || path
 }
 
-const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcutIndex, isUnread, ctxLevel, splitBadge, focusedPane, isRenaming, renameValue, renameRef, callbacks }: InstanceItemProps) {
+const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcutIndex, isUnread, ctxLevel, splitBadge, focusedPane, isRenaming, renameValue, renameRef, callbacks, selectMode, isSelected, onToggleSelect }: InstanceItemProps) {
   return (
     <div
-      className={`instance-item ${isActive ? 'active' : ''}`}
+      className={`instance-item ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''}`}
       role="button"
       tabIndex={0}
-      onClick={() => callbacks.onSelect(inst.id)}
+      onClick={(e) => {
+        if (selectMode) { onToggleSelect(inst.id); return }
+        if (e.metaKey || e.ctrlKey) { onToggleSelect(inst.id); return }
+        callbacks.onSelect(inst.id)
+      }}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); callbacks.onSelect(inst.id) } }}
       onContextMenu={(e) => {
         e.preventDefault()
         callbacks.onContextMenu(inst.id, Math.min(e.clientX, window.innerWidth - 200), Math.min(e.clientY, window.innerHeight - 150))
       }}
     >
+      {selectMode && (
+        <input
+          type="checkbox"
+          className="instance-item-checkbox"
+          checked={isSelected}
+          onChange={() => onToggleSelect(inst.id)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      )}
       {shortcutIndex && (
         <span className="instance-shortcut" title={`Cmd+${shortcutIndex}`}>{shortcutIndex}</span>
       )}
@@ -215,7 +231,10 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
     prev.focusedPane === next.focusedPane &&
     prev.isRenaming === next.isRenaming &&
     prev.renameValue === next.renameValue &&
-    prev.callbacks === next.callbacks
+    prev.callbacks === next.callbacks &&
+    prev.selectMode === next.selectMode &&
+    prev.isSelected === next.isSelected &&
+    prev.onToggleSelect === next.onToggleSelect
 })
 
 interface Props {
@@ -256,6 +275,8 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const [renameValue, setRenameValue] = useState('')
   const [appVersion, setAppVersion] = useState<string | null>(null)
   const [runningEnvCount, setRunningEnvCount] = useState(0)
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [expandedForkGroups, setExpandedForkGroups] = useState<Set<string>>(new Set())
   const [forkSectionOpen, setForkSectionOpen] = useState(true)
 
@@ -276,6 +297,56 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     setGroupBy(val)
     localStorage.setItem('sidebar-group-by', val)
   }, [])
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+    setSelectMode(true)
+  }, [])
+
+  const exitSelectMode = useCallback(() => {
+    setSelectMode(false)
+    setSelectedIds(new Set())
+  }, [])
+
+  // Escape exits select mode, Cmd+A selects all visible instances
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectMode) {
+        exitSelectMode()
+        e.stopPropagation()
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'a' && view === 'instances' && selectMode) {
+        e.preventDefault()
+        const visibleIds = flatOrderForIndexing.map(i => i.id)
+        setSelectedIds(prev => {
+          // If all visible are already selected, deselect all
+          if (visibleIds.every(id => prev.has(id))) return new Set()
+          return new Set(visibleIds)
+        })
+      }
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [selectMode, view, flatOrderForIndexing, exitSelectMode])
+
+  // Clean up stale selections (removed instances)
+  useEffect(() => {
+    if (selectedIds.size === 0) return
+    const instanceIds = new Set(instances.map(i => i.id))
+    const stale = [...selectedIds].filter(id => !instanceIds.has(id))
+    if (stale.length > 0) {
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        stale.forEach(id => next.delete(id))
+        if (next.size === 0) setSelectMode(false)
+        return next
+      })
+    }
+  }, [instances, selectedIds])
 
   useEffect(() => {
     window.api.appUpdate.getStatus().then((s: any) => s?.currentVersion && setAppVersion(s.currentVersion)).catch(() => {})
@@ -624,6 +695,9 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
         renameValue={renamingId === inst.id ? renameValue : ''}
         renameRef={renameRef}
         callbacks={itemCallbacksRef.current}
+        selectMode={selectMode}
+        isSelected={selectedIds.has(inst.id)}
+        onToggleSelect={toggleSelect}
       />
     )
   }
@@ -768,6 +842,14 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             <option value="project">By Project</option>
             <option value="status">By Status</option>
           </select>
+          <Tooltip text={selectMode ? 'Exit multi-select' : 'Multi-select'} detail="Select multiple sessions for bulk actions (stop, restart, remove)" position="bottom">
+            <button
+              className={`sidebar-select-toggle ${selectMode ? 'active' : ''}`}
+              onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
+            >
+              <CheckSquare size={12} />
+            </button>
+          </Tooltip>
         </div>
       )}
 
@@ -906,6 +988,59 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
           <div className="instance-list-empty">No sessions · press Cmd+T or click New Session to start</div>
         )}
       </div>
+
+      {/* Floating bulk action bar */}
+      {selectMode && selectedIds.size > 0 && (
+        <div className="sidebar-bulk-actions">
+          <span className="sidebar-bulk-count">{selectedIds.size} selected</span>
+          <Tooltip text="Stop selected" detail="Kill all selected running sessions">
+            <button
+              className="panel-header-btn"
+              disabled={![...selectedIds].some(id => instances.find(i => i.id === id)?.status === 'running')}
+              onClick={async () => {
+                for (const id of selectedIds) {
+                  const inst = instances.find(i => i.id === id)
+                  if (inst?.status === 'running') await onKill(id)
+                }
+              }}
+            >
+              <Square size={12} /> Stop
+            </button>
+          </Tooltip>
+          <Tooltip text="Restart selected" detail="Restart all selected stopped sessions">
+            <button
+              className="panel-header-btn"
+              disabled={![...selectedIds].some(id => instances.find(i => i.id === id)?.status !== 'running')}
+              onClick={async () => {
+                for (const id of selectedIds) {
+                  const inst = instances.find(i => i.id === id)
+                  if (inst?.status !== 'running') await onRestart(id)
+                }
+              }}
+            >
+              <Play size={12} /> Restart
+            </button>
+          </Tooltip>
+          <Tooltip text="Remove selected" detail="Remove all selected stopped sessions">
+            <button
+              className="panel-header-btn danger"
+              disabled={![...selectedIds].some(id => instances.find(i => i.id === id)?.status !== 'running')}
+              onClick={async () => {
+                for (const id of selectedIds) {
+                  const inst = instances.find(i => i.id === id)
+                  if (inst?.status !== 'running') await onRemove(id)
+                }
+                exitSelectMode()
+              }}
+            >
+              <Trash2 size={12} /> Remove
+            </button>
+          </Tooltip>
+          <button className="sidebar-bulk-deselect" onClick={exitSelectMode} title="Exit multi-select">
+            <X size={12} />
+          </button>
+        </div>
+      )}
 
       {/* Instance popovers rendered outside instance-list to avoid clipping (I2) */}
       {popoverId && popoverType === 'color' && instancePopoverPos && (() => {

@@ -403,6 +403,72 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .clear-stopped-btn:hover { color: var(--danger); }
 
+/* ===== Bulk session actions ===== */
+.instance-item-checkbox {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin-right: 4px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.instance-item.selected {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.sidebar-select-toggle {
+  margin-left: auto;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 2px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+.sidebar-select-toggle:hover { color: var(--text-secondary); border-color: var(--border-active); }
+.sidebar-select-toggle.active { color: var(--accent); border-color: var(--accent); }
+.sidebar-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.sidebar-bulk-count {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 600;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+.sidebar-bulk-actions .panel-header-btn {
+  font-size: 11px;
+  gap: 3px;
+  padding: 3px 7px;
+}
+.sidebar-bulk-actions .panel-header-btn.danger { color: var(--danger); }
+.sidebar-bulk-actions .panel-header-btn.danger:hover { background: rgba(239, 68, 68, 0.15); }
+.sidebar-bulk-actions .panel-header-btn:disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+.sidebar-bulk-deselect {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  padding: 3px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+.sidebar-bulk-deselect:hover { color: var(--text-secondary); background: var(--bg-hover); }
+
 .instance-list-empty {
   padding: 24px 12px;
   color: var(--text-muted);

@@ -137,6 +137,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Role badge', detail: 'Purple/gold tag (Orchestrator, Planner, Coder, Tester, Reviewer, Researcher, Coordinator, Worker) set via right-click. Coordinator shows a gold Crown icon 👑. Helps coordinate multi-agent workflows at a glance. Coordinator sessions display a Team tab showing all active Worker sessions.' },
           { label: 'Split/Grid indicator', detail: 'A columns icon appears on sessions in a split view or grid view. In grid mode, all assigned panes show the indicator.', icon: 'Columns2' },
           { label: 'Group by', detail: 'When 3+ sessions exist, a grouping selector appears above the list. Group by Persona, Project (working directory), or Status. Groups are collapsible and the mode persists across sessions.', icon: 'Layers' },
+          { label: 'Multi-select', detail: 'Click the checkbox icon (next to group-by) or Cmd+click any session to enter select mode. A floating action bar appears for bulk Stop, Restart, or Remove. Cmd+A selects all visible sessions; Escape exits. Remove only affects stopped sessions.', icon: 'CheckSquare' },
           { label: 'Shortcut numbers', detail: 'Numbers 1-9 shown next to sessions for quick Cmd+N jumping.' },
           { label: 'Repo Memory', detail: 'Place a `.colony/memory.md` file in a repo to automatically inject its conventions, architecture decisions, and team notes into every Colony session started in that directory. Same pattern as AGENTS.md — no UI needed.' },
         ],
@@ -193,6 +194,9 @@ export const helpContent: Record<string, HelpEntry> = {
       { keys: 'Cmd+K', action: 'Command palette — switch sessions, run personas, launch agents, navigate panels, search session history' },
       { keys: 'Cmd+Shift+↵', action: 'Quick Prompt — launch a new session with a prompt pre-filled; ↑↓ to cycle history' },
       { keys: 'Cmd+Shift+1–5', action: 'Load workspace preset by position' },
+      { keys: 'Cmd+Click', action: 'Enter multi-select mode and toggle session' },
+      { keys: 'Cmd+A', action: 'Select all visible sessions (in select mode)' },
+      { keys: 'Escape', action: 'Exit multi-select mode' },
     ],
   },
 
