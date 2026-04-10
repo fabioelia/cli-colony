@@ -38,6 +38,7 @@ import { registerWorktreeHandlers } from './ipc/worktree-handlers'
 import { registerPersonaMemoryHandlers } from './ipc/persona-memory-handlers'
 import { registerSessionArtifactHandlers } from './ipc/session-artifact-handlers'
 import { registerNotificationHandlers } from './ipc/notification-handlers'
+import { registerGitHandlers } from './ipc/git-handlers'
 
 export function registerIpcHandlers(): void {
   // Delegated handler modules
@@ -68,6 +69,7 @@ export function registerIpcHandlers(): void {
   registerPersonaMemoryHandlers()
   registerSessionArtifactHandlers()
   registerNotificationHandlers()
+  registerGitHandlers()
 
   // ---- Temp files ----
   ipcMain.handle('fs:writeTempFile', async (_e, prefix: string, content: string) => {

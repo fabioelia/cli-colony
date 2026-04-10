@@ -2787,6 +2787,179 @@ body:has(.daemon-update-banner) .app-update-banner {
   opacity: 0.85;
 }
 
+/* ---- Commit Dialog ---- */
+
+.commit-dialog {
+  width: 480px;
+}
+
+.dialog-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.commit-dialog-branch {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  margin-left: auto;
+}
+
+.commit-dialog-textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 72px;
+  line-height: 1.5;
+}
+
+.commit-dialog-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.commit-dialog-files {
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.commit-dialog-files-header {
+  padding: 6px 10px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.commit-dialog-files-header label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.commit-dialog-files-list {
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.commit-dialog-file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.commit-dialog-file-row:hover {
+  background: var(--bg-hover);
+}
+
+.commit-dialog-file-status {
+  font-family: Menlo, Monaco, 'Courier New', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.commit-dialog-file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.commit-dialog-file-stats {
+  font-family: Menlo, Monaco, 'Courier New', monospace;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.commit-dialog-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: var(--danger);
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.commit-dialog-success {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: var(--success);
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.commit-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.dialog-btn {
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.dialog-btn:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.dialog-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dialog-btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.dialog-btn-primary:hover:not(:disabled) {
+  opacity: 0.85;
+  background: var(--accent);
+  color: #fff;
+}
+
 .dialog-notice {
   display: flex;
   align-items: flex-start;

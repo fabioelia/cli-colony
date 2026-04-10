@@ -5,7 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, LayoutGrid, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation, MessageCircleWarning, ThumbsUp, Sparkles, Bot, BarChart3, Package } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, LayoutGrid, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation, MessageCircleWarning, ThumbsUp, Sparkles, Bot, BarChart3, Package, GitCommit } from 'lucide-react'
 import { TeamMetricsPanel } from './TeamMetricsPanel'
 import type { EnvStatus, EnvServiceStatus, GitDiffEntry, ColonyComment, ScoreCard, CoordinatorTeam, CoordinatorWorker, SessionArtifact } from '../../../shared/types'
 import { buildDiagnosePrompt } from '../../../shared/env-prompts'
@@ -13,6 +13,7 @@ import '@xterm/xterm/css/xterm.css'
 import type { ClaudeInstance } from '../types'
 import Tooltip from './Tooltip'
 import HelpPopover from './HelpPopover'
+import CommitDialog from './CommitDialog'
 import { usePanelTabKeys } from '../hooks/usePanelTabKeys'
 
 interface TerminalEntry {
@@ -286,6 +287,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const [revertingAll, setRevertingAll] = useState(false)
   const [scoreCard, setScoreCard] = useState<ScoreCard | null>(null)
   const [scoreCardLoading, setScoreCardLoading] = useState(false)
+  const [showCommitDialog, setShowCommitDialog] = useState(false)
   // Artifacts tab state
   const [artifact, setArtifact] = useState<SessionArtifact | null>(null)
   const [artifactLoading, setArtifactLoading] = useState(false)
@@ -1994,6 +1996,14 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 <>
                   <button
                     className="changes-refresh-btn"
+                    title="Stage & Commit"
+                    onClick={() => setShowCommitDialog(true)}
+                    style={{ color: 'var(--success)' }}
+                  >
+                    <GitCommit size={12} />
+                  </button>
+                  <button
+                    className="changes-refresh-btn"
                     title="Score output quality with AI"
                     disabled={scoreCardLoading}
                     onClick={handleScoreOutput}
@@ -2500,6 +2510,14 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           <div className="terminal-drop-overlay">Drop to paste path</div>
         )}
       </div>
+      {showCommitDialog && instance.dir && (
+        <CommitDialog
+          dir={instance.dir}
+          entries={gitChanges}
+          onClose={() => setShowCommitDialog(false)}
+          onCommitted={loadGitChanges}
+        />
+      )}
     </>
   )
 }

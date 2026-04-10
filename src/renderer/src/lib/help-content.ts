@@ -1071,6 +1071,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Top bar',
         items: [
           { label: 'Refresh', detail: 'Reload the change list from git.', icon: 'RefreshCw' },
+          { label: 'Stage & Commit', detail: 'Open a commit dialog to stage selected files and commit (or commit & push) directly from the UI. Shows branch info, file checklist with select/deselect, insertion/deletion stats. Ctrl+Enter (Cmd+Enter on Mac) submits. Push button only appears when a remote is configured.', icon: 'GitCommit' },
           { label: 'Score Output', detail: 'Run an LLM-as-Judge assessment on the current diff. Returns a 1–5 confidence score, scope creep warning, test coverage indicator, and 2-3 sentence summary. Powered by claude-haiku.', icon: 'Sparkles' },
           { label: 'Revert All', detail: 'Revert every changed file to HEAD. A confirmation dialog appears first — this cannot be undone.', icon: 'Undo2' },
           { label: 'Auto-refresh', detail: 'The change list refreshes automatically every 10 seconds while this tab is open.' },

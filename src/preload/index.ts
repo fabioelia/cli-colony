@@ -368,6 +368,12 @@ export interface ClaudeManagerAPI {
     getContextUsage: (sessionId: string) => Promise<ContextUsage | null>
     tokenizeApproximate: (text: string) => Promise<number>
   }
+  git: {
+    stage: (cwd: string, files: string[]) => Promise<void>
+    commit: (cwd: string, message: string) => Promise<string>
+    push: (cwd: string) => Promise<void>
+    branchInfo: (cwd: string) => Promise<{ branch: string; remote: string | null; ahead: number }>
+  }
   audit: {
     runPanel: (panel: string, context: object) => Promise<AuditResult[]>
     getLastRun: (panel: string) => Promise<{ ts: number; issueCount: number } | null>
@@ -862,6 +868,12 @@ const api: ClaudeManagerAPI = {
   audit: {
     runPanel: (panel, context) => ipcRenderer.invoke('audit:runPanel', panel, context),
     getLastRun: (panel) => ipcRenderer.invoke('audit:getLastRun', panel),
+  },
+  git: {
+    stage: (cwd, files) => ipcRenderer.invoke('git:stage', cwd, files),
+    commit: (cwd, message) => ipcRenderer.invoke('git:commit', cwd, message),
+    push: (cwd) => ipcRenderer.invoke('git:push', cwd),
+    branchInfo: (cwd) => ipcRenderer.invoke('git:branchInfo', cwd),
   },
   arena: {
     recordWinner: (winnerKey, loserKey) => ipcRenderer.invoke('arena:recordWinner', winnerKey, loserKey),
