@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import type { ClaudeInstance, AgentDef, CliSession, RecentSession, CliBackend, ArenaStats } from './types'
 import Sidebar, { SidebarView } from './components/Sidebar'
 import TerminalView from './components/TerminalView'
-import NewInstanceDialog from './components/NewInstanceDialog'
+import NewInstanceDialog, { type CloneSource } from './components/NewInstanceDialog'
 import SessionEmptyState from './components/SessionEmptyState'
 import AgentsPanel from './components/AgentsPanel'
 import AgentEditor from './components/AgentEditor'
@@ -61,6 +61,7 @@ export default function App() {
     initialPrompt?: string
     workingDirectory?: string
   } | null>(null)
+  const [cloneSource, setCloneSource] = useState<CloneSource | null>(null)
   const [view, setView] = useState<View>('instances')
   const [tasksTab, setTasksTab] = useState<'queue' | 'board'>('queue')
   const [editingAgent, setEditingAgent] = useState<AgentDef | null>(null)
@@ -418,6 +419,7 @@ export default function App() {
     setActiveId(inst.id)
     setShowNewDialog(false)
     setNewDialogSeed(null)
+    setCloneSource(null)
     setView('instances')
   }, [])
 
@@ -592,6 +594,20 @@ export default function App() {
   }, [])
 
   const handleNewSession = useCallback(() => { agentToLaunchRef.current = null; setShowNewDialog(true) }, [])
+
+  const handleCloneSession = useCallback((inst: ClaudeInstance) => {
+    agentToLaunchRef.current = null
+    setCloneSource({
+      name: inst.name,
+      workingDirectory: inst.workingDirectory,
+      color: inst.color,
+      cliBackend: inst.cliBackend,
+      permissionMode: inst.permissionMode,
+      mcpServers: inst.mcpServers,
+      args: inst.args,
+    })
+    setShowNewDialog(true)
+  }, [])
 
   useGlobalShortcuts({
     onNewSession: handleNewSession,
@@ -1258,6 +1274,7 @@ export default function App() {
         gridPanes={showGrid ? gridPanes : undefined}
         currentLayout={showGrid ? '4-up' : isSplit ? '2-up' : 'single'}
         onLoadPreset={handleLoadPreset}
+        onCloneSession={handleCloneSession}
       />
       <div className={`main ${showGrid ? 'grid-4' : isSplit ? 'split' : ''}`}>
         {/* All terminals stay mounted (xterm doesn't support re-open); expensive effects gated on focused prop */}
@@ -1736,11 +1753,13 @@ export default function App() {
           onClose={() => {
             setShowNewDialog(false)
             setNewDialogSeed(null)
+            setCloneSource(null)
             agentToLaunchRef.current = null
           }}
           prefill={agentToLaunchRef.current || undefined}
           initialPrompt={newDialogSeed?.initialPrompt}
           initialWorkingDirectory={newDialogSeed?.workingDirectory}
+          cloneSource={cloneSource || undefined}
         />
       )}
       {forkModalInst && (

@@ -2,6 +2,22 @@ import { useState, useEffect, useRef } from 'react'
 import type { AgentDef, CliBackend } from '../types'
 import { COLORS, COLOR_MAP } from '../lib/constants'
 
+export interface CloneSource {
+  name: string
+  workingDirectory: string
+  color: string
+  cliBackend: CliBackend
+  permissionMode?: 'autonomous' | 'supervised'
+  mcpServers: string[]
+  args: string[]
+}
+
+function cloneName(name: string): string {
+  const match = name.match(/^(.+)\s+\((\d+)\)$/)
+  if (match) return `${match[1]} (${parseInt(match[2]) + 1})`
+  return `${name} (2)`
+}
+
 interface Props {
   onCreate: (opts: {
     name?: string
@@ -27,6 +43,8 @@ interface Props {
    * cards) pre-populate the folder the session will run in.
    */
   initialWorkingDirectory?: string
+  /** Pre-fill all fields from a source session (Clone action). */
+  cloneSource?: CloneSource
 }
 
 function resolveColor(c?: string): string {
@@ -49,21 +67,29 @@ interface McpServer {
   description?: string
 }
 
-export default function NewInstanceDialog({ onCreate, onClose, prefill, initialPrompt, initialWorkingDirectory }: Props) {
-  const [name, setName] = useState(prefill?.name || '')
-  const [workingDirectory, setWorkingDirectory] = useState(initialWorkingDirectory || '')
-  const [color, setColor] = useState(resolveColor(prefill?.color))
-  const [extraArgs, setExtraArgs] = useState('')
-  const [cliBackend, setCliBackend] = useState<CliBackend>('claude')
-  const [permissionMode, setPermissionMode] = useState<'autonomous' | 'supervised'>('autonomous')
+export default function NewInstanceDialog({ onCreate, onClose, prefill, initialPrompt, initialWorkingDirectory, cloneSource }: Props) {
+  const [name, setName] = useState(cloneSource ? cloneName(cloneSource.name) : prefill?.name || '')
+  const [workingDirectory, setWorkingDirectory] = useState(cloneSource?.workingDirectory || initialWorkingDirectory || '')
+  const [color, setColor] = useState(cloneSource ? resolveColor(cloneSource.color) : resolveColor(prefill?.color))
+  const [extraArgs, setExtraArgs] = useState(() => {
+    if (!cloneSource) return ''
+    const filtered: string[] = []
+    for (let i = 0; i < cloneSource.args.length; i++) {
+      if (cloneSource.args[i] === '--resume') { i++; continue } // skip --resume and its value
+      filtered.push(cloneSource.args[i])
+    }
+    return filtered.join(' ')
+  })
+  const [cliBackend, setCliBackend] = useState<CliBackend>(cloneSource?.cliBackend || 'claude')
+  const [permissionMode, setPermissionMode] = useState<'autonomous' | 'supervised'>(cloneSource?.permissionMode || 'autonomous')
   const [creating, setCreating] = useState(false)
   const [environments, setEnvironments] = useState<EnvOption[]>([])
   const [mcpServersList, setMcpServersList] = useState<McpServer[]>([])
   const [selectedMcpServers, setSelectedMcpServers] = useState<Set<string>>(new Set())
   const [planFirst, setPlanFirst] = useState(false)
-  // Only render the first-prompt field when the caller passed a seed — the
-  // classic "New Session" dialog stays unchanged for users who hit Cmd+T.
-  const showPromptField = initialPrompt !== undefined
+  // Show prompt field when cloning (so user can add a fresh prompt) or when
+  // the caller passed a seed (starter cards).
+  const showPromptField = !!cloneSource || initialPrompt !== undefined
   const [firstPrompt, setFirstPrompt] = useState(initialPrompt || '')
   const promptRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -79,16 +105,25 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
   }, [showPromptField])
 
   useEffect(() => {
-    window.api.settings.getAll().then((s) => {
-      setCliBackend(s.defaultCliBackend === 'cursor-agent' ? 'cursor-agent' : 'claude')
-    })
+    if (!cloneSource) {
+      window.api.settings.getAll().then((s) => {
+        setCliBackend(s.defaultCliBackend === 'cursor-agent' ? 'cursor-agent' : 'claude')
+      })
+    }
     // Load environments for picker
     window.api.env?.list?.().then((envs: any[]) => {
       if (envs?.length) setEnvironments(envs)
     }).catch(() => {})
     // Load MCP servers
     window.api.mcp?.list?.().then((servers: McpServer[]) => {
-      if (servers?.length) setMcpServersList(servers)
+      if (servers?.length) {
+        setMcpServersList(servers)
+        // Pre-select servers from clone source once the list arrives
+        if (cloneSource?.mcpServers?.length) {
+          const available = new Set(servers.map(s => s.name))
+          setSelectedMcpServers(new Set(cloneSource.mcpServers.filter(n => available.has(n))))
+        }
+      }
     }).catch(() => {})
   }, [])
 
@@ -136,7 +171,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
   return (
     <div className="dialog-overlay">
       <form className="dialog" onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); handleCreate() }}>
-        <h2>{prefill ? `Launch: ${prefill.name}` : 'New Session'}</h2>
+        <h2>{cloneSource ? 'Clone Session' : prefill ? `Launch: ${prefill.name}` : 'New Session'}</h2>
 
         {prefill && (
           <div className="dialog-agent-info">
