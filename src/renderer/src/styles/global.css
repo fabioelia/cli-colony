@@ -5146,7 +5146,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .tool-deferred-tool {
   font-size: 12px;
   color: var(--text-muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-mono, monospace);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
