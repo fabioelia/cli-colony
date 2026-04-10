@@ -2277,7 +2277,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                       {diffLoading ? (
                         <div className="diff-viewer-empty">Loading diff...</div>
                       ) : diffContent !== null ? (
-                        <DiffViewer diff={diffContent} />
+                        <DiffViewer diff={diffContent} filename={entry.file} />
                       ) : null}
                     </div>
                   )}

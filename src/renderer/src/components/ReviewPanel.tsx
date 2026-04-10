@@ -333,7 +333,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
                             {reviewDiffLoading ? (
                               <div className="diff-viewer-empty">Loading diff...</div>
                             ) : reviewDiffContent !== null ? (
-                              <DiffViewer diff={reviewDiffContent} />
+                              <DiffViewer diff={reviewDiffContent} filename={entry.file} />
                             ) : null}
                           </div>
                         )}

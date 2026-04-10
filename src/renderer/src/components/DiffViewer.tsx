@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react'
+import { hljs, getLangFromFilename } from '../lib/hljs'
 
 interface DiffLine {
   type: 'add' | 'del' | 'context' | 'hunk'
@@ -9,6 +10,8 @@ interface DiffLine {
 
 interface DiffViewerProps {
   diff: string
+  /** Filename for syntax highlighting language detection */
+  filename?: string
   /** Max lines to show before truncation (default 500) */
   maxLines?: number
 }
@@ -43,12 +46,14 @@ function parseDiff(raw: string): DiffLine[] {
   return lines
 }
 
-function DiffViewer({ diff, maxLines = 500 }: DiffViewerProps) {
+function DiffViewer({ diff, filename, maxLines = 500 }: DiffViewerProps) {
   const [showFull, setShowFull] = useState(false)
 
   const allLines = useMemo(() => parseDiff(diff), [diff])
   const isTruncated = !showFull && allLines.length > maxLines
   const lines = isTruncated ? allLines.slice(0, maxLines) : allLines
+
+  const lang = useMemo(() => filename ? getLangFromFilename(filename) : null, [filename])
 
   if (!diff.trim()) {
     return <div className="diff-viewer-empty">No diff content.</div>
@@ -61,19 +66,31 @@ function DiffViewer({ diff, maxLines = 500 }: DiffViewerProps) {
 
   return (
     <div className="diff-viewer">
-      {lines.map((line, i) => (
-        <div key={i} className={`diff-line diff-${line.type}`}>
-          <span className="diff-gutter diff-gutter-old">
-            {line.oldLine ?? ''}
-          </span>
-          <span className="diff-gutter diff-gutter-new">
-            {line.newLine ?? ''}
-          </span>
-          <span className="diff-content">
-            {line.type === 'hunk' ? line.content : line.content}
-          </span>
-        </div>
-      ))}
+      {lines.map((line, i) => {
+        const highlighted = lang && line.type !== 'hunk'
+          ? hljs.highlight(line.content, { language: lang }).value
+          : null
+        return (
+          <div key={i} className={`diff-line diff-${line.type}`}>
+            <span className="diff-gutter diff-gutter-old">
+              {line.oldLine ?? ''}
+            </span>
+            <span className="diff-gutter diff-gutter-new">
+              {line.newLine ?? ''}
+            </span>
+            {highlighted ? (
+              <span
+                className="diff-content"
+                dangerouslySetInnerHTML={{ __html: highlighted }}
+              />
+            ) : (
+              <span className="diff-content">
+                {line.content}
+              </span>
+            )}
+          </div>
+        )
+      })}
       {isTruncated && (
         <div className="diff-truncated">
           <button onClick={() => setShowFull(true)}>

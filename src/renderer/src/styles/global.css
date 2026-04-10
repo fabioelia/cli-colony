@@ -6312,6 +6312,35 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: var(--bg-hover);
 }
 
+/* Syntax highlighting tokens within diff lines */
+.diff-viewer .diff-content .hljs-keyword,
+.diff-viewer .diff-content .hljs-selector-tag,
+.diff-viewer .diff-content .hljs-literal,
+.diff-viewer .diff-content .hljs-section,
+.diff-viewer .diff-content .hljs-link { color: #c678dd; }
+.diff-viewer .diff-content .hljs-function .hljs-keyword { color: #c678dd; }
+.diff-viewer .diff-content .hljs-string,
+.diff-viewer .diff-content .hljs-attr,
+.diff-viewer .diff-content .hljs-addition { color: #98c379; }
+.diff-viewer .diff-content .hljs-number,
+.diff-viewer .diff-content .hljs-meta { color: #d19a66; }
+.diff-viewer .diff-content .hljs-comment,
+.diff-viewer .diff-content .hljs-quote { color: #5c6370; font-style: italic; }
+.diff-viewer .diff-content .hljs-deletion { color: #e06c75; }
+.diff-viewer .diff-content .hljs-title,
+.diff-viewer .diff-content .hljs-title.function_ { color: #61afef; }
+.diff-viewer .diff-content .hljs-built_in,
+.diff-viewer .diff-content .hljs-type { color: #e5c07b; }
+.diff-viewer .diff-content .hljs-params { color: #abb2bf; }
+.diff-viewer .diff-content .hljs-regexp { color: #98c379; }
+.diff-viewer .diff-content .hljs-symbol,
+.diff-viewer .diff-content .hljs-bullet { color: #56b6c2; }
+.diff-viewer .diff-content .hljs-variable,
+.diff-viewer .diff-content .hljs-template-variable { color: #e06c75; }
+.diff-viewer .diff-content .hljs-name,
+.diff-viewer .diff-content .hljs-selector-id,
+.diff-viewer .diff-content .hljs-selector-class { color: #e06c75; }
+
 /* ===== Review Dashboard ===== */
 .review-panel {
   display: flex;
