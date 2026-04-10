@@ -42,11 +42,16 @@ export interface SendPromptOpts {
   onSent?: () => void
 }
 
+/** Result of sendPromptWhenReady — callers should check before updating dedup state */
+export type SendPromptResult = 'sent' | 'abandoned'
+
 /**
  * Wait for the instance to be ready, then send the prompt.
- * Returns a promise that resolves when the prompt has been sent (or abandoned).
+ * Returns 'sent' if the prompt was delivered, 'abandoned' if the timeout
+ * expired without ever reaching a ready state. Callers should skip state
+ * updates (e.g. recordFired, runCount) on 'abandoned'.
  */
-export async function sendPromptWhenReady(instanceId: string, opts: SendPromptOpts): Promise<void> {
+export async function sendPromptWhenReady(instanceId: string, opts: SendPromptOpts): Promise<SendPromptResult> {
   const client = getDaemonClient()
   const promptText = opts.planFirst ? PLAN_FIRST_PREFIX + opts.prompt : opts.prompt
   const forceTimeout = opts.forceTimeout ?? 3000
@@ -73,7 +78,7 @@ export async function sendPromptWhenReady(instanceId: string, opts: SendPromptOp
       setTimeout(() => {
         client.writeToInstance(instanceId, '\r')
         opts.onSent?.()
-        resolve()
+        resolve('sent')
       }, 150)
     }
 
@@ -109,7 +114,7 @@ export async function sendPromptWhenReady(instanceId: string, opts: SendPromptOp
       if (!sent) {
         sent = true
         cleanup()
-        resolve()
+        resolve('abandoned')
       }
     }, abandonTimeout)
   })

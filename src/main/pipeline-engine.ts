@@ -2000,7 +2000,6 @@ async function runPoll(pipelineName: string): Promise<void> {
     appendActivity({ source: 'pipeline', name: pipelineName, summary: `Pipeline "${pipelineName}" failed: ${String(err).slice(0, 120)}`, level: 'error' })
 
     if (p.state.consecutiveFailures >= CONSECUTIVE_FAILURE_THRESHOLD) {
-      p.def.enabled = false
       const timer = timers.get(pipelineName)
       if (timer) {
         clearInterval(timer)
@@ -2011,8 +2010,11 @@ async function runPoll(pipelineName: string): Promise<void> {
         let content = await fsp.readFile(filePath, 'utf-8')
         content = content.replace(/^enabled:\s*(true|false)/m, `enabled: false`)
         await fsp.writeFile(filePath, content, 'utf-8')
+        p.def.enabled = false
       } catch (writeErr) {
-        log(`Failed to update ${p.fileName} after auto-pause: ${writeErr}`)
+        // File write failed — leave in-memory enabled=true so it matches disk.
+        // Timer is already cleared; pipeline will resume on next app restart.
+        log(`Failed to persist auto-pause for ${p.fileName}: ${writeErr}`)
       }
       plog(pipelineName, `Auto-paused after ${CONSECUTIVE_FAILURE_THRESHOLD} consecutive failures`)
       appendActivity({
@@ -2254,6 +2256,7 @@ export function stopPipelines(): void {
     clearInterval(timer)
   }
   timers.clear()
+  runningPolls.clear()
   filePollSnapshots.clear()
   if (approvalSweepTimer) {
     clearInterval(approvalSweepTimer)
