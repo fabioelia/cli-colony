@@ -11483,6 +11483,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 /* ===== Persona Trigger Map ===== */
 .trigger-map {
   padding: 8px 0;
+  position: relative;
 }
 
 .trigger-map-cycle-warning {
@@ -11527,7 +11528,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   stroke: var(--text-muted);
   stroke-width: 1.5;
   fill: none;
-  opacity: 0.6;
+  opacity: 0.8;
 }
 
 .trigger-edge-dashed {
@@ -11542,12 +11543,34 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .trigger-edge-label {
   fill: var(--text-muted);
-  font-size: 9px;
+  font-size: 11px;
   text-anchor: middle;
 }
 
 .trigger-edge-label-cycle {
   fill: var(--danger);
+}
+
+/* Trigger map: larger text for readability (scoped, doesn't affect PipelineFlowDiagram) */
+.trigger-map .flow-node-content {
+  font-size: 13px;
+}
+
+.trigger-map-zoom-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 1;
+}
+
+.trigger-map-zoom-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  min-width: 36px;
+  text-align: center;
 }
 
 /* ===== Session Deps / Orchestrate Panel ===== */

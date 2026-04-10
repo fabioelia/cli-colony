@@ -760,6 +760,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Cycle detection', detail: 'If on_complete_run chains form a cycle (A→B→C→A), those edges are highlighted in red with a warning banner.' },
           { label: 'Color dots', detail: 'Each node shows the persona color. Green pulsing dot = running. Dimmed node = disabled persona.' },
           { label: 'Click to navigate', detail: 'Click any node to switch to the List tab and expand that persona card.' },
+          { label: 'Zoom', detail: 'Cmd+scroll (or Ctrl+scroll) to zoom in/out (50%–300%). Use the +/− buttons in the top-right corner. Zoom level persists across sessions.' },
         ],
       },
     ],

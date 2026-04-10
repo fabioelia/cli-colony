@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PersonaInfo } from '../../../shared/types'
 
 interface Props {
@@ -7,8 +7,8 @@ interface Props {
 }
 
 // Layout constants — similar to PipelineFlowDiagram
-const NODE_W = 150
-const NODE_H = 44
+const NODE_W = 180
+const NODE_H = 52
 const GAP_X = 180
 const GAP_Y = 80
 const PAD = 30
@@ -203,8 +203,40 @@ function buildGraph(personas: PersonaInfo[]): {
   }
 }
 
+const ZOOM_KEY = 'trigger-map-zoom'
+const ZOOM_MIN = 0.5
+const ZOOM_MAX = 3
+const ZOOM_STEP = 0.1
+
+function clampZoom(z: number): number {
+  return Math.round(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z)) * 100) / 100
+}
+
 export default function PersonaTriggerMap({ personas, onSelectPersona }: Props) {
   const { nodes, edges, width, height } = useMemo(() => buildGraph(personas), [personas])
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [zoom, setZoom] = useState(() => {
+    try { return clampZoom(parseFloat(localStorage.getItem(ZOOM_KEY) || '1') || 1) } catch { return 1 }
+  })
+
+  const persistZoom = useCallback((next: number) => {
+    const clamped = clampZoom(next)
+    try { localStorage.setItem(ZOOM_KEY, String(clamped)) } catch { /* Safari private */ }
+    return clamped
+  }, [])
+
+  // Cmd/Ctrl+scroll zoom — use useEffect + ref to register non-passive listener
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const handler = (e: WheelEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return
+      e.preventDefault()
+      setZoom(z => persistZoom(z + (e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP)))
+    }
+    el.addEventListener('wheel', handler, { passive: false })
+    return () => el.removeEventListener('wheel', handler)
+  }, [persistZoom])
 
   if (personas.length === 0) {
     return <div className="flow-empty">No personas defined.</div>
@@ -218,15 +250,23 @@ export default function PersonaTriggerMap({ personas, onSelectPersona }: Props) 
   const posMap = new Map<string, TriggerNode>()
   for (const n of nodes) posMap.set(n.id, n)
 
+  const zoomIn = () => setZoom(z => persistZoom(z + ZOOM_STEP))
+  const zoomOut = () => setZoom(z => persistZoom(z - ZOOM_STEP))
+
   return (
-    <div className="trigger-map">
+    <div className="trigger-map" ref={containerRef}>
       {hasCycles && (
         <div className="trigger-map-cycle-warning">
           Cycle detected in always-fire chain — highlighted in red
         </div>
       )}
+      <div className="trigger-map-zoom-controls">
+        <button className="panel-header-btn" onClick={zoomOut} title="Zoom out">−</button>
+        <span className="trigger-map-zoom-label">{Math.round(zoom * 100)}%</span>
+        <button className="panel-header-btn" onClick={zoomIn} title="Zoom in">+</button>
+      </div>
       <div className="pipeline-flow-diagram">
-        <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+        <svg width={width * zoom} height={height * zoom} viewBox={`0 0 ${width} ${height}`}>
           <defs>
             <marker id="trigger-arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
               <path d="M0,0 L8,3 L0,6" fill="var(--text-muted)" />
