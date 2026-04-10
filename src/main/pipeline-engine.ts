@@ -26,6 +26,7 @@ import { notify } from './notifications'
 import { matchRules, estimateActionCost } from './approval-rules'
 import { createWorktree, removeWorktree } from './worktree-manager'
 import { readArenaStats, writeArenaStats } from './arena-stats'
+import { waitForSessionCompletion } from './session-completion'
 
 const execFileAsync = promisify(execFileCb)
 
@@ -675,36 +676,7 @@ async function evaluateCondition(condition: ConditionDef, ctx: TriggerContext): 
 
 // ---- Maker-Checker Support ----
 
-/**
- * Wait for an instance to go busy then idle, indicating it has finished
- * processing the last prompt. Returns true on completion, false on timeout.
- */
-async function waitForSessionCompletion(instanceId: string, timeoutMs = 600000): Promise<boolean> {
-  const client = getDaemonClient()
-  return new Promise((resolve) => {
-    let done = false
-    let seenBusy = false
-
-    const cleanup = () => {
-      done = true
-      client.removeListener('activity', handler)
-      clearTimeout(timeoutId)
-    }
-
-    const handler = (id: string, activity: string) => {
-      if (id !== instanceId || done) return
-      if (activity === 'busy') {
-        seenBusy = true
-      } else if (activity === 'waiting' && seenBusy) {
-        cleanup()
-        resolve(true)
-      }
-    }
-
-    client.on('activity', handler)
-    const timeoutId = setTimeout(() => { cleanup(); resolve(false) }, timeoutMs)
-  })
-}
+// waitForSessionCompletion imported from ./session-completion
 
 /** Run artifact capture commands and save stdout to the shared artifacts directory. Never throws. */
 async function captureArtifacts(outputs: Array<{ name: string; cmd: string }>, cwd: string | undefined): Promise<void> {

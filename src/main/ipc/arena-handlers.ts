@@ -1,13 +1,18 @@
 import { ipcMain } from 'electron'
+import { promises as fsp } from 'fs'
 import { promisify } from 'util'
 import { execFile } from 'child_process'
+import { join } from 'path'
 import { readArenaStats, writeArenaStats } from '../arena-stats'
 import { createWorktree, removeWorktree } from '../worktree-manager'
 import { createInstance } from '../instance-manager'
 import { sendPromptWhenReady } from '../send-prompt-when-ready'
 import { getDaemonClient } from '../daemon-client'
+import { waitForSessionCompletion } from '../session-completion'
+import { colonyPaths } from '../../shared/colony-paths'
 
 const execFileAsync = promisify(execFile)
+const MAX_DIFF_BYTES = 8 * 1024 // 8KB per pane
 
 export function registerArenaHandlers(): void {
   ipcMain.handle('arena:recordWinner', async (_e, winnerKey: string, loserKey: string | string[]): Promise<boolean> => {
@@ -152,7 +157,85 @@ export function registerArenaHandlers(): void {
       return { winnerId, results }
     }
 
-    // LLM judge: not yet implemented in arena UI — pipeline-only for now
-    return { winnerId: null, results: [] }
+    // LLM judge: launch a judge session with each pane's git diff
+    const diffs: string[] = []
+    let firstDir = '.'
+    for (let i = 0; i < instanceIds.length; i++) {
+      const inst = await getDaemonClient().getInstance(instanceIds[i])
+      const cwd = inst?.workingDirectory || '.'
+      if (i === 0) firstDir = cwd
+      try {
+        const { stdout } = await execFileAsync('git', ['diff', 'HEAD'], {
+          cwd, timeout: 10_000, maxBuffer: 2 * 1024 * 1024,
+        })
+        const trimmed = stdout.length > MAX_DIFF_BYTES
+          ? stdout.slice(0, MAX_DIFF_BYTES) + '\n[...truncated]'
+          : stdout
+        diffs.push(trimmed || '(no changes)')
+      } catch {
+        diffs.push('(git diff failed)')
+      }
+    }
+
+    const diffSections = diffs.map((d, i) => `Pane ${i + 1} diff:\n\`\`\`\n${d}\n\`\`\``).join('\n\n')
+    const verdictDir = join(colonyPaths.root, 'artifacts')
+    const verdictPath = join(verdictDir, 'arena-judge-verdict.txt')
+    await fsp.mkdir(verdictDir, { recursive: true })
+
+    const judgePrompt = `You are judging an arena competition between ${instanceIds.length} agents.
+
+${judgeConfig.prompt}
+
+${diffSections}
+
+After evaluating, write your verdict to a file at ${verdictPath} containing WINNER: <pane-number> (e.g., WINNER: 1). Then explain your reasoning.`
+
+    const judgeInst = await createInstance({
+      name: 'Arena Judge',
+      workingDirectory: firstDir,
+    })
+
+    const completionPromise = waitForSessionCompletion(judgeInst.id, 600_000)
+    sendPromptWhenReady(judgeInst.id, { prompt: judgePrompt })
+    const completed = await completionPromise
+
+    let winnerId: string | null = null
+    if (completed) {
+      try {
+        const verdict = await fsp.readFile(verdictPath, 'utf-8')
+        const match = verdict.match(/WINNER:\s*(\d+)/i)
+        if (match) {
+          const paneIdx = parseInt(match[1], 10) - 1
+          if (paneIdx >= 0 && paneIdx < instanceIds.length) {
+            winnerId = instanceIds[paneIdx]
+          }
+        }
+      } catch { /* verdict file missing or unreadable */ }
+      // Clean up verdict file
+      try { await fsp.unlink(verdictPath) } catch { /* ok */ }
+    }
+
+    // Record stats
+    if (winnerId) {
+      try {
+        const stats = await readArenaStats()
+        const winner = await getDaemonClient().getInstance(winnerId)
+        const winnerKey = winner?.name || winnerId
+        if (!stats[winnerKey]) stats[winnerKey] = { wins: 0, losses: 0, totalRuns: 0 }
+        stats[winnerKey].wins++
+        stats[winnerKey].totalRuns++
+        for (const instId of instanceIds) {
+          if (instId === winnerId) continue
+          const loser = await getDaemonClient().getInstance(instId)
+          const loserKey = loser?.name || instId
+          if (!stats[loserKey]) stats[loserKey] = { wins: 0, losses: 0, totalRuns: 0 }
+          stats[loserKey].losses++
+          stats[loserKey].totalRuns++
+        }
+        await writeArenaStats(stats)
+      } catch { /* stats are best-effort */ }
+    }
+
+    return { winnerId, results: [] }
   })
 }

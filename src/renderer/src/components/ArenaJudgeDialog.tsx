@@ -44,8 +44,8 @@ export default function ArenaJudgeDialog({ onClose, onJudge, judging }: Props) {
 
         <div className="fork-modal-body">
           <div className="fork-modal-hint">
-            Automatically pick a winner by running a shell command in each session's working directory.
-            The first session whose command exits with code 0 wins.
+            Automatically pick a winner. Command mode runs a shell command in each session's directory —
+            first to exit 0 wins. LLM mode launches a judge session that compares each pane's git diff.
           </div>
 
           <div className="fork-modal-field">
@@ -96,7 +96,7 @@ export default function ArenaJudgeDialog({ onClose, onJudge, judging }: Props) {
                 autoFocus
               />
               <div className="fork-modal-hint" style={{ marginTop: 4, fontSize: 11 }}>
-                LLM judge is not yet available in arena mode — coming soon.
+                Launches a judge session with each pane's diff. Judge writes WINNER: N.
               </div>
             </div>
           )}
@@ -109,7 +109,7 @@ export default function ArenaJudgeDialog({ onClose, onJudge, judging }: Props) {
           <button
             className="fork-modal-submit"
             onClick={handleRun}
-            disabled={judging || !isValid || judgeType === 'llm'}
+            disabled={judging || !isValid}
           >
             {judging ? <><Loader2 size={13} className="spin" /> Judging...</> : <>Run Judge</>}
           </button>
