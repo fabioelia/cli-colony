@@ -334,6 +334,34 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
   const stopped = environments.filter(e => e.status === 'stopped').length
   const partial = environments.filter(e => e.status === 'partial' || e.status === 'creating').length
 
+  const totalServices = environments.reduce((sum, e) => sum + e.services.length, 0)
+  const crashedServices = environments.reduce((sum, e) => sum + e.services.filter(s => s.status === 'crashed').length, 0)
+
+  // Detect port conflicts across environments
+  const portConflicts = useMemo(() => {
+    const portMap: Record<number, Array<{ envName: string; serviceName: string }>> = {}
+    for (const env of environments) {
+      // From env.ports (allocated ports)
+      for (const [name, port] of Object.entries(env.ports)) {
+        if (!port) continue
+        if (!portMap[port]) portMap[port] = []
+        portMap[port].push({ envName: env.displayName || env.name, serviceName: name })
+      }
+      // From service-level ports
+      for (const svc of env.services) {
+        if (!svc.port) continue
+        if (!portMap[svc.port]) portMap[svc.port] = []
+        const already = portMap[svc.port]
+        if (!already.some(e => e.envName === (env.displayName || env.name) && e.serviceName === svc.name)) {
+          already.push({ envName: env.displayName || env.name, serviceName: svc.name })
+        }
+      }
+    }
+    return Object.entries(portMap)
+      .filter(([, users]) => users.length > 1)
+      .map(([port, users]) => ({ port: Number(port), users }))
+  }, [environments])
+
   if (logViewEnv) {
     return (
       <EnvironmentLogViewer
@@ -410,20 +438,49 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
       {/* Environment list */}
       <div className="env-list">
         {environments.length > 0 && (
-          <div className="env-panel-badges">
-            {running > 0 && <span className="env-badge env-badge-running">{running} running</span>}
-            {stopped > 0 && <span className="env-badge env-badge-stopped">{stopped} stopped</span>}
-            {partial > 0 && <span className="env-badge env-badge-partial">{partial} partial</span>}
-            {(['interactive', 'background', 'nightly'] as const).filter(t => Object.values(purposeTags).includes(t)).map(t => (
-              <button
-                key={t}
-                className={`env-purpose-filter-btn env-purpose-${t}${tagFilter === t ? ' active' : ''}`}
-                onClick={() => setTagFilter(prev => prev === t ? null : t)}
-                title={tagFilter === t ? `Clear ${t} filter` : `Show only ${t} environments`}
-              >
-                {t}
-              </button>
-            ))}
+          <div className="env-health-summary">
+            {/* Status badges row */}
+            <div className="env-panel-badges">
+              {running > 0 && <span className="env-badge env-badge-running">{running} running</span>}
+              {stopped > 0 && <span className="env-badge env-badge-stopped">{stopped} stopped</span>}
+              {partial > 0 && <span className="env-badge env-badge-partial">{partial} partial</span>}
+              <span className="env-badge env-badge-services">{totalServices} svc{totalServices !== 1 ? 's' : ''}</span>
+              {crashedServices > 0 && <span className="env-badge env-badge-crashed">{crashedServices} crashed</span>}
+              {portConflicts.length > 0 && (
+                <Tooltip content={portConflicts.map(c => `Port ${c.port}: ${c.users.map(u => `${u.envName}/${u.serviceName}`).join(', ')}`).join('\n')}>
+                  <span className="env-badge env-badge-conflict"><AlertTriangle size={11} /> {portConflicts.length} port conflict{portConflicts.length !== 1 ? 's' : ''}</span>
+                </Tooltip>
+              )}
+              {(['interactive', 'background', 'nightly'] as const).filter(t => Object.values(purposeTags).includes(t)).map(t => (
+                <button
+                  key={t}
+                  className={`env-purpose-filter-btn env-purpose-${t}${tagFilter === t ? ' active' : ''}`}
+                  onClick={() => setTagFilter(prev => prev === t ? null : t)}
+                  title={tagFilter === t ? `Clear ${t} filter` : `Show only ${t} environments`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+            {/* Compact environment grid */}
+            <div className="env-health-grid">
+              {environments.map(env => (
+                <button
+                  key={env.id}
+                  className={`env-health-tile${expandedId === env.id ? ' active' : ''}`}
+                  onClick={() => setExpandedId(expandedId === env.id ? null : env.id)}
+                  title={`${env.displayName || env.name} — ${env.status}${env.services.length ? ` (${env.services.filter(s => s.status === 'running').length}/${env.services.length} services)` : ''}`}
+                >
+                  <div className="env-health-tile-dot" style={{ backgroundColor: statusColor(env.status) }} />
+                  <span className="env-health-tile-name">{(env.displayName || env.name).slice(0, 12)}</span>
+                  <div className="env-health-tile-services">
+                    {env.services.map(svc => (
+                      <div key={svc.name} className="env-health-tile-svc" style={{ backgroundColor: serviceStatusColor(svc.status) }} />
+                    ))}
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         )}
         {environments.length === 0 && (

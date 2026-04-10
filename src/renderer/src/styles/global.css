@@ -12416,10 +12416,17 @@ body:has(.daemon-update-banner) .app-update-banner {
   margin-top: 4px;
 }
 
+/* Health summary container */
+.env-health-summary {
+  margin-bottom: 6px;
+}
+
 .env-panel-badges {
   display: flex;
   gap: 6px;
-  margin-bottom: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 6px;
 }
 
 .env-badge {
@@ -12442,6 +12449,83 @@ body:has(.daemon-update-banner) .app-update-banner {
 .env-badge-partial {
   background: rgba(245, 158, 11, 0.15);
   color: var(--warning);
+}
+
+.env-badge-services {
+  background: rgba(99, 102, 241, 0.15);
+  color: #818cf8;
+}
+
+.env-badge-crashed {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+}
+
+.env-badge-conflict {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--warning);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  cursor: help;
+}
+
+/* Compact environment health grid */
+.env-health-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.env-health-tile {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-secondary);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.env-health-tile:hover {
+  border-color: var(--border-active);
+  background: var(--bg-tertiary);
+}
+
+.env-health-tile.active {
+  border-color: var(--accent);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.env-health-tile-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.env-health-tile-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80px;
+}
+
+.env-health-tile-services {
+  display: flex;
+  gap: 2px;
+  margin-left: 2px;
+}
+
+.env-health-tile-svc {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
 }
 
 .env-panel-actions {

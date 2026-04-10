@@ -485,6 +485,16 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Health Summary',
+        position: 'Top of Instances tab',
+        items: [
+          { label: 'Status badges', detail: 'Running, stopped, partial counts plus total services. Crashed badge appears when any service is down.' },
+          { label: 'Port conflict warning', detail: 'Amber badge when two environments claim the same port. Hover to see which environments and services conflict.', icon: 'AlertTriangle' },
+          { label: 'Compact grid', detail: 'Each tile is one environment — status dot, name, and service health dots. Click to expand that environment. Active tile highlighted in blue.' },
+          { label: 'Purpose filters', detail: 'Filter environments by tag: interactive, background, or nightly. Click again to clear.' },
+        ],
+      },
+      {
         name: 'Environment Cards',
         position: 'Main area — Instances tab',
         items: [
