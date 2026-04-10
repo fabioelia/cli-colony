@@ -103,7 +103,7 @@ export default function ArenaJudgeDialog({ onClose, onJudge, judging }: Props) {
         </div>
 
         <div className="fork-modal-footer">
-          <button className="fork-modal-cancel" onClick={onClose} disabled={judging}>
+          <button className="fork-modal-cancel" onClick={onClose}>
             Cancel
           </button>
           <button
