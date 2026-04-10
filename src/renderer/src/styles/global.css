@@ -625,6 +625,44 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-color: var(--accent);
 }
 
+.sidebar-sessions-filters {
+  display: flex;
+  gap: 4px;
+  padding: 2px 8px 4px;
+  align-items: center;
+}
+
+.sidebar-sessions-filter-select {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.sidebar-sessions-filter-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.sidebar-sessions-filter-clear {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+}
+
+.sidebar-sessions-filter-clear:hover {
+  color: var(--text-primary);
+}
+
 .sidebar-sessions-list {
   flex: 1;
   overflow-y: auto;

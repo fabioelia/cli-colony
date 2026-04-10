@@ -131,6 +131,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Main area',
         items: [
           { label: 'Active sessions', detail: 'Pulsing dot = Claude is working. Solid dot = waiting for input. Click to open.' },
+          { label: 'Sort & filter', detail: 'Below the search bar: sort by Recent (default), Most Messages, or Name A-Z. Filter by project to narrow to a specific repo. Active project filter shows in the History header. Filter state persists across restarts.' },
           { label: 'Stopped sessions', detail: 'Dimmed with exit code. Auto-cleaned after 5 minutes (configurable in Settings). "Clear all" appears on the Stopped divider when 2+ sessions are stopped.' },
           { label: 'Session notes', detail: 'Right-click a session → Add Note to annotate it with freeform text (e.g., "waiting for CI", "investigating auth bug"). Notes appear as an italic subtitle under the session name. Edit or clear via the same menu. Max 500 characters.' },
           { label: 'Pin to top', detail: 'Right-click a session to pin it. Pinned sessions stay at the top and are restored on launch.', icon: 'Pin' },

@@ -453,6 +453,8 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const newSessionBtnRef = useRef<HTMLButtonElement>(null)
   const [sessions, setSessions] = useState<CliSession[]>([])
   const [sessionSearch, setSessionSearch] = useState('')
+  const [sessionSort, setSessionSort] = useState<'recent' | 'messages' | 'name'>(() => (localStorage.getItem('colony:sessionSort') as any) || 'recent')
+  const [sessionProjectFilter, setSessionProjectFilter] = useState<string | null>(() => localStorage.getItem('colony:sessionProjectFilter') || null)
   const [hoveredSessionId, setHoveredSessionId] = useState<string | null>(null)
   const [popoverPos, setPopoverPos] = useState<{ top: number } | null>(null)
   const [instancePopoverPos, setInstancePopoverPos] = useState<{ top: number; left: number } | null>(null)
@@ -465,6 +467,12 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
       renameRef.current.select()
     }
   }, [renamingId])
+
+  useEffect(() => { localStorage.setItem('colony:sessionSort', sessionSort) }, [sessionSort])
+  useEffect(() => {
+    if (sessionProjectFilter) localStorage.setItem('colony:sessionProjectFilter', sessionProjectFilter)
+    else localStorage.removeItem('colony:sessionProjectFilter')
+  }, [sessionProjectFilter])
 
   // Restore persisted sidebar width on mount, clamped to minimum
   useEffect(() => {
@@ -704,14 +712,32 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     return `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m`
   }
 
-  const filteredSessions = sessionSearch
-    ? sessions.filter((s) => {
-        const q = sessionSearch.toLowerCase()
-        return s.display.toLowerCase().includes(q) ||
-          s.projectName.toLowerCase().includes(q) ||
-          (s.name && s.name.toLowerCase().includes(q))
-      })
-    : sessions
+  const filteredSessions = useMemo(() => {
+    let result = sessions
+    if (sessionSearch) {
+      const q = sessionSearch.toLowerCase()
+      result = result.filter((s) =>
+        s.display.toLowerCase().includes(q) ||
+        s.projectName.toLowerCase().includes(q) ||
+        (s.name && s.name.toLowerCase().includes(q))
+      )
+    }
+    if (sessionProjectFilter) {
+      result = result.filter(s => s.projectName === sessionProjectFilter)
+    }
+    if (sessionSort === 'messages') {
+      result = [...result].sort((a, b) => b.messageCount - a.messageCount)
+    } else if (sessionSort === 'name') {
+      result = [...result].sort((a, b) => a.display.localeCompare(b.display))
+    }
+    // 'recent' is the default order from the API — no re-sort needed
+    return result
+  }, [sessions, sessionSearch, sessionProjectFilter, sessionSort])
+
+  const uniqueProjects = useMemo(() =>
+    [...new Set(sessions.map(s => s.projectName))].sort(),
+    [sessions]
+  )
 
   const ctxLevelFor = (bytes: number): 'amber' | 'red' | null => {
     if (bytes >= 600_000) return 'red'
@@ -1249,7 +1275,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
 
       <div className="sidebar-sessions">
         <div className="sidebar-sessions-header">
-          <span className="sidebar-sessions-title">History</span>
+          <span className="sidebar-sessions-title">{sessionProjectFilter ? `History — ${sessionProjectFilter.split('/').pop()}` : 'History'}</span>
           <span className="sidebar-sessions-count">{filteredSessions.length}</span>
           <button
             className="sidebar-sessions-refresh"
@@ -1266,6 +1292,36 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
           value={sessionSearch}
           onChange={(e) => setSessionSearch(e.target.value)}
         />
+        <div className="sidebar-sessions-filters">
+          <select
+            className="sidebar-sessions-filter-select"
+            value={sessionSort}
+            onChange={(e) => setSessionSort(e.target.value as 'recent' | 'messages' | 'name')}
+            title="Sort sessions"
+          >
+            <option value="recent">Recent</option>
+            <option value="messages">Most messages</option>
+            <option value="name">Name A-Z</option>
+          </select>
+          <select
+            className="sidebar-sessions-filter-select"
+            value={sessionProjectFilter ?? ''}
+            onChange={(e) => setSessionProjectFilter(e.target.value || null)}
+            title="Filter by project"
+          >
+            <option value="">All Projects</option>
+            {uniqueProjects.map(p => <option key={p} value={p}>{p.split('/').pop()}</option>)}
+          </select>
+          {sessionProjectFilter && (
+            <button
+              className="sidebar-sessions-filter-clear"
+              onClick={() => setSessionProjectFilter(null)}
+              title="Clear project filter"
+            >
+              <X size={11} />
+            </button>
+          )}
+        </div>
         <div className="sidebar-sessions-list">
           {filteredSessions.map((s) => (
             <div
