@@ -276,6 +276,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const [browserUrlInput, setBrowserUrlInput] = useState<string>('')
   const [browserError, setBrowserError] = useState<string | null>(null)
   const webviewRef = useRef<Electron.WebviewTag>(null)
+  const browserUrlIntentRef = useRef<string | null>(null)
   const [fixMenuOpen, setFixMenuOpen] = useState(false)
   const [fixResult, setFixResult] = useState<{ lines: string[]; isError?: boolean } | null>(null)
   const [fixInProgress, setFixInProgress] = useState(false)
@@ -402,25 +403,57 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     if (entries.length === 0) return
     // Auto-select first service if none selected or current service no longer exists
     if (!browserService || !envStatus.urls[browserService]) {
+      // Check localStorage for persisted URL first
+      const stored = localStorage.getItem(`colony:browserUrl:${instanceId}`)
+      if (stored) {
+        try {
+          const { service, url, ts } = JSON.parse(stored)
+          if (Date.now() - ts < 20 * 60 * 1000 && envStatus.urls[service]) {
+            browserUrlIntentRef.current = url
+            setBrowserService(service)
+            setBrowserUrl(url)
+            setBrowserUrlInput(url)
+            return
+          }
+        } catch { /* ignore corrupt data */ }
+        localStorage.removeItem(`colony:browserUrl:${instanceId}`)
+      }
+      browserUrlIntentRef.current = entries[0][1]
       setBrowserService(entries[0][0])
       setBrowserUrl(entries[0][1])
     }
-  }, [envStatus?.urls, browserService])
+  }, [envStatus?.urls, browserService, instanceId])
 
   // Imperatively set webview src and handle navigation events
   useEffect(() => {
     const wv = webviewRef.current
     if (!wv || !browserUrl || viewTab !== 'browser') return
 
-    // Set src imperatively (React doesn't handle webview attributes well)
-    if (wv.src !== browserUrl) {
-      wv.src = browserUrl
+    // Only set src on intentional URL change (service tab click, Enter key), not on tab re-focus
+    if (browserUrlIntentRef.current) {
+      wv.src = browserUrlIntentRef.current
+      browserUrlIntentRef.current = null
+    }
+    // Sync URL bar with current webview location on tab re-focus
+    if (wv.src && wv.src !== 'about:blank') {
+      try {
+        const currentUrl = wv.getURL?.() || wv.src
+        if (currentUrl && currentUrl !== 'about:blank') {
+          setBrowserUrlInput(currentUrl)
+        }
+      } catch { /* webview not ready yet */ }
     }
     setBrowserError(null)
 
-    const handleNavigation = (e: Electron.DidNavigateEvent) => {
+    const handleNavigation = (e: { url: string }) => {
       setBrowserUrl(e.url)
       setBrowserUrlInput(e.url)
+      // Persist to localStorage for tab-switch resilience
+      if (e.url && e.url !== 'about:blank' && browserService) {
+        localStorage.setItem(`colony:browserUrl:${instanceId}`, JSON.stringify({
+          service: browserService, url: e.url, ts: Date.now()
+        }))
+      }
     }
     const handleFailLoad = (e: Electron.DidFailLoadEvent) => {
       if (e.errorCode === -3) return // Aborted navigations (user clicked quickly)
@@ -428,12 +461,14 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     }
 
     wv.addEventListener('did-navigate', handleNavigation)
+    wv.addEventListener('did-navigate-in-page', handleNavigation)
     wv.addEventListener('did-fail-load', handleFailLoad)
     return () => {
       wv.removeEventListener('did-navigate', handleNavigation)
+      wv.removeEventListener('did-navigate-in-page', handleNavigation)
       wv.removeEventListener('did-fail-load', handleFailLoad)
     }
-  }, [browserUrl, viewTab])
+  }, [browserUrl, viewTab, instanceId, browserService])
 
   // Shell terminal — lazy init when tab is first opened, re-init on shellResetKey
   useEffect(() => {
@@ -2081,7 +2116,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               <button
                 key={name}
                 className={`browser-panel-tab ${browserService === name ? 'active' : ''}`}
-                onClick={() => { setBrowserService(name); setBrowserUrl(url); setBrowserUrlInput(url); setBrowserError(null) }}
+                onClick={() => { browserUrlIntentRef.current = url; setBrowserService(name); setBrowserUrl(url); setBrowserUrlInput(url); setBrowserError(null) }}
               >
                 {name}
               </button>
@@ -2103,6 +2138,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && browserUrlInput) {
                   const url = browserUrlInput.startsWith('http') ? browserUrlInput : `http://${browserUrlInput}`
+                  browserUrlIntentRef.current = url
                   setBrowserUrl(url)
                   setBrowserUrlInput(url)
                   setBrowserError(null)
