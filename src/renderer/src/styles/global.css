@@ -15622,7 +15622,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   stroke-width: 1;
 }
 .schedule-run-dot.late {
-  fill: var(--warning, #f59e0b);
+  fill: var(--warning);
 }
 .schedule-overlap-band {
   fill: rgba(239,68,68,0.12);
@@ -15654,7 +15654,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-radius: 50%;
 }
 .schedule-legend-dot.green { background: var(--success); }
-.schedule-legend-dot.amber { background: var(--warning, #f59e0b); }
+.schedule-legend-dot.amber { background: var(--warning); }
 .schedule-legend-overlap {
   display: inline-block;
   width: 12px;
