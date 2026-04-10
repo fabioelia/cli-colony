@@ -945,8 +945,15 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Independent process', detail: 'This is a separate shell (bash/zsh), not the Claude CLI. It doesn\'t share state with the Claude session.' },
           { label: 'Same directory', detail: 'Opens in the same working directory as the Claude session.' },
           { label: 'Persistent', detail: 'The shell stays alive as long as the session exists. Switch tabs freely.' },
+          { label: 'Search', detail: 'Cmd+F opens a search bar to find text in the shell output. Same search as the Session tab.' },
         ],
       },
+    ],
+    shortcuts: [
+      { keys: 'Cmd+F', action: 'Search in terminal' },
+      { keys: 'Cmd+=', action: 'Zoom in' },
+      { keys: 'Cmd+-', action: 'Zoom out' },
+      { keys: 'Cmd+0', action: 'Reset zoom' },
     ],
   },
 
