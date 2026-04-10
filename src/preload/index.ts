@@ -394,6 +394,10 @@ export interface ClaudeManagerAPI {
       models?: (string | null)[]
     }) => Promise<{ instances: string[]; worktrees: string[] }>
     cleanupWorktrees: (worktreeIds: string[]) => Promise<number>
+    autoJudge: (opts: {
+      instanceIds: string[]
+      judgeConfig: { type: 'command'; cmd: string } | { type: 'llm'; prompt: string }
+    }) => Promise<{ winnerId: string | null; results: Array<{ instanceId: string; exitCode: number; stdout: string }> }>
   }
   fork: {
     create: (parentId: string, opts: {
@@ -888,6 +892,7 @@ const api: ClaudeManagerAPI = {
     getStats: () => ipcRenderer.invoke('arena:getStats'),
     launchWithWorktrees: (opts) => ipcRenderer.invoke('arena:launchWithWorktrees', opts),
     cleanupWorktrees: (ids) => ipcRenderer.invoke('arena:cleanupWorktrees', ids),
+    autoJudge: (opts) => ipcRenderer.invoke('arena:autoJudge', opts),
   },
   fork: {
     create: (parentId, opts) => ipcRenderer.invoke('fork:create', parentId, opts),

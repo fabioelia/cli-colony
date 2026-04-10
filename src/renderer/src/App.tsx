@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { Swords, BarChart3, X as XIcon, EyeOff, Trophy, Rocket } from 'lucide-react'
+import { Swords, BarChart3, X as XIcon, EyeOff, Trophy, Rocket, Gavel } from 'lucide-react'
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
 import { createPortal } from 'react-dom'
 import type { ClaudeInstance, AgentDef, CliSession, RecentSession, CliBackend, ArenaStats } from './types'
@@ -22,6 +22,7 @@ import ReviewPanel from './components/ReviewPanel'
 import QuickPromptDialog from './components/QuickPromptDialog'
 import ForkModal from './components/ForkModal'
 import ArenaLaunchDialog from './components/ArenaLaunchDialog'
+import ArenaJudgeDialog from './components/ArenaJudgeDialog'
 import ArenaLeaderboard from './components/ArenaLeaderboard'
 import ColonyOverviewPanel from './components/ColonyOverviewPanel'
 import { loadPresets } from './components/WorkspacePresets'
@@ -85,6 +86,8 @@ export default function App() {
   const [arenaLaunchOpen, setArenaLaunchOpen] = useState(false)
   const [arenaWorktreeIds, setArenaWorktreeIds] = useState<string[]>([])
   const [arenaLeaderboardOpen, setArenaLeaderboardOpen] = useState(false)
+  const [arenaJudgeOpen, setArenaJudgeOpen] = useState(false)
+  const [arenaJudging, setArenaJudging] = useState(false)
   const [unreadIds, setUnreadIds] = useState<Set<string>>(new Set())
   const [fontSize, setFontSize] = useState(13)
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
@@ -819,6 +822,24 @@ export default function App() {
     setArenaStatsOpen(true)
   }, [])
 
+  const handleAutoJudge = useCallback(async (config: { type: 'command'; cmd: string } | { type: 'llm'; prompt: string }) => {
+    const arenaIds = gridPanes.some(p => p !== null)
+      ? gridPanes.filter((p): p is string => p !== null)
+      : [activeId, splitId].filter((p): p is string => !!p)
+    if (arenaIds.length < 2) return
+    setArenaJudging(true)
+    try {
+      const { winnerId } = await window.api.arena.autoJudge({ instanceIds: arenaIds, judgeConfig: config })
+      if (winnerId) {
+        setArenaWinnerId(winnerId)
+        setArenaBlind(false)
+      }
+    } finally {
+      setArenaJudging(false)
+      setArenaJudgeOpen(false)
+    }
+  }, [gridPanes, activeId, splitId])
+
   const handleArenaLaunch = useCallback((result: { instances: string[]; worktrees: string[] }) => {
     const { instances: ids, worktrees: wtIds } = result
     // Populate grid with the new instance IDs
@@ -1395,6 +1416,17 @@ export default function App() {
                 <EyeOff size={11} /> Blind
               </button>
             )}
+            {arenaMode && (
+              <button
+                className={`grid-arena-toggle${arenaJudging ? ' active' : ''}`}
+                onClick={() => setArenaJudgeOpen(true)}
+                disabled={arenaJudging || arenaWinnerId !== null}
+                title={arenaWinnerId ? 'Winner already selected' : 'Auto-Judge — run a command to pick a winner'}
+                aria-label="Auto-Judge"
+              >
+                <Gavel size={11} /> {arenaJudging ? 'Judging...' : 'Judge'}
+              </button>
+            )}
             <div style={{ flex: 1 }} />
             <button
               className="grid-arena-toggle"
@@ -1485,6 +1517,17 @@ export default function App() {
                 aria-label="Toggle blind mode"
               >
                 <EyeOff size={9} />
+              </button>
+            )}
+            {arenaMode && (
+              <button
+                className={`arena-toggle-btn${arenaJudging ? ' active' : ''}`}
+                onClick={(e) => { e.stopPropagation(); setArenaJudgeOpen(true) }}
+                disabled={arenaJudging || arenaWinnerId !== null}
+                title={arenaWinnerId ? 'Winner already selected' : 'Auto-Judge'}
+                aria-label="Auto-Judge"
+              >
+                <Gavel size={9} />
               </button>
             )}
           </div>
@@ -1919,6 +1962,13 @@ export default function App() {
         <ArenaLaunchDialog
           onClose={() => setArenaLaunchOpen(false)}
           onLaunch={handleArenaLaunch}
+        />
+      )}
+      {arenaJudgeOpen && (
+        <ArenaJudgeDialog
+          onClose={() => { setArenaJudgeOpen(false); setArenaJudging(false) }}
+          onJudge={handleAutoJudge}
+          judging={arenaJudging}
         />
       )}
       <ArenaLeaderboard
