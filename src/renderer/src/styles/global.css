@@ -7726,6 +7726,58 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--accent);
 }
 
+/* PR File Diffs */
+.github-pr-files-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  width: 100%;
+}
+.github-pr-files-toggle:hover { background: var(--bg-hover); color: var(--text-primary); }
+.github-pr-files-toggle.active { color: var(--text-primary); border-color: var(--border-active); }
+.github-pr-files-list { border: 1px solid var(--border-subtle); border-radius: 4px; overflow: hidden; }
+.github-pr-file { border-bottom: 1px solid var(--border-subtle); }
+.github-pr-file:last-child { border-bottom: none; }
+.github-pr-file-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.github-pr-file-header:hover { background: var(--bg-hover); }
+.github-pr-file-status { font-weight: 600; width: 14px; text-align: center; flex-shrink: 0; }
+.github-pr-file-status.added { color: var(--success); }
+.github-pr-file-status.modified { color: var(--warning); }
+.github-pr-file-status.removed { color: var(--danger); }
+.github-pr-file-status.renamed { color: var(--accent-purple); }
+.github-pr-file-status.copied { color: var(--accent); }
+.github-pr-file-name {
+  flex: 1;
+  font-family: var(--font-mono, 'SF Mono', monospace);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.github-pr-file-stats { font-size: 11px; white-space: nowrap; flex-shrink: 0; }
+.github-pr-file-stats .additions { color: var(--success); }
+.github-pr-file-stats .deletions { color: var(--danger); }
+.github-pr-file-binary {
+  padding: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 12px;
+}
+
 .github-pr-quick-actions {
   display: flex;
   flex-wrap: wrap;
