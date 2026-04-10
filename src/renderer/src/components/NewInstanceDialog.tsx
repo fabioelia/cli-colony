@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import type { AgentDef, CliBackend } from '../types'
 import { COLORS, COLOR_MAP } from '../lib/constants'
+import { getHistory, addToHistory } from '../lib/prompt-history'
 
 export interface CloneSource {
   name: string
@@ -45,6 +46,18 @@ interface Props {
   initialWorkingDirectory?: string
   /** Pre-fill all fields from a source session (Clone action). */
   cloneSource?: CloneSource
+}
+
+function relativeTime(ts: number): string {
+  const diff = Date.now() - ts
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days === 1) return 'yesterday'
+  return `${days}d ago`
 }
 
 function resolveColor(c?: string): string {
@@ -92,6 +105,8 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
   const showPromptField = !!cloneSource || initialPrompt !== undefined
   const [firstPrompt, setFirstPrompt] = useState(initialPrompt || '')
   const promptRef = useRef<HTMLTextAreaElement | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const historyRef = useRef<HTMLDivElement | null>(null)
 
   // When the starter-card path opens the dialog, focus the prompt textarea
   // and place the cursor at the end so the user can just press Enter.
@@ -138,6 +153,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
     const args = extraArgs.trim() ? extraArgs.trim().split(/\s+/) : undefined
     const mcpServers = selectedMcpServers.size > 0 ? Array.from(selectedMcpServers) : undefined
     const trimmedPrompt = firstPrompt.trim()
+    if (trimmedPrompt) addToHistory(trimmedPrompt)
     try {
       await onCreate({
         name: name.trim() || undefined,
@@ -163,10 +179,27 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
   }
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose() }
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (historyOpen) { setHistoryOpen(false); e.stopPropagation(); return }
+        handleClose()
+      }
+    }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [])
+  }, [historyOpen])
+
+  // Close history dropdown on click outside
+  useEffect(() => {
+    if (!historyOpen) return
+    const handler = (e: MouseEvent) => {
+      if (historyRef.current && !historyRef.current.contains(e.target as Node)) {
+        setHistoryOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [historyOpen])
 
   return (
     <div className="dialog-overlay">
@@ -191,7 +224,43 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
 
         {showPromptField && (
           <div className="dialog-field">
-            <label>First prompt</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <label style={{ margin: 0 }}>First prompt</label>
+              {getHistory().length > 0 && (
+                <div style={{ position: 'relative' }} ref={historyRef}>
+                  <button
+                    type="button"
+                    className="panel-header-btn"
+                    style={{ padding: '1px 4px', fontSize: 11 }}
+                    onClick={() => setHistoryOpen(!historyOpen)}
+                    title="Prompt history"
+                  >
+                    History
+                  </button>
+                  {historyOpen && (
+                    <div className="prompt-history-dropdown">
+                      {getHistory().map((entry, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          className="prompt-history-item"
+                          onClick={() => {
+                            setFirstPrompt(entry.prompt)
+                            setHistoryOpen(false)
+                            promptRef.current?.focus()
+                          }}
+                        >
+                          <span className="prompt-history-text">
+                            {entry.prompt.length > 80 ? entry.prompt.slice(0, 80) + '...' : entry.prompt}
+                          </span>
+                          <span className="prompt-history-time">{relativeTime(entry.timestamp)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             <textarea
               ref={promptRef}
               className="dialog-first-prompt"
