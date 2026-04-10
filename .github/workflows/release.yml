@@ -28,15 +28,28 @@ jobs:
       - name: Determine version bump from commits
         id: check
         run: |
-          # Find the last release tag (vX.Y.Z), or use root commit if none
+          # Find the last release tag (vX.Y.Z), or fall back to first commit
           LAST_TAG=$(git tag -l 'v*' --sort=-v:refname | head -1)
           if [ -z "$LAST_TAG" ]; then
             RANGE="HEAD"
+            CURRENT="0.0.0"
           else
             RANGE="${LAST_TAG}..HEAD"
+            # Extract version from tag (strip leading 'v')
+            CURRENT="${LAST_TAG#v}"
           fi
 
-          echo "Checking commits in range: $RANGE"
+          # If HEAD is the tagged commit, there's nothing new to release
+          if [ "$RANGE" != "HEAD" ]; then
+            COUNT=$(git rev-list --count "$RANGE")
+            if [ "$COUNT" = "0" ]; then
+              echo "HEAD is at $LAST_TAG — nothing to release"
+              echo "should_release=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          echo "Checking commits in range: $RANGE (base version: $CURRENT)"
           COMMITS=$(git log --pretty=format:"%s" $RANGE)
           echo "$COMMITS"
 
@@ -60,8 +73,7 @@ jobs:
 
           echo "Bump type: $BUMP"
 
-          # Read current version from package.json
-          CURRENT=$(node -p "require('./package.json').version")
+          # Bump from the latest tag version, NOT package.json
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
 
           case "$BUMP" in
@@ -72,6 +84,13 @@ jobs:
 
           NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
           echo "Version: $CURRENT -> $NEW_VERSION"
+
+          # Safety: skip if this tag already exists (e.g. re-run)
+          if git tag -l "v${NEW_VERSION}" | grep -q .; then
+            echo "Tag v${NEW_VERSION} already exists — skipping"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           echo "should_release=true" >> "$GITHUB_OUTPUT"
           echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
@@ -120,16 +139,17 @@ jobs:
       - name: Generate release notes
         id: notes
         run: |
-          LAST_TAG=$(git tag -l 'v*' --sort=-v:refname | head -1)
-          if [ -z "$LAST_TAG" ]; then
+          # Use the previous tag (not the one we're about to create) for the range
+          PREV_TAG=$(git tag -l 'v*' --sort=-v:refname | head -1)
+          if [ -z "$PREV_TAG" ]; then
             RANGE="HEAD"
           else
-            RANGE="${LAST_TAG}..HEAD"
+            RANGE="${PREV_TAG}..HEAD"
           fi
 
           {
             echo "notes<<NOTES_EOF"
-            git log --pretty=format:"- %s" $RANGE | grep -E '^- (feat|fix|ux|perf)(\(.+\))?[!]?:'
+            git log --pretty=format:"- %s" $RANGE | grep -E '^- (feat|fix|ux|perf)(\(.+\))?[!]?:' || true
             echo ""
             echo "NOTES_EOF"
           } >> "$GITHUB_OUTPUT"
