@@ -442,81 +442,6 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
 
           return (
             <div key={env.id} className={`env-card env-card-${env.status}${expandedId === env.id ? ' expanded' : ''}`}>
-              {/* Live setup progress */}
-              {(env.status === 'creating' || env.status === 'error') && (
-                <div className="env-setup-tracker">
-                  <div className="env-setup-tracker-header">
-                    {env.status === 'creating' && <><Loader size={12} className="spinning" /> Setting up...</>}
-                    {env.status === 'error' && <><AlertTriangle size={12} /> Setup failed</>}
-                  </div>
-                  {(setupSteps[env.id] || []).map((step, i) => (
-                    <div key={i} className={`env-setup-step env-setup-step-${step.status}`}>
-                      <span className="env-setup-step-icon">
-                        {step.status === 'pending' && <Circle size={10} color="var(--text-muted)" />}
-                        {step.status === 'running' && <Loader size={10} className="spinning" />}
-                        {step.status === 'done' && <CheckCircle size={10} />}
-                        {step.status === 'error' && <AlertTriangle size={10} />}
-                        {step.status === 'skipped' && <SkipForward size={10} color="var(--text-muted)" />}
-                      </span>
-                      <span className="env-setup-step-name">{step.name}</span>
-                      {step.error && (
-                        <Tooltip text="Error" detail={step.error} position="bottom">
-                          <span className="env-setup-step-error">{step.error.slice(0, 80)}</span>
-                        </Tooltip>
-                      )}
-                    </div>
-                  ))}
-                  {setupError[env.id] && (
-                    <Tooltip text="Setup Error" detail={setupError[env.id]} position="bottom">
-                      <div className="env-setup-error-detail">{setupError[env.id].slice(0, 120)}</div>
-                    </Tooltip>
-                  )}
-                  {env.status === 'error' && (
-                    <div className="env-setup-recovery">
-                      <button className="env-btn env-btn-primary env-btn-sm" onClick={() => handleDiagnose(env)}>
-                        <Wrench size={11} /> Diagnose
-                      </button>
-                      <button className="env-btn env-btn-secondary env-btn-sm" onClick={() => setLogViewEnv({ envId: env.id, envName: env.name, serviceNames: ['setup', ...env.services.map(s => s.name)] })}>
-                        <FileText size={11} /> View Log
-                      </button>
-                      <button className="env-btn env-btn-secondary env-btn-sm" onClick={async () => {
-                        try {
-                          // Reset steps to pending and re-run setup
-                          const m = await window.api.env.manifest(env.id)
-                          if (m?.setup) {
-                            m.setup.status = 'creating'
-                            m.setup.error = null
-                            if (m.setup.steps) m.setup.steps.forEach((s: any) => { if (s.status === 'error' || s.status === 'skipped') { s.status = 'pending'; s.error = undefined } })
-                            await window.api.env.saveManifest(env.id, m)
-                          }
-                          // Re-trigger setup
-                          await window.api.env.retrySetup(env.id)
-                          loadEnvironments()
-                        } catch (err: any) { console.error('Retry failed:', err) }
-                      }}>
-                        <RefreshCw size={11} /> Retry Setup
-                      </button>
-                      <button className="env-btn env-btn-secondary env-btn-sm" onClick={async () => {
-                        if (!confirm('Force environment to ready state without re-running setup? Only use this if you\'ve resolved the issue manually.')) return
-                        try {
-                          const m = await window.api.env.manifest(env.id)
-                          if (m?.setup) {
-                            m.setup.status = 'ready'
-                            m.setup.error = null
-                            await window.api.env.saveManifest(env.id, m)
-                          }
-                          loadEnvironments()
-                        } catch (err: any) { console.error('Force ready failed:', err) }
-                      }}>
-                        <CheckCircle size={11} /> Mark as Ready
-                      </button>
-                      <button className="env-btn env-btn-ghost env-btn-sm" onClick={() => handleTeardown(env.id)}>
-                        <Trash2 size={11} /> Teardown
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
               {/* Card header */}
               <div
                 className="env-card-header"
@@ -695,6 +620,80 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                   </Tooltip>
                 </div>
               </div>
+
+              {/* Live setup progress */}
+              {(env.status === 'creating' || env.status === 'error') && (
+                <div className="env-setup-tracker">
+                  <div className="env-setup-tracker-header">
+                    {env.status === 'creating' && <><Loader size={12} className="spinning" /> Setting up...</>}
+                    {env.status === 'error' && <><AlertTriangle size={12} /> Setup failed</>}
+                  </div>
+                  {(setupSteps[env.id] || []).map((step, i) => (
+                    <div key={i} className={`env-setup-step env-setup-step-${step.status}`}>
+                      <span className="env-setup-step-icon">
+                        {step.status === 'pending' && <Circle size={10} color="var(--text-muted)" />}
+                        {step.status === 'running' && <Loader size={10} className="spinning" />}
+                        {step.status === 'done' && <CheckCircle size={10} />}
+                        {step.status === 'error' && <AlertTriangle size={10} />}
+                        {step.status === 'skipped' && <SkipForward size={10} color="var(--text-muted)" />}
+                      </span>
+                      <span className="env-setup-step-name">{step.name}</span>
+                      {step.error && (
+                        <Tooltip text="Error" detail={step.error} position="bottom">
+                          <span className="env-setup-step-error">{step.error.slice(0, 80)}</span>
+                        </Tooltip>
+                      )}
+                    </div>
+                  ))}
+                  {setupError[env.id] && (
+                    <Tooltip text="Setup Error" detail={setupError[env.id]} position="bottom">
+                      <div className="env-setup-error-detail">{setupError[env.id].slice(0, 120)}</div>
+                    </Tooltip>
+                  )}
+                  {env.status === 'error' && (
+                    <div className="env-setup-recovery">
+                      <button className="env-btn env-btn-primary env-btn-sm" onClick={() => handleDiagnose(env)}>
+                        <Wrench size={11} /> Diagnose
+                      </button>
+                      <button className="env-btn env-btn-secondary env-btn-sm" onClick={() => setLogViewEnv({ envId: env.id, envName: env.name, serviceNames: ['setup', ...env.services.map(s => s.name)] })}>
+                        <FileText size={11} /> View Log
+                      </button>
+                      <button className="env-btn env-btn-secondary env-btn-sm" onClick={async () => {
+                        try {
+                          const m = await window.api.env.manifest(env.id)
+                          if (m?.setup) {
+                            m.setup.status = 'creating'
+                            m.setup.error = null
+                            if (m.setup.steps) m.setup.steps.forEach((s: any) => { if (s.status === 'error' || s.status === 'skipped') { s.status = 'pending'; s.error = undefined } })
+                            await window.api.env.saveManifest(env.id, m)
+                          }
+                          await window.api.env.retrySetup(env.id)
+                          loadEnvironments()
+                        } catch (err: any) { console.error('Retry failed:', err) }
+                      }}>
+                        <RefreshCw size={11} /> Retry Setup
+                      </button>
+                      <button className="env-btn env-btn-secondary env-btn-sm" onClick={async () => {
+                        if (!confirm('Force environment to ready state without re-running setup? Only use this if you\'ve resolved the issue manually.')) return
+                        try {
+                          const m = await window.api.env.manifest(env.id)
+                          if (m?.setup) {
+                            m.setup.status = 'ready'
+                            m.setup.error = null
+                            await window.api.env.saveManifest(env.id, m)
+                          }
+                          loadEnvironments()
+                        } catch (err: any) { console.error('Force ready failed:', err) }
+                      }}>
+                        <CheckCircle size={11} /> Mark as Ready
+                      </button>
+                      <button className="env-btn env-btn-ghost env-btn-sm" onClick={() => handleTeardown(env.id)}>
+                        <Trash2 size={11} /> Teardown
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Fix result banner */}
               {fixResult != null && fixResult.envId === env.id && (
