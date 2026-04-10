@@ -1030,8 +1030,9 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Service pills', detail: 'One button per service URL. Click to switch the embedded browser to that service.' },
           { label: 'Navigation', detail: 'Back, forward, and reload buttons for standard browser navigation.' },
-          { label: 'URL display', detail: 'Shows the current URL of the embedded browser.' },
+          { label: 'URL bar', detail: 'Editable URL bar — type or paste any URL and press Enter to navigate. Updates automatically when you click links.' },
           { label: 'Open External', detail: 'Opens the current page in your system browser.', icon: 'ExternalLink' },
+          { label: 'DevTools', detail: 'Opens Chromium Developer Tools for the embedded browser — inspect elements, debug JavaScript, monitor network requests.', icon: 'Bug' },
         ],
       },
       {

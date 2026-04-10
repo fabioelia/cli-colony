@@ -5,7 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, LayoutGrid, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation, MessageCircleWarning, ThumbsUp, Sparkles, Bot, BarChart3, Package, GitCommit, Globe } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, LayoutGrid, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation, MessageCircleWarning, ThumbsUp, Sparkles, Bot, BarChart3, Package, GitCommit, Globe, Bug } from 'lucide-react'
 import { TeamMetricsPanel } from './TeamMetricsPanel'
 import type { EnvStatus, EnvServiceStatus, GitDiffEntry, ColonyComment, ScoreCard, CoordinatorTeam, CoordinatorWorker, SessionArtifact } from '../../../shared/types'
 import { buildDiagnosePrompt } from '../../../shared/env-prompts'
@@ -273,6 +273,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   // Browser tab state
   const [browserService, setBrowserService] = useState<string | null>(null)
   const [browserUrl, setBrowserUrl] = useState<string | null>(null)
+  const [browserUrlInput, setBrowserUrlInput] = useState<string>('')
   const [browserError, setBrowserError] = useState<string | null>(null)
   const webviewRef = useRef<Electron.WebviewTag>(null)
   const [fixMenuOpen, setFixMenuOpen] = useState(false)
@@ -419,6 +420,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
 
     const handleNavigation = (e: Electron.DidNavigateEvent) => {
       setBrowserUrl(e.url)
+      setBrowserUrlInput(e.url)
     }
     const handleFailLoad = (e: Electron.DidFailLoadEvent) => {
       if (e.errorCode === -3) return // Aborted navigations (user clicked quickly)
@@ -2079,7 +2081,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               <button
                 key={name}
                 className={`browser-panel-tab ${browserService === name ? 'active' : ''}`}
-                onClick={() => { setBrowserService(name); setBrowserUrl(url); setBrowserError(null) }}
+                onClick={() => { setBrowserService(name); setBrowserUrl(url); setBrowserUrlInput(url); setBrowserError(null) }}
               >
                 {name}
               </button>
@@ -2094,13 +2096,35 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
             <button className="browser-panel-nav-btn" onClick={() => webviewRef.current?.reload()} title="Reload">
               <RotateCw size={12} />
             </button>
-            <span className="browser-panel-url">{browserUrl}</span>
+            <input
+              className="browser-panel-url"
+              value={browserUrlInput}
+              onChange={(e) => setBrowserUrlInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && browserUrlInput) {
+                  const url = browserUrlInput.startsWith('http') ? browserUrlInput : `http://${browserUrlInput}`
+                  setBrowserUrl(url)
+                  setBrowserUrlInput(url)
+                  setBrowserError(null)
+                }
+              }}
+              onFocus={(e) => e.target.select()}
+              spellCheck={false}
+              placeholder="Enter URL..."
+            />
             <button
               className="browser-panel-nav-btn"
               onClick={() => browserUrl && window.api.shell.openExternal(browserUrl)}
               title="Open in external browser"
             >
               <ExternalLink size={12} />
+            </button>
+            <button
+              className="browser-panel-nav-btn"
+              onClick={() => webviewRef.current?.openDevTools()}
+              title="Open DevTools"
+            >
+              <Bug size={12} />
             </button>
           </div>
           {browserError ? (
