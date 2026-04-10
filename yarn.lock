@@ -1259,11 +1259,11 @@ __metadata:
   linkType: hard
 
 "@types/node@npm:*":
-  version: 25.5.2
-  resolution: "@types/node@npm:25.5.2"
+  version: 25.6.0
+  resolution: "@types/node@npm:25.6.0"
   dependencies:
-    undici-types: ~7.18.0
-  checksum: d2edd36f3326862872f23e8cefec4ce220e0ea4dd71ee491c33d2d334335a419a53a1321c522012243eab0d51f19330a5c882454141f5be2b5692e0edd534dd1
+    undici-types: ~7.19.0
+  checksum: 98945eb59909a08868ccac203022f122b5549448ef8628de9eac3fe20481467cd6ec32af819fd432695f67ac21ebbbc69c8a141de6c6455edaf6e717e2cb89c9
   languageName: node
   linkType: hard
 
@@ -1879,8 +1879,8 @@ __metadata:
   linkType: hard
 
 "bare-stream@npm:^2.6.4":
-  version: 2.12.0
-  resolution: "bare-stream@npm:2.12.0"
+  version: 2.13.0
+  resolution: "bare-stream@npm:2.13.0"
   dependencies:
     streamx: ^2.25.0
     teex: ^1.0.1
@@ -1895,7 +1895,7 @@ __metadata:
       optional: true
     bare-events:
       optional: true
-  checksum: 1e8d9b7cfd41e3806e6739e677291d0504f7cd6f8b3858fcf6b4962386a1b978134d294184920bef790512cf29970f04b9a21c7a18c1984280e1d390a22e5af0
+  checksum: cacff648f689fda30859969e11bbb76f7825a44bd4c448e363fb7876c8c365570f0b16288b028b74c821c4a91bc6ae513fb9a6298373ad7d38146a7409726fc6
   languageName: node
   linkType: hard
 
@@ -2257,8 +2257,10 @@ __metadata:
     electron-builder: ^25.1.8
     electron-updater: ^6.8.3
     electron-vite: ^2.3.0
+    highlight.js: ^11.11.1
     lucide-react: ^0.577.0
     marked: ^17.0.5
+    marked-highlight: ^2.2.4
     node-pty: ^1.1.0
     playwright-core: ^1.58.2
     react: ^19.0.0
@@ -3544,6 +3546,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"highlight.js@npm:^11.11.1":
+  version: 11.11.1
+  resolution: "highlight.js@npm:11.11.1"
+  checksum: 841ddd329a92be123a61ef4051698f824c3575deef588fbb810bd638f1575ddc96b7bdd925b97c05a29276bb119dfcb8e5bcb0acb31c86249371bf046e131d72
+  languageName: node
+  linkType: hard
+
 "hosted-git-info@npm:^4.1.0":
   version: 4.1.0
   resolution: "hosted-git-info@npm:4.1.0"
@@ -4137,6 +4146,15 @@ __metadata:
     proc-log: ^6.0.0
     ssri: ^13.0.0
   checksum: e43195c1e98d37acb4358eb574e6b4a591cd46624cbb4800ab2988bd21a3e7b4a26f94b561af119637643b87144e2adf03808909fefa4f88122ee1b3af7e9400
+  languageName: node
+  linkType: hard
+
+"marked-highlight@npm:^2.2.4":
+  version: 2.2.4
+  resolution: "marked-highlight@npm:2.2.4"
+  peerDependencies:
+    marked: ">=4 <19"
+  checksum: 120c0822e64d11ba719b553bfbafdf721dab4634663127814df70e380c43b1edc120bf35ee8f125fda06459f7db7d432997ca7f5ecc5df72fda618c52235c5aa
   languageName: node
   linkType: hard
 
@@ -5631,10 +5649,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"undici-types@npm:~7.18.0":
-  version: 7.18.2
-  resolution: "undici-types@npm:7.18.2"
-  checksum: 23da306c8366574adec305b06a8519ab5c7d09e3f5d16c1a98709a34fae17da09ec95198f30f86c00055e02efa8bfcc843e84e8aebeb9b8d6bb3e06afccae07a
+"undici-types@npm:~7.19.0":
+  version: 7.19.2
+  resolution: "undici-types@npm:7.19.2"
+  checksum: f721026160e1f068a982401d0272b872819c335a2f64783c235ddd37a65ccd94327ec24489cee4556d57c77c14bd68ced60efa5def11cf11e3991f5ebf5e0e72
   languageName: node
   linkType: hard
 

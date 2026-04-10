@@ -6502,66 +6502,175 @@ body:has(.daemon-update-banner) .app-update-banner {
   line-height: 1.7;
 }
 
-/* Markdown body styling */
-.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+/* Shared markdown viewer — used by MarkdownViewer component */
+.md-viewer {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  word-wrap: break-word;
+}
+.md-viewer h1, .md-viewer h2, .md-viewer h3, .md-viewer h4 {
   margin: 16px 0 8px;
   font-weight: 600;
   color: var(--text-primary);
 }
-.markdown-body h1 { font-size: 18px; }
-.markdown-body h2 { font-size: 15px; }
-.markdown-body h3 { font-size: 13px; }
-.markdown-body p { margin: 8px 0; }
-.markdown-body ul, .markdown-body ol { padding-left: 20px; margin: 8px 0; }
-.markdown-body li { margin: 4px 0; }
-.markdown-body code {
+.md-viewer h1 { font-size: 18px; }
+.md-viewer h2 { font-size: 15px; }
+.md-viewer h3 { font-size: 13px; }
+.md-viewer h4 { font-size: 12px; }
+.md-viewer h1, .md-viewer h2 {
+  border-bottom: 1px solid var(--border-muted);
+  padding-bottom: 6px;
+}
+.md-viewer p { margin: 8px 0; }
+.md-viewer ul, .md-viewer ol { padding-left: 20px; margin: 8px 0; }
+.md-viewer li { margin: 4px 0; }
+.md-viewer code {
   font-family: Menlo, Monaco, monospace;
   font-size: 12px;
   padding: 1px 5px;
   border-radius: 3px;
   background: var(--bg-surface);
 }
-.markdown-body pre {
-  padding: 10px 12px;
-  border-radius: 6px;
-  background: var(--bg-surface);
-  overflow-x: auto;
+.md-viewer pre {
   margin: 8px 0;
 }
-.markdown-body pre code {
+.md-viewer pre code {
   padding: 0;
   background: none;
 }
-.markdown-body blockquote {
+.md-viewer blockquote {
   border-left: 3px solid var(--border);
   padding-left: 12px;
   color: var(--text-muted);
   margin: 8px 0;
 }
-.markdown-body table {
+.md-viewer table {
   border-collapse: collapse;
   margin: 8px 0;
   font-size: 12px;
+  width: auto;
 }
-.markdown-body th, .markdown-body td {
+.md-viewer th, .md-viewer td {
   border: 1px solid var(--border);
   padding: 6px 10px;
 }
-.markdown-body th {
+.md-viewer th {
   background: var(--bg-surface);
   font-weight: 600;
 }
-.markdown-body a {
+.md-viewer table tr:nth-child(even) td {
+  background: var(--bg-secondary);
+}
+.md-viewer a {
   color: var(--accent);
   text-decoration: none;
 }
-.markdown-body a:hover {
+.md-viewer a:hover {
   text-decoration: underline;
 }
-.markdown-body img {
+.md-viewer img {
   max-width: 100%;
   border-radius: 4px;
 }
+.md-viewer hr {
+  border: none;
+  height: 1px;
+  background: var(--border-muted);
+  margin: 24px 0;
+}
+
+/* GFM task lists */
+.md-viewer ul.contains-task-list {
+  list-style: none;
+  padding-left: 8px;
+}
+.md-viewer li.task-list-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.md-viewer li.task-list-item input[type="checkbox"] {
+  margin: 0;
+  pointer-events: none;
+  accent-color: var(--accent);
+}
+
+/* Code block wrapper with language label + copy button */
+.md-viewer .code-block-wrapper {
+  position: relative;
+  margin: 8px 0;
+}
+.md-viewer .code-lang-label {
+  position: absolute;
+  top: 6px;
+  right: 60px;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  z-index: 1;
+}
+.md-viewer .code-copy-btn {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 1;
+}
+.md-viewer .code-block-wrapper:hover .code-copy-btn {
+  opacity: 1;
+}
+.md-viewer .code-copy-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface);
+}
+.md-viewer .code-block-wrapper pre {
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--bg-surface);
+  overflow-x: auto;
+  margin: 0;
+}
+
+/* Syntax highlighting — atom-one-dark palette tuned for dark app theme */
+.md-viewer .hljs { color: #abb2bf; }
+.md-viewer .hljs-keyword,
+.md-viewer .hljs-selector-tag,
+.md-viewer .hljs-literal,
+.md-viewer .hljs-section,
+.md-viewer .hljs-link { color: #c678dd; }
+.md-viewer .hljs-function .hljs-keyword { color: #c678dd; }
+.md-viewer .hljs-string,
+.md-viewer .hljs-attr,
+.md-viewer .hljs-addition { color: #98c379; }
+.md-viewer .hljs-number,
+.md-viewer .hljs-meta { color: #d19a66; }
+.md-viewer .hljs-comment,
+.md-viewer .hljs-quote { color: #5c6370; font-style: italic; }
+.md-viewer .hljs-deletion { color: #e06c75; }
+.md-viewer .hljs-title,
+.md-viewer .hljs-title.function_ { color: #61afef; }
+.md-viewer .hljs-built_in,
+.md-viewer .hljs-type { color: #e5c07b; }
+.md-viewer .hljs-params { color: #abb2bf; }
+.md-viewer .hljs-regexp { color: #98c379; }
+.md-viewer .hljs-symbol,
+.md-viewer .hljs-bullet { color: #56b6c2; }
+.md-viewer .hljs-variable,
+.md-viewer .hljs-template-variable { color: #e06c75; }
+.md-viewer .hljs-name,
+.md-viewer .hljs-selector-id,
+.md-viewer .hljs-selector-class { color: #e06c75; }
 
 .github-pr-comment-count {
   display: inline-flex;
@@ -13760,37 +13869,22 @@ body:has(.daemon-update-banner) .app-update-banner {
   padding: 0 10px 8px;
 }
 
-/* Markdown rendered inside persona sections */
-.persona-md p { margin: 4px 0; }
-.persona-md ul, .persona-md ol { padding-left: 18px; margin: 4px 0; }
-.persona-md li { margin: 2px 0; }
-.persona-md h3, .persona-md h4 {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 8px 0 4px;
+/* Compact markdown overrides inside persona sections */
+.persona-card-section-content .md-viewer { font-size: 12px; }
+.persona-card-section-content .md-viewer p { margin: 4px 0; }
+.persona-card-section-content .md-viewer ul,
+.persona-card-section-content .md-viewer ol { padding-left: 18px; margin: 4px 0; }
+.persona-card-section-content .md-viewer li { margin: 2px 0; }
+.persona-card-section-content .md-viewer h1,
+.persona-card-section-content .md-viewer h2,
+.persona-card-section-content .md-viewer h3,
+.persona-card-section-content .md-viewer h4 {
+  font-size: 12px; margin: 8px 0 4px; border-bottom: none; padding-bottom: 0;
 }
-.persona-md code {
-  background: var(--bg-tertiary);
-  padding: 1px 4px;
-  border-radius: 3px;
-  font-size: 11px;
-}
-.persona-md pre {
-  background: var(--bg-tertiary);
-  padding: 8px;
-  border-radius: 4px;
-  overflow-x: auto;
-  font-size: 11px;
-  margin: 4px 0;
-}
-.persona-md blockquote {
-  border-left: 3px solid var(--border);
-  padding-left: 10px;
-  margin: 4px 0;
-  color: var(--text-muted);
-}
-.persona-md em { color: var(--text-muted); }
+.persona-card-section-content .md-viewer code { font-size: 11px; background: var(--bg-tertiary); }
+.persona-card-section-content .md-viewer .code-block-wrapper pre { background: var(--bg-tertiary); padding: 8px; font-size: 11px; }
+.persona-card-section-content .md-viewer blockquote { margin: 4px 0; }
+.persona-card-section-content .md-viewer em { color: var(--text-muted); }
 
 .persona-card-footer {
   display: flex;
@@ -14360,36 +14454,6 @@ body:has(.daemon-update-banner) .app-update-banner {
   align-items: center;
   color: var(--danger);
 }
-
-/* env list mode */
-.env-list.list-mode {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-  padding: 0;
-}
-.env-list.list-mode .env-card {
-  border-radius: 0;
-  border: none;
-  border-bottom: 1px solid var(--border);
-  padding: 0;
-  margin-bottom: 0;
-}
-.env-list.list-mode .env-card:last-child { border-bottom: none; }
-.env-list.list-mode .env-card-header { padding: 5px 10px; min-height: 34px; }
-.env-list.list-mode .env-card-header:hover { background: var(--bg-hover); }
-/* Hide branch/type meta in list rows — name + service dots + actions are enough */
-.env-list.list-mode .env-card:not(.expanded) .env-card-meta { display: none; }
-/* Show setup tracker when the card is expanded; hide it in collapsed rows */
-.env-list.list-mode .env-card:not(.expanded) .env-setup-tracker { display: none; }
-.env-list.list-mode .env-panel-badges { padding: 6px 10px; border-bottom: 1px solid var(--border); }
-/* Compact action buttons in collapsed list rows — show on hover only for secondary actions */
-.env-list.list-mode .env-card:not(.expanded) .env-card-actions {
-  gap: 1px;
-  opacity: 0;
-  transition: opacity 0.12s;
-}
-.env-list.list-mode .env-card:not(.expanded):hover .env-card-actions { opacity: 1; }
 
 /* ---- Pipeline Preview Modal ---- */
 
@@ -16110,51 +16174,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   padding: 16px;
 }
 
-.outputs-markdown {
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--text-primary);
-}
-
-.outputs-markdown h1,
-.outputs-markdown h2,
-.outputs-markdown h3,
-.outputs-markdown h4 {
-  margin-top: 1.2em;
-  margin-bottom: 0.4em;
-  color: var(--text-primary);
-}
-
-.outputs-markdown p {
-  margin: 0.6em 0;
-}
-
-.outputs-markdown code {
-  background: var(--bg-secondary);
-  padding: 1px 4px;
-  border-radius: 3px;
-  font-family: var(--font-mono, monospace);
-  font-size: 0.9em;
-}
-
-.outputs-markdown pre {
-  background: var(--bg-secondary);
-  padding: 10px 12px;
-  border-radius: 4px;
-  overflow-x: auto;
-  font-family: var(--font-mono, monospace);
-  font-size: 12px;
-}
-
-.outputs-markdown ul,
-.outputs-markdown ol {
-  padding-left: 1.5em;
-  margin: 0.4em 0;
-}
-
-.outputs-markdown li {
-  margin: 0.2em 0;
-}
+/* outputs-markdown removed — now uses shared .md-viewer via MarkdownViewer component */
 
 .outputs-raw {
   font-family: var(--font-mono, monospace);

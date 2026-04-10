@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { FolderOpen, FileText, Clock, RefreshCw, Search, FileOutput } from 'lucide-react'
-import { marked } from 'marked'
+import MarkdownViewer from './MarkdownViewer'
 import HelpPopover from './HelpPopover'
 import EmptyStateHook from './EmptyStateHook'
 import type { OutputEntry } from '../../../shared/types'
@@ -197,10 +197,7 @@ export default function OutputsPanel() {
               </div>
               <div className="outputs-viewer-content">
                 {isMarkdown(selected.name) ? (
-                  <div
-                    className="outputs-markdown"
-                    dangerouslySetInnerHTML={{ __html: marked(content) as string }}
-                  />
+                  <MarkdownViewer content={content} />
                 ) : (
                   <pre className="outputs-raw">{content}</pre>
                 )}

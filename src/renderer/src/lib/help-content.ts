@@ -470,10 +470,9 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Header',
         position: 'Top bar with tabs',
         items: [
-          { label: 'Instances tab', detail: 'Shows running and stopped environments. Click to expand and manage services.' },
+          { label: 'Environments tab', detail: 'Shows running and stopped environments. Click a card to expand and manage services.' },
           { label: 'Templates tab', detail: 'Browse and manage environment templates. Create new environments from templates.' },
-          { label: 'Tab navigation', detail: 'Cmd+Shift+{ / Cmd+Shift+} cycles between the Instances and Templates tabs without touching the mouse.' },
-          { label: 'List/card toggle', detail: 'Switch between compact list rows and card view (Instances tab). Preference is saved per device.', icon: 'LayoutList' },
+          { label: 'Tab navigation', detail: 'Cmd+Shift+{ / Cmd+Shift+} cycles between the Environments and Templates tabs without touching the mouse.' },
           { label: 'Refresh button', detail: 'Re-fetches bare repos and re-scans for .colony/ templates (Templates tab only).', icon: 'RefreshCw' },
           { label: 'Import button', detail: 'Import a template from a JSON file.', icon: 'Upload' },
         ],
@@ -483,7 +482,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Main area — Instances tab',
         items: [
           { label: 'Status dot', detail: 'Green = all services running. Yellow = partial. Red = crashed. Gray = stopped.' },
-          { label: 'Service dots', detail: 'Colored dot + status label (running/stopped/crashed) for each service in the environment.' },
+          { label: 'Service dots', detail: 'Colored dot + service name for each service. Dot color shows status: green = running, red = crashed, gray = stopped. Hover for port and restart info.' },
           { label: 'Start', detail: 'Launch all services in the environment.', icon: 'Play' },
           { label: 'Stop', detail: 'Halt all running services.', icon: 'Square' },
           { label: 'Terminal', detail: 'Open a Claude session in the environment directory.', icon: 'Terminal' },
@@ -509,7 +508,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Template info', detail: 'Name, description, project type, repo list, and service definitions.' },
           { label: 'Source badge', detail: 'Shows whether the template is user-defined or from a repo\'s .colony/ directory.' },
-          { label: '+ New Environment', detail: 'Click to provision a new environment from this template. Repos are checked out as git worktrees.', icon: 'Plus' },
+          { label: 'Launch', detail: 'Provision a new environment from this template. Repos are checked out as git worktrees.', icon: 'Play' },
           { label: 'Edit', detail: 'Modify template in an AI-assisted editor session.', icon: 'Pencil' },
           { label: 'Delete', detail: 'Remove this template.', icon: 'Trash2' },
         ],
@@ -522,7 +521,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Live service rows', detail: 'Each row shows a service name and live status (starting / running / crashed / stopped). Updates every 2 seconds while the env boots.' },
           { label: 'Auto-heal on crash', detail: 'If any required service crashes during startup, Colony still opens the session — but prefixes the first message with the failed service name, last 50 log lines, and a directive to investigate. The Claude session lands pre-briefed to fix the env.' },
           { label: 'Timeout fallback', detail: 'If nothing resolves within 5 minutes, Colony spawns the session anyway so you\'re not stuck waiting. The timed-out env may still need manual intervention.' },
-          { label: 'Cancel button', detail: 'Drops the pending launch. Does NOT tear down the environment — it keeps running in the background. You can re-launch a session from the Instances tab once services are up.' },
+          { label: 'Cancel button', detail: 'Drops the pending launch. Does NOT tear down the environment — it keeps running in the background. You can re-launch a session from the Environments tab once services are up.' },
           { label: 'Optional services', detail: 'mcp-server crashes do not trigger auto-heal — it\'s treated as optional to match the env-daemon tolerance.' },
         ],
       },
@@ -770,7 +769,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Services tab', detail: 'Appears when an environment is attached. Manage services.' },
           { label: 'Logs tab', detail: 'Appears when an environment is attached. Stream service logs.' },
           { label: 'Artifacts tab', detail: 'Auto-generated proof-of-work bundle: commits, changed files, duration, cost. Collected on session exit.' },
-          { label: 'Tab navigation', detail: 'Cmd+Shift+{ / Cmd+Shift+} cycles through the visible tabs (Session, Terminal, Files, Changes, Artifacts, plus Services/Logs when an environment is attached and Team/Metrics for Coordinator sessions). Works even when focus is inside a terminal or input — the Cmd+Shift combo never conflicts with typing `{`/`}`. Same shortcut works in Environments (Instances ↔ Templates).' },
+          { label: 'Tab navigation', detail: 'Cmd+Shift+{ / Cmd+Shift+} cycles through the visible tabs (Session, Terminal, Files, Changes, Artifacts, plus Services/Logs when an environment is attached and Team/Metrics for Coordinator sessions). Works even when focus is inside a terminal or input — the Cmd+Shift combo never conflicts with typing `{`/`}`. Same shortcut works in Environments (Environments ↔ Templates).' },
         ],
       },
       {
@@ -1036,7 +1035,7 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Viewer',
         position: 'Right pane',
         items: [
-          { label: 'Markdown rendering', detail: 'Files ending in .md are rendered as formatted markdown. Other files (JSON, YAML, plain text) are shown as monospace raw text.' },
+          { label: 'Markdown rendering', detail: 'Files ending in .md are rendered with rich formatting: syntax-highlighted code blocks (Python, JS/TS, Bash, JSON, YAML, and more), copy-to-clipboard on code blocks, task list checkboxes, alternating table row colors, and styled headings with borders.' },
           { label: 'Size limit', detail: 'Files larger than 32KB are truncated with a notice at the end.' },
         ],
       },

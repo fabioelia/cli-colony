@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Server, Play, Square, Trash2, RefreshCw, FileText,
   Plus, ExternalLink, ChevronDown, ChevronRight,
-  Circle, AlertTriangle, Clock, X, FolderOpen, Terminal, Loader, CheckCircle, SkipForward, Upload, Download, MessageSquare, Wrench, Stethoscope,
-  LayoutList, LayoutGrid
+  Circle, AlertTriangle, Clock, X, FolderOpen, Terminal, Loader, CheckCircle, SkipForward, Upload, Download, MessageSquare, Wrench, Stethoscope
 } from 'lucide-react'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import { buildTemplateEditPrompt, buildDiagnosePrompt } from '../../../shared/env-prompts'
@@ -74,7 +73,6 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
   const [restartPolicies, setRestartPolicies] = useState<Record<string, 'manual' | 'on-crash'>>({})
   const [purposeTags, setPurposeTags] = useState<Record<string, 'interactive' | 'background' | 'nightly' | null>>({})
   const [tagFilter, setTagFilter] = useState<'interactive' | 'background' | 'nightly' | null>(null)
-  const [listMode, setListMode] = useState(() => localStorage.getItem('envs-list-mode') !== '0')
 
   const loadEnvironments = useCallback(async () => {
     try {
@@ -358,7 +356,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
             onClick={() => setActiveTab('instances')}
             title="Running and stopped environments (Cmd+Shift+{ / Cmd+Shift+})"
           >
-            Instances {environments.length > 0 && <span className="panel-header-count">{environments.length}</span>}
+            Environments {environments.length > 0 && <span className="panel-header-count">{environments.length}</span>}
           </button>
           <button
             className={`panel-header-tab ${activeTab === 'templates' ? 'active' : ''}`}
@@ -372,18 +370,9 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
         <HelpPopover topic="environments" align="right" />
         <div className="panel-header-actions">
           {activeTab === 'instances' && (
-            <>
-              <button
-                className={`panel-header-btn${listMode ? ' active' : ''}`}
-                title={listMode ? 'Switch to card view' : 'Switch to list view'}
-                onClick={() => { const next = !listMode; setListMode(next); localStorage.setItem('envs-list-mode', next ? '1' : '0') }}
-              >
-                {listMode ? <LayoutGrid size={13} /> : <LayoutList size={13} />}
-              </button>
-              <button className="panel-header-btn primary" onClick={() => { setCreateDialogMode('instance'); setCreateDialogTemplate(null); setShowCreateDialog(true) }}>
-                <Plus size={14} /> New Environment
-              </button>
-            </>
+            <button className="panel-header-btn primary" onClick={() => { setCreateDialogMode('instance'); setCreateDialogTemplate(null); setShowCreateDialog(true) }}>
+              <Plus size={14} /> New Environment
+            </button>
           )}
           {activeTab === 'templates' && (
             <>
@@ -419,7 +408,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
 
       {activeTab === 'instances' && <>
       {/* Environment list */}
-      <div className={`env-list${listMode ? ' list-mode' : ''}`}>
+      <div className="env-list">
         {environments.length > 0 && (
           <div className="env-panel-badges">
             {running > 0 && <span className="env-badge env-badge-running">{running} running</span>}
@@ -559,7 +548,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                   {env.services.map(svc => (
                     <Tooltip
                       key={svc.name}
-                      text={svc.name}
+                      text={`${svc.name}: ${svc.status}`}
                       detail={`${svc.port ? `port ${svc.port}` : ''}${svc.restarts > 0 ? ` · ${svc.restarts} restart${svc.restarts > 1 ? 's' : ''}` : ''}`}
                     >
                       <span className="env-service-dot-row">
@@ -567,7 +556,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                           className={`env-service-dot env-service-dot-${svc.status}`}
                           style={{ backgroundColor: serviceStatusColor(svc.status) }}
                         />
-                        <span className="env-service-status-label">{svc.status}</span>
+                        <span className="env-service-status-label">{svc.name}</span>
                       </span>
                     </Tooltip>
                   ))}
@@ -887,7 +876,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                     </span>
                   </div>
                   <button className="env-btn env-btn-primary env-btn-sm" onClick={(e) => { e.stopPropagation(); setCreateDialogMode('instance'); setCreateDialogTemplate(t); setShowCreateDialog(true) }}>
-                    <Plus size={11} /> New Instance
+                    <Play size={11} /> Launch
                   </button>
                 </div>
 

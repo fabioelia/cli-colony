@@ -7,7 +7,7 @@ import {
   CalendarClock,
 } from 'lucide-react'
 import EmptyStateHook from './EmptyStateHook'
-import { marked } from 'marked'
+import MarkdownViewer from './MarkdownViewer'
 import HelpPopover from './HelpPopover'
 import Tooltip from './Tooltip'
 import CronEditor from './CronEditor'
@@ -569,10 +569,9 @@ function PersonaSection({ title, content, defaultOpen, isOutput, isBrief, childr
       </button>
       {open && (
         children || (
-          <div
-            className={`persona-card-section-content persona-md ${isOutput ? 'persona-run-output' : ''}`}
-            dangerouslySetInnerHTML={{ __html: marked(content || '') as string }}
-          />
+          <div className={`persona-card-section-content${isOutput ? ' persona-run-output' : ''}`}>
+            <MarkdownViewer content={content || ''} />
+          </div>
         )
       )}
     </div>

@@ -3,7 +3,7 @@ import { useFileDrop } from '../hooks/useFileDrop'
 import { ArrowLeft, Plus, Trash2, RefreshCw, GitPullRequest, ExternalLink, Play, Pencil, ChevronDown, ChevronRight, MessageSquare, Send, User, Users, Eye, GitBranch, Clock, FileDiff, ShieldCheck, ShieldAlert, ShieldQuestion, Brain, Save, X, FileText, File, Filter, Search, CheckCircle, XCircle, Loader, CircleDot, Wrench, Download, AlertCircle, UserPlus } from 'lucide-react'
 import RepoRemovalModal, { type RemovalImpact } from './RepoRemovalModal'
 import PromptEnvironmentSelector from './PromptEnvironmentSelector'
-import { marked } from 'marked'
+import MarkdownViewer from './MarkdownViewer'
 import type { GitHubPR, GitHubRepo, QuickPrompt, PRChecks, FeedbackFile } from '../types'
 import type { PersonaInfo } from '../../../shared/types'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
@@ -18,22 +18,19 @@ function resolveRelativeUrl(href: string, repoSlug: string, branch: string): str
   return `https://github.com/${repoSlug}/blob/${branch}/${cleanHref}`
 }
 
-function renderMarkdown(md: string, repoSlug: string, prNumber: number, branch?: string): string {
-  const branchName = branch || 'main'
-  // Pre-process: rewrite relative markdown links before parsing
-  const processed = md
+function preprocessGitHubUrls(md: string, repoSlug: string, branch: string): string {
+  return md
     // [text](relative-path) → [text](absolute-url)
-    .replace(/\[([^\]]*)\]\(([^)]+)\)/g, (match, text, href) => {
-      const resolved = resolveRelativeUrl(href, repoSlug, branchName)
+    .replace(/\[([^\]]*)\]\(([^)]+)\)/g, (_match, text, href) => {
+      const resolved = resolveRelativeUrl(href, repoSlug, branch)
       return `[${text}](${resolved})`
     })
     // ![alt](relative-path) → ![alt](raw-url)
     .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, href) => {
       if (!href || href.startsWith('http') || href.startsWith('data:')) return match
       const cleanHref = href.startsWith('/') ? href.slice(1) : href
-      return `![${alt}](https://raw.githubusercontent.com/${repoSlug}/${branchName}/${cleanHref})`
+      return `![${alt}](https://raw.githubusercontent.com/${repoSlug}/${branch}/${cleanHref})`
     })
-  return marked.parse(processed) as string
 }
 
 interface Props {
@@ -1079,9 +1076,10 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                         {isOpen && (
                           <div className="github-pr-actions">
                             {pr.body && (
-                              <div
-                                className="github-pr-body markdown-body"
-                                dangerouslySetInnerHTML={{ __html: renderMarkdown(pr.body, slug, pr.number, pr.branch) }}
+                              <MarkdownViewer
+                                content={pr.body}
+                                className="github-pr-body"
+                                preprocessor={(md) => preprocessGitHubUrls(md, slug, pr.branch || 'main')}
                               />
                             )}
                             {pr.additions + pr.deletions > 0 && (
@@ -1326,9 +1324,10 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                         <span>{new Date(activeComment.createdAt).toLocaleString()}</span>
                         {activeComment.path && <span className="github-comments-content-path">{activeComment.path}</span>}
                       </div>
-                      <div
-                        className="github-comments-content-body markdown-body"
-                        dangerouslySetInnerHTML={{ __html: renderMarkdown(activeComment.body, commentsViewerSlug, commentsViewerPR!.number, commentsViewerPR!.branch) }}
+                      <MarkdownViewer
+                        content={activeComment.body}
+                        className="github-comments-content-body"
+                        preprocessor={(md) => preprocessGitHubUrls(md, commentsViewerSlug, commentsViewerPR!.branch || 'main')}
                       />
                     </>
                   )}
