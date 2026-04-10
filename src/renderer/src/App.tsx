@@ -401,6 +401,7 @@ export default function App() {
     cliBackend?: CliBackend
     mcpServers?: string[]
     initialPrompt?: string
+    permissionMode?: 'autonomous' | 'supervised'
   }) => {
     agentToLaunchRef.current = null
     const { initialPrompt, ...createOpts } = opts

@@ -15,6 +15,7 @@ import { createWorktree, mountWorktree } from './worktree-manager'
 import { broadcast } from './broadcast'
 import { gitRemoteUrl } from './settings'
 import { loadShellEnv } from '../shared/shell-env'
+import { buildContext, resolveTemplate as resolveTemplateVars } from '../shared/template-resolver'
 import type { InstanceManifest, EnvironmentTemplate } from '../daemon/env-protocol'
 
 const shellEnv = loadShellEnv()
@@ -115,6 +116,35 @@ export async function runSetup(
     // Store worktree mount mapping in manifest meta
     if (Object.keys(mountedWorktrees).length > 0) {
       manifest.meta = { ...manifest.meta, mountedWorktrees }
+
+      // Re-resolve hooks and services now that manifest.paths point to actual worktree locations.
+      // The initial resolution in createEnvironment() used placeholder paths (envDir/repoName)
+      // but worktrees live in ~/.claude-colony/worktrees/<id>/<repo>/.
+      if (template) {
+        logSetup('Re-resolving hooks and services with actual worktree paths')
+        const repos: Record<string, any> = {}
+        if (template.repos) {
+          for (const repo of template.repos) repos[repo.as] = { ...repo }
+        }
+        const context = buildContext({
+          name: manifest.name,
+          ports: manifest.ports,
+          paths: manifest.paths,
+          resources: manifest.resources || {},
+          repos,
+          branch,
+        })
+        const resolved = resolveTemplateVars(
+          { services: template.services, hooks: template.hooks, resources: template.resources },
+          context,
+          'env-setup:re-resolve',
+        )
+        manifest.services = resolved.services
+        manifest.hooks = resolved.hooks
+        manifest.resources = resolved.resources
+        // Persist the corrected manifest so hooks run with the right paths
+        fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8')
+      }
     }
     updateStep('Clone repos', 'done')
 

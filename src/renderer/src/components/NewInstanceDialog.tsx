@@ -11,6 +11,7 @@ interface Props {
     cliBackend?: CliBackend
     mcpServers?: string[]
     initialPrompt?: string
+    permissionMode?: 'autonomous' | 'supervised'
   }) => void | Promise<void>
   onClose: () => void
   prefill?: AgentDef
@@ -53,6 +54,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
   const [color, setColor] = useState(resolveColor(prefill?.color))
   const [extraArgs, setExtraArgs] = useState('')
   const [cliBackend, setCliBackend] = useState<CliBackend>('claude')
+  const [permissionMode, setPermissionMode] = useState<'autonomous' | 'supervised'>('autonomous')
   const [creating, setCreating] = useState(false)
   const [environments, setEnvironments] = useState<EnvOption[]>([])
   const [mcpServersList, setMcpServersList] = useState<McpServer[]>([])
@@ -108,6 +110,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
         cliBackend,
         mcpServers,
         initialPrompt: trimmedPrompt || undefined,
+        permissionMode,
       })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -242,6 +245,31 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
             <option value="claude">Claude Code (claude)</option>
             <option value="cursor-agent">Cursor Agent (agent)</option>
           </select>
+        </div>
+
+        <div className="dialog-field">
+          <label>Permission Mode</label>
+          <div className="dialog-permission-toggle">
+            <button
+              type="button"
+              className={`dialog-permission-btn ${permissionMode === 'autonomous' ? 'active' : ''}`}
+              onClick={() => setPermissionMode('autonomous')}
+            >
+              Autonomous
+            </button>
+            <button
+              type="button"
+              className={`dialog-permission-btn ${permissionMode === 'supervised' ? 'active' : ''}`}
+              onClick={() => setPermissionMode('supervised')}
+            >
+              Supervised
+            </button>
+          </div>
+          <div className="dialog-field-hint">
+            {permissionMode === 'supervised'
+              ? 'Claude will ask before risky actions (file writes, commands).'
+              : 'Claude runs with full permissions (default).'}
+          </div>
         </div>
 
         {mcpServersList.length > 0 && (

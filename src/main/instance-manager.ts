@@ -177,6 +177,7 @@ export async function createInstance(opts: {
   cliBackend?: CliBackend
   mcpServers?: string[]
   model?: string
+  permissionMode?: 'autonomous' | 'supervised'
 }): Promise<ClaudeInstance> {
   const defaultArgs = await getDefaultArgs()
   const home = app.getPath('home')

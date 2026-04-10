@@ -38,6 +38,31 @@ const PID_PATH = colonyPaths.daemonPid
 
 const shellEnv = loadShellEnv()
 
+/**
+ * Resolve a command name to its full path using the shell environment PATH.
+ * Falls back to the bare command name if resolution fails (lets posix_spawnp try).
+ * Caches per command name so we only `which` once per daemon lifetime.
+ */
+const _resolvedCommands = new Map<string, string>()
+function resolveCommand(cmd: string): string {
+  if (cmd.startsWith('/')) return cmd // already absolute
+  const cached = _resolvedCommands.get(cmd)
+  if (cached) return cached
+  try {
+    const resolved = execSync(`which ${cmd}`, {
+      encoding: 'utf-8',
+      timeout: 3000,
+      env: shellEnv,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim()
+    if (resolved) {
+      _resolvedCommands.set(cmd, resolved)
+      return resolved
+    }
+  } catch { /* fall through */ }
+  return cmd
+}
+
 // ---- Instance management ----
 
 interface InternalInstance extends ClaudeInstance {
@@ -254,18 +279,20 @@ function buildSpawn(
   defaultArgs: string[],
   userArgs: string[],
   model?: string,
+  permissionMode?: 'autonomous' | 'supervised',
 ): { command: string; argv: string[] } {
   if (cliBackend === 'cursor-agent') {
-    return { command: 'agent', argv: [...defaultArgs, ...userArgs] }
+    return { command: resolveCommand('agent'), argv: [...defaultArgs, ...userArgs] }
   }
   const agentsMd = path.join(cwd, 'AGENTS.md')
   const agentsArgs = fs.existsSync(agentsMd) ? ['--append-system-prompt-file', agentsMd] : []
   const colonyMemory = path.join(cwd, '.colony', 'memory.md')
   const memoryArgs = fs.existsSync(colonyMemory) ? ['--append-system-prompt-file', colonyMemory] : []
   const modelArgs = model ? ['--model', model] : []
+  const permArgs = permissionMode === 'supervised' ? [] : ['--dangerously-skip-permissions']
   return {
-    command: 'claude',
-    argv: ['--dangerously-skip-permissions', ...modelArgs, '--add-dir', cwd, '--name', name, ...agentsArgs, ...memoryArgs, ...defaultArgs, ...userArgs],
+    command: resolveCommand('claude'),
+    argv: [...permArgs, ...modelArgs, '--add-dir', cwd, '--name', name, ...agentsArgs, ...memoryArgs, ...defaultArgs, ...userArgs],
   }
 }
 
@@ -283,22 +310,50 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
 
   const defaultArgs = opts.defaultArgs || []
   const userArgs = opts.args || []
-  const { command, argv } = buildSpawn(cliBackend, cwd, name, defaultArgs, userArgs, opts.model)
+  const { command, argv } = buildSpawn(cliBackend, cwd, name, defaultArgs, userArgs, opts.model, opts.permissionMode)
 
   log(`creating instance name="${name}" cwd=${cwd} cliBackend=${cliBackend} command=${command} args=${JSON.stringify(argv)}`)
 
-  let ptyProcess: pty.IPty
+  let ptyProcess: pty.IPty | null = null
+  let spawnCmd = command
+  let spawnErr: any = null
   try {
-    ptyProcess = pty.spawn(command, argv, {
+    ptyProcess = pty.spawn(spawnCmd, argv, {
       name: 'xterm-256color',
       cols: 120,
       rows: 30,
       cwd,
       env: shellEnv,
     })
-    log(`spawned ${command} pid=${ptyProcess.pid}`)
+    log(`spawned ${spawnCmd} pid=${ptyProcess.pid}`)
   } catch (err) {
-    log(`failed to spawn ${command}: ${err}`)
+    spawnErr = err
+    // On posix_spawnp failure, the cached path may be stale (e.g. CLI auto-updated).
+    // Clear cache and retry once with a fresh resolution.
+    if (String(err).includes('posix_spawnp')) {
+      log(`posix_spawnp failed for ${spawnCmd}, clearing cache and retrying...`)
+      _resolvedCommands.delete(cliBackend === 'cursor-agent' ? 'agent' : 'claude')
+      const freshCmd = resolveCommand(cliBackend === 'cursor-agent' ? 'agent' : 'claude')
+      try {
+        ptyProcess = pty.spawn(freshCmd, argv, {
+          name: 'xterm-256color',
+          cols: 120,
+          rows: 30,
+          cwd,
+          env: shellEnv,
+        })
+        spawnCmd = freshCmd
+        spawnErr = null
+        log(`retry spawned ${freshCmd} pid=${ptyProcess.pid}`)
+      } catch (retryErr) {
+        log(`retry also failed for ${freshCmd}: ${retryErr}`)
+        spawnErr = retryErr
+      }
+    }
+  }
+
+  if (!ptyProcess) {
+    log(`failed to spawn ${spawnCmd}: ${spawnErr}`)
     const instance: InternalInstance = {
       id, name, color, status: 'exited', activity: 'waiting',
       workingDirectory: cwd, createdAt: new Date().toISOString(),
@@ -306,8 +361,9 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
       gitBranch: resolveGitBranchSync(cwd), gitRepo: resolveGitRepoSync(cwd),
       tokenUsage: { input: 0, output: 0 },
       pinned: false, mcpServers: [], roleTag: null,
+      permissionMode: opts.permissionMode,
       parentId: opts.parentId || null, childIds: [],
-      pty: null, outputBuffer: [`Failed to spawn ${command}: ${err}\r\n`], _joinedCache: null,
+      pty: null, outputBuffer: [`Failed to spawn ${spawnCmd}: ${spawnErr}\r\n`], _joinedCache: null,
       cleanupTimer: null, _lastSnapshot: '', _lastBufferLen: 0, _activityInterval: null, _handoffRequested: false, _userInputReceived: false,
       _sessionIdTimer: null, comments: [], _lineBuffer: '', _gitBranchResolvedAt: Date.now(),
     }
@@ -323,6 +379,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
     args: argv, cliBackend, gitBranch: resolveGitBranchSync(cwd), gitRepo: resolveGitRepoSync(cwd),
     tokenUsage: { input: 0, output: 0 },
     pinned: false, mcpServers: [], roleTag: null,
+    permissionMode: opts.permissionMode,
     parentId: opts.parentId || null, childIds: [],
     pty: ptyProcess, outputBuffer: [], _joinedCache: null,
     cleanupTimer: null, _lastSnapshot: '', _lastBufferLen: 0, _activityInterval: null, _handoffRequested: false, _userInputReceived: false,

@@ -321,6 +321,47 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     setSelectedIds(new Set())
   }, [])
 
+  // Instance ordering + grouping — must be declared before the useEffect that references flatOrderForIndexing
+  const { pinned, running, exited, orderedInstances } = useMemo(() => {
+    const p = instances.filter((i) => i.pinned)
+    const r = instances.filter((i) => i.status === 'running' && !i.pinned)
+    const e = instances.filter((i) => i.status !== 'running' && !i.pinned)
+    return { pinned: p, running: r, exited: e, orderedInstances: [...p, ...r, ...e] }
+  }, [instances])
+
+  const groupedSections = useMemo(() => {
+    if (groupBy === 'none') return null
+    const getKey = (inst: ClaudeInstance): string => {
+      if (groupBy === 'persona') {
+        if (inst.name.startsWith('Persona: ')) return inst.name.replace('Persona: ', '').split(' ')[0]
+        return 'Manual'
+      }
+      if (groupBy === 'project') return dirName(inst.workingDirectory)
+      // status
+      return inst.status === 'running' ? (inst.activity === 'busy' ? 'Busy' : 'Idle') : 'Stopped'
+    }
+    const groups = new Map<string, ClaudeInstance[]>()
+    for (const inst of orderedInstances) {
+      const key = getKey(inst)
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key)!.push(inst)
+    }
+    return [...groups.entries()].map(([label, items]) => ({ label, items }))
+  }, [groupBy, orderedInstances])
+
+  const flatOrderForIndexing = useMemo(() => {
+    if (!groupedSections) return orderedInstances
+    return groupedSections.flatMap(g => g.items)
+  }, [groupedSections, orderedInstances])
+
+  const instanceIndexMap = useMemo(() => {
+    const m = new Map<string, number | null>()
+    for (let idx = 0; idx < flatOrderForIndexing.length; idx++) {
+      m.set(flatOrderForIndexing[idx].id, idx < 9 ? idx + 1 : null)
+    }
+    return m
+  }, [flatOrderForIndexing])
+
   // Escape exits select mode, Cmd+A selects all visible instances
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -625,49 +666,6 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
           (s.name && s.name.toLowerCase().includes(q))
       })
     : sessions
-
-  const { pinned, running, exited, orderedInstances } = useMemo(() => {
-    const p = instances.filter((i) => i.pinned)
-    const r = instances.filter((i) => i.status === 'running' && !i.pinned)
-    const e = instances.filter((i) => i.status !== 'running' && !i.pinned)
-    return { pinned: p, running: r, exited: e, orderedInstances: [...p, ...r, ...e] }
-  }, [instances])
-
-  // Grouped view: partition instances into labelled groups
-  const groupedSections = useMemo(() => {
-    if (groupBy === 'none') return null
-    const getKey = (inst: ClaudeInstance): string => {
-      if (groupBy === 'persona') {
-        if (inst.name.startsWith('Persona: ')) return inst.name.replace('Persona: ', '').split(' ')[0]
-        return 'Manual'
-      }
-      if (groupBy === 'project') return dirName(inst.workingDirectory)
-      // status
-      return inst.status === 'running' ? (inst.activity === 'busy' ? 'Busy' : 'Idle') : 'Stopped'
-    }
-    const groups = new Map<string, ClaudeInstance[]>()
-    // Iterate in the pinned→running→exited order within each group
-    for (const inst of orderedInstances) {
-      const key = getKey(inst)
-      if (!groups.has(key)) groups.set(key, [])
-      groups.get(key)!.push(inst)
-    }
-    return [...groups.entries()].map(([label, items]) => ({ label, items }))
-  }, [groupBy, orderedInstances])
-
-  // Flat ordered list for Cmd+1-9 indexing — follows grouped order when active
-  const flatOrderForIndexing = useMemo(() => {
-    if (!groupedSections) return orderedInstances
-    return groupedSections.flatMap(g => g.items)
-  }, [groupedSections, orderedInstances])
-
-  const instanceIndexMap = useMemo(() => {
-    const m = new Map<string, number | null>()
-    for (let idx = 0; idx < flatOrderForIndexing.length; idx++) {
-      m.set(flatOrderForIndexing[idx].id, idx < 9 ? idx + 1 : null)
-    }
-    return m
-  }, [flatOrderForIndexing])
 
   const ctxLevelFor = (bytes: number): 'amber' | 'red' | null => {
     if (bytes >= 600_000) return 'red'
