@@ -18,7 +18,7 @@ import NotificationHistory from './NotificationHistory'
 import type { WorkspacePreset } from './WorkspacePresets'
 import { COLORS, formatTime, cliBackendLabel, formatInstanceCmd } from '../lib/constants'
 
-export type SidebarView = 'instances' | 'agents' | 'github' | 'sessions' | 'settings' | 'logs' | 'tasks' | 'pipelines' | 'environments' | 'personas' | 'outputs' | 'review' | 'artifacts'
+export type SidebarView = 'instances' | 'agents' | 'github' | 'sessions' | 'settings' | 'logs' | 'tasks' | 'pipelines' | 'environments' | 'personas' | 'outputs' | 'review' | 'artifacts' | 'activity'
 
 // ---- Memoized per-instance row ----
 
@@ -634,7 +634,6 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const [childProcessesId, setChildProcessesId] = useState<string | null>(null)
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([])
   const [activityUnread, setActivityUnread] = useState(0)
-  const [showActivityPopover, setShowActivityPopover] = useState(false)
   const [showNotifPopover, setShowNotifPopover] = useState(false)
   const [notifUnread, setNotifUnread] = useState(0)
   const [pendingApprovals, setPendingApprovals] = useState<ApprovalRequest[]>([])
@@ -748,12 +747,6 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     return () => window.removeEventListener('click', handler)
   }, [popoverId])
 
-  useEffect(() => {
-    if (!showActivityPopover) return
-    const handler = () => setShowActivityPopover(false)
-    window.addEventListener('click', handler)
-    return () => window.removeEventListener('click', handler)
-  }, [showActivityPopover])
 
   useEffect(() => {
     if (!showTemplatePopover) return
@@ -811,29 +804,6 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
         }
       }
     }
-  }
-
-  const formatActivityTime = (iso: string) => {
-    const diff = Date.now() - new Date(iso).getTime()
-    if (diff < 60000) return 'now'
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
-    return `${Math.floor(diff / 86400000)}d ago`
-  }
-
-  const formatApprovalExpiry = (expiresAt: string | undefined) => {
-    if (!expiresAt) return null
-    const remaining = new Date(expiresAt).getTime() - Date.now()
-    if (remaining <= 0) return 'expired'
-    if (remaining < 3600000) return `expires in ${Math.ceil(remaining / 60000)}m`
-    if (remaining < 86400000) return `expires in ${Math.ceil(remaining / 3600000)}h`
-    return `expires in ${Math.ceil(remaining / 86400000)}d`
-  }
-
-  const formatDuration = (sec: number) => {
-    if (sec < 60) return `${sec}s`
-    if (sec < 3600) return `${Math.floor(sec / 60)}m ${sec % 60}s`
-    return `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m`
   }
 
   const filteredSessions = useMemo(() => {
@@ -949,6 +919,19 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
       <div className="sidebar-resize-handle" onMouseDown={handleResizeMouseDown} />
       <div className="sidebar-header">
         <div className="sidebar-nav">
+          <Tooltip text="Activity" detail="Automation events from personas, pipelines, and environments" position="bottom">
+            <button className={`sidebar-nav-btn ${view === 'activity' ? 'active' : ''}`} onClick={() => { onViewChange('activity'); window.api.activity.markRead().catch(() => {}); setActivityUnread(0) }}>
+              <span className="sidebar-nav-icon" style={{ position: 'relative' }}>
+                <Bell size={17} />
+                {pendingApprovals.length > 0 ? (
+                  <span className="sidebar-nav-badge" style={{ background: 'var(--warning)' }}>{pendingApprovals.length}</span>
+                ) : activityUnread > 0 ? (
+                  <span className="sidebar-nav-badge">{activityUnread > 99 ? '99+' : activityUnread}</span>
+                ) : null}
+              </span>
+              <span className="sidebar-nav-label">Activity</span>
+            </button>
+          </Tooltip>
           <Tooltip text="Sessions" detail={`${instances.filter(i => i.status === 'running').length} running, ${instances.length} total`} shortcut="Cmd+1-9" position="bottom">
             <button className={`sidebar-nav-btn ${view === 'instances' ? 'active' : ''}`} onClick={() => onViewChange('instances')}>
               <span className="sidebar-nav-icon">
@@ -1779,21 +1762,14 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
       <div className="sidebar-footer">
         <HelpPopover topic="sessions" align="right" position="above" />
         <div className="sidebar-footer-activity" style={{ position: 'relative' }}>
-          <Tooltip text="Activity Feed" detail="Recent automation events from personas, pipelines, and environments. Amber badge when pipeline actions are waiting for your approval." position="top">
+          <Tooltip text="Activity Feed" detail="Open the full activity panel" position="top">
             <button
-              className={`sidebar-footer-btn ${showActivityPopover ? 'active' : ''} ${pendingApprovals.length > 0 ? 'has-approvals' : ''}`}
+              className={`sidebar-footer-btn ${view === 'activity' ? 'active' : ''} ${pendingApprovals.length > 0 ? 'has-approvals' : ''}`}
               onClick={(e) => {
                 e.stopPropagation()
-                if (showActivityPopover) {
-                  setShowActivityPopover(false)
-                } else {
-                  window.api.activity.list().then(events => {
-                    setActivityEvents(events.slice(-20).reverse())
-                  }).catch(() => {})
-                  window.api.activity.markRead().catch(() => {})
-                  setActivityUnread(0)
-                  setShowActivityPopover(true)
-                }
+                onViewChange('activity')
+                window.api.activity.markRead().catch(() => {})
+                setActivityUnread(0)
               }}
             >
               <Bell size={14} />
@@ -1802,85 +1778,8 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
               ) : activityUnread > 0 ? (
                 <span className="sidebar-activity-badge">{activityUnread > 99 ? '99+' : activityUnread}</span>
               ) : null}
-              {pendingApprovals.length > 0 && activityUnread > 0 && (
-                <span className="sidebar-activity-unread-dot" title={`${activityUnread} unread`} />
-              )}
             </button>
           </Tooltip>
-          {showActivityPopover && (
-            <div className="activity-popover" onClick={e => e.stopPropagation()}>
-              <div className="activity-popover-header">
-                <span>{pendingApprovals.length > 0 ? 'Activity · Action Required' : 'Activity'}</span>
-                <button onClick={() => setShowActivityPopover(false)} title="Close">✕</button>
-              </div>
-              {pendingApprovals.length > 0 && (
-                <div className="activity-approvals-section">
-                  <div className="activity-approvals-title">Pending Approval</div>
-                  {pendingApprovals.map(req => (
-                    <div key={req.id} className="activity-approval-card">
-                      <div className="activity-approval-header">
-                        <span className="activity-approval-pipeline">{req.pipelineName}</span>
-                        <span className="activity-approval-time">{formatActivityTime(req.createdAt)}</span>
-                      </div>
-                      <div className="activity-approval-summary">{req.summary}</div>
-                      {req.resolvedVars?.['plan.content'] && (
-                        <div className="activity-approval-plan-preview">
-                          {req.resolvedVars['plan.content'].length > 280
-                            ? req.resolvedVars['plan.content'].slice(0, 280) + '…'
-                            : req.resolvedVars['plan.content']}
-                        </div>
-                      )}
-                      {formatApprovalExpiry(req.expiresAt) && (
-                        <div className="activity-approval-expiry">{formatApprovalExpiry(req.expiresAt)}</div>
-                      )}
-                      <div className="activity-approval-actions">
-                        <button
-                          className="activity-approval-btn approve"
-                          onClick={() => window.api.pipeline.approve(req.id).catch(() => {})}
-                        >
-                          Approve
-                        </button>
-                        <button
-                          className="activity-approval-btn dismiss"
-                          onClick={() => window.api.pipeline.dismiss(req.id).catch(() => {})}
-                        >
-                          Dismiss
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="activity-popover-list">
-                {activityEvents.length === 0 && (
-                  <div className="activity-popover-empty">Activity appears here when personas, pipelines, or approval gates fire. Start a persona or run a pipeline to see events.</div>
-                )}
-                {activityEvents.map(ev => (
-                  <div key={ev.id} className={`activity-event activity-event-${ev.level}`}>
-                    <div className="activity-event-header">
-                      <span className={`activity-event-source activity-source-${ev.source}`}>{ev.source}</span>
-                      <span className="activity-event-name">{ev.name}</span>
-                      <span className="activity-event-time">{formatActivityTime(ev.timestamp)}</span>
-                    </div>
-                    <div className="activity-event-summary">{ev.summary}</div>
-                    {ev.details?.type === 'session-outcome' && (
-                      <div className="activity-outcome-stats">
-                        {(ev.details.duration as number) !== null && (
-                          <span>{formatDuration(ev.details.duration as number)}</span>
-                        )}
-                        {(ev.details.commitsCount as number) > 0 && (
-                          <span>{ev.details.commitsCount as number} commit{(ev.details.commitsCount as number) !== 1 ? 's' : ''}</span>
-                        )}
-                        {(ev.details.filesChanged as number) > 0 && (
-                          <span>{ev.details.filesChanged as number} file{(ev.details.filesChanged as number) !== 1 ? 's' : ''} changed</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
         <div className="sidebar-footer-activity" style={{ position: 'relative' }}>
           <Tooltip text="Notification History" detail="Desktop notifications log — what happened while you were away" position="top">

@@ -41,6 +41,37 @@ export interface HelpEntry {
 }
 
 export const helpContent: Record<string, HelpEntry> = {
+  activity: {
+    title: 'Activity Feed',
+    description: 'A live stream of automation events from personas, pipelines, and environments. Filter by source, level, or text to find specific events. Click session names to jump to the originating session.',
+    zones: [
+      {
+        name: 'Filters',
+        position: 'Top of panel',
+        items: [
+          { label: 'Source chips', detail: 'Toggle visibility of events by source: Persona, Pipeline, or Environment. At least one must be active.' },
+          { label: 'Level chips', detail: 'Toggle by severity: Info (normal), Warn (attention needed), Error (failures). Badges show counts.' },
+          { label: 'Search', detail: 'Free-text filter — matches against event name and summary.' },
+        ],
+      },
+      {
+        name: 'Pending Approvals',
+        position: 'Below filters (when applicable)',
+        items: [
+          { label: 'Approval card', detail: 'Pipeline approval gates waiting for your decision. Shows pipeline name, summary, and plan preview.' },
+          { label: 'Approve / Dismiss', detail: 'Accept or reject the pending action. Dismissed actions are skipped without firing.' },
+        ],
+      },
+      {
+        name: 'Event List',
+        position: 'Main area',
+        items: [
+          { label: 'Event row', detail: 'Source badge (color-coded), name, relative timestamp, and summary. Session-linked names are clickable.' },
+          { label: 'Outcome stats', detail: 'For session completions: duration, commit count, and files changed.' },
+        ],
+      },
+    ],
+  },
   overview: {
     title: 'Colony Overview',
     description: 'A command-center view of your colony — running sessions, active personas, pipeline status, pending items, and recent activity. Appears when no session is selected.',

@@ -20,6 +20,7 @@ import PersonasPanel from './components/PersonasPanel'
 import OutputsPanel from './components/OutputsPanel'
 import ReviewPanel from './components/ReviewPanel'
 import ArtifactsPanel from './components/ArtifactsPanel'
+import ActivityPanel from './components/ActivityPanel'
 import QuickPromptDialog from './components/QuickPromptDialog'
 import ForkModal from './components/ForkModal'
 import ArenaLaunchDialog from './components/ArenaLaunchDialog'
@@ -1737,6 +1738,14 @@ export default function App() {
         )}
         {view === 'outputs' && <OutputsPanel />}
         {view === 'artifacts' && <ArtifactsPanel />}
+        {view === 'activity' && (
+          <ActivityPanel
+            onFocusSession={(id) => {
+              setActiveId(id)
+              setView('instances')
+            }}
+          />
+        )}
         {view === 'review' && (
           <ReviewPanel
             instances={instances}

@@ -18116,6 +18116,22 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: none; border: 1px dashed var(--border); border-radius: 4px; cursor: pointer;
 }
 .activity-show-more:hover { border-color: var(--border-active); color: var(--text-secondary); }
+/* Activity panel (full panel view) */
+.activity-panel { display: flex; flex-direction: column; height: 100%; }
+.activity-panel-search {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 8px; border-radius: 6px;
+  background: var(--bg-secondary); border: 1px solid var(--border);
+}
+.activity-panel-search input {
+  flex: 1; background: none; border: none; outline: none;
+  color: var(--text); font-size: 12px; font-family: inherit;
+}
+.activity-panel-search input::placeholder { color: var(--text-muted); }
+.activity-panel-search svg { color: var(--text-muted); flex-shrink: 0; }
+.activity-panel-list { display: flex; flex-direction: column; gap: 2px; }
+.activity-event-link { cursor: pointer; text-decoration: underline; text-decoration-color: var(--border-active); text-underline-offset: 2px; }
+.activity-event-link:hover { color: var(--accent); text-decoration-color: var(--accent); }
 /* Activity list */
 .overview-activity-list {
   display: flex;
