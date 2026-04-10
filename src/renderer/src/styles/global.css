@@ -1678,8 +1678,8 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-weight: 600;
   text-transform: uppercase;
   border-radius: 3px;
-  background: rgba(99, 102, 241, 0.15);
-  color: #6366f1;
+  background: rgba(139, 92, 246, 0.15);
+  color: var(--accent-purple);
   vertical-align: middle;
 }
 
@@ -13343,8 +13343,8 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--success);
 }
 .env-purpose-background {
-  background: rgba(99, 102, 241, 0.15);
-  color: #6366f1;
+  background: rgba(139, 92, 246, 0.15);
+  color: var(--accent-purple);
 }
 .env-purpose-nightly {
   background: rgba(148, 163, 184, 0.15);
@@ -15347,7 +15347,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-weight: 600;
 }
 .panel-list-badge.running { background: rgba(16, 185, 129, 0.15); color: var(--success); border: 1px solid rgba(16, 185, 129, 0.3); }
-.panel-list-badge.enabled { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+.panel-list-badge.enabled { background: rgba(59, 130, 246, 0.15); color: var(--accent); border: 1px solid rgba(59, 130, 246, 0.3); }
 .panel-list-badge.error { background: rgba(239, 68, 68, 0.15); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.3); }
 .panel-list-badge.partial { background: rgba(245, 158, 11, 0.15); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.3); }
 
@@ -16071,7 +16071,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .tasks-board-column-add { margin-left: auto; background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 1px 3px; border-radius: 3px; opacity: 0; transition: opacity 0.1s; }
 .tasks-board-column:hover .tasks-board-column-add { opacity: 1; }
 .tasks-board-column-add:hover { color: var(--accent); background: var(--bg-secondary); }
-.tasks-board-column-in_progress .tasks-board-column-header { color: #60a5fa; }
+.tasks-board-column-in_progress .tasks-board-column-header { color: var(--accent); }
 .tasks-board-column-blocked .tasks-board-column-header { color: var(--danger); }
 .tasks-board-column-done .tasks-board-column-header { color: var(--success); }
 .tasks-board-column-empty { font-size: 11px; color: var(--text-muted); padding: 8px 2px; font-style: italic; }
@@ -16106,7 +16106,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .tasks-board-status-btn:hover { border-color: var(--accent); color: var(--accent); }
 
 /* Status icons */
-.status-icon-progress { color: #60a5fa; }
+.status-icon-progress { color: var(--accent); }
 .status-icon-blocked { color: var(--danger); }
 .status-icon-done { color: var(--success); }
 
@@ -16230,7 +16230,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--text-muted);
 }
 .fork-entry-dot.running { background: var(--success); animation: pulse 1.5s infinite; }
-.fork-entry-dot.waiting { background: #60a5fa; }
+.fork-entry-dot.waiting { background: var(--accent); }
 .fork-entry-dot.crashed { background: var(--warning); }
 .fork-entry-dot.winner { background: var(--success); }
 .fork-entry-dot.discarded { background: var(--text-muted); opacity: 0.4; }
