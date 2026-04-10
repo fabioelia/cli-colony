@@ -24,6 +24,8 @@ import type { GitHubRepo, GitHubPR, PRChecks, ApprovalRequest } from '../shared/
 import { appendActivity } from './activity-manager'
 import { notify } from './notifications'
 import { matchRules, estimateActionCost } from './approval-rules'
+import { createWorktree, removeWorktree } from './worktree-manager'
+import { readArenaStats, writeArenaStats } from './arena-stats'
 
 const execFileAsync = promisify(execFileCb)
 
@@ -54,7 +56,7 @@ export interface ConditionDef {
 }
 
 export interface ActionDef {
-  type: 'launch-session' | 'route-to-session' | 'maker-checker' | 'diff_review' | 'parallel' | 'plan' | 'wait_for_session' // route-to-session is deprecated, normalized to launch-session + reuse:true
+  type: 'launch-session' | 'route-to-session' | 'maker-checker' | 'diff_review' | 'parallel' | 'plan' | 'wait_for_session' | 'best-of-n' // route-to-session is deprecated, normalized to launch-session + reuse:true
   reuse?: boolean // try to find/resume a matching session before launching new
   name?: string
   workingDirectory?: string
@@ -91,6 +93,17 @@ export interface ActionDef {
   session_name?: string      // name of the session to wait for
   timeout_minutes?: number   // max wait time in minutes (default: 30)
   artifact_output?: string   // artifact name to write exit reason to
+  // best-of-n specific fields
+  n?: number                    // number of parallel contestants (default: 3, clamped 2-8)
+  repo?: { owner: string; name: string }  // repo to create worktrees in
+  branch?: string               // branch to base worktrees on (default: 'main')
+  judge?: {
+    type: 'command' | 'llm'
+    cmd?: string                // command judge: shell command to run in each worktree
+    prompt?: string             // llm judge: prompt for the judge session
+  }
+  models?: (string | null)[]    // optional per-slot model overrides
+  keep_winner?: boolean         // preserve winning worktree (default: true)
 }
 
 export interface DedupDef {
@@ -1281,6 +1294,179 @@ async function runWaitForSession(
   })
 }
 
+/**
+ * Run a best-of-n action: spawn N sessions in separate worktrees, wait for all
+ * to complete, then judge which output is best. Winner's worktree is preserved;
+ * losers are cleaned up.
+ */
+async function runBestOfN(
+  action: ActionDef,
+  ctx: TriggerContext,
+  pipelineName: string,
+): Promise<{ cost: number; subStages: PipelineStageTrace[] }> {
+  const n = Math.max(2, Math.min(8, action.n ?? 3))
+  const repo = action.repo
+  if (!repo) throw new Error(`best-of-n: "repo" is required`)
+  const branch = action.branch || 'main'
+  const judge = action.judge
+  if (!judge) throw new Error(`best-of-n: "judge" is required`)
+  const keepWinner = action.keep_winner !== false
+  const baseName = resolveTemplate(action.name || pipelineName, ctx)
+  const prompt = resolveTemplate(action.prompt || '', ctx)
+
+  plog(pipelineName, `best-of-n: spawning ${n} contestants on ${repo.owner}/${repo.name}:${branch}`)
+
+  // 1. Create worktrees + sessions
+  const contestants: Array<{ worktreeId: string; worktreePath: string; instanceId: string }> = []
+  const subStages: PipelineStageTrace[] = new Array(n)
+
+  for (let i = 0; i < n; i++) {
+    const wt = await createWorktree(repo.owner, repo.name, branch, `bon-${i + 1}`)
+    const model = action.models?.[i] ?? action.model ?? undefined
+    const inst = await createInstance({
+      name: `${baseName} [${i + 1}/${n}]`,
+      workingDirectory: wt.path,
+      ...(model ? { args: ['--model', model] } : {}),
+    })
+    contestants.push({ worktreeId: wt.id, worktreePath: wt.path, instanceId: inst.id })
+  }
+
+  // 2. Attach completion listeners BEFORE sending prompts (avoids race)
+  const completionPromises = contestants.map((c, i) => {
+    const start = Date.now()
+    return waitForSessionCompletion(c.instanceId, (action.timeout_minutes ?? 30) * 60_000)
+      .then(completed => {
+        const end = Date.now()
+        subStages[i] = {
+          index: i,
+          actionType: 'best-of-n',
+          sessionName: `${baseName} [${i + 1}/${n}]`,
+          model: action.models?.[i] ?? action.model,
+          durationMs: end - start,
+          startedAt: start,
+          completedAt: end,
+          success: completed,
+          error: completed ? undefined : 'timeout',
+        }
+        return completed
+      })
+  })
+
+  // 3. Send prompts
+  for (const c of contestants) {
+    sendPromptWhenReady(c.instanceId, { prompt })
+  }
+
+  // 4. Wait for all to finish
+  await Promise.allSettled(completionPromises)
+  plog(pipelineName, `best-of-n: all ${n} contestants finished`)
+
+  // 5. Run judge
+  let winnerIdx = 0
+  if (judge.type === 'command' && judge.cmd) {
+    // Command judge: run command in each worktree, winner = exit code 0 (first clean)
+    const results: Array<{ exitCode: number; stdout: string }> = []
+    for (let i = 0; i < n; i++) {
+      try {
+        const { stdout } = await execFileAsync('sh', ['-c', judge.cmd], {
+          cwd: contestants[i].worktreePath,
+          timeout: 300_000,
+          maxBuffer: 2 * 1024 * 1024,
+        })
+        results.push({ exitCode: 0, stdout: stdout.trim() })
+      } catch (err: any) {
+        results.push({ exitCode: err?.code ?? 1, stdout: (err?.stdout || '').trim() })
+      }
+    }
+    // Winner: first with exit code 0; if none, first with lowest exit code
+    const cleanIdx = results.findIndex(r => r.exitCode === 0)
+    if (cleanIdx >= 0) {
+      winnerIdx = cleanIdx
+    } else {
+      winnerIdx = results.reduce((best, r, i) => r.exitCode < results[best].exitCode ? i : best, 0)
+    }
+    plog(pipelineName, `best-of-n: command judge picked slot ${winnerIdx + 1} (exit codes: ${results.map(r => r.exitCode).join(', ')})`)
+  } else if (judge.type === 'llm' && judge.prompt) {
+    // LLM judge: launch a judge session with all outputs as artifacts
+    const artifactsDir = join(COLONY_DIR, 'artifacts')
+    await fsp.mkdir(artifactsDir, { recursive: true })
+    for (let i = 0; i < n; i++) {
+      const summary = subStages[i]?.success
+        ? `Contestant ${i + 1} completed successfully.`
+        : `Contestant ${i + 1} timed out or failed.`
+      await fsp.writeFile(join(artifactsDir, `bon-slot-${i + 1}.txt`), summary, 'utf-8')
+    }
+
+    const judgePromptFull = `You are judging a best-of-${n} competition.\n\n${resolveTemplate(judge.prompt, ctx)}\n\nAfter evaluating all contestants, respond with WINNER: <slot-number> (e.g., WINNER: 1).`
+    const judgeInst = await createInstance({
+      name: `${baseName} [Judge]`,
+      workingDirectory: contestants[0].worktreePath,
+    })
+
+    const judgeReady = waitForSessionCompletion(judgeInst.id, 600_000)
+    sendPromptWhenReady(judgeInst.id, { prompt: judgePromptFull })
+    await judgeReady
+
+    // Parse WINNER: N from judge output (best-effort via artifact)
+    const verdictPath = join(artifactsDir, `bon-judge-verdict.txt`)
+    if (await pathExists(verdictPath)) {
+      const verdict = await fsp.readFile(verdictPath, 'utf-8')
+      const match = verdict.match(/WINNER:\s*(\d+)/i)
+      if (match) {
+        const parsed = parseInt(match[1], 10) - 1
+        if (parsed >= 0 && parsed < n) winnerIdx = parsed
+      }
+    }
+    plog(pipelineName, `best-of-n: llm judge picked slot ${winnerIdx + 1}`)
+  }
+
+  // 6. Record in arena-stats.json
+  try {
+    const stats = await readArenaStats()
+    const winnerKey = action.models?.[winnerIdx] || action.model || 'default'
+    if (!stats[winnerKey]) stats[winnerKey] = { wins: 0, losses: 0, totalRuns: 0 }
+    stats[winnerKey].wins++
+    stats[winnerKey].totalRuns++
+    for (let i = 0; i < n; i++) {
+      if (i === winnerIdx) continue
+      const loserKey = action.models?.[i] || action.model || 'default'
+      if (!stats[loserKey]) stats[loserKey] = { wins: 0, losses: 0, totalRuns: 0 }
+      stats[loserKey].losses++
+      stats[loserKey].totalRuns++
+    }
+    await writeArenaStats(stats)
+  } catch (err) {
+    log(`best-of-n: failed to update arena stats: ${err}`)
+  }
+
+  // 7. Clean up losing worktrees; preserve winner
+  for (let i = 0; i < n; i++) {
+    if (i === winnerIdx && keepWinner) continue
+    try {
+      await killInstance(contestants[i].instanceId)
+    } catch { /* already gone */ }
+    try {
+      await removeWorktree(contestants[i].worktreeId)
+    } catch (err) {
+      log(`best-of-n: failed to remove worktree ${contestants[i].worktreeId}: ${err}`)
+    }
+  }
+
+  // 8. Write winner artifact
+  const artifactsDir = join(COLONY_DIR, 'artifacts')
+  await fsp.mkdir(artifactsDir, { recursive: true })
+  const safeName = pipelineName.replace(/[^a-zA-Z0-9]/g, '-')
+  await fsp.writeFile(
+    join(artifactsDir, `${safeName}-best-of-n-winner.txt`),
+    `Winner: slot ${winnerIdx + 1}\nWorktree: ${contestants[winnerIdx].worktreePath}\nSession: ${contestants[winnerIdx].instanceId}`,
+    'utf-8',
+  )
+
+  const totalCost = subStages.reduce((s, t) => s + (t ? 0 : 0), 0) // cost tracked externally per-session
+  plog(pipelineName, `best-of-n: complete — winner slot ${winnerIdx + 1}, ${keepWinner ? 'preserved' : 'cleaned up'}`)
+  return { cost: totalCost, subStages: subStages.filter(Boolean) }
+}
+
 // ---- Action Execution ----
 
 async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<{ cost: number; responseSnippet?: string; subStages?: PipelineStageTrace[] }> {
@@ -1298,6 +1484,9 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
   }
   if (action.type === 'wait_for_session') {
     return runWaitForSession(action, pipelineName)
+  }
+  if (action.type === 'best-of-n') {
+    return runBestOfN(action, ctx, pipelineName)
   }
 
   const rawName = resolveTemplate(action.name || 'Pipeline Session', ctx)
