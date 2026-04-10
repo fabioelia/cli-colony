@@ -31,8 +31,10 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
   const [refreshing, setRefreshing] = useState(false)
   const [copiedBranch, setCopiedBranch] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const initialLoadDone = useRef(false)
 
   const instancesWithDir = instances.filter(i => i.workingDirectory)
+  const instanceIds = instancesWithDir.map(i => i.id).join(',')
 
   const loadAllChanges = useCallback(async () => {
     const results = await Promise.allSettled(
@@ -52,43 +54,63 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
         } as SessionChanges
       })
     )
-    setSessionChanges(results.map((r, i) => {
-      if (r.status === 'fulfilled') return r.value
-      return {
-        instanceId: instancesWithDir[i].id,
-        name: instancesWithDir[i].name,
-        color: instancesWithDir[i].color,
-        status: instancesWithDir[i].status,
-        dir: instancesWithDir[i].workingDirectory,
-        branch: instancesWithDir[i].gitBranch,
-        createdAt: instancesWithDir[i].createdAt,
+    // Merge results into existing state — preserves old data until new data arrives
+    setSessionChanges(prev => {
+      const byId = new Map(prev.map(s => [s.instanceId, s]))
+      const currentIds = new Set(instancesWithDir.map(i => i.id))
+      results.forEach((r, i) => {
+        const inst = instancesWithDir[i]
+        if (r.status === 'fulfilled') {
+          byId.set(inst.id, r.value)
+        } else {
+          // Keep existing entries on error instead of wiping
+          const existing = byId.get(inst.id)
+          byId.set(inst.id, {
+            instanceId: inst.id,
+            name: inst.name,
+            color: inst.color,
+            status: inst.status,
+            dir: inst.workingDirectory,
+            branch: inst.gitBranch,
+            createdAt: inst.createdAt,
+            entries: existing?.entries ?? [],
+            loading: false,
+            error: true,
+          })
+        }
+      })
+      // Remove sessions no longer present
+      return Array.from(byId.values()).filter(s => currentIds.has(s.instanceId))
+    })
+  }, [instanceIds])
+
+  // Initial load — only reset to loading:true on first mount
+  useEffect(() => {
+    if (!initialLoadDone.current) {
+      initialLoadDone.current = true
+      setSessionChanges(instancesWithDir.map(inst => ({
+        instanceId: inst.id,
+        name: inst.name,
+        color: inst.color,
+        status: inst.status,
+        dir: inst.workingDirectory,
+        branch: inst.gitBranch,
+        createdAt: inst.createdAt,
         entries: [],
-        loading: false,
-        error: true,
-      } as SessionChanges
-    }))
-  }, [instancesWithDir.map(i => i.id).join(',')])
-
-  // Initial load
-  useEffect(() => {
-    setSessionChanges(instancesWithDir.map(inst => ({
-      instanceId: inst.id,
-      name: inst.name,
-      color: inst.color,
-      status: inst.status,
-      dir: inst.workingDirectory,
-      branch: inst.gitBranch,
-      createdAt: inst.createdAt,
-      entries: [],
-      loading: true,
-      error: false,
-    })))
+        loading: true,
+        error: false,
+      })))
+    }
     loadAllChanges()
-  }, [instancesWithDir.map(i => i.id).join(',')])
+  }, [instanceIds])
 
-  // Poll every 30s
+  // Poll every 30s — show subtle spinner during background polls
   useEffect(() => {
-    pollRef.current = setInterval(loadAllChanges, 30000)
+    pollRef.current = setInterval(async () => {
+      setRefreshing(true)
+      await loadAllChanges()
+      setRefreshing(false)
+    }, 30000)
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [loadAllChanges])
 
@@ -133,6 +155,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
     <div className="review-panel" style={{ padding: 'var(--titlebar-pad, 44px) 16px 0', WebkitAppRegion: 'drag' } as React.CSSProperties}>
       <div className="panel-header" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <h2><GitCompare size={16} /> Review</h2>
+        <span className="panel-subtitle">Uncommitted changes across all sessions</span>
         <div className="panel-header-spacer" />
         <HelpPopover topic="review" align="right" />
         <div className="panel-header-actions">

@@ -7824,6 +7824,13 @@ body:has(.daemon-update-banner) .app-update-banner {
   white-space: nowrap;
 }
 
+.panel-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: normal;
+  margin: -4px 0 0 0;
+}
+
 .panel-header-spacer {
   flex: 1;
 }
