@@ -56,6 +56,9 @@ export function registerInstanceHandlers(): void {
   ipcMain.handle('instance:unpin', async (_e, id: string) => {
     try { return await client.unpinInstance(id) } catch { return false }
   })
+  ipcMain.handle('instance:set-note', async (_e, id: string, note: string) => {
+    try { return await client.setNote(id, note) } catch { return false }
+  })
   ipcMain.handle('instance:set-role', async (_e, id: string, role: string | null) => {
     try { return await client.setInstanceRole(id, role) } catch { return false }
   })

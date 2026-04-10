@@ -235,6 +235,7 @@ function toSerializable(inst: InternalInstance): ClaudeInstance {
     lastSessionId: inst.lastSessionId,
     pendingSteer: inst.pendingSteer,
     toolDeferredInfo: inst.toolDeferredInfo,
+    note: inst.note,
   }
 }
 
@@ -687,6 +688,14 @@ function setRoleTag(id: string, role: string | null): boolean {
   return true
 }
 
+function setNote(id: string, note: string): boolean {
+  const inst = instances.get(id)
+  if (!inst) return false
+  inst.note = note || undefined
+  notifyListChanged()
+  return true
+}
+
 function steerInstance(id: string, message: string): boolean {
   const inst = instances.get(id)
   if (!inst || inst.status !== 'running') return false
@@ -816,6 +825,11 @@ function handleRequest(req: DaemonRequest, socket: net.Socket): void {
       }
       case 'set-role': {
         const ok = setRoleTag(req.instanceId, req.role)
+        send({ type: 'ok', reqId: req.reqId, data: ok })
+        break
+      }
+      case 'set-note': {
+        const ok = setNote(req.instanceId, req.note)
         send({ type: 'ok', reqId: req.reqId, data: ok })
         break
       }

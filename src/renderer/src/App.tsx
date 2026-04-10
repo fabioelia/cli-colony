@@ -540,6 +540,10 @@ export default function App() {
     await window.api.instance.rename(id, name)
   }, [])
 
+  const handleSetNote = useCallback(async (id: string, note: string) => {
+    await window.api.instance.setNote(id, note)
+  }, [])
+
   const handleRecolor = useCallback(async (id: string, color: string) => {
     await window.api.instance.recolor(id, color)
   }, [])
@@ -1230,6 +1234,7 @@ export default function App() {
         onRestart={handleRestart}
         onRemove={handleRemove}
         onRename={handleRename}
+        onSetNote={handleSetNote}
         onRecolor={handleRecolor}
         onPin={handlePin}
         onUnpin={handleUnpin}

@@ -80,6 +80,10 @@ export class DaemonClient extends BaseDaemonClient {
     return await this.request({ type: 'pin', reqId: this.nextReqId(), instanceId: id }) as boolean
   }
 
+  async setNote(id: string, note: string): Promise<boolean> {
+    return await this.request({ type: 'set-note', reqId: this.nextReqId(), instanceId: id, note }) as boolean
+  }
+
   async unpinInstance(id: string): Promise<boolean> {
     return await this.request({ type: 'unpin', reqId: this.nextReqId(), instanceId: id }) as boolean
   }

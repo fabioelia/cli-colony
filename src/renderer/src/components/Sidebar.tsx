@@ -50,6 +50,12 @@ interface InstanceItemProps {
   isRenaming: boolean
   renameValue: string
   renameRef: React.RefObject<HTMLInputElement | null>
+  isEditingNote: boolean
+  noteValue: string
+  noteRef: React.RefObject<HTMLInputElement | null>
+  onCommitNote: () => void
+  onCancelNote: () => void
+  onNoteChange: (v: string) => void
   callbacks: InstanceItemCallbacks
   selectMode: boolean
   isSelected: boolean
@@ -61,7 +67,7 @@ function dirName(path: string) {
   return parts[parts.length - 1] || path
 }
 
-const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcutIndex, isUnread, ctxLevel, splitBadge, focusedPane, isRenaming, renameValue, renameRef, callbacks, selectMode, isSelected, onToggleSelect }: InstanceItemProps) {
+const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcutIndex, isUnread, ctxLevel, splitBadge, focusedPane, isRenaming, renameValue, renameRef, isEditingNote, noteValue, noteRef, onCommitNote, onCancelNote, onNoteChange, callbacks, selectMode, isSelected, onToggleSelect }: InstanceItemProps) {
   return (
     <div
       className={`instance-item ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''}`}
@@ -166,6 +172,27 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
           })()}
           </>
         )}
+        {isEditingNote ? (
+          <input
+            ref={noteRef}
+            className="instance-note-input"
+            value={noteValue}
+            onChange={(e) => onNoteChange(e.target.value)}
+            onBlur={onCommitNote}
+            onKeyDown={(e) => {
+              e.stopPropagation()
+              if (e.key === 'Enter') onCommitNote()
+              if (e.key === 'Escape') onCancelNote()
+            }}
+            onClick={(e) => e.stopPropagation()}
+            placeholder="Add a note..."
+            maxLength={500}
+          />
+        ) : inst.note ? (
+          <div className="instance-note" title={inst.note}>
+            {inst.note}
+          </div>
+        ) : null}
         <div className="instance-meta">
           {inst.parentId && <span className="instance-child-indicator" title="Child session">↳ </span>}
           {dirName(inst.workingDirectory)}
@@ -256,6 +283,7 @@ interface Props {
   onRestart: (id: string) => void
   onRemove: (id: string) => void
   onRename: (id: string, name: string) => void
+  onSetNote: (id: string, note: string) => void
   onRecolor: (id: string, color: string) => void
   onPin: (id: string) => void
   onUnpin: (id: string) => void
@@ -279,9 +307,12 @@ interface Props {
   onLoadPreset?: (preset: WorkspacePreset) => void
 }
 
-function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onRestoreAll, restorableCount, unreadIds, outputBytes, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop, forkGroups = [], onForkSession, gridPanes, currentLayout = 'single', onLoadPreset }: Props) {
+function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onSetNote, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onRestoreAll, restorableCount, unreadIds, outputBytes, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop, forkGroups = [], onForkSession, gridPanes, currentLayout = 'single', onLoadPreset }: Props) {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
+  const [noteValue, setNoteValue] = useState('')
+  const noteRef = useRef<HTMLInputElement>(null)
   const [appVersion, setAppVersion] = useState<string | null>(null)
   const [runningEnvCount, setRunningEnvCount] = useState(0)
   const [selectMode, setSelectMode] = useState(false)
@@ -609,6 +640,19 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     setRenamingId(null)
   }
 
+  const startEditNote = (inst: ClaudeInstance) => {
+    setEditingNoteId(inst.id)
+    setNoteValue(inst.note || '')
+    setTimeout(() => noteRef.current?.focus(), 0)
+  }
+
+  const commitNote = () => {
+    if (editingNoteId) {
+      onSetNote(editingNoteId, noteValue.trim())
+    }
+    setEditingNoteId(null)
+  }
+
   const togglePopover = (id: string, type: 'color' | 'info', e?: React.MouseEvent) => {
     if (popoverId === id && popoverType === type) {
       setPopoverId(null)
@@ -712,6 +756,12 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
         isRenaming={renamingId === inst.id}
         renameValue={renamingId === inst.id ? renameValue : ''}
         renameRef={renameRef}
+        isEditingNote={editingNoteId === inst.id}
+        noteValue={editingNoteId === inst.id ? noteValue : ''}
+        noteRef={noteRef}
+        onCommitNote={commitNote}
+        onCancelNote={() => setEditingNoteId(null)}
+        onNoteChange={setNoteValue}
         callbacks={itemCallbacksRef.current}
         selectMode={selectMode}
         isSelected={selectedIds.has(inst.id)}
@@ -1379,6 +1429,16 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
               title="Rename session"
             >
               Rename
+            </button>
+            <button
+              className="context-menu-item"
+              onClick={() => {
+                startEditNote(instances.find((i) => i.id === contextMenu.id)!)
+                setContextMenu(null)
+              }}
+              title="Add or edit a note for this session"
+            >
+              {instances.find((i) => i.id === contextMenu.id)?.note ? 'Edit Note' : 'Add Note'}
             </button>
             <button
               className="context-menu-item"

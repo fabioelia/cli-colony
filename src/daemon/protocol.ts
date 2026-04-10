@@ -35,6 +35,7 @@ export type DaemonRequest =
   | { type: 'unpin'; reqId: string; instanceId: string }
   | { type: 'set-role'; reqId: string; instanceId: string; role: string | null }
   | { type: 'steer'; reqId: string; instanceId: string; message: string }
+  | { type: 'set-note'; reqId: string; instanceId: string; note: string }
   | { type: 'get-comments'; reqId: string; instanceId: string }
   | { type: 'list'; reqId: string }
   | { type: 'get'; reqId: string; instanceId: string }
@@ -71,7 +72,7 @@ export type DaemonMessage = DaemonResponse | DaemonEvent
  * requires a daemon restart to pick up. The client checks this on connect
  * and shows a banner if stale.
  */
-export const DAEMON_VERSION = 24
+export const DAEMON_VERSION = 25
 
 export const SOCKET_PATH_SUFFIX = '.claude-colony/daemon.sock'
 export const PID_PATH_SUFFIX = '.claude-colony/daemon.pid'

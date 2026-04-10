@@ -33,6 +33,7 @@ export interface ClaudeInstance {
   pendingSteer?: string
   toolDeferredInfo?: { toolName: string; toolArgs?: string; sessionId: string }
   permissionMode?: 'autonomous' | 'supervised'
+  note?: string
 }
 
 export interface AgentDef {

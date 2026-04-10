@@ -63,6 +63,7 @@ export interface ClaudeManagerAPI {
     pin: (id: string) => Promise<boolean>
     unpin: (id: string) => Promise<boolean>
     setRole: (id: string, role: string | null) => Promise<boolean>
+    setNote: (id: string, note: string) => Promise<boolean>
     list: () => Promise<ClaudeInstance[]>
     get: (id: string) => Promise<ClaudeInstance | null>
     buffer: (id: string) => Promise<string>
@@ -501,6 +502,7 @@ const api: ClaudeManagerAPI = {
     pin: (id) => ipcRenderer.invoke('instance:pin', id),
     unpin: (id) => ipcRenderer.invoke('instance:unpin', id),
     setRole: (id, role) => ipcRenderer.invoke('instance:set-role', id, role),
+    setNote: (id, note) => ipcRenderer.invoke('instance:set-note', id, note),
     list: () => ipcRenderer.invoke('instance:list'),
     get: (id) => ipcRenderer.invoke('instance:get', id),
     buffer: (id) => ipcRenderer.invoke('instance:buffer', id),

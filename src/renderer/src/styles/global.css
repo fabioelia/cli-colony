@@ -1511,6 +1511,29 @@ body:has(.daemon-update-banner) .app-update-banner {
   margin-top: 2px;
 }
 
+.instance-note {
+  font-size: 10px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-style: italic;
+  margin-top: 1px;
+}
+
+.instance-note-input {
+  font-size: 10px;
+  font-style: italic;
+  background: var(--bg-primary);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  color: var(--text-primary);
+  padding: 1px 4px;
+  width: 100%;
+  outline: none;
+  margin-top: 1px;
+}
+
 .instance-meta {
   font-size: 11px;
   color: var(--text-muted);

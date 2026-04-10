@@ -130,6 +130,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Active sessions', detail: 'Pulsing dot = Claude is working. Solid dot = waiting for input. Click to open.' },
           { label: 'Stopped sessions', detail: 'Dimmed with exit code. Auto-cleaned after 5 minutes (configurable in Settings). "Clear all" appears on the Stopped divider when 2+ sessions are stopped.' },
+          { label: 'Session notes', detail: 'Right-click a session → Add Note to annotate it with freeform text (e.g., "waiting for CI", "investigating auth bug"). Notes appear as an italic subtitle under the session name. Edit or clear via the same menu. Max 500 characters.' },
           { label: 'Pin to top', detail: 'Right-click a session to pin it. Pinned sessions stay at the top and are restored on launch.', icon: 'Pin' },
           { label: 'Export Handoff Doc', detail: 'Generates a markdown snapshot of the session — git commits, terminal output, metadata — ready to paste into a new session to restore context. Click "✨ Generate Summary" inside the dialog to replace the raw terminal snapshot with an AI-generated 3–5 sentence summary.', icon: 'FileDown' },
           { label: 'Session Templates', detail: 'Save and reuse session configurations. Right-click a session → Save as Template to save the name, working directory, and role. The New Session button shows a template picker when templates exist. Manage templates in Settings → Session Templates.', icon: 'BookTemplate' },
