@@ -128,7 +128,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
   }, [])
 
   return (
-    <div className="dialog-overlay" onClick={handleClose}>
+    <div className="dialog-overlay">
       <form className="dialog" onClick={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); handleCreate() }}>
         <h2>{prefill ? `Launch: ${prefill.name}` : 'New Session'}</h2>
 

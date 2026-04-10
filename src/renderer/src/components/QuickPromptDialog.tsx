@@ -48,7 +48,7 @@ export default function QuickPromptDialog({ onClose, onLaunch, recentDirs, promp
   }
 
   return (
-    <div className="dialog-overlay" onClick={onClose}>
+    <div className="dialog-overlay">
       <div className="dialog quick-prompt-dialog" onClick={(e) => e.stopPropagation()}>
         <h2><Play size={16} style={{ display: 'inline', marginRight: 8 }} />Quick Prompt</h2>
         <p className="quick-prompt-hint">Launch a new Claude session with a prompt pre-filled. <kbd>⌘↵</kbd> to launch, <kbd>↑↓</kbd> for history.</p>
