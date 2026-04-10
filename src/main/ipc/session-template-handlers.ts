@@ -73,7 +73,10 @@ export function registerSessionTemplateHandlers(): void {
 
     // Send initial prompt if present
     if (template.initialPrompt && inst) {
-      sendPromptWhenReady(inst.id, { prompt: template.initialPrompt }).catch(() => {})
+      sendPromptWhenReady(inst.id, {
+        prompt: template.initialPrompt,
+        planFirst: template.planFirst,
+      }).catch(() => {})
     }
 
     // Update lastUsed and launchCount

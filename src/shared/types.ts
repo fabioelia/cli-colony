@@ -456,6 +456,7 @@ export interface SessionTemplate {
   role?: string
   initialPrompt?: string
   permissionMode?: 'autonomous' | 'supervised'
+  planFirst?: boolean
   lastUsed?: number
   launchCount?: number
 }

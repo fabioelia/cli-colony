@@ -15,10 +15,25 @@
 
 import { getDaemonClient } from './daemon-client'
 
+/** Planning prefix prepended to prompts when planFirst is enabled */
+export const PLAN_FIRST_PREFIX = `IMPORTANT: Before taking any action, first create a structured plan:
+1. Summarize your understanding of the task
+2. List the files you expect to modify and why
+3. Outline your step-by-step approach
+4. Note any risks or assumptions
+
+Present the plan, then WAIT for my approval before proceeding.
+Do not use any tools or make any changes until I confirm.
+
+Task: `
+
 /** Options for sendPromptWhenReady */
 export interface SendPromptOpts {
   /** Prompt text to write to the PTY */
   prompt: string
+  /** When true, prefix the prompt with a planning instruction so the session
+   *  produces a plan and waits for approval before acting. */
+  planFirst?: boolean
   /** Timeout (ms) after first waiting before force-sending. Default 3000. */
   forceTimeout?: number
   /** Timeout (ms) before giving up entirely. Default 15000. */
@@ -33,6 +48,7 @@ export interface SendPromptOpts {
  */
 export async function sendPromptWhenReady(instanceId: string, opts: SendPromptOpts): Promise<void> {
   const client = getDaemonClient()
+  const promptText = opts.planFirst ? PLAN_FIRST_PREFIX + opts.prompt : opts.prompt
   const forceTimeout = opts.forceTimeout ?? 3000
   const abandonTimeout = opts.abandonTimeout ?? 15000
 
@@ -53,7 +69,7 @@ export async function sendPromptWhenReady(instanceId: string, opts: SendPromptOp
       cleanup()
       // Write text first, then submit after a short delay so the TUI
       // has time to process the input before receiving the Enter key.
-      client.writeToInstance(instanceId, opts.prompt)
+      client.writeToInstance(instanceId, promptText)
       setTimeout(() => {
         client.writeToInstance(instanceId, '\r')
         opts.onSent?.()

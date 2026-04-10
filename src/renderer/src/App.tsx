@@ -402,14 +402,18 @@ export default function App() {
     mcpServers?: string[]
     initialPrompt?: string
     permissionMode?: 'autonomous' | 'supervised'
+    planFirst?: boolean
   }) => {
     agentToLaunchRef.current = null
-    const { initialPrompt, ...createOpts } = opts
+    const { initialPrompt, planFirst, ...createOpts } = opts
     const inst = await window.api.instance.create(createOpts)
     // If the caller seeded a first prompt, queue it to run once the session
     // signals it's ready — same path the Quick Prompt flow uses.
     if (initialPrompt && initialPrompt.trim()) {
-      pendingPromptRef.current = { id: inst.id, prompt: initialPrompt }
+      const prompt = planFirst
+        ? `IMPORTANT: Before taking any action, first create a structured plan:\n1. Summarize your understanding of the task\n2. List the files you expect to modify and why\n3. Outline your step-by-step approach\n4. Note any risks or assumptions\n\nPresent the plan, then WAIT for my approval before proceeding.\nDo not use any tools or make any changes until I confirm.\n\nTask: ${initialPrompt}`
+        : initialPrompt
+      pendingPromptRef.current = { id: inst.id, prompt }
     }
     setActiveId(inst.id)
     setShowNewDialog(false)

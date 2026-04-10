@@ -12,6 +12,7 @@ interface Props {
     mcpServers?: string[]
     initialPrompt?: string
     permissionMode?: 'autonomous' | 'supervised'
+    planFirst?: boolean
   }) => void | Promise<void>
   onClose: () => void
   prefill?: AgentDef
@@ -59,6 +60,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
   const [environments, setEnvironments] = useState<EnvOption[]>([])
   const [mcpServersList, setMcpServersList] = useState<McpServer[]>([])
   const [selectedMcpServers, setSelectedMcpServers] = useState<Set<string>>(new Set())
+  const [planFirst, setPlanFirst] = useState(false)
   // Only render the first-prompt field when the caller passed a seed — the
   // classic "New Session" dialog stays unchanged for users who hit Cmd+T.
   const showPromptField = initialPrompt !== undefined
@@ -111,6 +113,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
         mcpServers,
         initialPrompt: trimmedPrompt || undefined,
         permissionMode,
+        planFirst: planFirst || undefined,
       })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -271,6 +274,17 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
               : 'Claude runs with full permissions (default).'}
           </div>
         </div>
+
+        {showPromptField && firstPrompt.trim() && (
+          <label className="dialog-mcp-checkbox" style={{ padding: '0 4px' }}>
+            <input
+              type="checkbox"
+              checked={planFirst}
+              onChange={(e) => setPlanFirst(e.target.checked)}
+            />
+            <span>Plan first — Claude outlines an approach and waits for approval before acting</span>
+          </label>
+        )}
 
         {mcpServersList.length > 0 && (
           <div className="dialog-field">

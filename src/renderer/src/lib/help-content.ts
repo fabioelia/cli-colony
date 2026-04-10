@@ -111,6 +111,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Below navigation',
         items: [
           { label: '+ New Session', detail: 'Opens a dialog to create a Claude CLI session. Set a name, color, working directory, and optional CLI args. Keyboard shortcut: Cmd+N.', icon: 'Plus' },
+          { label: 'Plan first', detail: 'When a first prompt is set, toggle "Plan first" to make Claude outline its approach (files to modify, steps, risks) and wait for your approval before taking any action. Useful for complex tasks where you want to review the strategy before committing tokens. Works with both the dialog and session templates.', icon: 'ListChecks' },
           { label: 'Restore banner', detail: 'After app restart, shows a button to restore sessions that were running when you last quit.', icon: 'RotateCcw' },
         ],
       },
