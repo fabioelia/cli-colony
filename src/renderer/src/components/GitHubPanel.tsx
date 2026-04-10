@@ -1339,8 +1339,9 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
 
         {/* Create Issue dialog */}
         {showCreateIssue && (
-          <div className="github-add-repo" style={{ marginBottom: 8 }}>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
+          <div className="github-add-repo" style={{ flexDirection: 'column', marginBottom: 8 }}>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Create Issue</span>
               <select
                 value={newIssueRepo || ''}
                 onChange={(e) => setNewIssueRepo(e.target.value)}
@@ -1353,7 +1354,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
               placeholder="Issue title"
               value={newIssueTitle}
               onChange={(e) => setNewIssueTitle(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleCreateIssue() }}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleCreateIssue(); if (e.key === 'Escape') setShowCreateIssue(false) }}
               autoFocus
             />
             <textarea

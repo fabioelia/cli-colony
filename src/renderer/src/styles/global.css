@@ -6815,7 +6815,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .github-pr-label.persona {
-  background: rgba(52, 211, 153, 0.12);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
   color: var(--success);
 }
 
