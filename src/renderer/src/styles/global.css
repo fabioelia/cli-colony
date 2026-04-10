@@ -7785,7 +7785,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-radius: 4px; color: var(--text-primary); font-size: 12px;
   font-family: inherit; resize: vertical; box-sizing: border-box;
 }
-.github-pr-comment-textarea:focus { border-color: var(--accent-blue); outline: none; }
+.github-pr-comment-textarea:focus { border-color: var(--accent); outline: none; }
 .github-pr-comment-textarea::placeholder { color: var(--text-muted); }
 .github-pr-comment-actions { display: flex; justify-content: flex-end; margin-top: 6px; }
 .github-pr-comment-error { color: var(--danger); font-size: 11px; margin-top: 4px; }
