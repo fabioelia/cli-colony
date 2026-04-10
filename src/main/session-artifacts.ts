@@ -119,6 +119,30 @@ async function isGitRepo(cwd: string): Promise<boolean> {
   }
 }
 
+// ---- Auto-naming ----
+
+function generateSessionName(artifact: SessionArtifact): string | null {
+  // 1. Last commit message subject (most descriptive of overall work)
+  if (artifact.commits.length > 0) {
+    const msg = artifact.commits[artifact.commits.length - 1].shortMsg
+    const clean = msg.replace(/^(feat|fix|refactor|chore|test|docs|ux|perf)(\(.*?\))?!?:\s*/, '')
+    return clean.slice(0, 50)
+  }
+  // 2. Branch name, cleaned up
+  if (artifact.gitBranch && artifact.gitBranch !== 'main' && artifact.gitBranch !== 'develop') {
+    return artifact.gitBranch
+      .replace(/^(feat|fix|chore|refactor)\//, '')
+      .replace(/[-_]/g, ' ')
+      .slice(0, 50)
+  }
+  // 3. File change summary
+  if (artifact.changes.length > 0) {
+    const dirs = [...new Set(artifact.changes.map(c => c.file.split('/').slice(0, 2).join('/')))]
+    return `${artifact.changes.length} files in ${dirs[0]}${dirs.length > 1 ? ` +${dirs.length - 1}` : ''}`
+  }
+  return null
+}
+
 // ---- Public API ----
 
 /**
@@ -175,6 +199,21 @@ export async function collectSessionArtifact(instanceId: string): Promise<Sessio
   existing.push(artifact)
   const trimmed = existing.length > MAX_ARTIFACTS ? existing.slice(existing.length - MAX_ARTIFACTS) : existing
   await writeArtifacts(trimmed)
+
+  // Auto-rename session based on artifacts (fire-and-forget)
+  try {
+    const autoName = generateSessionName(artifact)
+    if (autoName) {
+      const isDefaultName = /^(Claude|Cursor)\s\d+$/.test(inst.name)
+      const isPersonaName = inst.name.startsWith('Persona: ')
+      if (isDefaultName) {
+        await client.renameInstance(instanceId, autoName)
+      } else if (isPersonaName) {
+        const prefix = inst.name.slice(0, inst.name.indexOf(':'))
+        await client.renameInstance(instanceId, `${prefix}: ${autoName}`)
+      }
+    }
+  } catch { /* auto-naming is best-effort */ }
 
   console.log(`[session-artifacts] collected artifact for "${inst.name}" (${commits.length} commits, ${changes.length} changes)`)
   return artifact
