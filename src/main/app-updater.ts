@@ -208,6 +208,14 @@ function initDevUpdater(mainWindow: BrowserWindow | null): void {
   // app.getAppPath() returns the project root in dev (electron-vite)
   devRepoDir = app.getAppPath()
 
+  // Derive version from latest git tag instead of package.json
+  execFileAsync('git', ['describe', '--tags', '--abbrev=0'], { cwd: devRepoDir })
+    .then(({ stdout }) => {
+      const tag = stdout.trim().replace(/^v/, '')
+      if (tag) mergeStatus({ currentVersion: `${tag}-dev` })
+    })
+    .catch(() => { /* no tags — keep package.json version */ })
+
   if (mainWindow) {
     mainWindow.on('focus', () => checkOnFocus())
   }
