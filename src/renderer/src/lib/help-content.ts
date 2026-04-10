@@ -1052,7 +1052,8 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Webview',
         position: 'Main area',
         items: [
-          { label: 'Embedded browser', detail: 'Full web browser rendering the selected service. Cookies and sessions are isolated per environment.' },
+          { label: 'Embedded browser', detail: 'Full web browser rendering the selected service. Cookies and sessions are isolated per environment. Click-drag to select text, double-click to select a word.' },
+          { label: 'Context menu', detail: 'Right-click inside the browser for a context menu with Back, Forward, Reload, Cut, Copy, Paste, Select All, and Inspect Element. Edit actions are context-aware (e.g., Copy is disabled when nothing is selected).' },
           { label: 'Error state', detail: 'If a service fails to load (e.g., not yet started), shows an error with a Retry button.' },
         ],
       },

@@ -300,6 +300,10 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const diffCacheRef = useRef<Record<string, string>>({})
   const [diffContent, setDiffContent] = useState<string | null>(null)
   const [diffLoading, setDiffLoading] = useState(false)
+  // Browser context menu state
+  const [webviewContextMenu, setWebviewContextMenu] = useState<{
+    x: number; y: number; editFlags: Record<string, boolean>
+  } | null>(null)
   // Artifacts tab state
   const [artifact, setArtifact] = useState<SessionArtifact | null>(null)
   const [artifactLoading, setArtifactLoading] = useState(false)
@@ -459,14 +463,26 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
       if (e.errorCode === -3) return // Aborted navigations (user clicked quickly)
       setBrowserError(`Failed to load: ${e.errorDescription || 'Unknown error'}`)
     }
+    const handleContextMenu = (e: any) => {
+      e.preventDefault()
+      const params = e.params || {}
+      const wvRect = wv.getBoundingClientRect()
+      setWebviewContextMenu({
+        x: Math.min((params.x ?? 0) + wvRect.left, window.innerWidth - 200),
+        y: Math.min((params.y ?? 0) + wvRect.top, window.innerHeight - 300),
+        editFlags: params.editFlags ?? {}
+      })
+    }
 
     wv.addEventListener('did-navigate', handleNavigation)
     wv.addEventListener('did-navigate-in-page', handleNavigation)
     wv.addEventListener('did-fail-load', handleFailLoad)
+    wv.addEventListener('context-menu', handleContextMenu)
     return () => {
       wv.removeEventListener('did-navigate', handleNavigation)
       wv.removeEventListener('did-navigate-in-page', handleNavigation)
       wv.removeEventListener('did-fail-load', handleFailLoad)
+      wv.removeEventListener('context-menu', handleContextMenu)
     }
   }, [browserUrl, viewTab, instance.id, browserService])
 
@@ -2177,6 +2193,26 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               className="browser-panel-webview"
               partition={`persist:env-${envStatus.id}`}
             />
+          )}
+          {webviewContextMenu && (
+            <>
+              <div className="context-menu-overlay" onClick={() => setWebviewContextMenu(null)} />
+              <div
+                className="context-menu"
+                style={{ top: webviewContextMenu.y, left: webviewContextMenu.x }}
+              >
+                <button className="context-menu-item" onClick={() => { webviewRef.current?.goBack(); setWebviewContextMenu(null) }}>Back</button>
+                <button className="context-menu-item" onClick={() => { webviewRef.current?.goForward(); setWebviewContextMenu(null) }}>Forward</button>
+                <button className="context-menu-item" onClick={() => { webviewRef.current?.reload(); setWebviewContextMenu(null) }}>Reload</button>
+                <div className="context-menu-separator" />
+                <button className="context-menu-item" disabled={!webviewContextMenu.editFlags.canCut} onClick={() => { webviewRef.current?.cut(); setWebviewContextMenu(null) }}>Cut</button>
+                <button className="context-menu-item" disabled={!webviewContextMenu.editFlags.canCopy} onClick={() => { webviewRef.current?.copy(); setWebviewContextMenu(null) }}>Copy</button>
+                <button className="context-menu-item" disabled={!webviewContextMenu.editFlags.canPaste} onClick={() => { webviewRef.current?.paste(); setWebviewContextMenu(null) }}>Paste</button>
+                <button className="context-menu-item" disabled={!webviewContextMenu.editFlags.canSelectAll} onClick={() => { webviewRef.current?.selectAll(); setWebviewContextMenu(null) }}>Select All</button>
+                <div className="context-menu-separator" />
+                <button className="context-menu-item" onClick={() => { webviewRef.current?.openDevTools(); setWebviewContextMenu(null) }}>Inspect Element</button>
+              </div>
+            </>
           )}
         </div>
       )}

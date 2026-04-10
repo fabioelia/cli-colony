@@ -5030,6 +5030,17 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: var(--bg-surface);
 }
 
+.context-menu-item:disabled {
+  color: var(--text-muted);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.context-menu-separator {
+  border-bottom: 1px solid var(--border-subtle);
+  margin: 4px 0;
+}
+
 .context-menu-item.danger {
   color: var(--danger);
 }
@@ -6104,6 +6115,8 @@ body:has(.daemon-update-banner) .app-update-banner {
 .browser-panel-webview {
   flex: 1;
   border: none;
+  -webkit-app-region: no-drag;
+  pointer-events: auto;
 }
 .browser-panel-error {
   flex: 1;
