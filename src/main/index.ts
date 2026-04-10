@@ -371,6 +371,11 @@ function buildAppMenu(): void {
           accelerator: 'CmdOrCtrl+F',
           click: () => broadcast('shortcut:search'),
         },
+        {
+          label: 'Search All Sessions',
+          accelerator: 'CmdOrCtrl+Shift+F',
+          click: () => broadcast('shortcut:global-search'),
+        },
         { type: 'separator' },
         {
           label: 'Next Instance',

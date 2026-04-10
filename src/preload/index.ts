@@ -102,6 +102,11 @@ export interface ClaudeManagerAPI {
     restorable: () => Promise<any[]>
     clearRestorable: () => Promise<boolean>
     recent: () => Promise<any[]>
+    searchOutput: (query: string) => Promise<Array<{
+      instanceId: string
+      name: string
+      matches: Array<{ lineNum: number; line: string; contextBefore: string; contextAfter: string }>
+    }>>
   }
   daemon: {
     restart: () => Promise<void>
@@ -128,6 +133,7 @@ export interface ClaudeManagerAPI {
     onCloseInstance: (cb: () => void) => () => void
     onClearTerminal: (cb: () => void) => () => void
     onSearch: (cb: () => void) => () => void
+    onGlobalSearch: (cb: () => void) => () => void
     onSwitchInstance: (cb: (index: number) => void) => () => void
     onZoomIn: (cb: () => void) => () => void
     onZoomOut: (cb: () => void) => () => void
@@ -577,6 +583,7 @@ const api: ClaudeManagerAPI = {
     restorable: () => ipcRenderer.invoke('sessions:restorable'),
     clearRestorable: () => ipcRenderer.invoke('sessions:clearRestorable'),
     recent: () => ipcRenderer.invoke('sessions:recent'),
+    searchOutput: (query) => ipcRenderer.invoke('sessions:searchOutput', query),
   },
   daemon: {
     restart: () => ipcRenderer.invoke('daemon:restart'),
@@ -611,6 +618,7 @@ const api: ClaudeManagerAPI = {
     onCloseInstance: (cb) => { const l = () => cb(); ipcRenderer.on('shortcut:close-instance', l); return () => ipcRenderer.removeListener('shortcut:close-instance', l) },
     onClearTerminal: (cb) => { const l = () => cb(); ipcRenderer.on('shortcut:clear-terminal', l); return () => ipcRenderer.removeListener('shortcut:clear-terminal', l) },
     onSearch: (cb) => { const l = () => cb(); ipcRenderer.on('shortcut:search', l); return () => ipcRenderer.removeListener('shortcut:search', l) },
+    onGlobalSearch: (cb: () => void) => { const l = () => cb(); ipcRenderer.on('shortcut:global-search', l); return () => ipcRenderer.removeListener('shortcut:global-search', l) },
     onSwitchInstance: (cb) => { const l = (_e: any, idx: number) => cb(idx); ipcRenderer.on('shortcut:switch-instance', l); return () => ipcRenderer.removeListener('shortcut:switch-instance', l) },
     onZoomIn: (cb) => { const l = () => cb(); ipcRenderer.on('shortcut:zoom-in', l); return () => ipcRenderer.removeListener('shortcut:zoom-in', l) },
     onZoomOut: (cb) => { const l = () => cb(); ipcRenderer.on('shortcut:zoom-out', l); return () => ipcRenderer.removeListener('shortcut:zoom-out', l) },

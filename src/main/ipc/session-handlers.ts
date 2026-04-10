@@ -11,6 +11,7 @@ import { getAllInstances } from '../instance-manager'
 import { getContextUsage, tokenizeApproximate } from '../context-counter'
 import { getArtifact } from '../session-artifacts'
 import { getDaemonClient } from '../daemon-client'
+import { stripAnsi } from '../../shared/utils'
 import type { CoordinatorTeam, ContextUsage, GitDiffEntry } from '../../shared/types'
 
 const execFileAsync = promisify(execFile)
@@ -76,6 +77,10 @@ export function registerSessionHandlers(): void {
 
   ipcMain.handle('session:tokenizeApproximate', (_e, text: string): number => {
     return tokenizeApproximate(text)
+  })
+
+  ipcMain.handle('sessions:searchOutput', async (_e, query: string) => {
+    return searchSessionOutput(query)
   })
 
   ipcMain.handle('session:exportMarkdown', async (_e, instanceId: string): Promise<string> => {
@@ -269,4 +274,63 @@ async function buildExportMarkdown(instanceId: string): Promise<string> {
   }
 
   return lines.join('\n')
+}
+
+// ---- Global session output search ----
+
+interface SearchOutputMatch {
+  lineNum: number
+  line: string
+  contextBefore: string
+  contextAfter: string
+}
+
+interface SearchOutputResult {
+  instanceId: string
+  name: string
+  matches: SearchOutputMatch[]
+}
+
+const MAX_TOTAL_MATCHES = 100
+
+async function searchSessionOutput(query: string): Promise<SearchOutputResult[]> {
+  if (!query || query.length < 2) return []
+
+  const client = getDaemonClient()
+  const instances = await client.getAllInstances()
+  const q = query.toLowerCase()
+  const results: SearchOutputResult[] = []
+  let totalMatches = 0
+
+  for (const inst of instances) {
+    if (totalMatches >= MAX_TOTAL_MATCHES) break
+    try {
+      const raw = await client.getInstanceBuffer(inst.id)
+      if (!raw) continue
+      const clean = stripAnsi(raw)
+      const lines = clean.split('\n')
+      const matches: SearchOutputMatch[] = []
+
+      for (let i = 0; i < lines.length; i++) {
+        if (totalMatches >= MAX_TOTAL_MATCHES) break
+        if (lines[i].toLowerCase().includes(q)) {
+          matches.push({
+            lineNum: i + 1,
+            line: lines[i],
+            contextBefore: i > 0 ? lines[i - 1] : '',
+            contextAfter: i < lines.length - 1 ? lines[i + 1] : '',
+          })
+          totalMatches++
+        }
+      }
+
+      if (matches.length > 0) {
+        results.push({ instanceId: inst.id, name: inst.name, matches })
+      }
+    } catch {
+      // Skip instances whose buffer can't be fetched
+    }
+  }
+
+  return results
 }

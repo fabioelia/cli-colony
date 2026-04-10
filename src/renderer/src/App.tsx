@@ -27,6 +27,7 @@ import ArenaLeaderboard from './components/ArenaLeaderboard'
 import ColonyOverviewPanel from './components/ColonyOverviewPanel'
 import { loadPresets } from './components/WorkspacePresets'
 import type { WorkspacePreset } from './components/WorkspacePresets'
+import GlobalSearch from './components/GlobalSearch'
 import AppUpdateBanner from './components/AppUpdateBanner'
 import WelcomeModal from './components/WelcomeModal'
 import { stripAnsi } from '../../shared/utils'
@@ -69,6 +70,7 @@ export default function App() {
   const [editorInstanceId, setEditorInstanceId] = useState<string | null>(null)
   const [restorableSessions, setRestorableSessions] = useState<RecentSession[]>([])
   const [searchOpen, setSearchOpen] = useState(false)
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false)
   const [splitPairs, setSplitPairs] = useState<Map<string, string>>(new Map()) // leftId → rightId
   const [focusedPane, setFocusedPane] = useState<'left' | 'right'>('left')
   const [showSplitPicker, setShowSplitPicker] = useState(false)
@@ -290,6 +292,9 @@ export default function App() {
       window.api.shortcuts.onSearch(() => {
         const { activeId: aid, view: v } = activeViewRef.current
         if (v === 'instances' && aid) setSearchOpen(true)
+      }),
+      window.api.shortcuts.onGlobalSearch(() => {
+        setGlobalSearchOpen(prev => !prev)
       }),
       window.api.shortcuts.onSwitchInstance((idx: number) => {
         // Match visual order: pinned, then running, then exited
@@ -1974,6 +1979,11 @@ export default function App() {
       <ArenaLeaderboard
         open={arenaLeaderboardOpen}
         onClose={() => setArenaLeaderboardOpen(false)}
+      />
+      <GlobalSearch
+        open={globalSearchOpen}
+        onClose={() => setGlobalSearchOpen(false)}
+        onNavigate={(id) => { setActiveId(id); setView('instances') }}
       />
     </div>
   )
