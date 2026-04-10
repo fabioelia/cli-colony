@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate } from '../../../shared/types'
@@ -207,7 +207,7 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
             if (inst.permissionMode === 'supervised')
               badges.push({ node: <span key="pm" className="instance-supervised-badge" title="Supervised mode — Claude asks before risky actions"><Shield size={11} /></span>, label: 'Supervised' })
             if (conflictFiles && conflictFiles.length > 0)
-              badges.push({ node: <span key="cf" className="instance-conflict-badge" title={conflictFiles.map(o => `${o.file} (also in ${o.otherSessions.map(s => s.name).join(', ')})`).join('\n')}>⚠ {conflictFiles.length}</span>, label: `${conflictFiles.length} conflict${conflictFiles.length > 1 ? 's' : ''}` })
+              badges.push({ node: <span key="cf" className="instance-conflict-badge" title={conflictFiles.map(o => `${o.file} (also in ${o.otherSessions.map(s => s.name).join(', ')})`).join('\n')}><AlertTriangle size={11} /> {conflictFiles.length}</span>, label: `${conflictFiles.length} conflict${conflictFiles.length > 1 ? 's' : ''}` })
             if (badges.length === 0) return null
             return (
               <div className="instance-badges">

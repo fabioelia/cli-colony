@@ -5749,6 +5749,9 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 /* File conflict badge in sidebar session tile */
 .instance-conflict-badge {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   font-size: 9px;
   font-weight: 600;
   padding: 1px 4px;
