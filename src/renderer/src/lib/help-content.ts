@@ -487,7 +487,7 @@ export const helpContent: Record<string, HelpEntry> = {
       },
       {
         name: 'Health Summary',
-        position: 'Top of Instances tab',
+        position: 'Top of Environments tab',
         items: [
           { label: 'Status badges', detail: 'Running, stopped, partial counts plus total services. Crashed badge appears when any service is down.' },
           { label: 'Port conflict warning', detail: 'Amber badge when two environments claim the same port. Hover to see which environments and services conflict.', icon: 'AlertTriangle' },
@@ -497,7 +497,7 @@ export const helpContent: Record<string, HelpEntry> = {
       },
       {
         name: 'Environment Cards',
-        position: 'Main area — Instances tab',
+        position: 'Main area — Environments tab',
         items: [
           { label: 'Status dot', detail: 'Green = all services running. Yellow = partial. Red = crashed. Gray = stopped.' },
           { label: 'Service dots', detail: 'Colored dot + service name for each service. Dot color shows status: green = running, red = crashed, gray = stopped. Hover for port and restart info.' },
