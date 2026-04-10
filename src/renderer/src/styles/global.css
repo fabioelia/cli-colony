@@ -16778,3 +16778,43 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .overview-action-btn.primary:hover { opacity: 0.85; }
 
+/* ===== Sidebar Session Grouping ===== */
+.sidebar-group-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  color: var(--text-muted);
+  font-size: 11px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-group-select {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 4px;
+  outline: none;
+}
+.sidebar-group-select:hover { color: var(--text-primary); }
+.sidebar-group-select option { background: var(--bg-primary); color: var(--text-primary); }
+.session-group-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  user-select: none;
+}
+.session-group-count {
+  margin-left: auto;
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 5px;
+  border-radius: 8px;
+  min-width: 16px;
+  text-align: center;
+}
+

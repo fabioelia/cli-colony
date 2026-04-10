@@ -124,6 +124,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Context budget badge', detail: 'Amber "ctx" badge when a session has generated significant output (context building up). Red when near the limit. Click to open the Handoff Doc export to capture a snapshot before the session reaches its context limit.' },
           { label: 'Role badge', detail: 'Purple/gold tag (Orchestrator, Planner, Coder, Tester, Reviewer, Researcher, Coordinator, Worker) set via right-click. Coordinator shows a gold Crown icon 👑. Helps coordinate multi-agent workflows at a glance. Coordinator sessions display a Team tab showing all active Worker sessions.' },
           { label: 'Split/Grid indicator', detail: 'A columns icon appears on sessions in a split view or grid view. In grid mode, all assigned panes show the indicator.', icon: 'Columns2' },
+          { label: 'Group by', detail: 'When 3+ sessions exist, a grouping selector appears above the list. Group by Persona, Project (working directory), or Status. Groups are collapsible and the mode persists across sessions.', icon: 'Layers' },
           { label: 'Shortcut numbers', detail: 'Numbers 1-9 shown next to sessions for quick Cmd+N jumping.' },
           { label: 'Repo Memory', detail: 'Place a `.colony/memory.md` file in a repo to automatically inject its conventions, architecture decisions, and team notes into every Colony session started in that directory. Same pattern as AGENTS.md — no UI needed.' },
         ],

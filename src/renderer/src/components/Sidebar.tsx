@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, FileDown, GitFork, ChevronDown, ChevronRight, Trophy, BookTemplate, FolderOpen, Crown, GitCompare } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, FileDown, GitFork, ChevronDown, ChevronRight, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate } from '../../../shared/types'
@@ -255,6 +255,24 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const [runningEnvCount, setRunningEnvCount] = useState(0)
   const [expandedForkGroups, setExpandedForkGroups] = useState<Set<string>>(new Set())
   const [forkSectionOpen, setForkSectionOpen] = useState(true)
+
+  type GroupBy = 'none' | 'persona' | 'project' | 'status'
+  const [groupBy, setGroupBy] = useState<GroupBy>(() => (localStorage.getItem('sidebar-group-by') as GroupBy) || 'none')
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('sidebar-collapsed-groups') || '[]')) } catch { return new Set() }
+  })
+  const toggleGroupCollapse = useCallback((group: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(group)) next.delete(group); else next.add(group)
+      localStorage.setItem('sidebar-collapsed-groups', JSON.stringify([...next]))
+      return next
+    })
+  }, [])
+  const handleGroupByChange = useCallback((val: GroupBy) => {
+    setGroupBy(val)
+    localStorage.setItem('sidebar-group-by', val)
+  }, [])
 
   useEffect(() => {
     window.api.appUpdate.getStatus().then((s: any) => s?.currentVersion && setAppVersion(s.currentVersion)).catch(() => {})
@@ -521,13 +539,41 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     return { pinned: p, running: r, exited: e, orderedInstances: [...p, ...r, ...e] }
   }, [instances])
 
+  // Grouped view: partition instances into labelled groups
+  const groupedSections = useMemo(() => {
+    if (groupBy === 'none') return null
+    const getKey = (inst: ClaudeInstance): string => {
+      if (groupBy === 'persona') {
+        if (inst.name.startsWith('Persona: ')) return inst.name.replace('Persona: ', '').split(' ')[0]
+        return 'Manual'
+      }
+      if (groupBy === 'project') return dirName(inst.workingDirectory)
+      // status
+      return inst.status === 'running' ? (inst.activity === 'busy' ? 'Busy' : 'Idle') : 'Stopped'
+    }
+    const groups = new Map<string, ClaudeInstance[]>()
+    // Iterate in the pinned→running→exited order within each group
+    for (const inst of orderedInstances) {
+      const key = getKey(inst)
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key)!.push(inst)
+    }
+    return [...groups.entries()].map(([label, items]) => ({ label, items }))
+  }, [groupBy, orderedInstances])
+
+  // Flat ordered list for Cmd+1-9 indexing — follows grouped order when active
+  const flatOrderForIndexing = useMemo(() => {
+    if (!groupedSections) return orderedInstances
+    return groupedSections.flatMap(g => g.items)
+  }, [groupedSections, orderedInstances])
+
   const instanceIndexMap = useMemo(() => {
     const m = new Map<string, number | null>()
-    for (let idx = 0; idx < orderedInstances.length; idx++) {
-      m.set(orderedInstances[idx].id, idx < 9 ? idx + 1 : null)
+    for (let idx = 0; idx < flatOrderForIndexing.length; idx++) {
+      m.set(flatOrderForIndexing[idx].id, idx < 9 ? idx + 1 : null)
     }
     return m
-  }, [orderedInstances])
+  }, [flatOrderForIndexing])
 
   const ctxLevelFor = (bytes: number): 'amber' | 'red' | null => {
     if (bytes >= 600_000) return 'red'
@@ -706,6 +752,22 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
         )}
       </div>
 
+      {instances.length > 2 && (
+        <div className="sidebar-group-selector">
+          <Layers size={11} />
+          <select
+            value={groupBy}
+            onChange={(e) => handleGroupByChange(e.target.value as GroupBy)}
+            className="sidebar-group-select"
+          >
+            <option value="none">No grouping</option>
+            <option value="persona">By Persona</option>
+            <option value="project">By Project</option>
+            <option value="status">By Status</option>
+          </select>
+        </div>
+      )}
+
       <div className="instance-list">
         {/* Fork Groups section — shown above regular session list */}
         {forkGroups.filter(g => g.status === 'active').length > 0 && (
@@ -793,29 +855,50 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             })}
           </>
         )}
-        {pinned.length > 0 && (
+        {groupedSections ? (
+          /* Grouped view */
+          groupedSections.map(({ label, items }) => (
+            <React.Fragment key={label}>
+              <div
+                className="instance-list-divider session-group-header"
+                style={{ cursor: 'pointer' }}
+                onClick={() => toggleGroupCollapse(label)}
+              >
+                {collapsedGroups.has(label) ? <ChevronRight size={11} /> : <ChevronDown size={11} />}
+                {label}
+                <span className="session-group-count">{items.length}</span>
+              </div>
+              {!collapsedGroups.has(label) && items.map(renderItem)}
+            </React.Fragment>
+          ))
+        ) : (
+          /* Default flat view */
           <>
-            <div className="instance-list-divider">Pinned</div>
-            {pinned.map(renderItem)}
-          </>
-        )}
-        {running.length > 0 && (
-          <>
-            {pinned.length > 0 && <div className="instance-list-divider">Active</div>}
-            {running.map(renderItem)}
-          </>
-        )}
-        {exited.length > 0 && (running.length > 0 || pinned.length > 0) && (
-          <div className="instance-list-divider">
-            Stopped
-            {exited.length > 1 && (
-              <button className="clear-stopped-btn" onClick={() => exited.forEach(i => onRemove(i.id))}>
-                Clear all
-              </button>
+            {pinned.length > 0 && (
+              <>
+                <div className="instance-list-divider">Pinned</div>
+                {pinned.map(renderItem)}
+              </>
             )}
-          </div>
+            {running.length > 0 && (
+              <>
+                {pinned.length > 0 && <div className="instance-list-divider">Active</div>}
+                {running.map(renderItem)}
+              </>
+            )}
+            {exited.length > 0 && (running.length > 0 || pinned.length > 0) && (
+              <div className="instance-list-divider">
+                Stopped
+                {exited.length > 1 && (
+                  <button className="clear-stopped-btn" onClick={() => exited.forEach(i => onRemove(i.id))}>
+                    Clear all
+                  </button>
+                )}
+              </div>
+            )}
+            {exited.map(renderItem)}
+          </>
         )}
-        {exited.map(renderItem)}
         {instances.length === 0 && (
           <div className="instance-list-empty">No sessions · press Cmd+T or click New Session to start</div>
         )}
