@@ -404,7 +404,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     // Auto-select first service if none selected or current service no longer exists
     if (!browserService || !envStatus.urls[browserService]) {
       // Check localStorage for persisted URL first
-      const stored = localStorage.getItem(`colony:browserUrl:${instanceId}`)
+      const stored = localStorage.getItem(`colony:browserUrl:${instance.id}`)
       if (stored) {
         try {
           const { service, url, ts } = JSON.parse(stored)
@@ -416,13 +416,13 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
             return
           }
         } catch { /* ignore corrupt data */ }
-        localStorage.removeItem(`colony:browserUrl:${instanceId}`)
+        localStorage.removeItem(`colony:browserUrl:${instance.id}`)
       }
       browserUrlIntentRef.current = entries[0][1]
       setBrowserService(entries[0][0])
       setBrowserUrl(entries[0][1])
     }
-  }, [envStatus?.urls, browserService, instanceId])
+  }, [envStatus?.urls, browserService, instance.id])
 
   // Imperatively set webview src and handle navigation events
   useEffect(() => {
@@ -450,7 +450,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
       setBrowserUrlInput(e.url)
       // Persist to localStorage for tab-switch resilience
       if (e.url && e.url !== 'about:blank' && browserService) {
-        localStorage.setItem(`colony:browserUrl:${instanceId}`, JSON.stringify({
+        localStorage.setItem(`colony:browserUrl:${instance.id}`, JSON.stringify({
           service: browserService, url: e.url, ts: Date.now()
         }))
       }
@@ -468,7 +468,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
       wv.removeEventListener('did-navigate-in-page', handleNavigation)
       wv.removeEventListener('did-fail-load', handleFailLoad)
     }
-  }, [browserUrl, viewTab, instanceId, browserService])
+  }, [browserUrl, viewTab, instance.id, browserService])
 
   // Shell terminal — lazy init when tab is first opened, re-init on shellResetKey
   useEffect(() => {
