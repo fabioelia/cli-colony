@@ -6311,6 +6311,83 @@ body:has(.daemon-update-banner) .app-update-banner {
 .diff-truncated button:hover {
   background: var(--bg-hover);
 }
+.diff-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.diff-mode-toggle {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.diff-mode-toggle:hover {
+  border-color: var(--border-active);
+}
+.diff-split {
+  overflow-y: auto;
+  max-height: inherit;
+}
+.diff-split-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.diff-split-cell {
+  display: flex;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+}
+.diff-split-left {
+  border-right: 1px solid var(--border);
+}
+.diff-split-cell.diff-empty {
+  background: var(--bg-secondary);
+  opacity: 0.5;
+}
+.diff-split-cell.diff-add {
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  color: var(--success);
+}
+.diff-split-cell.diff-del {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+.diff-split-cell.diff-context {
+  color: var(--text-secondary);
+}
+.diff-split-cell .diff-gutter {
+  flex-shrink: 0;
+  min-width: 40px;
+  text-align: right;
+  padding-right: 8px;
+  color: var(--text-muted);
+  opacity: 0.6;
+  user-select: none;
+}
+.diff-split-cell .diff-content {
+  flex: 1;
+  padding-left: 4px;
+  min-width: 0;
+}
+.diff-split-hunk {
+  grid-template-columns: 1fr;
+}
+.diff-split-hunk .diff-hunk {
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  padding: 2px 8px;
+  font-style: italic;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
 
 /* Syntax highlighting tokens within diff lines */
 .diff-viewer .diff-content .hljs-keyword,
@@ -17861,7 +17938,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   border: 1px solid var(--border); cursor: pointer;
   display: flex; align-items: center; gap: 4px;
 }
-.activity-filter-chip.active { background: var(--accent-blue); color: white; border-color: var(--accent-blue); }
+.activity-filter-chip.active { background: var(--accent); color: white; border-color: var(--accent); }
 .activity-filter-chip:hover:not(.active) { border-color: var(--border-active); }
 .filter-badge { padding: 0 4px; border-radius: 6px; font-size: 10px; }
 .filter-badge.warn { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
