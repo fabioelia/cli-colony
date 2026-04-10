@@ -718,29 +718,29 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
 
   // Load git changes when switching to changes tab
   const loadGitChanges = useCallback(() => {
-    if (!instance.dir) return
+    if (!instance.workingDirectory) return
     setGitChangesLoading(true)
     diffCacheRef.current = {}
-    window.api.session.gitChanges(instance.dir).then((entries) => {
+    window.api.session.gitChanges(instance.workingDirectory).then((entries) => {
       setGitChanges(entries)
       setGitChangesLoading(false)
     }).catch(() => {
       setGitChanges([])
       setGitChangesLoading(false)
     })
-  }, [instance.dir])
+  }, [instance.workingDirectory])
 
   useEffect(() => {
     if (viewTab !== 'changes') return
     loadGitChanges()
-  }, [viewTab, instance.dir, loadGitChanges])
+  }, [viewTab, instance.workingDirectory, loadGitChanges])
 
   // Poll changes every 10s while tab is active
   useEffect(() => {
-    if (viewTab !== 'changes' || !instance.dir) return
+    if (viewTab !== 'changes' || !instance.workingDirectory) return
     const pollId = setInterval(loadGitChanges, 10000)
     return () => clearInterval(pollId)
-  }, [viewTab, instance.dir, loadGitChanges])
+  }, [viewTab, instance.workingDirectory, loadGitChanges])
 
   // Load artifact when Artifacts tab is selected
   useEffect(() => {
@@ -774,36 +774,36 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   }, [viewTab, instance.id, instance.status])
 
   const handleRevert = useCallback(async (file: string) => {
-    if (!instance.dir) return
+    if (!instance.workingDirectory) return
     if (!window.confirm(`Revert "${file}"? This cannot be undone.`)) return
     setReverting(prev => new Set(prev).add(file))
-    await window.api.session.gitRevert(instance.dir, file).catch(() => {})
+    await window.api.session.gitRevert(instance.workingDirectory, file).catch(() => {})
     setReverting(prev => { const n = new Set(prev); n.delete(file); return n })
     loadGitChanges()
-  }, [instance.dir, loadGitChanges])
+  }, [instance.workingDirectory, loadGitChanges])
 
   const handleRevertAll = useCallback(async () => {
-    if (!instance.dir || gitChanges.length === 0) return
+    if (!instance.workingDirectory || gitChanges.length === 0) return
     if (!window.confirm(`Revert all ${gitChanges.length} changed file(s)? This cannot be undone.`)) return
     setRevertingAll(true)
-    await Promise.all(gitChanges.map(e => window.api.session.gitRevert(instance.dir!, e.file).catch(() => {})))
+    await Promise.all(gitChanges.map(e => window.api.session.gitRevert(instance.workingDirectory!, e.file).catch(() => {})))
     setRevertingAll(false)
     loadGitChanges()
-  }, [instance.dir, gitChanges, loadGitChanges])
+  }, [instance.workingDirectory, gitChanges, loadGitChanges])
 
   const handleScoreOutput = useCallback(async () => {
-    if (!instance.dir || gitChanges.length === 0) return
+    if (!instance.workingDirectory || gitChanges.length === 0) return
     setScoreCardLoading(true)
     setScoreCard(null)
     try {
-      const result = await window.api.session.scoreOutput(instance.dir)
+      const result = await window.api.session.scoreOutput(instance.workingDirectory)
       setScoreCard(result)
     } catch {
       setScoreCard({ confidence: 0, scopeCreep: false, testCoverage: 'none', summary: 'Scoring failed.', raw: '' })
     } finally {
       setScoreCardLoading(false)
     }
-  }, [instance.dir, gitChanges.length])
+  }, [instance.workingDirectory, gitChanges.length])
 
   const toggleFileDiff = useCallback(async (file: string, status: string) => {
     if (expandedDiffFile === file) {
@@ -819,7 +819,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     setDiffLoading(true)
     setDiffContent(null)
     try {
-      const raw = await window.api.session.getFileDiff(instance.dir!, file, status)
+      const raw = await window.api.session.getFileDiff(instance.workingDirectory!, file, status)
       diffCacheRef.current[file] = raw
       setDiffContent(raw)
     } catch {
@@ -827,7 +827,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     } finally {
       setDiffLoading(false)
     }
-  }, [expandedDiffFile, instance.dir])
+  }, [expandedDiffFile, instance.workingDirectory])
 
   // Load coordinator team when tab switches to team and role is Coordinator
   useEffect(() => {
@@ -1213,10 +1213,10 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     'session', 'shell', 'files',
     ...(envName ? (['services', 'logs'] as ViewTab[]) : []),
     ...(hasEnvUrls ? (['browser'] as ViewTab[]) : []),
-    ...(instance.dir ? (['changes'] as ViewTab[]) : []),
+    ...(instance.workingDirectory ? (['changes'] as ViewTab[]) : []),
     'artifacts',
     ...(instance.roleTag === 'Coordinator' ? (['team', 'metrics'] as ViewTab[]) : []),
-  ], [envName, instance.dir, instance.roleTag, hasEnvUrls])
+  ], [envName, instance.workingDirectory, instance.roleTag, hasEnvUrls])
   usePanelTabKeys(visibleViewTabs, viewTab, setViewTab, focused)
 
   return (
@@ -1285,7 +1285,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 <span className="services-tab-badge" style={{ background: 'var(--accent)' }}>{Object.keys(envStatus!.urls).length}</span>
               </button>
             )}
-            {instance.dir && (
+            {instance.workingDirectory && (
               <button
                 className={`terminal-tab ${viewTab === 'changes' ? 'active' : ''}`}
                 onClick={(e) => { e.stopPropagation(); setViewTab('changes') }}
@@ -2790,9 +2790,9 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           <div className="terminal-drop-overlay">Drop to paste path</div>
         )}
       </div>
-      {showCommitDialog && instance.dir && (
+      {showCommitDialog && instance.workingDirectory && (
         <CommitDialog
-          dir={instance.dir}
+          dir={instance.workingDirectory}
           entries={gitChanges}
           onClose={() => setShowCommitDialog(false)}
           onCommitted={loadGitChanges}
