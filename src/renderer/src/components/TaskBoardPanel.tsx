@@ -32,7 +32,7 @@ const PRIORITY_COLOR: Record<TaskPriority, string> = {
   critical: 'var(--danger)',
   high: '#f97316',
   medium: 'var(--warning)',
-  low: '#60a5fa',
+  low: 'var(--accent)',
 }
 
 /** Rank for sorting: lower = higher priority */
