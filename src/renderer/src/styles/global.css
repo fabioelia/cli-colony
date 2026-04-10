@@ -6064,7 +6064,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   overflow: auto;
 }
 .diff-viewer {
-  font-family: var(--font-mono, monospace);
+  font-family: monospace;
   font-size: 11px;
   line-height: 1.5;
 }
@@ -6074,16 +6074,16 @@ body:has(.daemon-update-banner) .app-update-banner {
   white-space: pre;
 }
 .diff-line.diff-add {
-  background: rgba(46, 160, 67, 0.12);
-  color: #3fb950;
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  color: var(--success);
 }
 .diff-line.diff-del {
-  background: rgba(248, 81, 73, 0.12);
-  color: #f85149;
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
 }
 .diff-line.diff-hunk {
   color: var(--text-muted);
-  background: rgba(56, 139, 253, 0.08);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
   padding: 2px 0;
   font-style: italic;
 }
