@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, FileDown, GitFork, ChevronDown, ChevronRight, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate } from '../../../shared/types'
@@ -14,6 +14,7 @@ import Tooltip from './Tooltip'
 import HelpPopover from './HelpPopover'
 import ExternalSessionPopover from './ExternalSessionPopover'
 import WorkspacePresets from './WorkspacePresets'
+import NotificationHistory from './NotificationHistory'
 import type { WorkspacePreset } from './WorkspacePresets'
 import { COLORS, formatTime, cliBackendLabel, formatInstanceCmd } from '../lib/constants'
 
@@ -154,6 +155,8 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
               badges.push({ node: <span key="ps" className="instance-steer-badge" title="Steering message queued — will be delivered when session is next idle">Steer</span>, label: 'Steer' })
             if (inst.toolDeferredInfo)
               badges.push({ node: <span key="td" className="instance-deferred-badge" title={`Tool deferred: ${inst.toolDeferredInfo.toolName}`}>Defer</span>, label: 'Defer' })
+            if (inst.permissionMode === 'supervised')
+              badges.push({ node: <span key="pm" className="instance-supervised-badge" title="Supervised mode — Claude asks before risky actions"><Shield size={11} /></span>, label: 'Supervised' })
             if (badges.length === 0) return null
             return (
               <div className="instance-badges">
@@ -224,6 +227,7 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
     a.gitBranch === b.gitBranch && a.roleTag === b.roleTag &&
     a.exitCode === b.exitCode && a.pendingSteer === b.pendingSteer &&
     a.toolDeferredInfo?.toolName === b.toolDeferredInfo?.toolName &&
+    a.permissionMode === b.permissionMode &&
     a.mcpServers.length === b.mcpServers.length &&
     a.cliBackend === b.cliBackend && a.childIds.length === b.childIds.length &&
     a.workingDirectory === b.workingDirectory && a.parentId === b.parentId &&
@@ -425,6 +429,8 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([])
   const [activityUnread, setActivityUnread] = useState(0)
   const [showActivityPopover, setShowActivityPopover] = useState(false)
+  const [showNotifPopover, setShowNotifPopover] = useState(false)
+  const [notifUnread, setNotifUnread] = useState(0)
   const [pendingApprovals, setPendingApprovals] = useState<ApprovalRequest[]>([])
   const [handoffInst, setHandoffInst] = useState<ClaudeInstance | null>(null)
   const [handoffDoc, setHandoffDoc] = useState('')
@@ -474,6 +480,15 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
       setPendingApprovals(prev => prev.filter(r => r.id !== id))
     })
     return () => { unsubNew(); unsubUnread(); unsubApprovalNew(); unsubApprovalUpdate() }
+  }, [])
+
+  // Notification history unread count + live updates
+  useEffect(() => {
+    window.api.notifications.unreadCount().then(setNotifUnread).catch(() => {})
+    const unsub = window.api.notifications.onNew(() => {
+      setNotifUnread(prev => prev + 1)
+    })
+    return unsub
   }, [])
 
   useEffect(() => {
@@ -1548,6 +1563,44 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                 ))}
               </div>
             </div>
+          )}
+        </div>
+        <div className="sidebar-footer-activity" style={{ position: 'relative' }}>
+          <Tooltip text="Notification History" detail="Desktop notifications log — what happened while you were away" position="top">
+            <button
+              className={`sidebar-footer-btn ${showNotifPopover ? 'active' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (showNotifPopover) {
+                  setShowNotifPopover(false)
+                } else {
+                  setShowNotifPopover(true)
+                }
+              }}
+            >
+              <BellRing size={14} />
+              {notifUnread > 0 && (
+                <span className="sidebar-activity-badge">{notifUnread > 99 ? '99+' : notifUnread}</span>
+              )}
+            </button>
+          </Tooltip>
+          {showNotifPopover && (
+            <NotificationHistory
+              onClose={() => {
+                setShowNotifPopover(false)
+                window.api.notifications.markAllRead().then(() => setNotifUnread(0)).catch(() => {})
+              }}
+              onNavigate={(route) => {
+                if (typeof route === 'string') {
+                  const viewRoutes = ['pipelines', 'personas', 'environments', 'tasks', 'outputs', 'agents', 'github', 'sessions', 'settings', 'review'] as const
+                  if (viewRoutes.includes(route as any)) {
+                    onViewChange(route as SidebarView)
+                  }
+                } else if (route && typeof route === 'object' && route.type === 'session' && typeof route.id === 'string') {
+                  onSelect(route.id)
+                }
+              }}
+            />
           )}
         </div>
         {onLoadPreset && (

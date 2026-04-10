@@ -56,6 +56,7 @@ export const colonyPaths = {
   forkGroups: path.join(ROOT, 'fork-groups.json'),
   sessionArtifacts: path.join(ROOT, 'session-artifacts.json'),
   sessionTemplates: path.join(ROOT, 'session-templates.json'),
+  notificationHistory: path.join(ROOT, 'notification-history.json'),
   governance: path.join(ROOT, 'governance'),
   approvalRulesJson: path.join(ROOT, 'governance', 'approval-rules.json'),
   onboardingStateJson: path.join(ROOT, 'onboarding-state.json'),

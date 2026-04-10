@@ -12,6 +12,7 @@ import type {
   WorktreeInfo,
   PersonaMemory, PersonaMemorySituation, PersonaMemoryLearning, PersonaMemoryLogEntry,
   SessionArtifact, SessionArtifactCommit, PersonaAnalytics,
+  NotificationEntry,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -28,6 +29,7 @@ export type {
   WorktreeInfo,
   PersonaMemory, PersonaMemorySituation, PersonaMemoryLearning, PersonaMemoryLogEntry,
   SessionArtifact, SessionArtifactCommit, PersonaAnalytics,
+  NotificationEntry,
 }
 
 
@@ -49,6 +51,7 @@ export interface ClaudeManagerAPI {
       parentId?: string
       cliBackend?: CliBackend
       mcpServers?: string[]
+      permissionMode?: 'autonomous' | 'supervised'
     }) => Promise<ClaudeInstance>
     write: (id: string, data: string) => void
     resize: (id: string, cols: number, rows: number) => Promise<boolean>
@@ -460,6 +463,14 @@ export interface ClaudeManagerAPI {
     collect: (sessionId: string) => Promise<SessionArtifact | null>
     clear: () => Promise<boolean>
     tagPipeline: (sessionId: string, pipelineRunId: string) => Promise<boolean>
+  }
+  notifications: {
+    history: () => Promise<NotificationEntry[]>
+    markRead: (id: string) => Promise<void>
+    markAllRead: () => Promise<void>
+    clearAll: () => Promise<void>
+    unreadCount: () => Promise<number>
+    onNew: (cb: (entry: NotificationEntry) => void) => () => void
   }
 }
 
@@ -965,6 +976,18 @@ const api: ClaudeManagerAPI = {
     collect: (sessionId) => ipcRenderer.invoke('artifacts:collect', sessionId),
     clear: () => ipcRenderer.invoke('artifacts:clear'),
     tagPipeline: (sessionId, pipelineRunId) => ipcRenderer.invoke('artifacts:tagPipeline', sessionId, pipelineRunId),
+  },
+  notifications: {
+    history: () => ipcRenderer.invoke('notifications:history'),
+    markRead: (id) => ipcRenderer.invoke('notifications:markRead', id),
+    markAllRead: () => ipcRenderer.invoke('notifications:markAllRead'),
+    clearAll: () => ipcRenderer.invoke('notifications:clearAll'),
+    unreadCount: () => ipcRenderer.invoke('notifications:unreadCount'),
+    onNew: (cb) => {
+      const listener = (_e: any, entry: NotificationEntry) => cb(entry)
+      ipcRenderer.on('notification:new', listener)
+      return () => ipcRenderer.removeListener('notification:new', listener)
+    },
   },
 }
 

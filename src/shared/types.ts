@@ -32,6 +32,7 @@ export interface ClaudeInstance {
   lastSessionId?: string
   pendingSteer?: string
   toolDeferredInfo?: { toolName: string; toolArgs?: string; sessionId: string }
+  permissionMode?: 'autonomous' | 'supervised'
 }
 
 export interface AgentDef {
@@ -411,6 +412,18 @@ export interface ArenaStatEntry {
 
 export type ArenaStats = Record<string, ArenaStatEntry>
 
+// ---- Notification History ----
+
+export interface NotificationEntry {
+  id: string
+  title: string
+  body: string
+  route?: string | Record<string, unknown>
+  timestamp: number    // ms epoch
+  read: boolean
+  source?: string      // e.g. 'pipeline', 'persona', 'session', 'approval', 'system'
+}
+
 export interface ForkEntry {
   id: string
   sessionId: string
@@ -441,6 +454,7 @@ export interface SessionTemplate {
   workingDir?: string
   role?: string
   initialPrompt?: string
+  permissionMode?: 'autonomous' | 'supervised'
   lastUsed?: number
   launchCount?: number
 }
