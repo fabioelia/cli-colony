@@ -77,8 +77,16 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted }: Com
 
   const busy = phase === 'committing' || phase === 'pushing'
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !busy) onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [busy, onClose])
+
   return (
-    <div className="dialog-overlay" onClick={onClose}>
+    <div className="dialog-overlay" onClick={busy ? undefined : onClose}>
       <div className="dialog commit-dialog" onClick={e => e.stopPropagation()}>
         <div className="dialog-title">
           <GitCommit size={16} /> Stage & Commit
