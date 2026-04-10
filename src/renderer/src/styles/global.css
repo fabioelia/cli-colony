@@ -451,7 +451,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   padding: 3px 7px;
 }
 .sidebar-bulk-actions .panel-header-btn.danger { color: var(--danger); }
-.sidebar-bulk-actions .panel-header-btn.danger:hover { background: rgba(239, 68, 68, 0.15); }
+.sidebar-bulk-actions .panel-header-btn.danger:hover { background: color-mix(in srgb, var(--danger) 15%, transparent); }
 .sidebar-bulk-actions .panel-header-btn:disabled {
   opacity: 0.35;
   pointer-events: none;

@@ -71,7 +71,12 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
         if (e.metaKey || e.ctrlKey) { onToggleSelect(inst.id); return }
         callbacks.onSelect(inst.id)
       }}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); callbacks.onSelect(inst.id) } }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          if (selectMode) { onToggleSelect(inst.id) } else { callbacks.onSelect(inst.id) }
+        }
+      }}
       onContextMenu={(e) => {
         e.preventDefault()
         callbacks.onContextMenu(inst.id, Math.min(e.clientX, window.innerWidth - 200), Math.min(e.clientY, window.innerHeight - 150))
@@ -1026,10 +1031,10 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
               className="panel-header-btn danger"
               disabled={![...selectedIds].some(id => instances.find(i => i.id === id)?.status !== 'running')}
               onClick={async () => {
-                for (const id of selectedIds) {
-                  const inst = instances.find(i => i.id === id)
-                  if (inst?.status !== 'running') await onRemove(id)
-                }
+                const removable = [...selectedIds].filter(id => instances.find(i => i.id === id)?.status !== 'running')
+                if (removable.length === 0) return
+                if (!confirm(`Remove ${removable.length} session${removable.length > 1 ? 's' : ''}? This cannot be undone.`)) return
+                for (const id of removable) await onRemove(id)
                 exitSelectMode()
               }}
             >
