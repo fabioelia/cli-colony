@@ -81,6 +81,18 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Environments', detail: 'Jump to the Environments panel.', icon: 'FolderOpen' },
         ],
       },
+      {
+        name: 'Timeline Tab',
+        position: 'Tab bar — "Timeline"',
+        items: [
+          { label: 'Session Timeline', detail: 'Gantt-style horizontal chart showing when sessions ran during the selected day. Each bar spans start → end, colored by session color.' },
+          { label: 'Day navigation', detail: 'Use ← / → arrows to browse past days. "Today" button jumps back to the current day.' },
+          { label: 'Summary strip', detail: 'Shows total sessions, compute time, cost, and commit count for the selected day.' },
+          { label: '"Now" line', detail: 'Red dashed vertical line marking the current time (today only).' },
+          { label: 'Running sessions', detail: 'Bars for running sessions pulse and extend to the current time, updating every 30 seconds.' },
+          { label: 'Click to focus', detail: 'Click any session bar to focus that session in the sidebar (if still alive).' },
+        ],
+      },
     ],
   },
   sessions: {

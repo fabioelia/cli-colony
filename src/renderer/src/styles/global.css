@@ -16778,6 +16778,96 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .overview-action-btn.primary:hover { opacity: 0.85; }
 
+/* ===== Session Activity Timeline ===== */
+.session-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px;
+  flex: 1;
+  min-height: 0;
+}
+.session-timeline-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 4px 0;
+}
+.session-timeline-summary-sep {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+.session-timeline-scroll {
+  overflow-x: auto;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+}
+.session-timeline-svg {
+  display: block;
+}
+.session-timeline-row:hover rect:not(.schedule-row-bg) {
+  filter: brightness(1.2);
+}
+.session-timeline-label {
+  fill: var(--text-primary);
+  font-size: 11px;
+  font-weight: 500;
+}
+.session-timeline-now-line {
+  stroke: var(--danger);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  opacity: 0.7;
+}
+.session-timeline-bar-running {
+  animation: timeline-pulse 2s ease-in-out infinite;
+}
+@keyframes timeline-pulse {
+  0%, 100% { opacity: 0.75; }
+  50% { opacity: 1; }
+}
+.session-timeline-bar-text {
+  fill: rgba(255,255,255,0.85);
+  font-size: 9px;
+  font-weight: 500;
+  pointer-events: none;
+}
+.session-timeline-commit-label {
+  fill: rgba(255,255,255,0.7);
+  font-size: 8px;
+  pointer-events: none;
+}
+.session-timeline-empty-text {
+  fill: var(--text-muted);
+  font-size: 12px;
+}
+/* Legend markers */
+.session-timeline-legend-bar {
+  display: inline-block;
+  width: 16px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0.75;
+}
+.session-timeline-legend-bar.running {
+  animation: timeline-pulse 2s ease-in-out infinite;
+}
+.session-timeline-legend-now {
+  display: inline-block;
+  width: 12px;
+  height: 0;
+  border-top: 1px dashed var(--danger);
+  opacity: 0.7;
+  vertical-align: middle;
+}
+
 /* ===== Sidebar Session Grouping ===== */
 .sidebar-group-selector {
   display: flex;

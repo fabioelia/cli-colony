@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   Home, Play, Plus, Zap, Clock, AlertCircle,
-  CheckCircle2, Circle, Users, FolderOpen, Activity
+  CheckCircle2, Circle, Users, FolderOpen, Activity, GanttChart
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
+import SessionTimeline from './SessionTimeline'
 import type { ClaudeInstance, ActivityEvent, PersonaInfo, ApprovalRequest, TaskBoardItem } from '../../../preload'
 
 interface PipelineSummary {
@@ -37,7 +38,10 @@ function formatCost(cost: number): string {
   return `$${cost.toFixed(2)}`
 }
 
+type OverviewTab = 'dashboard' | 'timeline'
+
 export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewSession, onNavigate }: Props) {
+  const [tab, setTab] = useState<OverviewTab>('dashboard')
   const [activity, setActivity] = useState<ActivityEvent[]>([])
   const [pipelines, setPipelines] = useState<PipelineSummary[]>([])
   const [personas, setPersonas] = useState<PersonaInfo[]>([])
@@ -79,10 +83,17 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
     <div className="colony-overview">
       <div className="panel-header" style={{ WebkitAppRegion: 'drag' as any, paddingTop: 44 }}>
         <h2><Home size={16} /> Colony Overview</h2>
+        <div className="panel-header-tabs">
+          <button className={`panel-header-tab${tab === 'dashboard' ? ' active' : ''}`} onClick={() => setTab('dashboard')}>Dashboard</button>
+          <button className={`panel-header-tab${tab === 'timeline' ? ' active' : ''}`} onClick={() => setTab('timeline')}><GanttChart size={11} /> Timeline</button>
+        </div>
         <div className="panel-header-spacer" />
         <HelpPopover topic="overview" align="right" />
       </div>
 
+      {tab === 'timeline' ? (
+        <SessionTimeline instances={instances} onFocusInstance={onFocusInstance} />
+      ) : (
       <div className="colony-overview-content">
         {/* Stats row */}
         <div className="colony-overview-stats">
@@ -236,6 +247,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
           </button>
         </div>
       </div>
+      )}
     </div>
   )
 }
