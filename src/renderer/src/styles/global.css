@@ -582,8 +582,16 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-primary);
   font-weight: 600;
 }
+.trigger-chain-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.trigger-chain-dot.running { background: var(--success); }
+.trigger-chain-dot.exited { background: var(--text-muted); }
 .trigger-chain-branch {
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   font-family: monospace;
 }
 .trigger-chain-name {
@@ -6068,7 +6076,16 @@ body:has(.daemon-update-banner) .app-update-banner {
   white-space: nowrap;
   flex: 1;
   min-width: 0;
-  padding: 0 6px;
+  padding: 2px 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  outline: none;
+  font-family: inherit;
+}
+.browser-panel-url:focus {
+  border-color: var(--accent);
+  color: var(--text-primary);
 }
 .browser-panel-webview {
   flex: 1;

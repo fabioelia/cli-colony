@@ -1256,7 +1256,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                       style={{ paddingLeft: node.depth * 12 }}
                       onClick={() => { onSelect(node.id); setPopoverId(null); setPopoverType(null); setInstancePopoverPos(null) }}
                     >
-                      <span className={`status-dot ${node.status === 'running' ? 'running' : 'exited'}`} />
+                      <span className={`trigger-chain-dot ${node.status === 'running' ? 'running' : 'exited'}`} />
                       {node.depth > 0 && <span className="trigger-chain-branch">&ensp;{'└─'}</span>}
                       <span className="trigger-chain-name" title={node.name}>{node.name.length > 30 ? node.name.slice(0, 30) + '…' : node.name}</span>
                     </div>
