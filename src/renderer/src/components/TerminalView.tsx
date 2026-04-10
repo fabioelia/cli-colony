@@ -237,7 +237,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     if (instance.toolDeferredInfo) setDeferredDismissed(false)
   }
   const shellContainerRef = useRef<HTMLDivElement>(null)
-  const shellTermRef = useRef<{ term: Terminal; fitAddon: FitAddon; unsub?: () => void } | null>(null)
+  const shellTermRef = useRef<{ term: Terminal; fitAddon: FitAddon; searchAddon: SearchAddon; unsub?: () => void } | null>(null)
   const shellCreatedRef = useRef(false)
   const [shellResetKey, setShellResetKey] = useState(0)
   const [fileTree, setFileTree] = useState<FileNode[] | null>(null)
@@ -451,7 +451,9 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
       allowProposedApi: true,
     })
     const fitAddon = new FitAddon()
+    const shellSearchAddon = new SearchAddon()
     term.loadAddon(fitAddon)
+    term.loadAddon(shellSearchAddon)
     term.loadAddon(new WebLinksAddon())
     term.open(shellContainerRef.current)
     fitAddon.fit()
@@ -482,7 +484,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     observer.observe(shellContainerRef.current)
 
     shellTermRef.current = {
-      term, fitAddon,
+      term, fitAddon, searchAddon: shellSearchAddon,
       unsub: () => { unsubOutput(); unsubExit(); observer.disconnect() },
     }
     setShellTermReady(true)
@@ -914,15 +916,20 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     if (entry) entry.term.scrollToTop()
   }, [instance.id, terminalsRef])
 
+  const getActiveSearchAddon = useCallback((): SearchAddon | undefined => {
+    if (viewTab === 'shell') return shellTermRef.current?.searchAddon
+    return terminalsRef.current.get(instance.id)?.searchAddon
+  }, [viewTab, instance.id, terminalsRef])
+
   const handleSearchNext = useCallback(() => {
-    const entry = terminalsRef.current.get(instance.id)
-    if (entry && searchQuery) entry.searchAddon.findNext(searchQuery)
-  }, [instance.id, terminalsRef, searchQuery])
+    const addon = getActiveSearchAddon()
+    if (addon && searchQuery) addon.findNext(searchQuery)
+  }, [getActiveSearchAddon, searchQuery])
 
   const handleSearchPrev = useCallback(() => {
-    const entry = terminalsRef.current.get(instance.id)
-    if (entry && searchQuery) entry.searchAddon.findPrevious(searchQuery)
-  }, [instance.id, terminalsRef, searchQuery])
+    const addon = getActiveSearchAddon()
+    if (addon && searchQuery) addon.findPrevious(searchQuery)
+  }, [getActiveSearchAddon, searchQuery])
 
   const handleSearchKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -930,23 +937,22 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
       else handleSearchNext()
     }
     if (e.key === 'Escape') {
-      const entry = terminalsRef.current.get(instance.id)
-      entry?.searchAddon.clearDecorations()
+      getActiveSearchAddon()?.clearDecorations()
       setSearchQuery('')
       onSearchClose?.()
     }
-  }, [handleSearchNext, handleSearchPrev, instance.id, onSearchClose, terminalsRef])
+  }, [handleSearchNext, handleSearchPrev, getActiveSearchAddon, onSearchClose])
 
   // Live search as you type
   useEffect(() => {
-    const entry = terminalsRef.current.get(instance.id)
-    if (!entry) return
+    const addon = getActiveSearchAddon()
+    if (!addon) return
     if (searchQuery) {
-      entry.searchAddon.findNext(searchQuery)
+      addon.findNext(searchQuery)
     } else {
-      entry.searchAddon.clearDecorations()
+      addon.clearDecorations()
     }
-  }, [searchQuery, instance.id, terminalsRef])
+  }, [searchQuery, getActiveSearchAddon])
 
   useEffect(() => {
     if (!containerRef.current || initializedRef.current) return
@@ -2651,6 +2657,21 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
         onDrop={(e) => handleDrop(e, 'shell')}
         style={{ display: viewTab === 'shell' ? undefined : 'none' }}
       >
+        {searchOpen && viewTab === 'shell' && (
+          <div className="terminal-search-bar">
+            <input
+              ref={searchInputRef}
+              className="terminal-search-input"
+              placeholder="Find..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+            />
+            <button className="terminal-search-btn" onClick={handleSearchPrev} title="Previous match" aria-label="Previous match"><ChevronUp size={14} /></button>
+            <button className="terminal-search-btn" onClick={handleSearchNext} title="Next match" aria-label="Next match"><ChevronDown size={14} /></button>
+            <button className="terminal-search-btn" onClick={() => { setSearchQuery(''); onSearchClose?.() }} title="Close search" aria-label="Close search"><X size={14} /></button>
+          </div>
+        )}
         {dragOver && (
           <div className="terminal-drop-overlay">Drop to paste path</div>
         )}
