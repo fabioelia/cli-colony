@@ -182,6 +182,18 @@ export async function fetchPRs(repo: GitHubRepo): Promise<GitHubPR[]> {
   return prs
 }
 
+/** Post a general comment on a PR (uses the Issues API endpoint). */
+export async function postPRComment(repo: GitHubRepo, prNumber: number, body: string): Promise<PRComment> {
+  const slug = `${repo.owner}/${repo.name}`
+  const raw = await gh([
+    'api', `repos/${slug}/issues/${prNumber}/comments`,
+    '--method', 'POST',
+    '-f', `body=${body}`,
+    '--jq', '{author: .user.login, body: .body, createdAt: .created_at}',
+  ])
+  return JSON.parse(raw.trim())
+}
+
 /** Fetch the list of changed files for a PR, including unified diff patches. */
 export async function fetchPRFiles(repo: GitHubRepo, prNumber: number): Promise<PRFile[]> {
   const slug = `${repo.owner}/${repo.name}`

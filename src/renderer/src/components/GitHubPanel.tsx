@@ -54,6 +54,11 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const [expandedPR, setExpandedPR] = useState<string | null>(null) // "owner/name#number"
   const [error, setError] = useState<string | null>(null)
 
+  // PR comment posting
+  const [commentDraft, setCommentDraft] = useState<Record<string, string>>({}) // keyed by "owner/name#number"
+  const [postingComment, setPostingComment] = useState<Set<string>>(new Set())
+  const [commentError, setCommentError] = useState<Record<string, string>>({})
+
   // PR file diffs
   const [prFiles, setPRFiles] = useState<Record<string, PRFile[]>>({}) // keyed by "owner/name#number"
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set()) // keyed by "owner/name#number:filename"
@@ -1217,6 +1222,44 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                                 <MessageSquare size={12} /> View {pr.comments.length} comment{pr.comments.length !== 1 ? 's' : ''}
                               </button>
                             )}
+                            {/* Post Comment */}
+                            <div className="github-pr-comment-input">
+                              <textarea
+                                className="github-pr-comment-textarea"
+                                placeholder="Leave a comment..."
+                                value={commentDraft[prKey] || ''}
+                                onChange={e => setCommentDraft(prev => ({ ...prev, [prKey]: e.target.value }))}
+                                rows={3}
+                              />
+                              {commentError[prKey] && (
+                                <div className="github-pr-comment-error">{commentError[prKey]}</div>
+                              )}
+                              <div className="github-pr-comment-actions">
+                                <button
+                                  className="panel-header-btn primary"
+                                  disabled={!commentDraft[prKey]?.trim() || postingComment.has(prKey)}
+                                  onClick={async () => {
+                                    const body = commentDraft[prKey]?.trim()
+                                    if (!body) return
+                                    setPostingComment(prev => new Set([...prev, prKey]))
+                                    setCommentError(prev => { const n = { ...prev }; delete n[prKey]; return n })
+                                    try {
+                                      const newComment = await window.api.github.postPRComment(repo, pr.number, body)
+                                      pr.comments = [...(pr.comments || []), newComment]
+                                      setCommentDraft(prev => ({ ...prev, [prKey]: '' }))
+                                    } catch (err: any) {
+                                      setCommentError(prev => ({ ...prev, [prKey]: err?.message || 'Failed to post comment' }))
+                                    } finally {
+                                      setPostingComment(prev => { const n = new Set(prev); n.delete(prKey); return n })
+                                    }
+                                  }}
+                                >
+                                  <Send size={12} />
+                                  {postingComment.has(prKey) ? 'Posting...' : 'Comment'}
+                                </button>
+                              </div>
+                            </div>
+
                             {/* CI/CD Check Details */}
                             {checksByPR[prKey] && checksByPR[prKey].checks.length > 0 && (
                               <div className="github-pr-checks">

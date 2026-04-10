@@ -7778,6 +7778,18 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 12px;
 }
 
+.github-pr-comment-input { margin: 8px 0; }
+.github-pr-comment-textarea {
+  width: 100%; min-height: 60px; padding: 8px;
+  background: var(--bg-primary); border: 1px solid var(--border-subtle);
+  border-radius: 4px; color: var(--text-primary); font-size: 12px;
+  font-family: inherit; resize: vertical; box-sizing: border-box;
+}
+.github-pr-comment-textarea:focus { border-color: var(--accent-blue); outline: none; }
+.github-pr-comment-textarea::placeholder { color: var(--text-muted); }
+.github-pr-comment-actions { display: flex; justify-content: flex-end; margin-top: 6px; }
+.github-pr-comment-error { color: var(--danger); font-size: 11px; margin-top: 4px; }
+
 .github-pr-quick-actions {
   display: flex;
   flex-wrap: wrap;
