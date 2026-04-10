@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
-  CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
+  CheckRun, PRChecks, PRComment, GitHubPR, GitHubIssue, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
   TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
@@ -18,7 +18,7 @@ import type {
 // Re-export shared types so existing imports from this module continue to work
 export type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
-  CheckRun, PRChecks, PRComment, GitHubPR, QuickPrompt, GitHubRepo,
+  CheckRun, PRChecks, PRComment, GitHubPR, GitHubIssue, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
   TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
@@ -178,6 +178,8 @@ export interface ClaudeManagerAPI {
     fetchCheckLogs: (repo: GitHubRepo, prNumber: number, checkName: string) => Promise<string>
     getUser: () => Promise<string | null>
     fetchFeedback: (repo: GitHubRepo, prNumber: number) => Promise<FeedbackFile[]>
+    fetchIssues: (repo: GitHubRepo) => Promise<GitHubIssue[]>
+    createIssue: (repo: GitHubRepo, title: string, body: string, labels: string[]) => Promise<GitHubIssue>
   }
   colony: {
     updateContext: () => Promise<string>
@@ -652,6 +654,8 @@ const api: ClaudeManagerAPI = {
     fetchCheckLogs: (repo, prNumber, checkName) => ipcRenderer.invoke('github:fetchCheckLogs', repo, prNumber, checkName),
     getUser: () => ipcRenderer.invoke('github:getUser'),
     fetchFeedback: (repo, prNumber) => ipcRenderer.invoke('github:fetchFeedback', repo, prNumber),
+    fetchIssues: (repo) => ipcRenderer.invoke('github:fetchIssues', repo),
+    createIssue: (repo, title, body, labels) => ipcRenderer.invoke('github:createIssue', repo, title, body, labels),
   },
   colony: {
     updateContext: () => ipcRenderer.invoke('colony:updateContext'),

@@ -250,17 +250,19 @@ export const helpContent: Record<string, HelpEntry> = {
   },
 
   github: {
-    title: 'Pull Requests',
-    description: 'Monitor and act on open PRs across your GitHub repositories. Requires the gh CLI to be installed and authenticated.',
+    title: 'GitHub',
+    description: 'Monitor and act on open PRs and issues across your GitHub repositories. Requires the gh CLI to be installed and authenticated.',
     zones: [
       {
         name: 'Header',
         position: 'Top bar',
         items: [
           { label: 'Back arrow', detail: 'Return to the Sessions view.', icon: 'ArrowLeft' },
-          { label: 'Memory button', detail: 'Open the PR Memory file — a persistent knowledge base that Claude sessions read and write to across conversations.', icon: 'Brain' },
-          { label: 'Context button', detail: 'View the auto-generated PR context file that CLI sessions reference.', icon: 'FileText' },
-          { label: 'Prompts button', detail: 'Edit quick-action templates (Review, Summarize, etc.) and global prompt questions.', icon: 'Pencil' },
+          { label: 'Pull Requests / Issues tabs', detail: 'Switch between Pull Requests and Issues views.' },
+          { label: 'Memory button', detail: 'Open the PR Memory file — a persistent knowledge base that Claude sessions read and write to across conversations. (PRs tab only)', icon: 'Brain' },
+          { label: 'Context button', detail: 'View the auto-generated PR context file that CLI sessions reference. (PRs tab only)', icon: 'FileText' },
+          { label: 'Prompts button', detail: 'Edit quick-action templates (Review, Summarize, etc.) and global prompt questions. (PRs tab only)', icon: 'Pencil' },
+          { label: 'New Issue button', detail: 'Create a new issue on a tracked repository with title, description, and labels. (Issues tab only)', icon: 'Plus' },
           { label: 'Add Repo button', detail: 'Track a new repo by owner/name or paste any GitHub URL.', icon: 'Plus' },
         ],
       },
@@ -309,16 +311,27 @@ export const helpContent: Record<string, HelpEntry> = {
       },
       {
         name: 'Ask Bar',
-        position: 'Bottom of panel',
+        position: 'Bottom of panel (PRs tab)',
         items: [
           { label: 'Natural language questions', detail: 'Ask about your PRs (e.g., "Which PRs need my review?"). Launches a persistent PR Assistant session.' },
           { label: 'Global prompts', detail: 'Pre-built questions: My PRs, Needs Review, Stale PRs.' },
           { label: 'File drag & drop', detail: 'Drag files from Finder onto the ask bar to append their absolute paths to your message. The bar highlights with a dashed border on hover.' },
         ],
       },
+      {
+        name: 'Issues',
+        position: 'Issues tab — expandable repo sections',
+        items: [
+          { label: 'Issue list', detail: 'Shows open issues per repo with title, author, assignees, comment count, and age badge. Click to expand and see the full description.' },
+          { label: 'Label badges', detail: 'Priority labels (P0, P1) appear in red. Persona labels (persona:*) appear in green. Other labels use the default style.' },
+          { label: 'Search & filter', detail: 'Text search across titles and bodies. Label chip filters narrow by label.', icon: 'Search' },
+          { label: 'New Issue', detail: 'Create an issue from the header button. Pick a repo, set title/description/labels, and submit directly.', icon: 'Plus' },
+          { label: 'Open in GitHub', detail: 'Click the link in the expanded issue detail to view the full issue on GitHub.', icon: 'ExternalLink' },
+        ],
+      },
     ],
     emptyState: {
-      hook: 'No repos connected. Track pull requests from your GitHub repositories.',
+      hook: 'No repos connected. Track pull requests and issues from your GitHub repositories.',
       keyCap: 'G',
       ctaLabel: 'Add Repository',
     },

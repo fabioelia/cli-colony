@@ -125,6 +125,21 @@ export interface GitHubRepo {
   localPath?: string
 }
 
+export interface GitHubIssue {
+  number: number
+  title: string
+  body: string
+  author: string
+  assignees: string[]
+  labels: string[]
+  state: string
+  url: string
+  createdAt: string
+  updatedAt: string
+  comments: number
+  milestone: string | null
+}
+
 /** Service status for environment panel display */
 export type EnvServiceState = 'running' | 'stopped' | 'crashed' | 'starting'
 

@@ -4,7 +4,7 @@ import { ArrowLeft, Plus, Trash2, RefreshCw, GitPullRequest, ExternalLink, Play,
 import RepoRemovalModal, { type RemovalImpact } from './RepoRemovalModal'
 import PromptEnvironmentSelector from './PromptEnvironmentSelector'
 import MarkdownViewer from './MarkdownViewer'
-import type { GitHubPR, GitHubRepo, QuickPrompt, PRChecks, FeedbackFile } from '../types'
+import type { GitHubPR, GitHubIssue, GitHubRepo, QuickPrompt, PRChecks, FeedbackFile } from '../types'
 import type { PersonaInfo } from '../../../shared/types'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import Tooltip from './Tooltip'
@@ -42,6 +42,7 @@ interface Props {
 }
 
 export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance, instances, visible }: Props) {
+  const [viewTab, setViewTab] = useState<'prs' | 'issues'>('prs')
   const [repos, setRepos] = useState<GitHubRepo[]>([])
   const [prompts, setPrompts] = useState<QuickPrompt[]>([])
   const [ghAuth, setGhAuth] = useState<boolean | null>(null)
@@ -51,6 +52,19 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const [expandedRepo, setExpandedRepo] = useState<string | null>(null)
   const [expandedPR, setExpandedPR] = useState<string | null>(null) // "owner/name#number"
   const [error, setError] = useState<string | null>(null)
+
+  // Issues state
+  const [issuesByRepo, setIssuesByRepo] = useState<Record<string, GitHubIssue[]>>({})
+  const [issuesLoading, setIssuesLoading] = useState<string | null>(null)
+  const [expandedIssue, setExpandedIssue] = useState<string | null>(null) // "owner/name#number"
+  const [issueFilterText, setIssueFilterText] = useState('')
+  const [issueFilterLabels, setIssueFilterLabels] = useState<string[]>([])
+  const [showCreateIssue, setShowCreateIssue] = useState(false)
+  const [newIssueTitle, setNewIssueTitle] = useState('')
+  const [newIssueBody, setNewIssueBody] = useState('')
+  const [newIssueLabels, setNewIssueLabels] = useState('')
+  const [newIssueRepo, setNewIssueRepo] = useState<string | null>(null)
+  const [creatingIssue, setCreatingIssue] = useState(false)
 
   // Add repo form
   const [showAddRepo, setShowAddRepo] = useState(false)
@@ -571,6 +585,73 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     return 'var(--text-muted)'
   }
 
+  // ---- Issues ----
+
+  const fetchIssuesForRepo = async (repo: GitHubRepo) => {
+    const slug = `${repo.owner}/${repo.name}`
+    setIssuesLoading(slug)
+    try {
+      const issues = await window.api.github.fetchIssues(repo)
+      setIssuesByRepo((prev) => ({ ...prev, [slug]: issues }))
+    } catch (err: any) {
+      setError(`Failed to fetch issues for ${slug}: ${err.message}`)
+    } finally {
+      setIssuesLoading(null)
+    }
+  }
+
+  // Auto-fetch issues when switching to Issues tab
+  useEffect(() => {
+    if (viewTab !== 'issues' || repos.length === 0) return
+    for (const repo of repos) {
+      const slug = `${repo.owner}/${repo.name}`
+      if (!issuesByRepo[slug]) {
+        fetchIssuesForRepo(repo)
+        break // sequential to avoid rate limits
+      }
+    }
+  }, [viewTab, repos, issuesByRepo])
+
+  const allIssues = Object.values(issuesByRepo).flat()
+  const allIssueLabels = [...new Set(allIssues.flatMap((i) => i.labels || []))].sort()
+
+  const filterIssue = (issue: GitHubIssue): boolean => {
+    const q = issueFilterText.toLowerCase()
+    if (q) {
+      const searchable = [issue.title, issue.author, String(issue.number), issue.body || '', ...(issue.labels || [])].join(' ').toLowerCase()
+      if (!searchable.includes(q)) return false
+    }
+    if (issueFilterLabels.length > 0) {
+      if (!issueFilterLabels.some((l) => (issue.labels || []).includes(l))) return false
+    }
+    return true
+  }
+
+  const issueAgeDays = (issue: GitHubIssue) => Math.floor((Date.now() - new Date(issue.createdAt).getTime()) / 86_400_000)
+
+  const handleCreateIssue = async () => {
+    if (!newIssueTitle.trim() || !newIssueRepo) return
+    const repo = repos.find((r) => `${r.owner}/${r.name}` === newIssueRepo)
+    if (!repo) return
+    setCreatingIssue(true)
+    try {
+      const labels = newIssueLabels.split(',').map((l) => l.trim()).filter(Boolean)
+      const created = await window.api.github.createIssue(repo, newIssueTitle.trim(), newIssueBody.trim(), labels)
+      const slug = `${repo.owner}/${repo.name}`
+      setIssuesByRepo((prev) => ({ ...prev, [slug]: [created, ...(prev[slug] || [])] }))
+      setShowCreateIssue(false)
+      setNewIssueTitle('')
+      setNewIssueBody('')
+      setNewIssueLabels('')
+    } catch (err: any) {
+      setError(`Failed to create issue: ${err.message}`)
+    } finally {
+      setCreatingIssue(false)
+    }
+  }
+
+  const totalIssueCount = Object.values(issuesByRepo).reduce((sum, issues) => sum + issues.length, 0)
+
   if (ghAuth === false) {
     return (
       <div className="github-panel">
@@ -591,35 +672,52 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     <div className="github-panel">
       <div className="panel-header">
         <button className="panel-header-back" onClick={onBack} title="Back"><ArrowLeft size={16} /></button>
-        <h2><GitPullRequest size={16} /> Pull Requests</h2>
+        <h2><GitPullRequest size={16} /> GitHub</h2>
+        <div className="panel-header-tabs">
+          <button className={`panel-header-tab${viewTab === 'prs' ? ' active' : ''}`} onClick={() => setViewTab('prs')}>Pull Requests</button>
+          <button className={`panel-header-tab${viewTab === 'issues' ? ' active' : ''}`} onClick={() => setViewTab('issues')}>
+            Issues{totalIssueCount > 0 ? ` (${totalIssueCount})` : ''}
+          </button>
+        </div>
         <div className="panel-header-spacer" />
         <HelpPopover topic="github" align="right" />
         <div className="panel-header-actions">
-          <Tooltip text="PR Memory" detail="Persistent knowledge base shared across all PR sessions. CLI reads and writes to this file." position="bottom">
-            <button className="panel-header-btn" onClick={() => {
-              window.api.github.getPrMemory().then(setMemory)
-              setShowMemory(true)
-              setEditingMemory(false)
-            }}>
-              <Brain size={13} /> Memory
-            </button>
-          </Tooltip>
-          {contextPath && (
-            <Tooltip text="PR Context File" detail="Auto-generated markdown with all PR data. This is what CLI sessions read for context." position="bottom">
-              <button className="panel-header-btn" onClick={async () => {
-                const result = await window.api.fs.readFile(contextPath)
-                if (result.content) setContextFileContent(result.content)
-                setShowContextFile(true)
-              }}>
-                <FileText size={13} /> Context
+          {viewTab === 'prs' && (
+            <>
+              <Tooltip text="PR Memory" detail="Persistent knowledge base shared across all PR sessions. CLI reads and writes to this file." position="bottom">
+                <button className="panel-header-btn" onClick={() => {
+                  window.api.github.getPrMemory().then(setMemory)
+                  setShowMemory(true)
+                  setEditingMemory(false)
+                }}>
+                  <Brain size={13} /> Memory
+                </button>
+              </Tooltip>
+              {contextPath && (
+                <Tooltip text="PR Context File" detail="Auto-generated markdown with all PR data. This is what CLI sessions read for context." position="bottom">
+                  <button className="panel-header-btn" onClick={async () => {
+                    const result = await window.api.fs.readFile(contextPath)
+                    if (result.content) setContextFileContent(result.content)
+                    setShowContextFile(true)
+                  }}>
+                    <FileText size={13} /> Context
+                  </button>
+                </Tooltip>
+              )}
+              <Tooltip text="Edit Prompts" detail="Configure quick action templates for PRs and global questions" position="bottom">
+                <button className="panel-header-btn" onClick={handleOpenPromptEditor}>
+                  <Pencil size={13} /> Prompts
+                </button>
+              </Tooltip>
+            </>
+          )}
+          {viewTab === 'issues' && (
+            <Tooltip text="Create Issue" detail="Open a new issue on a tracked repository" position="bottom">
+              <button className="panel-header-btn primary" onClick={() => { setShowCreateIssue(true); setNewIssueRepo(repos.length > 0 ? `${repos[0].owner}/${repos[0].name}` : null) }}>
+                <Plus size={13} /> New Issue
               </button>
             </Tooltip>
           )}
-          <Tooltip text="Edit Prompts" detail="Configure quick action templates for PRs and global questions" position="bottom">
-            <button className="panel-header-btn" onClick={handleOpenPromptEditor}>
-              <Pencil size={13} /> Prompts
-            </button>
-          </Tooltip>
           <Tooltip text="Add Repository" detail="Track a repo by owner/name or paste a GitHub URL" position="bottom">
             <button className="panel-header-btn" onClick={() => setShowAddRepo(true)}>
               <Plus size={13} /> Add Repo
@@ -628,6 +726,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
         </div>
       </div>
 
+      {viewTab === 'prs' && <>
       {/* Ask bar */}
       {contextPath && (
         <div ref={askBarRef} className={`panel-ask-bar${askBarDragging ? ' dragging' : ''}`}>
@@ -1210,6 +1309,165 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
           )
         })}
       </div>
+      </>}
+
+      {viewTab === 'issues' && <>
+        {/* Issue filters */}
+        <div className="github-filters">
+          <div className="github-filters-search">
+            <Search size={13} />
+            <input placeholder="Filter issues..." value={issueFilterText} onChange={(e) => setIssueFilterText(e.target.value)} />
+            {issueFilterText && <button className="github-filters-clear-input" onClick={() => setIssueFilterText('')}><X size={11} /></button>}
+          </div>
+          {allIssueLabels.length > 0 && (
+            <div className="github-filters-row">
+              <div className="github-filter-group">
+                <label>Labels</label>
+                <div className="github-filter-chips">
+                  {allIssueLabels.map((l) => (
+                    <button
+                      key={l}
+                      className={`github-filter-chip ${issueFilterLabels.includes(l) ? 'active' : ''}`}
+                      onClick={() => setIssueFilterLabels((prev) => prev.includes(l) ? prev.filter((x) => x !== l) : [...prev, l])}
+                    >{l}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Create Issue dialog */}
+        {showCreateIssue && (
+          <div className="github-add-repo" style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
+              <select
+                value={newIssueRepo || ''}
+                onChange={(e) => setNewIssueRepo(e.target.value)}
+                style={{ flex: '0 0 auto', fontSize: 12, padding: '4px 6px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-primary)' }}
+              >
+                {repos.map((r) => <option key={`${r.owner}/${r.name}`} value={`${r.owner}/${r.name}`}>{r.owner}/{r.name}</option>)}
+              </select>
+            </div>
+            <input
+              placeholder="Issue title"
+              value={newIssueTitle}
+              onChange={(e) => setNewIssueTitle(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleCreateIssue() }}
+              autoFocus
+            />
+            <textarea
+              placeholder="Description (optional)"
+              value={newIssueBody}
+              onChange={(e) => setNewIssueBody(e.target.value)}
+              rows={3}
+              style={{ fontSize: 12, padding: '6px 8px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-primary)', resize: 'vertical', width: '100%' }}
+            />
+            <input
+              placeholder="Labels (comma-separated, e.g. bug, P1-high)"
+              value={newIssueLabels}
+              onChange={(e) => setNewIssueLabels(e.target.value)}
+              style={{ fontSize: 12 }}
+            />
+            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+              <button onClick={handleCreateIssue} disabled={!newIssueTitle.trim() || creatingIssue}>
+                {creatingIssue ? 'Creating...' : 'Create'}
+              </button>
+              <button onClick={() => setShowCreateIssue(false)}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {/* Issues list by repo */}
+        <div className="github-repos">
+          {repos.map((repo) => {
+            const slug = `${repo.owner}/${repo.name}`
+            const allRepoIssues = issuesByRepo[slug] || []
+            const issues = allRepoIssues.filter(filterIssue)
+            const isLoading = issuesLoading === slug
+
+            return (
+              <div key={slug} className="github-repo">
+                <div className="github-repo-header" onClick={() => setExpandedRepo(expandedRepo === slug ? null : slug)}>
+                  {expandedRepo === slug ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  <span className="github-repo-name"><span className="github-repo-owner">{repo.owner}/</span>{repo.name}</span>
+                  {allRepoIssues.length > 0 && (
+                    <span className="github-repo-count">{allRepoIssues.length}</span>
+                  )}
+                  <div className="github-repo-actions" onClick={(e) => e.stopPropagation()}>
+                    <Tooltip text="Refresh Issues" detail="Re-fetch open issues for this repo">
+                      <button onClick={() => fetchIssuesForRepo(repo)}>
+                        <RefreshCw size={13} className={isLoading ? 'spinning' : ''} />
+                      </button>
+                    </Tooltip>
+                  </div>
+                </div>
+
+                {expandedRepo === slug && (
+                  <div className="github-pr-list">
+                    {isLoading && issues.length === 0 && (
+                      <div className="github-pr-loading">Loading issues...</div>
+                    )}
+                    {!isLoading && issues.length === 0 && !allRepoIssues.length && (
+                      <div className="github-pr-empty">No open issues</div>
+                    )}
+                    {!isLoading && issues.length === 0 && allRepoIssues.length > 0 && (
+                      <div className="github-pr-empty">No issues match filters</div>
+                    )}
+                    {issues.map((issue) => {
+                      const issueKey = `${slug}#${issue.number}`
+                      const isOpen = expandedIssue === issueKey
+                      const days = issueAgeDays(issue)
+                      return (
+                        <div key={issue.number} className="github-pr-item">
+                          <div className="github-pr-row" onClick={() => setExpandedIssue(isOpen ? null : issueKey)}>
+                            <span className="github-pr-number">
+                              #{issue.number}
+                              <span className={`github-pr-age${days <= 3 ? '' : days <= 7 ? ' amber' : ' red'}`} title={`Opened ${new Date(issue.createdAt).toLocaleDateString()}`}>{days}d</span>
+                            </span>
+                            <div className="github-pr-info">
+                              <span className="github-pr-title">{issue.title}</span>
+                              <span className="github-pr-meta">
+                                <span className="github-pr-author"><User size={10} /> {issue.author}</span>
+                                {issue.assignees.length > 0 && <span className="github-pr-assignees"><Users size={10} /> {issue.assignees.join(', ')}</span>}
+                                {issue.comments > 0 && <span className="github-pr-comments"><MessageSquare size={10} /> {issue.comments}</span>}
+                                {issue.milestone && <span className="github-pr-branch"><Clock size={10} /> {issue.milestone}</span>}
+                              </span>
+                            </div>
+                            <div className="github-pr-badges">
+                              {issue.labels.map((l) => (
+                                <span key={l} className={`github-pr-label${l.startsWith('P0') || l.startsWith('P1') ? ' priority' : l.startsWith('persona:') ? ' persona' : ''}`}>{l}</span>
+                              ))}
+                            </div>
+                          </div>
+                          {isOpen && (
+                            <div className="github-pr-detail">
+                              {issue.body && (
+                                <div className="github-pr-body">
+                                  <MarkdownViewer content={issue.body} />
+                                </div>
+                              )}
+                              <div className="github-pr-quick-actions">
+                                <button
+                                  className="github-action-btn"
+                                  onClick={() => window.api.shell.openExternal(issue.url)}
+                                  title="Open in GitHub"
+                                >
+                                  <ExternalLink size={12} /> Open in GitHub
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </>}
 
       {/* Memory modal */}
       {showMemory && (

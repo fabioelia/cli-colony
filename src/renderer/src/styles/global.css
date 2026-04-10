@@ -6809,6 +6809,16 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-secondary);
 }
 
+.github-pr-label.priority {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+}
+
+.github-pr-label.persona {
+  background: rgba(52, 211, 153, 0.12);
+  color: var(--success);
+}
+
 .github-pr-body {
   font-size: 12px;
   color: var(--text-secondary);

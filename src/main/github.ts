@@ -8,7 +8,7 @@ import { promises as fsp } from 'fs'
 import { JsonFile } from '../shared/json-file'
 import { join } from 'path'
 import { app } from 'electron'
-import type { PRComment, GitHubPR, FeedbackFile, QuickPrompt, GitHubRepo } from '../shared/types'
+import type { PRComment, GitHubPR, GitHubIssue, FeedbackFile, QuickPrompt, GitHubRepo } from '../shared/types'
 import { resolveMustacheTemplate, parseFrontmatter } from '../shared/utils'
 
 interface GitHubConfig {
@@ -347,6 +347,90 @@ export async function fetchCheckLogs(repo: GitHubRepo, prNumber: number, checkNa
     return `Check: ${checkName}\nStatus: Failed\nDetails: ${run.details_url || 'No details URL available'}\n\nNo annotation logs available. View full logs at the details URL above.`
   } catch (err: any) {
     return `Failed to fetch logs for "${checkName}": ${err.message}`
+  }
+}
+
+// ---- Issues ----
+
+export async function fetchIssues(repo: GitHubRepo): Promise<GitHubIssue[]> {
+  const repoSlug = `${repo.owner}/${repo.name}`
+  const json = await gh([
+    'issue', 'list',
+    '--repo', repoSlug,
+    '--state', 'open',
+    '--json', 'number,title,body,author,assignees,labels,state,url,createdAt,updatedAt,comments,milestone',
+    '--limit', '200',
+  ])
+  const raw = JSON.parse(json) as Array<{
+    number: number
+    title: string
+    body: string
+    author: { login: string }
+    assignees: Array<{ login: string }>
+    labels: Array<{ name: string }>
+    state: string
+    url: string
+    createdAt: string
+    updatedAt: string
+    comments: Array<unknown>
+    milestone: { title: string } | null
+  }>
+  return raw.map((issue) => ({
+    number: issue.number,
+    title: issue.title,
+    body: issue.body || '',
+    author: issue.author.login,
+    assignees: (issue.assignees || []).map((a) => a.login),
+    labels: (issue.labels || []).map((l) => l.name),
+    state: issue.state,
+    url: issue.url,
+    createdAt: issue.createdAt,
+    updatedAt: issue.updatedAt,
+    comments: (issue.comments || []).length,
+    milestone: issue.milestone?.title || null,
+  }))
+}
+
+export async function createIssue(repo: GitHubRepo, title: string, body: string, labels: string[]): Promise<GitHubIssue> {
+  const repoSlug = `${repo.owner}/${repo.name}`
+  const args = [
+    'issue', 'create',
+    '--repo', repoSlug,
+    '--title', title,
+    '--body', body,
+    '--json', 'number,title,body,author,assignees,labels,state,url,createdAt,updatedAt,comments,milestone',
+  ]
+  for (const label of labels) {
+    args.push('--label', label)
+  }
+  const json = await gh(args)
+  const raw = JSON.parse(json) as {
+    number: number
+    title: string
+    body: string
+    author: { login: string }
+    assignees: Array<{ login: string }>
+    labels: Array<{ name: string }>
+    state: string
+    url: string
+    createdAt: string
+    updatedAt: string
+    comments: Array<unknown>
+    milestone: { title: string } | null
+  }
+  return {
+    number: raw.number,
+    title: raw.title,
+    body: raw.body || '',
+    author: raw.author.login,
+    assignees: (raw.assignees || []).map((a) => a.login),
+    labels: (raw.labels || []).map((l) => l.name),
+    state: raw.state,
+    url: raw.url,
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+    comments: (raw.comments || []).length,
+    milestone: raw.milestone?.title || null,
   }
 }
 
