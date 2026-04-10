@@ -85,7 +85,8 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Timeline Tab',
         position: 'Tab bar — "Timeline"',
         items: [
-          { label: 'Session Timeline', detail: 'Gantt-style horizontal chart showing when sessions ran during the selected day. Each bar spans start → end, colored by session color.' },
+          { label: 'Session Timeline', detail: 'Gantt-style horizontal chart showing when sessions ran during the selected day. Each bar spans start → end, colored by session color. SVG bezier arrows connect parent→child sessions in trigger chains.' },
+          { label: 'Dependency arrows', detail: 'Curved arrows connect parent sessions to child sessions they triggered. Hover any bar in a chain to highlight the entire chain and dim unrelated sessions.' },
           { label: 'Day navigation', detail: 'Use ← / → arrows to browse past days. "Today" button jumps back to the current day.' },
           { label: 'Summary strip', detail: 'Shows total sessions, compute time, cost, and commit count for the selected day.' },
           { label: '"Now" line', detail: 'Red dashed vertical line marking the current time (today only).' },

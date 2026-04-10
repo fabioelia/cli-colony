@@ -22,6 +22,8 @@ interface TimelineBar {
   insertions: number
   deletions: number
   durationMs: number
+  parentBarId?: string
+  childBarIds: string[]
 }
 
 /** Format date as "Wed, Apr 9" */
@@ -68,6 +70,7 @@ export default function SessionTimeline({ instances, onFocusInstance }: Props) {
   const [dayOffset, setDayOffset] = useState(0)
   const [artifacts, setArtifacts] = useState<SessionArtifact[]>([])
   const [hoveredBar, setHoveredBar] = useState<string | null>(null)
+  const [hoveredChain, setHoveredChain] = useState<Set<string>>(new Set())
   const [now, setNow] = useState(Date.now())
 
   const selectedDate = useMemo(() => {
@@ -125,6 +128,7 @@ export default function SessionTimeline({ instances, onFocusInstance }: Props) {
         insertions: art.totalInsertions,
         deletions: art.totalDeletions,
         durationMs: art.durationMs,
+        childBarIds: [],
       })
     }
 
@@ -160,12 +164,27 @@ export default function SessionTimeline({ instances, onFocusInstance }: Props) {
           insertions: 0,
           deletions: 0,
           durationMs: now - startTs,
+          childBarIds: [],
         })
       }
     }
 
     // Sort by start time
     result.sort((a, b) => a.startMinute - b.startMinute)
+
+    // Link parent→child using live instance data
+    const barById = new Map(result.map(b => [b.id, b]))
+    if (isToday) {
+      for (const inst of instances) {
+        const bar = barById.get(inst.id)
+        if (!bar) continue
+        if (inst.parentId && barById.has(inst.parentId)) {
+          bar.parentBarId = inst.parentId
+        }
+        bar.childBarIds = inst.childIds.filter(id => barById.has(id))
+      }
+    }
+
     return result
   }, [artifacts, instances, selectedDate, isToday, now])
 
@@ -188,6 +207,41 @@ export default function SessionTimeline({ instances, onFocusInstance }: Props) {
     // If there's a persona, try to use its color
     return bar.color
   }, [])
+
+  /** Walk up to root ancestor, then DFS down to collect entire chain */
+  const getChainIds = useCallback((barId: string): Set<string> => {
+    const byId = new Map(bars.map(b => [b.id, b]))
+    let root = byId.get(barId)
+    if (!root) return new Set()
+    // Walk up to root (cap at 5)
+    for (let i = 0; i < 5 && root.parentBarId; i++) {
+      const parent = byId.get(root.parentBarId)
+      if (!parent) break
+      root = parent
+    }
+    // DFS from root
+    const ids = new Set<string>()
+    const visit = (b: TimelineBar, depth: number) => {
+      ids.add(b.id)
+      if (depth >= 5) return
+      for (const cid of b.childBarIds) {
+        const child = byId.get(cid)
+        if (child) visit(child, depth + 1)
+      }
+    }
+    visit(root, 0)
+    return ids
+  }, [bars])
+
+  const handleBarHover = useCallback((barId: string | null) => {
+    setHoveredBar(barId)
+    if (barId) {
+      const chain = getChainIds(barId)
+      setHoveredChain(chain.size > 1 ? chain : new Set())
+    } else {
+      setHoveredChain(new Set())
+    }
+  }, [getChainIds])
 
   const svgWidth = LABEL_WIDTH + 24 * HOUR_WIDTH
   const rowCount = Math.max(bars.length, 1)
@@ -266,6 +320,39 @@ export default function SessionTimeline({ instances, onFocusInstance }: Props) {
             )
           })()}
 
+          {/* Arrowhead marker for dependency arrows */}
+          <defs>
+            <marker id="dep-arrowhead" markerWidth="6" markerHeight="4" refX="6" refY="2" orient="auto">
+              <polygon points="0 0, 6 2, 0 4" fill="var(--text-muted)" fillOpacity="0.6" />
+            </marker>
+          </defs>
+
+          {/* Dependency arrows (behind bars in z-order) */}
+          {bars.map((bar, idx) => {
+            if (!bar.parentBarId) return null
+            const parentIdx = bars.findIndex(b => b.id === bar.parentBarId)
+            if (parentIdx < 0 || parentIdx === idx) return null
+            const parent = bars[parentIdx]
+
+            const x1 = LABEL_WIDTH + (parent.endMinute / 60) * HOUR_WIDTH
+            const y1 = HEADER_HEIGHT + SVG_PADDING_TOP + parentIdx * ROW_HEIGHT + ROW_HEIGHT / 2
+            const x2 = LABEL_WIDTH + (bar.startMinute / 60) * HOUR_WIDTH
+            const y2 = HEADER_HEIGHT + SVG_PADDING_TOP + idx * ROW_HEIGHT + ROW_HEIGHT / 2
+            const midX = (x1 + x2) / 2
+
+            return (
+              <path
+                key={`arrow-${bar.id}`}
+                d={`M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`}
+                stroke={parent.color}
+                strokeOpacity={hoveredChain.size === 0 || hoveredChain.has(bar.id) ? 0.5 : 0.1}
+                strokeWidth={1.5}
+                fill="none"
+                markerEnd="url(#dep-arrowhead)"
+              />
+            )
+          })}
+
           {/* Session bars */}
           {bars.length === 0 ? (
             <text
@@ -282,15 +369,16 @@ export default function SessionTimeline({ instances, onFocusInstance }: Props) {
             const x2 = LABEL_WIDTH + (bar.endMinute / 60) * HOUR_WIDTH
             const barWidth = Math.max(x2 - x1, MIN_BAR_WIDTH)
             const isHovered = hoveredBar === bar.id
+            const dimmed = hoveredChain.size > 0 && !hoveredChain.has(bar.id)
 
             return (
               <g
                 key={bar.id}
                 className="session-timeline-row"
                 onClick={() => onFocusInstance(bar.id)}
-                onMouseEnter={() => setHoveredBar(bar.id)}
-                onMouseLeave={() => setHoveredBar(null)}
-                style={{ cursor: 'pointer' }}
+                onMouseEnter={() => handleBarHover(bar.id)}
+                onMouseLeave={() => handleBarHover(null)}
+                style={{ cursor: 'pointer', opacity: dimmed ? 0.3 : 1 }}
               >
                 {/* Row background (alternating) */}
                 {i % 2 === 0 && (
