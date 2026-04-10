@@ -614,8 +614,15 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
-        name: 'General Section',
+        name: 'Appearance Section',
         position: 'Below Shell section',
+        items: [
+          { label: 'Theme', detail: 'Switch between Dark and Light mode. Changes apply instantly — terminal colors, syntax highlighting, and all UI elements update automatically. Persists across restarts.', icon: 'Palette' },
+        ],
+      },
+      {
+        name: 'General Section',
+        position: 'Below Appearance section',
         items: [
           { label: 'Keep running in tray when closed', detail: 'Colony continues running pipelines and persona schedules when the window is closed. Access via the menu bar icon. Disable to quit on window close.' },
         ],

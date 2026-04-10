@@ -17,6 +17,18 @@ import CommitDialog from './CommitDialog'
 import DiffViewer from './DiffViewer'
 import { usePanelTabKeys } from '../hooks/usePanelTabKeys'
 
+function getXtermTheme(variant: 'session' | 'shell') {
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light'
+  if (variant === 'shell') {
+    return isLight
+      ? { background: '#f8f9fa', foreground: '#1a1a2e', cursor: '#1a1a2e' }
+      : { background: '#1a1a2e', foreground: '#e0e0e0', cursor: '#e0e0e0' }
+  }
+  return isLight
+    ? { background: '#ffffff', foreground: '#1a1a2e', cursor: 'transparent', selectionBackground: '#2563eb50' }
+    : { background: '#000000', foreground: '#e0e0e0', cursor: 'transparent', selectionBackground: '#3b82f650' }
+}
+
 interface TerminalEntry {
   term: Terminal
   fitAddon: FitAddon
@@ -500,7 +512,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     const term = new Terminal({
       fontSize,
       cursorBlink: true,
-      theme: { background: '#1a1a2e', foreground: '#e0e0e0', cursor: '#e0e0e0' },
+      theme: getXtermTheme('shell'),
       allowProposedApi: true,
     })
     const fitAddon = new FitAddon()
@@ -559,6 +571,17 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
         shellCreatedRef.current = false
       }
     }
+  }, [instance.id])
+
+  // Update terminal themes when data-theme changes
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      const entry = terminalsRef.current.get(instance.id)
+      if (entry) entry.term.options.theme = getXtermTheme('session')
+      if (shellTermRef.current) shellTermRef.current.term.options.theme = getXtermTheme('shell')
+    })
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => observer.disconnect()
   }, [instance.id])
 
   // Resize shell terminal on window resize
@@ -1015,12 +1038,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
 
     if (!existing) {
       const term = new Terminal({
-        theme: {
-          background: '#000000',
-          foreground: '#e0e0e0',
-          cursor: 'transparent',
-          selectionBackground: '#3b82f650',
-        },
+        theme: getXtermTheme('session'),
         fontFamily: 'Menlo, Monaco, "Courier New", monospace',
         fontSize: 13,
         lineHeight: 1.2,

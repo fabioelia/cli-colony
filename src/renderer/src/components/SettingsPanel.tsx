@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X, Shield, Sparkles, Check, Circle } from 'lucide-react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X, Shield, Sparkles, Check, Circle, Sun, Moon, Palette } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import BatchExecutionSettings from './BatchExecutionSettings'
 import AppUpdateSettings from './AppUpdateSettings'
@@ -54,6 +54,7 @@ export default function SettingsPanel({ onBack }: Props) {
   const [keepInTray, setKeepInTray] = useState(true)
   const [webhookEnabled, setWebhookEnabled] = useState(true)
   const [webhookPort, setWebhookPort] = useState('7474')
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark')
 
   const [sessionTemplates, setSessionTemplates] = useState<SessionTemplate[]>([])
   const [showTemplatesSection, setShowTemplatesSection] = useState(false)
@@ -86,6 +87,7 @@ export default function SettingsPanel({ onBack }: Props) {
       setKeepInTray(s.keepInTray !== 'false')
       setWebhookEnabled(s.webhookEnabled !== 'false')
       setWebhookPort(s.webhookPort || '7474')
+      setTheme((s.theme === 'light' ? 'light' : 'dark') as 'dark' | 'light')
     })
     window.api.settings.getShells().then(setAvailableShells)
     window.api.daemon.getVersion().then(setDaemonVersion).catch(() => {})
@@ -142,6 +144,16 @@ export default function SettingsPanel({ onBack }: Props) {
     return `${diffDay}d ago`
   }
 
+  const handleThemeChange = (newTheme: 'dark' | 'light') => {
+    setTheme(newTheme)
+    window.api.settings.set('theme', newTheme)
+    if (newTheme === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light')
+    } else {
+      document.documentElement.removeAttribute('data-theme')
+    }
+  }
+
   const handleSave = async () => {
     await Promise.all([
       window.api.settings.set('defaultArgs', defaultArgs),
@@ -156,6 +168,7 @@ export default function SettingsPanel({ onBack }: Props) {
       window.api.settings.set('keepInTray', keepInTray ? 'true' : 'false'),
       window.api.settings.set('webhookEnabled', webhookEnabled ? 'true' : 'false'),
       window.api.settings.set('webhookPort', webhookPort),
+      window.api.settings.set('theme', theme),
     ])
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
@@ -276,6 +289,31 @@ export default function SettingsPanel({ onBack }: Props) {
             onChange={(e) => setGlobalHotkey(e.target.value)}
             placeholder="CommandOrControl+Shift+Space"
           />
+        </div>
+      </div>
+
+      {/* Appearance */}
+      <div className="settings-section">
+        <div className="settings-section-title">
+          <Palette size={12} />
+          Appearance
+        </div>
+        <div className="settings-field">
+          <label>Theme</label>
+          <div className="settings-theme-toggle">
+            <button
+              className={`settings-theme-btn ${theme === 'dark' ? 'active' : ''}`}
+              onClick={() => handleThemeChange('dark')}
+            >
+              <Moon size={14} /> Dark
+            </button>
+            <button
+              className={`settings-theme-btn ${theme === 'light' ? 'active' : ''}`}
+              onClick={() => handleThemeChange('light')}
+            >
+              <Sun size={14} /> Light
+            </button>
+          </div>
         </div>
       </div>
 

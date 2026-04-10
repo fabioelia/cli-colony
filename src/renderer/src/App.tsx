@@ -136,6 +136,9 @@ export default function App() {
       if (s.quickPromptHistory) {
         try { setQuickPromptHistory(JSON.parse(s.quickPromptHistory)) } catch { /* ignore */ }
       }
+      if (s.theme === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light')
+      }
     })
     // Check first-run onboarding state
     window.api.onboarding.getState().then((s) => {

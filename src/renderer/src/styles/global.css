@@ -24,6 +24,28 @@
   --accent-purple: #8b5cf6;
   --sidebar-width: 300px;
   --titlebar-pad: 48px;
+  --terminal-bg: #000;
+}
+
+[data-theme="light"] {
+  --bg-primary: #f8f9fa;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #e9ecef;
+  --bg-surface: #f0f2f5;
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --bg-active: rgba(0, 0, 0, 0.08);
+  --text-primary: #1a1a2e;
+  --text-secondary: #495057;
+  --text-muted: #868e96;
+  --border: #dee2e6;
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --border-active: #adb5bd;
+  --accent: #2563eb;
+  --success: #059669;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --accent-purple: #7c3aed;
+  --terminal-bg: #ffffff;
 }
 
 body.fullscreen {
@@ -2042,7 +2064,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .terminal-container {
   flex: 1;
   padding: 2px 0 0 6px;
-  background: #000;
+  background: var(--terminal-bg, #000);
   position: relative;
   overflow: hidden;
 }
@@ -3992,6 +4014,37 @@ body:has(.daemon-update-banner) .app-update-banner {
   transform: translateX(16px);
 }
 
+.settings-theme-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  width: fit-content;
+}
+
+.settings-theme-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  transition: background 0.15s, color 0.15s;
+}
+
+.settings-theme-btn:hover {
+  background: var(--bg-hover);
+}
+
+.settings-theme-btn.active {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
 /* Save row */
 .settings-save-inline {
   margin-left: auto;
@@ -5170,6 +5223,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 /* ===== Shell Terminal ===== */
 .shell-terminal {
   padding-left: 4px;
+  background: var(--bg-primary);
 }
 
 /* ===== Services Panel (terminal header tab) ===== */
@@ -6430,6 +6484,35 @@ body:has(.daemon-update-banner) .app-update-banner {
 .diff-viewer .diff-content .hljs-name,
 .diff-viewer .diff-content .hljs-selector-id,
 .diff-viewer .diff-content .hljs-selector-class { color: #e06c75; }
+
+/* Light theme syntax highlighting (atom-one-light) */
+[data-theme="light"] .diff-viewer .diff-content .hljs-keyword,
+[data-theme="light"] .diff-viewer .diff-content .hljs-selector-tag,
+[data-theme="light"] .diff-viewer .diff-content .hljs-literal,
+[data-theme="light"] .diff-viewer .diff-content .hljs-section,
+[data-theme="light"] .diff-viewer .diff-content .hljs-link { color: #a626a4; }
+[data-theme="light"] .diff-viewer .diff-content .hljs-function .hljs-keyword { color: #a626a4; }
+[data-theme="light"] .diff-viewer .diff-content .hljs-string,
+[data-theme="light"] .diff-viewer .diff-content .hljs-attr,
+[data-theme="light"] .diff-viewer .diff-content .hljs-addition { color: #50a14f; }
+[data-theme="light"] .diff-viewer .diff-content .hljs-number,
+[data-theme="light"] .diff-viewer .diff-content .hljs-meta { color: #986801; }
+[data-theme="light"] .diff-viewer .diff-content .hljs-comment,
+[data-theme="light"] .diff-viewer .diff-content .hljs-quote { color: #a0a1a7; font-style: italic; }
+[data-theme="light"] .diff-viewer .diff-content .hljs-deletion { color: #e45649; }
+[data-theme="light"] .diff-viewer .diff-content .hljs-title,
+[data-theme="light"] .diff-viewer .diff-content .hljs-title.function_ { color: #4078f2; }
+[data-theme="light"] .diff-viewer .diff-content .hljs-built_in,
+[data-theme="light"] .diff-viewer .diff-content .hljs-type { color: #c18401; }
+[data-theme="light"] .diff-viewer .diff-content .hljs-params { color: #383a42; }
+[data-theme="light"] .diff-viewer .diff-content .hljs-regexp { color: #50a14f; }
+[data-theme="light"] .diff-viewer .diff-content .hljs-symbol,
+[data-theme="light"] .diff-viewer .diff-content .hljs-bullet { color: #0184bc; }
+[data-theme="light"] .diff-viewer .diff-content .hljs-variable,
+[data-theme="light"] .diff-viewer .diff-content .hljs-template-variable { color: #e45649; }
+[data-theme="light"] .diff-viewer .diff-content .hljs-name,
+[data-theme="light"] .diff-viewer .diff-content .hljs-selector-id,
+[data-theme="light"] .diff-viewer .diff-content .hljs-selector-class { color: #e45649; }
 
 /* ===== Review Dashboard ===== */
 .review-panel {
