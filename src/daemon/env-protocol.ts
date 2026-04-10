@@ -76,6 +76,8 @@ export interface InstanceManifest {
 
   urls?: Record<string, string>
 
+  browserTabs?: string[]
+
   logs?: {
     dir?: string
     maxSizeKb?: number

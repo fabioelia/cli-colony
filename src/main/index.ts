@@ -175,6 +175,7 @@ function createWindow(): void {
       nodeIntegration: false,
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
+      webviewTag: true,
     },
   })
 

@@ -1012,6 +1012,31 @@ export const helpContent: Record<string, HelpEntry> = {
     ],
   },
 
+  browserTab: {
+    title: 'Browser',
+    description: 'Embedded web preview of environment services. View your running frontend, backend, or any service with an HTTP endpoint — without leaving the session.',
+    zones: [
+      {
+        name: 'Service Tabs',
+        position: 'Top bar',
+        items: [
+          { label: 'Service pills', detail: 'One button per service URL. Click to switch the embedded browser to that service.' },
+          { label: 'Navigation', detail: 'Back, forward, and reload buttons for standard browser navigation.' },
+          { label: 'URL display', detail: 'Shows the current URL of the embedded browser.' },
+          { label: 'Open External', detail: 'Opens the current page in your system browser.', icon: 'ExternalLink' },
+        ],
+      },
+      {
+        name: 'Webview',
+        position: 'Main area',
+        items: [
+          { label: 'Embedded browser', detail: 'Full web browser rendering the selected service. Cookies and sessions are isolated per environment.' },
+          { label: 'Error state', detail: 'If a service fails to load (e.g., not yet started), shows an error with a Retry button.' },
+        ],
+      },
+    ],
+  },
+
   tasksBoard: {
     title: 'Task Board',
     description: 'A shared coordination board backed by ~/.claude-colony/colony-tasks.json. All Colony personas and sessions can read and write tasks, making it a lightweight shared primitive for multi-agent workflows.',

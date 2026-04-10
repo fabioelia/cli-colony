@@ -5985,6 +5985,95 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-family: var(--font-sans, system-ui);
 }
 
+/* ---- Browser panel ---- */
+.browser-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+.browser-panel-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.browser-panel-tab {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  padding: 3px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.browser-panel-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.browser-panel-tab.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.browser-panel-nav-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  padding: 3px;
+  cursor: pointer;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+}
+.browser-panel-nav-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.browser-panel-url {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+  padding: 0 6px;
+}
+.browser-panel-webview {
+  flex: 1;
+  border: none;
+}
+.browser-panel-error {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.browser-panel-error svg {
+  color: var(--warning);
+}
+.browser-panel-retry-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  padding: 4px 12px;
+  font-size: 11px;
+  cursor: pointer;
+  margin-top: 4px;
+}
+.browser-panel-retry-btn:hover {
+  background: var(--bg-hover);
+}
+
 /* ===== List Panel (shared by Changes, Team, Metrics tabs) ===== */
 .changes-panel {
   display: flex;

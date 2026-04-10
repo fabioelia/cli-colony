@@ -5,7 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, LayoutGrid, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation, MessageCircleWarning, ThumbsUp, Sparkles, Bot, BarChart3, Package, GitCommit } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, Minimize2, Maximize2, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Settings, Columns2, LayoutGrid, ExternalLink, GitFork, Server, Square, Play, ScrollText, Stethoscope, MessageSquare, AlertTriangle, CheckCircle, Activity, WrapText, ArrowUpDown, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation, MessageCircleWarning, ThumbsUp, Sparkles, Bot, BarChart3, Package, GitCommit, Globe } from 'lucide-react'
 import { TeamMetricsPanel } from './TeamMetricsPanel'
 import type { EnvStatus, EnvServiceStatus, GitDiffEntry, ColonyComment, ScoreCard, CoordinatorTeam, CoordinatorWorker, SessionArtifact } from '../../../shared/types'
 import { buildDiagnosePrompt } from '../../../shared/env-prompts'
@@ -220,7 +220,7 @@ function FileTreeNode({ node, depth, selectedPath, expandedPaths, filter, onTogg
   )
 }
 
-type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'changes' | 'artifacts' | 'team' | 'metrics'
+type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'changes' | 'artifacts' | 'team' | 'metrics' | 'browser'
 
 export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -270,6 +270,11 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   })()
   const [envStatus, setEnvStatus] = useState<EnvStatus | null>(null)
   const [envLogs, setEnvLogs] = useState<{ service: string; content: string } | null>(null)
+  // Browser tab state
+  const [browserService, setBrowserService] = useState<string | null>(null)
+  const [browserUrl, setBrowserUrl] = useState<string | null>(null)
+  const [browserError, setBrowserError] = useState<string | null>(null)
+  const webviewRef = useRef<Electron.WebviewTag>(null)
   const [fixMenuOpen, setFixMenuOpen] = useState(false)
   const [fixResult, setFixResult] = useState<{ lines: string[]; isError?: boolean } | null>(null)
   const [fixInProgress, setFixInProgress] = useState(false)
@@ -388,6 +393,46 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
       logsEndRef.current.scrollIntoView()
     }
   }, [viewTab])
+
+  // Auto-select first URL when browser tab opens or urls change
+  useEffect(() => {
+    if (!envStatus?.urls) return
+    const entries = Object.entries(envStatus.urls)
+    if (entries.length === 0) return
+    // Auto-select first service if none selected or current service no longer exists
+    if (!browserService || !envStatus.urls[browserService]) {
+      setBrowserService(entries[0][0])
+      setBrowserUrl(entries[0][1])
+    }
+  }, [envStatus?.urls, browserService])
+
+  // Imperatively set webview src and handle navigation events
+  useEffect(() => {
+    const wv = webviewRef.current
+    if (!wv || !browserUrl || viewTab !== 'browser') return
+
+    // Set src imperatively (React doesn't handle webview attributes well)
+    if (wv.src !== browserUrl) {
+      wv.src = browserUrl
+    }
+    setBrowserError(null)
+
+    const handleNavigation = (e: Electron.DidNavigateEvent) => {
+      setBrowserUrl(e.url)
+    }
+    const handleFailLoad = (e: Electron.DidFailLoadEvent) => {
+      if (e.errorCode === -3) return // Aborted navigations (user clicked quickly)
+      setBrowserError(`Failed to load: ${e.errorDescription || 'Unknown error'}`)
+    }
+
+    wv.addEventListener('did-navigate', handleNavigation)
+    wv.addEventListener('did-fail-load', handleFailLoad)
+    return () => {
+      wv.removeEventListener('did-navigate', handleNavigation)
+      wv.removeEventListener('did-fail-load', handleFailLoad)
+    }
+  }, [browserUrl, viewTab])
+
   // Shell terminal — lazy init when tab is first opened, re-init on shellResetKey
   useEffect(() => {
     if (viewTab !== 'shell') return
@@ -1086,13 +1131,15 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   }, [instance.id, viewTab, focused])
 
   // Session tab keyboard navigation — Cmd+Shift+{ (prev) / Cmd+Shift+} (next)
+  const hasEnvUrls = envName && envStatus && Object.keys(envStatus.urls).length > 0
   const visibleViewTabs = useMemo<ViewTab[]>(() => [
     'session', 'shell', 'files',
     ...(envName ? (['services', 'logs'] as ViewTab[]) : []),
+    ...(hasEnvUrls ? (['browser'] as ViewTab[]) : []),
     ...(instance.dir ? (['changes'] as ViewTab[]) : []),
     'artifacts',
     ...(instance.roleTag === 'Coordinator' ? (['team', 'metrics'] as ViewTab[]) : []),
-  ], [envName, instance.dir, instance.roleTag])
+  ], [envName, instance.dir, instance.roleTag, hasEnvUrls])
   usePanelTabKeys(visibleViewTabs, viewTab, setViewTab, focused)
 
   return (
@@ -1151,6 +1198,16 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 <ScrollText size={12} /> Logs
               </button>
             )}
+            {hasEnvUrls && (
+              <button
+                className={`terminal-tab ${viewTab === 'browser' ? 'active' : ''}`}
+                onClick={(e) => { e.stopPropagation(); setViewTab('browser') }}
+                title="Embedded browser"
+              >
+                <Globe size={12} /> Browser
+                <span className="services-tab-badge" style={{ background: 'var(--accent)' }}>{Object.keys(envStatus!.urls).length}</span>
+              </button>
+            )}
             {instance.dir && (
               <button
                 className={`terminal-tab ${viewTab === 'changes' ? 'active' : ''}`}
@@ -1203,6 +1260,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           {viewTab === 'changes' && <HelpPopover topic="changesTab" />}
           {viewTab === 'artifacts' && <HelpPopover topic="artifactsTab" />}
           {viewTab === 'team' && <HelpPopover topic="teamTab" />}
+          {viewTab === 'browser' && <HelpPopover topic="browserTab" />}
           {(instance.gitRepo || instance.gitBranch) && (
             <div className="terminal-header-repo-info">
               {instance.gitRepo && (
@@ -2006,6 +2064,54 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
             )}
             <div ref={logsEndRef} />
           </div>
+        </div>
+      )}
+      {viewTab === 'browser' && envStatus && (
+        <div className="browser-panel">
+          <div className="browser-panel-tabs">
+            {Object.entries(envStatus.urls).map(([name, url]) => (
+              <button
+                key={name}
+                className={`browser-panel-tab ${browserService === name ? 'active' : ''}`}
+                onClick={() => { setBrowserService(name); setBrowserUrl(url); setBrowserError(null) }}
+              >
+                {name}
+              </button>
+            ))}
+            <div style={{ flex: 1 }} />
+            <button className="browser-panel-nav-btn" onClick={() => webviewRef.current?.goBack()} title="Back">
+              <ChevronUp size={12} style={{ transform: 'rotate(-90deg)' }} />
+            </button>
+            <button className="browser-panel-nav-btn" onClick={() => webviewRef.current?.goForward()} title="Forward">
+              <ChevronUp size={12} style={{ transform: 'rotate(90deg)' }} />
+            </button>
+            <button className="browser-panel-nav-btn" onClick={() => webviewRef.current?.reload()} title="Reload">
+              <RotateCw size={12} />
+            </button>
+            <span className="browser-panel-url">{browserUrl}</span>
+            <button
+              className="browser-panel-nav-btn"
+              onClick={() => browserUrl && window.api.shell.openExternal(browserUrl)}
+              title="Open in external browser"
+            >
+              <ExternalLink size={12} />
+            </button>
+          </div>
+          {browserError ? (
+            <div className="browser-panel-error">
+              <AlertTriangle size={16} />
+              <span>{browserError}</span>
+              <button className="browser-panel-retry-btn" onClick={() => { setBrowserError(null); webviewRef.current?.reload() }}>
+                Retry
+              </button>
+            </div>
+          ) : (
+            <webview
+              ref={webviewRef as any}
+              className="browser-panel-webview"
+              partition={`persist:env-${envStatus.id}`}
+            />
+          )}
         </div>
       )}
       {viewTab === 'changes' && (
