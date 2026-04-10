@@ -304,7 +304,7 @@ export default function PersonaTriggerMap({ personas, onSelectPersona }: Props) 
                 width={NODE_W} height={NODE_H}
                 rx={8}
                 className={`flow-node${n.running ? ' flow-node-active' : ''}`}
-                style={{ stroke: n.enabled ? n.color : 'var(--border-muted)' }}
+                style={{ stroke: n.enabled ? n.color : 'var(--border-subtle)' }}
               />
               <foreignObject x={n.x + 4} y={n.y + 2} width={NODE_W - 8} height={NODE_H - 4}>
                 <div className="flow-node-content">
