@@ -241,11 +241,14 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-radius: 8px;
   border: 1px solid var(--border);
   width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.sidebar-nav::-webkit-scrollbar { display: none; }
 
 .sidebar-nav > .tooltip-wrapper {
   flex: 1;
-  min-width: 0;
+  min-width: 24px;
 }
 
 .sidebar-nav-btn {
@@ -255,11 +258,13 @@ body:has(.daemon-update-banner) .app-update-banner {
   justify-content: center;
   gap: 3px;
   flex: 1;
+  min-width: 24px;
   height: 50px;
   border-radius: 6px;
   color: var(--text-muted);
   transition: color 0.12s, background 0.12s;
   position: relative;
+  overflow: hidden;
 }
 
 .sidebar-nav-label {
@@ -270,6 +275,10 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: inherit;
   user-select: none;
   text-transform: uppercase;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-nav-btn:hover {
