@@ -6519,7 +6519,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .md-viewer h3 { font-size: 13px; }
 .md-viewer h4 { font-size: 12px; }
 .md-viewer h1, .md-viewer h2 {
-  border-bottom: 1px solid var(--border-muted);
+  border-bottom: 1px solid var(--border-subtle);
   padding-bottom: 6px;
 }
 .md-viewer p { margin: 8px 0; }
@@ -6576,7 +6576,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .md-viewer hr {
   border: none;
   height: 1px;
-  background: var(--border-muted);
+  background: var(--border-subtle);
   margin: 24px 0;
 }
 
