@@ -185,6 +185,7 @@ export interface ClaudeManagerAPI {
     fetchCheckLogs: (repo: GitHubRepo, prNumber: number, checkName: string) => Promise<string>
     getUser: () => Promise<string | null>
     fetchFeedback: (repo: GitHubRepo, prNumber: number) => Promise<FeedbackFile[]>
+    fetchPRFiles: (repo: GitHubRepo, prNumber: number) => Promise<import('../shared/types').PRFile[]>
     fetchIssues: (repo: GitHubRepo) => Promise<GitHubIssue[]>
     createIssue: (repo: GitHubRepo, title: string, body: string, labels: string[]) => Promise<GitHubIssue>
   }
@@ -671,6 +672,7 @@ const api: ClaudeManagerAPI = {
     fetchCheckLogs: (repo, prNumber, checkName) => ipcRenderer.invoke('github:fetchCheckLogs', repo, prNumber, checkName),
     getUser: () => ipcRenderer.invoke('github:getUser'),
     fetchFeedback: (repo, prNumber) => ipcRenderer.invoke('github:fetchFeedback', repo, prNumber),
+    fetchPRFiles: (repo, prNumber) => ipcRenderer.invoke('github:fetchPRFiles', repo, prNumber),
     fetchIssues: (repo) => ipcRenderer.invoke('github:fetchIssues', repo),
     createIssue: (repo, title, body, labels) => ipcRenderer.invoke('github:createIssue', repo, title, body, labels),
   },

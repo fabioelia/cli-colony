@@ -101,6 +101,15 @@ export interface GitHubPR {
   headSha: string
 }
 
+export interface PRFile {
+  filename: string
+  status: 'added' | 'modified' | 'removed' | 'renamed' | 'copied' | 'changed' | 'unchanged'
+  additions: number
+  deletions: number
+  patch?: string
+  previousFilename?: string
+}
+
 export interface FeedbackFile {
   pr: number
   reviewer: string

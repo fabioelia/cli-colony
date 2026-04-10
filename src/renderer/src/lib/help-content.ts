@@ -307,6 +307,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Dispatch button', detail: 'Send this PR as a note to a persona. Pick a persona and add optional context — the note appears in the persona\'s ## Notes section on its next run.', icon: 'UserPlus' },
           { label: 'Colony Review', detail: 'Launches a Claude session that reviews the code and pushes structured feedback to the colony-feedback branch.', icon: 'Play' },
           { label: 'Quick actions', detail: 'Buttons (Review, Summarize, Checkout & Test). Click any button to open the environment selector modal.', icon: 'Play' },
+          { label: 'File diffs', detail: 'Click "Files changed" to fetch and display per-file diffs with syntax highlighting. Each file is collapsible. Shows status badge (A/M/D/R), filename, and +/- line counts. Binary files and oversized diffs show a placeholder.', icon: 'FileDiff' },
           { label: 'Comments', detail: 'Click to view all PR comments (general + file-level) in a split modal with markdown rendering.', icon: 'MessageSquare' },
         ],
       },

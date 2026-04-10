@@ -8,7 +8,7 @@ import { promises as fsp } from 'fs'
 import { JsonFile } from '../shared/json-file'
 import { join } from 'path'
 import { app } from 'electron'
-import type { PRComment, GitHubPR, GitHubIssue, FeedbackFile, QuickPrompt, GitHubRepo } from '../shared/types'
+import type { PRComment, GitHubPR, GitHubIssue, FeedbackFile, QuickPrompt, GitHubRepo, PRFile } from '../shared/types'
 import { resolveMustacheTemplate, parseFrontmatter } from '../shared/utils'
 
 interface GitHubConfig {
@@ -180,6 +180,18 @@ export async function fetchPRs(repo: GitHubRepo): Promise<GitHubPR[]> {
   refreshBareRepoConfig(repo.owner, repo.name).catch(() => {})
 
   return prs
+}
+
+/** Fetch the list of changed files for a PR, including unified diff patches. */
+export async function fetchPRFiles(repo: GitHubRepo, prNumber: number): Promise<PRFile[]> {
+  const slug = `${repo.owner}/${repo.name}`
+  const raw = await gh([
+    'api', `repos/${slug}/pulls/${prNumber}/files`, '--paginate',
+    '--jq', '.[].{filename: .filename, status: .status, additions: .additions, deletions: .deletions, patch: .patch, previousFilename: .previous_filename}',
+  ])
+  return raw.trim().split('\n').filter(l => l.trim()).map(l => {
+    try { return JSON.parse(l) } catch { return null }
+  }).filter(Boolean) as PRFile[]
 }
 
 /**

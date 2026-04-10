@@ -2,7 +2,7 @@
 export type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, GitHubIssue, QuickPrompt, GitHubRepo,
-  FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus,
+  FeedbackFile, PRFile, PersonaInfo, EnvServiceStatus, EnvStatus,
   TaskBoardItem, TaskStatus, TaskPriority, ArenaStats,
 } from '../../../shared/types'
 

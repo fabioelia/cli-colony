@@ -3,7 +3,7 @@ import { promises as fsp } from 'fs'
 import { join } from 'path'
 import { colonyPaths } from '../../shared/colony-paths'
 import {
-  checkGhAuth, fetchPRs, fetchIssues, createIssue, getRepos, addRepo, removeRepo, getRemovalImpact,
+  checkGhAuth, fetchPRs, fetchPRFiles, fetchIssues, createIssue, getRepos, addRepo, removeRepo, getRemovalImpact,
   updateRepoPath, getPrompts, savePrompts, resolvePrompt, writePrContext,
   getPrMemory, savePrMemory, getPrMemoryPath, getPrWorkspacePath,
   fetchChecks, fetchCheckLogs, shallowCloneRepo,
@@ -41,6 +41,7 @@ export function registerGitHubHandlers(): void {
   ipcMain.handle('github:fetchCheckLogs', (_e, repo: GitHubRepo, prNumber: number, checkName: string) => fetchCheckLogs(repo, prNumber, checkName))
   ipcMain.handle('github:getUser', () => getGitHubUser())
   ipcMain.handle('github:fetchFeedback', (_e, repo: GitHubRepo, prNumber: number) => fetchFeedbackFiles(repo, prNumber))
+  ipcMain.handle('github:fetchPRFiles', (_e, repo: GitHubRepo, prNumber: number) => fetchPRFiles(repo, prNumber))
   ipcMain.handle('github:fetchIssues', (_e, repo: GitHubRepo) => fetchIssues(repo))
   ipcMain.handle('github:createIssue', (_e, repo: GitHubRepo, title: string, body: string, labels: string[]) => createIssue(repo, title, body, labels))
 }

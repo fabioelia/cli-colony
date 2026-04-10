@@ -4,7 +4,8 @@ import { ArrowLeft, Plus, Trash2, RefreshCw, GitPullRequest, ExternalLink, Play,
 import RepoRemovalModal, { type RemovalImpact } from './RepoRemovalModal'
 import PromptEnvironmentSelector from './PromptEnvironmentSelector'
 import MarkdownViewer from './MarkdownViewer'
-import type { GitHubPR, GitHubIssue, GitHubRepo, QuickPrompt, PRChecks, FeedbackFile } from '../types'
+import DiffViewer from './DiffViewer'
+import type { GitHubPR, GitHubIssue, GitHubRepo, QuickPrompt, PRChecks, FeedbackFile, PRFile } from '../types'
 import type { PersonaInfo } from '../../../shared/types'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import Tooltip from './Tooltip'
@@ -52,6 +53,12 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const [expandedRepo, setExpandedRepo] = useState<string | null>(null)
   const [expandedPR, setExpandedPR] = useState<string | null>(null) // "owner/name#number"
   const [error, setError] = useState<string | null>(null)
+
+  // PR file diffs
+  const [prFiles, setPRFiles] = useState<Record<string, PRFile[]>>({}) // keyed by "owner/name#number"
+  const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set()) // keyed by "owner/name#number:filename"
+  const [loadingPRFiles, setLoadingPRFiles] = useState<Set<string>>(new Set())
+  const [showPRFiles, setShowPRFiles] = useState<Set<string>>(new Set())
 
   // Issues state
   const [issuesByRepo, setIssuesByRepo] = useState<Record<string, GitHubIssue[]>>({})
@@ -1279,6 +1286,74 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                                     <Wrench size={12} /> Fix Failing Checks
                                   </button>
                                 )}
+                              </div>
+                            )}
+
+                            {/* File Diffs */}
+                            <button
+                              className={`github-pr-files-toggle${showPRFiles.has(prKey) ? ' active' : ''}`}
+                              onClick={async () => {
+                                const key = prKey
+                                if (showPRFiles.has(key)) {
+                                  setShowPRFiles(prev => { const n = new Set(prev); n.delete(key); return n })
+                                  return
+                                }
+                                setShowPRFiles(prev => new Set([...prev, key]))
+                                if (prFiles[key]) return
+                                setLoadingPRFiles(prev => new Set([...prev, key]))
+                                try {
+                                  const files = await window.api.github.fetchPRFiles(repo, pr.number)
+                                  setPRFiles(prev => ({ ...prev, [key]: files }))
+                                } catch {
+                                  setPRFiles(prev => ({ ...prev, [key]: [] }))
+                                } finally {
+                                  setLoadingPRFiles(prev => { const n = new Set(prev); n.delete(key); return n })
+                                }
+                              }}
+                            >
+                              <FileDiff size={14} />
+                              {loadingPRFiles.has(prKey)
+                                ? 'Loading files...'
+                                : `Files changed${prFiles[prKey] ? `: ${prFiles[prKey].length}` : ''}`
+                              }
+                              {showPRFiles.has(prKey) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                            </button>
+                            {showPRFiles.has(prKey) && prFiles[prKey] && (
+                              <div className="github-pr-files-list">
+                                {prFiles[prKey].map(file => {
+                                  const fileKey = `${prKey}:${file.filename}`
+                                  const statusChar = file.status === 'renamed' ? 'R' : file.status[0].toUpperCase()
+                                  return (
+                                    <div key={file.filename} className="github-pr-file">
+                                      <div
+                                        className="github-pr-file-header"
+                                        onClick={() => {
+                                          setExpandedFiles(prev => {
+                                            const n = new Set(prev)
+                                            if (n.has(fileKey)) n.delete(fileKey); else n.add(fileKey)
+                                            return n
+                                          })
+                                        }}
+                                      >
+                                        {expandedFiles.has(fileKey) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                                        <span className={`github-pr-file-status ${file.status}`}>{statusChar}</span>
+                                        <span className="github-pr-file-name">
+                                          {file.previousFilename ? `${file.previousFilename} → ${file.filename}` : file.filename}
+                                        </span>
+                                        <span className="github-pr-file-stats">
+                                          {file.additions > 0 && <span className="additions">+{file.additions}</span>}
+                                          {file.deletions > 0 && <span className="deletions"> −{file.deletions}</span>}
+                                        </span>
+                                      </div>
+                                      {expandedFiles.has(fileKey) && file.patch && (
+                                        <DiffViewer diff={file.patch} filename={file.filename} />
+                                      )}
+                                      {expandedFiles.has(fileKey) && !file.patch && (
+                                        <div className="github-pr-file-binary">Binary file or diff too large</div>
+                                      )}
+                                    </div>
+                                  )
+                                })}
                               </div>
                             )}
 
