@@ -205,6 +205,8 @@ export async function runSetup(
     async function runPromptHook(hook: any): Promise<void> {
       logSetup(`  Prompt: ${hook.name} -- ${hook.prompt || 'User input required'}`)
       updateStep(hook.name, 'running')
+      // Track active listener so we can clean up on error/crash
+      let activeListener: ((_event: any, data: any) => void) | null = null
       try {
         const requestId = `${envId}:${hook.name}:${Date.now()}`
 
@@ -213,9 +215,11 @@ export async function runSetup(
           const onResponse = (_event: any, data: any) => {
             if (data.requestId === requestId) {
               ipcMain.removeListener('env:prompt-response', onResponse)
+              activeListener = null
               resolve(data)
             }
           }
+          activeListener = onResponse
           ipcMain.on('env:prompt-response', onResponse)
         })
 
@@ -292,6 +296,12 @@ export async function runSetup(
         updateStep(hook.name, 'error', String(err).slice(0, 300), { continueOnError: !!hook.continueOnError })
         if (hook.continueOnError) {
           logSetup(`  (continueOnError: proceeding despite failure)`)
+        }
+      } finally {
+        // Clean up leaked IPC listener if the hook crashed before receiving a response
+        if (activeListener) {
+          ipcMain.removeListener('env:prompt-response', activeListener)
+          activeListener = null
         }
       }
     }
