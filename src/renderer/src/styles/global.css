@@ -25,6 +25,10 @@
   --sidebar-width: 300px;
   --titlebar-pad: 48px;
   --terminal-bg: #000;
+  --bg-overlay-light: rgba(255, 255, 255, 0.15);
+  --bg-overlay-medium: rgba(255, 255, 255, 0.25);
+  --bg-overlay-track: rgba(255, 255, 255, 0.20);
+  --border-overlay: rgba(255, 255, 255, 0.30);
 }
 
 [data-theme="light"] {
@@ -46,6 +50,10 @@
   --danger: #dc2626;
   --accent-purple: #7c3aed;
   --terminal-bg: #ffffff;
+  --bg-overlay-light: rgba(0, 0, 0, 0.08);
+  --bg-overlay-medium: rgba(0, 0, 0, 0.15);
+  --bg-overlay-track: rgba(0, 0, 0, 0.12);
+  --border-overlay: rgba(0, 0, 0, 0.20);
 }
 
 body.fullscreen {
@@ -129,15 +137,15 @@ input, select {
 .daemon-update-banner button {
   padding: 3px 10px;
   border-radius: 4px;
-  border: 1px solid rgba(255,255,255,0.3);
-  background: rgba(255,255,255,0.15);
+  border: 1px solid var(--border-overlay);
+  background: var(--bg-overlay-light);
   color: #fff;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
 }
 .daemon-update-banner button:hover {
-  background: rgba(255,255,255,0.25);
+  background: var(--bg-overlay-medium);
 }
 .daemon-update-banner .daemon-update-dismiss {
   border: none;
@@ -183,15 +191,15 @@ body:has(.daemon-update-banner) .app-update-banner {
 .app-update-banner button {
   padding: 3px 10px;
   border-radius: 4px;
-  border: 1px solid rgba(255,255,255,0.3);
-  background: rgba(255,255,255,0.15);
+  border: 1px solid var(--border-overlay);
+  background: var(--bg-overlay-light);
   color: #fff;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
 }
 .app-update-banner button:hover {
-  background: rgba(255,255,255,0.25);
+  background: var(--bg-overlay-medium);
 }
 .app-update-banner .app-update-dismiss {
   border: none;
@@ -206,7 +214,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .app-update-progress {
   flex: 0 0 140px;
   height: 6px;
-  background: rgba(255,255,255,0.2);
+  background: var(--bg-overlay-track);
   border-radius: 3px;
   overflow: hidden;
 }

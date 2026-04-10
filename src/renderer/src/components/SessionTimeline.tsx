@@ -425,7 +425,7 @@ export default function SessionTimeline({ instances, onFocusInstance }: Props) {
                       cx={x1 + barWidth / 2}
                       cy={y + ROW_HEIGHT / 2}
                       r={3}
-                      fill="rgba(255,255,255,0.6)"
+                      style={{ fill: 'var(--text-muted)' }}
                     />
                     {bar.commitCount > 1 && barWidth > 40 && (
                       <text
