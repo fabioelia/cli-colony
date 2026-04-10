@@ -4,7 +4,7 @@ import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
   ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote, ArrowRightCircle, Save, Loader2,
   Hourglass, ArrowRight, FolderOpen, Search, Check, Bot, BarChart3, ArrowUpDown, DollarSign, TrendingUp,
-  CalendarClock,
+  CalendarClock, GitBranch,
 } from 'lucide-react'
 import EmptyStateHook from './EmptyStateHook'
 import MarkdownViewer from './MarkdownViewer'
@@ -12,6 +12,7 @@ import HelpPopover from './HelpPopover'
 import Tooltip from './Tooltip'
 import CronEditor from './CronEditor'
 import PersonaScheduleHeatmap from './PersonaScheduleHeatmap'
+import PersonaTriggerMap from './PersonaTriggerMap'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import { describeCron } from '../../../shared/cron'
 
@@ -160,7 +161,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
 
   // Sort
   const [sortBy, setSortBy] = useState<'name' | 'lastRun' | 'runs' | 'cost' | 'successRate'>('name')
-  const [panelView, setPanelView] = useState<'list' | 'schedule'>('list')
+  const [panelView, setPanelView] = useState<'list' | 'schedule' | 'triggers'>('list')
 
   // Analytics cache — keyed by persona ID
   const [analyticsCache, setAnalyticsCache] = useState<Record<string, PersonaAnalytics>>({})
@@ -341,6 +342,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
         <div className="panel-header-tabs">
           <button className={`panel-header-tab${panelView === 'list' ? ' active' : ''}`} onClick={() => setPanelView('list')}>List</button>
           <button className={`panel-header-tab${panelView === 'schedule' ? ' active' : ''}`} onClick={() => setPanelView('schedule')}><CalendarClock size={11} /> Schedule</button>
+          <button className={`panel-header-tab${panelView === 'triggers' ? ' active' : ''}`} onClick={() => setPanelView('triggers')}><GitBranch size={11} /> Triggers</button>
         </div>
         <div className="panel-header-spacer" />
         {panelView === 'list' && (
@@ -365,6 +367,16 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
 
       {panelView === 'schedule' && (
         <PersonaScheduleHeatmap personas={personas} />
+      )}
+
+      {panelView === 'triggers' && (
+        <PersonaTriggerMap
+          personas={personas}
+          onSelectPersona={(id) => {
+            setPanelView('list')
+            setExpandedId(id)
+          }}
+        />
       )}
 
       {panelView === 'list' && <>

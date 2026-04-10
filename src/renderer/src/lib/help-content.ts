@@ -683,7 +683,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Top bar',
         items: [
           { label: 'New button', detail: 'Create a new persona from a blank template with a name.', icon: 'Plus' },
-          { label: 'List / Schedule tabs', detail: 'List shows persona cards. Schedule shows a 24-hour heatmap of when each persona fires, with overlap indicators and actual run dots.', icon: 'CalendarClock' },
+          { label: 'List / Schedule / Triggers tabs', detail: 'List shows persona cards. Schedule shows a 24-hour heatmap of when each persona fires. Triggers shows a directed graph of cross-persona trigger chains.', icon: 'CalendarClock' },
         ],
       },
       {
@@ -741,6 +741,18 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Overlap bands', detail: 'Red-tinted vertical bands highlight minutes where 3+ personas fire simultaneously. Hover for count and time.' },
           { label: 'Run dots', detail: 'Green dots = actual runs that fired on time. Amber dots = runs that fired >2 minutes late vs the closest scheduled time.' },
           { label: 'Disabled personas', detail: 'Shown as dimmed rows so you can see the full schedule picture even when some personas are toggled off.' },
+        ],
+      },
+      {
+        name: 'Trigger Map',
+        position: 'Triggers tab',
+        items: [
+          { label: 'Directed graph', detail: 'SVG visualization of cross-persona trigger relationships. Personas are nodes arranged in layers by dependency depth.', icon: 'GitBranch' },
+          { label: 'Solid arrows', detail: 'on_complete_run edges — these always fire when the source persona finishes. Labeled "always".' },
+          { label: 'Dashed arrows', detail: 'can_invoke edges — the source persona may trigger the target dynamically via a trigger file. Labeled "may trigger".' },
+          { label: 'Cycle detection', detail: 'If on_complete_run chains form a cycle (A→B→C→A), those edges are highlighted in red with a warning banner.' },
+          { label: 'Color dots', detail: 'Each node shows the persona color. Green pulsing dot = running. Dimmed node = disabled persona.' },
+          { label: 'Click to navigate', detail: 'Click any node to switch to the List tab and expand that persona card.' },
         ],
       },
     ],
