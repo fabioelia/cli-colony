@@ -3,6 +3,7 @@ import { GitCompare, RefreshCw, ChevronDown, ChevronRight, Terminal, GitBranch, 
 import type { ClaudeInstance } from '../types'
 import type { GitDiffEntry } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
+import DiffViewer from './DiffViewer'
 
 interface SessionChanges {
   instanceId: string
@@ -28,6 +29,10 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
   const [sessionChanges, setSessionChanges] = useState<SessionChanges[]>([])
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState<FilterMode>('changes')
+  const [expandedDiffKey, setExpandedDiffKey] = useState<string | null>(null)
+  const [reviewDiffContent, setReviewDiffContent] = useState<string | null>(null)
+  const [reviewDiffLoading, setReviewDiffLoading] = useState(false)
+  const reviewDiffCache = useRef<Record<string, string>>({})
   const [refreshing, setRefreshing] = useState(false)
   const [copiedBranch, setCopiedBranch] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -146,6 +151,31 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
     if (a.entries.length === 0 && b.entries.length > 0) return 1
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   })
+
+  const toggleReviewDiff = useCallback(async (sessionDir: string, file: string, status: string) => {
+    const key = `${sessionDir}:${file}`
+    if (expandedDiffKey === key) {
+      setExpandedDiffKey(null)
+      setReviewDiffContent(null)
+      return
+    }
+    setExpandedDiffKey(key)
+    if (reviewDiffCache.current[key]) {
+      setReviewDiffContent(reviewDiffCache.current[key])
+      return
+    }
+    setReviewDiffLoading(true)
+    setReviewDiffContent(null)
+    try {
+      const raw = await window.api.session.getFileDiff(sessionDir, file, status)
+      reviewDiffCache.current[key] = raw
+      setReviewDiffContent(raw)
+    } catch {
+      setReviewDiffContent('')
+    } finally {
+      setReviewDiffLoading(false)
+    }
+  }, [expandedDiffKey])
 
   const totalChanges = sessionChanges.reduce((sum, s) => sum + s.entries.length, 0)
   const totalInsertions = sessionChanges.reduce((sum, s) => sum + s.entries.reduce((a, e) => a + e.insertions, 0), 0)
@@ -270,26 +300,46 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
               {/* Expanded file list */}
               {expanded && (
                 <div className="review-card-files">
-                  {session.entries.map(entry => (
-                    <div key={entry.file} className="review-file-row">
-                      <span
-                        className="review-file-status"
-                        style={{
-                          color: entry.status === 'A' ? 'var(--success)'
-                            : entry.status === 'D' ? 'var(--danger)'
-                            : 'var(--warning)',
-                        }}
-                      >
-                        {entry.status}
-                      </span>
-                      <span className="review-file-name">{entry.file}</span>
-                      <span className="review-file-stats">
-                        {entry.insertions > 0 && <span style={{ color: 'var(--success)' }}>+{entry.insertions}</span>}
-                        {entry.insertions > 0 && entry.deletions > 0 && ' '}
-                        {entry.deletions > 0 && <span style={{ color: 'var(--danger)' }}>-{entry.deletions}</span>}
-                      </span>
-                    </div>
-                  ))}
+                  {session.entries.map(entry => {
+                    const diffKey = `${session.dir}:${entry.file}`
+                    const isExpanded = expandedDiffKey === diffKey
+                    return (
+                      <div key={entry.file}>
+                        <div
+                          className="review-file-row"
+                          style={{ cursor: 'pointer' }}
+                          onClick={() => toggleReviewDiff(session.dir, entry.file, entry.status)}
+                        >
+                          <ChevronRight size={10} style={{ flexShrink: 0, transition: 'transform 0.15s', transform: isExpanded ? 'rotate(90deg)' : 'none', opacity: 0.5 }} />
+                          <span
+                            className="review-file-status"
+                            style={{
+                              color: entry.status === 'A' ? 'var(--success)'
+                                : entry.status === 'D' ? 'var(--danger)'
+                                : 'var(--warning)',
+                            }}
+                          >
+                            {entry.status}
+                          </span>
+                          <span className="review-file-name">{entry.file}</span>
+                          <span className="review-file-stats">
+                            {entry.insertions > 0 && <span style={{ color: 'var(--success)' }}>+{entry.insertions}</span>}
+                            {entry.insertions > 0 && entry.deletions > 0 && ' '}
+                            {entry.deletions > 0 && <span style={{ color: 'var(--danger)' }}>-{entry.deletions}</span>}
+                          </span>
+                        </div>
+                        {isExpanded && (
+                          <div className="changes-diff-container">
+                            {reviewDiffLoading ? (
+                              <div className="diff-viewer-empty">Loading diff...</div>
+                            ) : reviewDiffContent !== null ? (
+                              <DiffViewer diff={reviewDiffContent} />
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>

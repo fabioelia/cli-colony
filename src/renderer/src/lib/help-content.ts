@@ -1111,8 +1111,9 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Main area',
         items: [
           { label: 'Status letter', detail: 'M = modified, A = added, D = deleted, R = renamed. Color-coded: amber for M, green for A, red for D.' },
-          { label: 'File path', detail: 'Relative path of the changed file within the working directory.' },
+          { label: 'File path', detail: 'Relative path of the changed file within the working directory. Click to expand inline diff.' },
           { label: '+/- counts', detail: 'Number of inserted lines (green) and deleted lines (red) in the diff.' },
+          { label: 'Inline diff', detail: 'Click any file row to expand a color-coded unified diff below it. Green for additions, red for deletions, with line numbers. Diffs are fetched lazily and cached. Large diffs (500+ lines) are truncated with a "Show full diff" button. Binary files show a placeholder.' },
           { label: 'Revert button', detail: 'Reverts that single file to HEAD via `git checkout HEAD -- <file>`. Confirmation required.', icon: 'Undo2' },
           { label: 'Empty state', detail: 'Shows "No uncommitted changes" when the working tree is clean.' },
         ],
@@ -1240,7 +1241,8 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Below card when expanded',
         items: [
           { label: 'File status', detail: 'A = Added (green), M = Modified (yellow), D = Deleted (red), R = Renamed, ? = Untracked.' },
-          { label: 'File path', detail: 'Full path of the changed file in monospace font.' },
+          { label: 'File path', detail: 'Full path of the changed file in monospace font. Click to expand inline diff.' },
+          { label: 'Inline diff', detail: 'Click any file row to expand a line-level unified diff. Color-coded additions/deletions with gutter line numbers. Lazy-loaded and cached per session.' },
           { label: 'Insertions / Deletions', detail: 'Per-file line counts: green for additions, red for removals.' },
         ],
       },

@@ -14,6 +14,7 @@ import type { ClaudeInstance } from '../types'
 import Tooltip from './Tooltip'
 import HelpPopover from './HelpPopover'
 import CommitDialog from './CommitDialog'
+import DiffViewer from './DiffViewer'
 import { usePanelTabKeys } from '../hooks/usePanelTabKeys'
 
 interface TerminalEntry {
@@ -288,6 +289,10 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const [scoreCard, setScoreCard] = useState<ScoreCard | null>(null)
   const [scoreCardLoading, setScoreCardLoading] = useState(false)
   const [showCommitDialog, setShowCommitDialog] = useState(false)
+  const [expandedDiffFile, setExpandedDiffFile] = useState<string | null>(null)
+  const diffCacheRef = useRef<Record<string, string>>({})
+  const [diffContent, setDiffContent] = useState<string | null>(null)
+  const [diffLoading, setDiffLoading] = useState(false)
   // Artifacts tab state
   const [artifact, setArtifact] = useState<SessionArtifact | null>(null)
   const [artifactLoading, setArtifactLoading] = useState(false)
@@ -592,6 +597,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const loadGitChanges = useCallback(() => {
     if (!instance.dir) return
     setGitChangesLoading(true)
+    diffCacheRef.current = {}
     window.api.session.gitChanges(instance.dir).then((entries) => {
       setGitChanges(entries)
       setGitChangesLoading(false)
@@ -675,6 +681,30 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
       setScoreCardLoading(false)
     }
   }, [instance.dir, gitChanges.length])
+
+  const toggleFileDiff = useCallback(async (file: string, status: string) => {
+    if (expandedDiffFile === file) {
+      setExpandedDiffFile(null)
+      setDiffContent(null)
+      return
+    }
+    setExpandedDiffFile(file)
+    if (diffCacheRef.current[file]) {
+      setDiffContent(diffCacheRef.current[file])
+      return
+    }
+    setDiffLoading(true)
+    setDiffContent(null)
+    try {
+      const raw = await window.api.session.getFileDiff(instance.dir!, file, status)
+      diffCacheRef.current[file] = raw
+      setDiffContent(raw)
+    } catch {
+      setDiffContent('')
+    } finally {
+      setDiffLoading(false)
+    }
+  }, [expandedDiffFile, instance.dir])
 
   // Load coordinator team when tab switches to team and role is Coordinator
   useEffect(() => {
@@ -2035,14 +2065,14 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 return normalised === entry.file || normalised.endsWith('/' + entry.file) || entry.file.endsWith('/' + normalised)
               })
               return (
-                <div key={entry.file} className="changes-event" style={{ cursor: 'default' }}>
-                  <div className="changes-event-header" style={{ alignItems: 'center' }}>
+                <div key={entry.file} className={`changes-event${expandedDiffFile === entry.file ? ' expanded' : ''}`}>
+                  <div className="changes-event-header" style={{ alignItems: 'center', cursor: 'pointer' }} onClick={() => toggleFileDiff(entry.file, entry.status)}>
+                    <ChevronRight size={11} style={{ flexShrink: 0, transition: 'transform 0.15s', transform: expandedDiffFile === entry.file ? 'rotate(90deg)' : 'none', opacity: 0.5 }} />
                     <span className="changes-event-tool" title={entry.status === 'A' ? 'Added' : entry.status === 'D' ? 'Deleted' : entry.status === 'R' ? 'Renamed' : 'Modified'} style={{
                       color: entry.status === 'A' ? 'var(--success)'
                         : entry.status === 'D' ? 'var(--danger)'
                         : 'var(--warning)',
                       minWidth: '12px',
-                      cursor: 'default',
                     }}>
                       {entry.status}
                     </span>
@@ -2064,12 +2094,21 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                       className="changes-refresh-btn"
                       title={`Revert ${entry.file}`}
                       disabled={reverting.has(entry.file)}
-                      onClick={() => handleRevert(entry.file)}
+                      onClick={(e) => { e.stopPropagation(); handleRevert(entry.file) }}
                       style={{ marginLeft: '4px', color: 'var(--danger)' }}
                     >
                       {reverting.has(entry.file) ? <RotateCw size={11} className="spinning" /> : <Undo2 size={11} />}
                     </button>
                   </div>
+                  {expandedDiffFile === entry.file && (
+                    <div className="changes-diff-container">
+                      {diffLoading ? (
+                        <div className="diff-viewer-empty">Loading diff...</div>
+                      ) : diffContent !== null ? (
+                        <DiffViewer diff={diffContent} />
+                      ) : null}
+                    </div>
+                  )}
                   {fileComments.map((comment, i) => (
                     <div key={i} style={{
                       display: 'flex',

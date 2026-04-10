@@ -180,6 +180,23 @@ export function registerInstanceHandlers(): void {
     }
   })
 
+  ipcMain.handle('session:getFileDiff', async (_e, dir: string, filePath: string, fileStatus?: string): Promise<string> => {
+    try {
+      if (fileStatus === '?') {
+        // Untracked file — show all content as additions
+        const { stdout } = await execFileAsync('cat', [filePath], { encoding: 'utf-8', timeout: 5000, cwd: dir })
+        return stdout.split('\n').map(l => '+' + l).join('\n')
+      }
+      // Try staged diff first, fall back to unstaged
+      const { stdout: staged } = await execFileAsync('git', ['diff', '--cached', '--', filePath], { encoding: 'utf-8', timeout: 5000, cwd: dir })
+      if (staged.trim()) return staged
+      const { stdout } = await execFileAsync('git', ['diff', 'HEAD', '--', filePath], { encoding: 'utf-8', timeout: 5000, cwd: dir })
+      return stdout
+    } catch {
+      return ''
+    }
+  })
+
   ipcMain.handle('session:gitRevert', async (_e, dir: string, file: string): Promise<boolean> => {
     try {
       await execFileAsync('git', ['checkout', 'HEAD', '--', file], { encoding: 'utf-8', timeout: 10000, cwd: dir })

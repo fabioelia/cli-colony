@@ -6056,6 +6056,77 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-muted);
 }
 
+/* ===== Inline Diff Viewer ===== */
+.changes-diff-container {
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+  max-height: 400px;
+  overflow: auto;
+}
+.diff-viewer {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.diff-line {
+  display: flex;
+  min-width: 0;
+  white-space: pre;
+}
+.diff-line.diff-add {
+  background: rgba(46, 160, 67, 0.12);
+  color: #3fb950;
+}
+.diff-line.diff-del {
+  background: rgba(248, 81, 73, 0.12);
+  color: #f85149;
+}
+.diff-line.diff-hunk {
+  color: var(--text-muted);
+  background: rgba(56, 139, 253, 0.08);
+  padding: 2px 0;
+  font-style: italic;
+}
+.diff-line.diff-context {
+  color: var(--text-secondary);
+}
+.diff-gutter {
+  flex-shrink: 0;
+  width: 40px;
+  text-align: right;
+  padding-right: 8px;
+  color: var(--text-muted);
+  opacity: 0.6;
+  user-select: none;
+}
+.diff-content {
+  flex: 1;
+  padding-left: 4px;
+  min-width: 0;
+}
+.diff-viewer-empty {
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.diff-truncated {
+  padding: 6px 12px;
+  text-align: center;
+}
+.diff-truncated button {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.diff-truncated button:hover {
+  background: var(--bg-hover);
+}
+
 /* ===== Review Dashboard ===== */
 .review-panel {
   display: flex;

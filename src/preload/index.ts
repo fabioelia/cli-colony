@@ -363,6 +363,7 @@ export interface ClaudeManagerAPI {
     getAttributedCommits: (dir?: string) => Promise<CommitAttribution[]>
     clearCommitAttributions: () => Promise<void>
     gitChanges: (dir: string) => Promise<GitDiffEntry[]>
+    getFileDiff: (dir: string, filePath: string, fileStatus?: string) => Promise<string>
     gitRevert: (dir: string, file: string) => Promise<boolean>
     scoreOutput: (dir: string) => Promise<ScoreCard>
     getComments: (instanceId: string) => Promise<ColonyComment[]>
@@ -859,6 +860,7 @@ const api: ClaudeManagerAPI = {
     getAttributedCommits: (dir) => ipcRenderer.invoke('session:getAttributedCommits', dir),
     clearCommitAttributions: () => ipcRenderer.invoke('session:clearCommitAttributions'),
     gitChanges: (dir) => ipcRenderer.invoke('session:gitChanges', dir),
+    getFileDiff: (dir, filePath, fileStatus) => ipcRenderer.invoke('session:getFileDiff', dir, filePath, fileStatus),
     gitRevert: (dir, file) => ipcRenderer.invoke('session:gitRevert', dir, file),
     scoreOutput: (dir) => ipcRenderer.invoke('session:scoreOutput', dir),
     getComments: (instanceId) => ipcRenderer.invoke('session:getComments', instanceId),
