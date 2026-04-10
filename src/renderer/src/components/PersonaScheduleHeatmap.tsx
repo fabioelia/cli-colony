@@ -107,7 +107,7 @@ export default function PersonaScheduleHeatmap({ personas }: Props) {
       <div className="schedule-heatmap-nav">
         <button onClick={() => setDayOffset(o => o - 1)} title="Previous day"><ChevronLeft size={14} /></button>
         <span className="schedule-heatmap-date">{fmtDate(selectedDate)}{isToday ? ' (Today)' : ''}</span>
-        <button onClick={() => setDayOffset(o => o + 1)} title="Next day" disabled={dayOffset >= 0}><ChevronRight size={14} /></button>
+        <button onClick={() => setDayOffset(o => o + 1)} title="Next day"><ChevronRight size={14} /></button>
         {!isToday && (
           <button className="schedule-heatmap-today" onClick={() => setDayOffset(0)}>Today</button>
         )}

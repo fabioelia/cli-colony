@@ -14,7 +14,7 @@ import CronEditor from './CronEditor'
 import PersonaScheduleHeatmap from './PersonaScheduleHeatmap'
 import PersonaTriggerMap from './PersonaTriggerMap'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
-import { describeCron } from '../../../shared/cron'
+import { describeCron, nextRuns } from '../../../shared/cron'
 
 import type { PersonaInfo, ClaudeInstance, PersonaArtifact, PersonaRunEntry, PersonaAnalytics } from '../../../shared/types'
 
@@ -162,6 +162,13 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
   // Sort
   const [sortBy, setSortBy] = useState<'name' | 'lastRun' | 'runs' | 'cost' | 'successRate'>('name')
   const [panelView, setPanelView] = useState<'list' | 'schedule' | 'triggers'>('list')
+
+  // Tick every 60s to refresh next-run countdowns
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 60000)
+    return () => clearInterval(id)
+  }, [])
 
   // Analytics cache — keyed by persona ID
   const [analyticsCache, setAnalyticsCache] = useState<Record<string, PersonaAnalytics>>({})
@@ -872,6 +879,20 @@ function PersonaCard({
           {persona.schedule && (
             <span className="persona-list-cron-chip" title={persona.schedule}>{describeCron(persona.schedule)}</span>
           )}
+          {persona.schedule && (() => {
+            if (!persona.enabled) return <span className="persona-list-next-run paused">Paused</span>
+            const fires = nextRuns(persona.schedule, 1)
+            if (fires.length === 0) return <span className="persona-list-next-run">—</span>
+            const diffMs = fires[0].getTime() - Date.now()
+            if (diffMs < 0) return <span className="persona-list-next-run">—</span>
+            const mins = Math.floor(diffMs / 60000)
+            let label: string
+            if (mins < 1) label = '<1m'
+            else if (mins < 60) label = `${mins}m`
+            else if (mins < 1440) label = `${Math.floor(mins / 60)}h ${mins % 60}m`
+            else label = fires[0].toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })
+            return <span className="persona-list-next-run" title={fires[0].toLocaleString()}>Next: {label}</span>
+          })()}
           <span className="persona-list-model">{persona.model || 'sonnet'}</span>
           {analytics && analytics.totalRuns > 0 && (
             <span className="persona-list-stats">

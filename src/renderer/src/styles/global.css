@@ -15568,6 +15568,17 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-muted);
   opacity: 0.5;
 }
+.persona-list-next-run {
+  font-size: 10px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.persona-list-next-run.paused {
+  font-style: italic;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
 
 .persona-list-model {
   font-size: 9px;
