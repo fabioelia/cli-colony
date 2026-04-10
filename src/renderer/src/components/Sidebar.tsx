@@ -354,6 +354,61 @@ interface Props {
   onCloneSession?: (inst: ClaudeInstance) => void
 }
 
+function SessionTile({ s, onResumeSession, hoveredSessionId, setHoveredSessionId, popoverPos, setPopoverPos, formatTime }: {
+  s: CliSession
+  onResumeSession: (session: CliSession) => void
+  hoveredSessionId: string | null
+  setHoveredSessionId: (id: string | null) => void
+  popoverPos: { top: number } | null
+  setPopoverPos: (pos: { top: number } | null) => void
+  formatTime: (ts: number) => string
+}) {
+  return (
+    <div
+      className="sidebar-session-item"
+      role="button"
+      tabIndex={0}
+      onClick={() => onResumeSession(s)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onResumeSession(s) } }}
+      onMouseEnter={(e) => {
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+        const top = Math.min(rect.top, window.innerHeight - 280)
+        setPopoverPos({ top })
+        setHoveredSessionId(s.sessionId)
+      }}
+      onMouseLeave={() => setHoveredSessionId(null)}
+    >
+      <div className="sidebar-session-display">
+        {s.name || s.display}
+        {s.recentlyOpened && <span className="sidebar-session-recent-badge">recent</span>}
+      </div>
+      {s.name && <div className="sidebar-session-command">{s.display}</div>}
+      <div className="sidebar-session-meta">
+        <span className="sidebar-session-project">{s.projectName}</span>
+        <span>{s.messageCount} msg{s.messageCount !== 1 ? 's' : ''}</span>
+        <span>{formatTime(s.timestamp)}</span>
+      </div>
+      {hoveredSessionId === s.sessionId && popoverPos && (
+        <div className="session-popover" style={{ top: popoverPos.top }}>
+          <div className="session-popover-section">
+            <div className="session-popover-label">First message</div>
+            <div className="session-popover-text">{s.display}</div>
+          </div>
+          {s.lastMessage && (
+            <div className="session-popover-section">
+              <div className="session-popover-label">Last message</div>
+              <div className="session-popover-text">{s.lastMessage}</div>
+            </div>
+          )}
+          <div className="session-popover-footer">
+            {s.projectName} &middot; {s.messageCount} messages &middot; {s.sessionId.slice(0, 8)}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onSetNote, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onRestoreAll, restorableCount, unreadIds, outputBytes, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop, forkGroups = [], onForkSession, gridPanes, currentLayout = 'single', onLoadPreset, onCloneSession }: Props) {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
@@ -510,6 +565,20 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const [sessionSearch, setSessionSearch] = useState('')
   const [sessionSort, setSessionSort] = useState<'recent' | 'messages' | 'name'>(() => (localStorage.getItem('colony:sessionSort') as any) || 'recent')
   const [sessionProjectFilter, setSessionProjectFilter] = useState<string | null>(() => localStorage.getItem('colony:sessionProjectFilter') || null)
+  type SessionGroupBy = 'none' | 'project' | 'date'
+  const [sessionGroupBy, setSessionGroupBy] = useState<SessionGroupBy>(() =>
+    (localStorage.getItem('sidebar-session-group-by') as SessionGroupBy) || 'none')
+  const [sessionCollapsedGroups, setSessionCollapsedGroups] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('sidebar-session-collapsed-groups') || '[]')) } catch { return new Set() }
+  })
+  const toggleSessionGroupCollapse = useCallback((group: string) => {
+    setSessionCollapsedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(group)) next.delete(group); else next.add(group)
+      localStorage.setItem('sidebar-session-collapsed-groups', JSON.stringify([...next]))
+      return next
+    })
+  }, [])
   const [hoveredSessionId, setHoveredSessionId] = useState<string | null>(null)
   const [popoverPos, setPopoverPos] = useState<{ top: number } | null>(null)
   const [instancePopoverPos, setInstancePopoverPos] = useState<{ top: number; left: number } | null>(null)
@@ -788,6 +857,27 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     // 'recent' is the default order from the API — no re-sort needed
     return result
   }, [sessions, sessionSearch, sessionProjectFilter, sessionSort])
+
+  const sessionGroupedSections = useMemo(() => {
+    if (sessionGroupBy === 'none') return null
+    const getKey = (s: CliSession): string => {
+      if (sessionGroupBy === 'project') return s.projectName || 'Unknown'
+      const todayStart = new Date().setHours(0, 0, 0, 0)
+      const DAY = 86400000
+      if (s.timestamp >= todayStart) return 'Today'
+      if (s.timestamp >= todayStart - DAY) return 'Yesterday'
+      if (s.timestamp >= todayStart - 6 * DAY) return 'This Week'
+      if (s.timestamp >= todayStart - 29 * DAY) return 'This Month'
+      return 'Older'
+    }
+    const groups = new Map<string, CliSession[]>()
+    for (const s of filteredSessions) {
+      const key = getKey(s)
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key)!.push(s)
+    }
+    return [...groups.entries()].map(([label, items]) => ({ label, items, count: items.length }))
+  }, [sessionGroupBy, filteredSessions])
 
   const uniqueProjects = useMemo(() =>
     [...new Set(sessions.map(s => s.projectName))].sort(),
@@ -1389,6 +1479,20 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             <option value="">All Projects</option>
             {uniqueProjects.map(p => <option key={p} value={p}>{p.split('/').pop()}</option>)}
           </select>
+          <select
+            className="sidebar-sessions-filter-select"
+            value={sessionGroupBy}
+            onChange={(e) => {
+              const val = e.target.value as SessionGroupBy
+              setSessionGroupBy(val)
+              localStorage.setItem('sidebar-session-group-by', val)
+            }}
+            title="Group sessions"
+          >
+            <option value="none">No grouping</option>
+            <option value="project">Group by project</option>
+            <option value="date">Group by date</option>
+          </select>
           {sessionProjectFilter && (
             <button
               className="sidebar-sessions-filter-clear"
@@ -1400,52 +1504,28 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
           )}
         </div>
         <div className="sidebar-sessions-list">
-          {filteredSessions.map((s) => (
-            <div
-              key={s.sessionId}
-              className="sidebar-session-item"
-              role="button"
-              tabIndex={0}
-              onClick={() => onResumeSession(s)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onResumeSession(s) } }}
-              onMouseEnter={(e) => {
-                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                // Clamp so popover doesn't go off-screen bottom
-                const top = Math.min(rect.top, window.innerHeight - 280)
-                setPopoverPos({ top })
-                setHoveredSessionId(s.sessionId)
-              }}
-              onMouseLeave={() => setHoveredSessionId(null)}
-            >
-              <div className="sidebar-session-display">
-                {s.name || s.display}
-                {s.recentlyOpened && <span className="sidebar-session-recent-badge">recent</span>}
-              </div>
-              {s.name && <div className="sidebar-session-command">{s.display}</div>}
-              <div className="sidebar-session-meta">
-                <span className="sidebar-session-project">{s.projectName}</span>
-                <span>{s.messageCount} msg{s.messageCount !== 1 ? 's' : ''}</span>
-                <span>{formatTime(s.timestamp)}</span>
-              </div>
-              {hoveredSessionId === s.sessionId && popoverPos && (
-                <div className="session-popover" style={{ top: popoverPos.top }}>
-                  <div className="session-popover-section">
-                    <div className="session-popover-label">First message</div>
-                    <div className="session-popover-text">{s.display}</div>
-                  </div>
-                  {s.lastMessage && (
-                    <div className="session-popover-section">
-                      <div className="session-popover-label">Last message</div>
-                      <div className="session-popover-text">{s.lastMessage}</div>
-                    </div>
-                  )}
-                  <div className="session-popover-footer">
-                    {s.projectName} &middot; {s.messageCount} messages &middot; {s.sessionId.slice(0, 8)}
-                  </div>
+          {sessionGroupedSections ? (
+            sessionGroupedSections.map(({ label, items, count }) => (
+              <div key={label}>
+                <div className="sidebar-group-header" onClick={() => toggleSessionGroupCollapse(label)}>
+                  {sessionCollapsedGroups.has(label) ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                  <span>{label}</span>
+                  <span className="sidebar-group-count">{count}</span>
                 </div>
-              )}
-            </div>
-          ))}
+                {!sessionCollapsedGroups.has(label) && items.map(s => (
+                  <SessionTile key={s.sessionId} s={s} onResumeSession={onResumeSession}
+                    hoveredSessionId={hoveredSessionId} setHoveredSessionId={setHoveredSessionId}
+                    popoverPos={popoverPos} setPopoverPos={setPopoverPos} formatTime={formatTime} />
+                ))}
+              </div>
+            ))
+          ) : (
+            filteredSessions.map(s => (
+              <SessionTile key={s.sessionId} s={s} onResumeSession={onResumeSession}
+                hoveredSessionId={hoveredSessionId} setHoveredSessionId={setHoveredSessionId}
+                popoverPos={popoverPos} setPopoverPos={setPopoverPos} formatTime={formatTime} />
+            ))
+          )}
           {filteredSessions.length === 0 && sessionsReady && (
             <div className="instance-list-empty">
               {sessionSearch ? 'No matches' : 'No sessions'}
