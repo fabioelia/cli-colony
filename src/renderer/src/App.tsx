@@ -23,6 +23,7 @@ import QuickPromptDialog from './components/QuickPromptDialog'
 import ForkModal from './components/ForkModal'
 import ArenaLaunchDialog from './components/ArenaLaunchDialog'
 import ArenaLeaderboard from './components/ArenaLeaderboard'
+import ColonyOverviewPanel from './components/ColonyOverviewPanel'
 import { loadPresets } from './components/WorkspacePresets'
 import type { WorkspacePreset } from './components/WorkspacePresets'
 import AppUpdateBanner from './components/AppUpdateBanner'
@@ -1676,11 +1677,12 @@ export default function App() {
           />
         )}
         {view === 'instances' && !active && regularInstances.length > 0 && (
-          <div className="empty-state">
-            <h2>No session selected</h2>
-            <p>Pick a session from the sidebar, or create a new one</p>
-            <button onClick={() => setShowNewDialog(true)}>New Session</button>
-          </div>
+          <ColonyOverviewPanel
+            instances={instances}
+            onFocusInstance={(id) => { setActiveId(id); setView('instances') }}
+            onNewSession={() => setShowNewDialog(true)}
+            onNavigate={(v) => setView(v as View)}
+          />
         )}
 
         {/* Status bar */}

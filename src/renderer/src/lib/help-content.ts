@@ -41,6 +41,48 @@ export interface HelpEntry {
 }
 
 export const helpContent: Record<string, HelpEntry> = {
+  overview: {
+    title: 'Colony Overview',
+    description: 'A command-center view of your colony — running sessions, active personas, pipeline status, pending items, and recent activity. Appears when no session is selected.',
+    zones: [
+      {
+        name: 'Stats Bar',
+        position: 'Top of panel',
+        items: [
+          { label: 'Running Sessions', detail: 'Count of live sessions. Click to jump to the sessions list.' },
+          { label: 'Active Personas', detail: 'Personas currently executing a scheduled or manual run.' },
+          { label: 'Pipelines Enabled', detail: 'Number of pipelines with automation turned on.' },
+          { label: 'Session Cost', detail: 'Total cost across all current sessions.' },
+        ],
+      },
+      {
+        name: 'Needs Attention',
+        position: 'Below stats (when applicable)',
+        items: [
+          { label: 'Pending approvals', detail: 'Pipeline approval gates waiting for your decision. Click to go to Pipelines.', icon: 'Zap' },
+          { label: 'Pipeline errors', detail: 'Pipelines that encountered an error on their last run.', icon: 'AlertCircle' },
+          { label: 'Blocked tasks', detail: 'Task board items marked as blocked.', icon: 'Circle' },
+        ],
+      },
+      {
+        name: 'Running Sessions',
+        position: 'Middle',
+        items: [
+          { label: 'Session tile', detail: 'Click any session to focus it. Shows name, activity status (busy/idle), role tag, and cost.', icon: 'Play' },
+        ],
+      },
+      {
+        name: 'Quick Actions',
+        position: 'Bottom',
+        items: [
+          { label: 'New Session', detail: 'Open the new session dialog.', icon: 'Plus' },
+          { label: 'Run Persona', detail: 'Jump to the Personas panel.', icon: 'Users' },
+          { label: 'Pipelines', detail: 'Jump to the Pipelines panel.', icon: 'Zap' },
+          { label: 'Environments', detail: 'Jump to the Environments panel.', icon: 'FolderOpen' },
+        ],
+      },
+    ],
+  },
   sessions: {
     title: 'Sessions',
     description: 'Launch and manage multiple Claude CLI sessions. Each session is an independent terminal running Claude with its own working directory and context.',
