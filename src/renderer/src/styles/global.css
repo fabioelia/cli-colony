@@ -5747,6 +5747,17 @@ body:has(.daemon-update-banner) .app-update-banner {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
 }
+/* File conflict badge in sidebar session tile */
+.instance-conflict-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  color: var(--warning);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  white-space: nowrap;
+}
 .instance-supervised-badge {
   display: flex;
   align-items: center;

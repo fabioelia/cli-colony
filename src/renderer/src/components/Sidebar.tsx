@@ -60,6 +60,7 @@ interface InstanceItemProps {
   selectMode: boolean
   isSelected: boolean
   onToggleSelect: (id: string) => void
+  conflictFiles: { file: string; otherSessions: { id: string; name: string }[] }[] | null
 }
 
 function dirName(path: string) {
@@ -109,7 +110,7 @@ function buildTriggerChain(inst: ClaudeInstance, allInstances: ClaudeInstance[])
   return result
 }
 
-const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcutIndex, isUnread, ctxLevel, splitBadge, focusedPane, isRenaming, renameValue, renameRef, isEditingNote, noteValue, noteRef, onCommitNote, onCancelNote, onNoteChange, callbacks, selectMode, isSelected, onToggleSelect }: InstanceItemProps) {
+const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcutIndex, isUnread, ctxLevel, splitBadge, focusedPane, isRenaming, renameValue, renameRef, isEditingNote, noteValue, noteRef, onCommitNote, onCancelNote, onNoteChange, callbacks, selectMode, isSelected, onToggleSelect, conflictFiles }: InstanceItemProps) {
   return (
     <div
       className={`instance-item ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''}`}
@@ -205,6 +206,8 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
               badges.push({ node: <span key="td" className="instance-deferred-badge" title={`Tool deferred: ${inst.toolDeferredInfo.toolName}`}>Defer</span>, label: 'Defer' })
             if (inst.permissionMode === 'supervised')
               badges.push({ node: <span key="pm" className="instance-supervised-badge" title="Supervised mode — Claude asks before risky actions"><Shield size={11} /></span>, label: 'Supervised' })
+            if (conflictFiles && conflictFiles.length > 0)
+              badges.push({ node: <span key="cf" className="instance-conflict-badge" title={conflictFiles.map(o => `${o.file} (also in ${o.otherSessions.map(s => s.name).join(', ')})`).join('\n')}>⚠ {conflictFiles.length}</span>, label: `${conflictFiles.length} conflict${conflictFiles.length > 1 ? 's' : ''}` })
             if (badges.length === 0) return null
             return (
               <div className="instance-badges">
@@ -312,7 +315,8 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
     prev.callbacks === next.callbacks &&
     prev.selectMode === next.selectMode &&
     prev.isSelected === next.isSelected &&
-    prev.onToggleSelect === next.onToggleSelect
+    prev.onToggleSelect === next.onToggleSelect &&
+    prev.conflictFiles === next.conflictFiles
 })
 
 interface Props {
@@ -362,6 +366,15 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [expandedForkGroups, setExpandedForkGroups] = useState<Set<string>>(new Set())
   const [forkSectionOpen, setForkSectionOpen] = useState(true)
+
+  // Concurrent file conflict detection — poll every 30s
+  const [fileOverlaps, setFileOverlaps] = useState<Record<string, { file: string; otherSessions: { id: string; name: string }[] }[]>>({})
+  useEffect(() => {
+    const poll = () => window.api.instance.fileOverlaps().then(setFileOverlaps).catch(() => {})
+    poll()
+    const id = setInterval(poll, 30000)
+    return () => clearInterval(id)
+  }, [])
 
   type GroupBy = 'none' | 'persona' | 'project' | 'status'
   const [groupBy, setGroupBy] = useState<GroupBy>(() => (localStorage.getItem('sidebar-group-by') as GroupBy) || 'none')
@@ -836,6 +849,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
         selectMode={selectMode}
         isSelected={selectedIds.has(inst.id)}
         onToggleSelect={toggleSelect}
+        conflictFiles={fileOverlaps[inst.id] || null}
       />
     )
   }

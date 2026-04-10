@@ -7,6 +7,7 @@ import type { ScoreCard } from '../../shared/types'
 const execFileAsync = promisify(execFile)
 import { createShell, writeShell, resizeShell, killShell } from '../shell-pty'
 import type { GitDiffEntry } from '../../shared/types'
+import { getLiveChanges } from '../git-utils'
 import {
   createInstance,
   killInstance,
@@ -63,6 +64,50 @@ export function registerInstanceHandlers(): void {
     try { return await client.setInstanceRole(id, role) } catch { return false }
   })
   ipcMain.handle('instance:list', () => getAllInstances())
+
+  // Concurrent file conflict detection — find files changed by multiple running sessions
+  ipcMain.handle('instances:fileOverlaps', async (): Promise<Record<string, { file: string; otherSessions: { id: string; name: string }[] }[]>> => {
+    const instances = (await getAllInstances()).filter(i => i.status === 'running')
+
+    // Group by working directory + git branch (only same dir + same branch can conflict)
+    const groupKey = (i: { workingDirectory: string; gitBranch: string | null }) =>
+      `${i.workingDirectory}\0${i.gitBranch ?? ''}`
+    const byGroup = new Map<string, typeof instances>()
+    for (const inst of instances) {
+      const key = groupKey(inst)
+      const group = byGroup.get(key) || []
+      group.push(inst)
+      byGroup.set(key, group)
+    }
+
+    const result: Record<string, { file: string; otherSessions: { id: string; name: string }[] }[]> = {}
+
+    for (const [, group] of byGroup) {
+      if (group.length < 2) continue
+
+      const changesBySession = await Promise.all(
+        group.map(async (inst) => ({
+          id: inst.id,
+          name: inst.name,
+          files: (await getLiveChanges(inst.workingDirectory)).map(e => e.file),
+        }))
+      )
+
+      for (const session of changesBySession) {
+        const overlaps: { file: string; otherSessions: { id: string; name: string }[] }[] = []
+        for (const file of session.files) {
+          const others = changesBySession
+            .filter(s => s.id !== session.id && s.files.includes(file))
+            .map(s => ({ id: s.id, name: s.name }))
+          if (others.length > 0) overlaps.push({ file, otherSessions: others })
+        }
+        if (overlaps.length > 0) result[session.id] = overlaps
+      }
+    }
+
+    return result
+  })
+
   ipcMain.handle('instance:get', async (_e, id: string) => {
     try { return await client.getInstance(id) } catch { return null }
   })

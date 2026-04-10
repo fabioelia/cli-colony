@@ -79,6 +79,7 @@ export interface ClaudeManagerAPI {
     onActivity: (callback: (data: { id: string; activity: 'busy' | 'waiting' }) => void) => () => void
     onToolDeferred: (callback: (data: { id: string; sessionId: string; toolName?: string }) => void) => () => void
     clearToolDeferred: (id: string) => Promise<boolean>
+    fileOverlaps: () => Promise<Record<string, { file: string; otherSessions: { id: string; name: string }[] }[]>>
   }
   shellPty: {
     create: (instanceId: string, cwd: string) => Promise<{ pid: number }>
@@ -557,6 +558,7 @@ const api: ClaudeManagerAPI = {
       return () => ipcRenderer.removeListener('instance:tool-deferred', listener)
     },
     clearToolDeferred: (id) => ipcRenderer.invoke('instance:clearToolDeferred', id),
+    fileOverlaps: () => ipcRenderer.invoke('instances:fileOverlaps'),
   },
   shellPty: {
     create: (instanceId, cwd) => ipcRenderer.invoke('shell-pty:create', instanceId, cwd),
