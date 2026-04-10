@@ -310,6 +310,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'File diffs', detail: 'Click "Files changed" to fetch and display per-file diffs with syntax highlighting. Each file is collapsible. Shows status badge (A/M/D/R), filename, and +/- line counts. Binary files and oversized diffs show a placeholder.', icon: 'FileDiff' },
           { label: 'Comments', detail: 'Click to view all PR comments (general + file-level) in a split modal with markdown rendering.', icon: 'MessageSquare' },
           { label: 'Post comment', detail: 'Type in the comment box on an expanded PR and click Comment to post a general PR comment via the GitHub API. Uses your authenticated gh CLI identity.', icon: 'Send' },
+          { label: 'Test in Environment', detail: 'Launch a new environment pre-filled with the PR\'s branch. Opens the New Environment dialog with the branch field populated.', icon: 'GitBranch' },
         ],
       },
       {

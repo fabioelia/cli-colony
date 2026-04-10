@@ -19,18 +19,19 @@ interface Props {
   onFocusInstance: (id: string) => void
   mode?: 'template' | 'instance'
   preselectedTemplate?: EnvironmentTemplate | null
+  preselectedBranch?: string
 }
 
 const TEMPLATE_AGENT_PROMPT = buildTemplateAgentPrompt()
 
-export default function NewEnvironmentDialog({ onClose, onCreated, onLaunchInstance, onFocusInstance, mode: initialMode, preselectedTemplate }: Props) {
+export default function NewEnvironmentDialog({ onClose, onCreated, onLaunchInstance, onFocusInstance, mode: initialMode, preselectedTemplate, preselectedBranch }: Props) {
   const [mode, setMode] = useState<'template' | 'instance'>(initialMode || (preselectedTemplate ? 'instance' : 'template'))
   const [repos, setRepos] = useState<GitHubRepo[]>([])
   const [templates, setTemplates] = useState<EnvironmentTemplate[]>([])
   const [selectedRepos, setSelectedRepos] = useState<Set<string>>(new Set())
   const [selectedTemplate, setSelectedTemplate] = useState<EnvironmentTemplate | null>(preselectedTemplate || null)
   const [instanceName, setInstanceName] = useState('')
-  const [instanceBranch, setInstanceBranch] = useState('')
+  const [instanceBranch, setInstanceBranch] = useState(preselectedBranch || '')
   const [targetDir, setTargetDir] = useState('')
   const [instructions, setInstructions] = useState('')
   const [creating, setCreating] = useState(false)

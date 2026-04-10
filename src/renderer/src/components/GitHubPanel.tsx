@@ -5,6 +5,7 @@ import RepoRemovalModal, { type RemovalImpact } from './RepoRemovalModal'
 import PromptEnvironmentSelector from './PromptEnvironmentSelector'
 import MarkdownViewer from './MarkdownViewer'
 import DiffViewer from './DiffViewer'
+import NewEnvironmentDialog from './NewEnvironmentDialog'
 import type { GitHubPR, GitHubIssue, GitHubRepo, QuickPrompt, PRChecks, FeedbackFile, PRFile } from '../types'
 import type { PersonaInfo } from '../../../shared/types'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
@@ -53,6 +54,9 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const [expandedRepo, setExpandedRepo] = useState<string | null>(null)
   const [expandedPR, setExpandedPR] = useState<string | null>(null) // "owner/name#number"
   const [error, setError] = useState<string | null>(null)
+
+  // Quick-launch environment from PR
+  const [envDialogBranch, setEnvDialogBranch] = useState<string | null>(null)
 
   // PR comment posting
   const [commentDraft, setCommentDraft] = useState<Record<string, string>>({}) // keyed by "owner/name#number"
@@ -1415,6 +1419,13 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                                 </button>
                                 </Tooltip>
                               ))}
+                              <button
+                                className="github-action-btn"
+                                onClick={() => setEnvDialogBranch(pr.branch)}
+                                title="Launch an environment on this PR's branch"
+                              >
+                                <GitBranch size={12} /> Test in Environment
+                              </button>
                             </div>
                           </div>
                         )}
@@ -1842,6 +1853,18 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
           }}
           onSelect={handleEnvSelectorCreate}
           onSelectReuse={handleEnvSelectorReuse}
+        />
+      )}
+
+      {/* Quick-launch environment from PR */}
+      {envDialogBranch && (
+        <NewEnvironmentDialog
+          mode="instance"
+          preselectedBranch={envDialogBranch}
+          onClose={() => setEnvDialogBranch(null)}
+          onCreated={() => setEnvDialogBranch(null)}
+          onLaunchInstance={onLaunchInstance}
+          onFocusInstance={onFocusInstance}
         />
       )}
     </div>

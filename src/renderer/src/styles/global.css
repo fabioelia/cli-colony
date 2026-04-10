@@ -305,7 +305,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .sidebar-nav-btn:hover {
   color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--bg-hover);
 }
 
 .sidebar-nav-btn.active {
@@ -931,7 +931,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .activity-popover-header button:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-hover);
 }
 
 .activity-popover-list {
@@ -955,7 +955,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .activity-event:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--bg-hover);
 }
 
 .activity-event-info {
@@ -1038,10 +1038,10 @@ body:has(.daemon-update-banner) .app-update-banner {
 .activity-outcome-stats span {
   font-size: 10px;
   color: var(--text-muted);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--bg-hover);
   padding: 1px 6px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-subtle);
 }
 
 .sidebar-footer-btn.has-approvals {
@@ -1166,7 +1166,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .activity-approval-btn.dismiss {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-hover);
   color: var(--text-muted);
   border: 1px solid var(--border);
 }
@@ -1220,7 +1220,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .notification-history-header-btn:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-hover);
 }
 
 .notification-history-body {
@@ -1256,7 +1256,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .notification-history-entry:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--bg-hover);
 }
 
 .notification-history-entry.clickable {
@@ -1316,7 +1316,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .notification-history-entry-icon[data-source="system"] {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-active);
   color: var(--text-muted);
 }
 
@@ -1384,7 +1384,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .notification-history-entry-dismiss:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-active);
 }
 
 /* ===== Workspace Presets ===== */
@@ -1574,7 +1574,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .instance-dot.clickable:hover {
   transform: scale(1.3);
-  border-color: rgba(255, 255, 255, 0.3);
+  border-color: var(--border-active);
 }
 
 .instance-dot.clickable.pulsing {
@@ -1967,7 +1967,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .terminal-tab:hover:not(.active) {
   color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--bg-hover);
 }
 
 .terminal-header-branch {
@@ -3365,7 +3365,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   line-height: 18px;
   text-align: center;
   border-radius: 9px;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--bg-hover);
   color: var(--text-muted);
 }
 
@@ -4384,7 +4384,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .mcp-audit-table td {
   padding: 5px 8px;
   color: var(--text-secondary);
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  border-bottom: 1px solid var(--border-subtle);
   white-space: nowrap;
   max-width: 180px;
   overflow: hidden;
@@ -5456,7 +5456,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .services-panel-row {
-  border-bottom: 1px solid rgba(255,255,255,0.03);
+  border-bottom: 1px solid var(--border-subtle);
 }
 .services-panel-row:last-child { border-bottom: none; }
 .services-panel-row:hover { background: var(--bg-hover); }
@@ -7073,7 +7073,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .github-pr-row:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--bg-hover);
 }
 
 .github-pr-number {
@@ -7102,7 +7102,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-radius: 3px;
   font-size: 10px;
   font-weight: 500;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--bg-hover);
   color: var(--text-muted);
   margin-right: 6px;
   vertical-align: 1px;
@@ -7308,7 +7308,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-radius: 10px;
   font-size: 10px;
   font-weight: 500;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--bg-hover);
   color: var(--text-secondary);
 }
 
@@ -7333,7 +7333,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   word-wrap: break-word;
   padding: 8px 10px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--bg-hover);
   border-left: 2px solid var(--accent);
 }
 
@@ -8695,7 +8695,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   gap: 6px;
   width: 100%;
   padding: 6px 8px;
-  background: var(--bg-tertiary, rgba(255,255,255,0.03));
+  background: var(--bg-tertiary);
   border: none;
   border-radius: 6px;
   color: var(--text-primary);
@@ -15040,7 +15040,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   gap: 3px;
 }
 .persona-card-preview:hover {
-  background: rgba(255, 255, 255, 0.01);
+  background: var(--bg-hover);
 }
 
 .persona-preview-entry {
@@ -15074,9 +15074,9 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .persona-card-section {
   margin-top: 3px;
-  background: rgba(255,255,255,0.015);
+  background: var(--bg-hover);
   border-radius: 6px;
-  border: 1px solid rgba(255,255,255,0.03);
+  border: 1px solid var(--border-subtle);
   overflow: hidden;
 }
 .persona-brief-section {
@@ -15097,7 +15097,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   text-align: left;
 }
 .persona-section-toggle:hover {
-  background: rgba(255,255,255,0.02);
+  background: var(--bg-hover);
 }
 
 .persona-section-toggle h4 {
@@ -15130,7 +15130,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   width: 100%;
   margin-top: 4px;
   padding-top: 6px;
-  border-top: 1px solid rgba(255,255,255,0.04);
+  border-top: 1px solid var(--border-subtle);
 }
 
 .persona-card-meta-inline {
@@ -15221,7 +15221,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   padding: 8px 0;
   font-size: 11.5px;
   line-height: 1.55;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
+  border-bottom: 1px solid var(--border-subtle);
 }
 .persona-session-log-entry:last-child {
   border-bottom: none;
@@ -17022,7 +17022,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   stroke-dasharray: 2 4;
 }
 .schedule-row-bg {
-  fill: rgba(255,255,255,0.015);
+  fill: var(--bg-hover);
 }
 .schedule-persona-label {
   fill: var(--text-primary);
@@ -18241,13 +18241,13 @@ body:has(.daemon-update-banner) .app-update-banner {
   50% { opacity: 1; }
 }
 .session-timeline-bar-text {
-  fill: rgba(255,255,255,0.85);
+  fill: var(--bg-secondary);
   font-size: 9px;
   font-weight: 500;
   pointer-events: none;
 }
 .session-timeline-commit-label {
-  fill: rgba(255,255,255,0.7);
+  fill: var(--text-muted);
   font-size: 8px;
   pointer-events: none;
 }
