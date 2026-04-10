@@ -1674,7 +1674,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   letter-spacing: 0.02em;
   text-transform: uppercase;
 }
-.instance-role-badge.role-orchestrator { background: rgba(99, 102, 241, 0.15); color: #818cf8; }
+.instance-role-badge.role-orchestrator { background: color-mix(in srgb, var(--accent-purple) 15%, transparent); color: var(--accent-purple); }
 .instance-role-badge.role-planner      { background: rgba(14, 165, 233, 0.15); color: #38bdf8; }
 .instance-role-badge.role-coder        { background: rgba(16, 185, 129, 0.15); color: #34d399; }
 .instance-role-badge.role-tester       { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
@@ -12452,8 +12452,8 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .env-badge-services {
-  background: rgba(99, 102, 241, 0.15);
-  color: #818cf8;
+  background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+  color: var(--accent-purple);
 }
 
 .env-badge-crashed {
@@ -16591,8 +16591,8 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 10px;
   font-weight: 600;
   border-radius: 3px;
-  background: rgba(99,102,241,0.15);
-  color: #818cf8;
+  background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+  color: var(--accent-purple);
   letter-spacing: 0.02em;
 }
 
