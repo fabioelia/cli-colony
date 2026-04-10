@@ -16699,8 +16699,8 @@ body:has(.daemon-update-banner) .app-update-banner {
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
-.badge-busy { background: rgba(var(--accent-rgb, 99, 102, 241), 0.15); color: var(--accent); }
-.badge-waiting { background: rgba(var(--text-muted-rgb, 120, 120, 160), 0.12); color: var(--text-muted); }
+.badge-busy { background: rgba(59, 130, 246, 0.15); color: var(--accent); }
+.badge-waiting { background: rgba(107, 107, 128, 0.12); color: var(--text-muted); }
 .badge-role { background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border); }
 /* Activity list */
 .overview-activity-list {
