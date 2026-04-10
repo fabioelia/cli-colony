@@ -28,6 +28,7 @@ import ColonyOverviewPanel from './components/ColonyOverviewPanel'
 import { loadPresets } from './components/WorkspacePresets'
 import type { WorkspacePreset } from './components/WorkspacePresets'
 import GlobalSearch from './components/GlobalSearch'
+import ShortcutOverlay from './components/ShortcutOverlay'
 import AppUpdateBanner from './components/AppUpdateBanner'
 import WelcomeModal from './components/WelcomeModal'
 import { stripAnsi } from '../../shared/utils'
@@ -95,6 +96,7 @@ export default function App() {
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
   const [cmdPaletteSessions, setCmdPaletteSessions] = useState<import('./types').CliSession[]>([])
   const [quickPromptOpen, setQuickPromptOpen] = useState(false)
+  const [showShortcuts, setShowShortcuts] = useState(false)
   const [quickPromptHistory, setQuickPromptHistory] = useState<string[]>([])
   const pendingPromptRef = useRef<{ id: string; prompt: string } | null>(null)
   const [outputBytes, setOutputBytes] = useState<Map<string, number>>(new Map())
@@ -1085,7 +1087,7 @@ export default function App() {
     }
   }, [handleToggleSplit, handleCloseSplitView])
 
-  // Escape to close modals (capture phase to beat xterm)
+  // Escape to close modals (capture phase to beat xterm) + Cmd+/ for shortcut overlay
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -1094,10 +1096,21 @@ export default function App() {
         if (showSplitPicker) { setShowSplitPicker(false); e.stopPropagation() }
         if (showNewDialog) { setShowNewDialog(false); e.stopPropagation() }
       }
+      if (e.metaKey && e.key === '/') {
+        e.preventDefault()
+        setShowShortcuts(prev => !prev)
+      }
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
   }, [showSplitPicker, showNewDialog, cmdPaletteOpen, quickPromptOpen])
+
+  // Custom event for Command Palette → Shortcut Overlay
+  useEffect(() => {
+    const handler = () => setShowShortcuts(prev => !prev)
+    window.addEventListener('toggle-shortcut-overlay', handler)
+    return () => window.removeEventListener('toggle-shortcut-overlay', handler)
+  }, [])
 
   const active = instances.find((i) => i.id === activeId) || null
   const showTerminal = view === 'instances' && (active || isGrid)
@@ -1871,6 +1884,8 @@ export default function App() {
         onLaunchAgent={handleLaunchAgent}
         onOpenQuickPrompt={() => { setCmdPaletteOpen(false); setQuickPromptOpen(true) }}
       />
+
+      {showShortcuts && <ShortcutOverlay onClose={() => setShowShortcuts(false)} />}
 
       {/* Environment prompt modal — rendered at app root so it works on any panel */}
       {envPromptRequest && createPortal(

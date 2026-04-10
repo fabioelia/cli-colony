@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import {
   Plus, Settings, GitPullRequest, Users, Square, Play, Columns2,
-  MonitorPlay, History, Search, ArrowRight, Terminal, Server, User, Bot, Zap, ListChecks, RotateCcw,
+  MonitorPlay, History, Search, ArrowRight, Terminal, Server, User, Bot, Zap, ListChecks, RotateCcw, Keyboard,
 } from 'lucide-react'
 import type { ClaudeInstance, CliSession, AgentDef } from '../types'
 import type { PersonaInfo } from '../../../shared/types'
@@ -92,6 +92,15 @@ export default function CommandPalette({
       section: 'Actions',
       keywords: 'quick prompt pre-fill ask task run',
       onExecute: onOpenQuickPrompt,
+    })
+    items.push({
+      id: 'keyboard-shortcuts',
+      label: 'Keyboard Shortcuts',
+      detail: 'Show all keyboard shortcuts (⌘/)',
+      icon: <Keyboard size={14} />,
+      section: 'Actions',
+      keywords: 'shortcut hotkey keybinding',
+      onExecute: () => window.dispatchEvent(new Event('toggle-shortcut-overlay')),
     })
 
     const active = instances.find((i) => i.id === activeId)

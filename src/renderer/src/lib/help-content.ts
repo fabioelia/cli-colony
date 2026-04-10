@@ -220,6 +220,7 @@ export const helpContent: Record<string, HelpEntry> = {
       { keys: 'Cmd+Click', action: 'Enter multi-select mode and toggle session' },
       { keys: 'Cmd+A', action: 'Select all visible sessions (in select mode)' },
       { keys: 'Escape', action: 'Exit multi-select mode' },
+      { keys: 'Cmd+/', action: 'Show all keyboard shortcuts' },
     ],
   },
 
