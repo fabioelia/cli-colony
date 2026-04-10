@@ -1362,4 +1362,40 @@ export const helpContent: Record<string, HelpEntry> = {
       },
     ],
   },
+  artifacts: {
+    title: 'Session Artifacts',
+    description: 'Browse the history of what every session produced — commits, file changes, costs, and durations. Artifacts are collected automatically when sessions exit.',
+    zones: [
+      {
+        name: 'Session List',
+        position: 'Main area',
+        items: [
+          { label: 'Session row', detail: 'Each row shows the session name, persona badge (if any), git branch, commit count, insertions/deletions, cost, and relative time. Click to expand.', icon: 'Archive' },
+          { label: 'Exit status dot', detail: 'Green = exited successfully (code 0). Red = non-zero exit code (error or cancellation).', icon: 'Circle' },
+          { label: 'Expanded view', detail: 'Shows full commit list (hash + message), file change list (with M/A/D/R status), duration, and cost.', icon: 'FileText' },
+        ],
+      },
+      {
+        name: 'Controls',
+        position: 'Below header',
+        items: [
+          { label: 'Filter', detail: 'Text search across session names and persona names.', icon: 'Search' },
+          { label: 'Sort', detail: 'Sort by: Newest (default), Most changes (insertions + deletions), or Highest cost.', icon: 'Filter' },
+          { label: 'Clear All', detail: 'Permanently removes all stored artifacts. Cannot be undone.', icon: 'Trash2' },
+        ],
+      },
+      {
+        name: 'Data Notes',
+        position: 'Reference',
+        items: [
+          { label: 'Collection', detail: 'Artifacts are collected fire-and-forget when sessions exit. Sessions with no git activity may not produce artifacts.' },
+          { label: 'Capacity', detail: 'The ring buffer stores up to 200 session artifacts. Oldest entries are evicted as new ones arrive.' },
+          { label: 'Cost tracking', detail: 'Cost is captured from the session\'s PTY output if available. Some sessions may show no cost data.', icon: 'DollarSign' },
+        ],
+      },
+    ],
+    emptyState: {
+      hook: 'Session artifacts appear here after sessions exit.\nRun some sessions and come back to see what they produced.',
+    },
+  },
 }

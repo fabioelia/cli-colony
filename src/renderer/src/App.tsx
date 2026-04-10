@@ -19,6 +19,7 @@ import EnvironmentsPanel from './components/EnvironmentsPanel'
 import PersonasPanel from './components/PersonasPanel'
 import OutputsPanel from './components/OutputsPanel'
 import ReviewPanel from './components/ReviewPanel'
+import ArtifactsPanel from './components/ArtifactsPanel'
 import QuickPromptDialog from './components/QuickPromptDialog'
 import ForkModal from './components/ForkModal'
 import ArenaLaunchDialog from './components/ArenaLaunchDialog'
@@ -1735,6 +1736,7 @@ export default function App() {
           />
         )}
         {view === 'outputs' && <OutputsPanel />}
+        {view === 'artifacts' && <ArtifactsPanel />}
         {view === 'review' && (
           <ReviewPanel
             instances={instances}

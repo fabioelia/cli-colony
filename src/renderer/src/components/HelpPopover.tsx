@@ -11,6 +11,7 @@ import {
   Sparkles, DownloadCloud, TrendingUp, TerminalSquare, Wrench, Bug,
   Key, Github, LayoutGrid, Package, Rocket, Copy, GitCompare, CalendarClock, ChevronLeft,
   Circle, Users, Layers, CheckSquare, ListChecks, Gavel, ExternalLink, Palette, FileDiff, Send,
+  Archive, DollarSign,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { helpContent, type HelpEntry, type HelpZone } from '../lib/help-content'
@@ -26,6 +27,7 @@ const iconMap: Record<string, LucideIcon> = {
   Sparkles, DownloadCloud, TrendingUp, TerminalSquare, Wrench, Bug,
   Key, Github, LayoutGrid, Package, Rocket, Copy, GitCompare, CalendarClock, ChevronLeft,
   Circle, Users, Layers, CheckSquare, ListChecks, Gavel, ExternalLink, Palette, FileDiff, Send,
+  Archive, DollarSign,
 }
 
 function HelpIcon({ name }: { name?: string }) {
