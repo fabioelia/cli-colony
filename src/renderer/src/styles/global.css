@@ -6339,7 +6339,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .diff-split-cell {
   display: flex;
-  font-family: var(--font-mono);
+  font-family: var(--font-mono, monospace);
   font-size: 11px;
   line-height: 1.5;
   overflow-x: auto;
@@ -6385,7 +6385,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: color-mix(in srgb, var(--accent) 8%, transparent);
   padding: 2px 8px;
   font-style: italic;
-  font-family: var(--font-mono);
+  font-family: var(--font-mono, monospace);
   font-size: 11px;
 }
 
