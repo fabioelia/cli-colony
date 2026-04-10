@@ -567,15 +567,15 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const [sessionProjectFilter, setSessionProjectFilter] = useState<string | null>(() => localStorage.getItem('colony:sessionProjectFilter') || null)
   type SessionGroupBy = 'none' | 'project' | 'date'
   const [sessionGroupBy, setSessionGroupBy] = useState<SessionGroupBy>(() =>
-    (localStorage.getItem('sidebar-session-group-by') as SessionGroupBy) || 'none')
+    (localStorage.getItem('colony:sessionGroupBy') as SessionGroupBy) || 'none')
   const [sessionCollapsedGroups, setSessionCollapsedGroups] = useState<Set<string>>(() => {
-    try { return new Set(JSON.parse(localStorage.getItem('sidebar-session-collapsed-groups') || '[]')) } catch { return new Set() }
+    try { return new Set(JSON.parse(localStorage.getItem('colony:sessionCollapsedGroups') || '[]')) } catch { return new Set() }
   })
   const toggleSessionGroupCollapse = useCallback((group: string) => {
     setSessionCollapsedGroups(prev => {
       const next = new Set(prev)
       if (next.has(group)) next.delete(group); else next.add(group)
-      localStorage.setItem('sidebar-session-collapsed-groups', JSON.stringify([...next]))
+      localStorage.setItem('colony:sessionCollapsedGroups', JSON.stringify([...next]))
       return next
     })
   }, [])
@@ -1485,7 +1485,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             onChange={(e) => {
               const val = e.target.value as SessionGroupBy
               setSessionGroupBy(val)
-              localStorage.setItem('sidebar-session-group-by', val)
+              localStorage.setItem('colony:sessionGroupBy', val)
             }}
             title="Group sessions"
           >
@@ -1507,10 +1507,10 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
           {sessionGroupedSections ? (
             sessionGroupedSections.map(({ label, items, count }) => (
               <div key={label}>
-                <div className="sidebar-group-header" onClick={() => toggleSessionGroupCollapse(label)}>
-                  {sessionCollapsedGroups.has(label) ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
-                  <span>{label}</span>
-                  <span className="sidebar-group-count">{count}</span>
+                <div className="instance-list-divider session-group-header" style={{ cursor: 'pointer' }} onClick={() => toggleSessionGroupCollapse(label)}>
+                  {sessionCollapsedGroups.has(label) ? <ChevronRight size={11} /> : <ChevronDown size={11} />}
+                  {label}
+                  <span className="session-group-count">{count}</span>
                 </div>
                 {!sessionCollapsedGroups.has(label) && items.map(s => (
                   <SessionTile key={s.sessionId} s={s} onResumeSession={onResumeSession}
