@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Search, X, ChevronRight } from 'lucide-react'
 
 interface SearchOutputMatch {
@@ -25,6 +25,8 @@ export default function GlobalSearch({ open, onClose, onNavigate }: Props) {
   const [results, setResults] = useState<SearchOutputResult[]>([])
   const [searching, setSearching] = useState(false)
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const [selectedIdx, setSelectedIdx] = useState(-1)
+  const selectedRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -81,6 +83,24 @@ export default function GlobalSearch({ open, onClose, onNavigate }: Props) {
 
   const totalMatches = results.reduce((sum, r) => sum + r.matches.length, 0)
 
+  const flatItems = useMemo(() => {
+    const items: Array<{ instanceId: string; matchIdx: number }> = []
+    for (const group of results) {
+      if (expandedGroups.has(group.instanceId)) {
+        for (let i = 0; i < group.matches.length; i++) {
+          items.push({ instanceId: group.instanceId, matchIdx: i })
+        }
+      }
+    }
+    return items
+  }, [results, expandedGroups])
+
+  useEffect(() => { setSelectedIdx(-1) }, [results])
+
+  useEffect(() => {
+    selectedRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [selectedIdx])
+
   const toggleGroup = (id: string) => {
     setExpandedGroups(prev => {
       const next = new Set(prev)
@@ -121,6 +141,20 @@ export default function GlobalSearch({ open, onClose, onNavigate }: Props) {
           placeholder="Search across all sessions' terminal output..."
           value={query}
           onChange={(e) => { setQuery(e.target.value); doSearch(e.target.value) }}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown') {
+              e.preventDefault()
+              setSelectedIdx(prev => Math.min(prev + 1, flatItems.length - 1))
+            } else if (e.key === 'ArrowUp') {
+              e.preventDefault()
+              setSelectedIdx(prev => Math.max(prev - 1, -1))
+            } else if (e.key === 'Enter' && selectedIdx >= 0 && selectedIdx < flatItems.length) {
+              e.preventDefault()
+              const item = flatItems[selectedIdx]
+              onNavigate(item.instanceId)
+              onClose()
+            }
+          }}
         />
         {searching && <div className="global-search-status">Searching...</div>}
         {!searching && query.length >= 2 && results.length === 0 && (
@@ -148,10 +182,13 @@ export default function GlobalSearch({ open, onClose, onNavigate }: Props) {
                 <span className="global-search-group-name">{group.name}</span>
                 <span className="global-search-group-count">{group.matches.length}</span>
               </div>
-              {expandedGroups.has(group.instanceId) && group.matches.map((match, i) => (
+              {expandedGroups.has(group.instanceId) && group.matches.map((match, i) => {
+                const flatIdx = flatItems.findIndex(f => f.instanceId === group.instanceId && f.matchIdx === i)
+                return (
                 <div
                   key={i}
-                  className="global-search-match"
+                  className={`global-search-match${flatIdx === selectedIdx ? ' selected' : ''}`}
+                  ref={flatIdx === selectedIdx ? selectedRef : undefined}
                   onClick={() => { onNavigate(group.instanceId); onClose() }}
                   role="button"
                   tabIndex={0}
@@ -167,7 +204,7 @@ export default function GlobalSearch({ open, onClose, onNavigate }: Props) {
                     <div className="global-search-context">{match.contextAfter}</div>
                   )}
                 </div>
-              ))}
+              )})}
             </div>
           ))}
         </div>

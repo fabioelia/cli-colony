@@ -1007,6 +1007,10 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: rgba(245, 158, 11, 0.15);
   color: var(--warning);
 }
+.activity-source-session {
+  background: rgba(168, 85, 247, 0.15);
+  color: var(--accent-purple, #a855f7);
+}
 
 .activity-event-name {
   font-size: 11px;
@@ -18623,8 +18627,13 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 11px;
   line-height: 1.5;
 }
-.global-search-match:hover {
+.global-search-match:hover,
+.global-search-match.selected {
   background: var(--bg-hover);
+}
+.global-search-match.selected {
+  outline: 1px solid var(--accent-blue);
+  outline-offset: -1px;
 }
 .global-search-context {
   color: var(--text-muted);

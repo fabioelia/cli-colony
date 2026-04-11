@@ -43,13 +43,13 @@ export interface HelpEntry {
 export const helpContent: Record<string, HelpEntry> = {
   activity: {
     title: 'Activity Feed',
-    description: 'A live stream of automation events from personas, pipelines, and environments. Filter by source, level, or text to find specific events. Click session names to jump to the originating session.',
+    description: 'A live stream of automation events from personas, pipelines, environments, and sessions. Filter by source, level, or text to find specific events. Click session names to jump to the originating session.',
     zones: [
       {
         name: 'Filters',
         position: 'Top of panel',
         items: [
-          { label: 'Source chips', detail: 'Toggle visibility of events by source: Persona, Pipeline, or Environment. At least one must be active.' },
+          { label: 'Source chips', detail: 'Toggle visibility of events by source: Persona, Pipeline, Environment, or Session. At least one must be active.' },
           { label: 'Level chips', detail: 'Toggle by severity: Info (normal), Warn (attention needed), Error (failures). Badges show counts.' },
           { label: 'Search', detail: 'Free-text filter — matches against event name and summary.' },
         ],
@@ -188,7 +188,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Group by', detail: 'A grouping selector appears above the session history list. Group by Project (working directory) or Date (Today, Yesterday, This Week, This Month, Older). Groups are collapsible and the mode persists across sessions.', icon: 'Layers' },
           { label: 'Multi-select', detail: 'Click the checkbox icon (next to group-by) or Cmd+click any session to enter select mode. A floating action bar appears for bulk Stop, Restart, or Remove. Cmd+A selects all visible sessions; Escape exits. Remove only affects stopped sessions.', icon: 'CheckSquare' },
           { label: 'Permission mode', detail: 'Choose Autonomous (default — full permissions) or Supervised (Claude asks before risky actions) when creating a session. Supervised sessions show a shield icon in the sidebar.', icon: 'Shield' },
-          { label: 'Global Search', detail: 'Search across all sessions\' terminal output. Find which session produced an error or output. Opens a side panel with results grouped by session.', shortcut: '\u2318\u21e7F', icon: 'Search' },
+          { label: 'Global Search', detail: 'Search across all sessions\' terminal output. Find which session produced an error or output. Opens a side panel with results grouped by session. Use ↑↓ to navigate results, Enter to jump to the matching session.', shortcut: '\u2318\u21e7F', icon: 'Search' },
           { label: 'Shortcut numbers', detail: 'Numbers 1-9 shown next to sessions for quick Cmd+N jumping.' },
           { label: 'Trigger chain', detail: 'Click the info icon on a session that has a parent or children to see its full trigger chain — the tree of sessions that spawned from the same root. Click any node to navigate to that session. Useful for tracing persona orchestration chains.', icon: 'Info' },
           { label: 'Parent/child navigation', detail: 'Click the ↳ arrow on child sessions to jump to the parent, or click "N children" on parent sessions to jump to the first child.' },
@@ -232,7 +232,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Bottom of sidebar',
         items: [
           { label: 'Help icon', detail: 'Opens this help popover.', icon: 'HelpCircle' },
-          { label: 'Activity bell', detail: 'Shows recent automation events from personas, pipelines, and environments. Persona completion events include outcome stats: duration, commits made, and files changed. Turns amber when pipeline actions are waiting for approval.', icon: 'Bell' },
+          { label: 'Activity bell', detail: 'Shows recent automation events from personas, pipelines, environments, and sessions. Persona completion events include outcome stats: duration, commits made, and files changed. Turns amber when pipeline actions are waiting for approval.', icon: 'Bell' },
           { label: 'Notification history', detail: 'Persistent log of all desktop notifications — what happened while you were away. Grouped by Today/Yesterday/Older. Click an entry to navigate to its source (pipeline, persona, session). Red badge shows unread count. Persists across app restarts.', icon: 'BellRing' },
           { label: 'Workspace presets', detail: 'Save and restore workspace layouts (sidebar view, layout mode, sidebar width). Ships with 3 built-in presets: Monitor, Review, Compare. Cmd+Shift+1-5 for quick-switch.', icon: 'LayoutGrid' },
           { label: 'Settings gear', detail: 'Opens the Settings panel for CLI defaults, shell profile, daemon management, and more.', icon: 'Settings' },
