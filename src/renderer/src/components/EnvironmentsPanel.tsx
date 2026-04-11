@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
-  Server, Play, Square, Trash2, RefreshCw, FileText,
+  Server, Play, Square, Trash2, RefreshCw, FileText, Copy,
   Plus, ExternalLink, ChevronDown, ChevronRight,
   Circle, AlertTriangle, Clock, X, FolderOpen, Terminal, Loader, CheckCircle, SkipForward, Upload, Download, MessageSquare, Wrench, Stethoscope,
   GitBranch, Unlink, Link
@@ -75,6 +75,8 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
   const [mountingWorktreeId, setMountingWorktreeId] = useState<string | null>(null)
   const [actionInProgress, setActionInProgress] = useState<Set<string>>(new Set())
   const [confirmTeardown, setConfirmTeardown] = useState<string | null>(null)
+  const [cloneDialog, setCloneDialog] = useState<{ envId: string; envName: string } | null>(null)
+  const [cloneName, setCloneName] = useState('')
   const [setupSteps, setSetupSteps] = useState<Record<string, Array<{ name: string; status: string; error?: string }>>>({})
   const [setupError, setSetupError] = useState<Record<string, string>>({})
   const [fixResult, setFixResult] = useState<{ envId: string; lines: string[]; isError?: boolean } | null>(null)
@@ -741,6 +743,15 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                       <FileText size={14} />
                     </button>
                   </Tooltip>
+                  <Tooltip text="Clone" detail="Duplicate this environment">
+                    <button
+                      className="env-action-btn"
+                      onClick={() => { setCloneDialog({ envId: env.id, envName: env.displayName || env.name }); setCloneName(`${env.displayName || env.name}-copy`) }}
+                      disabled={env.status === 'creating'}
+                    >
+                      <Copy size={14} />
+                    </button>
+                  </Tooltip>
                   <Tooltip text="Teardown" detail="Stop and delete environment">
                     <button
                       className="env-action-btn env-action-teardown"
@@ -1278,6 +1289,32 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
         />
       )}
 
+
+      {/* Clone environment dialog */}
+      {cloneDialog && (
+        <div className="env-dialog-overlay" onClick={() => setCloneDialog(null)}>
+          <div className="env-dialog" onClick={e => e.stopPropagation()}>
+            <div className="env-dialog-header">
+              <h3>Clone Environment</h3>
+              <button className="env-btn env-btn-ghost" onClick={() => setCloneDialog(null)}><X size={16} /></button>
+            </div>
+            <p className="env-dialog-description">
+              Clone <strong>{cloneDialog.envName}</strong> with a new name:
+            </p>
+            <input value={cloneName} onChange={e => setCloneName(e.target.value)} className="env-input" autoFocus />
+            <div className="env-dialog-actions">
+              <button className="env-btn env-btn-secondary" onClick={() => setCloneDialog(null)}>Cancel</button>
+              <button className="env-btn env-btn-primary" disabled={!cloneName.trim()} onClick={async () => {
+                await window.api.env.clone(cloneDialog.envId, cloneName.trim())
+                setCloneDialog(null)
+                loadEnvironments()
+              }}>
+                <Copy size={13} /> Clone
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete/teardown confirmation modal */}
       {confirmTeardown && (() => {

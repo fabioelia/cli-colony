@@ -685,6 +685,21 @@ export async function getManifest(envId: string): Promise<InstanceManifest | nul
 }
 
 /**
+ * Clone an environment — read source manifest and create a new environment with the same config.
+ */
+export async function cloneEnvironment(sourceEnvId: string, newName: string): Promise<InstanceManifest> {
+  const source = await getManifest(sourceEnvId)
+  if (!source) throw new Error(`Source environment ${sourceEnvId} not found`)
+  const templateId = (source as any).meta?.templateId
+  return createEnvironment({
+    name: newName,
+    branch: source.git?.branch,
+    baseBranch: source.git?.baseBranch,
+    templateId: templateId || undefined,
+  })
+}
+
+/**
  * Fix an existing environment — re-resolve template variables with fresh port allocation.
  * Preserves: id, name, createdAt, git, paths, setup status for completed steps.
  * Re-resolves: ports, services, hooks, resources, urls.

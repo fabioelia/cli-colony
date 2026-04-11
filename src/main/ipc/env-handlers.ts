@@ -3,7 +3,7 @@ import {
   listEnvironments, getEnvironment, createEnvironment, setupEnvironment,
   startEnvironment, stopEnvironment, teardownEnvironment,
   getEnvironmentLogs, restartServiceInEnv, getManifest, saveManifest,
-  fixEnvironment, setRestartPolicy, setPurposeTag, type PurposeTag,
+  fixEnvironment, cloneEnvironment, setRestartPolicy, setPurposeTag, type PurposeTag,
   listTemplates, getTemplate, saveTemplate, deleteTemplate,
   refreshRepoConfigs,
 } from '../env-manager'
@@ -36,6 +36,11 @@ export function registerEnvHandlers(): void {
   ipcMain.handle('env:manifest', (_e, envId: string) => getManifest(envId))
   ipcMain.handle('env:saveManifest', async (_e, envId: string, manifest: any) => { await saveManifest(envId, manifest) })
   ipcMain.handle('env:fix', async (_e, envId: string) => fixEnvironment(envId))
+  ipcMain.handle('env:clone', async (_e, envId: string, newName: string) => {
+    const manifest = await cloneEnvironment(envId, newName)
+    setupEnvironment(manifest.id).catch(err => console.error('[ipc] env clone setup failed:', err))
+    return manifest
+  })
   ipcMain.handle('env:setRestartPolicy', (_e, envId: string, policy: 'manual' | 'on-crash') => setRestartPolicy(envId, policy))
   ipcMain.handle('env:launchSessionWhenReady', async (
     _e,

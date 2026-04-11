@@ -639,6 +639,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Terminal', detail: 'Open a Claude session in the environment directory.', icon: 'Terminal' },
           { label: 'Open Folder', detail: 'Open the environment directory in Finder.', icon: 'FolderOpen' },
           { label: 'Diagnose', detail: 'Launch Claude to diagnose and fix environment issues.', icon: 'Stethoscope' },
+          { label: 'Clone', detail: 'Duplicate an environment with the same template, branch, and base branch but fresh ports and a new directory. Enter a name in the dialog. Disabled while the source is still creating.', icon: 'Copy' },
         ],
       },
       {
