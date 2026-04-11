@@ -27,6 +27,7 @@ import { matchRules, estimateActionCost } from './approval-rules'
 import { createWorktree, removeWorktree } from './worktree-manager'
 import { readArenaStats, writeArenaStats } from './arena-stats'
 import { waitForSessionCompletion } from './session-completion'
+import { tagArtifactPipeline } from './session-artifacts'
 
 const execFileAsync = promisify(execFileCb)
 
@@ -809,6 +810,7 @@ async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pipelineN
 
     const makerFinalState = await getDaemonClient().getInstance(makerInst.id)
     accumulatedCost += makerFinalState?.tokenUsage.cost ?? 0
+    tagArtifactPipeline(makerInst.id, runId).catch(() => {})
 
     // Read maker output file
     let makerOutput = ''
@@ -846,6 +848,7 @@ async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pipelineN
 
     const checkerFinalState = await getDaemonClient().getInstance(checkerInst.id)
     accumulatedCost += checkerFinalState?.tokenUsage.cost ?? 0
+    tagArtifactPipeline(checkerInst.id, runId).catch(() => {})
 
     // Read verdict
     let verdict = ''
@@ -960,6 +963,7 @@ async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipelineNam
 
     const reviewerState = await getDaemonClient().getInstance(reviewerInst.id)
     accumulatedCost += reviewerState?.tokenUsage.cost ?? 0
+    tagArtifactPipeline(reviewerInst.id, runId).catch(() => {})
 
     let verdict = ''
     try { verdict = await pathExists(verdictFile) ? (await fsp.readFile(verdictFile, 'utf-8')).trim() : '' } catch { /* ignore */ }
@@ -1077,6 +1081,7 @@ async function runPlanStage(action: ActionDef, ctx: TriggerContext, pipelineName
 
   const plannerFinalState = await getDaemonClient().getInstance(plannerInst.id)
   const cost = plannerFinalState?.tokenUsage.cost ?? 0
+  tagArtifactPipeline(plannerInst.id, runId).catch(() => {})
 
   let planContent = ''
   if (plannerDone) {
@@ -1561,6 +1566,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
 
   // ---- Launch new session (fallback when reuse finds nothing) ----
   if (action.type !== 'launch-session') return { cost: 0 }
+  const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
   // If no working directory resolved, try to infer from running sessions in same repo
   let resolvedCwd = cwd
@@ -1612,6 +1618,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
     client.removeListener('activity', onFinished)
     clearTimeout(autoCloseTimeout)
     log(`pipeline session ${inst.id} finished, killing in 5s`)
+    tagArtifactPipeline(inst.id, runId).catch(() => {})
     setTimeout(async () => {
       try { await killInstance(inst.id) } catch { /* already gone */ }
     }, 5000)
@@ -1623,6 +1630,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
     autoCloseResolved = true
     client.removeListener('activity', onFinished)
     log(`pipeline session ${inst.id} still running after ${autoCloseMinutes}min, force-killing`)
+    tagArtifactPipeline(inst.id, runId).catch(() => {})
     try { await killInstance(inst.id) } catch { /* already gone */ }
   }, autoCloseMinutes * 60_000)
 
