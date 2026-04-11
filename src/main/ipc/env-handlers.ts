@@ -29,10 +29,7 @@ export function registerEnvHandlers(): void {
   ipcMain.handle('env:start', (_e, envId: string, services?: string[]) => startEnvironment(envId, services))
   ipcMain.handle('env:stop', (_e, envId: string, services?: string[]) => stopEnvironment(envId, services))
   ipcMain.handle('env:teardown', (_e, envId: string) => {
-    // Don't block the IPC response on hook execution — teardown runs in background
-    teardownEnvironment(envId).catch((err) => {
-      console.error('[ipc] environment teardown failed:', err)
-    })
+    return teardownEnvironment(envId)
   })
   ipcMain.handle('env:logs', (_e, envId: string, service: string, lines?: number) => getEnvironmentLogs(envId, service, lines))
   ipcMain.handle('env:restartService', (_e, envId: string, service: string) => restartServiceInEnv(envId, service))
@@ -56,10 +53,8 @@ export function registerEnvHandlers(): void {
   ipcMain.handle('env:cancelPendingLaunch', (_e, pendingId: string) => cancelPendingLaunch(pendingId))
   ipcMain.handle('env:getPendingLaunches', (_e, envId?: string) => getPendingLaunches(envId))
   ipcMain.handle('env:setPurposeTag', (_e, envId: string, tag: PurposeTag | null) => setPurposeTag(envId, tag))
-  ipcMain.handle('env:retrySetup', async (_e, envId: string) => {
-    setupEnvironment(envId).catch((err) => {
-      console.error('[ipc] environment retry setup failed:', err)
-    })
+  ipcMain.handle('env:retrySetup', (_e, envId: string) => {
+    return setupEnvironment(envId)
   })
 
   // Templates

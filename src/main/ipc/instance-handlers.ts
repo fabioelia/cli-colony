@@ -41,7 +41,9 @@ export function registerInstanceHandlers(): void {
   ipcMain.handle('instance:resize', async (_e, id: string, cols: number, rows: number) => {
     try { return await client.resizeInstance(id, cols, rows) } catch { return false }
   })
-  ipcMain.handle('instance:kill', (_e, id: string) => killInstance(id))
+  ipcMain.handle('instance:kill', async (_e, id: string) => {
+    try { return await killInstance(id) } catch { return false }
+  })
   ipcMain.handle('instance:remove', async (_e, id: string) => {
     try { return await client.removeInstance(id) } catch { return false }
   })

@@ -75,6 +75,7 @@ interface InternalInstance extends ClaudeInstance {
   _lastBufferLen: number
   _activityInterval: ReturnType<typeof setInterval> | null
   _handoffRequested: boolean
+  _handoffPollInterval: ReturnType<typeof setInterval> | null
   _userInputReceived: boolean
   _sessionIdTimer: ReturnType<typeof setTimeout> | null
   /** Inline code annotations emitted by review agents via COLONY_COMMENT sentinels */
@@ -368,7 +369,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
       permissionMode: opts.permissionMode,
       parentId: opts.parentId || null, childIds: [],
       pty: null, outputBuffer: [`Failed to spawn ${spawnCmd}: ${spawnErr}\r\n`], _joinedCache: null,
-      cleanupTimer: null, _lastSnapshot: '', _lastBufferLen: 0, _activityInterval: null, _handoffRequested: false, _userInputReceived: false,
+      cleanupTimer: null, _lastSnapshot: '', _lastBufferLen: 0, _activityInterval: null, _handoffRequested: false, _handoffPollInterval: null, _userInputReceived: false,
       _sessionIdTimer: null, comments: [], _lineBuffer: '', _gitBranchResolvedAt: Date.now(),
     }
     instances.set(id, instance)
@@ -386,7 +387,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
     permissionMode: opts.permissionMode,
     parentId: opts.parentId || null, childIds: [],
     pty: ptyProcess, outputBuffer: [], _joinedCache: null,
-    cleanupTimer: null, _lastSnapshot: '', _lastBufferLen: 0, _activityInterval: null, _handoffRequested: false, _userInputReceived: false,
+    cleanupTimer: null, _lastSnapshot: '', _lastBufferLen: 0, _activityInterval: null, _handoffRequested: false, _handoffPollInterval: null, _userInputReceived: false,
     _sessionIdTimer: null, comments: [], _lineBuffer: '', _gitBranchResolvedAt: Date.now(),
   }
 
@@ -516,10 +517,11 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
 
         // Poll for the handoff file to appear, then notify parent
         let pollCount = 0
-        const pollInterval = setInterval(() => {
+        instance._handoffPollInterval = setInterval(() => {
           pollCount++
           if (fs.existsSync(handoffPath) || pollCount > 30) { // 30 * 2s = 60s max
-            clearInterval(pollInterval)
+            clearInterval(instance._handoffPollInterval!)
+            instance._handoffPollInterval = null
             const parent = instances.get(instance.parentId!)
             if (parent?.pty && parent.status === 'running') {
               if (fs.existsSync(handoffPath)) {
@@ -623,6 +625,7 @@ function killInstance(id: string): boolean {
   }
   if (inst._activityInterval) clearInterval(inst._activityInterval)
   if (inst._sessionIdTimer) clearTimeout(inst._sessionIdTimer)
+  if (inst._handoffPollInterval) clearInterval(inst._handoffPollInterval)
   inst.status = 'exited'
   inst.exitCode = -1
   inst.pty = null
@@ -638,6 +641,7 @@ function removeInstance(id: string): boolean {
   }
   if (inst._activityInterval) clearInterval(inst._activityInterval)
   if (inst._sessionIdTimer) clearTimeout(inst._sessionIdTimer)
+  if (inst._handoffPollInterval) clearInterval(inst._handoffPollInterval)
   if (inst.cleanupTimer) clearTimeout(inst.cleanupTimer)
   instances.delete(id)
   notifyListChanged()
