@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, RefreshCw, Download, Upload, Pencil, Play, ChevronRight, FolderOpen, FileCode } from 'lucide-react'
+import { Plus, RefreshCw, Download, Upload, Pencil, Play, ChevronRight, FolderOpen, FileCode, Trash2 } from 'lucide-react'
 import EmptyStateHook from './EmptyStateHook'
 import type { AgentDef } from '../types'
 import { COLOR_MAP } from '../lib/constants'
@@ -115,6 +115,16 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
               </button>
               <button className="agent-btn-launch" onClick={() => onLaunchAgent(agent)} title="Launch a new session with this agent">
                 <Play size={13} /> Launch
+              </button>
+              <button className="agent-btn-delete" onClick={async () => {
+                if (!window.confirm(`Delete agent "${agent.name}"?`)) return
+                const ok = await window.api.agents.delete(agent.filePath)
+                if (ok) {
+                  setAgents(prev => prev.filter(a => a.filePath !== agent.filePath))
+                  if (expandedId === agent.filePath) setExpandedId(null)
+                }
+              }} title="Delete agent definition">
+                <Trash2 size={13} /> Delete
               </button>
             </div>
           </div>

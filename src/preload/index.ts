@@ -41,6 +41,7 @@ export interface ClaudeManagerAPI {
     create: (name: string, scope: string, projectPath?: string) => Promise<AgentDef | null>
     export: (agentPaths: string[]) => Promise<boolean>
     import: (targetDir: string) => Promise<number>
+    delete: (filePath: string) => Promise<boolean>
   }
   instance: {
     create: (opts?: {
@@ -516,6 +517,7 @@ const api: ClaudeManagerAPI = {
     create: (name, scope, projectPath) => ipcRenderer.invoke('agents:create', name, scope, projectPath),
     export: (agentPaths) => ipcRenderer.invoke('agents:export', agentPaths),
     import: (targetDir) => ipcRenderer.invoke('agents:import', targetDir),
+    delete: (filePath) => ipcRenderer.invoke('agents:delete', filePath),
   },
   instance: {
     create: (opts) => ipcRenderer.invoke('instance:create', opts),

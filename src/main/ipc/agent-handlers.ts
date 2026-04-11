@@ -88,4 +88,14 @@ export function registerAgentHandlers(): void {
       return false
     }
   })
+
+  ipcMain.handle('agents:delete', async (_e, filePath: string) => {
+    assertAgentPath(filePath)
+    try {
+      await fsp.unlink(filePath)
+      return true
+    } catch {
+      return false
+    }
+  })
 }
