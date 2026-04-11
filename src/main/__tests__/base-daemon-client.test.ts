@@ -386,3 +386,142 @@ describe('version check', () => {
     expect(mismatchSpy).toHaveBeenCalledWith({ running: 0, expected: 42 })
   })
 })
+
+// ==================== Heartbeat ====================
+
+describe('heartbeat', () => {
+  /** connectClient only does connectToSocket — manually start heartbeat for these tests */
+  async function connectWithHeartbeat() {
+    await connectClient()
+    ;(client as any).startHeartbeat()
+  }
+
+  it('sends ping every 30s when connected', async () => {
+    await connectWithHeartbeat()
+    currentMockSocket.write.mockClear()
+
+    // Advance 30s — first heartbeat fires
+    await vi.advanceTimersByTimeAsync(30000)
+
+    expect(currentMockSocket.write).toHaveBeenCalledTimes(1)
+    const payload = JSON.parse((currentMockSocket.write.mock.calls[0][0] as string).trim())
+    expect(payload.type).toBe('ping')
+
+    // Respond with success
+    currentMockSocket.emit('data', JSON.stringify({ reqId: payload.reqId, type: 'ok', data: 'pong' }) + '\n')
+  })
+
+  it('resets missed pings on successful response', async () => {
+    await connectWithHeartbeat()
+    currentMockSocket.write.mockClear()
+
+    // First ping — let it timeout
+    await vi.advanceTimersByTimeAsync(30000)
+    const p1 = JSON.parse((currentMockSocket.write.mock.calls[0][0] as string).trim())
+    // Don't respond — let it timeout after 10s
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await vi.advanceTimersByTimeAsync(10001)
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('heartbeat ping failed (1 consecutive)'))
+
+    // Second ping at 60s — respond successfully
+    await vi.advanceTimersByTimeAsync(19999) // advance to 60s mark
+    const p2 = JSON.parse((currentMockSocket.write.mock.calls[currentMockSocket.write.mock.calls.length - 1][0] as string).trim())
+    currentMockSocket.emit('data', JSON.stringify({ reqId: p2.reqId, type: 'ok', data: 'pong' }) + '\n')
+
+    // Third ping at 90s — let it timeout (should be miss 1, not 2)
+    await vi.advanceTimersByTimeAsync(30000)
+    await vi.advanceTimersByTimeAsync(10001)
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('heartbeat ping failed (1 consecutive)'))
+
+    warnSpy.mockRestore()
+  })
+
+  it('emits daemon-unresponsive after 2 consecutive timeouts', async () => {
+    await connectWithHeartbeat()
+    currentMockSocket.write.mockClear()
+
+    const unresponsiveSpy = vi.fn()
+    client.on('daemon-unresponsive', unresponsiveSpy)
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    // First ping — timeout (30s fire + 10s timeout)
+    await vi.advanceTimersByTimeAsync(30000)
+    await vi.advanceTimersByTimeAsync(10001)
+    expect(unresponsiveSpy).not.toHaveBeenCalled()
+
+    // Second ping — timeout (another 30s + 10s)
+    await vi.advanceTimersByTimeAsync(19999) // reach 60s mark
+    await vi.advanceTimersByTimeAsync(10001)
+
+    expect(unresponsiveSpy).toHaveBeenCalledOnce()
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('daemon unresponsive'))
+
+    warnSpy.mockRestore()
+    errorSpy.mockRestore()
+  })
+
+  it('force-kills daemon and destroys socket on unresponsive', async () => {
+    await connectWithHeartbeat()
+    currentMockSocket.write.mockClear()
+
+    const mockFsModule = fs as any
+    mockFsModule.existsSync.mockReturnValue(true)
+    mockFsModule.readFileSync.mockReturnValue('54321\n')
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => true)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    // Two consecutive timeouts
+    await vi.advanceTimersByTimeAsync(30000)
+    await vi.advanceTimersByTimeAsync(10001)
+    await vi.advanceTimersByTimeAsync(19999)
+    await vi.advanceTimersByTimeAsync(10001)
+
+    expect(killSpy).toHaveBeenCalledWith(54321, 'SIGKILL')
+    expect(currentMockSocket.destroy).toHaveBeenCalled()
+
+    killSpy.mockRestore()
+    vi.restoreAllMocks()
+  })
+
+  it('stops heartbeat on intentional disconnect', async () => {
+    await connectWithHeartbeat()
+    currentMockSocket.write.mockClear()
+
+    client.disconnect()
+
+    // Advance past heartbeat interval — no pings should fire
+    await vi.advanceTimersByTimeAsync(60000)
+    expect(currentMockSocket.write).not.toHaveBeenCalled()
+  })
+
+  it('stops heartbeat on socket close', async () => {
+    await connectWithHeartbeat()
+
+    const secondSocket = createMockSocket()
+    currentMockSocket.emit('close')
+
+    // Clear writes from the first connection
+    secondSocket.write.mockClear()
+
+    // No new pings should fire — heartbeat was stopped
+    await vi.advanceTimersByTimeAsync(60000)
+    expect(secondSocket.write).not.toHaveBeenCalled()
+  })
+
+  it('does not ping during reconnect', async () => {
+    await connectWithHeartbeat()
+    currentMockSocket.write.mockClear()
+
+    // Set reconnecting state by closing socket (but don't complete reconnect)
+    const secondSocket = createMockSocket()
+    currentMockSocket.emit('close')
+
+    // Heartbeat should be stopped, but even if it fires, the guard prevents ping
+    await vi.advanceTimersByTimeAsync(60000)
+    // No ping writes on either socket
+    expect(secondSocket.write).not.toHaveBeenCalled()
+  })
+})

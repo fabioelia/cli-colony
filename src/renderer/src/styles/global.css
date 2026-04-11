@@ -163,6 +163,11 @@ input, select {
   background: linear-gradient(135deg, #c0392b 0%, #a93226 100%) !important;
 }
 
+/* Daemon unresponsive banner — amber variant for heartbeat failures */
+.daemon-unresponsive-banner {
+  background: linear-gradient(135deg, #d4a017 0%, #b8860b 100%) !important;
+}
+
 /* App update banner — same pattern as daemon banner, stacked below it */
 .app-update-banner {
   position: fixed;

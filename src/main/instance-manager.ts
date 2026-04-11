@@ -186,6 +186,11 @@ export function wireDaemonEvents(): void {
     console.warn(`[instance-manager] daemon version mismatch: running=${info.running} expected=${info.expected}`)
     broadcast('daemon:version-mismatch', info)
   })
+
+  client.on('daemon-unresponsive', () => {
+    console.error('[instance-manager] daemon unresponsive — force-killed, auto-reconnecting')
+    broadcast('daemon:unresponsive', {})
+  })
 }
 
 // ---- Public API (same signatures as before) ----

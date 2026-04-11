@@ -116,6 +116,7 @@ export interface ClaudeManagerAPI {
     getVersion: () => Promise<{ running: number; expected: number }>
     onVersionMismatch: (cb: (info: { running: number; expected: number }) => void) => () => void
     onConnectionFailed: (cb: (info: { error: string }) => void) => () => void
+    onDaemonUnresponsive: (cb: () => void) => () => void
   }
   settings: {
     getAll: () => Promise<Record<string, string>>
@@ -618,6 +619,11 @@ const api: ClaudeManagerAPI = {
       const handler = (_e: any, info: { error: string }) => cb(info)
       ipcRenderer.on('daemon:connection-failed', handler)
       return () => ipcRenderer.removeListener('daemon:connection-failed', handler)
+    },
+    onDaemonUnresponsive: (cb) => {
+      const handler = () => cb()
+      ipcRenderer.on('daemon:unresponsive', handler)
+      return () => ipcRenderer.removeListener('daemon:unresponsive', handler)
     },
   },
   settings: {

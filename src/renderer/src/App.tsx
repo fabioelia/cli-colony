@@ -108,6 +108,7 @@ export default function App() {
   const pendingPromptRef = useRef<{ id: string; prompt: string } | null>(null)
   const [daemonStale, setDaemonStale] = useState(false)
   const [daemonFailed, setDaemonFailed] = useState(false)
+  const [daemonUnresponsive, setDaemonUnresponsive] = useState(false)
   const [envPromptRequest, setEnvPromptRequest] = useState<{ requestId: string; envId: string; hookName: string; prompt: string; promptType: string; defaultPath?: string; defaultPathValid?: boolean; options?: string[] } | null>(null)
   const [showWelcome, setShowWelcome] = useState(false)
   const [forkModalInst, setForkModalInst] = useState<ClaudeInstance | null>(null)
@@ -161,7 +162,10 @@ export default function App() {
     const unsubFailed = window.api.daemon.onConnectionFailed(() => {
       setDaemonFailed(true)
     })
-    return () => { unsubVersion(); unsubFailed() }
+    const unsubUnresponsive = window.api.daemon.onDaemonUnresponsive(() => {
+      setDaemonUnresponsive(true)
+    })
+    return () => { unsubVersion(); unsubFailed(); unsubUnresponsive() }
   }, [])
 
   // Listen for environment prompt requests (file picker etc.) — must be at app level
@@ -1225,6 +1229,19 @@ export default function App() {
             }
           }}>Retry</button>
           <button className="daemon-update-dismiss" onClick={() => setDaemonFailed(false)}>Dismiss</button>
+        </div>,
+        document.body
+      )}
+      {daemonUnresponsive && createPortal(
+        <div className="daemon-update-banner daemon-unresponsive-banner">
+          <span>Daemon became unresponsive — automatic restart in progress.</span>
+          <button onClick={async () => {
+            setDaemonUnresponsive(false)
+            await window.api.daemon.restart()
+            const list = await window.api.instance.list()
+            setInstances(prev => instancesEqual(prev, list) ? prev : list)
+          }}>Restart Daemon</button>
+          <button className="daemon-update-dismiss" onClick={() => setDaemonUnresponsive(false)}>Dismiss</button>
         </div>,
         document.body
       )}

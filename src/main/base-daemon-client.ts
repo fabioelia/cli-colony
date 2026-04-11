@@ -25,6 +25,8 @@ export abstract class BaseDaemonClient extends EventEmitter {
   private _intentionalDisconnect = false
   private _reconnectAttempts = 0
   private _reqCounter = 0
+  private _heartbeatTimer: ReturnType<typeof setInterval> | null = null
+  private _missedPings = 0
 
   protected abstract socketPath: string
   protected abstract pidPath: string
@@ -47,6 +49,7 @@ export abstract class BaseDaemonClient extends EventEmitter {
     await this.connectToSocket()
     await this.request({ type: 'subscribe', reqId: this.nextReqId() })
     this.checkDaemonVersion()
+    this.startHeartbeat()
   }
 
   /** Ask the daemon its version — emit 'version-mismatch' if stale. */
@@ -96,6 +99,7 @@ export abstract class BaseDaemonClient extends EventEmitter {
       socket.on('close', () => {
         this._connected = false
         this.socket = null
+        this.stopHeartbeat()
         for (const [, req] of this.pending) {
           clearTimeout(req.timer)
           req.reject(new Error('daemon connection closed'))
@@ -149,6 +153,7 @@ export abstract class BaseDaemonClient extends EventEmitter {
 
   disconnect(): void {
     this._intentionalDisconnect = true
+    this.stopHeartbeat()
     if (this.socket) {
       this.socket.destroy()
       this.socket = null
@@ -173,6 +178,39 @@ export abstract class BaseDaemonClient extends EventEmitter {
     } catch (err) {
       console.error(`[${this.label}] killDaemonProcess failed:`, err)
     }
+  }
+
+  // ---- Heartbeat ----
+
+  private startHeartbeat(): void {
+    this.stopHeartbeat()
+    this._heartbeatTimer = setInterval(async () => {
+      if (!this._connected || this._reconnecting) return
+      try {
+        await this.request({ type: 'ping', reqId: this.nextReqId() }, 10000)
+        this._missedPings = 0
+      } catch {
+        this._missedPings++
+        console.warn(`[${this.label}] heartbeat ping failed (${this._missedPings} consecutive)`)
+        if (this._missedPings >= 2) {
+          console.error(`[${this.label}] daemon unresponsive after ${this._missedPings} missed pings — force-killing`)
+          this.emit('daemon-unresponsive')
+          this.stopHeartbeat()
+          this.killDaemonProcess()
+          if (this.socket) {
+            this.socket.destroy()
+          }
+        }
+      }
+    }, 30000)
+  }
+
+  private stopHeartbeat(): void {
+    if (this._heartbeatTimer) {
+      clearInterval(this._heartbeatTimer)
+      this._heartbeatTimer = null
+    }
+    this._missedPings = 0
   }
 
   // ---- Daemon process management ----

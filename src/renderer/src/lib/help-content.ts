@@ -777,6 +777,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Version display', detail: 'Shows running daemon version vs expected. "Outdated" badge if mismatched.' },
           { label: 'Restart daemon', detail: 'Kills all running sessions and starts a fresh daemon. Required after shell changes.', icon: 'RotateCcw' },
           { label: 'Connection failed banner', detail: 'A red banner appears if the daemon fails to connect after 3 retry attempts. Click Retry to re-attempt the connection, or Dismiss to hide the banner. Sessions and environments are unavailable until the daemon connects.' },
+          { label: 'Liveness heartbeat', detail: 'The app pings the daemon every 30 seconds. If 2 consecutive pings fail (~50s), the daemon is force-killed and auto-restarted. An amber banner appears during recovery.' },
         ],
       },
       {
