@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import {
   Plus, Settings, GitPullRequest, Users, Square, Play, Columns2,
   MonitorPlay, History, Search, ArrowRight, Terminal, Server, User, Bot, Zap, ListChecks, RotateCcw, Keyboard,
+  Home, Bell, TerminalSquare, FolderOpen, GitCompare, Archive,
 } from 'lucide-react'
 import type { ClaudeInstance, CliSession, AgentDef } from '../types'
 import type { PersonaInfo, SessionTemplate } from '../../../shared/types'
@@ -138,6 +139,33 @@ export default function CommandPalette({
 
     // Navigation
     items.push({
+      id: 'nav-home',
+      label: 'Open Home',
+      detail: 'Colony overview dashboard',
+      icon: <Home size={14} />,
+      section: 'Navigate',
+      keywords: 'overview dashboard colony',
+      onExecute: () => onViewChange('overview'),
+    })
+    items.push({
+      id: 'nav-sessions',
+      label: 'Open Sessions',
+      detail: 'Claude CLI sessions',
+      icon: <TerminalSquare size={14} />,
+      section: 'Navigate',
+      keywords: 'session terminal instance',
+      onExecute: () => onViewChange('instances'),
+    })
+    items.push({
+      id: 'nav-activity',
+      label: 'Open Activity',
+      detail: 'Automation events from personas, pipelines, and environments',
+      icon: <Bell size={14} />,
+      section: 'Navigate',
+      keywords: 'activity feed events notifications',
+      onExecute: () => onViewChange('activity'),
+    })
+    items.push({
       id: 'nav-settings',
       label: 'Open Settings',
       icon: <Settings size={14} />,
@@ -147,7 +175,7 @@ export default function CommandPalette({
     items.push({
       id: 'nav-agents',
       label: 'Open Agents',
-      icon: <Users size={14} />,
+      icon: <Bot size={14} />,
       section: 'Navigate',
       onExecute: () => onViewChange('agents'),
     })
@@ -193,6 +221,33 @@ export default function CommandPalette({
       section: 'Navigate',
       keywords: 'persona agent schedule autonomous',
       onExecute: () => onViewChange('personas'),
+    })
+    items.push({
+      id: 'nav-outputs',
+      label: 'Open Outputs',
+      detail: 'Browse artifacts, briefs, and pipeline outputs',
+      icon: <FolderOpen size={14} />,
+      section: 'Navigate',
+      keywords: 'outputs artifacts briefs files',
+      onExecute: () => onViewChange('outputs'),
+    })
+    items.push({
+      id: 'nav-review',
+      label: 'Open Review',
+      detail: 'Cross-session diff review dashboard',
+      icon: <GitCompare size={14} />,
+      section: 'Navigate',
+      keywords: 'review diff changes code',
+      onExecute: () => onViewChange('review'),
+    })
+    items.push({
+      id: 'nav-history',
+      label: 'Open History',
+      detail: 'Past session artifacts — commits, changes, and costs',
+      icon: <Archive size={14} />,
+      section: 'Navigate',
+      keywords: 'history artifacts commits past',
+      onExecute: () => onViewChange('artifacts'),
     })
 
     // Persona quick-run
