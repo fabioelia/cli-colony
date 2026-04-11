@@ -10,6 +10,12 @@ vi.mock('electron', () => ({
   },
 }))
 
+// Mock settings (batch-handlers calls getSetting/setSetting)
+vi.mock('../settings', () => ({
+  getSetting: vi.fn().mockResolvedValue(''),
+  setSetting: vi.fn().mockResolvedValue(undefined),
+}))
+
 // Mock batch-runner
 vi.mock('../batch-runner', () => ({
   getDefaultBatchConfig: vi.fn(() => ({
@@ -22,6 +28,9 @@ vi.mock('../batch-runner', () => ({
   })),
   getBatchHistory: vi.fn(() => []),
   parseTaskQueue: vi.fn(() => []),
+  executeBatch: vi.fn().mockResolvedValue({ id: 'mock-batch-id', success: true }),
+  startBatchScheduler: vi.fn(),
+  stopBatchScheduler: vi.fn(),
 }))
 
 describe('batch-handlers', () => {

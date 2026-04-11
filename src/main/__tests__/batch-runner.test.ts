@@ -14,16 +14,26 @@ describe('batch-runner', () => {
 
     vi.resetModules()
 
-    // Fresh module import with mocked colony-paths
+    // Mock electron (transitive dep via instance-manager → commit-attributor)
+    vi.doMock('electron', () => ({
+      app: { getPath: vi.fn().mockReturnValue('/mock') },
+    }))
+
+    // Mock colony-paths to use temp dir
     vi.doMock('../../shared/colony-paths', () => ({
-      colonyPaths: { root: tmpDir },
-    }), { virtual: true })
+      colonyPaths: { root: tmpDir, taskQueues: path.join(tmpDir, 'task-queues') },
+    }))
+
+    // Mock heavy deps that batch-runner imports but we don't test here
+    vi.doMock('../instance-manager', () => ({ createInstance: vi.fn() }))
+    vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
+    vi.doMock('../session-completion', () => ({ waitForSessionCompletion: vi.fn() }))
+    vi.doMock('../broadcast', () => ({ broadcast: vi.fn() }))
 
     mod = await import('../batch-runner')
   })
 
   afterEach(() => {
-    vi.unmock('../../shared/colony-paths')
     vi.resetModules()
     if (fs.existsSync(tmpDir)) {
       fs.rmSync(tmpDir, { recursive: true, force: true })

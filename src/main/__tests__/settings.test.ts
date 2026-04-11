@@ -15,6 +15,7 @@ const mockFsp = {
   readFile: vi.fn().mockResolvedValue('{}'),
   writeFile: vi.fn().mockResolvedValue(undefined),
   mkdir: vi.fn().mockResolvedValue(undefined),
+  stat: vi.fn().mockResolvedValue({ mtimeMs: 1 }),
 }
 
 const mockExecFile = vi.fn()
@@ -29,6 +30,7 @@ describe('settings module', () => {
     mockFsp.readFile.mockReset().mockResolvedValue('{}')
     mockFsp.writeFile.mockReset().mockResolvedValue(undefined)
     mockFsp.mkdir.mockReset().mockResolvedValue(undefined)
+    mockFsp.stat.mockReset().mockResolvedValue({ mtimeMs: 1 })
     mockExecFile.mockReset()
 
     // Set up module mocks before dynamic import
