@@ -152,6 +152,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; stages?: StageTrace[] }>>([])
   const [expandedHistoryRows, setExpandedHistoryRows] = useState<Set<number>>(new Set())
 
+  const [triggeringPipelines, setTriggeringPipelines] = useState<Set<string>>(new Set())
   const [listMode, setListMode] = useState(() => localStorage.getItem('pipelines-list-mode') !== '0')
   const [sortBy, setSortBy] = useState<'name' | 'lastFired' | 'fireCount' | 'enabled'>(() =>
     (localStorage.getItem('pipelines-sort') as 'name' | 'lastFired' | 'fireCount' | 'enabled') || 'name'
@@ -296,7 +297,13 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   }
 
   const handleTriggerNow = async (name: string) => {
-    await window.api.pipeline.triggerNow(name)
+    if (triggeringPipelines.has(name)) return
+    setTriggeringPipelines(prev => new Set(prev).add(name))
+    try {
+      await window.api.pipeline.triggerNow(name)
+    } finally {
+      setTriggeringPipelines(prev => { const next = new Set(prev); next.delete(name); return next })
+    }
   }
 
   const handlePreview = async (p: PipelineInfo) => {
@@ -742,6 +749,7 @@ action:
                     <button
                       className="pipeline-action-btn"
                       onClick={() => handleTriggerNow(p.name)}
+                      disabled={triggeringPipelines.has(p.name)}
                       title="Poll now (⌘⇧F fires the first enabled pipeline from anywhere)"
                     >
                       <Play size={11} />
