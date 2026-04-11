@@ -5,7 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, RefreshCw, Columns2, LayoutGrid, ExternalLink, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Clock, Trophy, GitCompare, RotateCw, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, Bug, FileDown, CheckCircle, Copy } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsDown, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, RefreshCw, Columns2, LayoutGrid, ExternalLink, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Trophy, GitCompare, RotateCw, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, Bug, FileDown, CheckCircle, Copy } from 'lucide-react'
 import { TeamMetricsPanel } from './TeamMetricsPanel'
 import ServicesTab from './ServicesTab'
 import FilesTab from './FilesTab'
@@ -393,9 +393,6 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [viewTab])
-
-
-
 
 
   // Load coordinator team when tab switches to team and role is Coordinator
