@@ -16,16 +16,21 @@ import { getDaemonClient } from './daemon-client'
 const execFileAsync = promisify(execFile)
 const MAX_ARTIFACTS = 200
 
-// ---- Persistence ----
+// ---- Persistence (in-memory cache to prevent concurrent write races) ----
 
-async function readArtifacts(): Promise<SessionArtifact[]> {
-  try {
-    const raw = await fsp.readFile(colonyPaths.sessionArtifacts, 'utf-8')
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
+let _artifacts: SessionArtifact[] | null = null
+
+async function getArtifacts(): Promise<SessionArtifact[]> {
+  if (_artifacts === null) {
+    try {
+      const raw = await fsp.readFile(colonyPaths.sessionArtifacts, 'utf-8')
+      const parsed = JSON.parse(raw)
+      _artifacts = Array.isArray(parsed) ? parsed : []
+    } catch {
+      _artifacts = []
+    }
   }
+  return _artifacts
 }
 
 async function writeArtifacts(artifacts: SessionArtifact[]): Promise<void> {
@@ -194,11 +199,11 @@ export async function collectSessionArtifact(instanceId: string): Promise<Sessio
     costUsd: inst.tokenUsage?.cost,
   }
 
-  // Persist to index
-  const existing = await readArtifacts()
-  existing.push(artifact)
-  const trimmed = existing.length > MAX_ARTIFACTS ? existing.slice(existing.length - MAX_ARTIFACTS) : existing
-  await writeArtifacts(trimmed)
+  // Persist to index (in-memory canonical array — no re-read race)
+  const artifacts = await getArtifacts()
+  artifacts.push(artifact)
+  if (artifacts.length > MAX_ARTIFACTS) artifacts.splice(0, artifacts.length - MAX_ARTIFACTS)
+  await writeArtifacts(artifacts)
 
   // Auto-rename session based on artifacts (fire-and-forget)
   try {
@@ -221,14 +226,13 @@ export async function collectSessionArtifact(instanceId: string): Promise<Sessio
 
 /** List all artifacts, newest first. */
 export async function listArtifacts(): Promise<SessionArtifact[]> {
-  const artifacts = await readArtifacts()
+  const artifacts = await getArtifacts()
   return artifacts.slice().reverse()
 }
 
 /** Get a single artifact by session ID. Returns the most recent if multiple exist. */
 export async function getArtifact(sessionId: string): Promise<SessionArtifact | null> {
-  const artifacts = await readArtifacts()
-  // Search from end (newest) to find most recent for this session
+  const artifacts = await getArtifacts()
   for (let i = artifacts.length - 1; i >= 0; i--) {
     if (artifacts[i].sessionId === sessionId) return artifacts[i]
   }
@@ -237,12 +241,13 @@ export async function getArtifact(sessionId: string): Promise<SessionArtifact | 
 
 /** Delete all artifacts. */
 export async function clearArtifacts(): Promise<void> {
+  _artifacts = []
   await writeArtifacts([])
 }
 
 /** Tag an existing artifact with a pipeline run ID. */
 export async function tagArtifactPipeline(sessionId: string, pipelineRunId: string): Promise<boolean> {
-  const artifacts = await readArtifacts()
+  const artifacts = await getArtifacts()
   let found = false
   for (let i = artifacts.length - 1; i >= 0; i--) {
     if (artifacts[i].sessionId === sessionId) {

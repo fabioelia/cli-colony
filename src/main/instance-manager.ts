@@ -107,24 +107,21 @@ export function wireDaemonEvents(): void {
     trackClosed(instanceId, 'exited')
     onSessionExitCallback?.(instanceId)
 
-    // Emit session exit activity event
+    // Single getInstance call — shared by activity log + commit attribution
     client.getInstance(instanceId).then(inst => {
-      if (inst) {
-        appendActivity({
-          source: 'session',
-          name: inst.name,
-          summary: exitCode === 0
-            ? 'Session exited normally'
-            : `Session exited with code ${exitCode}`,
-          level: exitCode === 0 ? 'info' : 'warn',
-          sessionId: instanceId,
-        }).catch(() => {})
-      }
-    }).catch(() => {})
+      if (!inst) return
 
-    // Fire-and-forget: attribute any commits made during this session
-    client.getInstance(instanceId).then(inst => {
-      if (inst?.workingDirectory) {
+      appendActivity({
+        source: 'session',
+        name: inst.name,
+        summary: exitCode === 0
+          ? 'Session exited normally'
+          : `Session exited with code ${exitCode}`,
+        level: exitCode === 0 ? 'info' : 'warn',
+        sessionId: instanceId,
+      }).catch(() => {})
+
+      if (inst.workingDirectory) {
         const personaName = inst.name.startsWith('Persona: ')
           ? inst.name.slice('Persona: '.length)
           : undefined
