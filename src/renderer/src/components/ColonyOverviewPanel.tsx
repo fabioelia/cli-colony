@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   Home, Play, Plus, Zap, Clock, AlertCircle,
-  CheckCircle2, Circle, Users, FolderOpen, Activity, GanttChart, X, Eye, Square, Pin, PinOff,
+  CheckCircle2, Circle, Users, FolderOpen, Activity, GanttChart, BarChart3, X, Eye, Square, Pin, PinOff,
   ChevronLeft, ChevronRight, Calendar
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
@@ -297,7 +297,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
           const totalCost7d = costLeaderboard.reduce((s, r) => s + r.cost, 0)
           return (
             <div className="overview-section">
-              <h3><GanttChart size={14} /> Top Spenders (7d)</h3>
+              <h3><BarChart3 size={14} /> Top Spenders (7d)</h3>
               <div className="overview-cost-leaderboard">
                 {shown.map(entry => (
                   <div key={entry.id} className="cost-leader-row" onClick={() => onNavigate('personas')} title={`${entry.name}: $${entry.cost.toFixed(2)} (${totalCost7d > 0 ? ((entry.cost / totalCost7d) * 100).toFixed(0) : 0}%)`}>
@@ -398,7 +398,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                   />
                   <span className="overview-session-name">{inst.name || 'Unnamed'}</span>
                   {inst.activity === 'busy' && (idleMap.get(inst.id) || 0) > 900000 && <span className="overview-badge badge-stale">stale</span>}
-                  {inst.activity === 'busy' && (idleMap.get(inst.id) || 0) > 300000 && (idleMap.get(inst.id) || 0) <= 900000 && <span className="overview-badge badge-idle">idle</span>}
+                  {inst.activity === 'busy' && (idleMap.get(inst.id) || 0) > 300000 && (idleMap.get(inst.id) || 0) <= 900000 && <span className="overview-badge badge-idle">quiet</span>}
                   {inst.activity === 'busy' && (idleMap.get(inst.id) || 0) <= 300000 && <span className="overview-badge badge-busy">busy</span>}
                   {inst.activity === 'waiting' && <span className="overview-badge badge-waiting">idle</span>}
                   {inst.roleTag && <span className="overview-badge badge-role">{inst.roleTag}</span>}

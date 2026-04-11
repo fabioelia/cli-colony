@@ -121,7 +121,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Colony Health', detail: 'Composite health score (0–100%). Weighted: persona last-run success (35%), pipeline error-free (25%), session health (25%), environment health (15%). Green ≥80%, amber 50–79%, red <50%. Click to scroll to Needs Attention. Hover for per-component breakdown.' },
           { label: 'Session Cost', detail: 'Total cost across all current sessions.' },
           { label: 'Daily Cost (7d)', detail: 'A 7-day bar chart showing total cost across all persona runs per day. Hover a bar to see the exact date and amount. Only appears when there is cost data.', icon: 'Activity' },
-          { label: 'Top Spenders (7d)', detail: 'Ranked list of personas by 7-day cost. Shows persona name, percentage of total, a proportional bar, and dollar amount. Top 10 shown. Click any row to navigate to the Personas panel. Hidden when no persona has cost data.', icon: 'GanttChart' },
+          { label: 'Top Spenders (7d)', detail: 'Ranked list of personas by 7-day cost. Shows persona name, percentage of total, a proportional bar, and dollar amount. Top 10 shown. Click any row to navigate to the Personas panel. Hidden when no persona has cost data.', icon: 'BarChart3' },
         ],
       },
       {
@@ -140,7 +140,7 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Running Sessions',
         position: 'Middle',
         items: [
-          { label: 'Session tile', detail: 'Click any session to focus it. Right-click for a context menu with Focus, Stop, and Pin/Unpin actions. Shows name, activity status (busy/idle/stale), role tag, and cost. Idle badge (amber, 5+ min no output) and stale badge (red, 15+ min) appear for busy sessions with no recent output.', icon: 'Play' },
+          { label: 'Session tile', detail: 'Click any session to focus it. Right-click for a context menu with Focus, Stop, and Pin/Unpin actions. Shows name, activity status (busy/quiet/stale), role tag, and cost. Quiet badge (amber, 5+ min no output) and stale badge (red, 15+ min) appear for busy sessions with no recent output.', icon: 'Play' },
         ],
       },
       {
@@ -242,7 +242,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Parent/child navigation', detail: 'Click the ↳ arrow on child sessions to jump to the parent, or click "N children" on parent sessions to jump to the first child.' },
           { label: 'Repo Memory', detail: 'Place a `.colony/memory.md` file in a repo to automatically inject its conventions, architecture decisions, and team notes into every Colony session started in that directory. Same pattern as AGENTS.md — no UI needed.' },
           { label: 'Send Message', detail: 'Right-click a waiting session to send a prompt to it without switching views. Useful for orchestrating multiple parallel sessions.', icon: 'Send' },
-          { label: 'Idle / Stale detection', detail: 'Sessions marked "busy" that produce no output for 5+ minutes show an amber "idle" badge. After 15+ minutes with no output, the badge turns red and says "stale". Stale sessions also appear in the Overview\'s Needs Attention section. Only applies to busy sessions — waiting sessions are excluded. Hover the badge to see exact idle duration.' },
+          { label: 'Quiet / Stale detection', detail: 'Sessions marked "busy" that produce no output for 5+ minutes show an amber "quiet" badge. After 15+ minutes with no output, the badge turns red and says "stale". Stale sessions also appear in the Overview\'s Needs Attention section. Only applies to busy sessions — waiting sessions are excluded. Hover the badge to see exact idle duration.' },
         ],
       },
       {

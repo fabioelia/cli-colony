@@ -215,7 +215,7 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
             if (idleMs !== null && inst.activity === 'busy' && idleMs > 300000) {
               const isStale = idleMs > 900000
               const mins = Math.floor(idleMs / 60000)
-              badges.push({ node: <span key="id" className={`instance-idle-badge${isStale ? ' stale' : ''}`} title={`No output for ${mins} minute${mins !== 1 ? 's' : ''}`}>{isStale ? 'stale' : 'idle'}</span>, label: isStale ? 'Stale' : 'Idle' })
+              badges.push({ node: <span key="id" className={`instance-idle-badge${isStale ? ' stale' : ''}`} title={`No output for ${mins} minute${mins !== 1 ? 's' : ''}`}>{isStale ? 'stale' : 'quiet'}</span>, label: isStale ? 'Stale' : 'Quiet' })
             }
             if (badges.length === 0) return null
             return (
