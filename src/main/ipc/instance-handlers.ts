@@ -60,7 +60,7 @@ export function registerInstanceHandlers(): void {
   ipcMain.handle('instance:set-note', async (_e, id: string, note: string) => {
     try { return await client.setNote(id, note) } catch { return false }
   })
-  ipcMain.handle('instance:set-role', async (_e, id: string, role: string | null) => {
+  ipcMain.handle('instance:setRole', async (_e, id: string, role: string | null) => {
     try { return await client.setInstanceRole(id, role) } catch { return false }
   })
   ipcMain.handle('instance:list', () => getAllInstances())
@@ -390,16 +390,16 @@ export function registerInstanceHandlers(): void {
   })
 
   // Shell PTY — real shell terminals per instance
-  ipcMain.handle('shell-pty:create', async (_e, instanceId: string, cwd: string) => {
+  ipcMain.handle('shellPty:create', async (_e, instanceId: string, cwd: string) => {
     return createShell(instanceId, cwd)
   })
-  ipcMain.handle('shell-pty:write', (_e, instanceId: string, data: string) => {
+  ipcMain.handle('shellPty:write', (_e, instanceId: string, data: string) => {
     return writeShell(instanceId, data)
   })
-  ipcMain.handle('shell-pty:resize', (_e, instanceId: string, cols: number, rows: number) => {
+  ipcMain.handle('shellPty:resize', (_e, instanceId: string, cols: number, rows: number) => {
     return resizeShell(instanceId, cols, rows)
   })
-  ipcMain.handle('shell-pty:kill', (_e, instanceId: string) => {
+  ipcMain.handle('shellPty:kill', (_e, instanceId: string) => {
     return killShell(instanceId)
   })
 }

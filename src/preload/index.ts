@@ -522,7 +522,7 @@ const api: ClaudeManagerAPI = {
     restart: (id) => ipcRenderer.invoke('instance:restart', id),
     pin: (id) => ipcRenderer.invoke('instance:pin', id),
     unpin: (id) => ipcRenderer.invoke('instance:unpin', id),
-    setRole: (id, role) => ipcRenderer.invoke('instance:set-role', id, role),
+    setRole: (id, role) => ipcRenderer.invoke('instance:setRole', id, role),
     setNote: (id, note) => ipcRenderer.invoke('instance:set-note', id, note),
     list: () => ipcRenderer.invoke('instance:list'),
     get: (id) => ipcRenderer.invoke('instance:get', id),
@@ -566,19 +566,19 @@ const api: ClaudeManagerAPI = {
     fileOverlaps: () => ipcRenderer.invoke('instances:fileOverlaps'),
   },
   shellPty: {
-    create: (instanceId, cwd) => ipcRenderer.invoke('shell-pty:create', instanceId, cwd),
-    write: (instanceId, data) => ipcRenderer.invoke('shell-pty:write', instanceId, data),
-    resize: (instanceId, cols, rows) => ipcRenderer.invoke('shell-pty:resize', instanceId, cols, rows),
-    kill: (instanceId) => ipcRenderer.invoke('shell-pty:kill', instanceId),
+    create: (instanceId, cwd) => ipcRenderer.invoke('shellPty:create', instanceId, cwd),
+    write: (instanceId, data) => ipcRenderer.invoke('shellPty:write', instanceId, data),
+    resize: (instanceId, cols, rows) => ipcRenderer.invoke('shellPty:resize', instanceId, cols, rows),
+    kill: (instanceId) => ipcRenderer.invoke('shellPty:kill', instanceId),
     onOutput: (callback) => {
       const listener = (_e: any, data: { instanceId: string; data: string }) => callback(data)
-      ipcRenderer.on('shell-pty:output', listener)
-      return () => ipcRenderer.removeListener('shell-pty:output', listener)
+      ipcRenderer.on('shellPty:output', listener)
+      return () => ipcRenderer.removeListener('shellPty:output', listener)
     },
     onExited: (callback) => {
       const listener = (_e: any, data: { instanceId: string }) => callback(data)
-      ipcRenderer.on('shell-pty:exited', listener)
-      return () => ipcRenderer.removeListener('shell-pty:exited', listener)
+      ipcRenderer.on('shellPty:exited', listener)
+      return () => ipcRenderer.removeListener('shellPty:exited', listener)
     },
   },
   sessions: {
@@ -840,7 +840,7 @@ const api: ClaudeManagerAPI = {
       return () => ipcRenderer.removeListener('env:prompt-request', l)
     },
     respondToPrompt: (data) => { ipcRenderer.send('env:prompt-response', data) },
-    pickFile: (opts) => ipcRenderer.invoke('env:pick-file', opts),
+    pickFile: (opts) => ipcRenderer.invoke('env:pickFile', opts),
     launchSessionWhenReady: (opts) => ipcRenderer.invoke('env:launchSessionWhenReady', opts),
     cancelPendingLaunch: (pendingId: string) => ipcRenderer.invoke('env:cancelPendingLaunch', pendingId),
     getPendingLaunches: (envId?: string) => ipcRenderer.invoke('env:getPendingLaunches', envId),

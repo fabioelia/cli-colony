@@ -37,12 +37,12 @@ export function createShell(instanceId: string, cwd: string): { pid: number } {
   shells.set(instanceId, inst)
 
   proc.onData((data) => {
-    broadcast('shell-pty:output', { instanceId, data })
+    broadcast('shellPty:output', { instanceId, data })
   })
 
   proc.onExit(() => {
     shells.delete(instanceId)
-    broadcast('shell-pty:exited', { instanceId })
+    broadcast('shellPty:exited', { instanceId })
   })
 
   return { pid: proc.pid }

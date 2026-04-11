@@ -73,7 +73,7 @@ export function registerEnvHandlers(): void {
   })
 
   // File picker for prompt hooks — shows hidden files so .env is visible
-  ipcMain.handle('env:pick-file', async (_e, opts: { title?: string; defaultPath?: string; message?: string }) => {
+  ipcMain.handle('env:pickFile', async (_e, opts: { title?: string; defaultPath?: string; message?: string }) => {
     const parentWindow = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]
     const dialogOpts: Electron.OpenDialogOptions = {
       title: opts.title || 'Select file',
