@@ -163,6 +163,30 @@ export function loadPersonas(): void {
   }
   if (migrated > 0) console.log(`[persona] migrated ${migrated} persona(s) to structured memory`)
   console.log(`[persona] loaded ${mdFiles.length} persona files`)
+
+  // Sweep orphaned prompt files (crash leftovers, abandoned sends)
+  sweepOrphanedPromptFiles()
+}
+
+/** Delete prompt files in pipeline-prompts/ older than 1 hour. Handles crash orphans. */
+function sweepOrphanedPromptFiles(): void {
+  const promptsDir = join(colonyPaths.root, 'pipeline-prompts')
+  if (!existsSync(promptsDir)) return
+  const oneHourAgo = Date.now() - 60 * 60 * 1000
+  let cleaned = 0
+  try {
+    for (const file of readdirSync(promptsDir)) {
+      try {
+        const filePath = join(promptsDir, file)
+        const stat = statSync(filePath)
+        if (stat.mtimeMs < oneHourAgo) {
+          unlinkSync(filePath)
+          cleaned++
+        }
+      } catch { /* skip individual file errors */ }
+    }
+  } catch { /* directory read failed */ }
+  if (cleaned > 0) console.log(`[persona] swept ${cleaned} orphaned prompt file(s)`)
 }
 
 export function getPersonaList(): PersonaInfo[] {
@@ -520,6 +544,9 @@ export async function runPersona(fileName: string, trigger: TriggerSource = { ty
     state.triggeredBy = trigger.type === 'handoff' ? (trigger.from ?? null) : null
     state.runCount++
     saveState()
+
+    // Clean up prompt file now that the CLI has read it and session is running
+    try { unlinkSync(promptFile) } catch { /* already gone */ }
 
     broadcast('persona:run', { persona: fm.name, instanceId: inst.id })
     broadcastStatus()

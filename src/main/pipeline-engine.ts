@@ -1403,15 +1403,17 @@ async function schedulePipeline(name: string, def: PipelineDef): Promise<void> {
     const intervalMs = (def.trigger.interval || 300) * 1000
     log(`Starting cron pipeline ${name}: "${cronExpr}" (poll interval ${intervalMs / 1000}s when active)`)
 
-    // Track last cron-triggered minute to avoid double-firing within same minute
-    let lastCronMinute = -1
+    // Track last cron-triggered key (date + minute) to avoid double-firing within same minute
+    // Uses date-qualified key so the same minute on consecutive days fires correctly
+    let lastCronKey = ''
 
     const cronCheck = setInterval(() => {
       const now = new Date()
       const currentMinute = now.getHours() * 60 + now.getMinutes()
+      const cronKey = `${now.toDateString()}:${currentMinute}`
 
-      if (cronMatches(cronExpr, now) && currentMinute !== lastCronMinute) {
-        lastCronMinute = currentMinute
+      if (cronMatches(cronExpr, now) && cronKey !== lastCronKey) {
+        lastCronKey = cronKey
         log(`Cron matched for ${name} at ${now.toLocaleTimeString()}`)
         runPoll(name)
       }
