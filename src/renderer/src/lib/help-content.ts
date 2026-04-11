@@ -1528,7 +1528,18 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Filter', detail: 'Text search across session names and persona names.', icon: 'Search' },
           { label: 'Sort', detail: 'Sort by: Newest (default), Most changes (insertions + deletions), or Highest cost.', icon: 'Filter' },
           { label: 'Type filter', detail: 'Filter artifacts by conventional commit type (feat, fix, ux, etc.). Shows counts per type. Click a type to toggle, click again to clear.' },
+          { label: 'Select', detail: 'Enter multi-select mode to pick two sessions for comparison. Checkboxes appear on each row (max 2).', icon: 'CheckSquare' },
           { label: 'Clear All', detail: 'Permanently removes all stored artifacts. Cannot be undone.', icon: 'Trash2' },
+        ],
+      },
+      {
+        name: 'Compare',
+        position: 'Full-panel view after selecting 2 artifacts',
+        items: [
+          { label: 'Compare button', detail: 'Appears when exactly 2 sessions are selected. Opens a side-by-side comparison of metrics and file changes.', icon: 'ArrowLeftRight' },
+          { label: 'Metrics table', detail: 'Duration, cost, commits, insertions, deletions, and exit code for both sessions. Delta column shows percentage difference. The better value (lower cost, lower duration, successful exit) is highlighted green.' },
+          { label: 'File overlap', detail: 'Files touched by both sessions are highlighted amber. Files unique to each session are listed separately. Helps identify overlapping vs. divergent approaches.' },
+          { label: 'Back button', detail: 'Return to the artifact list. Your selection is preserved so you can re-compare or pick different sessions.' },
         ],
       },
       {

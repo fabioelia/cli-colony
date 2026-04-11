@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import { Archive, GitCommit, ChevronRight, Search, Trash2, Clock, DollarSign, FileText, Zap } from 'lucide-react'
+import { Archive, GitCommit, ChevronRight, Search, Trash2, Clock, DollarSign, FileText, Zap, ArrowLeftRight, ArrowLeft, CheckSquare } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import EmptyStateHook from './EmptyStateHook'
-import type { SessionArtifact } from '../../../shared/types'
+import type { SessionArtifact, GitDiffEntry } from '../../../shared/types'
 
 type SortMode = 'newest' | 'changes' | 'cost'
 
@@ -55,6 +55,131 @@ function extractCommitTypes(artifact: SessionArtifact): string[] {
   return [...types]
 }
 
+function pctDelta(a: number, b: number): string {
+  if (a === 0 && b === 0) return '—'
+  if (a === 0) return '+∞'
+  const pct = ((b - a) / a) * 100
+  const sign = pct > 0 ? '+' : ''
+  return `${sign}${Math.round(pct)}%`
+}
+
+function fileOverlap(a: GitDiffEntry[], b: GitDiffEntry[]): { onlyA: string[]; onlyB: string[]; both: string[] } {
+  const filesA = new Set(a.map(e => e.file))
+  const filesB = new Set(b.map(e => e.file))
+  const both: string[] = []
+  const onlyA: string[] = []
+  const onlyB: string[] = []
+  for (const f of filesA) {
+    if (filesB.has(f)) both.push(f)
+    else onlyA.push(f)
+  }
+  for (const f of filesB) {
+    if (!filesA.has(f)) onlyB.push(f)
+  }
+  return { onlyA, onlyB, both }
+}
+
+function ArtifactCompareView({ a, b, onBack }: { a: SessionArtifact; b: SessionArtifact; onBack: () => void }) {
+  const overlap = useMemo(() => fileOverlap(a.changes, b.changes), [a, b])
+
+  const metrics = [
+    { label: 'Duration', valA: formatDuration(a.durationMs), valB: formatDuration(b.durationMs), delta: pctDelta(a.durationMs, b.durationMs), better: b.durationMs < a.durationMs ? 'b' : b.durationMs > a.durationMs ? 'a' : null },
+    { label: 'Cost', valA: a.costUsd != null ? `$${a.costUsd.toFixed(2)}` : '—', valB: b.costUsd != null ? `$${b.costUsd.toFixed(2)}` : '—', delta: a.costUsd != null && b.costUsd != null ? pctDelta(a.costUsd, b.costUsd) : '—', better: (a.costUsd ?? 0) > (b.costUsd ?? 0) ? 'b' : (a.costUsd ?? 0) < (b.costUsd ?? 0) ? 'a' : null },
+    { label: 'Commits', valA: String(a.commits.length), valB: String(b.commits.length), delta: pctDelta(a.commits.length, b.commits.length), better: null },
+    { label: 'Insertions', valA: `+${a.totalInsertions}`, valB: `+${b.totalInsertions}`, delta: pctDelta(a.totalInsertions, b.totalInsertions), better: null },
+    { label: 'Deletions', valA: `-${a.totalDeletions}`, valB: `-${b.totalDeletions}`, delta: pctDelta(a.totalDeletions, b.totalDeletions), better: null },
+    { label: 'Exit code', valA: String(a.exitCode), valB: String(b.exitCode), delta: a.exitCode === b.exitCode ? '=' : '≠', better: a.exitCode === 0 && b.exitCode !== 0 ? 'a' : b.exitCode === 0 && a.exitCode !== 0 ? 'b' : null },
+  ]
+
+  return (
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div className="panel-header">
+        <button className="panel-header-back" onClick={onBack} title="Back to list">
+          <ArrowLeft size={14} />
+        </button>
+        <h2><ArrowLeftRight size={16} /> Compare</h2>
+        <div className="panel-header-spacer" />
+        <HelpPopover topic="artifacts" zone="Compare" align="right" />
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+        {/* Session names header */}
+        <div className="artifact-compare-header">
+          <div className="artifact-compare-label">
+            <span className="artifact-compare-dot" style={{ background: 'var(--accent)' }} />
+            <span className="artifact-compare-name">{a.sessionName}</span>
+            {a.personaName && <span className="artifact-compare-persona">{a.personaName}</span>}
+          </div>
+          <div style={{ width: 80, textAlign: 'center', fontSize: 11, opacity: 0.5 }}>Delta</div>
+          <div className="artifact-compare-label">
+            <span className="artifact-compare-dot" style={{ background: 'var(--warning)' }} />
+            <span className="artifact-compare-name">{b.sessionName}</span>
+            {b.personaName && <span className="artifact-compare-persona">{b.personaName}</span>}
+          </div>
+        </div>
+
+        {/* Metrics grid */}
+        <div className="artifact-compare-metrics">
+          {metrics.map(m => (
+            <div key={m.label} className="artifact-compare-row">
+              <div className={`artifact-compare-val ${m.better === 'a' ? 'better' : ''}`}>{m.valA}</div>
+              <div className="artifact-compare-metric-label">
+                <span className="artifact-compare-metric-name">{m.label}</span>
+                <span className="artifact-compare-delta">{m.delta}</span>
+              </div>
+              <div className={`artifact-compare-val ${m.better === 'b' ? 'better' : ''}`}>{m.valB}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* File overlap */}
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.03em', opacity: 0.6 }}>
+            Files Changed
+          </div>
+
+          {overlap.both.length > 0 && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--warning)', marginBottom: 4 }}>
+                Both sessions ({overlap.both.length})
+              </div>
+              {overlap.both.map(f => (
+                <div key={f} className="artifact-compare-file both">{f}</div>
+              ))}
+            </div>
+          )}
+
+          {overlap.onlyA.length > 0 && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', marginBottom: 4 }}>
+                Only {a.sessionName} ({overlap.onlyA.length})
+              </div>
+              {overlap.onlyA.map(f => (
+                <div key={f} className="artifact-compare-file only-a">{f}</div>
+              ))}
+            </div>
+          )}
+
+          {overlap.onlyB.length > 0 && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--warning)', marginBottom: 4 }}>
+                Only {b.sessionName} ({overlap.onlyB.length})
+              </div>
+              {overlap.onlyB.map(f => (
+                <div key={f} className="artifact-compare-file only-b">{f}</div>
+              ))}
+            </div>
+          )}
+
+          {overlap.both.length === 0 && overlap.onlyA.length === 0 && overlap.onlyB.length === 0 && (
+            <div style={{ opacity: 0.5, fontStyle: 'italic', fontSize: 12 }}>No file changes in either session</div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ArtifactsPanel() {
   const [artifacts, setArtifacts] = useState<SessionArtifact[]>([])
   const [loading, setLoading] = useState(true)
@@ -63,6 +188,8 @@ export default function ArtifactsPanel() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [timeFilter, setTimeFilter] = useState<'today' | '7d' | 'all'>('today')
   const [typeFilter, setTypeFilter] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [comparing, setComparing] = useState(false)
 
   const loadArtifacts = useCallback(async () => {
     try {
@@ -139,11 +266,45 @@ export default function ArtifactsPanel() {
     await window.api.artifacts.clear()
     setArtifacts([])
     setExpandedId(null)
+    setSelectedIds(new Set())
   }, [])
 
   const toggleExpand = useCallback((id: string) => {
     setExpandedId((prev) => (prev === id ? null : id))
   }, [])
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) { next.delete(id) } else if (next.size < 2) { next.add(id) }
+      return next
+    })
+  }, [])
+
+  const handleCompare = useCallback(() => {
+    if (selectedIds.size === 2) setComparing(true)
+  }, [selectedIds])
+
+  const handleBackFromCompare = useCallback(() => {
+    setComparing(false)
+  }, [])
+
+  // Resolve the two selected artifacts for comparison
+  const compareArtifacts = useMemo(() => {
+    if (!comparing || selectedIds.size !== 2) return null
+    const ids = [...selectedIds]
+    const a = artifacts.find(x => x.sessionId === ids[0])
+    const b = artifacts.find(x => x.sessionId === ids[1])
+    if (!a || !b) return null
+    // Order by creation time (older first = "A")
+    return new Date(a.createdAt) <= new Date(b.createdAt) ? { a, b } : { a: b, b: a }
+  }, [comparing, selectedIds, artifacts])
+
+  if (comparing && compareArtifacts) {
+    return <ArtifactCompareView a={compareArtifacts.a} b={compareArtifacts.b} onBack={handleBackFromCompare} />
+  }
+
+  const selectMode = selectedIds.size > 0
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -153,9 +314,26 @@ export default function ArtifactsPanel() {
         <HelpPopover topic="artifacts" align="right" />
         <div className="panel-header-actions">
           {artifacts.length > 0 && (
-            <button className="panel-header-btn" onClick={handleClear} title="Clear all artifacts">
-              <Trash2 size={13} /> Clear
-            </button>
+            <>
+              {selectMode && (
+                <button className="panel-header-btn" onClick={() => setSelectedIds(new Set())} title="Cancel selection">
+                  Cancel
+                </button>
+              )}
+              {selectedIds.size === 2 && (
+                <button className="panel-header-btn primary" onClick={handleCompare} title="Compare selected sessions">
+                  <ArrowLeftRight size={13} /> Compare
+                </button>
+              )}
+              {!selectMode && (
+                <button className="panel-header-btn" onClick={() => setSelectedIds(new Set())} title="Select sessions to compare">
+                  <CheckSquare size={13} /> Select
+                </button>
+              )}
+              <button className="panel-header-btn" onClick={handleClear} title="Clear all artifacts">
+                <Trash2 size={13} /> Clear
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -256,17 +434,24 @@ export default function ArtifactsPanel() {
           </div>
         )}
 
+        {selectMode && selectedIds.size < 2 && (
+          <div style={{ fontSize: 12, opacity: 0.6, padding: '4px 0 8px', textAlign: 'center' }}>
+            Select {2 - selectedIds.size} more session{selectedIds.size === 0 ? 's' : ''} to compare
+          </div>
+        )}
+
         {filtered.map((artifact) => {
           const expanded = expandedId === artifact.sessionId
+          const selected = selectedIds.has(artifact.sessionId)
           return (
             <div
               key={artifact.sessionId}
               style={{
-                border: '1px solid var(--border)',
+                border: `1px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
                 borderRadius: 6,
                 marginBottom: 6,
-                background: expanded ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
-                transition: 'background 0.15s',
+                background: selected ? 'rgba(99, 102, 241, 0.08)' : expanded ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
+                transition: 'background 0.15s, border-color 0.15s',
               }}
             >
               {/* Row header */}
@@ -279,17 +464,28 @@ export default function ArtifactsPanel() {
                   cursor: 'pointer',
                   fontSize: 13,
                 }}
-                onClick={() => toggleExpand(artifact.sessionId)}
+                onClick={() => selectMode ? toggleSelect(artifact.sessionId) : toggleExpand(artifact.sessionId)}
               >
-                <ChevronRight
-                  size={12}
-                  style={{
-                    flexShrink: 0,
-                    transition: 'transform 0.15s',
-                    transform: expanded ? 'rotate(90deg)' : 'none',
-                    opacity: 0.5,
-                  }}
-                />
+                {selectMode ? (
+                  <input
+                    type="checkbox"
+                    checked={selected}
+                    disabled={!selected && selectedIds.size >= 2}
+                    onChange={() => toggleSelect(artifact.sessionId)}
+                    onClick={e => e.stopPropagation()}
+                    style={{ flexShrink: 0, cursor: 'pointer', accentColor: 'var(--accent)' }}
+                  />
+                ) : (
+                  <ChevronRight
+                    size={12}
+                    style={{
+                      flexShrink: 0,
+                      transition: 'transform 0.15s',
+                      transform: expanded ? 'rotate(90deg)' : 'none',
+                      opacity: 0.5,
+                    }}
+                  />
+                )}
                 <span style={{
                   width: 8,
                   height: 8,

@@ -18958,6 +18958,60 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: var(--bg-primary); white-space: nowrap;
   border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
 }
+/* Artifact comparison view */
+.artifact-compare-header {
+  display: grid; grid-template-columns: 1fr 80px 1fr;
+  gap: 8px; align-items: center; margin-bottom: 16px;
+  padding: 10px 12px; border-radius: 6px;
+  background: var(--bg-secondary); border: 1px solid var(--border);
+}
+.artifact-compare-label {
+  display: flex; align-items: center; gap: 6px; min-width: 0;
+}
+.artifact-compare-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.artifact-compare-name {
+  font-weight: 600; font-size: 13px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.artifact-compare-persona {
+  font-size: 10px; padding: 1px 6px; border-radius: 3px;
+  background: var(--accent); color: #fff; white-space: nowrap; flex-shrink: 0;
+}
+.artifact-compare-metrics {
+  display: flex; flex-direction: column; gap: 2px;
+  border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
+}
+.artifact-compare-row {
+  display: grid; grid-template-columns: 1fr 80px 1fr;
+  gap: 8px; align-items: center; padding: 6px 12px;
+  font-size: 12px;
+}
+.artifact-compare-row:nth-child(odd) { background: var(--bg-secondary); }
+.artifact-compare-row:nth-child(even) { background: var(--bg-tertiary); }
+.artifact-compare-val {
+  font-variant-numeric: tabular-nums; font-family: monospace; font-size: 12px;
+}
+.artifact-compare-val:last-child { text-align: right; }
+.artifact-compare-val.better { color: var(--success); font-weight: 600; }
+.artifact-compare-metric-label {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+}
+.artifact-compare-metric-name {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.03em; opacity: 0.5;
+}
+.artifact-compare-delta {
+  font-size: 11px; font-weight: 600; color: var(--text-secondary);
+}
+.artifact-compare-file {
+  font-size: 12px; font-family: monospace; padding: 2px 8px;
+  border-radius: 3px; margin-bottom: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.artifact-compare-file.both { background: rgba(245, 158, 11, 0.1); border-left: 2px solid var(--warning); }
+.artifact-compare-file.only-a { background: rgba(99, 102, 241, 0.08); border-left: 2px solid var(--accent); }
+.artifact-compare-file.only-b { background: rgba(245, 158, 11, 0.06); border-left: 2px solid var(--warning); }
 /* Activity panel (full panel view) */
 .activity-panel { display: flex; flex-direction: column; height: 100%; }
 .activity-panel-search {
