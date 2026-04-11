@@ -128,7 +128,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
             <div className="overview-stat-value">{activePipelines.length}</div>
             <div className="overview-stat-label">Pipelines Enabled</div>
           </div>
-          <div className="overview-stat-card">
+          <div className="overview-stat-card" onClick={() => onNavigate('instances')}>
             <div className="overview-stat-value">{formatCost(totalCost)}</div>
             <div className="overview-stat-label">Session Cost</div>
           </div>

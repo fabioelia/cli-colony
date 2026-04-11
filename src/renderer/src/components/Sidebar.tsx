@@ -59,7 +59,7 @@ interface InstanceItemProps {
   callbacks: InstanceItemCallbacks
   selectMode: boolean
   isSelected: boolean
-  onToggleSelect: (id: string) => void
+  onToggleSelect: (id: string, shiftKey?: boolean) => void
   conflictFiles: { file: string; otherSessions: { id: string; name: string }[] }[] | null
 }
 
@@ -117,8 +117,8 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
       role="button"
       tabIndex={0}
       onClick={(e) => {
-        if (selectMode) { onToggleSelect(inst.id); return }
-        if (e.metaKey || e.ctrlKey) { onToggleSelect(inst.id); return }
+        if (selectMode) { onToggleSelect(inst.id, e.shiftKey); return }
+        if (e.metaKey || e.ctrlKey) { onToggleSelect(inst.id, e.shiftKey); return }
         callbacks.onSelect(inst.id)
       }}
       onKeyDown={(e) => {
@@ -419,6 +419,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const [runningEnvCount, setRunningEnvCount] = useState(0)
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const lastSelectedRef = useRef<string | null>(null)
   const [expandedForkGroups, setExpandedForkGroups] = useState<Set<string>>(new Set())
   const [forkSectionOpen, setForkSectionOpen] = useState(true)
 
@@ -457,15 +458,6 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     localStorage.setItem('sidebar-collapsed-groups', JSON.stringify([...next]))
   }, [groupedSections, collapsedGroups])
 
-  const toggleSelect = useCallback((id: string) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id); else next.add(id)
-      return next
-    })
-    setSelectMode(true)
-  }, [])
-
   const exitSelectMode = useCallback(() => {
     setSelectMode(false)
     setSelectedIds(new Set())
@@ -478,6 +470,26 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     const e = instances.filter((i) => i.status !== 'running' && !i.pinned)
     return { pinned: p, running: r, exited: e, orderedInstances: [...p, ...r, ...e] }
   }, [instances])
+
+  const toggleSelect = useCallback((id: string, shiftKey?: boolean) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (shiftKey && lastSelectedRef.current && lastSelectedRef.current !== id) {
+        const ids = orderedInstances.map(i => i.id)
+        const fromIdx = ids.indexOf(lastSelectedRef.current)
+        const toIdx = ids.indexOf(id)
+        if (fromIdx !== -1 && toIdx !== -1) {
+          const [lo, hi] = fromIdx < toIdx ? [fromIdx, toIdx] : [toIdx, fromIdx]
+          for (let i = lo; i <= hi; i++) next.add(ids[i])
+        }
+      } else {
+        if (next.has(id)) next.delete(id); else next.add(id)
+      }
+      return next
+    })
+    lastSelectedRef.current = id
+    setSelectMode(true)
+  }, [orderedInstances])
 
   const groupedSections = useMemo(() => {
     if (groupBy === 'none') return null
