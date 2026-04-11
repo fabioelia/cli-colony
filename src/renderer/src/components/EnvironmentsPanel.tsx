@@ -82,6 +82,12 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
   const [restartPolicies, setRestartPolicies] = useState<Record<string, 'manual' | 'on-crash'>>({})
   const [purposeTags, setPurposeTags] = useState<Record<string, 'interactive' | 'background' | 'nightly' | null>>({})
   const [tagFilter, setTagFilter] = useState<'interactive' | 'background' | 'nightly' | null>(null)
+  const [showCreateWorktree, setShowCreateWorktree] = useState(false)
+  const [wtBranch, setWtBranch] = useState('')
+  const [wtName, setWtName] = useState('')
+  const [wtRepoIdx, setWtRepoIdx] = useState(0)
+  const [wtRepos, setWtRepos] = useState<Array<{ owner: string; name: string }>>([])
+  const [wtCreating, setWtCreating] = useState(false)
 
   const loadEnvironments = useCallback(async () => {
     try {
@@ -138,6 +144,13 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
       window.removeEventListener('focus', onFocus)
     }
   }, [loadEnvironments, loadTemplates])
+
+  // Load repos when create worktree form opens
+  useEffect(() => {
+    if (showCreateWorktree && wtRepos.length === 0) {
+      window.api.github.getRepos().then(repos => setWtRepos(repos.map(r => ({ owner: r.owner, name: r.name }))))
+    }
+  }, [showCreateWorktree])
 
   // Load and subscribe to worktree changes
   useEffect(() => {
@@ -425,6 +438,11 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
           {activeTab === 'instances' && (
             <button className="panel-header-btn primary" onClick={() => { setCreateDialogMode('instance'); setCreateDialogTemplate(null); setShowCreateDialog(true) }}>
               <Plus size={14} /> New Environment
+            </button>
+          )}
+          {activeTab === 'worktrees' && (
+            <button className="panel-header-btn primary" onClick={() => setShowCreateWorktree(true)} title="Create worktree">
+              <Plus size={12} /> New
             </button>
           )}
           {activeTab === 'templates' && (
@@ -1065,6 +1083,60 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
       {/* Worktrees tab */}
       {activeTab === 'worktrees' && (
         <div className="env-list">
+          {showCreateWorktree && (
+            <div className="env-worktree-create-form">
+              <select value={wtRepoIdx} onChange={e => setWtRepoIdx(Number(e.target.value))}>
+                {wtRepos.length === 0 ? (
+                  <option>Loading repos…</option>
+                ) : wtRepos.map((r, i) => (
+                  <option key={i} value={i}>{r.owner}/{r.name}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                placeholder="Branch name"
+                value={wtBranch}
+                onChange={e => setWtBranch(e.target.value)}
+                autoFocus
+              />
+              <input
+                type="text"
+                placeholder="Name (optional, defaults to branch)"
+                value={wtName}
+                onChange={e => setWtName(e.target.value)}
+              />
+              <div className="env-worktree-create-actions">
+                <button
+                  className="panel-header-btn primary"
+                  disabled={!wtBranch.trim() || wtRepos.length === 0 || wtCreating}
+                  onClick={async () => {
+                    const repo = wtRepos[wtRepoIdx]
+                    if (!repo) return
+                    setWtCreating(true)
+                    try {
+                      await window.api.worktree.create(
+                        repo.owner,
+                        wtName.trim() || wtBranch.trim(),
+                        wtBranch.trim(),
+                        `${repo.owner}/${repo.name}`
+                      )
+                      setShowCreateWorktree(false)
+                      setWtBranch('')
+                      setWtName('')
+                    } catch (err) {
+                      console.error('Failed to create worktree:', err)
+                    } finally {
+                      setWtCreating(false)
+                    }
+                  }}
+                >{wtCreating ? 'Creating…' : 'Create'}</button>
+                <button
+                  className="panel-header-btn"
+                  onClick={() => { setShowCreateWorktree(false); setWtBranch(''); setWtName('') }}
+                >Cancel</button>
+              </div>
+            </div>
+          )}
           {worktrees.length > 0 && worktrees.some(w => !w.mountedEnvId) && (
             <div className="env-worktrees-bulk">
               <button
