@@ -36,6 +36,10 @@ export function registerArenaHandlers(): void {
 
   ipcMain.handle('arena:getStats', () => readArenaStats())
 
+  ipcMain.handle('arena:clearStats', async (): Promise<void> => {
+    await writeArenaStats({})
+  })
+
   /**
    * Launch N worktrees + N sessions for an arena round.
    * Returns the created instance IDs and worktree IDs so the renderer can populate the grid.

@@ -401,6 +401,7 @@ export interface ClaudeManagerAPI {
   arena: {
     recordWinner: (winnerKey: string, loserKey: string | string[]) => Promise<boolean>
     getStats: () => Promise<ArenaStats>
+    clearStats: () => Promise<void>
     launchWithWorktrees: (opts: {
       owner: string
       repoName: string
@@ -923,6 +924,7 @@ const api: ClaudeManagerAPI = {
   arena: {
     recordWinner: (winnerKey, loserKey) => ipcRenderer.invoke('arena:recordWinner', winnerKey, loserKey),
     getStats: () => ipcRenderer.invoke('arena:getStats'),
+    clearStats: () => ipcRenderer.invoke('arena:clearStats'),
     launchWithWorktrees: (opts) => ipcRenderer.invoke('arena:launchWithWorktrees', opts),
     cleanupWorktrees: (ids) => ipcRenderer.invoke('arena:cleanupWorktrees', ids),
     autoJudge: (opts) => ipcRenderer.invoke('arena:autoJudge', opts),

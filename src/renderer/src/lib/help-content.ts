@@ -1511,6 +1511,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Command Judge', detail: 'Run a shell command (e.g., test suite) in each worktree. Pass/fail determines the winner.', icon: 'Terminal' },
           { label: 'LLM Judge', detail: 'An AI evaluator reads the diffs from each pane and picks a winner based on criteria you define.', icon: 'Bot' },
+          { label: 'Re-judge', detail: 'After a verdict, the Judge button becomes Re-judge. Clears the current winner, re-blinds panes, and opens the judge dialog to run again.', icon: 'Gavel' },
         ],
       },
       {
@@ -1519,6 +1520,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Win/Loss Stats', detail: 'Cumulative record across all arena rounds. Shows win rate percentage.', icon: 'Trophy' },
           { label: 'Voting', detail: 'In blind mode, panes are anonymized. Click a pane to vote it as the winner. Toggle blind mode with the eye icon.', icon: 'EyeOff' },
+          { label: 'Clear Stats', detail: 'Trash icon in the leaderboard header. Clears all arena win/loss data from both localStorage and the stats file. Requires confirmation.', icon: 'Trash2' },
         ],
       },
     ],
