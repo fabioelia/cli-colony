@@ -3,7 +3,7 @@ import { FolderOpen, FileText, Clock, RefreshCw, Search, FileOutput, Copy, Trash
 import MarkdownViewer from './MarkdownViewer'
 import HelpPopover from './HelpPopover'
 import EmptyStateHook from './EmptyStateHook'
-import type { OutputEntry, ClaudeInstance } from '../../../shared/types'
+import type { OutputEntry, OutputSearchResult, ClaudeInstance } from '../../../shared/types'
 
 type FilterType = 'all' | 'briefs' | 'artifacts'
 
@@ -48,6 +48,8 @@ export default function OutputsPanel() {
   const sessionPickerRef = useRef<HTMLDivElement>(null)
   const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [contentResults, setContentResults] = useState<OutputSearchResult[]>([])
+  const [contentSearching, setContentSearching] = useState(false)
 
   const loadEntries = useCallback(async () => {
     setRefreshing(true)
@@ -63,12 +65,29 @@ export default function OutputsPanel() {
     loadEntries()
   }, [loadEntries])
 
-  // Debounce search
+  // Debounce search (300ms for content search)
   useEffect(() => {
     if (searchDebounce.current) clearTimeout(searchDebounce.current)
-    searchDebounce.current = setTimeout(() => setDebouncedSearch(search), 200)
+    searchDebounce.current = setTimeout(() => setDebouncedSearch(search), 300)
     return () => { if (searchDebounce.current) clearTimeout(searchDebounce.current) }
   }, [search])
+
+  // Fire content search when query ≥ 3 chars
+  useEffect(() => {
+    if (debouncedSearch.length < 3) { setContentResults([]); return }
+    let cancelled = false
+    setContentSearching(true)
+    window.api.outputs.search(debouncedSearch).then((results) => {
+      if (!cancelled) setContentResults(results)
+    }).catch(() => {
+      if (!cancelled) setContentResults([])
+    }).finally(() => {
+      if (!cancelled) setContentSearching(false)
+    })
+    return () => { cancelled = true }
+  }, [debouncedSearch])
+
+  const totalContentMatches = contentResults.reduce((sum, r) => sum + r.matches.length, 0)
 
   const filteredEntries = entries.filter((e) => {
     if (filter === 'briefs' && e.type !== 'brief') return false
@@ -169,10 +188,14 @@ export default function OutputsPanel() {
             <Search size={13} className="outputs-search-icon" />
             <input
               className="outputs-search-input"
-              placeholder="Search by name or agent…"
+              placeholder="Search by name, agent, or content…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+            {totalContentMatches > 0 && (
+              <span className="outputs-search-badge">{totalContentMatches} content match{totalContentMatches !== 1 ? 'es' : ''}</span>
+            )}
+            {contentSearching && <span className="outputs-search-badge searching">searching…</span>}
           </div>
           <div className="outputs-filter-chips">
             {(['all', 'briefs', 'artifacts'] as FilterType[]).map((f) => (
@@ -186,22 +209,32 @@ export default function OutputsPanel() {
             ))}
           </div>
           <div className="outputs-list">
-            {filteredEntries.length === 0 ? (
-              entries.length === 0 ? (
-                <EmptyStateHook
-                  icon={FileOutput}
-                  title="Outputs"
-                  hook="Nothing here yet. Run a persona or pipeline to generate an artifact."
-                />
-              ) : (
-                <div className="outputs-empty">No results for this filter.</div>
-              )
-            ) : (
-              filteredEntries.map((entry) => (
+            {(() => {
+              // Build content match lookup
+              const contentMatchMap = new Map<string, OutputSearchResult>()
+              for (const r of contentResults) contentMatchMap.set(r.path, r)
+
+              // Content-only results: files not in filteredEntries
+              const filteredPaths = new Set(filteredEntries.map(e => e.path))
+              const contentOnlyResults = contentResults.filter(r => !filteredPaths.has(r.path))
+
+              if (filteredEntries.length === 0 && contentOnlyResults.length === 0) {
+                return entries.length === 0 ? (
+                  <EmptyStateHook
+                    icon={FileOutput}
+                    title="Outputs"
+                    hook="Nothing here yet. Run a persona or pipeline to generate an artifact."
+                  />
+                ) : (
+                  <div className="outputs-empty">No results for this filter.</div>
+                )
+              }
+
+              const renderRow = (entry: { path: string; name: string; agentId: string; mtime: number; type?: string }, matchResult?: OutputSearchResult) => (
                 <button
                   key={entry.path}
                   className={`outputs-row ${selected?.path === entry.path ? 'active' : ''}`}
-                  onClick={() => handleSelect(entry)}
+                  onClick={() => handleSelect(entry as OutputEntry)}
                 >
                   <span className="outputs-row-icon">
                     <FileText size={13} />
@@ -213,15 +246,38 @@ export default function OutputsPanel() {
                       <span className="outputs-row-time">
                         <Clock size={10} /> {formatRelativeTime(entry.mtime)}
                       </span>
-                      <span className="outputs-row-size">{formatBytes(entry.sizeBytes)}</span>
                     </span>
+                    {matchResult && matchResult.matches.length > 0 && (
+                      <div className="outputs-match-snippet">
+                        {matchResult.matches[0].contextBefore && (
+                          <div className="outputs-match-context">{matchResult.matches[0].contextBefore}</div>
+                        )}
+                        <div className="outputs-match-line">
+                          <span className="outputs-match-linenum">L{matchResult.matches[0].lineNum}</span>
+                          {matchResult.matches[0].line}
+                        </div>
+                        {matchResult.matches[0].contextAfter && (
+                          <div className="outputs-match-context">{matchResult.matches[0].contextAfter}</div>
+                        )}
+                        {matchResult.matches.length > 1 && (
+                          <div className="outputs-match-more">+{matchResult.matches.length - 1} more match{matchResult.matches.length > 2 ? 'es' : ''}</div>
+                        )}
+                      </div>
+                    )}
                   </span>
                   {entry.type === 'brief' && (
                     <span className="outputs-type-chip brief">Brief</span>
                   )}
                 </button>
-              ))
-            )}
+              )
+
+              return (
+                <>
+                  {filteredEntries.map(entry => renderRow(entry, contentMatchMap.get(entry.path)))}
+                  {contentOnlyResults.map(r => renderRow(r, r))}
+                </>
+              )
+            })()}
           </div>
         </div>
 

@@ -446,6 +446,7 @@ export interface ClaudeManagerAPI {
   outputs: {
     list: () => Promise<OutputEntry[]>
     read: (filePath: string) => Promise<{ content: string } | { error: string }>
+    search: (query: string) => Promise<import('../shared/types').OutputSearchResult[]>
     delete: (filePath: string) => Promise<{ success: boolean; error?: string }>
     revealInFinder: (filePath: string) => Promise<void>
     copyPath: (filePath: string) => Promise<void>
@@ -975,6 +976,7 @@ const api: ClaudeManagerAPI = {
   outputs: {
     list: () => ipcRenderer.invoke('outputs:list'),
     read: (filePath) => ipcRenderer.invoke('outputs:read', filePath),
+    search: (query) => ipcRenderer.invoke('outputs:search', query),
     delete: (filePath) => ipcRenderer.invoke('outputs:delete', filePath),
     revealInFinder: (filePath) => ipcRenderer.invoke('outputs:revealInFinder', filePath),
     copyPath: (filePath) => ipcRenderer.invoke('outputs:copyPath', filePath),

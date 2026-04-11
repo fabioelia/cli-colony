@@ -1260,7 +1260,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Browse artifacts', detail: 'All output files sorted newest-first. Click any row to view contents in the right pane.', icon: 'FolderOpen' },
           { label: 'Filter by type', detail: 'Use the All / Briefs / Artifacts chips to narrow the list. Briefs are persona session summaries; Artifacts are pipeline and task outputs.', icon: 'Filter' },
-          { label: 'Search', detail: 'Type to filter by file name or agent ID. Results update 200ms after you stop typing.' },
+          { label: 'Search', detail: 'Type to filter by name or agent ID. With 3+ characters, also searches inside file contents — matching lines appear as snippets below each result. A badge shows the total content match count.', icon: 'Search' },
           { label: 'Refresh', detail: 'Reload the file list from disk. Useful after a persona or pipeline run completes.', icon: 'RefreshCw' },
         ],
       },

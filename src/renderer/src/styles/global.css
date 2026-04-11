@@ -18168,6 +18168,62 @@ body:has(.daemon-update-banner) .app-update-banner {
   gap: 2px;
 }
 
+.outputs-search-badge {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 600;
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.outputs-search-badge.searching {
+  background: rgba(234, 179, 8, 0.12);
+  color: var(--warning, #eab308);
+}
+
+.outputs-match-snippet {
+  margin-top: 4px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 2px solid var(--accent);
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+.outputs-match-context {
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.outputs-match-line {
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.outputs-match-linenum {
+  display: inline-block;
+  margin-right: 6px;
+  color: var(--text-muted);
+  font-size: 9px;
+  min-width: 24px;
+}
+
+.outputs-match-more {
+  color: var(--text-muted);
+  font-size: 9px;
+  margin-top: 2px;
+}
+
 .outputs-type-chip {
   flex-shrink: 0;
   padding: 1px 5px;

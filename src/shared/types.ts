@@ -494,6 +494,23 @@ export interface OutputEntry {
   type: 'brief' | 'artifact'
 }
 
+/** A match within an output file's content */
+export interface OutputSearchMatch {
+  lineNum: number
+  line: string
+  contextBefore: string
+  contextAfter: string
+}
+
+/** A search result: an output file with matching lines */
+export interface OutputSearchResult {
+  path: string
+  name: string
+  agentId: string
+  mtime: number
+  matches: OutputSearchMatch[]
+}
+
 // Scoped Approval Gate Builder types
 export type ApprovalRuleType = 'file_pattern' | 'cost_threshold' | 'risk_level'
 export type ApprovalRuleAction = 'auto_approve' | 'require_approval' | 'require_escalation'

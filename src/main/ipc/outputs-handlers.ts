@@ -3,7 +3,7 @@ import { promises as fsp } from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import { colonyPaths } from '../../shared/colony-paths'
-import type { OutputEntry } from '../../shared/types'
+import type { OutputEntry, OutputSearchResult, OutputSearchMatch } from '../../shared/types'
 
 const MAX_READ_BYTES = 32 * 1024 // 32KB cap
 
@@ -136,5 +136,80 @@ export function registerOutputsHandlers(): void {
 
   ipcMain.handle('outputs:copyPath', async (_e, filePath: string): Promise<void> => {
     clipboard.writeText(path.resolve(filePath))
+  })
+
+  ipcMain.handle('outputs:search', async (_e, query: string): Promise<OutputSearchResult[]> => {
+    if (!query || query.length < 3) return []
+    const colonyBase = path.join(os.homedir(), '.claude-colony')
+    const outputsDir = path.join(colonyBase, 'outputs')
+    const personasDir = path.join(colonyBase, 'personas')
+
+    const allFiles: { name: string; path: string; mtime: number }[] = []
+    try { allFiles.push(...await safeReadDir(outputsDir, 0)) } catch { /* ignore */ }
+    try {
+      const items = await fsp.readdir(personasDir, { withFileTypes: true })
+      for (const item of items) {
+        if (item.isFile() && item.name.endsWith('.brief.md')) {
+          const fullPath = path.join(personasDir, item.name)
+          try {
+            const stat = await fsp.stat(fullPath)
+            allFiles.push({ name: item.name, path: fullPath, mtime: stat.mtimeMs })
+          } catch { /* skip */ }
+        }
+      }
+    } catch { /* ignore */ }
+
+    // Sort newest first and cap at 50 files
+    allFiles.sort((a, b) => b.mtime - a.mtime)
+    const filesToSearch = allFiles.slice(0, 50)
+    const queryLower = query.toLowerCase()
+    const results: OutputSearchResult[] = []
+    let totalMatches = 0
+
+    // Search files with concurrency limit of 10
+    const CONCURRENCY = 10
+    for (let i = 0; i < filesToSearch.length && totalMatches < 200; i += CONCURRENCY) {
+      const batch = filesToSearch.slice(i, i + CONCURRENCY)
+      const batchResults = await Promise.allSettled(
+        batch.map(async (f) => {
+          if (totalMatches >= 200) return null
+          try {
+            const fh = await fsp.open(f.path, 'r')
+            const buf = Buffer.alloc(MAX_READ_BYTES)
+            const { bytesRead } = await fh.read(buf, 0, buf.length, 0)
+            await fh.close()
+            const text = buf.slice(0, bytesRead).toString('utf-8')
+            const lines = text.split('\n')
+            const matches: OutputSearchMatch[] = []
+            for (let j = 0; j < lines.length && totalMatches + matches.length < 200; j++) {
+              if (lines[j].toLowerCase().includes(queryLower)) {
+                matches.push({
+                  lineNum: j + 1,
+                  line: lines[j].slice(0, 300),
+                  contextBefore: (lines[j - 1] || '').slice(0, 300),
+                  contextAfter: (lines[j + 1] || '').slice(0, 300),
+                })
+              }
+            }
+            if (matches.length > 0) {
+              totalMatches += matches.length
+              return {
+                path: f.path,
+                name: path.basename(f.path),
+                agentId: extractAgentId(f.path),
+                mtime: f.mtime,
+                matches,
+              } as OutputSearchResult
+            }
+            return null
+          } catch { return null }
+        })
+      )
+      for (const r of batchResults) {
+        if (r.status === 'fulfilled' && r.value) results.push(r.value)
+      }
+    }
+
+    return results
   })
 }
