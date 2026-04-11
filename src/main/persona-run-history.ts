@@ -1,7 +1,12 @@
-import { readFileSync, writeFileSync } from 'fs'
+import { readFileSync, writeFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { colonyPaths } from '../shared/colony-paths'
 import type { PersonaRunEntry, PersonaAnalytics } from '../shared/types'
+
+export interface DailyCostEntry {
+  date: string   // YYYY-MM-DD
+  cost: number
+}
 
 const MAX_ENTRIES = 50
 
@@ -54,4 +59,40 @@ export function getPersonaAnalytics(personaId: string): PersonaAnalytics {
   ) / 100
 
   return { totalRuns: allRuns.length, successRate, avgDurationMs, totalCostUsd, costLast7d, recentRuns: allRuns.slice(0, 20) }
+}
+
+/** Aggregate daily cost across all personas for the last 7 days. */
+export function getColonyCostTrend(): DailyCostEntry[] {
+  // Discover all persona run history files
+  let files: string[] = []
+  try {
+    files = readdirSync(colonyPaths.root).filter(f => f.startsWith('persona-run-history-') && f.endsWith('.json'))
+  } catch { return [] }
+
+  // Collect all runs from all personas
+  const allRuns: PersonaRunEntry[] = []
+  for (const file of files) {
+    try {
+      const raw = readFileSync(join(colonyPaths.root, file), 'utf-8')
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) allRuns.push(...parsed)
+    } catch { /* skip corrupt */ }
+  }
+
+  // Group by date for last 7 days
+  const now = Date.now()
+  const dayMs = 24 * 60 * 60 * 1000
+  const result: DailyCostEntry[] = []
+  for (let d = 6; d >= 0; d--) {
+    const dayStart = now - (d + 1) * dayMs
+    const dayEnd = now - d * dayMs
+    const date = new Date(dayEnd).toISOString().slice(0, 10)
+    const cost = Math.round(
+      allRuns
+        .filter(r => { const t = new Date(r.timestamp).getTime(); return t >= dayStart && t < dayEnd })
+        .reduce((s, r) => s + (r.costUsd ?? 0), 0) * 100
+    ) / 100
+    result.push({ date, cost })
+  }
+  return result
 }

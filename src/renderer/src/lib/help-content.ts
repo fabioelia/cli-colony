@@ -118,6 +118,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Active Personas', detail: 'Personas currently executing a scheduled or manual run.' },
           { label: 'Pipelines Enabled', detail: 'Number of pipelines with automation turned on.' },
           { label: 'Session Cost', detail: 'Total cost across all current sessions.' },
+          { label: 'Daily Cost (7d)', detail: 'A 7-day bar chart showing total cost across all persona runs per day. Hover a bar to see the exact date and amount. Only appears when there is cost data.', icon: 'Activity' },
         ],
       },
       {

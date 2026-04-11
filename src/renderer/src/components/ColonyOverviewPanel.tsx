@@ -50,6 +50,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const [personas, setPersonas] = useState<PersonaInfo[]>([])
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([])
   const [tasks, setTasks] = useState<TaskBoardItem[]>([])
+  const [costTrend, setCostTrend] = useState<{ date: string; cost: number }[]>([])
 
   useEffect(() => {
     window.api.activity.list().then(setActivity)
@@ -57,6 +58,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
     window.api.persona.list().then(setPersonas)
     window.api.pipeline.listApprovals().then(setApprovals)
     window.api.tasksBoard.list().then(setTasks)
+    window.api.persona.getColonyCostTrend().then(setCostTrend)
   }, [])
 
   // Listen for live updates
@@ -173,6 +175,34 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
             <div className="overview-stat-label">Session Cost</div>
           </div>
         </div>
+
+        {/* Daily cost trend chart */}
+        {costTrend.some(d => d.cost > 0) && (() => {
+          const maxCost = Math.max(...costTrend.map(d => d.cost), 0.01)
+          const totalWeek = costTrend.reduce((s, d) => s + d.cost, 0)
+          const dayNames = costTrend.map(d => {
+            const dt = new Date(d.date + 'T12:00:00')
+            return dt.toLocaleDateString(undefined, { weekday: 'short' })
+          })
+          return (
+            <div className="overview-section">
+              <h3><Activity size={14} /> Daily Cost (7d) <span className="overview-cost-total">${totalWeek.toFixed(2)}</span></h3>
+              <div className="overview-cost-chart">
+                {costTrend.map((d, i) => {
+                  const pct = d.cost > 0 ? Math.max(8, (d.cost / maxCost) * 100) : 0
+                  return (
+                    <div key={d.date} className="overview-cost-bar-col" title={`${d.date}: $${d.cost.toFixed(2)}`}>
+                      <div className="overview-cost-bar-track">
+                        <div className="overview-cost-bar" style={{ height: `${pct}%` }} />
+                      </div>
+                      <span className="overview-cost-bar-label">{dayNames[i]}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Attention needed */}
         {(pendingApprovals.length > 0 || errorPipelines.length > 0 || blockedTasks.length > 0) && (

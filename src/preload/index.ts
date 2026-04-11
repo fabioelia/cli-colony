@@ -268,6 +268,7 @@ export interface ClaudeManagerAPI {
     ask: (query: string) => Promise<string>
     getRunHistory: (personaId: string) => Promise<PersonaRunEntry[]>
     getAnalytics: (personaId: string) => Promise<PersonaAnalytics>
+    getColonyCostTrend: () => Promise<{ date: string; cost: number }[]>
     onStatus: (cb: (personas: PersonaInfo[]) => void) => () => void
     onRun: (cb: (data: { persona: string; instanceId: string }) => void) => () => void
   }
@@ -787,6 +788,7 @@ const api: ClaudeManagerAPI = {
     ask: (query) => ipcRenderer.invoke('persona:ask', query),
     getRunHistory: (personaId) => ipcRenderer.invoke('persona:getRunHistory', personaId),
     getAnalytics: (personaId) => ipcRenderer.invoke('persona:analytics', personaId),
+    getColonyCostTrend: () => ipcRenderer.invoke('persona:analytics:colony'),
     onStatus: (cb) => {
       const l = (_e: any, data: PersonaInfo[]) => cb(data)
       ipcRenderer.on('persona:status', l)
