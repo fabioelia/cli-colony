@@ -758,18 +758,19 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     }
   }, [instance.status, instance.id])
 
-  // Load and poll colony comments when Changes tab active and session running
+  // Load colony comments on mount + subscribe to live push updates
   useEffect(() => {
     if (viewTab !== 'changes' || instance.status !== 'running') {
       if (viewTab !== 'changes') setColonyComments([])
       return
     }
-    const loadComments = () => {
-      window.api.session.getComments(instance.id).then(setColonyComments).catch(() => {})
-    }
-    loadComments()
-    const pollId = setInterval(loadComments, 3000)
-    return () => clearInterval(pollId)
+    // Initial fetch
+    window.api.session.getComments(instance.id).then(setColonyComments).catch(() => {})
+    // Live push subscription
+    const unsub = window.api.session.onComments(({ instanceId, comments }) => {
+      if (instanceId === instance.id) setColonyComments(comments)
+    })
+    return unsub
   }, [viewTab, instance.id, instance.status])
 
   const handleRevert = useCallback(async (file: string) => {
