@@ -182,7 +182,7 @@ describe('persona-manager: getPersonaList / parseFrontmatter', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    if (mod) mod.stopScheduler()
+    // scheduler cleanup handled by persona-scheduler tests
   })
 
   it('returns parsed PersonaInfo from a full frontmatter file', async () => {
@@ -302,7 +302,7 @@ describe('persona-manager: getPersonaContent', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    if (mod) mod.stopScheduler()
+    // scheduler cleanup handled by persona-scheduler tests
   })
 
   it('returns file content and mtime when file exists', async () => {
@@ -352,7 +352,7 @@ describe('persona-manager: setPersonaSchedule', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    if (mod) mod.stopScheduler()
+    // scheduler cleanup handled by persona-scheduler tests
   })
 
   it('returns false when file does not exist', async () => {
@@ -406,7 +406,7 @@ describe('persona-manager: createPersona', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    if (mod) mod.stopScheduler()
+    // scheduler cleanup handled by persona-scheduler tests
   })
 
   it('creates an unnamed.md file for empty name (slugify fallback)', async () => {
@@ -474,7 +474,7 @@ describe('persona-manager: deletePersona', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    if (mod) mod.stopScheduler()
+    // scheduler cleanup handled by persona-scheduler tests
   })
 
   it('deletes file and returns true when file exists', async () => {
@@ -522,7 +522,7 @@ describe('persona-manager: togglePersona', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    if (mod) mod.stopScheduler()
+    // scheduler cleanup handled by persona-scheduler tests
   })
 
   it('returns false when file does not exist', async () => {
@@ -574,8 +574,9 @@ describe('persona-manager: togglePersona', () => {
 
 // ----------------------------------------------------------------
 
-describe('persona-manager: schedulerLog + startScheduler / stopScheduler', () => {
-  let mod: typeof import('../persona-manager')
+describe('persona-scheduler: schedulerLog + startScheduler / stopScheduler', () => {
+  let schedMod: typeof import('../persona-scheduler')
+  let pmMod: typeof import('../persona-manager')
 
   beforeEach(async () => {
     vi.resetModules()
@@ -587,15 +588,15 @@ describe('persona-manager: schedulerLog + startScheduler / stopScheduler', () =>
   afterEach(async () => {
     vi.useRealTimers()
     vi.restoreAllMocks()
-    if (mod) mod.stopScheduler()
+    if (schedMod) schedMod.stopScheduler()
   })
 
   it('startScheduler writes a "scheduler started" log entry', async () => {
     const fs = buildFsMock()
     setupMocks(fs)
-    mod = await import('../persona-manager')
+    schedMod = await import('../persona-scheduler')
 
-    mod.startScheduler()
+    schedMod.startScheduler()
     expect(fs.appendFileSync).toHaveBeenCalledWith(
       SCHEDULER_LOG,
       expect.stringContaining('scheduler started'),
@@ -606,22 +607,22 @@ describe('persona-manager: schedulerLog + startScheduler / stopScheduler', () =>
   it('startScheduler is idempotent — second call is a no-op', async () => {
     const fs = buildFsMock()
     setupMocks(fs)
-    mod = await import('../persona-manager')
+    schedMod = await import('../persona-scheduler')
 
-    mod.startScheduler()
+    schedMod.startScheduler()
     const callCount = fs.appendFileSync.mock.calls.length
-    mod.startScheduler()
+    schedMod.startScheduler()
     expect(fs.appendFileSync.mock.calls.length).toBe(callCount)  // no second log entry
   })
 
   it('stopScheduler writes a "scheduler stopped" log entry', async () => {
     const fs = buildFsMock()
     setupMocks(fs)
-    mod = await import('../persona-manager')
+    schedMod = await import('../persona-scheduler')
 
-    mod.startScheduler()
+    schedMod.startScheduler()
     fs.appendFileSync.mockClear()
-    mod.stopScheduler()
+    schedMod.stopScheduler()
     expect(fs.appendFileSync).toHaveBeenCalledWith(
       SCHEDULER_LOG,
       expect.stringContaining('scheduler stopped'),
@@ -632,20 +633,20 @@ describe('persona-manager: schedulerLog + startScheduler / stopScheduler', () =>
   it('stopScheduler is a no-op when scheduler is not running', async () => {
     const fs = buildFsMock()
     setupMocks(fs)
-    mod = await import('../persona-manager')
+    schedMod = await import('../persona-scheduler')
 
-    expect(() => mod.stopScheduler()).not.toThrow()
+    expect(() => schedMod.stopScheduler()).not.toThrow()
   })
 
   it('can restart after stop', async () => {
     const fs = buildFsMock()
     setupMocks(fs)
-    mod = await import('../persona-manager')
+    schedMod = await import('../persona-scheduler')
 
-    mod.startScheduler()
-    mod.stopScheduler()
+    schedMod.startScheduler()
+    schedMod.stopScheduler()
     fs.appendFileSync.mockClear()
-    mod.startScheduler()  // should re-register interval and log
+    schedMod.startScheduler()  // should re-register interval and log
     expect(fs.appendFileSync).toHaveBeenCalledWith(
       SCHEDULER_LOG,
       expect.stringContaining('scheduler started'),
@@ -656,9 +657,9 @@ describe('persona-manager: schedulerLog + startScheduler / stopScheduler', () =>
   it('scheduler tick calls getAllInstances for reconciliation', async () => {
     const fs = buildFsMock({ personaFiles: [], personaContents: {} })
     setupMocks(fs)
-    mod = await import('../persona-manager')
+    schedMod = await import('../persona-scheduler')
 
-    mod.startScheduler()
+    schedMod.startScheduler()
     await vi.advanceTimersByTimeAsync(15_000)
 
     expect(mockGetAllInstances).toHaveBeenCalled()
@@ -677,10 +678,11 @@ describe('persona-manager: schedulerLog + startScheduler / stopScheduler', () =>
     })
     setupMocks(fs)
     mockCronMatches.mockReturnValue(true)
-    mod = await import('../persona-manager')
-    mod.loadPersonas()
+    pmMod = await import('../persona-manager')
+    schedMod = await import('../persona-scheduler')
+    pmMod.loadPersonas()
 
-    mod.startScheduler()
+    schedMod.startScheduler()
     await vi.advanceTimersByTimeAsync(15_000)
 
     expect(mockCreateInstance).not.toHaveBeenCalled()
@@ -706,7 +708,7 @@ describe('persona-manager: onSessionExit', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    if (mod) mod.stopScheduler()
+    // scheduler cleanup handled by persona-scheduler tests
   })
 
   it('clears activeSessionId for the matching persona', async () => {
@@ -810,7 +812,7 @@ describe('persona-manager: onSessionExit outcome stats', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    if (mod) mod.stopScheduler()
+    // scheduler cleanup handled by persona-scheduler tests
   })
 
   it('emits session-outcome details with commits and files when git succeeds', async () => {
@@ -973,7 +975,7 @@ describe('persona-manager: parseWhispers (via getPersonaList)', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    if (mod) mod.stopScheduler()
+    // scheduler cleanup handled by persona-scheduler tests
   })
 
   it('returns empty whispers array when no Whispers section', async () => {
@@ -1071,7 +1073,7 @@ describe('persona-manager: addWhisper', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    if (mod) mod.stopScheduler()
+    // scheduler cleanup handled by persona-scheduler tests
   })
 
   it('returns false when persona file does not exist', async () => {
@@ -1179,7 +1181,7 @@ describe('persona-manager: on_complete_run (completion triggers)', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    if (mod) mod.stopScheduler()
+    // scheduler cleanup handled by persona-scheduler tests
   })
 
   it('returns empty onCompleteRun when field is absent', async () => {
@@ -1286,7 +1288,7 @@ describe('persona-manager: Colony Knowledge Base injection', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    if (mod) mod.stopScheduler()
+    // scheduler cleanup handled by persona-scheduler tests
   })
 
   it('omits Colony Knowledge section when KNOWLEDGE.md does not exist', async () => {
@@ -1433,7 +1435,7 @@ Gets launched by triggers.
 
   afterEach(() => {
     vi.restoreAllMocks()
-    if (mod) mod.stopScheduler()
+    // scheduler cleanup handled by persona-scheduler tests
   })
 
   it('launches target persona when on_complete_run matches an enabled, idle persona', async () => {
@@ -1574,7 +1576,7 @@ describe('persona-manager: memory extraction (onSessionExit)', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    if (mod) mod.stopScheduler()
+    // scheduler cleanup handled by persona-scheduler tests
   })
 
   it('spawns claude -p with haiku model when output is long enough and duration >= 60s', async () => {
@@ -1817,7 +1819,7 @@ Reads and reviews.
 
   afterEach(() => {
     vi.restoreAllMocks()
-    if (mod) mod.stopScheduler()
+    // scheduler cleanup handled by persona-scheduler tests
   })
 
   it('parses conflict_group from frontmatter and exposes it in PersonaInfo', async () => {
@@ -1961,16 +1963,17 @@ Reads and reviews.
 
     setupMocks(fs)
     mod = await import('../persona-manager')
+    const schedMod = await import('../persona-scheduler')
     mod.loadPersonas()
 
-    mod.startScheduler()
+    schedMod.startScheduler()
     await vi.advanceTimersByTimeAsync(15_000)
 
     // After reconciliation clears the stale session, cron check should fire the persona
     expect(mockCreateInstance).toHaveBeenCalledOnce()
 
     vi.useRealTimers()
-    mod.stopScheduler()
+    schedMod.stopScheduler()
   })
 })
 
@@ -2026,7 +2029,7 @@ Runs only when there are new commits.
 
   afterEach(() => {
     vi.restoreAllMocks()
-    if (mod) mod.stopScheduler()
+    // scheduler cleanup handled by persona-scheduler tests
   })
 
   it('skips run and sets lastSkipped when no new commits since lastRunAt', async () => {

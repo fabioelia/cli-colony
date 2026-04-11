@@ -178,7 +178,6 @@ describe('persona-manager: dynamic trigger override', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-    if (mod) mod.stopScheduler()
   })
 
   it('uses trigger file entries instead of on_complete_run when file is present', async () => {

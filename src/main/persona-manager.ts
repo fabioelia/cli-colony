@@ -4,8 +4,8 @@
  * and self-managed sections (Active Situations, Learnings, Session Log).
  */
 
-import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, statSync, watch } from 'fs'
-import { execFile, spawn } from 'child_process'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, statSync, watch } from 'fs'
+import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { basename, join } from 'path'
 
@@ -17,13 +17,12 @@ import { getDaemonClient } from './daemon-client'
 import { sendPromptWhenReady } from './send-prompt-when-ready'
 import { broadcast } from './broadcast'
 import { notify } from './notifications'
-import { cronMatches } from '../shared/cron'
 import { slugify, parseFrontmatter as parseRawFrontmatter, stripAnsi } from '../shared/utils'
 import type { PersonaInfo } from '../shared/types'
 import { JsonFile } from '../shared/json-file'
 import { appendActivity } from './activity-manager'
 import { appendRunEntry } from './persona-run-history'
-import { migrateFromMarkdown, readPersonaMemory } from './persona-memory'
+import { migrateFromMarkdown, readPersonaMemory, extractMemoryInBackground } from './persona-memory'
 import { buildPlanningPrompt, buildKickoff } from './persona-prompt-builder'
 
 const PERSONAS_DIR = colonyPaths.personas
@@ -62,11 +61,11 @@ function loadState(): Record<string, PersonaState> {
   return stateCache
 }
 
-function saveState(): void {
+export function saveState(): void {
   stateFile.write(stateCache)
 }
 
-function getState(name: string): PersonaState {
+export function getState(name: string): PersonaState {
   if (!stateCache[name]) {
     stateCache[name] = { lastRunAt: null, runCount: 0, activeSessionId: null, enabled: false, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null, triggeredBy: null, triggerType: null, lastSkipped: null }
   }
@@ -679,50 +678,6 @@ export async function askPersonas(query: string): Promise<string> {
   }
 }
 
-// ---- Memory Extraction ----
-
-/**
- * Fire-and-forget: extract facts from a session output and append to KNOWLEDGE.md.
- * Uses claude -p with haiku for speed. Errors are swallowed — never blocks session cleanup.
- */
-function extractMemoryInBackground(personaName: string, output: string, durationSec: number): void {
-  if (durationSec < 60) return
-  if (!output || output.length < 200) return
-
-  const today = new Date().toISOString().slice(0, 10)
-  const prompt =
-    `Read this session output and extract 1-5 factual learnings about the codebase, ` +
-    `decisions made, or patterns discovered. Format each as: [${today} | ${personaName}] <fact>. ` +
-    `Only include facts useful to other agents. Output a bare list, nothing else.\n\n---\n${output}`
-
-  try {
-    const proc = spawn('claude', ['-p', prompt, '--model', 'claude-haiku-4-5-20251001'], {
-      stdio: ['ignore', 'pipe', 'ignore'],
-      detached: false,
-    })
-
-    let result = ''
-    proc.stdout.on('data', (chunk: Buffer) => { result += chunk.toString() })
-
-    proc.on('close', () => {
-      try {
-        const lines = result
-          .split('\n')
-          .map(l => l.trim())
-          .filter(l => /^\[/.test(l))  // only lines starting with [
-        if (lines.length === 0) return
-
-        const knowledgePath = colonyPaths.knowledgeBase
-        const entry = '\n' + lines.join('\n') + '\n'
-        appendFileSync(knowledgePath, entry, 'utf-8')
-        console.log(`[persona] memory extraction: appended ${lines.length} line(s) to KNOWLEDGE.md`)
-      } catch { /* non-fatal */ }
-    })
-
-    proc.on('error', () => { /* non-fatal */ })
-  } catch { /* non-fatal */ }
-}
-
 // ---- Session Exit Tracking ----
 
 /** Called by instance-manager when any session exits — captures output and clears active session */
@@ -872,97 +827,6 @@ function broadcastStatus(): void {
   broadcast('persona:status', getPersonaList())
 }
 
-// ---- Cron Scheduling ----
-// Cron matching imported from src/shared/cron.ts
-
-function schedulerLog(msg: string): void {
-  const line = `[${new Date().toISOString()}] ${msg}\n`
-  try { appendFileSync(colonyPaths.schedulerLog, line, 'utf-8') } catch { /* non-fatal */ }
-  console.log(`[persona] ${msg}`)
-}
-
-let schedulerInterval: ReturnType<typeof setInterval> | null = null
-let lastCronMinute = -1
-/** Tracks when we first observed a persona session in 'waiting' state (for stale detection). */
-const _waitingSince = new Map<string, number>()
-
-export function startScheduler(): void {
-  if (schedulerInterval) return
-  schedulerLog('scheduler started')
-
-  schedulerInterval = setInterval(async () => {
-    // Reconcile stale activeSessionId — clear if the session no longer exists.
-    // Use a snapshot only for the reconciliation pass; re-read fresh state for the cron check
-    // so that sessions cleared here are immediately visible to the cron loop this same tick.
-    try {
-      const reconcileSnapshot = getPersonaList()
-      const instances = await getAllInstances()
-      let reconciled = false
-      for (const persona of reconcileSnapshot) {
-        if (!persona.activeSessionId) continue
-        const inst = instances.find(i => i.id === persona.activeSessionId && i.status === 'running')
-        if (!inst) {
-          const state = getState(persona.name)
-          state.activeSessionId = null
-          _waitingSince.delete(persona.activeSessionId)
-          reconciled = true
-          continue
-        }
-
-        // Stale waiting detection: if cron-triggered and waiting > 60s, force-kill.
-        // Catches the race where the activity listener missed the 'waiting' transition.
-        const state = getState(persona.name)
-        if (state.triggerType === 'cron' && inst.activity === 'waiting') {
-          if (!_waitingSince.has(persona.activeSessionId)) {
-            _waitingSince.set(persona.activeSessionId, Date.now())
-          } else if (Date.now() - _waitingSince.get(persona.activeSessionId)! > 60_000) {
-            schedulerLog(`session ${persona.activeSessionId} for "${persona.name}" waiting > 60s (cron), killing`)
-            try { await killInstance(persona.activeSessionId) } catch { /* already gone */ }
-            _waitingSince.delete(persona.activeSessionId)
-            state.activeSessionId = null
-            reconciled = true
-          }
-        } else {
-          _waitingSince.delete(persona.activeSessionId)
-        }
-      }
-      if (reconciled) {
-        saveState()
-        broadcastStatus()
-      }
-    } catch { /* daemon may be down */ }
-
-    const currentMinute = new Date().getMinutes()
-    if (currentMinute === lastCronMinute) return // only check once per minute
-    lastCronMinute = currentMinute
-
-    // Re-read after reconciliation so cleared sessions don't block this tick's cron check
-    const personas = getPersonaList()
-    for (const persona of personas) {
-      if (!persona.enabled || !persona.schedule) continue
-
-      if (persona.activeSessionId) {
-        schedulerLog(`skip "${persona.name}" — already running (session ${persona.activeSessionId})`)
-        continue
-      }
-
-      if (cronMatches(persona.schedule)) {
-        schedulerLog(`cron matched "${persona.name}" (${persona.schedule}) — launching`)
-        runPersona(persona.id, { type: 'cron', schedule: persona.schedule }).catch(err => {
-          schedulerLog(`launch failed for "${persona.name}": ${err.message}`)
-        })
-      }
-    }
-  }, 15_000) // check every 15 seconds
-}
-
-export function stopScheduler(): void {
-  if (schedulerInterval) {
-    clearInterval(schedulerInterval)
-    schedulerInterval = null
-    schedulerLog('scheduler stopped')
-  }
-}
 
 // ---- File Watcher ----
 

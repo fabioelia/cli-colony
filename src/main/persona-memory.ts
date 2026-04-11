@@ -9,7 +9,8 @@
  * Limits: 30 learnings, 20 session log entries (oldest trimmed on add).
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync } from 'fs'
+import { spawn } from 'child_process'
 import { join, dirname, basename } from 'path'
 import { colonyPaths } from '../shared/colony-paths'
 import type { PersonaMemory, PersonaMemorySituation, PersonaMemoryLearning, PersonaMemoryLogEntry } from '../shared/types'
@@ -222,4 +223,48 @@ function extractSection(content: string, heading: string): string {
 /** Get the memory file path for a persona (for external callers that need the path). */
 export function getMemoryPath(personaId: string): string {
   return memoryPath(personaId)
+}
+
+// ---- Knowledge Extraction ----
+
+/**
+ * Fire-and-forget: extract facts from a session output and append to KNOWLEDGE.md.
+ * Uses claude -p with haiku for speed. Errors are swallowed — never blocks session cleanup.
+ */
+export function extractMemoryInBackground(personaName: string, output: string, durationSec: number): void {
+  if (durationSec < 60) return
+  if (!output || output.length < 200) return
+
+  const today = new Date().toISOString().slice(0, 10)
+  const prompt =
+    `Read this session output and extract 1-5 factual learnings about the codebase, ` +
+    `decisions made, or patterns discovered. Format each as: [${today} | ${personaName}] <fact>. ` +
+    `Only include facts useful to other agents. Output a bare list, nothing else.\n\n---\n${output}`
+
+  try {
+    const proc = spawn('claude', ['-p', prompt, '--model', 'claude-haiku-4-5-20251001'], {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      detached: false,
+    })
+
+    let result = ''
+    proc.stdout.on('data', (chunk: Buffer) => { result += chunk.toString() })
+
+    proc.on('close', () => {
+      try {
+        const lines = result
+          .split('\n')
+          .map(l => l.trim())
+          .filter(l => /^\[/.test(l))  // only lines starting with [
+        if (lines.length === 0) return
+
+        const knowledgePath = colonyPaths.knowledgeBase
+        const entry = '\n' + lines.join('\n') + '\n'
+        appendFileSync(knowledgePath, entry, 'utf-8')
+        console.log(`[persona] memory extraction: appended ${lines.length} line(s) to KNOWLEDGE.md`)
+      } catch { /* non-fatal */ }
+    })
+
+    proc.on('error', () => { /* non-fatal */ })
+  } catch { /* non-fatal */ }
 }
