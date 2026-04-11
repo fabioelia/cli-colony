@@ -3,7 +3,7 @@ import { useFileDrop } from '../hooks/useFileDrop'
 import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
   ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote, ArrowRightCircle, Save, Loader2,
-  Hourglass, ArrowRight, FolderOpen, Search, Check, Bot, BarChart3, ArrowUpDown, DollarSign, TrendingUp,
+  Hourglass, ArrowRight, FolderOpen, Search, Check, Bot, BarChart3, ArrowUpDown, DollarSign, TrendingUp, Copy,
   CalendarClock, GitBranch, Brain, ShieldCheck,
 } from 'lucide-react'
 import EmptyStateHook from './EmptyStateHook'
@@ -363,6 +363,19 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
     }
   }
 
+  const handleDuplicate = async (id: string) => {
+    const { content } = await window.api.persona.getContent(id)
+    if (!content) return
+    let modified = content.replace(/^(name:\s*["']?)(.+?)(["']?\s*)$/m, '$1$2 (copy)$3')
+    modified = modified.replace(/^(enabled:\s*)\S+/m, '$1false')
+    if (!/^enabled:/m.test(modified)) {
+      modified = modified.replace(/^(name:.*)$/m, '$1\nenabled: false')
+    }
+    const newId = id.replace(/\.md$/, '') + '-copy.md'
+    await window.api.persona.saveContent(newId, modified)
+    loadPersonas()
+  }
+
   const handleCreate = async () => {
     const name = newName.trim()
     if (!name) return
@@ -559,6 +572,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
             onStop={() => handleStop(persona.id)}
             onToggle={(enabled) => handleToggle(persona.id, enabled)}
             onDelete={() => handleDelete(persona.id)}
+            onDuplicate={() => handleDuplicate(persona.id)}
             onFocusInstance={onFocusInstance}
             onViewFile={() => setViewingPersona(persona)}
             onEditFile={() => { setEditingPersona(persona); setEditContent(persona.content) }}
@@ -857,6 +871,7 @@ interface PersonaCardProps {
   onViewFile: () => void
   onEditFile: () => void
   onEditMeta: () => void
+  onDuplicate: () => void
   onScheduleSave: (schedule: string) => Promise<void>
   onWhisper: (text: string) => Promise<void>
   onDeleteNote: (index: number) => Promise<void>
@@ -864,7 +879,7 @@ interface PersonaCardProps {
 
 function PersonaCard({
   persona, expanded, instances, allPersonas, analytics,
-  onToggleExpand, onRun, onStop, onToggle, onDelete, onFocusInstance, onViewFile, onEditFile, onEditMeta, onScheduleSave, onWhisper, onDeleteNote
+  onToggleExpand, onRun, onStop, onToggle, onDelete, onDuplicate, onFocusInstance, onViewFile, onEditFile, onEditMeta, onScheduleSave, onWhisper, onDeleteNote
 }: PersonaCardProps) {
   const [editingSchedule, setEditingSchedule] = useState(false)
   const [whisperOpen, setWhisperOpen] = useState(false)
@@ -1006,6 +1021,9 @@ function PersonaCard({
             )}
             <Tooltip text="Edit schedule, model, and settings">
               <button className="persona-action-btn" onClick={onEditMeta}><Pencil size={11} /></button>
+            </Tooltip>
+            <Tooltip text="Duplicate persona">
+              <button className="persona-action-btn" onClick={onDuplicate}><Copy size={11} /></button>
             </Tooltip>
             <Tooltip text="Add a note for this persona's next run">
               <button className={`persona-action-btn${whispers.length > 0 ? ' whisper-active' : ''}`} onClick={() => setWhisperOpen(v => !v)}>
