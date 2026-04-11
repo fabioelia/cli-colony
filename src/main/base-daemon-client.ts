@@ -199,6 +199,8 @@ export abstract class BaseDaemonClient extends EventEmitter {
           this.killDaemonProcess()
           if (this.socket) {
             this.socket.destroy()
+            this.socket = null
+            this._connected = false
           }
         }
       }

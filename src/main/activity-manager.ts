@@ -23,6 +23,11 @@ let _lastReadId: string | null = null
 // callers (pipeline poll + session exit) could overwrite each other's append.
 let _events: ActivityEvent[] | null = null
 
+// Daily log in-memory cache — keyed by date string. Only caches the current
+// day (+ yesterday briefly during midnight rollover) to avoid unbounded growth.
+// Eliminates read-modify-write race where concurrent appends drop events.
+const _dailyCache = new Map<string, ActivityEvent[]>()
+
 async function getEvents(): Promise<ActivityEvent[]> {
   if (_events === null) {
     try {
@@ -53,15 +58,28 @@ function todayDateStr(): string {
   return new Date().toISOString().slice(0, 10)
 }
 
+async function getDailyEvents(date: string): Promise<ActivityEvent[]> {
+  if (_dailyCache.has(date)) return _dailyCache.get(date)!
+  const logPath = colonyPaths.activityDailyLog(date)
+  let events: ActivityEvent[] = []
+  try {
+    events = JSON.parse(await fsp.readFile(logPath, 'utf-8'))
+  } catch { /* file doesn't exist yet */ }
+  // Only cache today (and yesterday for midnight rollover) — evict stale dates
+  const today = todayDateStr()
+  for (const cached of _dailyCache.keys()) {
+    if (cached !== today && cached !== date) _dailyCache.delete(cached)
+  }
+  _dailyCache.set(date, events)
+  return events
+}
+
 async function appendToDailyLog(event: ActivityEvent): Promise<void> {
   const date = event.timestamp.slice(0, 10)
-  const logPath = colonyPaths.activityDailyLog(date)
   try {
-    let events: ActivityEvent[] = []
-    try {
-      events = JSON.parse(await fsp.readFile(logPath, 'utf-8'))
-    } catch { /* file doesn't exist yet */ }
+    const events = await getDailyEvents(date)
     events.push(event)
+    const logPath = colonyPaths.activityDailyLog(date)
     await fsp.writeFile(logPath, JSON.stringify(events), 'utf-8')
   } catch { /* non-fatal */ }
 }
@@ -69,12 +87,7 @@ async function appendToDailyLog(event: ActivityEvent): Promise<void> {
 export async function loadActivityForDate(date: string): Promise<ActivityEvent[]> {
   // Validate date format to prevent path traversal
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return []
-  const logPath = colonyPaths.activityDailyLog(date)
-  try {
-    return JSON.parse(await fsp.readFile(logPath, 'utf-8'))
-  } catch {
-    return []
-  }
+  return getDailyEvents(date)
 }
 
 export async function cleanupOldDailyLogs(): Promise<void> {
