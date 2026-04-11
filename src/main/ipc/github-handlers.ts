@@ -3,7 +3,7 @@ import { promises as fsp } from 'fs'
 import { join } from 'path'
 import { colonyPaths } from '../../shared/colony-paths'
 import {
-  checkGhAuth, fetchPRs, fetchPRFiles, postPRComment, fetchIssues, createIssue, getRepos, addRepo, removeRepo, getRemovalImpact,
+  checkGhAuth, fetchPRs, fetchPRFiles, postPRComment, submitPRReview, fetchIssues, createIssue, getRepos, addRepo, removeRepo, getRemovalImpact,
   updateRepoPath, getPrompts, savePrompts, resolvePrompt, writePrContext,
   getPrMemory, savePrMemory, getPrMemoryPath, getPrWorkspacePath,
   fetchChecks, fetchCheckLogs, ensureBareClone,
@@ -43,6 +43,8 @@ export function registerGitHubHandlers(): void {
   ipcMain.handle('github:fetchFeedback', (_e, repo: GitHubRepo, prNumber: number) => fetchFeedbackFiles(repo, prNumber))
   ipcMain.handle('github:fetchPRFiles', (_e, repo: GitHubRepo, prNumber: number) => fetchPRFiles(repo, prNumber))
   ipcMain.handle('github:postPRComment', (_e, repo: GitHubRepo, prNumber: number, body: string) => postPRComment(repo, prNumber, body))
+  ipcMain.handle('github:submitReview', (_e, repo: GitHubRepo, prNumber: number, event: string, body?: string) =>
+    submitPRReview(repo, prNumber, event as 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT', body))
   ipcMain.handle('github:fetchIssues', (_e, repo: GitHubRepo) => fetchIssues(repo))
   ipcMain.handle('github:createIssue', (_e, repo: GitHubRepo, title: string, body: string, labels: string[]) => createIssue(repo, title, body, labels))
 }

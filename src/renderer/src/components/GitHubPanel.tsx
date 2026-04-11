@@ -63,6 +63,12 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const [postingComment, setPostingComment] = useState<Set<string>>(new Set())
   const [commentError, setCommentError] = useState<Record<string, string>>({})
 
+  // PR review submission
+  const [reviewBody, setReviewBody] = useState<Record<string, string>>({})
+  const [reviewSubmitting, setReviewSubmitting] = useState<Set<string>>(new Set())
+  const [reviewError, setReviewError] = useState<Record<string, string>>({})
+  const [reviewBodyOpen, setReviewBodyOpen] = useState<Set<string>>(new Set())
+
   // Colony review notes
   const [colonyNotesByPR, setColonyNotesByPR] = useState<Record<string, string>>({}) // keyed by "owner/name#number"
   const [colonyNotesCollapsed, setColonyNotesCollapsed] = useState<Set<string>>(new Set())
@@ -1309,6 +1315,79 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                                   {postingComment.has(prKey) ? 'Posting...' : 'Comment'}
                                 </button>
                               </div>
+                            </div>
+
+                            {/* Submit Review */}
+                            <div className="github-pr-review-actions">
+                              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                <button
+                                  className="panel-header-btn"
+                                  style={{ color: 'var(--green)', borderColor: 'var(--green)' }}
+                                  disabled={reviewSubmitting.has(prKey)}
+                                  onClick={async () => {
+                                    setReviewSubmitting(prev => new Set([...prev, prKey]))
+                                    setReviewError(prev => { const n = { ...prev }; delete n[prKey]; return n })
+                                    try {
+                                      await window.api.github.submitReview(repo, pr.number, 'APPROVE', reviewBody[prKey]?.trim() || undefined)
+                                      setReviewBody(prev => ({ ...prev, [prKey]: '' }))
+                                      const updated = await window.api.github.fetchPRs(repo)
+                                      setPrsByRepo(prev => ({ ...prev, [slug]: updated }))
+                                    } catch (err: any) {
+                                      setReviewError(prev => ({ ...prev, [prKey]: err?.message || 'Failed to submit review' }))
+                                    } finally {
+                                      setReviewSubmitting(prev => { const n = new Set(prev); n.delete(prKey); return n })
+                                    }
+                                  }}
+                                >
+                                  <ShieldCheck size={12} />
+                                  {reviewSubmitting.has(prKey) ? 'Submitting...' : 'Approve'}
+                                </button>
+                                <button
+                                  className="panel-header-btn"
+                                  style={{ color: 'var(--red)', borderColor: 'var(--red)' }}
+                                  disabled={reviewSubmitting.has(prKey)}
+                                  onClick={() => setReviewBodyOpen(prev => {
+                                    const n = new Set(prev); n.has(prKey) ? n.delete(prKey) : n.add(prKey); return n
+                                  })}
+                                >
+                                  <ShieldAlert size={12} /> Request Changes
+                                </button>
+                              </div>
+                              {reviewBodyOpen.has(prKey) && (
+                                <div className="github-pr-comment-input" style={{ marginTop: '6px' }}>
+                                  <textarea
+                                    className="github-pr-comment-textarea"
+                                    placeholder="Describe the changes you'd like..."
+                                    value={reviewBody[prKey] || ''}
+                                    onChange={e => setReviewBody(prev => ({ ...prev, [prKey]: e.target.value }))}
+                                    rows={3}
+                                  />
+                                  <div className="github-pr-comment-actions">
+                                    <button
+                                      className="panel-header-btn primary"
+                                      disabled={!reviewBody[prKey]?.trim() || reviewSubmitting.has(prKey)}
+                                      onClick={async () => {
+                                        setReviewSubmitting(prev => new Set([...prev, prKey]))
+                                        setReviewError(prev => { const n = { ...prev }; delete n[prKey]; return n })
+                                        try {
+                                          await window.api.github.submitReview(repo, pr.number, 'REQUEST_CHANGES', reviewBody[prKey]!.trim())
+                                          setReviewBody(prev => ({ ...prev, [prKey]: '' }))
+                                          setReviewBodyOpen(prev => { const n = new Set(prev); n.delete(prKey); return n })
+                                          const updated = await window.api.github.fetchPRs(repo)
+                                          setPrsByRepo(prev => ({ ...prev, [slug]: updated }))
+                                        } catch (err: any) {
+                                          setReviewError(prev => ({ ...prev, [prKey]: err?.message || 'Failed to submit review' }))
+                                        } finally {
+                                          setReviewSubmitting(prev => { const n = new Set(prev); n.delete(prKey); return n })
+                                        }
+                                      }}
+                                    >
+                                      <Send size={12} /> Submit Review
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                              {reviewError[prKey] && <div className="github-pr-comment-error">{reviewError[prKey]}</div>}
                             </div>
 
                             {/* CI/CD Check Details */}

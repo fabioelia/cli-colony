@@ -196,6 +196,20 @@ export async function postPRComment(repo: GitHubRepo, prNumber: number, body: st
   return JSON.parse(raw.trim())
 }
 
+/** Submit a pull request review (approve, request changes, or comment). */
+export async function submitPRReview(
+  repo: GitHubRepo, prNumber: number,
+  event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT',
+  body?: string
+): Promise<void> {
+  const args = ['pr', 'review', String(prNumber), '--repo', `${repo.owner}/${repo.name}`]
+  if (event === 'APPROVE') args.push('--approve')
+  else if (event === 'REQUEST_CHANGES') args.push('--request-changes')
+  else args.push('--comment')
+  if (body) { args.push('--body', body) }
+  await gh(args)
+}
+
 /** Fetch the list of changed files for a PR, including unified diff patches. */
 export async function fetchPRFiles(repo: GitHubRepo, prNumber: number): Promise<PRFile[]> {
   const slug = `${repo.owner}/${repo.name}`
