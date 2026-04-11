@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useFileDrop } from '../hooks/useFileDrop'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import {
   Zap, ZapOff, Play, RefreshCw, ChevronDown, ChevronRight,
   FileText, Clock, CheckCircle, XCircle, AlertTriangle, Save, BookOpen,
   MessageSquare, Send, Plus, Search, Pencil, Eye, X, LayoutList, LayoutGrid,
-  ShieldCheck, List, Globe, Wand2, ArrowRight, ArrowLeft, Hourglass,
+  ShieldCheck, List, Globe, Wand2, ArrowRight, ArrowLeft, Hourglass, ArrowUpDown,
   GitPullRequest, GitMerge, GitBranch, Sparkles, RotateCw, Copy, Timer,
 } from 'lucide-react'
 import type { AuditResult, GitHubRepo } from '../../../shared/types'
@@ -152,6 +152,9 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [expandedHistoryRows, setExpandedHistoryRows] = useState<Set<number>>(new Set())
 
   const [listMode, setListMode] = useState(() => localStorage.getItem('pipelines-list-mode') !== '0')
+  const [sortBy, setSortBy] = useState<'name' | 'lastFired' | 'fireCount' | 'enabled'>(() =>
+    (localStorage.getItem('pipelines-sort') as 'name' | 'lastFired' | 'fireCount' | 'enabled') || 'name'
+  )
 
   // 60s tick for next-run countdown refresh
   const [, setTick] = useState(0)
@@ -317,6 +320,24 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     await window.api.pipeline.createFromTemplate(modified, slug)
     await window.api.pipeline.reload()
   }
+
+  const sortedPipelines = useMemo(() => {
+    const sorted = [...pipelines]
+    switch (sortBy) {
+      case 'lastFired':
+        sorted.sort((a, b) => (b.lastFiredAt ? new Date(b.lastFiredAt).getTime() : 0) - (a.lastFiredAt ? new Date(a.lastFiredAt).getTime() : 0))
+        break
+      case 'fireCount':
+        sorted.sort((a, b) => b.fireCount - a.fireCount)
+        break
+      case 'enabled':
+        sorted.sort((a, b) => (b.enabled ? 1 : 0) - (a.enabled ? 1 : 0) || a.name.localeCompare(b.name))
+        break
+      default:
+        sorted.sort((a, b) => a.name.localeCompare(b.name))
+    }
+    return sorted
+  }, [pipelines, sortBy])
 
   const handleExpand = async (p: PipelineInfo) => {
     if (expandedPipeline === p.name) {
@@ -523,6 +544,15 @@ action:
       <div className="panel-header">
         <h2><Zap size={16} /> Pipelines</h2>
         <div className="panel-header-spacer" />
+        <div className="persona-sort-dropdown">
+          <ArrowUpDown size={11} />
+          <select value={sortBy} onChange={(e) => { setSortBy(e.target.value as typeof sortBy); localStorage.setItem('pipelines-sort', e.target.value) }}>
+            <option value="name">Name</option>
+            <option value="lastFired">Last Fired</option>
+            <option value="fireCount">Most Active</option>
+            <option value="enabled">Enabled First</option>
+          </select>
+        </div>
         <HelpPopover topic="pipelines" align="right" />
         <div className="panel-header-actions">
           <button className="panel-header-btn primary" onClick={openAutomationWizard} title="Create a new automation with a step-by-step wizard">
@@ -636,7 +666,7 @@ action:
       )}
 
       <div className={`pipelines-list${listMode ? ' list-mode' : ''}`}>
-        {pipelines.map((p) => (
+        {sortedPipelines.map((p) => (
           <div key={p.name} className={`pipeline-card ${p.enabled ? '' : 'disabled'}${expandedPipeline === p.name ? ' expanded' : ''}`}>
             <div className="pipeline-card-header" onClick={() => handleExpand(p)} onContextMenu={(e) => {
               e.preventDefault()
