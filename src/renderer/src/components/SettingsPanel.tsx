@@ -65,6 +65,7 @@ export default function SettingsPanel({ onBack }: Props) {
 
   const [sessionTemplates, setSessionTemplates] = useState<SessionTemplate[]>([])
   const [showTemplatesSection, setShowTemplatesSection] = useState(false)
+  const [editingTemplate, setEditingTemplate] = useState<SessionTemplate | null>(null)
 
   const [approvalRules, setApprovalRules] = useState<ApprovalRule[]>([])
   const [showApprovalRulesSection, setShowApprovalRulesSection] = useState(false)
@@ -954,6 +955,13 @@ export default function SettingsPanel({ onBack }: Props) {
                   </div>
                   <button
                     className="mcp-catalog-delete"
+                    title="Edit template"
+                    onClick={() => setEditingTemplate({ ...t })}
+                  >
+                    <Pencil size={11} />
+                  </button>
+                  <button
+                    className="mcp-catalog-delete"
                     title="Delete template"
                     onClick={async () => {
                       if (!confirm(`Delete template "${t.name}"?`)) return
@@ -1464,6 +1472,73 @@ export default function SettingsPanel({ onBack }: Props) {
       <div className="settings-footer">
         <span className="settings-config-path">~/.claude-colony/settings.json</span>
       </div>
+
+      {editingTemplate && (
+        <div className="dialog-overlay" onClick={(e) => { if (e.target === e.currentTarget) setEditingTemplate(null) }}>
+          <div className="dialog-content" style={{ width: 480 }}>
+            <div className="dialog-header">
+              <h2>Edit Template</h2>
+              <button className="dialog-close" onClick={() => setEditingTemplate(null)}><X size={16} /></button>
+            </div>
+            <div className="dialog-body">
+              <div className="dialog-field">
+                <label>Name</label>
+                <input value={editingTemplate.name} onChange={e => setEditingTemplate({ ...editingTemplate, name: e.target.value })} />
+              </div>
+              <div className="dialog-field">
+                <label>Description</label>
+                <input value={editingTemplate.description || ''} onChange={e => setEditingTemplate({ ...editingTemplate, description: e.target.value || undefined })} />
+              </div>
+              <div className="dialog-field">
+                <label>Model</label>
+                <select value={editingTemplate.model || ''} onChange={e => setEditingTemplate({ ...editingTemplate, model: e.target.value || undefined })} className="settings-select" style={{ width: '100%' }}>
+                  <option value="">Default</option>
+                  <option value="claude-opus-4-6">Opus (claude-opus-4-6)</option>
+                  <option value="claude-sonnet-4-6">Sonnet (claude-sonnet-4-6)</option>
+                  <option value="claude-haiku-4-5-20251001">Haiku (claude-haiku-4-5)</option>
+                </select>
+              </div>
+              <div className="dialog-field">
+                <label>Working Directory</label>
+                <input value={editingTemplate.workingDir || ''} onChange={e => setEditingTemplate({ ...editingTemplate, workingDir: e.target.value || undefined })} placeholder="~/projects/my-app" />
+              </div>
+              <div className="dialog-field">
+                <label>Role</label>
+                <select value={editingTemplate.role || ''} onChange={e => setEditingTemplate({ ...editingTemplate, role: e.target.value || undefined })} className="settings-select" style={{ width: '100%' }}>
+                  <option value="">None</option>
+                  <option value="developer">Developer</option>
+                  <option value="reviewer">Reviewer</option>
+                  <option value="researcher">Researcher</option>
+                  <option value="writer">Writer</option>
+                </select>
+              </div>
+              <div className="dialog-field">
+                <label>Initial Prompt</label>
+                <textarea rows={3} value={editingTemplate.initialPrompt || ''} onChange={e => setEditingTemplate({ ...editingTemplate, initialPrompt: e.target.value || undefined })} placeholder="Optional first prompt sent on launch" />
+              </div>
+              <div className="dialog-field" style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <label style={{ flex: 'none', marginBottom: 0 }}>
+                  <input type="checkbox" checked={editingTemplate.permissionMode === 'autonomous'} onChange={e => setEditingTemplate({ ...editingTemplate, permissionMode: e.target.checked ? 'autonomous' : 'supervised' })} style={{ marginRight: 6 }} />
+                  Autonomous mode
+                </label>
+                <label style={{ flex: 'none', marginBottom: 0 }}>
+                  <input type="checkbox" checked={editingTemplate.planFirst || false} onChange={e => setEditingTemplate({ ...editingTemplate, planFirst: e.target.checked || undefined })} style={{ marginRight: 6 }} />
+                  Plan first
+                </label>
+              </div>
+            </div>
+            <div className="dialog-footer">
+              <button className="dialog-btn" onClick={() => setEditingTemplate(null)}>Cancel</button>
+              <button className="dialog-btn dialog-btn-primary" disabled={!editingTemplate.name.trim()} onClick={async () => {
+                const updated = { ...editingTemplate, name: editingTemplate.name.trim() }
+                await window.api.sessionTemplates.save(updated)
+                setSessionTemplates(prev => prev.map(t => t.id === updated.id ? updated : t))
+                setEditingTemplate(null)
+              }}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         .mcp-env-vars {
