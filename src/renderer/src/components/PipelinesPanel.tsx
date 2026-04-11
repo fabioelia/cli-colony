@@ -800,7 +800,7 @@ action:
               </div>
             )}
             {(p.consecutiveFailures ?? 0) > 0 && (
-              <div className="pipeline-error-block" style={{ color: 'var(--warning)' }}>
+              <div className="pipeline-error-block warning">
                 <AlertTriangle size={10} />
                 {/* Threshold hardcoded to match CONSECUTIVE_FAILURE_THRESHOLD in pipeline-engine.ts */}
                 <span className="pipeline-error-text">{p.consecutiveFailures}/3 consecutive failures</span>

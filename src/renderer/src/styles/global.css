@@ -11606,6 +11606,12 @@ body:has(.daemon-update-banner) .app-update-banner {
   margin-top: 2px;
 }
 
+.pipeline-error-block.warning {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.2);
+  color: var(--warning);
+}
+
 .pipeline-error-block svg { flex-shrink: 0; margin-top: 1px; }
 
 .pipeline-error-text {

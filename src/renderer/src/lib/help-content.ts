@@ -495,6 +495,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Schedule badge', detail: 'Shows the current cron schedule as a human-readable label (e.g. "Weekdays 9am"). Click it to open the schedule editor with presets and next-run preview.', icon: 'Clock' },
           { label: 'Running indicator', detail: 'Pulsing amber dot when the pipeline is actively polling.' },
           { label: 'Error display', detail: 'Red block with error message if the last run failed.' },
+          { label: 'Failure badge', detail: 'Amber warning showing consecutive failure count (e.g. 2/3). Pipelines auto-pause after 3 consecutive failures — this badge surfaces the count before it happens.', icon: 'AlertTriangle' },
           { label: 'Repo pipelines', detail: 'Pipelines from .colony/pipelines/ in tracked repos appear here (disabled by default).' },
           { label: 'Next-run countdown', detail: 'For cron-triggered pipelines, shows when the next fire will happen. Updates every 60 seconds. Shows "Paused" when the pipeline is disabled.', icon: 'Timer' },
           { label: 'Duplicate', detail: 'Create a copy of this pipeline with "(copy)" appended to the name. The copy starts disabled so it won\'t fire until you review and enable it.', icon: 'Copy' },
