@@ -13,6 +13,7 @@ import type {
   PersonaMemory, PersonaMemorySituation, PersonaMemoryLearning, PersonaMemoryLogEntry,
   SessionArtifact, SessionArtifactCommit, PersonaAnalytics,
   NotificationEntry,
+  ErrorSummary,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -30,6 +31,7 @@ export type {
   PersonaMemory, PersonaMemorySituation, PersonaMemoryLearning, PersonaMemoryLogEntry,
   SessionArtifact, SessionArtifactCommit, PersonaAnalytics,
   NotificationEntry,
+  ErrorSummary,
 }
 
 
@@ -80,6 +82,7 @@ export interface ClaudeManagerAPI {
     onFocus: (callback: (data: { id: string }) => void) => () => void
     onActivity: (callback: (data: { id: string; activity: 'busy' | 'waiting' }) => void) => () => void
     onToolDeferred: (callback: (data: { id: string; sessionId: string; toolName?: string }) => void) => () => void
+    onErrorSummary: (callback: (data: { id: string; errorSummary: ErrorSummary }) => void) => () => void
     clearToolDeferred: (id: string) => Promise<boolean>
     fileOverlaps: () => Promise<Record<string, { file: string; otherSessions: { id: string; name: string }[] }[]>>
   }
@@ -578,6 +581,11 @@ const api: ClaudeManagerAPI = {
       const listener = (_e: any, data: { id: string; sessionId: string; toolName?: string }) => callback(data)
       ipcRenderer.on('instance:tool-deferred', listener)
       return () => ipcRenderer.removeListener('instance:tool-deferred', listener)
+    },
+    onErrorSummary: (callback) => {
+      const listener = (_e: any, data: { id: string; errorSummary: import('../shared/types').ErrorSummary }) => callback(data)
+      ipcRenderer.on('instance:errorSummary', listener)
+      return () => ipcRenderer.removeListener('instance:errorSummary', listener)
     },
     clearToolDeferred: (id) => ipcRenderer.invoke('instance:clearToolDeferred', id),
     fileOverlaps: () => ipcRenderer.invoke('instances:fileOverlaps'),

@@ -20,6 +20,7 @@ import { buildMcpConfig, cleanMcpConfigFile } from './mcp-catalog'
 import { scanNewCommits } from './commit-attributor'
 import { markChecklistItem } from './onboarding-state'
 import { appendActivity } from './activity-manager'
+import { parseErrorSummary } from './error-parser'
 
 export type { ClaudeInstance } from '../daemon/protocol'
 import type { ClaudeInstance } from '../daemon/protocol'
@@ -106,6 +107,17 @@ export function wireDaemonEvents(): void {
     broadcast('instance:exited', { id: instanceId, exitCode })
     trackClosed(instanceId, 'exited')
     onSessionExitCallback?.(instanceId)
+
+    // Parse error summary from PTY buffer on non-zero exit
+    if (exitCode !== 0) {
+      client.getInstanceBuffer(instanceId).then(buffer => {
+        if (!buffer) return
+        const errorSummary = parseErrorSummary(buffer)
+        if (errorSummary) {
+          broadcast('instance:errorSummary', { id: instanceId, errorSummary })
+        }
+      }).catch(() => {})
+    }
 
     // Single getInstance call — shared by activity log + commit attribution
     client.getInstance(instanceId).then(inst => {

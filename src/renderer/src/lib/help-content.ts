@@ -1001,6 +1001,14 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Error Summary Card',
+        position: 'Above terminal (exited sessions with non-zero exit code)',
+        items: [
+          { label: 'Error card', detail: 'When a session exits with a non-zero exit code, the last ~2 KB of output is parsed for error patterns (Python tracebacks, Node stack traces, generic errors). A collapsible card shows the error type, message, file location, and context lines.', icon: 'AlertTriangle' },
+          { label: 'Sidebar preview', detail: 'A 1-line error message appears below the working directory on the session tile in the sidebar, making it easy to spot what went wrong without clicking in.' },
+        ],
+      },
+      {
         name: 'Tool Deferred Banner',
         position: 'Above terminal (exited sessions only)',
         items: [

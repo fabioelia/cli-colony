@@ -14,7 +14,7 @@ import ArtifactsTab from './ArtifactsTab'
 import LogsTab from './LogsTab'
 import BrowserTab from './BrowserTab'
 import TeamTab from './TeamTab'
-import type { EnvStatus } from '../../../shared/types'
+import type { EnvStatus, ErrorSummary } from '../../../shared/types'
 import '@xterm/xterm/css/xterm.css'
 import type { ClaudeInstance } from '../types'
 import Tooltip from './Tooltip'
@@ -69,6 +69,7 @@ interface Props {
   onCycleLayout?: () => void
   onEnterGrid?: () => void
   onNavigateToSession?: (id: string) => void
+  errorSummary?: ErrorSummary
 }
 
 function formatUptime(seconds: number): string {
@@ -81,7 +82,7 @@ function formatUptime(seconds: number): string {
 
 type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'changes' | 'artifacts' | 'team' | 'metrics' | 'browser'
 
-export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, onSearchToggle, fontSize = 13, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid, onNavigateToSession }: Props) {
+export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, onSearchToggle, fontSize = 13, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid, onNavigateToSession, errorSummary }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const initializedRef = useRef(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -945,6 +946,25 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
         <div className="changes-panel">
           <TeamMetricsPanel coordinatorSessionId={instance.id} />
         </div>
+      )}
+      {viewTab === 'session' && errorSummary && instance.status === 'exited' && (
+        <details className="session-error-card" open>
+          <summary className="session-error-card-summary">
+            <AlertTriangle size={14} />
+            <span className="session-error-card-type">{errorSummary.errorType}</span>
+            <span className="session-error-card-message">{errorSummary.message}</span>
+          </summary>
+          <div className="session-error-card-body">
+            {errorSummary.file && (
+              <div className="session-error-card-location">
+                {errorSummary.file}{errorSummary.line != null ? `:${errorSummary.line}` : ''}
+              </div>
+            )}
+            {errorSummary.snippet.length > 0 && (
+              <pre className="session-error-card-snippet">{errorSummary.snippet.join('\n')}</pre>
+            )}
+          </div>
+        </details>
       )}
       {viewTab === 'session' && instance.toolDeferredInfo && !deferredDismissed && (
         <div className="tool-deferred-banner">

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
-import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate } from '../../../shared/types'
+import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate, ErrorSummary } from '../../../shared/types'
 import { stripAnsi } from '../../../shared/utils'
 
 const ROLE_ABBREV: Record<string, string> = {
@@ -61,6 +61,7 @@ interface InstanceItemProps {
   isSelected: boolean
   onToggleSelect: (id: string, shiftKey?: boolean) => void
   conflictFiles: { file: string; otherSessions: { id: string; name: string }[] }[] | null
+  errorMessage: string | null
 }
 
 function dirName(path: string) {
@@ -110,7 +111,7 @@ function buildTriggerChain(inst: ClaudeInstance, allInstances: ClaudeInstance[])
   return result
 }
 
-const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcutIndex, isUnread, ctxLevel, splitBadge, focusedPane, isRenaming, renameValue, renameRef, isEditingNote, noteValue, noteRef, onCommitNote, onCancelNote, onNoteChange, callbacks, selectMode, isSelected, onToggleSelect, conflictFiles }: InstanceItemProps) {
+const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcutIndex, isUnread, ctxLevel, splitBadge, focusedPane, isRenaming, renameValue, renameRef, isEditingNote, noteValue, noteRef, onCommitNote, onCancelNote, onNoteChange, callbacks, selectMode, isSelected, onToggleSelect, conflictFiles, errorMessage }: InstanceItemProps) {
   return (
     <div
       className={`instance-item ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''}`}
@@ -248,6 +249,9 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
           )}
           {inst.childIds?.length > 0 && <span className="instance-parent-badge clickable" title={`Go to child session (${inst.childIds.length} total)`} onClick={(e) => { e.stopPropagation(); callbacks.onSelect(inst.childIds[0]) }}> · {inst.childIds.length} child{inst.childIds.length > 1 ? 'ren' : ''}</span>}
         </div>
+        {errorMessage && (
+          <div className="instance-error-preview" title={errorMessage}>{errorMessage}</div>
+        )}
       </div>
       <div className="instance-item-right">
         {inst.status !== 'running' && (
@@ -316,7 +320,8 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
     prev.selectMode === next.selectMode &&
     prev.isSelected === next.isSelected &&
     prev.onToggleSelect === next.onToggleSelect &&
-    prev.conflictFiles === next.conflictFiles
+    prev.conflictFiles === next.conflictFiles &&
+    prev.errorMessage === next.errorMessage
 })
 
 interface Props {
@@ -352,6 +357,7 @@ interface Props {
   currentLayout?: 'single' | '2-up' | '4-up'
   onLoadPreset?: (preset: WorkspacePreset) => void
   onCloneSession?: (inst: ClaudeInstance) => void
+  errorSummaries?: Map<string, ErrorSummary>
 }
 
 function SessionTile({ s, onResumeSession, hoveredSessionId, setHoveredSessionId, popoverPos, setPopoverPos, formatTime }: {
@@ -409,7 +415,7 @@ function SessionTile({ s, onResumeSession, hoveredSessionId, setHoveredSessionId
   )
 }
 
-function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onSetNote, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onShowRestoreDialog, restorableCount, unreadIds, outputBytes, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop, forkGroups = [], onForkSession, gridPanes, currentLayout = 'single', onLoadPreset, onCloneSession }: Props) {
+function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onSetNote, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onShowRestoreDialog, restorableCount, unreadIds, outputBytes, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop, forkGroups = [], onForkSession, gridPanes, currentLayout = 'single', onLoadPreset, onCloneSession, errorSummaries }: Props) {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
@@ -948,6 +954,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
         isSelected={selectedIds.has(inst.id)}
         onToggleSelect={toggleSelect}
         conflictFiles={fileOverlaps[inst.id] || null}
+        errorMessage={errorSummaries?.get(inst.id) ? `${errorSummaries.get(inst.id)!.errorType}: ${errorSummaries.get(inst.id)!.message}` : null}
       />
     )
   }

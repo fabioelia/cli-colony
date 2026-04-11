@@ -38,7 +38,7 @@ import AppUpdateBanner from './components/AppUpdateBanner'
 import WelcomeModal from './components/WelcomeModal'
 import RestoreDialog from './components/RestoreDialog'
 import { stripAnsi } from '../../shared/utils'
-import type { ForkGroup } from '../../shared/types'
+import type { ForkGroup, ErrorSummary } from '../../shared/types'
 
 type View = SidebarView | 'agent-editor'
 
@@ -114,6 +114,7 @@ export default function App() {
   const [forkModalInst, setForkModalInst] = useState<ClaudeInstance | null>(null)
   const [forkModalHint, setForkModalHint] = useState('')
   const [forkGroups, setForkGroups] = useState<ForkGroup[]>([])
+  const [errorSummaries, setErrorSummaries] = useState<Map<string, ErrorSummary>>(new Map())
   const terminalsRef = useRef<Map<string, any>>(new Map())
   const agentToLaunchRef = useRef<AgentDef | null>(null)
   // Track activeId + view in a ref so the output listener always has fresh values
@@ -201,6 +202,17 @@ export default function App() {
         pendingPromptRef.current = null
         window.api.instance.write(id, prompt + '\n').catch(err => console.error('[quick-prompt] write failed:', err))
       }
+    })
+  }, [])
+
+  // Collect error summaries for sessions that exit non-zero
+  useEffect(() => {
+    return window.api.instance.onErrorSummary(({ id, errorSummary }) => {
+      setErrorSummaries(prev => {
+        const next = new Map(prev)
+        next.set(id, errorSummary)
+        return next
+      })
     })
   }, [])
 
@@ -1278,6 +1290,7 @@ export default function App() {
         currentLayout={showGrid ? '4-up' : isSplit ? '2-up' : 'single'}
         onLoadPreset={handleLoadPreset}
         onCloneSession={handleCloneSession}
+        errorSummaries={errorSummaries}
       />
       <div className={`main ${showGrid ? 'grid-4' : isSplit ? 'split' : ''}`}>
         {/* All terminals stay mounted (xterm doesn't support re-open); expensive effects gated on focused prop */}
@@ -1332,6 +1345,7 @@ export default function App() {
                 onCycleLayout={handleCycleLayout}
                 onEnterGrid={handleEnterGrid}
                 onNavigateToSession={setActiveId}
+                errorSummary={errorSummaries.get(inst.id)}
               />
             </div>
           )

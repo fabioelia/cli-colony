@@ -669,6 +669,15 @@ export interface OnboardingState {
   checklist: Record<OnboardingChecklistKey, boolean>
 }
 
+/** Structured error extracted from PTY output when a session exits with non-zero code. */
+export interface ErrorSummary {
+  errorType: string
+  message: string
+  file?: string
+  line?: number
+  snippet: string[]
+}
+
 /** A standalone worktree decoupled from any specific environment. */
 export interface WorktreeInfo {
   id: string
