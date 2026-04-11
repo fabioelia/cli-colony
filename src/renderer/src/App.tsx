@@ -1369,12 +1369,19 @@ export default function App() {
             {arenaMode && (
               <button
                 className={`grid-arena-toggle${arenaJudging ? ' active' : ''}`}
-                onClick={() => setArenaJudgeOpen(true)}
-                disabled={arenaJudging || arenaWinnerId !== null}
-                title={arenaWinnerId ? 'Winner already selected' : 'Auto-Judge — run a command to pick a winner'}
-                aria-label="Auto-Judge"
+                onClick={() => {
+                  if (arenaWinnerId !== null) {
+                    setArenaWinnerId(null)
+                    setArenaVerdictText(null)
+                    setArenaBlind(true)
+                  }
+                  setArenaJudgeOpen(true)
+                }}
+                disabled={arenaJudging}
+                title={arenaWinnerId ? 'Re-judge — clear current verdict and run again' : 'Auto-Judge — run a command to pick a winner'}
+                aria-label={arenaWinnerId ? 'Re-Judge' : 'Auto-Judge'}
               >
-                <Gavel size={11} /> {arenaJudging ? 'Judging...' : 'Judge'}
+                <Gavel size={11} /> {arenaJudging ? 'Judging...' : arenaWinnerId ? 'Re-judge' : 'Judge'}
               </button>
             )}
             <div style={{ flex: 1 }} />
@@ -1484,10 +1491,18 @@ export default function App() {
             {arenaMode && (
               <button
                 className={`arena-toggle-btn${arenaJudging ? ' active' : ''}`}
-                onClick={(e) => { e.stopPropagation(); setArenaJudgeOpen(true) }}
-                disabled={arenaJudging || arenaWinnerId !== null}
-                title={arenaWinnerId ? 'Winner already selected' : 'Auto-Judge'}
-                aria-label="Auto-Judge"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (arenaWinnerId !== null) {
+                    setArenaWinnerId(null)
+                    setArenaVerdictText(null)
+                    setArenaBlind(true)
+                  }
+                  setArenaJudgeOpen(true)
+                }}
+                disabled={arenaJudging}
+                title={arenaWinnerId ? 'Re-judge — clear verdict and run again' : 'Auto-Judge'}
+                aria-label={arenaWinnerId ? 'Re-Judge' : 'Auto-Judge'}
               >
                 <Gavel size={9} />
               </button>
