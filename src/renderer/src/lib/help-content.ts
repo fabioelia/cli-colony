@@ -775,6 +775,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'MCP Server Catalog', detail: 'Define named MCP servers (stdio command or SSE URL). Reference them by name in pipeline YAML (mcpServers: ["name"]) or when creating sessions. Colony writes a --mcp-config temp file and passes it to the Claude CLI.', icon: 'Network' },
           { label: 'Add Server', detail: 'Choose command (stdio) or SSE type. For command servers, enter the executable and arguments. Arguments support quoted strings with spaces (e.g. "-y @mcp/fs \"/path with spaces\"") and environment variables (e.g. "$HOME", "${VAR}"). Example: npx -y @modelcontextprotocol/server-filesystem $HOME/data', icon: 'Plus' },
           { label: 'Environment Variables', detail: 'Set custom environment variables (KEY=value pairs) that will be available when the MCP server runs. Variables are merged with system environment; custom values take precedence. Example: API_KEY=secret, PORT=3000. Variables can be referenced in args using $VAR or ${VAR} syntax.', icon: 'Box' },
+          { label: 'Test', detail: 'Verify an MCP server is reachable — spawns the command or fetches the URL with a 5-second timeout. Result shows inline as a green checkmark (success) or red X (failure) and auto-clears after 10 seconds.', icon: 'Play' },
         ],
       },
       {

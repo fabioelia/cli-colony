@@ -386,6 +386,7 @@ export interface ClaudeManagerAPI {
     delete: (name: string) => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string> }>>
     getAuditLog: () => Promise<McpAuditEntry[]>
     clearAuditLog: () => Promise<void>
+    test: (server: { name: string; command?: string; args?: string[]; url?: string; env?: Record<string, string> }) => Promise<{ ok: boolean; message: string }>
   }
   session: {
     sendMessage: (targetName: string, text: string) => Promise<boolean>
@@ -933,6 +934,7 @@ const api: ClaudeManagerAPI = {
     delete: (name) => ipcRenderer.invoke('mcp:delete', name),
     getAuditLog: () => ipcRenderer.invoke('mcp:getAuditLog'),
     clearAuditLog: () => ipcRenderer.invoke('mcp:clearAuditLog'),
+    test: (server) => ipcRenderer.invoke('mcp:test', server),
   },
   session: {
     sendMessage: (targetName, text) => ipcRenderer.invoke('session:sendMessage', targetName, text),

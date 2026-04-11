@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X, Shield, Sparkles, Check, Circle, Sun, Moon, Palette, Eye, EyeOff, Search } from 'lucide-react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X, Shield, Sparkles, Check, Circle, Sun, Moon, Palette, Eye, EyeOff, Search, Play, CheckCircle, XCircle, Loader } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import BatchExecutionSettings from './BatchExecutionSettings'
 import AppUpdateSettings from './AppUpdateSettings'
@@ -48,6 +48,7 @@ export default function SettingsPanel({ onBack }: Props) {
   const [mcpServers, setMcpServers] = useState<McpServer[]>([])
   const [showMcpSection, setShowMcpSection] = useState(false)
 
+  const [mcpTestResults, setMcpTestResults] = useState<Record<string, { ok: boolean; message: string } | 'testing'>>({})
   const [auditLog, setAuditLog] = useState<McpAuditEntry[]>([])
   const [showAuditSection, setShowAuditSection] = useState(false)
   const [commitAttributions, setCommitAttributions] = useState<CommitAttribution[]>([])
@@ -261,6 +262,13 @@ export default function SettingsPanel({ onBack }: Props) {
     setHotkeyError(result.success ? '' : (result.error || 'Invalid hotkey'))
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleMcpTest = async (server: McpServer) => {
+    setMcpTestResults(prev => ({ ...prev, [server.name]: 'testing' }))
+    const result = await window.api.mcp.test(server)
+    setMcpTestResults(prev => ({ ...prev, [server.name]: result }))
+    setTimeout(() => setMcpTestResults(prev => { const next = { ...prev }; delete next[server.name]; return next }), 10000)
   }
 
   return (
@@ -607,6 +615,19 @@ export default function SettingsPanel({ onBack }: Props) {
                     </div>
                     {s.description && <div className="mcp-catalog-item-desc">{s.description}</div>}
                     <div className="mcp-catalog-item-actions">
+                      <button
+                        className="mcp-catalog-edit"
+                        title={mcpTestResults[s.name] && typeof mcpTestResults[s.name] === 'object' ? (mcpTestResults[s.name] as { ok: boolean; message: string }).message : 'Test connection'}
+                        onClick={() => handleMcpTest(s)}
+                        disabled={mcpTestResults[s.name] === 'testing'}
+                      >
+                        {mcpTestResults[s.name] === 'testing' ? <Loader size={11} className="spinning" />
+                          : mcpTestResults[s.name] && typeof mcpTestResults[s.name] === 'object'
+                            ? (mcpTestResults[s.name] as { ok: boolean }).ok ? <CheckCircle size={11} style={{ color: 'var(--success)' }} />
+                              : <XCircle size={11} style={{ color: 'var(--danger)' }} />
+                            : <Play size={11} />}
+                        {' '}Test
+                      </button>
                       <button
                         className="mcp-catalog-edit"
                         title="Edit"
