@@ -1422,6 +1422,15 @@ action:
             <div className="context-menu-item" onClick={() => { const p = pipelines.find(pp => pp.name === pipelineCtx.name); if (p) handlePreview(p); setPipelineCtx(null) }}>
               Preview Next Run
             </div>
+            <div className="context-menu-divider" />
+            <div className="context-menu-item danger" onClick={async () => {
+              const { fileName, name } = pipelineCtx
+              setPipelineCtx(null)
+              if (!confirm(`Delete pipeline "${name}"? This removes the YAML file and associated data.`)) return
+              await window.api.pipeline.delete(fileName)
+            }}>
+              Delete
+            </div>
           </div>
         </div>
       )}

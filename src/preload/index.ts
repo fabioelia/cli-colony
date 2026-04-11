@@ -243,6 +243,7 @@ export interface ClaudeManagerAPI {
     getHistory: (name: string) => Promise<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; stages?: Array<{ index: number; actionType: string; sessionName?: string; durationMs: number; success: boolean; error?: string }> }>>
     createFromTemplate: (yaml: string, slug: string) => Promise<boolean>
     generate: (description: string) => Promise<string>
+    delete: (fileName: string) => Promise<boolean>
   }
   persona: {
     list: () => Promise<PersonaInfo[]>
@@ -755,6 +756,7 @@ const api: ClaudeManagerAPI = {
     getHistory: (name) => ipcRenderer.invoke('pipeline:getHistory', name),
     createFromTemplate: (yaml, slug) => ipcRenderer.invoke('pipeline:createFromTemplate', yaml, slug),
     generate: (description) => ipcRenderer.invoke('pipeline:generate', description),
+    delete: (fileName) => ipcRenderer.invoke('pipeline:delete', fileName),
   },
   persona: {
     list: () => ipcRenderer.invoke('persona:list'),

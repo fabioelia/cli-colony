@@ -111,6 +111,23 @@ export function registerPipelineHandlers(): void {
   ipcMain.handle('pipeline:toggle', (_e, name: string, enabled: boolean) => togglePipeline(name, enabled))
   ipcMain.handle('pipeline:triggerNow', (_e, name: string) => triggerPollNow(name))
   ipcMain.handle('pipeline:getDir', () => getPipelinesDir())
+  ipcMain.handle('pipeline:delete', async (_e, fileName: string) => {
+    if (fileName.includes('..')) return false
+    const dir = getPipelinesDir()
+    const base = fileName.replace(/\.(yaml|yml)$/, '')
+    const targets = [
+      join(dir, fileName),
+      join(dir, `${base}.memory.md`),
+      join(dir, `${base}.readme.md`),
+      join(dir, `${base}.debug.json`),
+      join(dir, `${base}.state.json`),
+    ]
+    for (const f of targets) {
+      try { await fsp.unlink(f) } catch { /* ignore missing */ }
+    }
+    await loadPipelines()
+    return true
+  })
   ipcMain.handle('pipeline:getContent', (_e, fileName: string) => getPipelineContent(fileName))
   ipcMain.handle('pipeline:saveContent', (_e, fileName: string, content: string) => savePipelineContent(fileName, content))
   ipcMain.handle('pipeline:reload', async () => { await loadPipelines(); return getPipelineList() })
