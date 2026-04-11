@@ -1281,6 +1281,7 @@ export default function App() {
                 terminalsRef={terminalsRef}
                 searchOpen={isFocused && searchOpen}
                 onSearchClose={handleSearchClose}
+                onSearchToggle={() => setSearchOpen(prev => !prev)}
                 fontSize={fontSize}
                 focused={isFocused}
                 onFocusPane={showGrid ? () => handleGridPaneFocus(gridIdx) : isLeft ? instanceCallbacksRef.current.get(inst.id)!.onFocusLeft : instanceCallbacksRef.current.get(inst.id)!.onFocusRight}
