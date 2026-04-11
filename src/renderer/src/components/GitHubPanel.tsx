@@ -1322,7 +1322,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                               <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                                 <button
                                   className="panel-header-btn"
-                                  style={{ color: 'var(--green)', borderColor: 'var(--green)' }}
+                                  style={{ color: 'var(--success)', borderColor: 'var(--success)' }}
                                   disabled={reviewSubmitting.has(prKey)}
                                   onClick={async () => {
                                     setReviewSubmitting(prev => new Set([...prev, prKey]))
@@ -1344,7 +1344,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                                 </button>
                                 <button
                                   className="panel-header-btn"
-                                  style={{ color: 'var(--red)', borderColor: 'var(--red)' }}
+                                  style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}
                                   disabled={reviewSubmitting.has(prKey)}
                                   onClick={() => setReviewBodyOpen(prev => {
                                     const n = new Set(prev); n.has(prKey) ? n.delete(prKey) : n.add(prKey); return n
