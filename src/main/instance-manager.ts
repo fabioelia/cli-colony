@@ -84,7 +84,7 @@ export function wireDaemonEvents(): void {
       // Show native notification if app is not focused
       if (!appFocused) {
         notify('Colony: Claude is waiting', 'A session finished and needs your attention.',
-          { type: 'session', id: instanceId })
+          { type: 'session', id: instanceId }, 'session')
       }
     }
   })
@@ -97,7 +97,7 @@ export function wireDaemonEvents(): void {
     notify(
       'Tool Deferred',
       `${name}: ${toolName || 'A tool'} needs approval`,
-      { type: 'session', id: instanceId }
+      { type: 'session', id: instanceId }, 'session'
     )
   })
 

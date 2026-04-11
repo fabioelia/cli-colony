@@ -651,7 +651,7 @@ export default function SettingsPanel({ onBack }: Props) {
                       if (Object.keys(envVars).length > 0) {
                         formToSave = { ...formToSave, env: envVars }
                       }
-                      const updated = await window.api.mcp.save(formToSave)
+                      const updated = await window.api.mcp.save(formToSave, mcpOriginalName ?? undefined)
                       setMcpServers(updated)
                       setMcpForm(null)
                       setMcpFormArgsString('')

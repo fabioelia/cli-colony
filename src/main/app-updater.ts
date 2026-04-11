@@ -333,7 +333,7 @@ export async function initAppUpdater(mainWindow: BrowserWindow | null): Promise<
   }
 
   // Kick off startup check + daily schedule if the user hasn't opted out
-  if (isAutoUpdateEnabled()) {
+  if (await isAutoUpdateEnabled()) {
     // Delay the first check so it doesn't compete with daemon / pipeline startup
     setTimeout(() => void runCheck('startup'), 10_000)
     scheduleDailyCheck()

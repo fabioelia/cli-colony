@@ -87,7 +87,8 @@ function inferSource(title: string): string {
 export async function notify(
   title: string,
   body: string,
-  route?: string | Record<string, unknown>
+  route?: string | Record<string, unknown>,
+  source?: string
 ): Promise<void> {
   await ensureLoaded()
 
@@ -99,7 +100,7 @@ export async function notify(
     route,
     timestamp: Date.now(),
     read: false,
-    source: inferSource(title),
+    source: source ?? inferSource(title),
   }
   _history.push(entry)
   if (_history.length > MAX_HISTORY) {

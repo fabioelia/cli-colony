@@ -368,7 +368,7 @@ export interface ClaudeManagerAPI {
   }
   mcp: {
     list: () => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string> }>>
-    save: (server: { name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string> }) => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string> }>>
+    save: (server: { name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string> }, originalName?: string) => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string> }>>
     delete: (name: string) => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string> }>>
     getAuditLog: () => Promise<McpAuditEntry[]>
     clearAuditLog: () => Promise<void>
@@ -889,7 +889,7 @@ const api: ClaudeManagerAPI = {
   },
   mcp: {
     list: () => ipcRenderer.invoke('mcp:list'),
-    save: (server) => ipcRenderer.invoke('mcp:save', server),
+    save: (server, originalName) => ipcRenderer.invoke('mcp:save', server, originalName),
     delete: (name) => ipcRenderer.invoke('mcp:delete', name),
     getAuditLog: () => ipcRenderer.invoke('mcp:getAuditLog'),
     clearAuditLog: () => ipcRenderer.invoke('mcp:clearAuditLog'),

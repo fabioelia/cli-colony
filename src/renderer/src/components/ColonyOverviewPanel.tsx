@@ -67,6 +67,9 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
       window.api.pipeline.onStatus((list) => setPipelines(list)),
       window.api.persona.onStatus((list) => setPersonas(list)),
       window.api.tasksBoard.onUpdated((items) => setTasks(items)),
+      window.api.pipeline.onApprovalNew((request) => {
+        setApprovals(prev => [...prev, request])
+      }),
       window.api.pipeline.onApprovalUpdate(({ id, status }) => {
         if (status === 'approved' || status === 'dismissed' || status === 'expired') {
           setApprovals(prev => prev.filter(a => a.id !== id))
