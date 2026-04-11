@@ -666,7 +666,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Middle section',
         items: [
           { label: 'Global hotkey', detail: 'Keyboard shortcut to summon Colony from any app (default: Ctrl+Shift+Space).' },
-          { label: 'Desktop notifications', detail: 'Show system notifications for pipeline fires, approval gates, and persona run start/complete events.' },
+          { label: 'Desktop notifications', detail: 'Show system notifications for pipeline fires, approval gates, and persona run start/complete events. Per-source toggles appear below when enabled — mute noisy sources (e.g. pipelines) while keeping important ones (e.g. approval gates).' },
           { label: 'Sound on finish', detail: 'Play a sound when Claude finishes processing and the app isn\'t focused.' },
           { label: 'Auto-cleanup', detail: 'Remove stopped sessions after N minutes. Set to 0 to keep them forever.' },
         ],

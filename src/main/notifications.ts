@@ -112,6 +112,8 @@ export async function notify(
 
   // Desktop notification (respects user opt-out)
   if (await getSetting('notificationsEnabled') === 'false') return
+  const sourceKey = `notify${entry.source.charAt(0).toUpperCase() + entry.source.slice(1)}`
+  if (await getSetting(sourceKey) === 'false') return
   if (!Notification.isSupported()) return
 
   const notif = new Notification({

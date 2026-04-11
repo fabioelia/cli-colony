@@ -19,6 +19,9 @@ export default function SettingsPanel({ onBack }: Props) {
   const [gitProtocol, setGitProtocol] = useState<'ssh' | 'https'>('ssh')
   const [detectedProtocol, setDetectedProtocol] = useState<'ssh' | 'https' | null>(null)
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
+  const [notifySources, setNotifySources] = useState<Record<string, boolean>>({
+    pipeline: true, persona: true, approval: true, session: true, budget: true, system: true,
+  })
   const [soundOnFinish, setSoundOnFinish] = useState(true)
   const [autoCleanupMinutes, setAutoCleanupMinutes] = useState('5')
   const [globalHotkey, setGlobalHotkey] = useState('CommandOrControl+Shift+Space')
@@ -81,6 +84,14 @@ export default function SettingsPanel({ onBack }: Props) {
       setShellProfile(s.shellProfile || '')
       setGitProtocol((s.gitProtocol === 'https' ? 'https' : 'ssh') as 'ssh' | 'https')
       setNotificationsEnabled(s.notificationsEnabled !== 'false')
+      setNotifySources({
+        pipeline: s.notifyPipeline !== 'false',
+        persona: s.notifyPersona !== 'false',
+        approval: s.notifyApproval !== 'false',
+        session: s.notifySession !== 'false',
+        budget: s.notifyBudget !== 'false',
+        system: s.notifySystem !== 'false',
+      })
       setSoundOnFinish(s.soundOnFinish !== 'false')
       setAutoCleanupMinutes(s.autoCleanupMinutes || '5')
       setGlobalHotkey(s.globalHotkey || 'CommandOrControl+Shift+Space')
@@ -162,6 +173,12 @@ export default function SettingsPanel({ onBack }: Props) {
       window.api.settings.set('shellProfile', shellProfile),
       window.api.settings.set('gitProtocol', gitProtocol),
       window.api.settings.set('notificationsEnabled', notificationsEnabled ? 'true' : 'false'),
+      window.api.settings.set('notifyPipeline', notifySources.pipeline ? 'true' : 'false'),
+      window.api.settings.set('notifyPersona', notifySources.persona ? 'true' : 'false'),
+      window.api.settings.set('notifyApproval', notifySources.approval ? 'true' : 'false'),
+      window.api.settings.set('notifySession', notifySources.session ? 'true' : 'false'),
+      window.api.settings.set('notifyBudget', notifySources.budget ? 'true' : 'false'),
+      window.api.settings.set('notifySystem', notifySources.system ? 'true' : 'false'),
       window.api.settings.set('soundOnFinish', soundOnFinish ? 'true' : 'false'),
       window.api.settings.set('autoCleanupMinutes', autoCleanupMinutes),
       window.api.settings.set('globalHotkey', globalHotkey),
@@ -357,6 +374,24 @@ export default function SettingsPanel({ onBack }: Props) {
           </button>
         </div>
         <p className="settings-help">Show system notifications for pipeline fires, approval gates, and persona run events.</p>
+        {notificationsEnabled && (
+          <div className="settings-notification-sources">
+            {(['pipeline', 'persona', 'approval', 'session', 'budget', 'system'] as const).map(source => (
+              <div key={source} className="settings-row" style={{ paddingLeft: 24 }}>
+                <span className="settings-row-label">{source.charAt(0).toUpperCase() + source.slice(1)}</span>
+                <button
+                  className={`settings-toggle ${notifySources[source] ? 'active' : ''}`}
+                  onClick={() => setNotifySources(prev => ({ ...prev, [source]: !prev[source] }))}
+                  role="switch"
+                  aria-checked={notifySources[source]}
+                  title={notifySources[source] ? `Mute ${source} notifications` : `Enable ${source} notifications`}
+                >
+                  <span className="settings-toggle-knob" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="settings-row">
           <span className="settings-row-label">Sound when Claude finishes</span>
           <button
