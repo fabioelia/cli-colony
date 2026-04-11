@@ -489,8 +489,6 @@ body:has(.daemon-update-banner) .app-update-banner {
   gap: 3px;
   padding: 3px 7px;
 }
-.sidebar-bulk-actions .panel-header-btn.danger { color: var(--danger); }
-.sidebar-bulk-actions .panel-header-btn.danger:hover { background: color-mix(in srgb, var(--danger) 15%, transparent); }
 .sidebar-bulk-actions .panel-header-btn:disabled {
   opacity: 0.35;
   pointer-events: none;
@@ -8464,6 +8462,8 @@ body:has(.daemon-update-banner) .app-update-banner {
 .panel-header-btn.primary:hover {
   filter: brightness(1.1);
 }
+.panel-header-btn.danger { color: var(--danger); }
+.panel-header-btn.danger:hover { background: color-mix(in srgb, var(--danger) 15%, transparent); }
 
 .panel-header-tabs {
   display: flex;
