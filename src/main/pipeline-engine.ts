@@ -220,6 +220,8 @@ const filePollSnapshots = new Map<string, Map<string, number>>()
 let githubUser: string | null = null
 let started = false
 let approvalSweepTimer: ReturnType<typeof setInterval> | null = null
+/** Startup setTimeout IDs — cleared on stop to prevent firing on stopped pipelines */
+const startupTimers = new Set<ReturnType<typeof setTimeout>>()
 
 export function log(msg: string): void {
   console.log(`[pipeline] ${msg}`)
@@ -1422,12 +1424,14 @@ async function schedulePipeline(name: string, def: PipelineDef): Promise<void> {
     timers.set(name, cronCheck)
 
     // Also run on startup if cron matches right now
-    setTimeout(() => {
+    const startupTimer = setTimeout(() => {
+      startupTimers.delete(startupTimer)
       if (cronMatches(cronExpr)) {
         log(`Cron matches on startup for ${name}`)
         runPoll(name)
       }
     }, 10000)
+    startupTimers.add(startupTimer)
   } else if (def.trigger.type === 'file-poll') {
     // File-watch: poll mtime of watched paths on a short interval
     const intervalMs = (def.trigger.interval || 30) * 1000
@@ -1458,7 +1462,8 @@ async function schedulePipeline(name: string, def: PipelineDef): Promise<void> {
         if (msSinceLastFire < COOLDOWN_MS) return
       }
 
-      const current = filePollSnapshots.get(name)!
+      const current = filePollSnapshots.get(name)
+      if (!current) return // pipeline stopped between async ticks
       let changed = false
 
       for (const watchPath of watchPaths) {
@@ -1491,7 +1496,11 @@ async function schedulePipeline(name: string, def: PipelineDef): Promise<void> {
     const intervalMs = (def.trigger.interval || 300) * 1000
     log(`Starting interval pipeline ${name} every ${intervalMs / 1000}s`)
 
-    setTimeout(() => runPoll(name), 10000)
+    const intervalStartup = setTimeout(() => {
+      startupTimers.delete(intervalStartup)
+      runPoll(name)
+    }, 10000)
+    startupTimers.add(intervalStartup)
     const timer = setInterval(() => runPoll(name), intervalMs)
     timers.set(name, timer)
   }
@@ -1502,6 +1511,8 @@ export function stopPipelines(): void {
     clearInterval(timer)
   }
   timers.clear()
+  startupTimers.forEach(clearTimeout)
+  startupTimers.clear()
   runningPolls.clear()
   filePollSnapshots.clear()
   if (approvalSweepTimer) {

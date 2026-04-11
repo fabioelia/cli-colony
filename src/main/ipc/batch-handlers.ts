@@ -3,7 +3,7 @@
  */
 
 import { ipcMain } from 'electron'
-import { getDefaultBatchConfig, getBatchHistory, executeBatch, startBatchScheduler, stopBatchScheduler } from '../batch-runner'
+import { getDefaultBatchConfig, getBatchHistory, executeBatch, isBatchInProgress, startBatchScheduler, stopBatchScheduler } from '../batch-runner'
 import { BatchConfig, BatchRun } from '../../shared/types'
 import { getSetting, setSetting } from '../settings'
 
@@ -53,7 +53,7 @@ export function registerBatchHandlers(): void {
   /**
    * batch:getHistory — retrieve recent batch runs
    */
-  ipcMain.handle('batch:getHistory', (_event, limit: number = 20): BatchRun[] => {
+  ipcMain.handle('batch:getHistory', async (_event, limit: number = 20): Promise<BatchRun[]> => {
     return getBatchHistory(Math.min(limit, 100))
   })
 
@@ -61,6 +61,9 @@ export function registerBatchHandlers(): void {
    * batch:runNow — trigger a batch immediately (bypass schedule)
    */
   ipcMain.handle('batch:runNow', async (): Promise<{ success: boolean; batchId?: string; error?: string }> => {
+    if (isBatchInProgress()) {
+      return { success: false, error: 'Batch already in progress' }
+    }
     try {
       const stored = await getSetting('batchConfig')
       const config: BatchConfig = stored ? JSON.parse(stored) : getDefaultBatchConfig()

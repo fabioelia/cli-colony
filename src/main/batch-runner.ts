@@ -19,6 +19,13 @@ const BATCH_HISTORY_FILE = join(colonyPaths.root, 'batch-history.jsonl')
 const BATCH_CONFIG_KEY = 'batch-config'
 const MAX_HISTORY_ENTRIES = 100
 
+let batchInProgress = false
+
+/** Check if a batch is currently executing. */
+export function isBatchInProgress(): boolean {
+  return batchInProgress
+}
+
 interface TaskQueueItem {
   id: string
   name: string
@@ -175,6 +182,18 @@ export function completeBatchRun(run: BatchRun): void {
  * track results, and persist history.
  */
 export async function executeBatch(config: BatchConfig): Promise<BatchRun> {
+  if (batchInProgress) {
+    throw new Error('Batch already in progress')
+  }
+  batchInProgress = true
+  try {
+    return await _executeBatchInner(config)
+  } finally {
+    batchInProgress = false
+  }
+}
+
+async function _executeBatchInner(config: BatchConfig): Promise<BatchRun> {
   // 1. Scan task queue directory
   const taskQueueDir = colonyPaths.taskQueues
   const files = (await fsp.readdir(taskQueueDir))

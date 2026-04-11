@@ -29,6 +29,7 @@ vi.mock('../batch-runner', () => ({
   getBatchHistory: vi.fn(() => []),
   parseTaskQueue: vi.fn(() => []),
   executeBatch: vi.fn().mockResolvedValue({ id: 'mock-batch-id', success: true }),
+  isBatchInProgress: vi.fn(() => false),
   startBatchScheduler: vi.fn(),
   stopBatchScheduler: vi.fn(),
 }))
