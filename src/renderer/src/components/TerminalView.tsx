@@ -5,17 +5,17 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, RefreshCw, Columns2, LayoutGrid, ExternalLink, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation, MessageCircleWarning, ThumbsUp, Sparkles, Bot, BarChart3, Package, GitCommit, Globe, Bug, FileDown, CheckCircle, Copy } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, RefreshCw, Columns2, LayoutGrid, ExternalLink, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Clock, Trophy, GitCompare, RotateCw, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, Bug, FileDown, CheckCircle, Copy } from 'lucide-react'
 import { TeamMetricsPanel } from './TeamMetricsPanel'
 import ServicesTab from './ServicesTab'
 import FilesTab from './FilesTab'
-import type { EnvStatus, GitDiffEntry, ColonyComment, ScoreCard, CoordinatorTeam, CoordinatorWorker, SessionArtifact } from '../../../shared/types'
+import ChangesTab from './ChangesTab'
+import ArtifactsTab from './ArtifactsTab'
+import type { EnvStatus, CoordinatorTeam, CoordinatorWorker } from '../../../shared/types'
 import '@xterm/xterm/css/xterm.css'
 import type { ClaudeInstance } from '../types'
 import Tooltip from './Tooltip'
 import HelpPopover from './HelpPopover'
-import CommitDialog from './CommitDialog'
-import DiffViewer from './DiffViewer'
 import { usePanelTabKeys } from '../hooks/usePanelTabKeys'
 
 function getXtermTheme(variant: 'session' | 'shell') {
@@ -124,26 +124,10 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const logsEndRef = useRef<HTMLDivElement>(null)
   const [logsAutoScroll, setLogsAutoScroll] = useState(true)
   const logsInitialized = useRef(false)
-  // Changes tab state
-  const [gitChanges, setGitChanges] = useState<GitDiffEntry[]>([])
-  const [gitChangesLoading, setGitChangesLoading] = useState(false)
-  const [colonyComments, setColonyComments] = useState<ColonyComment[]>([])
-  const [reverting, setReverting] = useState<Set<string>>(new Set())
-  const [revertingAll, setRevertingAll] = useState(false)
-  const [scoreCard, setScoreCard] = useState<ScoreCard | null>(null)
-  const [scoreCardLoading, setScoreCardLoading] = useState(false)
-  const [showCommitDialog, setShowCommitDialog] = useState(false)
-  const [expandedDiffFile, setExpandedDiffFile] = useState<string | null>(null)
-  const diffCacheRef = useRef<Record<string, string>>({})
-  const [diffContent, setDiffContent] = useState<string | null>(null)
-  const [diffLoading, setDiffLoading] = useState(false)
   // Browser context menu state
   const [webviewContextMenu, setWebviewContextMenu] = useState<{
     x: number; y: number; editFlags: Record<string, boolean>
   } | null>(null)
-  // Artifacts tab state
-  const [artifact, setArtifact] = useState<SessionArtifact | null>(null)
-  const [artifactLoading, setArtifactLoading] = useState(false)
   // Team tab state (Coordinator role)
   const [coordinatorTeam, setCoordinatorTeam] = useState<CoordinatorTeam | null>(null)
   const [teamLoading, setTeamLoading] = useState(false)
@@ -410,119 +394,9 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     return () => window.removeEventListener('resize', handleResize)
   }, [viewTab])
 
-  // Load git changes when switching to changes tab
-  const loadGitChanges = useCallback(() => {
-    if (!instance.workingDirectory) return
-    setGitChangesLoading(true)
-    diffCacheRef.current = {}
-    window.api.session.gitChanges(instance.workingDirectory).then((entries) => {
-      setGitChanges(entries)
-      setGitChangesLoading(false)
-    }).catch(() => {
-      setGitChanges([])
-      setGitChangesLoading(false)
-    })
-  }, [instance.workingDirectory])
 
-  useEffect(() => {
-    if (viewTab !== 'changes') return
-    loadGitChanges()
-  }, [viewTab, instance.workingDirectory, loadGitChanges])
 
-  // Poll changes every 10s while tab is active
-  useEffect(() => {
-    if (viewTab !== 'changes' || !instance.workingDirectory) return
-    const pollId = setInterval(loadGitChanges, 10000)
-    return () => clearInterval(pollId)
-  }, [viewTab, instance.workingDirectory, loadGitChanges])
 
-  // Load artifact when Artifacts tab is selected
-  useEffect(() => {
-    if (viewTab !== 'artifacts') return
-    setArtifactLoading(true)
-    window.api.artifacts.get(instance.id).then(a => {
-      setArtifact(a)
-      setArtifactLoading(false)
-    }).catch(() => setArtifactLoading(false))
-  }, [viewTab, instance.id])
-
-  // Auto-load artifact when session exits
-  useEffect(() => {
-    if (instance.status === 'exited') {
-      window.api.artifacts.get(instance.id).then(a => setArtifact(a)).catch(() => {})
-    }
-  }, [instance.status, instance.id])
-
-  // Load colony comments on mount + subscribe to live push updates
-  useEffect(() => {
-    if (viewTab !== 'changes' || instance.status !== 'running') {
-      if (viewTab !== 'changes') setColonyComments([])
-      return
-    }
-    // Initial fetch
-    window.api.session.getComments(instance.id).then(setColonyComments).catch(() => {})
-    // Live push subscription
-    const unsub = window.api.session.onComments(({ instanceId, comments }) => {
-      if (instanceId === instance.id) setColonyComments(comments)
-    })
-    return unsub
-  }, [viewTab, instance.id, instance.status])
-
-  const handleRevert = useCallback(async (file: string) => {
-    if (!instance.workingDirectory) return
-    if (!window.confirm(`Revert "${file}"? This cannot be undone.`)) return
-    setReverting(prev => new Set(prev).add(file))
-    await window.api.session.gitRevert(instance.workingDirectory, file).catch(() => {})
-    setReverting(prev => { const n = new Set(prev); n.delete(file); return n })
-    loadGitChanges()
-  }, [instance.workingDirectory, loadGitChanges])
-
-  const handleRevertAll = useCallback(async () => {
-    if (!instance.workingDirectory || gitChanges.length === 0) return
-    if (!window.confirm(`Revert all ${gitChanges.length} changed file(s)? This cannot be undone.`)) return
-    setRevertingAll(true)
-    await Promise.all(gitChanges.map(e => window.api.session.gitRevert(instance.workingDirectory!, e.file).catch(() => {})))
-    setRevertingAll(false)
-    loadGitChanges()
-  }, [instance.workingDirectory, gitChanges, loadGitChanges])
-
-  const handleScoreOutput = useCallback(async () => {
-    if (!instance.workingDirectory || gitChanges.length === 0) return
-    setScoreCardLoading(true)
-    setScoreCard(null)
-    try {
-      const result = await window.api.session.scoreOutput(instance.workingDirectory)
-      setScoreCard(result)
-    } catch {
-      setScoreCard({ confidence: 0, scopeCreep: false, testCoverage: 'none', summary: 'Scoring failed.', raw: '' })
-    } finally {
-      setScoreCardLoading(false)
-    }
-  }, [instance.workingDirectory, gitChanges.length])
-
-  const toggleFileDiff = useCallback(async (file: string, status: string) => {
-    if (expandedDiffFile === file) {
-      setExpandedDiffFile(null)
-      setDiffContent(null)
-      return
-    }
-    setExpandedDiffFile(file)
-    if (diffCacheRef.current[file]) {
-      setDiffContent(diffCacheRef.current[file])
-      return
-    }
-    setDiffLoading(true)
-    setDiffContent(null)
-    try {
-      const raw = await window.api.session.getFileDiff(instance.workingDirectory!, file, status)
-      diffCacheRef.current[file] = raw
-      setDiffContent(raw)
-    } catch {
-      setDiffContent('')
-    } finally {
-      setDiffLoading(false)
-    }
-  }, [expandedDiffFile, instance.workingDirectory])
 
   // Load coordinator team when tab switches to team and role is Coordinator
   useEffect(() => {
@@ -1389,348 +1263,10 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
         </div>
       )}
       {viewTab === 'changes' && (
-        <div className="changes-panel">
-          <div className="changes-panel-header">
-            <span className="changes-panel-title">
-              <GitCompare size={13} /> Git Changes
-            </span>
-            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-              <button
-                className="changes-refresh-btn"
-                title="Refresh"
-                onClick={loadGitChanges}
-              >
-                <RefreshCw size={12} />
-              </button>
-              {gitChanges.length > 0 && (
-                <>
-                  <button
-                    className="changes-refresh-btn"
-                    title="Stage & Commit"
-                    onClick={() => setShowCommitDialog(true)}
-                    style={{ color: 'var(--success)' }}
-                  >
-                    <GitCommit size={12} />
-                  </button>
-                  <button
-                    className="changes-refresh-btn"
-                    title="Score output quality with AI"
-                    disabled={scoreCardLoading}
-                    onClick={handleScoreOutput}
-                    style={{ color: 'var(--accent)' }}
-                  >
-                    {scoreCardLoading ? <RotateCw size={12} className="spinning" /> : <Sparkles size={12} />}
-                  </button>
-                  <button
-                    className="changes-refresh-btn"
-                    title="Revert all changes"
-                    disabled={revertingAll}
-                    onClick={handleRevertAll}
-                    style={{ color: 'var(--danger)' }}
-                  >
-                    <Undo2 size={12} />
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-          <div className="changes-panel-content">
-            {gitChangesLoading && <div className="changes-empty">Loading...</div>}
-            {!gitChangesLoading && gitChanges.length === 0 && (
-              <div className="changes-empty">No uncommitted changes.</div>
-            )}
-            {!gitChangesLoading && gitChanges.map((entry) => {
-              const fileComments = colonyComments.filter(c => {
-                const normalised = c.file.replace(/^b\//, '')
-                return normalised === entry.file || normalised.endsWith('/' + entry.file) || entry.file.endsWith('/' + normalised)
-              })
-              return (
-                <div key={entry.file} className={`changes-event${expandedDiffFile === entry.file ? ' expanded' : ''}`}>
-                  <div className="changes-event-header" style={{ alignItems: 'center', cursor: 'pointer' }} onClick={() => toggleFileDiff(entry.file, entry.status)}>
-                    <ChevronRight size={11} style={{ flexShrink: 0, transition: 'transform 0.15s', transform: expandedDiffFile === entry.file ? 'rotate(90deg)' : 'none', opacity: 0.5 }} />
-                    <span className="changes-event-tool" title={entry.status === 'A' ? 'Added' : entry.status === 'D' ? 'Deleted' : entry.status === 'R' ? 'Renamed' : 'Modified'} style={{
-                      color: entry.status === 'A' ? 'var(--success)'
-                        : entry.status === 'D' ? 'var(--danger)'
-                        : 'var(--warning)',
-                      minWidth: '12px',
-                    }}>
-                      {entry.status}
-                    </span>
-                    <span className="changes-event-input" style={{ flex: 1, fontFamily: 'monospace', fontSize: '11px' }}>
-                      {entry.file}
-                    </span>
-                    <span className="changes-event-time" style={{ fontSize: '10px', opacity: 0.7 }}>
-                      {entry.insertions > 0 && <span style={{ color: 'var(--success)' }}>+{entry.insertions}</span>}
-                      {entry.insertions > 0 && entry.deletions > 0 && ' '}
-                      {entry.deletions > 0 && <span style={{ color: 'var(--danger)' }}>-{entry.deletions}</span>}
-                    </span>
-                    {fileComments.length > 0 && (
-                      <span style={{ marginLeft: '4px', fontSize: '10px', color: 'var(--warning)', opacity: 0.85, display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
-                        <MessageCircleWarning size={11} />
-                        {fileComments.length > 1 && fileComments.length}
-                      </span>
-                    )}
-                    <button
-                      className="changes-refresh-btn"
-                      title={`Revert ${entry.file}`}
-                      disabled={reverting.has(entry.file)}
-                      onClick={(e) => { e.stopPropagation(); handleRevert(entry.file) }}
-                      style={{ marginLeft: '4px', color: 'var(--danger)' }}
-                    >
-                      {reverting.has(entry.file) ? <RotateCw size={11} className="spinning" /> : <Undo2 size={11} />}
-                    </button>
-                  </div>
-                  {expandedDiffFile === entry.file && (
-                    <div className="changes-diff-container">
-                      {diffLoading ? (
-                        <div className="diff-viewer-empty">Loading diff...</div>
-                      ) : diffContent !== null ? (
-                        <DiffViewer diff={diffContent} filename={entry.file} />
-                      ) : null}
-                    </div>
-                  )}
-                  {fileComments.map((comment, i) => (
-                    <div key={i} style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: '6px',
-                      padding: '4px 8px 4px 24px',
-                      borderLeft: `2px solid ${comment.severity === 'error' ? 'var(--danger)' : comment.severity === 'warn' ? 'var(--warning)' : 'var(--accent)'}`,
-                      marginTop: '2px',
-                      background: 'var(--bg-secondary)',
-                    }}>
-                      <span style={{
-                        fontSize: '9px',
-                        fontWeight: 600,
-                        letterSpacing: '0.04em',
-                        color: comment.severity === 'error' ? 'var(--danger)' : comment.severity === 'warn' ? 'var(--warning)' : 'var(--accent)',
-                        textTransform: 'uppercase',
-                        minWidth: '28px',
-                        paddingTop: '1px',
-                      }}>
-                        {comment.severity}
-                      </span>
-                      <span style={{ fontSize: '10px', opacity: 0.7, minWidth: '30px', fontFamily: 'monospace' }}>
-                        L{comment.line}
-                      </span>
-                      <span style={{ fontSize: '11px', flex: 1, lineHeight: 1.4 }}>
-                        {comment.message}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )
-            })}
-            {scoreCard && (
-              <div style={{
-                margin: '8px 8px 4px',
-                padding: '10px 12px',
-                background: 'var(--bg-secondary)',
-                borderRadius: '6px',
-                border: '1px solid var(--border)',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                  <Sparkles size={12} style={{ color: 'var(--accent)', flexShrink: 0 }} />
-                  <span style={{ fontSize: '11px', fontWeight: 600, opacity: 0.9 }}>AI Score</span>
-                  <div style={{ display: 'flex', gap: '3px', marginLeft: '4px' }}>
-                    {[1, 2, 3, 4, 5].map(i => (
-                      <div key={i} style={{
-                        width: '8px', height: '8px', borderRadius: '50%',
-                        background: i <= scoreCard.confidence
-                          ? (scoreCard.confidence >= 4 ? 'var(--success)' : scoreCard.confidence >= 2 ? 'var(--warning)' : 'var(--danger)')
-                          : 'var(--border)',
-                      }} />
-                    ))}
-                  </div>
-                  {scoreCard.scopeCreep && (
-                    <span style={{
-                      fontSize: '9px', fontWeight: 600, padding: '1px 5px', borderRadius: '4px',
-                      background: 'rgba(245,158,11,0.15)', color: 'var(--warning)',
-                      border: '1px solid rgba(245,158,11,0.3)',
-                    }}>SCOPE CREEP</span>
-                  )}
-                  <span style={{
-                    fontSize: '9px', fontWeight: 600, padding: '1px 5px', borderRadius: '4px',
-                    background: scoreCard.testCoverage === 'good' ? 'rgba(16,185,129,0.15)' : scoreCard.testCoverage === 'partial' ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.12)',
-                    color: scoreCard.testCoverage === 'good' ? 'var(--success)' : scoreCard.testCoverage === 'partial' ? 'var(--warning)' : 'var(--danger)',
-                    border: scoreCard.testCoverage === 'good' ? '1px solid rgba(16,185,129,0.3)' : scoreCard.testCoverage === 'partial' ? '1px solid rgba(245,158,11,0.3)' : '1px solid rgba(239,68,68,0.2)',
-                    marginLeft: 'auto',
-                    textTransform: 'uppercase',
-                  }}>
-                    {scoreCard.testCoverage === 'good' ? 'Tests OK' : scoreCard.testCoverage === 'partial' ? 'Tests' : 'No Tests'}
-                  </span>
-                  <button
-                    className="changes-refresh-btn"
-                    title="Dismiss"
-                    onClick={() => setScoreCard(null)}
-                    style={{ marginLeft: '4px' }}
-                  >
-                    <X size={11} />
-                  </button>
-                </div>
-                <p style={{ fontSize: '11px', opacity: 0.8, margin: 0, lineHeight: 1.5 }}>
-                  {scoreCard.summary}
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
+        <ChangesTab instance={instance} />
       )}
       {viewTab === 'artifacts' && (
-        <div className="changes-panel">
-          <div className="changes-panel-header">
-            <span className="changes-panel-title">
-              <Package size={13} /> Session Artifacts
-            </span>
-            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-              <button
-                className="changes-refresh-btn"
-                title="Refresh"
-                onClick={() => {
-                  setArtifactLoading(true)
-                  window.api.artifacts.get(instance.id).then(a => {
-                    setArtifact(a)
-                    setArtifactLoading(false)
-                  }).catch(() => setArtifactLoading(false))
-                }}
-              >
-                <RefreshCw size={12} />
-              </button>
-              {!artifact && instance.status === 'running' && (
-                <button
-                  className="changes-refresh-btn"
-                  title="Collect artifact now"
-                  disabled={artifactLoading}
-                  onClick={() => {
-                    setArtifactLoading(true)
-                    window.api.artifacts.collect(instance.id).then(a => {
-                      setArtifact(a)
-                      setArtifactLoading(false)
-                    }).catch(() => setArtifactLoading(false))
-                  }}
-                  style={{ color: 'var(--accent)' }}
-                >
-                  <Sparkles size={12} />
-                </button>
-              )}
-            </div>
-          </div>
-          <div className="changes-panel-content">
-            {artifactLoading && <div className="changes-empty">Loading...</div>}
-            {!artifactLoading && !artifact && (
-              <div className="changes-empty">No artifact collected yet. Artifacts are auto-generated when sessions exit.</div>
-            )}
-            {!artifactLoading && artifact && (
-              <>
-                {/* Summary card */}
-                <div style={{
-                  padding: '8px 10px',
-                  background: 'var(--bg-secondary)',
-                  borderRadius: '6px',
-                  margin: '4px 8px 8px',
-                  display: 'flex', flexDirection: 'column', gap: '6px',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {artifact.sessionName}
-                    </span>
-                    {artifact.personaName && (
-                      <span style={{
-                        fontSize: '9px', fontWeight: 600, padding: '1px 5px', borderRadius: '4px',
-                        background: 'rgba(59,130,246,0.15)', color: 'var(--accent)',
-                        border: '1px solid rgba(59,130,246,0.3)',
-                      }}>{artifact.personaName}</span>
-                    )}
-                    {artifact.pipelineRunId && (
-                      <span style={{
-                        fontSize: '9px', fontWeight: 600, padding: '1px 5px', borderRadius: '4px',
-                        background: 'rgba(245,158,11,0.15)', color: 'var(--warning)',
-                        border: '1px solid rgba(245,158,11,0.3)',
-                      }}>Pipeline</span>
-                    )}
-                    <span style={{
-                      fontSize: '9px', fontWeight: 600, padding: '1px 5px', borderRadius: '4px',
-                      background: artifact.exitCode === 0 ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.12)',
-                      color: artifact.exitCode === 0 ? 'var(--success)' : 'var(--danger)',
-                      border: artifact.exitCode === 0 ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(239,68,68,0.2)',
-                    }}>exit {artifact.exitCode}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '12px', fontSize: '10px', opacity: 0.7 }}>
-                    {artifact.gitBranch && (
-                      <span><GitBranch size={10} style={{ verticalAlign: 'middle' }} /> {artifact.gitBranch}</span>
-                    )}
-                    <span><Clock size={10} style={{ verticalAlign: 'middle' }} /> {Math.round(artifact.durationMs / 60000)}m</span>
-                    {artifact.costUsd != null && (
-                      <span>${artifact.costUsd.toFixed(2)}</span>
-                    )}
-                    <span style={{ color: 'var(--success)' }}>+{artifact.totalInsertions}</span>
-                    <span style={{ color: 'var(--danger)' }}>-{artifact.totalDeletions}</span>
-                  </div>
-                </div>
-
-                {/* Commits section */}
-                {artifact.commits.length > 0 && (
-                  <>
-                    <div style={{
-                      padding: '4px 10px', fontSize: '10px', fontWeight: 600,
-                      color: 'var(--text-secondary)', textTransform: 'uppercase',
-                      letterSpacing: '0.04em',
-                    }}>
-                      Commits ({artifact.commits.length})
-                    </div>
-                    {artifact.commits.map(c => (
-                      <div key={c.hash} className="changes-event" style={{ cursor: 'default' }}>
-                        <div className="changes-event-header" style={{ alignItems: 'center' }}>
-                          <span style={{ fontFamily: 'monospace', fontSize: '10px', color: 'var(--accent)', minWidth: '56px' }}>
-                            {c.hash.slice(0, 7)}
-                          </span>
-                          <span className="changes-event-input" style={{ flex: 1, fontSize: '11px' }}>
-                            {c.shortMsg}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </>
-                )}
-
-                {/* Changed files section */}
-                {artifact.changes.length > 0 && (
-                  <>
-                    <div style={{
-                      padding: '4px 10px', fontSize: '10px', fontWeight: 600,
-                      color: 'var(--text-secondary)', textTransform: 'uppercase',
-                      letterSpacing: '0.04em', marginTop: '4px',
-                    }}>
-                      Changed Files ({artifact.changes.length})
-                    </div>
-                    {artifact.changes.map(entry => (
-                      <div key={entry.file} className="changes-event" style={{ cursor: 'default' }}>
-                        <div className="changes-event-header" style={{ alignItems: 'center' }}>
-                          <span style={{
-                            color: entry.status === 'A' ? 'var(--success)'
-                              : entry.status === 'D' ? 'var(--danger)'
-                              : 'var(--warning)',
-                            minWidth: '12px', fontSize: '11px',
-                          }}>
-                            {entry.status}
-                          </span>
-                          <span style={{ flex: 1, fontFamily: 'monospace', fontSize: '11px' }}>
-                            {entry.file}
-                          </span>
-                          <span style={{ fontSize: '10px', opacity: 0.7 }}>
-                            {entry.insertions > 0 && <span style={{ color: 'var(--success)' }}>+{entry.insertions}</span>}
-                            {entry.insertions > 0 && entry.deletions > 0 && ' '}
-                            {entry.deletions > 0 && <span style={{ color: 'var(--danger)' }}>-{entry.deletions}</span>}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </>
-                )}
-              </>
-            )}
-          </div>
-        </div>
+        <ArtifactsTab instanceId={instance.id} instanceStatus={instance.status} />
       )}
       {viewTab === 'team' && instance.roleTag === 'Coordinator' && (
         <div className="changes-panel">
@@ -1944,14 +1480,6 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           <div className="terminal-drop-overlay">Drop to paste path</div>
         )}
       </div>
-      {showCommitDialog && instance.workingDirectory && (
-        <CommitDialog
-          dir={instance.workingDirectory}
-          entries={gitChanges}
-          onClose={() => setShowCommitDialog(false)}
-          onCommitted={loadGitChanges}
-        />
-      )}
     </>
   )
 }
