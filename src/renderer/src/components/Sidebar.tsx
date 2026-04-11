@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate } from '../../../shared/types'
@@ -583,6 +583,8 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const [popoverPos, setPopoverPos] = useState<{ top: number } | null>(null)
   const [instancePopoverPos, setInstancePopoverPos] = useState<{ top: number; left: number } | null>(null)
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
+  const [sendingMessageTo, setSendingMessageTo] = useState<string | null>(null)
+  const [messageText, setMessageText] = useState('')
   const renameRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -1660,6 +1662,21 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             >
               <GitFork size={12} /> Fork session...
             </button>
+            {(() => {
+              const inst = instances.find(i => i.id === contextMenu.id)
+              return inst?.status === 'running' && inst?.activity === 'waiting' ? (
+                <button
+                  className="context-menu-item"
+                  onClick={() => {
+                    setSendingMessageTo(contextMenu.id)
+                    setContextMenu(null)
+                  }}
+                  title="Send a prompt to this waiting session"
+                >
+                  <Send size={12} /> Send Message...
+                </button>
+              ) : null
+            })()}
             <div className="context-menu-section">
               <div className="context-menu-label">Role</div>
               <div className="context-menu-roles">
@@ -1764,6 +1781,36 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
           </div>
         </div>
       )}
+
+      {sendingMessageTo && (() => {
+        const inst = instances.find(i => i.id === sendingMessageTo)
+        if (!inst) return null
+        return (
+          <div className="send-message-overlay" onClick={() => { setSendingMessageTo(null); setMessageText('') }}>
+            <div className="send-message-input" onClick={e => e.stopPropagation()}>
+              <label>Send to: {inst.name}</label>
+              <textarea
+                autoFocus
+                value={messageText}
+                onChange={e => setMessageText(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey && messageText.trim()) {
+                    e.preventDefault()
+                    window.api.session.sendMessage(inst.name, messageText.trim())
+                      .then(ok => { if (!ok) console.warn('Session not in waiting state') })
+                    setSendingMessageTo(null)
+                    setMessageText('')
+                  }
+                  if (e.key === 'Escape') { setSendingMessageTo(null); setMessageText('') }
+                }}
+                placeholder="Type a message to send..."
+                rows={3}
+              />
+              <div className="send-message-hint">Enter to send · Shift+Enter for newline · Esc to cancel</div>
+            </div>
+          </div>
+        )
+      })()}
 
       <div className="sidebar-footer">
         <HelpPopover topic="sessions" align="right" position="above" />
