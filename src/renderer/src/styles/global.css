@@ -17326,6 +17326,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .tasks-board-column-add { margin-left: auto; background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 1px 3px; border-radius: 3px; opacity: 0; transition: opacity 0.1s; }
 .tasks-board-column:hover .tasks-board-column-add { opacity: 1; }
 .tasks-board-column-add:hover { color: var(--accent); background: var(--bg-secondary); }
+.tasks-board-column-add.danger:hover { color: var(--danger); }
 .tasks-board-column-in_progress .tasks-board-column-header { color: var(--accent); }
 .tasks-board-column-blocked .tasks-board-column-header { color: var(--danger); }
 .tasks-board-column-done .tasks-board-column-header { color: var(--success); }
@@ -17353,6 +17354,8 @@ body:has(.daemon-update-banner) .app-update-banner {
 .tasks-board-card-footer { display: flex; align-items: center; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
 .tasks-board-card-time { font-size: 10px; color: var(--text-muted); }
 .tasks-board-tag { font-size: 9px; color: var(--accent); background: rgba(59,130,246,0.1); border-radius: 10px; padding: 1px 5px; }
+.tasks-board-tag.clickable { cursor: pointer; transition: background 0.1s; }
+.tasks-board-tag.clickable:hover { background: rgba(59,130,246,0.2); }
 .tasks-board-source-tag { color: var(--success); background: rgba(16,185,129,0.1); }
 
 /* Status move buttons */

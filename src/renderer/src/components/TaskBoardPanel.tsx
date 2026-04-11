@@ -498,7 +498,7 @@ export default function TaskBoardPanel() {
                   <span className="tasks-board-column-count">{grouped[status].length}</span>
                   {status === 'done' && grouped.done.length > 0 && (
                     <button
-                      className="tasks-board-column-add"
+                      className="tasks-board-column-add danger"
                       title="Archive all done tasks"
                       onClick={e => { e.stopPropagation(); handleArchiveDone() }}
                     >
@@ -556,7 +556,7 @@ export default function TaskBoardPanel() {
                         <span className="tasks-board-card-time">{relativeTime(item.updated || item.created)}</span>
                       )}
                       {item.tags?.map(tag => (
-                        <span key={tag} className="tasks-board-tag" style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setFilterTag(tag) }}>{tag}</span>
+                        <span key={tag} className="tasks-board-tag clickable" onClick={(e) => { e.stopPropagation(); setFilterTag(tag) }}>{tag}</span>
                       ))}
                       {item.source && <span className="tasks-board-tag tasks-board-source-tag">{item.source}</span>}
                       {item.project && <span className="tasks-board-tag">{item.project}</span>}
