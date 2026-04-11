@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { ipcMain, shell, clipboard } from 'electron'
 import { promises as fsp } from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -114,5 +114,27 @@ export function registerOutputsHandlers(): void {
     } catch (err: any) {
       return { error: err.message }
     }
+  })
+
+  ipcMain.handle('outputs:delete', async (_e, filePath: string): Promise<{ success: boolean; error?: string }> => {
+    const colonyBase = path.join(os.homedir(), '.claude-colony')
+    const resolved = path.resolve(filePath)
+    if (!resolved.startsWith(colonyBase + path.sep)) {
+      return { success: false, error: 'Access denied: path outside .claude-colony' }
+    }
+    try {
+      await fsp.unlink(resolved)
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.message }
+    }
+  })
+
+  ipcMain.handle('outputs:revealInFinder', async (_e, filePath: string): Promise<void> => {
+    shell.showItemInFolder(path.resolve(filePath))
+  })
+
+  ipcMain.handle('outputs:copyPath', async (_e, filePath: string): Promise<void> => {
+    clipboard.writeText(path.resolve(filePath))
   })
 }

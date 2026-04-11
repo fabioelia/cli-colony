@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { FolderOpen, FileText, Clock, RefreshCw, Search, FileOutput } from 'lucide-react'
+import { FolderOpen, FileText, Clock, RefreshCw, Search, FileOutput, Copy, Trash2 } from 'lucide-react'
 import MarkdownViewer from './MarkdownViewer'
 import HelpPopover from './HelpPopover'
 import EmptyStateHook from './EmptyStateHook'
@@ -194,6 +194,33 @@ export default function OutputsPanel() {
                 <span className="outputs-viewer-subtitle">
                   {formatAgentId(selected.agentId)} · {formatRelativeTime(selected.mtime)} · {formatBytes(selected.sizeBytes)}
                 </span>
+                <div className="outputs-viewer-actions">
+                  <button
+                    className="outputs-viewer-btn"
+                    onClick={() => window.api.outputs.copyPath(selected.path)}
+                    title="Copy file path"
+                  >
+                    <Copy size={13} /> Copy Path
+                  </button>
+                  <button
+                    className="outputs-viewer-btn"
+                    onClick={() => window.api.outputs.revealInFinder(selected.path)}
+                    title="Show in Finder"
+                  >
+                    <FolderOpen size={13} /> Reveal
+                  </button>
+                  <button
+                    className="outputs-viewer-btn danger"
+                    onClick={async () => {
+                      if (!confirm(`Delete "${selected.name}"?`)) return
+                      const res = await window.api.outputs.delete(selected.path)
+                      if (res.success) { setSelected(null); setContent(null); loadEntries() }
+                    }}
+                    title="Delete this output"
+                  >
+                    <Trash2 size={13} /> Delete
+                  </button>
+                </div>
               </div>
               <div className="outputs-viewer-content">
                 {isMarkdown(selected.name) ? (

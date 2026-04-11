@@ -17480,6 +17480,11 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-muted);
 }
 
+.outputs-viewer-actions { display: flex; gap: 6px; margin-top: 6px; }
+.outputs-viewer-btn { display: flex; align-items: center; gap: 4px; font-size: 11px; padding: 3px 8px; border-radius: 4px; background: var(--bg-hover); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; }
+.outputs-viewer-btn:hover { background: var(--bg-active); color: var(--text-primary); }
+.outputs-viewer-btn.danger:hover { background: rgba(239,68,68,0.15); color: var(--danger); border-color: var(--danger); }
+
 .outputs-viewer-content {
   flex: 1;
   overflow-y: auto;
