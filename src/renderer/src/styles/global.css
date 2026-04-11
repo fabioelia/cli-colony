@@ -557,6 +557,30 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .restore-dialog-exit.exited { color: var(--text-muted); background: var(--bg-tertiary); }
 .restore-dialog-exit.running { color: var(--success); background: rgba(16, 185, 129, 0.12); }
+.restore-dialog-search { padding: 0 12px 8px; }
+.restore-dialog-search-input {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 12px;
+  outline: none;
+}
+.restore-dialog-search-input:focus { border-color: var(--accent); }
+.restore-dialog-duration {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.restore-dialog-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
 .restore-dialog-footer {
   display: flex;
   justify-content: flex-end;

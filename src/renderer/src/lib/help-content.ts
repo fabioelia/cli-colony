@@ -201,7 +201,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Environment Variables', detail: 'Set custom environment variables (API keys, debug flags) for a session. Expand the collapsible section, add KEY=value rows. Variables are merged on top of your shell environment so session-specific overrides work without polluting your profile.' },
           { label: 'Plan first', detail: 'When a first prompt is set, toggle "Plan first" to make Claude outline its approach (files to modify, steps, risks) and wait for your approval before taking any action. Useful for complex tasks where you want to review the strategy before committing tokens. Works with both the dialog and session templates.', icon: 'ListChecks' },
           { label: 'Prompt history', detail: 'When the "First prompt" field is visible, a History button appears next to the label. Click it to see your last 20 session prompts with timestamps. Click an entry to fill the textarea. History is saved automatically on session creation and stored in localStorage.', icon: 'Clock' },
-          { label: 'Restore banner', detail: 'After app restart, shows a button to restore sessions from your last run. Opens a dialog where you can select which sessions to restore using per-session checkboxes. Use Select All to toggle all at once.', icon: 'RotateCcw' },
+          { label: 'Restore banner', detail: 'After app restart, shows a button to restore sessions from your last run. Opens a dialog where you can search by name or directory, see how long each session was running, and select which to restore. Select All toggles only the visible (filtered) sessions.', icon: 'RotateCcw' },
         ],
       },
       {

@@ -8,22 +8,47 @@ interface Props {
   onDismiss: () => void
 }
 
+function formatDuration(openedAt: string): string {
+  const ms = Date.now() - new Date(openedAt).getTime()
+  const mins = Math.floor(ms / 60000)
+  if (mins < 60) return `${mins}m`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ${mins % 60}m`
+  const days = Math.floor(hrs / 24)
+  return `${days}d ${hrs % 24}h`
+}
+
 export default function RestoreDialog({ sessions, onRestore, onDismiss }: Props) {
   const restorable = useMemo(
     () => sessions.filter((s) => s.sessionId && s.exitType !== 'killed'),
     [sessions]
   )
+
+  const [search, setSearch] = useState('')
+  const filtered = useMemo(() => {
+    if (!search.trim()) return restorable
+    const q = search.toLowerCase()
+    return restorable.filter(s =>
+      (s.instanceName || '').toLowerCase().includes(q) ||
+      s.workingDirectory.toLowerCase().includes(q)
+    )
+  }, [restorable, search])
+
   const [checked, setChecked] = useState<Set<string>>(
     () => new Set(restorable.map((s) => s.sessionId!))
   )
 
-  const allChecked = checked.size === restorable.length
+  const allFilteredChecked = filtered.length > 0 && filtered.every(s => checked.has(s.sessionId!))
   const toggleAll = () => {
-    if (allChecked) {
-      setChecked(new Set())
-    } else {
-      setChecked(new Set(restorable.map((s) => s.sessionId!)))
-    }
+    setChecked(prev => {
+      const next = new Set(prev)
+      if (allFilteredChecked) {
+        for (const s of filtered) next.delete(s.sessionId!)
+      } else {
+        for (const s of filtered) next.add(s.sessionId!)
+      }
+      return next
+    })
   }
   const toggle = (id: string) => {
     setChecked((prev) => {
@@ -41,10 +66,14 @@ export default function RestoreDialog({ sessions, onRestore, onDismiss }: Props)
   }
 
   const dialogRef = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     dialogRef.current?.focus()
-  }, [])
+    if (restorable.length > 0) {
+      setTimeout(() => searchRef.current?.focus(), 50)
+    }
+  }, [restorable.length])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') { onDismiss(); return }
@@ -84,14 +113,27 @@ export default function RestoreDialog({ sessions, onRestore, onDismiss }: Props)
 
         <div className="restore-dialog-toggle">
           <label>
-            <input type="checkbox" checked={allChecked} onChange={toggleAll} />
-            {allChecked ? 'Deselect all' : 'Select all'}
+            <input type="checkbox" checked={allFilteredChecked} onChange={toggleAll} />
+            {allFilteredChecked ? 'Deselect all' : 'Select all'}
           </label>
           <span className="restore-dialog-count">{checked.size} of {restorable.length} selected</span>
         </div>
 
+        <div className="restore-dialog-search">
+          <input
+            ref={searchRef}
+            type="text"
+            placeholder="Search sessions..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="restore-dialog-search-input"
+          />
+        </div>
+
         <div className="restore-dialog-list">
-          {restorable.map((s) => (
+          {filtered.length === 0 && search.trim() ? (
+            <div className="restore-dialog-empty">No sessions match your search</div>
+          ) : filtered.map((s) => (
             <label key={s.sessionId} className={`restore-dialog-row${checked.has(s.sessionId!) ? ' selected' : ''}`}>
               <input
                 type="checkbox"
@@ -103,6 +145,11 @@ export default function RestoreDialog({ sessions, onRestore, onDismiss }: Props)
               <span className="restore-dialog-path" title={s.workingDirectory}>{truncatePath(s.workingDirectory)}</span>
               {s.exitType && (
                 <span className={`restore-dialog-exit ${s.exitType}`}>{s.exitType}</span>
+              )}
+              {s.openedAt && (
+                <span className="restore-dialog-duration" title={`Opened ${new Date(s.openedAt).toLocaleString()}`}>
+                  {formatDuration(s.openedAt)}
+                </span>
               )}
             </label>
           ))}
