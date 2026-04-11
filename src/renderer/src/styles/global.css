@@ -4578,6 +4578,19 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: var(--bg-hover);
 }
 
+.mcp-catalog-edit {
+  color: var(--text-secondary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.mcp-catalog-edit:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
 .mcp-catalog-delete {
   color: var(--danger);
   padding: 2px 6px;

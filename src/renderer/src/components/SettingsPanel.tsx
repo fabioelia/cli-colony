@@ -954,7 +954,7 @@ export default function SettingsPanel({ onBack }: Props) {
                     </div>
                   </div>
                   <button
-                    className="mcp-catalog-delete"
+                    className="mcp-catalog-edit"
                     title="Edit template"
                     onClick={() => setEditingTemplate({ ...t })}
                   >
@@ -1474,7 +1474,7 @@ export default function SettingsPanel({ onBack }: Props) {
       </div>
 
       {editingTemplate && (
-        <div className="dialog-overlay" onClick={(e) => { if (e.target === e.currentTarget) setEditingTemplate(null) }}>
+        <div className="dialog-overlay" onClick={(e) => { if (e.target === e.currentTarget) setEditingTemplate(null) }} onKeyDown={(e) => { if (e.key === 'Escape') setEditingTemplate(null) }}>
           <div className="dialog-content" style={{ width: 480 }}>
             <div className="dialog-header">
               <h2>Edit Template</h2>
