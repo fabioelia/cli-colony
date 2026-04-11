@@ -12926,7 +12926,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .pipeline-history-retry-btn {
   background: none;
   border: none;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   cursor: pointer;
   padding: 2px 4px;
   border-radius: 3px;
@@ -18285,7 +18285,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .persona-chain-chip button {
   background: none;
   border: none;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   cursor: pointer;
   padding: 0;
   display: flex;
