@@ -788,11 +788,14 @@ function PersonaRunSparkline({ entries }: { entries: PersonaRunEntry[] }) {
   )
 }
 
-function PersonaAnalyticsTab({ analytics, personaName, onRun }: {
+function PersonaAnalyticsTab({ analytics, personaName, onRun, instances, onFocusInstance }: {
   analytics: PersonaAnalytics | null
   personaName: string
   onRun: () => void
+  instances: ClaudeInstance[]
+  onFocusInstance: (id: string) => void
 }) {
+  const [selectedRunIndex, setSelectedRunIndex] = useState<number | null>(null)
   if (!analytics || analytics.totalRuns === 0) {
     return (
       <div className="persona-outputs-tab">
@@ -873,11 +876,60 @@ function PersonaAnalyticsTab({ analytics, personaName, onRun }: {
                   height={h}
                   rx={2}
                   fill={r.success ? 'var(--accent)' : 'var(--danger)'}
-                  opacity={0.75}
+                  opacity={selectedRunIndex === i ? 1 : 0.75}
+                  style={{ cursor: 'pointer' }}
+                  stroke={selectedRunIndex === i ? 'var(--text-primary)' : 'none'}
+                  strokeWidth={1}
+                  onClick={() => setSelectedRunIndex(i === selectedRunIndex ? null : i)}
                 />
               )
             })}
           </svg>
+          {selectedRunIndex !== null && sparkRuns[selectedRunIndex] && (() => {
+            const run = sparkRuns[selectedRunIndex]
+            const durMin = Math.floor(run.durationMs / 60000)
+            const durSec = Math.floor((run.durationMs % 60000) / 1000)
+            const dur = durMin > 0 ? `${durMin}m ${durSec}s` : `${durSec}s`
+            const ts = new Date(run.timestamp)
+            const sessionExists = run.sessionId ? instances.some(inst => inst.id === run.sessionId) : false
+            return (
+              <div className={`persona-run-detail${run.success ? '' : ' failed'}`}>
+                <div className="persona-run-detail-row">
+                  <span className="persona-run-detail-label">Time</span>
+                  <span>{ts.toLocaleString()}</span>
+                </div>
+                <div className="persona-run-detail-row">
+                  <span className="persona-run-detail-label">Duration</span>
+                  <span>{dur}</span>
+                </div>
+                <div className="persona-run-detail-row">
+                  <span className="persona-run-detail-label">Cost</span>
+                  <span>{run.costUsd !== undefined ? `$${run.costUsd.toFixed(2)}` : '—'}</span>
+                </div>
+                <div className="persona-run-detail-row">
+                  <span className="persona-run-detail-label">Outcome</span>
+                  <span className={`persona-run-detail-badge ${run.success ? 'success' : 'fail'}`}>
+                    {run.success ? (run.stopReason === 'budget_exceeded' ? 'Budget stopped' : 'Success') : 'Failed'}
+                  </span>
+                </div>
+                {run.stopReason && run.stopReason !== 'budget_exceeded' && (
+                  <div className="persona-run-detail-row">
+                    <span className="persona-run-detail-label">Stop Reason</span>
+                    <span>{run.stopReason}</span>
+                  </div>
+                )}
+                {run.sessionId && (
+                  <div className="persona-run-detail-row">
+                    <span className="persona-run-detail-label">Session</span>
+                    {sessionExists
+                      ? <button className="persona-run-detail-session-btn" onClick={() => onFocusInstance(run.sessionId!)}>View Session</button>
+                      : <span className="persona-run-detail-ended">Session cleaned up</span>
+                    }
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </div>
       )}
 
@@ -1298,7 +1350,7 @@ function PersonaCard({
           )}
 
           {activeTab === 'analytics' && (
-            <PersonaAnalyticsTab analytics={analytics} personaName={persona.name} onRun={onRun} />
+            <PersonaAnalyticsTab analytics={analytics} personaName={persona.name} onRun={onRun} instances={instances} onFocusInstance={onFocusInstance} />
           )}
 
           {activeTab === 'memory' && (

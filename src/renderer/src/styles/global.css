@@ -17836,6 +17836,65 @@ body:has(.daemon-update-banner) .app-update-banner {
   display: block;
   overflow: visible;
 }
+.persona-analytics-chart svg rect:hover {
+  opacity: 1 !important;
+}
+.persona-run-detail {
+  margin: 6px 0 2px;
+  padding: 8px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11px;
+}
+.persona-run-detail.failed {
+  border-color: var(--danger);
+}
+.persona-run-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+.persona-run-detail-label {
+  color: var(--text-muted);
+  min-width: 64px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.persona-run-detail-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 500;
+}
+.persona-run-detail-badge.success {
+  color: var(--success);
+  background: rgba(16, 185, 129, 0.12);
+}
+.persona-run-detail-badge.fail {
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.12);
+}
+.persona-run-detail-session-btn {
+  background: var(--accent);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 10px;
+  cursor: pointer;
+  font-weight: 500;
+}
+.persona-run-detail-session-btn:hover {
+  opacity: 0.85;
+}
+.persona-run-detail-ended {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 10px;
+}
 .persona-analytics-table {
   padding: 4px 0;
 }

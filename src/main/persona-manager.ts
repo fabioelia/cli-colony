@@ -812,6 +812,7 @@ export async function onSessionExit(instanceId: string): Promise<void> {
           costUsd: sessionCost,
           success: true, // budget_exceeded counts as success (session did real work)
           stopReason: budgetExceeded ? 'budget_exceeded' : undefined,
+          sessionId: instanceId,
         })
         checkDailyCostBudget()
         const overridePath = join(PERSONAS_DIR, `${personaId}.triggers.json`)
