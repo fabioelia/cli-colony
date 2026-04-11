@@ -10412,8 +10412,21 @@ body:has(.daemon-update-banner) .app-update-banner {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  flex: 1;
+  flex: 0 1 auto;
   text-align: right;
+}
+
+.cmd-palette-item-shortcut {
+  margin-left: auto;
+  margin-right: 8px;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  background: var(--bg-secondary);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .cmd-palette-item-arrow {

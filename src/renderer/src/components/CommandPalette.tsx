@@ -22,6 +22,8 @@ export interface CommandPaletteAction {
   keywords?: string
   /** If true, don't close the palette after executing */
   stayOpen?: boolean
+  /** Keyboard shortcut hint displayed right-aligned */
+  shortcut?: string
 }
 
 interface Props {
@@ -59,6 +61,31 @@ export default function CommandPalette({
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
+  // Recent commands tracking (persisted in localStorage)
+  const RECENT_KEY = 'cmd-palette-recent'
+  const MAX_RECENT = 5
+  const [recentIds, setRecentIds] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]') } catch { return [] }
+  })
+
+  const trackRecent = (id: string) => {
+    if (id.startsWith('switch-') || id.startsWith('resume-')) return
+    setRecentIds(prev => {
+      const next = [id, ...prev.filter(x => x !== id)].slice(0, MAX_RECENT)
+      localStorage.setItem(RECENT_KEY, JSON.stringify(next))
+      return next
+    })
+  }
+
+  // Known keyboard shortcuts for palette actions
+  const PALETTE_SHORTCUTS: Record<string, string> = {
+    'new-session': '⌘N',
+    'toggle-split': '⌘\\',
+    'quick-prompt': '⌘⇧↵',
+    'keyboard-shortcuts': '⌘/',
+    'search-sessions': '⌘⇧F',
+  }
+
   // Build all available actions
   const actions = useMemo<CommandPaletteAction[]>(() => {
     const items: CommandPaletteAction[] = []
@@ -84,24 +111,27 @@ export default function CommandPalette({
       detail: 'Launch a new Claude CLI instance',
       icon: <Plus size={14} />,
       section: 'Actions',
+      shortcut: PALETTE_SHORTCUTS['new-session'],
       onExecute: onNew,
     })
     items.push({
       id: 'quick-prompt',
       label: 'New Session with Prompt…',
-      detail: 'Launch a session and pre-fill a prompt (⌘⇧↵)',
+      detail: 'Launch a session and pre-fill a prompt',
       icon: <Play size={14} />,
       section: 'Actions',
       keywords: 'quick prompt pre-fill ask task run',
+      shortcut: PALETTE_SHORTCUTS['quick-prompt'],
       onExecute: onOpenQuickPrompt,
     })
     items.push({
       id: 'keyboard-shortcuts',
       label: 'Keyboard Shortcuts',
-      detail: 'Show all keyboard shortcuts (⌘/)',
+      detail: 'Show all keyboard shortcuts',
       icon: <Keyboard size={14} />,
       section: 'Actions',
       keywords: 'shortcut hotkey keybinding',
+      shortcut: PALETTE_SHORTCUTS['keyboard-shortcuts'],
       onExecute: () => window.dispatchEvent(new Event('toggle-shortcut-overlay')),
     })
 
@@ -133,6 +163,7 @@ export default function CommandPalette({
         detail: 'Open or close side-by-side terminals',
         icon: <Columns2 size={14} />,
         section: 'Actions',
+        shortcut: PALETTE_SHORTCUTS['toggle-split'],
         onExecute: onToggleSplit,
       })
     }
@@ -314,6 +345,7 @@ export default function CommandPalette({
       icon: <Search size={14} />,
       section: 'Actions',
       keywords: 'find session history search',
+      shortcut: PALETTE_SHORTCUTS['search-sessions'],
       stayOpen: true,
       onExecute: () => {
         setSearchMode('sessions')
@@ -441,11 +473,18 @@ export default function CommandPalette({
     return () => { if (sessionSearchTimerRef.current) clearTimeout(sessionSearchTimerRef.current) }
   }, [searchMode, query, allSessions, onResumeSession])
 
+  // Recent actions (only shown when query is empty and in commands mode)
+  const recentActions = useMemo(() => {
+    if (query.trim() || searchMode === 'sessions') return []
+    return recentIds.map(id => actions.find(a => a.id === id)).filter(Boolean) as CommandPaletteAction[]
+  }, [query, searchMode, recentIds, actions])
+
   // Combine filtered actions with terminal matches (or session results in session mode)
   const allFiltered = useMemo(() => {
     if (searchMode === 'sessions') return sessionResults
-    return [...filtered, ...terminalMatches]
-  }, [searchMode, filtered, terminalMatches, sessionResults])
+    const recent = recentActions.map(a => ({ ...a, section: 'Recent' }))
+    return [...recent, ...filtered.filter(a => !recentIds.includes(a.id)), ...terminalMatches]
+  }, [searchMode, filtered, terminalMatches, sessionResults, recentActions, recentIds])
 
   // Group by section for display
   const grouped = useMemo(() => {
@@ -498,6 +537,7 @@ export default function CommandPalette({
     } else if (e.key === 'Enter') {
       e.preventDefault()
       if (allFiltered[selectedIndex]) {
+        trackRecent(allFiltered[selectedIndex].id)
         allFiltered[selectedIndex].onExecute()
         if (!allFiltered[selectedIndex].stayOpen) onClose()
       }
@@ -550,7 +590,7 @@ export default function CommandPalette({
                   <div
                     key={item.id}
                     className={`cmd-palette-item ${idx === selectedIndex ? 'selected' : ''}`}
-                    onClick={() => { item.onExecute(); if (!item.stayOpen) onClose() }}
+                    onClick={() => { trackRecent(item.id); item.onExecute(); if (!item.stayOpen) onClose() }}
                     onMouseEnter={() => setSelectedIndex(idx)}
                   >
                     <span className="cmd-palette-item-icon">{item.icon}</span>
@@ -563,6 +603,9 @@ export default function CommandPalette({
                     <span className="cmd-palette-item-label">{item.label}</span>
                     {item.detail && (
                       <span className="cmd-palette-item-detail">{item.detail}</span>
+                    )}
+                    {item.shortcut && (
+                      <kbd className="cmd-palette-item-shortcut">{item.shortcut}</kbd>
                     )}
                     <ArrowRight size={12} className="cmd-palette-item-arrow" />
                   </div>
