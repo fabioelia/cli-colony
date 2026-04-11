@@ -149,6 +149,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Date navigation', detail: 'Browse activity history day by day. Use ← / → arrows to move between days, or click "Today" to jump back. Activity events are persisted to daily log files and kept for 30 days.', icon: 'ChevronLeft' },
           { label: 'Summary line', detail: 'Shows total event count, error count, and warning count for the selected day at a glance.' },
+          { label: 'Text search', detail: 'Free-text search across event names and summaries. Case-insensitive substring match. Combines with source and level filters (AND logic). Shows "No matching events" when results are empty.', icon: 'Search' },
           { label: 'Source filter chips', detail: 'Filter events by source: All, Persona, Pipeline, or Env. Chips are toggles — click to select one.' },
           { label: 'Level filter chips', detail: 'Filter by severity: All, Info, Warn, or Error. Warn and Error chips show badge counts when events exist. Filters combine with source filter (AND).' },
           { label: 'Show more', detail: 'Expands from 20 events (default) to 50. For today, the live ring buffer holds up to 100 events. Historical days load from daily log files with no cap.' },
@@ -297,7 +298,7 @@ export const helpContent: Record<string, HelpEntry> = {
       { keys: 'Cmd+\\', action: 'Toggle split view' },
       { keys: 'Cmd+Shift+F', action: 'Global Search — search across all sessions\' terminal output' },
       { keys: 'Cmd+K', action: 'Command palette — switch sessions, run personas, launch agents, launch templates, navigate panels, search session history' },
-      { keys: 'Cmd+Shift+↵', action: 'Quick Prompt — launch a new session with a prompt pre-filled; ↑↓ to cycle history; save frequently-used prompts as named snippets' },
+      { keys: 'Cmd+Shift+↵', action: 'Quick Prompt — launch a new session with a prompt pre-filled; ↑↓ to cycle history; save frequently-used prompts as named snippets; filter snippets by name; edit existing snippets in-place' },
       { keys: 'Cmd+Shift+1–5', action: 'Load workspace preset by position' },
       { keys: 'Cmd+Click', action: 'Enter multi-select mode and toggle session' },
       { keys: 'Shift+Click', action: 'Select range of sessions from last-clicked (in select mode)' },

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import {
   Home, Play, Plus, Zap, Clock, AlertCircle,
   CheckCircle2, Circle, Users, FolderOpen, Activity, GanttChart, BarChart3, X, Eye, Square, Pin, PinOff,
-  ChevronLeft, ChevronRight, Calendar, RotateCcw
+  ChevronLeft, ChevronRight, Calendar, RotateCcw, Search
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import SessionTimeline from './SessionTimeline'
@@ -169,6 +169,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const [activitySourceFilter, setActivitySourceFilter] = useState<'all' | 'persona' | 'pipeline' | 'env'>('all')
   const [activityLevelFilter, setActivityLevelFilter] = useState<'all' | 'info' | 'warn' | 'error'>('all')
   const [activityExpanded, setActivityExpanded] = useState(false)
+  const [activityTextSearch, setActivityTextSearch] = useState('')
 
   // Date navigation for activity history
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), [])
@@ -205,8 +206,12 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
     let items = displayActivity
     if (activitySourceFilter !== 'all') items = items.filter(e => e.source === activitySourceFilter)
     if (activityLevelFilter !== 'all') items = items.filter(e => e.level === activityLevelFilter)
+    if (activityTextSearch.trim()) {
+      const q = activityTextSearch.toLowerCase()
+      items = items.filter(e => e.name.toLowerCase().includes(q) || e.summary.toLowerCase().includes(q))
+    }
     return items.slice(0, activityExpanded ? 100 : 20)
-  }, [displayActivity, activitySourceFilter, activityLevelFilter, activityExpanded])
+  }, [displayActivity, activitySourceFilter, activityLevelFilter, activityTextSearch, activityExpanded])
 
   const warnCount = useMemo(() => displayActivity.filter(e => e.level === 'warn').length, [displayActivity])
   const errorCount = useMemo(() => displayActivity.filter(e => e.level === 'error').length, [displayActivity])
@@ -527,6 +532,19 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
             {activitySummary.errors > 0 && <span className="activity-summary-errors">{activitySummary.errors} errors</span>}
             {activitySummary.warns > 0 && <span className="activity-summary-warns">{activitySummary.warns} warnings</span>}
           </div>
+          <div className="settings-search" style={{ marginBottom: 8 }}>
+            <Search size={13} />
+            <input
+              placeholder="Search events..."
+              value={activityTextSearch}
+              onChange={e => setActivityTextSearch(e.target.value)}
+            />
+            {activityTextSearch && (
+              <button className="settings-search-clear" onClick={() => setActivityTextSearch('')}>
+                <X size={13} />
+              </button>
+            )}
+          </div>
           <div className="activity-filters">
             <div className="activity-filter-row">
               {(['all', 'persona', 'pipeline', 'env'] as const).map(s => (
@@ -546,7 +564,11 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
             </div>
           </div>
           {filteredActivity.length === 0 ? (
-            <div className="overview-empty-hint">{isToday ? 'No activity recorded yet' : `No activity on ${formatDateLabel(selectedDate)}`}</div>
+            <div className="overview-empty-hint">{
+              (activityTextSearch.trim() || activitySourceFilter !== 'all' || activityLevelFilter !== 'all')
+                ? 'No matching events'
+                : isToday ? 'No activity recorded yet' : `No activity on ${formatDateLabel(selectedDate)}`
+            }</div>
           ) : (
             <div className="overview-activity-list">
               {filteredActivity.map(ev => (
