@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { Search, X, ChevronRight } from 'lucide-react'
+import { Search, X, ChevronRight, Copy } from 'lucide-react'
 
 interface SearchOutputMatch {
   lineNum: number
@@ -203,6 +203,17 @@ export default function GlobalSearch({ open, onClose, onNavigate }: Props) {
                   {match.contextAfter && (
                     <div className="global-search-context">{match.contextAfter}</div>
                   )}
+                  <button
+                    className="global-search-copy"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const text = [match.contextBefore, match.line, match.contextAfter].filter(Boolean).join('\n')
+                      navigator.clipboard.writeText(text)
+                    }}
+                    title="Copy match"
+                  >
+                    <Copy size={12} />
+                  </button>
                 </div>
               )})}
             </div>

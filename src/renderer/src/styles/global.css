@@ -3582,6 +3582,25 @@ body:has(.daemon-update-banner) .app-update-banner {
   opacity: 0.85;
 }
 
+.agent-btn-delete {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  transition: all 0.15s;
+}
+
+.agent-btn-delete:hover {
+  background: var(--bg-tertiary);
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
 /* Add agent */
 .agent-add-btn {
   display: flex;
@@ -18773,7 +18792,24 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-family: var(--font-mono, 'SF Mono', 'Fira Code', monospace);
   font-size: 11px;
   line-height: 1.5;
+  position: relative;
 }
+.global-search-copy {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text-muted);
+  padding: 2px 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.global-search-match:hover .global-search-copy { opacity: 1; }
+.global-search-copy:hover { color: var(--text-primary); }
 .global-search-match:hover,
 .global-search-match.selected {
   background: var(--bg-hover);

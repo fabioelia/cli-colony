@@ -192,7 +192,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Collapse/Expand All', detail: 'Toggle all session group headers collapsed or expanded at once. Appears when sessions are grouped by persona, project, or status.', icon: 'ChevronsUp' },
           { label: 'Multi-select', detail: 'Click the checkbox icon (next to group-by) or Cmd+click any session to enter select mode. A floating action bar appears for bulk Stop, Restart, or Remove. Cmd+A selects all visible sessions; Escape exits. Remove only affects stopped sessions.', icon: 'CheckSquare' },
           { label: 'Permission mode', detail: 'Choose Autonomous (default — full permissions) or Supervised (Claude asks before risky actions) when creating a session. Supervised sessions show a shield icon in the sidebar.', icon: 'Shield' },
-          { label: 'Global Search', detail: 'Search across all sessions\' terminal output. Find which session produced an error or output. Opens a side panel with results grouped by session. Use ↑↓ to navigate results, Enter to jump to the matching session.', shortcut: '\u2318\u21e7F', icon: 'Search' },
+          { label: 'Global Search', detail: 'Search across all sessions\' terminal output. Find which session produced an error or output. Opens a side panel with results grouped by session. Use ↑↓ to navigate results, Enter to jump to the matching session. Hover a match to reveal a copy button for the matched text.', shortcut: '\u2318\u21e7F', icon: 'Search' },
           { label: 'Shortcut numbers', detail: 'Numbers 1-9 shown next to sessions for quick Cmd+N jumping.' },
           { label: 'Trigger chain', detail: 'Click the info icon on a session that has a parent or children to see its full trigger chain — the tree of sessions that spawned from the same root. Click any node to navigate to that session. Useful for tracing persona orchestration chains.', icon: 'Info' },
           { label: 'Parent/child navigation', detail: 'Click the ↳ arrow on child sessions to jump to the parent, or click "N children" on parent sessions to jump to the first child.' },
@@ -288,6 +288,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Play button', detail: 'Launch a new Claude session pre-configured with this agent definition.', icon: 'Play' },
           { label: 'Edit button', detail: 'Opens a split view: markdown file editor on the left, Claude terminal on the right to help refine the agent.', icon: 'Pencil' },
+          { label: 'Delete button', detail: 'Permanently deletes the agent definition file after confirmation. Cannot be undone.', icon: 'Trash2' },
           { label: 'Export', detail: 'Download the agent as a zip file to share with others.', icon: 'Download' },
         ],
       },
