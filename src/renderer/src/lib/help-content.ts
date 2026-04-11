@@ -248,7 +248,7 @@ export const helpContent: Record<string, HelpEntry> = {
       { keys: 'Cmd+\\', action: 'Toggle split view' },
       { keys: 'Cmd+Shift+F', action: 'Global Search — search across all sessions\' terminal output' },
       { keys: 'Cmd+K', action: 'Command palette — switch sessions, run personas, launch agents, launch templates, navigate panels, search session history' },
-      { keys: 'Cmd+Shift+↵', action: 'Quick Prompt — launch a new session with a prompt pre-filled; ↑↓ to cycle history' },
+      { keys: 'Cmd+Shift+↵', action: 'Quick Prompt — launch a new session with a prompt pre-filled; ↑↓ to cycle history; save frequently-used prompts as named snippets' },
       { keys: 'Cmd+Shift+1–5', action: 'Load workspace preset by position' },
       { keys: 'Cmd+Click', action: 'Enter multi-select mode and toggle session' },
       { keys: 'Cmd+A', action: 'Select all visible sessions (in select mode)' },
