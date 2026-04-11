@@ -983,7 +983,7 @@ export default function SettingsPanel({ onBack }: Props) {
           </div>
         )}
         {restartError && (
-          <p className="settings-help" style={{ color: 'var(--danger)' }}>Restart failed — check logs for details.</p>
+          <p className="settings-help" style={{ color: 'var(--danger)', cursor: 'pointer' }} onClick={() => setRestartError(false)} title="Click to dismiss">Restart failed — check logs for details.</p>
         )}
         {!showRestartConfirm ? (
           <button
@@ -1013,15 +1013,18 @@ export default function SettingsPanel({ onBack }: Props) {
                 title="Confirm restart"
                 onClick={async () => {
                   setRestarting(true)
+                  setRestartError(false)
                   try {
                     await window.api.daemon.restart()
-                    window.api.daemon.getVersion().then(setDaemonVersion).catch(() => {})
+                    // Wait for socket to stabilize after restartDaemon()'s 500ms sleep
+                    await new Promise(r => setTimeout(r, 1000))
+                    const version = await window.api.daemon.getVersion()
+                    setDaemonVersion(version)
+                    setShowRestartConfirm(false)
                   } catch (_err) {
                     setRestartError(true)
-                    setTimeout(() => setRestartError(false), 4000)
                   }
                   setRestarting(false)
-                  setShowRestartConfirm(false)
                 }}
               >
                 {restarting ? 'Restarting...' : 'Restart'}
