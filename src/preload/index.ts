@@ -447,6 +447,9 @@ export interface ClaudeManagerAPI {
     setConfig: (config: BatchConfig) => Promise<boolean>
     getHistory: (limit?: number) => Promise<BatchRun[]>
     runNow: () => Promise<{ success: boolean; batchId?: string; error?: string }>
+    onStarted: (cb: (data: { batchId: string; taskCount: number }) => void) => () => void
+    onTaskComplete: (cb: (data: { batchId: string; task: any }) => void) => () => void
+    onCompleted: (cb: (data: { batchId: string; run: any }) => void) => () => void
   }
   team: {
     getMetrics: (window?: '7d' | '30d') => Promise<TeamMetrics>
@@ -954,6 +957,9 @@ const api: ClaudeManagerAPI = {
     setConfig: (config) => ipcRenderer.invoke('batch:setConfig', config),
     getHistory: (limit) => ipcRenderer.invoke('batch:getHistory', limit),
     runNow: () => ipcRenderer.invoke('batch:runNow'),
+    onStarted: (cb) => { const h = (_: any, d: any) => cb(d); ipcRenderer.on('batch:started', h); return () => ipcRenderer.removeListener('batch:started', h) },
+    onTaskComplete: (cb) => { const h = (_: any, d: any) => cb(d); ipcRenderer.on('batch:taskComplete', h); return () => ipcRenderer.removeListener('batch:taskComplete', h) },
+    onCompleted: (cb) => { const h = (_: any, d: any) => cb(d); ipcRenderer.on('batch:completed', h); return () => ipcRenderer.removeListener('batch:completed', h) },
   },
   team: {
     getMetrics: (window) => ipcRenderer.invoke('team:getMetrics', window),

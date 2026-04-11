@@ -16,10 +16,25 @@ export default function BatchExecutionSettings({ isExpanded, onToggleExpand }: P
   const [editMode, setEditMode] = useState(false)
   const [formData, setFormData] = useState<BatchConfig | null>(null)
   const [expandedRun, setExpandedRun] = useState<string | null>(null)
+  const [runningBatch, setRunningBatch] = useState<{ id: string; total: number; completed: number } | null>(null)
 
   useEffect(() => {
     loadBatchConfig()
     loadBatchHistory()
+  }, [])
+
+  useEffect(() => {
+    const unsub1 = window.api.batch.onStarted(({ batchId, taskCount }) => {
+      setRunningBatch({ id: batchId, total: taskCount, completed: 0 })
+    })
+    const unsub2 = window.api.batch.onTaskComplete(({ batchId }) => {
+      setRunningBatch(prev => prev && prev.id === batchId ? { ...prev, completed: prev.completed + 1 } : prev)
+    })
+    const unsub3 = window.api.batch.onCompleted(() => {
+      setRunningBatch(null)
+      loadBatchHistory()
+    })
+    return () => { unsub1(); unsub2(); unsub3() }
   }, [])
 
   const loadBatchConfig = async () => {
@@ -270,6 +285,26 @@ export default function BatchExecutionSettings({ isExpanded, onToggleExpand }: P
                 </button>
               </div>
             </>
+          )}
+
+          {runningBatch && (
+            <div style={{ marginTop: '16px', padding: '12px', backgroundColor: 'var(--bg-surface)', borderRadius: '6px', border: '1px solid var(--accent-blue)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 600 }}>Running batch...</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                  {runningBatch.completed}/{runningBatch.total} tasks
+                </span>
+              </div>
+              <div style={{ height: '4px', backgroundColor: 'var(--border)', borderRadius: '2px', overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%',
+                  width: `${runningBatch.total > 0 ? (runningBatch.completed / runningBatch.total) * 100 : 0}%`,
+                  backgroundColor: 'var(--accent-blue)',
+                  borderRadius: '2px',
+                  transition: 'width 0.3s ease',
+                }} />
+              </div>
+            </div>
           )}
 
           {history.length > 0 && (
