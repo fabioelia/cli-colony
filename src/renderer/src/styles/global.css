@@ -6205,6 +6205,17 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-muted);
   opacity: 0.7;
 }
+/* Budget exceeded badge — red, signals cost cap hit */
+.instance-budget-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--danger) 20%, transparent);
+  color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
+  white-space: nowrap;
+}
 
 /* ---- Session Error Card ---- */
 .session-error-card {
@@ -16478,6 +16489,15 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 9px;
   color: var(--text-muted);
   background: var(--bg-hover);
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.persona-list-cost-cap {
+  font-size: 9px;
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
   padding: 1px 5px;
   border-radius: 3px;
   flex-shrink: 0;

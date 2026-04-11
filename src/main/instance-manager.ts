@@ -28,6 +28,22 @@ import type { ClaudeInstance } from '../daemon/protocol'
 // Track MCP config files by instance ID so we can clean them up on exit
 const _mcpConfigPaths = new Map<string, string>()
 
+// Rate-limit cost checks: track last check timestamp per instance (30s throttle)
+const _lastCostCheckAt = new Map<string, number>()
+// Track which instances have already been budget-stopped (prevent double-stop)
+const _budgetStopped = new Set<string>()
+
+/** Check if an instance was stopped due to budget exceeded. */
+export function wasBudgetStopped(instanceId: string): boolean {
+  return _budgetStopped.has(instanceId)
+}
+
+// Callback to resolve persona cost cap — registered by persona-manager at startup to avoid circular import
+let _costCapResolver: ((instanceId: string) => number | undefined) | null = null
+export function setCostCapResolver(fn: (instanceId: string) => number | undefined): void {
+  _costCapResolver = fn
+}
+
 // Tray update callback
 let onInstanceListChanged: (() => void) | null = null
 export function setOnInstanceListChanged(cb: () => void): void {
@@ -59,9 +75,43 @@ export function wireDaemonEvents(): void {
 
   const client = getDaemonClient()
 
-  // Forward output to renderer
+  // Forward output to renderer + check persona cost cap
   client.on('output', (instanceId: string, data: string) => {
     broadcast('instance:output', { id: instanceId, data })
+
+    // Rate-limited persona cost cap check (every 30s)
+    if (!_budgetStopped.has(instanceId)) {
+      const now = Date.now()
+      const last = _lastCostCheckAt.get(instanceId) ?? 0
+      if (now - last >= 30_000) {
+        _lastCostCheckAt.set(instanceId, now)
+        const cap = _costCapResolver?.(instanceId)
+        if (cap != null) {
+          client.getInstance(instanceId).then(inst => {
+            if (!inst || _budgetStopped.has(instanceId)) return
+            const cost = inst.tokenUsage?.cost ?? 0
+            if (cost >= cap) {
+              _budgetStopped.add(instanceId)
+              console.log(`[instance-manager] budget exceeded for ${inst.name}: $${cost.toFixed(2)} >= $${cap.toFixed(2)} — stopping`)
+              client.stopInstance(instanceId).catch(() => {})
+              broadcast('instance:budgetExceeded', { id: instanceId, cost, cap })
+              notify(
+                `Colony: ${inst.name} stopped`,
+                `Cost limit reached ($${cost.toFixed(2)} / $${cap.toFixed(2)})`,
+                { type: 'session', id: instanceId }, 'session'
+              )
+              appendActivity({
+                source: 'persona',
+                name: inst.name.replace('Persona: ', ''),
+                summary: `Budget exceeded — session stopped ($${cost.toFixed(2)} / $${cap.toFixed(2)})`,
+                level: 'warn',
+                sessionId: instanceId,
+              }).catch(() => {})
+            }
+          }).catch(() => {})
+        }
+      }
+    }
   })
 
   // Forward activity changes + notify when Claude finishes processing
@@ -106,6 +156,8 @@ export function wireDaemonEvents(): void {
   client.on('exited', async (instanceId: string, exitCode: number) => {
     broadcast('instance:exited', { id: instanceId, exitCode })
     trackClosed(instanceId, 'exited')
+    _lastCostCheckAt.delete(instanceId)
+    _budgetStopped.delete(instanceId)
     onSessionExitCallback?.(instanceId)
 
     // Parse error summary from PTY buffer on non-zero exit

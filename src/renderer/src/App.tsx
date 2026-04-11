@@ -216,6 +216,15 @@ export default function App() {
     })
   }, [])
 
+  // Track persona budget-exceeded events — mark instance so sidebar shows red badge
+  useEffect(() => {
+    return window.api.instance.onBudgetExceeded(({ id }) => {
+      setInstances(prev => prev.map(inst =>
+        inst.id === id ? { ...inst, budgetExceeded: true } : inst
+      ))
+    })
+  }, [])
+
   // Keyboard shortcuts from main process menu — subscribe once, use refs for fresh values
   useEffect(() => {
     const unsubs = [

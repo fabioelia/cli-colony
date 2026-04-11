@@ -145,6 +145,8 @@ function setupMocks(fsMock: ReturnType<typeof buildFsMock>) {
     createInstance: mockCreateInstance,
     getAllInstances: mockGetAllInstances,
     killInstance: mockKillInstance,
+    wasBudgetStopped: vi.fn().mockReturnValue(false),
+    setCostCapResolver: vi.fn(),
   }))
   vi.doMock('../daemon-client', () => ({ getDaemonClient: mockGetDaemonClient }))
   vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: mockSendPromptWhenReady }))

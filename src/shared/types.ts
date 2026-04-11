@@ -34,6 +34,7 @@ export interface ClaudeInstance {
   toolDeferredInfo?: { toolName: string; toolArgs?: string; sessionId: string }
   permissionMode?: 'autonomous' | 'supervised'
   note?: string
+  budgetExceeded?: boolean
 }
 
 export interface AgentDef {
@@ -309,6 +310,8 @@ export interface PersonaInfo {
   conflictGroup?: string
   /** Timestamp (ms) of last skipped run due to run_condition check, or null */
   lastSkipped?: number | null
+  /** Per-session cost cap in USD (optional, from frontmatter) */
+  maxCostUsd?: number
 }
 
 // ---- Persona Memory (structured sidecar) ----
@@ -349,6 +352,8 @@ export interface PersonaRunEntry {
   durationMs: number
   success: boolean
   costUsd?: number
+  /** Why the session stopped — undefined for normal exit */
+  stopReason?: 'budget_exceeded' | 'timeout'
 }
 
 export interface PersonaAnalytics {

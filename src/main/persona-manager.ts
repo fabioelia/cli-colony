@@ -12,7 +12,7 @@ import { basename, join } from 'path'
 const execFileAsync = promisify(execFile)
 import { getPendingTriggers } from './persona-triggers'
 import { colonyPaths } from '../shared/colony-paths'
-import { createInstance, getAllInstances, killInstance } from './instance-manager'
+import { createInstance, getAllInstances, killInstance, wasBudgetStopped, setCostCapResolver } from './instance-manager'
 import { getDaemonClient } from './daemon-client'
 import { sendPromptWhenReady } from './send-prompt-when-ready'
 import { broadcast } from './broadcast'
@@ -97,6 +97,8 @@ export interface PersonaFrontmatter {
   conflict_group?: string
   /** Session timeout in minutes for cron-triggered runs (default: 10). */
   session_timeout_minutes?: number
+  /** Per-session cost cap in USD. Session auto-stops when exceeded. */
+  max_cost_usd?: number
   /**
    * Optional run condition. Currently supports 'new_commits' — skip run if no
    * commits have been made since the last run in the persona's working_directory.
@@ -125,6 +127,7 @@ function parseFrontmatter(content: string): PersonaFrontmatter | null {
     can_invoke: parseStringArray(val('can_invoke')),
     auto_memory_extraction: val('auto_memory_extraction') !== 'false',
     session_timeout_minutes: parseInt(val('session_timeout_minutes')) || undefined,
+    max_cost_usd: parseFloat(val('max_cost_usd')) || undefined,
     conflict_group: val('conflict_group') || undefined,
     run_condition: val('run_condition') || undefined,
   }
@@ -154,6 +157,9 @@ function parseStringArray(val: string): string[] {
 export function loadPersonas(): void {
   ensureDir()
   loadState()
+
+  // Register cost cap resolver so instance-manager can check persona budgets
+  setCostCapResolver(getPersonaCostCap)
   const mdFiles = readdirSync(PERSONAS_DIR).filter(f => f.endsWith('.md'))
   // Auto-migrate markdown sections to structured .memory.json sidecars
   let migrated = 0
@@ -228,6 +234,7 @@ export function getPersonaList(): PersonaInfo[] {
         pendingTrigger: pending.get(personaId) ? { from: pending.get(personaId)!.from, note: pending.get(personaId)!.note } : null,
         conflictGroup: fm.conflict_group,
         lastSkipped: state.lastSkipped ?? null,
+        maxCostUsd: fm.max_cost_usd,
       })
     } catch { /* skip invalid files */ }
   }
@@ -583,6 +590,25 @@ export function getPersonasDir(): string {
   return PERSONAS_DIR
 }
 
+/** Reverse-lookup: given an instance ID, return the persona's max_cost_usd if any. */
+export function getPersonaCostCap(instanceId: string): number | undefined {
+  for (const [name, state] of Object.entries(stateCache)) {
+    if (state.activeSessionId === instanceId) {
+      // Find the persona file to read frontmatter
+      const files = readdirSync(PERSONAS_DIR).filter(f => f.endsWith('.md'))
+      for (const file of files) {
+        try {
+          const content = readFileSync(join(PERSONAS_DIR, file), 'utf-8')
+          const fm = parseFrontmatter(content)
+          if (fm?.name === name) return fm.max_cost_usd
+        } catch { /* skip */ }
+      }
+      return undefined
+    }
+  }
+  return undefined
+}
+
 /** Surgically update one or more frontmatter fields without touching section content. */
 export function updatePersonaMeta(fileName: string, updates: Record<string, string | boolean | number>): boolean {
   const { content } = getPersonaContent(fileName)
@@ -778,12 +804,14 @@ export async function onSessionExit(instanceId: string): Promise<void> {
       if (personaFile) {
         // Record this run in the per-persona ring buffer
         const personaId = personaFile.replace('.md', '')
+        const budgetExceeded = wasBudgetStopped(instanceId)
         appendRunEntry(personaId, {
           personaId,
           timestamp: new Date().toISOString(),
           durationMs: durationSec !== null ? durationSec * 1000 : 0,
           costUsd: sessionCost,
-          success: true,
+          success: true, // budget_exceeded counts as success (session did real work)
+          stopReason: budgetExceeded ? 'budget_exceeded' : undefined,
         })
         const overridePath = join(PERSONAS_DIR, `${personaId}.triggers.json`)
         let dynamicTriggers: Array<{ persona: string; message?: string }> | null = null

@@ -85,6 +85,7 @@ export interface ClaudeManagerAPI {
     onActivity: (callback: (data: { id: string; activity: 'busy' | 'waiting' }) => void) => () => void
     onToolDeferred: (callback: (data: { id: string; sessionId: string; toolName?: string }) => void) => () => void
     onErrorSummary: (callback: (data: { id: string; errorSummary: ErrorSummary }) => void) => () => void
+    onBudgetExceeded: (callback: (data: { id: string; cost: number; cap: number }) => void) => () => void
     clearToolDeferred: (id: string) => Promise<boolean>
     fileOverlaps: () => Promise<Record<string, { file: string; otherSessions: { id: string; name: string }[] }[]>>
   }
@@ -590,6 +591,11 @@ const api: ClaudeManagerAPI = {
       const listener = (_e: any, data: { id: string; errorSummary: import('../shared/types').ErrorSummary }) => callback(data)
       ipcRenderer.on('instance:errorSummary', listener)
       return () => ipcRenderer.removeListener('instance:errorSummary', listener)
+    },
+    onBudgetExceeded: (callback) => {
+      const listener = (_e: any, data: { id: string; cost: number; cap: number }) => callback(data)
+      ipcRenderer.on('instance:budgetExceeded', listener)
+      return () => ipcRenderer.removeListener('instance:budgetExceeded', listener)
     },
     clearToolDeferred: (id) => ipcRenderer.invoke('instance:clearToolDeferred', id),
     fileOverlaps: () => ipcRenderer.invoke('instances:fileOverlaps'),

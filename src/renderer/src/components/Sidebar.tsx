@@ -209,6 +209,8 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
               badges.push({ node: <span key="pm" className="instance-supervised-badge" title="Supervised mode — Claude asks before risky actions"><Shield size={11} /></span>, label: 'Supervised' })
             if (conflictFiles && conflictFiles.length > 0)
               badges.push({ node: <span key="cf" className="instance-conflict-badge" title={conflictFiles.map(o => `${o.file} (also in ${o.otherSessions.map(s => s.name).join(', ')})`).join('\n')}><AlertTriangle size={11} /> {conflictFiles.length}</span>, label: `${conflictFiles.length} conflict${conflictFiles.length > 1 ? 's' : ''}` })
+            if (inst.budgetExceeded)
+              badges.push({ node: <span key="be" className="instance-budget-badge" title="Budget exceeded — session stopped">$cap</span>, label: 'Budget exceeded' })
             if (badges.length === 0) return null
             return (
               <div className="instance-badges">

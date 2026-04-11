@@ -998,6 +998,7 @@ function PersonaCard({
             return <span className="persona-list-next-run" title={fires[0].toLocaleString()}>Next: {label}</span>
           })()}
           <span className="persona-list-model">{persona.model || 'sonnet'}</span>
+          {persona.maxCostUsd != null && <span className="persona-list-cost-cap" title={`Session cost cap: $${persona.maxCostUsd.toFixed(2)}`}>${persona.maxCostUsd.toFixed(2)} cap</span>}
           {analytics && analytics.totalRuns > 0 && (
             <span className="persona-list-stats">
               <span className={`persona-stat-chip ${analytics.successRate >= 80 ? 'good' : analytics.successRate >= 50 ? 'warn' : 'bad'}`} title={`Success rate: ${analytics.successRate}%`}>
@@ -1605,6 +1606,7 @@ function EditPersonaModal({ persona, onClose, onSaved }: {
   })
   const [enabled, setEnabled] = useState(persona.enabled)
   const [maxSessions, setMaxSessions] = useState(persona.maxSessions ?? 1)
+  const [maxCostUsd, setMaxCostUsd] = useState(persona.maxCostUsd?.toString() ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -1621,6 +1623,13 @@ function EditPersonaModal({ persona, onClose, onSaved }: {
         updates.schedule = schedule.trim()
       } else {
         updates.schedule = 'null'
+      }
+      const parsedCost = parseFloat(maxCostUsd)
+      if (parsedCost > 0) {
+        updates.max_cost_usd = parsedCost
+      } else if (persona.maxCostUsd != null) {
+        // Clear the field by setting to 0 (parseFrontmatter treats 0/NaN as undefined)
+        updates.max_cost_usd = 0
       }
       const ok = await window.api.persona.updateMeta(persona.id, updates)
       if (ok) {
@@ -1674,6 +1683,18 @@ function EditPersonaModal({ persona, onClose, onSaved }: {
               max={10}
               value={maxSessions}
               onChange={(e) => setMaxSessions(Number(e.target.value))}
+            />
+          </label>
+          <label className="persona-edit-meta-field">
+            <span>Cost Cap (USD)</span>
+            <input
+              className="persona-edit-meta-input"
+              type="number"
+              min={0}
+              step={0.5}
+              value={maxCostUsd}
+              onChange={(e) => setMaxCostUsd(e.target.value)}
+              placeholder="No limit"
             />
           </label>
           <label className="persona-edit-meta-field persona-edit-meta-toggle">
