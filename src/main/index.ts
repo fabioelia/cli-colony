@@ -78,6 +78,7 @@ esac
 import { broadcast } from './broadcast'
 import { seedDefaultPipelines, startPipelines, stopPipelines, getPipelineList } from './pipeline-engine'
 import { cleanupStaleForkGroups } from './fork-manager'
+import { cleanupOldDailyLogs } from './activity-manager'
 import { startWebhookServer, stopWebhookServer } from './webhook-server'
 import { initAppUpdater, shutdownAppUpdater } from './app-updater'
 import { stopBatchScheduler } from './batch-runner'
@@ -483,6 +484,9 @@ app.whenReady().then(async () => {
 
   // Clean up fork groups from previous run
   try { cleanupStaleForkGroups() } catch (err) { console.warn('[app] cleanupStaleForkGroups failed:', err) }
+
+  // Clean up daily activity logs older than 30 days
+  cleanupOldDailyLogs().catch(err => console.warn('[app] cleanupOldDailyLogs failed:', err))
 
   // Set dock icon on macOS
   if (process.platform === 'darwin') {

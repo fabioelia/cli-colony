@@ -107,11 +107,13 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Recent Activity',
         position: 'Below running sessions',
         items: [
+          { label: 'Date navigation', detail: 'Browse activity history day by day. Use ← / → arrows to move between days, or click "Today" to jump back. Activity events are persisted to daily log files and kept for 30 days.', icon: 'ChevronLeft' },
+          { label: 'Summary line', detail: 'Shows total event count, error count, and warning count for the selected day at a glance.' },
           { label: 'Source filter chips', detail: 'Filter events by source: All, Persona, Pipeline, or Env. Chips are toggles — click to select one.' },
           { label: 'Level filter chips', detail: 'Filter by severity: All, Info, Warn, or Error. Warn and Error chips show badge counts when events exist. Filters combine with source filter (AND).' },
-          { label: 'Show more', detail: 'Expands from 20 events (default) to 50. The activity manager stores up to 100 events total.' },
+          { label: 'Show more', detail: 'Expands from 20 events (default) to 50. For today, the live ring buffer holds up to 100 events. Historical days load from daily log files with no cap.' },
           { label: 'Click to navigate', detail: 'Click any activity item to jump to its source — session events focus the session, persona/pipeline/env events navigate to the corresponding panel.' },
-          { label: 'Live updates', detail: 'New events from personas, pipelines, and environments appear at the top in real-time, respecting active filters.' },
+          { label: 'Live updates', detail: 'New events from personas, pipelines, and environments appear at the top in real-time, respecting active filters. Live updates only appear when viewing today.' },
         ],
       },
       {

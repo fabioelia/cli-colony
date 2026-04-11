@@ -61,6 +61,9 @@ export const colonyPaths = {
   approvalRulesJson: path.join(ROOT, 'governance', 'approval-rules.json'),
   onboardingStateJson: path.join(ROOT, 'onboarding-state.json'),
 
+  /** Build a daily activity log path for a given date (YYYY-MM-DD) */
+  activityDailyLog: (date: string) => path.join(ROOT, `activity-${date}.json`),
+
   /** Build a repo clone path for a given owner/name (shallow clones for GitHub panel) */
   repoDir: (owner: string, name: string) => path.join(ROOT, 'repos', owner, name),
 

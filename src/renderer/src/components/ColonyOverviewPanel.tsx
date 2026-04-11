@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   Home, Play, Plus, Zap, Clock, AlertCircle,
-  CheckCircle2, Circle, Users, FolderOpen, Activity, GanttChart, X, Eye, Square, Pin, PinOff
+  CheckCircle2, Circle, Users, FolderOpen, Activity, GanttChart, X, Eye, Square, Pin, PinOff,
+  ChevronLeft, ChevronRight, Calendar
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import SessionTimeline from './SessionTimeline'
@@ -91,15 +92,51 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const [activityLevelFilter, setActivityLevelFilter] = useState<'all' | 'info' | 'warn' | 'error'>('all')
   const [activityExpanded, setActivityExpanded] = useState(false)
 
+  // Date navigation for activity history
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), [])
+  const [selectedDate, setSelectedDate] = useState(todayStr)
+  const [historicalActivity, setHistoricalActivity] = useState<ActivityEvent[] | null>(null)
+  const isToday = selectedDate === todayStr
+
+  useEffect(() => {
+    if (isToday) {
+      setHistoricalActivity(null)
+    } else {
+      window.api.activity.forDate(selectedDate).then(setHistoricalActivity)
+    }
+  }, [selectedDate, isToday])
+
+  const displayActivity = isToday ? activity : (historicalActivity ?? [])
+
+  function shiftDate(days: number) {
+    const d = new Date(selectedDate + 'T12:00:00')
+    d.setDate(d.getDate() + days)
+    const next = d.toISOString().slice(0, 10)
+    if (next <= todayStr) setSelectedDate(next)
+  }
+
+  function formatDateLabel(date: string): string {
+    if (date === todayStr) return 'Today'
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    if (date === yesterday.toISOString().slice(0, 10)) return 'Yesterday'
+    return new Date(date + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  }
+
   const filteredActivity = useMemo(() => {
-    let items = activity
+    let items = displayActivity
     if (activitySourceFilter !== 'all') items = items.filter(e => e.source === activitySourceFilter)
     if (activityLevelFilter !== 'all') items = items.filter(e => e.level === activityLevelFilter)
     return items.slice(0, activityExpanded ? 50 : 20)
-  }, [activity, activitySourceFilter, activityLevelFilter, activityExpanded])
+  }, [displayActivity, activitySourceFilter, activityLevelFilter, activityExpanded])
 
-  const warnCount = useMemo(() => activity.filter(e => e.level === 'warn').length, [activity])
-  const errorCount = useMemo(() => activity.filter(e => e.level === 'error').length, [activity])
+  const warnCount = useMemo(() => displayActivity.filter(e => e.level === 'warn').length, [displayActivity])
+  const errorCount = useMemo(() => displayActivity.filter(e => e.level === 'error').length, [displayActivity])
+  const activitySummary = useMemo(() => ({
+    total: displayActivity.length,
+    warns: displayActivity.filter(e => e.level === 'warn').length,
+    errors: displayActivity.filter(e => e.level === 'error').length,
+  }), [displayActivity])
 
   return (
     <div className="colony-overview">
@@ -245,6 +282,25 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
         {/* Recent activity */}
         <div className="overview-section">
           <h3><Activity size={14} /> Recent Activity</h3>
+          <div className="activity-date-nav">
+            <button className="activity-date-btn" onClick={() => shiftDate(-1)} title="Previous day">
+              <ChevronLeft size={14} />
+            </button>
+            <span className="activity-date-label">{formatDateLabel(selectedDate)}</span>
+            <button className="activity-date-btn" onClick={() => shiftDate(1)} disabled={isToday} title="Next day">
+              <ChevronRight size={14} />
+            </button>
+            {!isToday && (
+              <button className="activity-date-btn activity-date-today" onClick={() => setSelectedDate(todayStr)} title="Jump to today">
+                Today
+              </button>
+            )}
+          </div>
+          <div className="activity-summary-line">
+            {activitySummary.total} events
+            {activitySummary.errors > 0 && <span className="activity-summary-errors">{activitySummary.errors} errors</span>}
+            {activitySummary.warns > 0 && <span className="activity-summary-warns">{activitySummary.warns} warnings</span>}
+          </div>
           <div className="activity-filters">
             <div className="activity-filter-row">
               {(['all', 'persona', 'pipeline', 'env'] as const).map(s => (
@@ -284,9 +340,9 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
               ))}
             </div>
           )}
-          {!activityExpanded && activity.length > 20 && (
+          {!activityExpanded && displayActivity.length > 20 && (
             <button className="activity-show-more" onClick={() => setActivityExpanded(true)}>
-              Show more ({activity.length - 20} older)
+              Show more ({displayActivity.length - 20} older)
             </button>
           )}
         </div>

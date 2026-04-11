@@ -18651,6 +18651,25 @@ body:has(.daemon-update-banner) .app-update-banner {
 .badge-busy { background: rgba(59, 130, 246, 0.15); color: var(--accent); }
 .badge-waiting { background: rgba(107, 107, 128, 0.12); color: var(--text-muted); }
 .badge-role { background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border); }
+/* Activity date navigation */
+.activity-date-nav {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
+}
+.activity-date-btn {
+  background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text-secondary); cursor: pointer; padding: 2px 6px; font-size: 11px;
+  display: flex; align-items: center;
+}
+.activity-date-btn:hover:not(:disabled) { background: var(--bg-tertiary); color: var(--text-primary); }
+.activity-date-btn:disabled { opacity: 0.3; cursor: default; }
+.activity-date-today { font-size: 11px; padding: 2px 8px; }
+.activity-date-label { font-size: 12px; color: var(--text-primary); font-weight: 500; min-width: 70px; text-align: center; }
+.activity-summary-line {
+  font-size: 11px; color: var(--text-secondary); margin-bottom: 6px;
+  display: flex; gap: 8px; align-items: center;
+}
+.activity-summary-errors { color: var(--danger); }
+.activity-summary-warns { color: var(--warning); }
 /* Activity filters */
 .activity-filters { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
 .activity-filter-row { display: flex; gap: 4px; }

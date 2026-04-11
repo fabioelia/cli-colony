@@ -360,6 +360,7 @@ export interface ClaudeManagerAPI {
   }
   activity: {
     list: () => Promise<ActivityEvent[]>
+    forDate: (date: string) => Promise<ActivityEvent[]>
     markRead: () => Promise<boolean>
     unreadCount: () => Promise<number>
     clear: () => Promise<boolean>
@@ -873,6 +874,7 @@ const api: ClaudeManagerAPI = {
   },
   activity: {
     list: () => ipcRenderer.invoke('activity:list'),
+    forDate: (date: string) => ipcRenderer.invoke('activity:forDate', date),
     markRead: () => ipcRenderer.invoke('activity:markRead'),
     unreadCount: () => ipcRenderer.invoke('activity:unreadCount'),
     clear: () => ipcRenderer.invoke('activity:clear'),

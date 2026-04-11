@@ -2,15 +2,19 @@
  * Activity Manager — unified event log for persona, pipeline, and environment events.
  *
  * Writes to ~/.claude-colony/activity.json (last 100 events, ring buffer).
+ * Also persists every event to a daily log file (activity-YYYY-MM-DD.json)
+ * for historical browsing. Daily logs older than 30 days are cleaned up on startup.
  * Tracks an in-memory unread count that resets on markRead().
  */
 
 import { promises as fsp } from 'fs'
+import * as path from 'path'
 import { colonyPaths } from '../shared/colony-paths'
 import { broadcast } from './broadcast'
 import type { ActivityEvent } from '../shared/types'
 
 const MAX_EVENTS = 100
+const DAILY_LOG_RETENTION_DAYS = 30
 let _counter = 0
 let _lastReadId: string | null = null
 
@@ -45,6 +49,49 @@ async function writeLog(events: ActivityEvent[]): Promise<void> {
   } catch { /* non-fatal */ }
 }
 
+function todayDateStr(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+async function appendToDailyLog(event: ActivityEvent): Promise<void> {
+  const date = event.timestamp.slice(0, 10)
+  const logPath = colonyPaths.activityDailyLog(date)
+  try {
+    let events: ActivityEvent[] = []
+    try {
+      events = JSON.parse(await fsp.readFile(logPath, 'utf-8'))
+    } catch { /* file doesn't exist yet */ }
+    events.push(event)
+    await fsp.writeFile(logPath, JSON.stringify(events), 'utf-8')
+  } catch { /* non-fatal */ }
+}
+
+export async function loadActivityForDate(date: string): Promise<ActivityEvent[]> {
+  // Validate date format to prevent path traversal
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return []
+  const logPath = colonyPaths.activityDailyLog(date)
+  try {
+    return JSON.parse(await fsp.readFile(logPath, 'utf-8'))
+  } catch {
+    return []
+  }
+}
+
+export async function cleanupOldDailyLogs(): Promise<void> {
+  const cutoff = Date.now() - DAILY_LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000
+  try {
+    const files = await fsp.readdir(colonyPaths.root)
+    const dailyLogs = files.filter(f => /^activity-\d{4}-\d{2}-\d{2}\.json$/.test(f))
+    for (const file of dailyLogs) {
+      const dateStr = file.slice('activity-'.length, -'.json'.length)
+      const fileDate = new Date(dateStr + 'T00:00:00Z').getTime()
+      if (fileDate < cutoff) {
+        await fsp.unlink(path.join(colonyPaths.root, file)).catch(() => {})
+      }
+    }
+  } catch { /* non-fatal */ }
+}
+
 export async function appendActivity(event: Omit<ActivityEvent, 'id' | 'timestamp'>): Promise<void> {
   const events = await getEvents()
   const newEvent: ActivityEvent = {
@@ -55,6 +102,8 @@ export async function appendActivity(event: Omit<ActivityEvent, 'id' | 'timestam
   events.push(newEvent)
   if (events.length > MAX_EVENTS) events.splice(0, events.length - MAX_EVENTS)
   await writeLog(events)
+  // Persist to daily log for historical browsing
+  appendToDailyLog(newEvent).catch(() => {})
   const unreadCount = computeUnreadCount(events)
   broadcast('activity:new', { event: newEvent, unreadCount })
 }
