@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   Home, Play, Plus, Zap, Clock, AlertCircle,
-  CheckCircle2, Circle, Users, FolderOpen, Activity, GanttChart
+  CheckCircle2, Circle, Users, FolderOpen, Activity, GanttChart, X
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import SessionTimeline from './SessionTimeline'
@@ -65,6 +65,11 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
       window.api.pipeline.onStatus((list) => setPipelines(list)),
       window.api.persona.onStatus((list) => setPersonas(list)),
       window.api.tasksBoard.onUpdated((items) => setTasks(items)),
+      window.api.pipeline.onApprovalUpdate(({ id, status }) => {
+        if (status === 'approved' || status === 'dismissed' || status === 'expired') {
+          setApprovals(prev => prev.filter(a => a.id !== id))
+        }
+      }),
     ]
     return () => unsubs.forEach(fn => fn())
   }, [])
@@ -133,10 +138,17 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
             <h3><AlertCircle size={14} /> Needs Attention</h3>
             <div className="overview-attention-list">
               {pendingApprovals.map(a => (
-                <div key={a.id} className="overview-attention-item attention-approval" onClick={() => onNavigate('pipelines')}>
-                  <Zap size={13} />
-                  <span className="attention-label">Approval: {a.pipelineName}</span>
-                  <span className="attention-time">{timeAgo(a.createdAt)}</span>
+                <div key={a.id} className="overview-attention-item attention-approval">
+                  <Zap size={13} style={{ cursor: 'pointer' }} onClick={() => onNavigate('pipelines')} />
+                  <span className="attention-label" onClick={() => onNavigate('pipelines')} style={{ cursor: 'pointer' }}>{a.pipelineName}</span>
+                  {a.summary && <span className="attention-summary">{a.summary}</span>}
+                  <span className="attention-time">{a.expiresAt ? `expires ${timeAgo(a.expiresAt)}` : timeAgo(a.createdAt)}</span>
+                  <button className="attention-action-btn approve" title="Approve" onClick={(e) => { e.stopPropagation(); window.api.pipeline.approve(a.id).then(() => setApprovals(prev => prev.filter(x => x.id !== a.id))) }}>
+                    <CheckCircle2 size={13} />
+                  </button>
+                  <button className="attention-action-btn dismiss" title="Dismiss" onClick={(e) => { e.stopPropagation(); window.api.pipeline.dismiss(a.id).then(() => setApprovals(prev => prev.filter(x => x.id !== a.id))) }}>
+                    <X size={13} />
+                  </button>
                 </div>
               ))}
               {errorPipelines.map(p => (

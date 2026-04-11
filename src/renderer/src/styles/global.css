@@ -1233,6 +1233,13 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: var(--bg-hover);
 }
 
+.notification-history-filters {
+  display: flex;
+  gap: 4px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
 .notification-history-body {
   overflow-y: auto;
   flex: 1;
@@ -18304,16 +18311,20 @@ body:has(.daemon-update-banner) .app-update-banner {
   gap: 8px;
   padding: 8px 12px;
   border-radius: 8px;
-  cursor: pointer;
   font-size: 13px;
   transition: background 0.15s;
 }
 .overview-attention-item:hover { background: var(--bg-hover); }
 .attention-approval { color: var(--warning); }
-.attention-error { color: var(--danger); }
-.attention-blocked { color: var(--text-muted); }
+.attention-error { color: var(--danger); cursor: pointer; }
+.attention-blocked { color: var(--text-muted); cursor: pointer; }
 .attention-label { flex: 1; color: var(--text-primary); }
-.attention-time { font-size: 11px; color: var(--text-muted); }
+.attention-time { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+.attention-summary { font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
+.attention-action-btn { background: none; border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; transition: all 0.15s; }
+.attention-action-btn:hover { background: var(--bg-hover); }
+.attention-action-btn.approve:hover { color: var(--success); border-color: var(--success); }
+.attention-action-btn.dismiss:hover { color: var(--danger); border-color: var(--danger); }
 /* Session / persona tiles */
 .overview-session-list {
   display: flex;

@@ -91,7 +91,7 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Needs Attention',
         position: 'Below stats (when applicable)',
         items: [
-          { label: 'Pending approvals', detail: 'Pipeline approval gates waiting for your decision. Click to go to Pipelines.', icon: 'Zap' },
+          { label: 'Pending approvals', detail: 'Pipeline approval gates waiting for your decision. Approve or dismiss inline, or click the pipeline name to navigate.', icon: 'Zap' },
           { label: 'Pipeline errors', detail: 'Pipelines that encountered an error on their last run.', icon: 'AlertCircle' },
           { label: 'Blocked tasks', detail: 'Task board items marked as blocked.', icon: 'Circle' },
         ],
@@ -237,7 +237,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Help icon', detail: 'Opens this help popover.', icon: 'HelpCircle' },
           { label: 'Activity bell', detail: 'Shows recent automation events from personas, pipelines, environments, and sessions. Persona completion events include outcome stats: duration, commits made, and files changed. Turns amber when pipeline actions are waiting for approval.', icon: 'Bell' },
-          { label: 'Notification history', detail: 'Persistent log of all desktop notifications — what happened while you were away. Grouped by Today/Yesterday/Older. Click an entry to navigate to its source (pipeline, persona, session). Red badge shows unread count. Persists across app restarts.', icon: 'BellRing' },
+          { label: 'Notification history', detail: 'Persistent log of all desktop notifications — what happened while you were away. Grouped by Today/Yesterday/Older. Filter by source type (Pipeline, Persona, Session, Approval, System) using the chip bar. Click an entry to navigate to its source. Red badge shows unread count. Persists across app restarts.', icon: 'BellRing' },
           { label: 'Workspace presets', detail: 'Save and restore workspace layouts (sidebar view, layout mode, sidebar width). Ships with 3 built-in presets: Monitor, Review, Compare. Cmd+Shift+1-5 for quick-switch.', icon: 'LayoutGrid' },
           { label: 'Settings gear', detail: 'Opens the Settings panel for CLI defaults, shell profile, daemon management, and more.', icon: 'Settings' },
         ],
