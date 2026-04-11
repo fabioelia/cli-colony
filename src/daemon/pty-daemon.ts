@@ -236,6 +236,7 @@ function toSerializable(inst: InternalInstance): ClaudeInstance {
     pendingSteer: inst.pendingSteer,
     toolDeferredInfo: inst.toolDeferredInfo,
     note: inst.note,
+    permissionMode: inst.permissionMode,
   }
 }
 
@@ -743,6 +744,8 @@ function restartInstance(id: string, defaultArgs?: string[]): ClaudeInstance | n
     : []
 
   const cliBackend = inst.cliBackend
+  const permissionMode = inst.permissionMode
+  const parentId = inst.parentId
   instances.delete(id)
   return createInstance({
     name: inst.name,
@@ -751,6 +754,8 @@ function restartInstance(id: string, defaultArgs?: string[]): ClaudeInstance | n
     args: [...resumeArgs, ...filteredArgs].length > 0 ? [...resumeArgs, ...filteredArgs] : undefined,
     defaultArgs: dArgs,
     cliBackend,
+    permissionMode,
+    parentId: parentId || undefined,
   })
 }
 
