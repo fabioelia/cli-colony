@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Home, Play, Plus, Zap, Clock, AlertCircle,
-  CheckCircle2, Circle, Users, FolderOpen, Activity, GanttChart, X
+  CheckCircle2, Circle, Users, FolderOpen, Activity, GanttChart, X, Square, Pin, PinOff
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import SessionTimeline from './SessionTimeline'
@@ -21,6 +21,7 @@ interface Props {
   onFocusInstance: (id: string) => void
   onNewSession: () => void
   onNavigate: (view: string) => void
+  onKill?: (id: string) => void
 }
 
 function timeAgo(ts: string): string {
@@ -40,8 +41,9 @@ function formatCost(cost: number): string {
 
 type OverviewTab = 'dashboard' | 'timeline'
 
-export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewSession, onNavigate }: Props) {
+export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewSession, onNavigate, onKill }: Props) {
   const [tab, setTab] = useState<OverviewTab>('dashboard')
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; inst: ClaudeInstance } | null>(null)
   const [activity, setActivity] = useState<ActivityEvent[]>([])
   const [pipelines, setPipelines] = useState<PipelineSummary[]>([])
   const [personas, setPersonas] = useState<PersonaInfo[]>([])
@@ -177,6 +179,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                   key={inst.id}
                   className="overview-session-tile"
                   onClick={() => onFocusInstance(inst.id)}
+                  onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, inst }) }}
                 >
                   <span
                     className="overview-session-dot"
@@ -294,6 +297,38 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
           </button>
         </div>
       </div>
+      )}
+      {ctxMenu && (
+        <div className="context-menu-overlay" onClick={() => setCtxMenu(null)}>
+          <div
+            className="context-menu"
+            style={{ top: ctxMenu.y, left: ctxMenu.x }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button className="context-menu-item" onClick={() => { onFocusInstance(ctxMenu.inst.id); setCtxMenu(null) }}>
+              Focus
+            </button>
+            {onKill && (
+              <button className="context-menu-item" onClick={() => { onKill(ctxMenu.inst.id); setCtxMenu(null) }}>
+                <Square size={12} /> Stop
+              </button>
+            )}
+            <button
+              className="context-menu-item"
+              onClick={() => {
+                const id = ctxMenu.inst.id
+                if (ctxMenu.inst.pinned) {
+                  window.api.instance.unpin(id)
+                } else {
+                  window.api.instance.pin(id)
+                }
+                setCtxMenu(null)
+              }}
+            >
+              {ctxMenu.inst.pinned ? <><PinOff size={12} /> Unpin</> : <><Pin size={12} /> Pin</>}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )
