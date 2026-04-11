@@ -1746,6 +1746,14 @@ export default function App() {
             }}
           />
         )}
+        {view === 'overview' && (
+          <ColonyOverviewPanel
+            instances={instances}
+            onFocusInstance={(id) => { setActiveId(id); setView('instances') }}
+            onNewSession={() => setShowNewDialog(true)}
+            onNavigate={(v) => setView(v as View)}
+          />
+        )}
         {view === 'review' && (
           <ReviewPanel
             instances={instances}

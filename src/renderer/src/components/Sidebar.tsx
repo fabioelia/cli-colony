@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate } from '../../../shared/types'
@@ -18,7 +18,7 @@ import NotificationHistory from './NotificationHistory'
 import type { WorkspacePreset } from './WorkspacePresets'
 import { COLORS, formatTime, cliBackendLabel, formatInstanceCmd } from '../lib/constants'
 
-export type SidebarView = 'instances' | 'agents' | 'github' | 'sessions' | 'settings' | 'logs' | 'tasks' | 'pipelines' | 'environments' | 'personas' | 'outputs' | 'review' | 'artifacts' | 'activity'
+export type SidebarView = 'overview' | 'instances' | 'agents' | 'github' | 'settings' | 'tasks' | 'pipelines' | 'environments' | 'personas' | 'outputs' | 'review' | 'artifacts' | 'activity'
 
 // ---- Memoized per-instance row ----
 
@@ -919,6 +919,12 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
       <div className="sidebar-resize-handle" onMouseDown={handleResizeMouseDown} />
       <div className="sidebar-header">
         <div className="sidebar-nav">
+          <Tooltip text="Overview" detail="Colony command center — sessions, pipelines, personas, cost" position="bottom">
+            <button className={`sidebar-nav-btn ${view === 'overview' ? 'active' : ''}`} onClick={() => onViewChange('overview')}>
+              <span className="sidebar-nav-icon"><Home size={17} /></span>
+              <span className="sidebar-nav-label">Home</span>
+            </button>
+          </Tooltip>
           <Tooltip text="Activity" detail="Automation events from personas, pipelines, and environments" position="bottom">
             <button className={`sidebar-nav-btn ${view === 'activity' ? 'active' : ''}`} onClick={() => { onViewChange('activity'); window.api.activity.markRead().catch(() => {}); setActivityUnread(0) }}>
               <span className="sidebar-nav-icon" style={{ position: 'relative' }}>
@@ -1808,7 +1814,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
               }}
               onNavigate={(route) => {
                 if (typeof route === 'string') {
-                  const viewRoutes = ['pipelines', 'personas', 'environments', 'tasks', 'outputs', 'agents', 'github', 'sessions', 'settings', 'review'] as const
+                  const viewRoutes = ['overview', 'pipelines', 'personas', 'environments', 'tasks', 'outputs', 'agents', 'github', 'settings', 'review'] as const
                   if (viewRoutes.includes(route as any)) {
                     onViewChange(route as SidebarView)
                   }
