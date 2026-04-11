@@ -7,6 +7,8 @@ import { colonyPaths } from '../shared/colony-paths'
 import { getSettings, setSetting, detectGitProtocol } from './settings'
 import { registerGlobalHotkey } from './global-hotkey'
 import { getLogs, clearLogs } from './logger'
+import { readCatalog, writeCatalog } from './mcp-catalog'
+import { loadApprovalRules, saveApprovalRules } from './approval-rules'
 import { updateColonyContext, getColonyContextPath, getColonyContextInstruction } from './colony-context'
 
 // Handler modules
@@ -101,6 +103,81 @@ export function registerIpcHandlers(): void {
   })
   ipcMain.handle('settings:reregisterHotkey', (_e, hotkey: string) => {
     return registerGlobalHotkey(hotkey)
+  })
+
+  ipcMain.handle('settings:export', async () => {
+    const result = await dialog.showSaveDialog({
+      defaultPath: 'colony-settings.json',
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (result.canceled || !result.filePath) return false
+    const settings = await getSettings()
+    const mcpServers = await readCatalog()
+    const templates = JSON.parse(await fsp.readFile(colonyPaths.sessionTemplates, 'utf-8').catch(() => '[]'))
+    const approvalRules = await loadApprovalRules()
+    const bundle = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      settings,
+      mcpServers,
+      sessionTemplates: templates,
+      approvalRules,
+    }
+    await fsp.writeFile(result.filePath, JSON.stringify(bundle, null, 2), 'utf-8')
+    return true
+  })
+
+  ipcMain.handle('settings:import', async () => {
+    const result = await dialog.showOpenDialog({
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+      properties: ['openFile'],
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    const raw = await fsp.readFile(result.filePaths[0], 'utf-8')
+    const bundle = JSON.parse(raw)
+    if (!bundle.version || !bundle.settings) return null
+
+    // Restore scalar settings
+    for (const [key, value] of Object.entries(bundle.settings)) {
+      if (typeof value === 'string') await setSetting(key, value)
+    }
+
+    // Merge MCP servers by name
+    if (bundle.mcpServers) {
+      const existing = await readCatalog()
+      const existingNames = new Set(existing.map((s: { name: string }) => s.name))
+      for (const server of bundle.mcpServers) {
+        if (!existingNames.has(server.name)) {
+          existing.push(server)
+        }
+      }
+      await writeCatalog(existing)
+    }
+
+    // Merge session templates by name
+    if (bundle.sessionTemplates) {
+      let existing: any[] = []
+      try { existing = JSON.parse(await fsp.readFile(colonyPaths.sessionTemplates, 'utf-8')) } catch { /* empty */ }
+      const existingNames = new Set(existing.map((t: { name: string }) => t.name))
+      for (const tmpl of bundle.sessionTemplates) {
+        if (!existingNames.has(tmpl.name)) {
+          existing.push(tmpl)
+        }
+      }
+      await fsp.writeFile(colonyPaths.sessionTemplates, JSON.stringify(existing, null, 2), 'utf-8')
+    }
+
+    // Replace approval rules
+    if (bundle.approvalRules) {
+      await saveApprovalRules(bundle.approvalRules)
+    }
+
+    return {
+      settingsCount: Object.keys(bundle.settings).length,
+      mcpCount: bundle.mcpServers?.length || 0,
+      templateCount: bundle.sessionTemplates?.length || 0,
+      ruleCount: bundle.approvalRules?.length || 0,
+    }
   })
 
   // ---- Logs ----

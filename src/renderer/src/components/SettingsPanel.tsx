@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X, Shield, Sparkles, Check, Circle, Sun, Moon, Palette, Eye, EyeOff, Search, Play, CheckCircle, XCircle, Loader } from 'lucide-react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X, Shield, Sparkles, Check, Circle, Sun, Moon, Palette, Eye, EyeOff, Search, Play, CheckCircle, XCircle, Loader, Download, Upload } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import BatchExecutionSettings from './BatchExecutionSettings'
 import AppUpdateSettings from './AppUpdateSettings'
@@ -264,6 +264,49 @@ export default function SettingsPanel({ onBack }: Props) {
     setTimeout(() => setSaved(false), 2000)
   }
 
+  const handleExport = async () => {
+    await window.api.settings.export()
+  }
+
+  const handleImport = async () => {
+    const result = await window.api.settings.import()
+    if (result) {
+      // Reload all settings state
+      window.api.settings.getAll().then((s) => {
+        setDefaultArgs(s.defaultArgs || '')
+        setDefaultCliBackend(s.defaultCliBackend === 'cursor-agent' ? 'cursor-agent' : 'claude')
+        setSyncClaudeSlashCommands(s.syncClaudeSlashCommands !== 'false')
+        setShellProfile(s.shellProfile || '')
+        setGitProtocol((s.gitProtocol === 'https' ? 'https' : 'ssh') as 'ssh' | 'https')
+        setNotificationsEnabled(s.notificationsEnabled !== 'false')
+        setNotifySources({
+          pipeline: s.notifyPipeline !== 'false',
+          persona: s.notifyPersona !== 'false',
+          approval: s.notifyApproval !== 'false',
+          session: s.notifySession !== 'false',
+          budget: s.notifyBudget !== 'false',
+          system: s.notifySystem !== 'false',
+        })
+        setSoundOnFinish(s.soundOnFinish !== 'false')
+        setQuietHoursEnabled(s.quietHoursEnabled === 'true')
+        setQuietHoursStart(s.quietHoursStart || '22:00')
+        setQuietHoursEnd(s.quietHoursEnd || '07:00')
+        setAutoCleanupMinutes(s.autoCleanupMinutes || '5')
+        setDailyCostBudget(s.dailyCostBudgetUsd || '')
+        setGlobalHotkey(s.globalHotkey || 'CommandOrControl+Shift+Space')
+        setKeepInTray(s.keepInTray !== 'false')
+        setWebhookEnabled(s.webhookEnabled !== 'false')
+        setWebhookPort(s.webhookPort || '7474')
+        setApiToken(s.apiToken || '')
+        setTheme((s.theme === 'light' ? 'light' : 'dark') as 'dark' | 'light')
+        if (s.fontSize) setFontSize(parseInt(s.fontSize, 10) || 13)
+      })
+      window.api.mcp.list().then(setMcpServers).catch(() => {})
+      window.api.sessionTemplates.list().then(setSessionTemplates).catch(() => {})
+      window.api.approvalRules.list().then(setApprovalRules).catch(() => {})
+    }
+  }
+
   const handleMcpTest = async (server: McpServer) => {
     setMcpTestResults(prev => ({ ...prev, [server.name]: 'testing' }))
     const result = await window.api.mcp.test(server)
@@ -281,6 +324,12 @@ export default function SettingsPanel({ onBack }: Props) {
         <div className="panel-header-spacer" />
         <HelpPopover topic="settings" align="right" />
         <div className="panel-header-actions">
+          <button className="panel-header-btn" onClick={handleExport} title="Export all settings">
+            <Download size={12} />
+          </button>
+          <button className="panel-header-btn" onClick={handleImport} title="Import settings from file">
+            <Upload size={12} />
+          </button>
           <button className="panel-header-btn" onClick={handleSave} title="Save settings">
             {saved ? 'Saved!' : 'Save'}
           </button>

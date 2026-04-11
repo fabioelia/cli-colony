@@ -718,6 +718,14 @@ export const helpContent: Record<string, HelpEntry> = {
     description: 'Configure Colony\'s behavior, CLI defaults, and manage the background PTY daemon that owns all terminal sessions. Use the search bar at the top to filter the 17 sections by keyword.',
     zones: [
       {
+        name: 'Header Actions',
+        position: 'Top right, in panel header',
+        items: [
+          { label: 'Export', detail: 'Download all settings, MCP servers, templates, and approval rules as a JSON file', icon: 'Download' },
+          { label: 'Import', detail: 'Import settings from a JSON backup — merges MCP servers and templates, replaces other settings', icon: 'Upload' },
+        ],
+      },
+      {
         name: 'Search',
         position: 'Top, below header',
         items: [

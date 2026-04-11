@@ -131,6 +131,8 @@ export interface ClaudeManagerAPI {
     getShells: () => Promise<string[]>
     detectGitProtocol: () => Promise<'ssh' | 'https' | null>
     reregisterHotkey: (hotkey: string) => Promise<{ success: boolean; error?: string }>
+    export: () => Promise<boolean>
+    import: () => Promise<{ settingsCount: number; mcpCount: number; templateCount: number; ruleCount: number } | null>
   }
   logs: {
     get: () => Promise<string>
@@ -659,6 +661,8 @@ const api: ClaudeManagerAPI = {
     getShells: () => ipcRenderer.invoke('settings:getShells'),
     detectGitProtocol: () => ipcRenderer.invoke('settings:detectGitProtocol'),
     reregisterHotkey: (hotkey) => ipcRenderer.invoke('settings:reregisterHotkey', hotkey),
+    export: () => ipcRenderer.invoke('settings:export'),
+    import: () => ipcRenderer.invoke('settings:import'),
   },
   logs: {
     get: () => ipcRenderer.invoke('logs:get'),
