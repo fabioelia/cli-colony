@@ -1226,8 +1226,10 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Priority filter', detail: 'Show only tasks of a specific priority (Critical, High, Medium, Low).' },
           { label: 'Assignee filter', detail: 'Show only tasks assigned to a specific person. Populated from existing task assignees.' },
           { label: 'Source filter', detail: 'Filter by who created the task — User or a specific persona (e.g. colony-product). Green badge on cards.' },
+          { label: 'Tag filter', detail: 'Show only tasks with a specific tag. Click a tag on any task card to quick-filter by that tag.' },
           { label: 'Sort dropdown', detail: 'Reorder tasks across all columns: Priority (default), Newest first, Oldest first, or A → Z alphabetically.', icon: 'ArrowUpDown' },
-          { label: 'Clear filters', detail: 'Remove all active filters and show all tasks.' },
+          { label: 'Clear filters', detail: 'Remove all active filters and show all tasks. Also clears the persisted filter state.' },
+          { label: 'Filter persistence', detail: 'All filter and sort settings are saved to localStorage and restored when you return to the task board.' },
         ],
       },
       {
@@ -1236,6 +1238,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'To Do / In Progress / Blocked / Done', detail: 'All four columns are always visible, even when empty. Each shows a task count in the header.' },
           { label: 'Quick add (+)', detail: 'Click the + icon in a column header to quickly add a task directly to that column.', icon: 'Plus' },
+          { label: 'Archive done', detail: 'Trash icon in the Done column header — bulk-deletes all completed tasks after confirmation. Keeps the board clean.', icon: 'Trash2' },
           { label: 'Sorting', detail: 'Tasks within each column are sorted by the selected mode: Priority (Critical first, then recency), Newest, Oldest, or A → Z. Default is Priority.' },
           { label: 'Task card', detail: 'Shows priority dot, title (1 line), assignee badge, description preview (2 lines), relative timestamp, tags, source badge (green), and project badge. Click to open the detail panel.' },
         ],

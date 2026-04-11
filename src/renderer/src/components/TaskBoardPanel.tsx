@@ -145,12 +145,33 @@ export default function TaskBoardPanel() {
   const [quickAddCol, setQuickAddCol] = useState<TaskStatus | null>(null)
   const [quickAddTitle, setQuickAddTitle] = useState('')
 
-  // Filter state
+  // Filter state (restored from localStorage)
   const [filterText, setFilterText] = useState('')
   const [filterPriority, setFilterPriority] = useState<'all' | TaskPriority>('all')
   const [filterAssignee, setFilterAssignee] = useState('all')
   const [filterSource, setFilterSource] = useState('all')
+  const [filterTag, setFilterTag] = useState('all')
   const [sortBy, setSortBy] = useState<SortMode>('priority')
+
+  // Restore filter state from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('tasks-board-filters') || '{}')
+      if (saved.filterText) setFilterText(saved.filterText)
+      if (saved.filterPriority) setFilterPriority(saved.filterPriority)
+      if (saved.filterAssignee) setFilterAssignee(saved.filterAssignee)
+      if (saved.filterSource) setFilterSource(saved.filterSource)
+      if (saved.filterTag) setFilterTag(saved.filterTag)
+      if (saved.sortBy) setSortBy(saved.sortBy)
+    } catch { /* ignore corrupt data */ }
+  }, [])
+
+  // Persist filter state to localStorage on change
+  useEffect(() => {
+    localStorage.setItem('tasks-board-filters', JSON.stringify({
+      filterText, filterPriority, filterAssignee, filterSource, filterTag, sortBy,
+    }))
+  }, [filterText, filterPriority, filterAssignee, filterSource, filterTag, sortBy])
 
   // Detail panel
   const [detailItem, setDetailItem] = useState<TaskBoardItem | null>(null)
@@ -193,6 +214,13 @@ export default function TaskBoardPanel() {
     return Array.from(set).sort()
   }, [items])
 
+  // Unique tags for filter dropdown
+  const tags = useMemo(() => {
+    const set = new Set<string>()
+    items.forEach(i => i.tags?.forEach(t => set.add(t)))
+    return Array.from(set).sort()
+  }, [items])
+
   // Filter + sort
   const filtered = useMemo(() => {
     let result = items
@@ -212,8 +240,11 @@ export default function TaskBoardPanel() {
     if (filterSource !== 'all') {
       result = result.filter(i => (i.source || 'user') === filterSource)
     }
+    if (filterTag !== 'all') {
+      result = result.filter(i => i.tags?.includes(filterTag))
+    }
     return result
-  }, [items, filterText, filterPriority, filterAssignee, filterSource])
+  }, [items, filterText, filterPriority, filterAssignee, filterSource, filterTag])
 
   const grouped = useMemo(() => {
     const g: Record<TaskStatus, TaskBoardItem[]> = { todo: [], in_progress: [], blocked: [], done: [] }
@@ -223,7 +254,7 @@ export default function TaskBoardPanel() {
     return g
   }, [filtered, sortBy])
 
-  const activeFilterCount = (filterText ? 1 : 0) + (filterPriority !== 'all' ? 1 : 0) + (filterAssignee !== 'all' ? 1 : 0) + (filterSource !== 'all' ? 1 : 0)
+  const activeFilterCount = (filterText ? 1 : 0) + (filterPriority !== 'all' ? 1 : 0) + (filterAssignee !== 'all' ? 1 : 0) + (filterSource !== 'all' ? 1 : 0) + (filterTag !== 'all' ? 1 : 0)
   const activeCount = items.filter(i => i.status !== 'done').length
 
   // Handlers
@@ -285,6 +316,13 @@ export default function TaskBoardPanel() {
     setFilterPriority('all')
     setFilterAssignee('all')
     setFilterSource('all')
+    setFilterTag('all')
+    localStorage.removeItem('tasks-board-filters')
+  }
+
+  const handleArchiveDone = async () => {
+    if (!confirm(`Remove all ${grouped.done.length} done tasks?`)) return
+    await Promise.all(grouped.done.map(i => window.api.tasksBoard.delete(i.id)))
   }
 
   return (
@@ -351,6 +389,16 @@ export default function TaskBoardPanel() {
             <option value="all">All sources</option>
             <option value="user">User</option>
             {sources.filter(s => s !== 'user').map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        )}
+        {tags.length > 0 && (
+          <select
+            className="tasks-board-filter-select"
+            value={filterTag}
+            onChange={e => setFilterTag(e.target.value)}
+          >
+            <option value="all">All tags</option>
+            {tags.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         )}
         <select
@@ -448,6 +496,15 @@ export default function TaskBoardPanel() {
                   {STATUS_ICON[status]}
                   <span>{STATUS_LABEL[status]}</span>
                   <span className="tasks-board-column-count">{grouped[status].length}</span>
+                  {status === 'done' && grouped.done.length > 0 && (
+                    <button
+                      className="tasks-board-column-add"
+                      title="Archive all done tasks"
+                      onClick={e => { e.stopPropagation(); handleArchiveDone() }}
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  )}
                   <button
                     className="tasks-board-column-add"
                     title={`Add task to ${STATUS_LABEL[status]}`}
@@ -499,7 +556,7 @@ export default function TaskBoardPanel() {
                         <span className="tasks-board-card-time">{relativeTime(item.updated || item.created)}</span>
                       )}
                       {item.tags?.map(tag => (
-                        <span key={tag} className="tasks-board-tag">{tag}</span>
+                        <span key={tag} className="tasks-board-tag" style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setFilterTag(tag) }}>{tag}</span>
                       ))}
                       {item.source && <span className="tasks-board-tag tasks-board-source-tag">{item.source}</span>}
                       {item.project && <span className="tasks-board-tag">{item.project}</span>}
