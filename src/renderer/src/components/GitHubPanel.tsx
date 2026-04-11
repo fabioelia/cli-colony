@@ -127,6 +127,9 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const [commentsViewerPR, setCommentsViewerPR] = useState<GitHubPR | null>(null)
   const [commentsViewerSlug, setCommentsViewerSlug] = useState('')
   const [commentsViewerIndex, setCommentsViewerIndex] = useState(0)
+  const [commentsReplyDraft, setCommentsReplyDraft] = useState('')
+  const [commentsReplyPosting, setCommentsReplyPosting] = useState(false)
+  const [commentsReplyError, setCommentsReplyError] = useState('')
 
   // CI/CD check status per PR (keyed by "owner/name#number")
   const [checksByPR, setChecksByPR] = useState<Record<string, PRChecks>>({})
@@ -1749,7 +1752,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                     </div>
                   ))}
                 </div>
-                <div className="github-comments-content">
+                <div className="github-comments-content" style={{ display: 'flex', flexDirection: 'column' }}>
                   {activeComment && (
                     <>
                       <div className="github-comments-content-meta">
@@ -1764,6 +1767,41 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                       />
                     </>
                   )}
+                  <div className="github-pr-comment-input" style={{ marginTop: 'auto', borderTop: '1px solid var(--border)' }}>
+                    <textarea
+                      className="github-pr-comment-textarea"
+                      placeholder="Reply..."
+                      value={commentsReplyDraft}
+                      onChange={e => setCommentsReplyDraft(e.target.value)}
+                      rows={3}
+                    />
+                    {commentsReplyError && <div className="github-pr-comment-error">{commentsReplyError}</div>}
+                    <div className="github-pr-comment-actions">
+                      <button
+                        className="panel-header-btn primary"
+                        disabled={!commentsReplyDraft.trim() || commentsReplyPosting}
+                        onClick={async () => {
+                          const body = commentsReplyDraft.trim()
+                          if (!body) return
+                          setCommentsReplyPosting(true)
+                          setCommentsReplyError('')
+                          try {
+                            const newComment = await window.api.github.postPRComment(commentsViewerSlug, commentsViewerPR!.number, body)
+                            commentsViewerPR!.comments = [...commentsViewerPR!.comments, newComment]
+                            setCommentsReplyDraft('')
+                            setCommentsViewerIndex(commentsViewerPR!.comments.length - 1)
+                          } catch (err: any) {
+                            setCommentsReplyError(err?.message || 'Failed to post comment')
+                          } finally {
+                            setCommentsReplyPosting(false)
+                          }
+                        }}
+                      >
+                        <Send size={12} />
+                        {commentsReplyPosting ? 'Posting...' : 'Reply'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
