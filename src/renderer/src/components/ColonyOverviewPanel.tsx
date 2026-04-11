@@ -159,11 +159,6 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
     }
   }, [personas, pipelines, personaHealth, instances, environments])
 
-  const todayCost = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10)
-    return costTrend.find(d => d.date === today)?.cost || 0
-  }, [costTrend])
-
   // Track actioned attention items for brief feedback (checkmark for 3s)
   const [actionedIds, setActionedIds] = useState<Set<string>>(new Set())
   function markActioned(id: string) {
@@ -271,7 +266,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
             <div className="overview-stat-label">Colony Health</div>
           </div>
           <div className="overview-stat-card" onClick={() => onNavigate('instances')}>
-            <div className={`overview-stat-value${dailyCostBudget > 0 && todayCost > dailyCostBudget ? ' stat-over-budget' : dailyCostBudget > 0 && todayCost > dailyCostBudget * 0.75 ? ' stat-warn-budget' : ''}`}>{formatCost(totalCost)}</div>
+            <div className="overview-stat-value">{formatCost(totalCost)}</div>
             <div className="overview-stat-label">Session Cost</div>
           </div>
         </div>
@@ -282,7 +277,6 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
             ? Math.max(...costTrend.map(d => d.cost), dailyCostBudget * 1.1, 0.01)
             : Math.max(...costTrend.map(d => d.cost), 0.01)
           const totalWeek = costTrend.reduce((s, d) => s + d.cost, 0)
-          const todayDate = new Date().toISOString().slice(0, 10)
           const dayNames = costTrend.map(d => {
             const dt = new Date(d.date + 'T12:00:00')
             return dt.toLocaleDateString(undefined, { weekday: 'short' })
@@ -291,7 +285,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
           return (
             <div className="overview-section">
               <h3><Activity size={14} /> Daily Cost (7d) <span className="overview-cost-total">${totalWeek.toFixed(2)}</span></h3>
-              <div className="overview-cost-chart" style={{ position: 'relative' }}>
+              <div className="overview-cost-chart">
                 {dailyCostBudget > 0 && (
                   <div className="cost-budget-line" style={{ bottom: `${budgetLinePct}%` }}>
                     <span className="cost-budget-label">${dailyCostBudget.toFixed(0)}</span>
@@ -299,10 +293,9 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                 )}
                 {costTrend.map((d, i) => {
                   const pct = d.cost > 0 ? Math.max(8, (d.cost / chartMax) * 100) : 0
-                  const isToday = d.date === todayDate
                   const overBudget = dailyCostBudget > 0 && d.cost > dailyCostBudget
                   const warnBudget = dailyCostBudget > 0 && d.cost > dailyCostBudget * 0.75 && !overBudget
-                  const barClass = `overview-cost-bar${isToday && overBudget ? ' cost-bar-over-budget' : isToday && warnBudget ? ' cost-bar-warn' : ''}`
+                  const barClass = `overview-cost-bar${overBudget ? ' cost-bar-over-budget' : warnBudget ? ' cost-bar-warn' : ''}`
                   return (
                     <div key={d.date} className="overview-cost-bar-col" title={`${d.date}: $${d.cost.toFixed(2)}`}>
                       <div className="overview-cost-bar-track">
