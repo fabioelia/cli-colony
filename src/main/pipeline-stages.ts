@@ -108,11 +108,11 @@ export function isApproved(text: string): boolean {
  * Iterates up to maxIterations times. Completes when checker says APPROVED
  * or iterations are exhausted.
  */
-export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<number> {
+export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<{ cost: number; sessionId?: string }> {
   const { makerPrompt, checkerPrompt, approvedKeyword = 'APPROVED', maxIterations = 3 } = action
   if (!makerPrompt || !checkerPrompt) {
     log(`maker-checker: missing makerPrompt or checkerPrompt for "${pipelineName}"`)
-    return 0
+    return { cost: 0 }
   }
 
   const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -127,6 +127,7 @@ export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pi
 
   let prevFeedback = ''
   let accumulatedCost = 0
+  let lastMakerSessionId: string | undefined
 
   for (let iteration = 1; iteration <= maxIterations; iteration++) {
     plog(pipelineName, `maker-checker: iteration ${iteration}/${maxIterations}`)
@@ -158,6 +159,7 @@ export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pi
       args: ['--append-system-prompt-file', makerPromptFile],
       model: action.model,
     })
+    lastMakerSessionId = makerInst.id
 
     const completionPromise = waitForSessionCompletion(makerInst.id)
     await sendPromptWhenReady(makerInst.id, { prompt: 'Execute the instructions in your system prompt. Begin now.' })
@@ -166,7 +168,7 @@ export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pi
     if (!makerDone) {
       plog(pipelineName, `maker-checker: maker timed out on iteration ${iteration}`)
       appendActivity({ source: 'pipeline', name: pipelineName, summary: `Maker-checker "${pipelineName}" maker timed out (iteration ${iteration})`, level: 'error' })
-      return accumulatedCost
+      return { cost: accumulatedCost, sessionId: lastMakerSessionId }
     }
 
     const makerFinalState = await getDaemonClient().getInstance(makerInst.id)
@@ -204,7 +206,7 @@ export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pi
     if (!checkerDone) {
       plog(pipelineName, `maker-checker: checker timed out on iteration ${iteration}`)
       appendActivity({ source: 'pipeline', name: pipelineName, summary: `Maker-checker "${pipelineName}" checker timed out (iteration ${iteration})`, level: 'error' })
-      return accumulatedCost
+      return { cost: accumulatedCost, sessionId: lastMakerSessionId }
     }
 
     const checkerFinalState = await getDaemonClient().getInstance(checkerInst.id)
@@ -219,7 +221,7 @@ export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pi
     if (isApproved(verdict) || verdict.includes(approvedKeyword)) {
       plog(pipelineName, `maker-checker: APPROVED after ${iteration} iteration(s)`)
       appendActivity({ source: 'pipeline', name: pipelineName, summary: `Maker-checker "${pipelineName}" APPROVED after ${iteration} iteration(s)`, level: 'info' })
-      return accumulatedCost
+      return { cost: accumulatedCost, sessionId: lastMakerSessionId }
     }
 
     prevFeedback = verdict || 'Checker did not write a verdict — please review your work carefully.'
@@ -228,7 +230,7 @@ export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pi
 
   plog(pipelineName, `maker-checker: exhausted ${maxIterations} iterations without approval`)
   appendActivity({ source: 'pipeline', name: pipelineName, summary: `Maker-checker "${pipelineName}" exhausted ${maxIterations} iterations without approval`, level: 'warn' })
-  return accumulatedCost
+  return { cost: accumulatedCost, sessionId: lastMakerSessionId }
 }
 
 /**
@@ -236,7 +238,7 @@ export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pi
  * APPROVED/LGTM. If not approved and auto_fix is set, launch a fixer session and retry.
  * On final failure, creates an approval gate with the review text.
  */
-export async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<{ cost: number; responseSnippet?: string }> {
+export async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<{ cost: number; responseSnippet?: string; sessionId?: string }> {
   const {
     diffBase = 'HEAD~1',
     prompt = 'Review this diff for issues. Reply APPROVED if clean, or list issues.',
@@ -263,6 +265,7 @@ export async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipe
   const baseName = resolveTemplate(action.name || pipelineName, ctx)
   let accumulatedCost = 0
   let lastResponseSnippet: string | undefined
+  let firstReviewerSessionId: string | undefined
 
   const maxIterations = autoFix ? autoFixMaxIterations : 0
 
@@ -282,7 +285,7 @@ export async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipe
 
     if (!diff.trim()) {
       plog(pipelineName, `diff-review: no diff found against "${diffBase}" — nothing to review`)
-      return { cost: accumulatedCost, responseSnippet: 'No changes' }
+      return { cost: accumulatedCost, responseSnippet: 'No changes', sessionId: firstReviewerSessionId }
     }
 
     const resolvedPrompt = resolveTemplate(prompt, ctx)
@@ -307,6 +310,7 @@ export async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipe
       args: ['--append-system-prompt-file', promptFile],
       model: action.model,
     })
+    if (!firstReviewerSessionId) firstReviewerSessionId = reviewerInst.id
 
     const completionPromise = waitForSessionCompletion(reviewerInst.id)
     await sendPromptWhenReady(reviewerInst.id, { prompt: 'Execute the instructions in your system prompt. Begin now.' })
@@ -315,7 +319,7 @@ export async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipe
     if (!reviewDone) {
       plog(pipelineName, `diff-review: reviewer timed out`)
       appendActivity({ source: 'pipeline', name: pipelineName, summary: `Diff review "${pipelineName}" reviewer timed out`, level: 'error' })
-      return { cost: accumulatedCost }
+      return { cost: accumulatedCost, sessionId: firstReviewerSessionId }
     }
 
     const reviewerState = await getDaemonClient().getInstance(reviewerInst.id)
@@ -330,7 +334,7 @@ export async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipe
     if (isApproved(verdict)) {
       plog(pipelineName, `diff-review: APPROVED`)
       appendActivity({ source: 'pipeline', name: pipelineName, summary: `Diff review "${pipelineName}" approved`, level: 'info' })
-      return { cost: accumulatedCost, responseSnippet: lastResponseSnippet }
+      return { cost: accumulatedCost, responseSnippet: lastResponseSnippet, sessionId: firstReviewerSessionId }
     }
 
     // Not approved — auto_fix: launch fixer and loop
@@ -381,7 +385,7 @@ export async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipe
   appendActivity({ source: 'pipeline', name: pipelineName, summary: `Diff review "${pipelineName}" needs attention: ${reviewText.slice(0, 100)}`, level: 'warn' })
   notify(`Colony: Diff Review — ${pipelineName}`, summary, 'pipelines')
 
-  return { cost: accumulatedCost, responseSnippet: lastResponseSnippet }
+  return { cost: accumulatedCost, responseSnippet: lastResponseSnippet, sessionId: firstReviewerSessionId }
 }
 
 /**
@@ -389,7 +393,7 @@ export async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipe
  * then gate on human approval (by default) before the pipeline continues.
  * Writes the plan to an artifact file so subsequent stages can consume it via handoffInputs.
  */
-export async function runPlanStage(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<{ cost: number; responseSnippet?: string }> {
+export async function runPlanStage(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<{ cost: number; responseSnippet?: string; sessionId?: string }> {
   const planKeyword = action.plan_keyword ?? 'PLAN_READY'
   const requireApproval = action.require_approval !== false // default true
   const rawPrompt = resolveTemplate(action.prompt || '', ctx)
@@ -459,7 +463,7 @@ export async function runPlanStage(action: ActionDef, ctx: TriggerContext, pipel
   if (!requireApproval) {
     plog(pipelineName, `plan-stage: require_approval=false — proceeding automatically`)
     appendActivity({ source: 'pipeline', name: pipelineName, summary: `Pipeline "${pipelineName}" plan complete — proceeding automatically`, level: 'info' })
-    return { cost, responseSnippet }
+    return { cost, responseSnippet, sessionId: plannerInst.id }
   }
 
   // Create a blocking approval gate — resolves when approved, rejects when dismissed/expired
@@ -484,7 +488,7 @@ export async function runPlanStage(action: ActionDef, ctx: TriggerContext, pipel
       action,
       ctx,
       dedupKey: approvalId,
-      resolve: () => resolve({ cost, responseSnippet }),
+      resolve: () => resolve({ cost, responseSnippet, sessionId: plannerInst.id }),
       reject: (reason: string) => rejectPromise(new Error(reason)),
     })
     pendingApprovalKeys.add(approvalId)
@@ -503,7 +507,7 @@ export async function runParallel(
   action: ActionDef,
   ctx: TriggerContext,
   pipelineName: string,
-  fireAction: (action: ActionDef, ctx: TriggerContext, pipelineName: string) => Promise<{ cost: number }>,
+  fireAction: (action: ActionDef, ctx: TriggerContext, pipelineName: string) => Promise<{ cost: number; sessionId?: string }>,
 ): Promise<{ cost: number; subStages: PipelineStageTrace[] }> {
   const { stages = [], fail_fast = true } = action
   const baseName = resolveTemplate(action.name || pipelineName, ctx)
@@ -516,9 +520,11 @@ export async function runParallel(
     const sessionName = resolveTemplate(subAction.name || `${baseName} [${i + 1}]`, ctx)
     let stageError: string | undefined
     let stageCost = 0
+    let stageSessionId: string | undefined
     try {
       const result = await fireAction(subAction, ctx, pipelineName)
       stageCost = result.cost
+      stageSessionId = result.sessionId
     } catch (err) {
       stageError = String(err)
       throw err
@@ -528,6 +534,7 @@ export async function runParallel(
         index: i,
         actionType: subAction.type,
         sessionName,
+        sessionId: stageSessionId,
         durationMs: end - start,
         startedAt: start,
         completedAt: end,
@@ -672,6 +679,7 @@ export async function runBestOfN(
           index: i,
           actionType: 'best-of-n',
           sessionName: `${baseName} [${i + 1}/${n}]`,
+          sessionId: c.instanceId,
           model: action.models?.[i] ?? action.model,
           durationMs: end - start,
           startedAt: start,

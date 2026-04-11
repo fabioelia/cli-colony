@@ -148,8 +148,8 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [outputFiles, setOutputFiles] = useState<Array<{ name: string; path: string; size: number; modified: number }>>([])
   const [outputPreview, setOutputPreview] = useState<{ name: string; content: string } | null>(null)
   const [expandedTab, setExpandedTab] = useState<'yaml' | 'flow' | 'docs' | 'memory' | 'outputs' | 'history' | 'debug'>('yaml')
-  type StageTrace = { index: number; actionType: string; sessionName?: string; model?: string; durationMs: number; startedAt?: number; completedAt?: number; success: boolean; error?: string; responseSnippet?: string; subStages?: StageTrace[] }
-  const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; stages?: StageTrace[] }>>([])
+  type StageTrace = { index: number; actionType: string; sessionName?: string; sessionId?: string; model?: string; durationMs: number; startedAt?: number; completedAt?: number; success: boolean; error?: string; responseSnippet?: string; subStages?: StageTrace[] }
+  const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; sessionIds?: string[]; stages?: StageTrace[] }>>([])
   const [expandedHistoryRows, setExpandedHistoryRows] = useState<Set<number>>(new Set())
   const [comparedRuns, setComparedRuns] = useState<Set<number>>(new Set())
   const [showComparison, setShowComparison] = useState(false)
@@ -1187,7 +1187,10 @@ action:
                                             {stage.actionType === 'parallel' && stage.subStages?.length ? `Parallel (${stage.subStages.length})` : stageTypeLabel(stage.actionType)}
                                           </span>
                                           {statusChanged && <span className="pipeline-history-stage-delta" title={`Changed from ${prevStatus} in prior run`}>△</span>}
-                                          {stage.sessionName && <span className="pipeline-history-stage-name">{stage.sessionName}</span>}
+                                          {stage.sessionName && (stage.sessionId && instances.some(i => i.id === stage.sessionId)
+                                            ? <span className="pipeline-history-stage-name pipeline-session-link" onClick={(e) => { e.stopPropagation(); onFocusInstance(stage.sessionId!) }}>{stage.sessionName}</span>
+                                            : <span className="pipeline-history-stage-name" title={stage.sessionId && !instances.some(i => i.id === stage.sessionId) ? 'Session ended' : undefined}>{stage.sessionName}</span>
+                                          )}
                                           {stage.model && <span className="pipeline-history-stage-model" title={stage.model}>· {stage.model.replace(/^claude-/, '').split('-')[0]}</span>}
                                           {stage.responseSnippet && <span className="pipeline-history-stage-snippet" title={stage.responseSnippet}>{stage.responseSnippet.length > 60 ? stage.responseSnippet.slice(0, 60) + '…' : stage.responseSnippet}</span>}
                                           <span className="pipeline-history-duration">{stage.durationMs < 1000 ? `${stage.durationMs}ms` : `${(stage.durationMs / 1000).toFixed(1)}s`}</span>
@@ -1206,7 +1209,10 @@ action:
                                                   {sub.success ? <CheckCircle size={9} /> : <XCircle size={9} />}
                                                 </span>
                                                 <span className="pipeline-history-stage-type">{stageTypeLabel(sub.actionType)}</span>
-                                                {sub.sessionName && <span className="pipeline-history-stage-name">{sub.sessionName}</span>}
+                                                {sub.sessionName && (sub.sessionId && instances.some(i => i.id === sub.sessionId)
+                                                  ? <span className="pipeline-history-stage-name pipeline-session-link" onClick={(e) => { e.stopPropagation(); onFocusInstance(sub.sessionId!) }}>{sub.sessionName}</span>
+                                                  : <span className="pipeline-history-stage-name" title={sub.sessionId && !instances.some(i => i.id === sub.sessionId) ? 'Session ended' : undefined}>{sub.sessionName}</span>
+                                                )}
                                                 <span className="pipeline-history-duration">{sub.durationMs < 1000 ? `${sub.durationMs}ms` : `${(sub.durationMs / 1000).toFixed(1)}s`}</span>
                                                 {sub.error && <span className="pipeline-history-stage-error" title={sub.error}>err</span>}
                                               </div>

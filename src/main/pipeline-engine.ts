@@ -323,6 +323,7 @@ export interface PipelineStageTrace {
   index: number
   actionType: string
   sessionName?: string
+  sessionId?: string // links to the spawned session (if any)
   model?: string  // per-stage model override if set
   durationMs: number
   startedAt?: number
@@ -341,6 +342,7 @@ export interface PipelineRunEntry {
   success: boolean
   durationMs: number
   stages?: PipelineStageTrace[]
+  sessionIds?: string[] // all session IDs created during this run
   totalCost?: number
   stoppedBudget?: boolean
 }
@@ -684,7 +686,7 @@ async function fireActionWithRetry(
   action: ActionDef,
   ctx: TriggerContext,
   pipelineName: string,
-): Promise<{ cost: number; responseSnippet?: string; subStages?: PipelineStageTrace[]; retryCount: number }> {
+): Promise<{ cost: number; responseSnippet?: string; subStages?: PipelineStageTrace[]; retryCount: number; sessionId?: string }> {
   // wait_for_session is a polling action — never retry it
   const maxRetries = action.type === 'wait_for_session' ? 0 : (action.max_retries ?? 0)
   const baseDelay = action.retry_delay_ms ?? 5000
@@ -708,16 +710,17 @@ async function fireActionWithRetry(
   throw lastError
 }
 
-async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<{ cost: number; responseSnippet?: string; subStages?: PipelineStageTrace[] }> {
+async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<{ cost: number; responseSnippet?: string; subStages?: PipelineStageTrace[]; sessionId?: string }> {
   markChecklistItem('ranPipeline')
   if (action.type === 'maker-checker') {
-    return { cost: await runMakerChecker(action, ctx, pipelineName) }
+    const mc = await runMakerChecker(action, ctx, pipelineName)
+    return { cost: mc.cost, sessionId: mc.sessionId }
   }
   if (action.type === 'diff_review') {
     return runDiffReview(action, ctx, pipelineName)
   }
   if (action.type === 'parallel') {
-    return runParallel(action, ctx, pipelineName)
+    return runParallel(action, ctx, pipelineName, fireAction)
   }
   if (action.type === 'plan') {
     return runPlanStage(action, ctx, pipelineName)
@@ -794,7 +797,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
         const filePath = await writePromptFile(prompt)
         getDaemonClient().writeToInstance(existing.id, buildFilePromptTrigger(filePath) + '\r')
         broadcast('pipeline:fired', { pipeline: name, instanceId: existing.id, routed: true })
-        return { cost: 0 }
+        return { cost: 0, sessionId: existing.id }
       }
 
       if (action.busyStrategy === 'launch-new') {
@@ -804,7 +807,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
         const sent = await sendPromptToExistingSession(existing.id, prompt)
         if (sent) {
           broadcast('pipeline:fired', { pipeline: name, instanceId: existing.id, routed: true })
-          return { cost: 0 }
+          return { cost: 0, sessionId: existing.id }
         }
         log(`Routing: timed out waiting for session, falling through to launch new`)
       }
@@ -821,7 +824,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
       })
       await sendPromptWhenReady(inst.id, { prompt: 'Execute the instructions in your system prompt. Begin now.' })
       broadcast('pipeline:fired', { pipeline: name, instanceId: inst.id, routed: true, resumed: true })
-      return { cost: 0 }
+      return { cost: 0, sessionId: inst.id }
     } else {
       plog(name, `route: no matching session found → launching new`)
     }
@@ -899,7 +902,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
 
   // Notify renderer about pipeline-triggered session
   broadcast('pipeline:fired', { pipeline: name, instanceId: inst.id })
-  return { cost: 0 }
+  return { cost: 0, sessionId: inst.id }
 }
 
 // ---- Preview (Dry-Run) ----
@@ -1183,12 +1186,14 @@ async function runPoll(pipelineName: string): Promise<void> {
       let stageResponseSnippet: string | undefined
       let stageSubStages: PipelineStageTrace[] | undefined
       let stageRetryCount = 0
+      let stageSessionId: string | undefined
       try {
         const result = await fireActionWithRetry(p.def.action, ctx, p.def.name)
         stageCost = result.cost
         stageResponseSnippet = result.responseSnippet
         stageSubStages = result.subStages
         stageRetryCount = result.retryCount
+        stageSessionId = result.sessionId
       } catch (stageErr) {
         stageError = String(stageErr)
         throw stageErr
@@ -1198,6 +1203,7 @@ async function runPoll(pipelineName: string): Promise<void> {
           index: stages.length,
           actionType: p.def.action.type,
           sessionName: stageSessionName,
+          sessionId: stageSessionId,
           model: p.def.action.model,
           durationMs: stageEnd - stageStart,
           startedAt: stageStart,
@@ -1275,6 +1281,17 @@ async function runPoll(pipelineName: string): Promise<void> {
 
     p.state.lastRunStoppedBudget = stoppedBudget
 
+    // Collect all session IDs from stages (including sub-stages)
+    const allSessionIds: string[] = []
+    for (const s of stages) {
+      if (s.sessionId) allSessionIds.push(s.sessionId)
+      if (s.subStages) {
+        for (const sub of s.subStages) {
+          if (sub.sessionId) allSessionIds.push(sub.sessionId)
+        }
+      }
+    }
+
     // Record run history
     await appendHistory(pipelineName, {
       ts: new Date().toISOString(),
@@ -1283,6 +1300,7 @@ async function runPoll(pipelineName: string): Promise<void> {
       success: !pollError,
       durationMs: Date.now() - pollStartedAt,
       stages: stages.length > 0 ? stages : undefined,
+      sessionIds: allSessionIds.length > 0 ? allSessionIds : undefined,
       totalCost: totalCost > 0 ? totalCost : undefined,
       stoppedBudget: stoppedBudget || undefined,
     })

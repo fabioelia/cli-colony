@@ -12575,6 +12575,14 @@ body:has(.daemon-update-banner) .app-update-banner {
   white-space: nowrap;
 }
 
+.pipeline-session-link {
+  cursor: pointer;
+  color: var(--accent) !important;
+}
+.pipeline-session-link:hover {
+  text-decoration: underline;
+}
+
 .pipeline-history-stage-error {
   color: var(--danger);
   font-size: 9px;
@@ -19301,6 +19309,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   align-items: flex-end;
   height: 64px;
   padding: 0 4px;
+  position: relative;
 }
 .overview-cost-bar-col {
   flex: 1;
@@ -19336,8 +19345,6 @@ body:has(.daemon-update-banner) .app-update-banner {
   position: absolute; right: 0; top: -14px;
   font-size: 9px; color: var(--warning); opacity: 0.8;
 }
-.stat-over-budget { color: var(--danger) !important; }
-.stat-warn-budget { color: var(--warning) !important; }
 .overview-cost-bar-label {
   font-size: 9px;
   color: var(--text-muted);
