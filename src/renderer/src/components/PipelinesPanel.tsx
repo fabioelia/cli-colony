@@ -470,7 +470,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     } else {
       description = `Run automation on git push to ${wizardBranch || 'any branch'}`
       triggerBlock = `trigger:\n  type: git-poll\n  interval: 300\n  repos: auto`
-      if (wizardBranch) triggerBlock += `  # branch filter: ${wizardBranch}`
+      if (wizardBranch) triggerBlock += `\n  # branch filter: ${wizardBranch}`
     }
 
     const indentedPrompt = wizardPrompt.trim().split('\n').join('\n    ')
@@ -1326,6 +1326,7 @@ action:
                   className="panel-header-btn primary"
                   onClick={() => setWizardStep(s => s + 1)}
                   disabled={
+                    (wizardStep === 1 && (wizardTrigger === 'pr-opened' || wizardTrigger === 'pr-merged') && !wizardSelectedRepo) ||
                     (wizardStep === 2 && !wizardPrompt.trim())
                   }
                 >
