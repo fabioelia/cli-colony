@@ -4,6 +4,7 @@ import * as os from 'os'
 import { colonyPaths } from '../../shared/colony-paths'
 import type { SessionTemplate } from '../../shared/types'
 import { createInstance } from '../instance-manager'
+import { getDaemonClient } from '../daemon-client'
 import { sendPromptWhenReady } from '../send-prompt-when-ready'
 
 async function readTemplates(): Promise<SessionTemplate[]> {
@@ -66,12 +67,7 @@ export function registerSessionTemplateHandlers(): void {
 
     // Set role if present
     if (template.role && inst) {
-      // Role is set via daemon — fire-and-forget via IPC after instance creation
-      // We do this after returning so we don't block; use a short delay to allow
-      // the instance to be registered before the renderer tries to set the role.
-      setTimeout(() => {
-        ipcMain.emit('instance:set-role-internal', inst.id, template.role)
-      }, 500)
+      getDaemonClient().setInstanceRole(inst.id, template.role!).catch(() => {})
     }
 
     // Send initial prompt if present
