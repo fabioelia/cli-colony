@@ -725,6 +725,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
       {editMetaPersona && (
         <EditPersonaModal
           persona={editMetaPersona}
+          allPersonaIds={personas.filter(p => p.id !== editMetaPersona.id).map(p => p.id)}
           onClose={() => setEditMetaPersona(null)}
           onSaved={loadPersonas}
         />
@@ -1733,8 +1734,9 @@ const MODEL_OPTIONS = [
   { label: 'Haiku 4.5', value: 'claude-haiku-4-5-20251001' },
 ]
 
-function EditPersonaModal({ persona, onClose, onSaved }: {
+function EditPersonaModal({ persona, allPersonaIds, onClose, onSaved }: {
   persona: PersonaInfo
+  allPersonaIds: string[]
   onClose: () => void
   onSaved: () => void
 }) {
@@ -1747,6 +1749,8 @@ function EditPersonaModal({ persona, onClose, onSaved }: {
   const [enabled, setEnabled] = useState(persona.enabled)
   const [maxSessions, setMaxSessions] = useState(persona.maxSessions ?? 1)
   const [maxCostUsd, setMaxCostUsd] = useState(persona.maxCostUsd?.toString() ?? '')
+  const [onCompleteRun, setOnCompleteRun] = useState<string[]>(persona.onCompleteRun ?? [])
+  const [canInvoke, setCanInvoke] = useState<string[]>(persona.canInvoke ?? [])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -1754,10 +1758,12 @@ function EditPersonaModal({ persona, onClose, onSaved }: {
     setSaving(true)
     setError(null)
     try {
-      const updates: Record<string, string | boolean | number> = {
+      const updates: Record<string, string | boolean | number | string[]> = {
         model,
         enabled,
         max_sessions: maxSessions,
+        on_complete_run: onCompleteRun,
+        can_invoke: canInvoke,
       }
       if (schedule.trim()) {
         updates.schedule = schedule.trim()
@@ -1837,6 +1843,62 @@ function EditPersonaModal({ persona, onClose, onSaved }: {
               placeholder="No limit"
             />
           </label>
+          <div className="persona-edit-meta-field">
+            <span>On Complete Run</span>
+            <div className="persona-chain-chips">
+              {onCompleteRun.map(id => (
+                <span key={id} className="persona-chain-chip">
+                  {id}
+                  <button type="button" onClick={() => setOnCompleteRun(prev => prev.filter(x => x !== id))}>
+                    <X size={10} />
+                  </button>
+                </span>
+              ))}
+              <select
+                className="persona-chain-add"
+                value=""
+                onChange={(e) => {
+                  if (e.target.value && !onCompleteRun.includes(e.target.value)) {
+                    setOnCompleteRun(prev => [...prev, e.target.value])
+                  }
+                  e.target.value = ''
+                }}
+              >
+                <option value="">+ Add…</option>
+                {allPersonaIds.filter(id => !onCompleteRun.includes(id)).map(id => (
+                  <option key={id} value={id}>{id}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="persona-edit-meta-field">
+            <span>Can Invoke</span>
+            <div className="persona-chain-chips">
+              {canInvoke.map(id => (
+                <span key={id} className="persona-chain-chip">
+                  {id}
+                  <button type="button" onClick={() => setCanInvoke(prev => prev.filter(x => x !== id))}>
+                    <X size={10} />
+                  </button>
+                </span>
+              ))}
+              <select
+                className="persona-chain-add"
+                value=""
+                onChange={(e) => {
+                  if (e.target.value && !canInvoke.includes(e.target.value)) {
+                    setCanInvoke(prev => [...prev, e.target.value])
+                  }
+                  e.target.value = ''
+                }}
+              >
+                <option value="">+ Add…</option>
+                {allPersonaIds.filter(id => !canInvoke.includes(id)).map(id => (
+                  <option key={id} value={id}>{id}</option>
+                ))}
+              </select>
+            </div>
+          </div>
           <label className="persona-edit-meta-field persona-edit-meta-toggle">
             <span>Enabled</span>
             <button

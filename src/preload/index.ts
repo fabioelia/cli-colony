@@ -274,7 +274,7 @@ export interface ClaudeManagerAPI {
     setSchedule: (fileName: string, schedule: string) => Promise<boolean>
     whisper: (fileName: string, text: string) => Promise<boolean>
     deleteNote: (fileName: string, index: number) => Promise<boolean>
-    updateMeta: (fileName: string, updates: Record<string, string | boolean | number>) => Promise<boolean>
+    updateMeta: (fileName: string, updates: Record<string, string | boolean | number | string[]>) => Promise<boolean>
     getArtifacts: (personaId: string) => Promise<PersonaArtifact[]>
     readArtifact: (personaId: string, filename: string) => Promise<string | null>
     ask: (query: string) => Promise<string>

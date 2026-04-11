@@ -610,12 +610,19 @@ export function getPersonaCostCap(instanceId: string): number | undefined {
 }
 
 /** Surgically update one or more frontmatter fields without touching section content. */
-export function updatePersonaMeta(fileName: string, updates: Record<string, string | boolean | number>): boolean {
+export function updatePersonaMeta(fileName: string, updates: Record<string, string | boolean | number | string[]>): boolean {
   const { content } = getPersonaContent(fileName)
   if (!content) return false
   let updated = content
   for (const [key, value] of Object.entries(updates)) {
-    const strValue = typeof value === 'string' ? `"${value}"` : String(value)
+    let strValue: string
+    if (Array.isArray(value)) {
+      strValue = JSON.stringify(value)
+    } else if (typeof value === 'string') {
+      strValue = `"${value}"`
+    } else {
+      strValue = String(value)
+    }
     const regex = new RegExp(`^(${key}:\\s*).*$`, 'm')
     if (regex.test(updated)) {
       updated = updated.replace(regex, `$1${strValue}`)
