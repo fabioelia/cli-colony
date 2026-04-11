@@ -16984,6 +16984,10 @@ body:has(.daemon-update-banner) .app-update-banner {
 .persona-memory-add-form input:focus { border-color: var(--accent); }
 .persona-memory-add-btn { background: var(--accent); color: #fff; border: none; border-radius: 4px; padding: 3px 8px; font-size: 10px; cursor: pointer; white-space: nowrap; }
 .persona-memory-add-btn:hover { opacity: 0.85; }
+.persona-memory-edit-input { flex: 1; background: var(--bg-secondary); border: 1px solid var(--accent); border-radius: 3px; color: var(--text-primary); font-size: 11px; padding: 2px 4px; outline: none; }
+.persona-memory-text { cursor: default; }
+.persona-memory-situation:hover .persona-memory-text,
+.persona-memory-learning:hover .persona-memory-text { text-decoration: underline; text-decoration-style: dotted; text-decoration-color: var(--text-muted); }
 
 /* ===== Persona Edit Meta Modal ===== */
 .persona-edit-meta-modal {

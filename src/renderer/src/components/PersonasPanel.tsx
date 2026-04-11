@@ -812,6 +812,10 @@ function PersonaCard({
   const [addingLearning, setAddingLearning] = useState(false)
   const [newSituationText, setNewSituationText] = useState('')
   const [newLearningText, setNewLearningText] = useState('')
+  const [editingIdx, setEditingIdx] = useState<{ section: 'situation' | 'learning'; index: number } | null>(null)
+  const [editingText, setEditingText] = useState('')
+  const [addingLogEntry, setAddingLogEntry] = useState(false)
+  const [newLogText, setNewLogText] = useState('')
   const whisperRef = useRef<HTMLTextAreaElement>(null)
   const { ref: whisperBarRef, isDragging: whisperDragging } = useFileDrop(paths => {
     const pathText = paths.join('\n')
@@ -1174,7 +1178,33 @@ function PersonaCard({
                           title={`Click to cycle status (current: ${s.status})`}
                           style={{ cursor: 'pointer' }}
                         >{s.status}</span>
-                        <span className="persona-memory-text">{s.text}</span>
+                        {editingIdx?.section === 'situation' && editingIdx.index === i ? (
+                          <input
+                            className="persona-memory-edit-input"
+                            value={editingText}
+                            onChange={e => setEditingText(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' && editingText.trim()) {
+                                window.api.personaMemory.updateSituation(persona.id, i, { text: editingText.trim() })
+                                  .then(() => window.api.personaMemory.get(persona.id).then(setMemory))
+                                setEditingIdx(null)
+                              } else if (e.key === 'Escape') setEditingIdx(null)
+                            }}
+                            onBlur={() => {
+                              if (editingText.trim() && editingText.trim() !== s.text) {
+                                window.api.personaMemory.updateSituation(persona.id, i, { text: editingText.trim() })
+                                  .then(() => window.api.personaMemory.get(persona.id).then(setMemory))
+                              }
+                              setEditingIdx(null)
+                            }}
+                            autoFocus
+                          />
+                        ) : (
+                          <span
+                            className="persona-memory-text"
+                            onDoubleClick={() => { setEditingIdx({ section: 'situation', index: i }); setEditingText(s.text) }}
+                          >{s.text}</span>
+                        )}
                         <button
                           className="persona-memory-remove"
                           onClick={() => {
@@ -1228,7 +1258,39 @@ function PersonaCard({
                       <div className="persona-memory-empty">No learnings yet</div>
                     ) : memory.learnings.map((l, i) => (
                       <div key={i} className="persona-memory-learning">
-                        <span className="persona-memory-text">{l.text}</span>
+                        {editingIdx?.section === 'learning' && editingIdx.index === i ? (
+                          <input
+                            className="persona-memory-edit-input"
+                            value={editingText}
+                            onChange={e => setEditingText(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' && editingText.trim()) {
+                                const updated = memory.learnings.map((l2, j) =>
+                                  j === i ? { ...l2, text: editingText.trim() } : l2
+                                )
+                                window.api.personaMemory.setLearnings(persona.id, updated)
+                                  .then(() => window.api.personaMemory.get(persona.id).then(setMemory))
+                                setEditingIdx(null)
+                              } else if (e.key === 'Escape') setEditingIdx(null)
+                            }}
+                            onBlur={() => {
+                              if (editingText.trim() && editingText.trim() !== l.text) {
+                                const updated = memory.learnings.map((l2, j) =>
+                                  j === i ? { ...l2, text: editingText.trim() } : l2
+                                )
+                                window.api.personaMemory.setLearnings(persona.id, updated)
+                                  .then(() => window.api.personaMemory.get(persona.id).then(setMemory))
+                              }
+                              setEditingIdx(null)
+                            }}
+                            autoFocus
+                          />
+                        ) : (
+                          <span
+                            className="persona-memory-text"
+                            onDoubleClick={() => { setEditingIdx({ section: 'learning', index: i }); setEditingText(l.text) }}
+                          >{l.text}</span>
+                        )}
                         <span className="persona-memory-time">{formatRelativeTime(l.addedAt)}</span>
                         <button
                           className="persona-memory-remove"
@@ -1244,6 +1306,11 @@ function PersonaCard({
                   <div className="persona-memory-section">
                     <h4 className="persona-memory-heading">
                       Session Log
+                      <button
+                        className="persona-memory-add"
+                        onClick={() => setAddingLogEntry(!addingLogEntry)}
+                        title="Add manual note"
+                      ><Plus size={10} /></button>
                       {memory.sessionLog.length > 5 && (
                         <button
                           className="persona-memory-clear"
@@ -1255,7 +1322,36 @@ function PersonaCard({
                         ><Trash2 size={10} /></button>
                       )}
                     </h4>
-                    {memory.sessionLog.length === 0 ? (
+                    {addingLogEntry && (
+                      <div className="persona-memory-add-form">
+                        <input
+                          type="text"
+                          value={newLogText}
+                          onChange={e => setNewLogText(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && newLogText.trim()) {
+                              window.api.personaMemory.addLogEntry(persona.id, newLogText.trim())
+                                .then(() => window.api.personaMemory.get(persona.id).then(setMemory))
+                              setNewLogText('')
+                              setAddingLogEntry(false)
+                            }
+                          }}
+                          placeholder="Add a manual note..."
+                          autoFocus
+                        />
+                        <button
+                          className="persona-memory-add-btn"
+                          onClick={() => {
+                            if (!newLogText.trim()) return
+                            window.api.personaMemory.addLogEntry(persona.id, newLogText.trim())
+                              .then(() => window.api.personaMemory.get(persona.id).then(setMemory))
+                            setNewLogText('')
+                            setAddingLogEntry(false)
+                          }}
+                        >Add</button>
+                      </div>
+                    )}
+                    {memory.sessionLog.length === 0 && !addingLogEntry ? (
                       <div className="persona-memory-empty">No session log</div>
                     ) : [...memory.sessionLog].reverse().map((entry, i) => (
                       <div key={i} className="persona-memory-log-entry">
