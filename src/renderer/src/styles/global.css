@@ -16393,6 +16393,23 @@ body:has(.daemon-update-banner) .app-update-banner {
   opacity: 0.55;
 }
 
+/* Persona batch selection */
+.persona-select-checkbox { width: 13px; height: 13px; flex-shrink: 0; cursor: pointer; accent-color: var(--accent-blue); margin: 0; }
+.persona-bulk-bar {
+  display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+  background: var(--bg-hover); border-bottom: 1px solid var(--border);
+  font-size: 12px; color: var(--text-secondary);
+}
+.persona-bulk-select-all { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: var(--bg-active); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; }
+.persona-bulk-select-all:hover { color: var(--text-primary); }
+.persona-bulk-count { font-size: 11px; color: var(--text-muted); }
+.persona-bulk-actions { display: flex; gap: 4px; margin-left: auto; }
+.persona-bulk-btn { display: flex; align-items: center; gap: 3px; font-size: 11px; padding: 3px 8px; border-radius: 4px; background: var(--bg-hover); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; }
+.persona-bulk-btn:hover { background: var(--bg-active); color: var(--text-primary); }
+.persona-bulk-btn.primary { background: var(--accent-blue); color: #fff; border-color: var(--accent-blue); }
+.persona-bulk-btn.primary:hover { opacity: 0.85; }
+.persona-bulk-btn.danger:hover { background: rgba(239,68,68,0.15); color: var(--danger); border-color: var(--danger); }
+
 .persona-list-row-main {
   display: flex;
   align-items: center;

@@ -171,6 +171,9 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
   const [sortBy, setSortBy] = useState<'name' | 'lastRun' | 'runs' | 'cost' | 'successRate'>('name')
   const [panelView, setPanelView] = useState<'list' | 'schedule' | 'triggers'>('list')
 
+  // Batch selection
+  const [selectedPersonas, setSelectedPersonas] = useState<Set<string>>(new Set())
+
   // Audit
   const [auditResults, setAuditResults] = useState<AuditResult[] | null>(null)
   const [auditRunning, setAuditRunning] = useState(false)
@@ -391,6 +394,64 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
     }
   }
 
+  // Batch operations
+  const handleToggleSelect = useCallback((id: string) => {
+    setSelectedPersonas(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const handleSelectAll = useCallback(() => {
+    if (selectedPersonas.size === sortedPersonas.length) {
+      setSelectedPersonas(new Set())
+    } else {
+      setSelectedPersonas(new Set(sortedPersonas.map(p => p.id)))
+    }
+  }, [sortedPersonas, selectedPersonas.size])
+
+  const handleBatchEnable = useCallback(async () => {
+    for (const id of selectedPersonas) await window.api.persona.toggle(id, true)
+    setSelectedPersonas(new Set())
+  }, [selectedPersonas])
+
+  const handleBatchDisable = useCallback(async () => {
+    for (const id of selectedPersonas) await window.api.persona.toggle(id, false)
+    setSelectedPersonas(new Set())
+  }, [selectedPersonas])
+
+  const handleBatchRun = useCallback(async () => {
+    const ids = [...selectedPersonas]
+    setSelectedPersonas(new Set())
+    for (let i = 0; i < ids.length; i++) {
+      const p = personas.find(pp => pp.id === ids[i])
+      if (p?.activeSessionId) continue // already running
+      await window.api.persona.run(ids[i])
+      if (i < ids.length - 1) await new Promise(r => setTimeout(r, 2000))
+    }
+  }, [selectedPersonas, personas])
+
+  const handleBatchStop = useCallback(async () => {
+    for (const id of selectedPersonas) await window.api.persona.stop(id)
+    setSelectedPersonas(new Set())
+  }, [selectedPersonas])
+
+  // Clear selection on tab switch or Escape
+  useEffect(() => {
+    setSelectedPersonas(new Set())
+  }, [panelView])
+
+  useEffect(() => {
+    if (selectedPersonas.size === 0) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedPersonas(new Set())
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [selectedPersonas.size])
+
   return (
     <div className="personas-panel">
       <div className="panel-header">
@@ -474,6 +535,22 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
       )}
 
       {panelView === 'list' && <>
+      {/* Bulk action bar */}
+      {selectedPersonas.size > 0 && (
+        <div className="persona-bulk-bar">
+          <button className="persona-bulk-select-all" onClick={handleSelectAll}>
+            {selectedPersonas.size === sortedPersonas.length ? 'Deselect All' : 'Select All'}
+          </button>
+          <span className="persona-bulk-count">{selectedPersonas.size} selected</span>
+          <div className="persona-bulk-actions">
+            <button className="persona-bulk-btn" onClick={handleBatchEnable} title="Enable selected personas">Enable</button>
+            <button className="persona-bulk-btn" onClick={handleBatchDisable} title="Disable selected personas">Disable</button>
+            <button className="persona-bulk-btn primary" onClick={handleBatchRun} title="Run selected personas (2s stagger)"><Play size={11} /> Run Now</button>
+            <button className="persona-bulk-btn danger" onClick={handleBatchStop} title="Stop selected personas"><Square size={11} /> Stop</button>
+          </div>
+        </div>
+      )}
+
       {/* Persona Chat — ask about session logs and briefs */}
       <div className="personas-ask-bar">
         <Search size={13} className="personas-ask-icon" />
@@ -567,6 +644,8 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
             instances={instances}
             allPersonas={personas}
             analytics={analyticsCache[persona.id] ?? null}
+            selected={selectedPersonas.has(persona.id)}
+            onToggleSelect={() => handleToggleSelect(persona.id)}
             onToggleExpand={() => setExpandedId(expandedId === persona.id ? null : persona.id)}
             onRun={() => handleRun(persona.id)}
             onStop={() => handleStop(persona.id)}
@@ -862,6 +941,8 @@ interface PersonaCardProps {
   instances: ClaudeInstance[]
   allPersonas: PersonaInfo[]
   analytics: PersonaAnalytics | null
+  selected: boolean
+  onToggleSelect: () => void
   onToggleExpand: () => void
   onRun: () => void
   onStop: () => void
@@ -878,7 +959,7 @@ interface PersonaCardProps {
 }
 
 function PersonaCard({
-  persona, expanded, instances, allPersonas, analytics,
+  persona, expanded, instances, allPersonas, analytics, selected, onToggleSelect,
   onToggleExpand, onRun, onStop, onToggle, onDelete, onDuplicate, onFocusInstance, onViewFile, onEditFile, onEditMeta, onScheduleSave, onWhisper, onDeleteNote
 }: PersonaCardProps) {
   const [editingSchedule, setEditingSchedule] = useState(false)
@@ -959,6 +1040,13 @@ function PersonaCard({
     <div className={`persona-list-row ${isRunning ? 'running' : persona.enabled ? 'enabled' : 'disabled'}`}>
       {/* List mode — compact single-line row */}
       <div className="persona-list-row-main" onClick={onToggleExpand}>
+          <input
+            type="checkbox"
+            className="persona-select-checkbox"
+            checked={selected}
+            onChange={(e) => { e.stopPropagation(); onToggleSelect() }}
+            onClick={(e) => e.stopPropagation()}
+          />
           <span className="persona-list-expand">
             {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
           </span>
