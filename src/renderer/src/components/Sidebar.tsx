@@ -336,7 +336,7 @@ interface Props {
   onViewChange: (view: SidebarView) => void
   onResumeSession: (session: CliSession) => void
   onTakeoverExternal: (ext: { pid: number; name: string; cwd: string; sessionId: string | null }) => void
-  onRestoreAll: () => void
+  onShowRestoreDialog: () => void
   restorableCount: number
   unreadIds: Set<string>
   outputBytes: Map<string, number>
@@ -409,7 +409,7 @@ function SessionTile({ s, onResumeSession, hoveredSessionId, setHoveredSessionId
   )
 }
 
-function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onSetNote, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onRestoreAll, restorableCount, unreadIds, outputBytes, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop, forkGroups = [], onForkSession, gridPanes, currentLayout = 'single', onLoadPreset, onCloneSession }: Props) {
+function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onSetNote, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onShowRestoreDialog, restorableCount, unreadIds, outputBytes, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop, forkGroups = [], onForkSession, gridPanes, currentLayout = 'single', onLoadPreset, onCloneSession }: Props) {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
@@ -1082,7 +1082,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
           </div>
         )}
         {view === 'instances' && restorableCount > 0 && (
-          <button className="sidebar-restore-btn" onClick={onRestoreAll} title="Restore previous sessions">
+          <button className="sidebar-restore-btn" onClick={onShowRestoreDialog} title="Restore previous sessions">
             Restore {restorableCount} from last run
           </button>
         )}

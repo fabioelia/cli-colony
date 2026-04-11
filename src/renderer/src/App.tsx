@@ -36,6 +36,7 @@ import GlobalSearch from './components/GlobalSearch'
 import ShortcutOverlay from './components/ShortcutOverlay'
 import AppUpdateBanner from './components/AppUpdateBanner'
 import WelcomeModal from './components/WelcomeModal'
+import RestoreDialog from './components/RestoreDialog'
 import { stripAnsi } from '../../shared/utils'
 import type { ForkGroup } from '../../shared/types'
 
@@ -75,6 +76,7 @@ export default function App() {
   const [editingAgent, setEditingAgent] = useState<AgentDef | null>(null)
   const [editorInstanceId, setEditorInstanceId] = useState<string | null>(null)
   const [restorableSessions, setRestorableSessions] = useState<RecentSession[]>([])
+  const [showRestoreDialog, setShowRestoreDialog] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false)
   const [splitPairs, setSplitPairs] = useState<Map<string, string>>(new Map()) // leftId → rightId
@@ -590,9 +592,8 @@ export default function App() {
     setView('instances')
   }, [])
 
-  const handleRestoreAll = useCallback(async () => {
-    const toRestore = restorableSessions.filter((s) => s.sessionId && s.exitType !== 'killed')
-    for (const s of toRestore) {
+  const handleRestoreSelected = useCallback(async (selected: RecentSession[]) => {
+    for (const s of selected) {
       const inst = await window.api.instance.create({
         name: s.instanceName,
         workingDirectory: s.workingDirectory,
@@ -600,13 +601,14 @@ export default function App() {
         args: ['--resume', s.sessionId!],
         cliBackend: s.cliBackend ?? 'claude',
       })
-      if (s.pinned) {
+      if ((s as any).pinned) {
         await window.api.instance.pin(inst.id)
       }
     }
     await window.api.sessions.clearRestorable()
     setRestorableSessions([])
-  }, [restorableSessions])
+    setShowRestoreDialog(false)
+  }, [])
 
   // Drag & drop on sidebar to create instance
   const handleSidebarDrop = useCallback(async (e: React.DragEvent) => {
@@ -1181,6 +1183,14 @@ export default function App() {
         <WelcomeModal onClose={() => setShowWelcome(false)} />,
         document.body
       )}
+      {showRestoreDialog && createPortal(
+        <RestoreDialog
+          sessions={restorableSessions}
+          onRestore={handleRestoreSelected}
+          onDismiss={() => { setShowRestoreDialog(false); window.api.sessions.clearRestorable(); setRestorableSessions([]) }}
+        />,
+        document.body
+      )}
       {daemonStale && createPortal(
         <div className="daemon-update-banner">
           <span>Daemon is outdated — restart to apply updates. Running sessions will be terminated; use resume to restore them.</span>
@@ -1230,7 +1240,7 @@ export default function App() {
         onViewChange={handleViewChange}
         onResumeSession={handleResumeSession}
         onTakeoverExternal={handleTakeoverExternal}
-        onRestoreAll={handleRestoreAll}
+        onShowRestoreDialog={() => setShowRestoreDialog(true)}
         restorableCount={restorableCount}
         splitId={splitId}
         splitPairs={splitPairs}
