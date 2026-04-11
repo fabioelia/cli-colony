@@ -100,7 +100,7 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Running Sessions',
         position: 'Middle',
         items: [
-          { label: 'Session tile', detail: 'Click any session to focus it. Shows name, activity status (busy/idle), role tag, and cost.', icon: 'Play' },
+          { label: 'Session tile', detail: 'Click any session to focus it. Right-click for a context menu with Focus, Stop, and Pin/Unpin actions. Shows name, activity status (busy/idle), role tag, and cost.', icon: 'Play' },
         ],
       },
       {
@@ -681,6 +681,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Below Shell section',
         items: [
           { label: 'Theme', detail: 'Switch between Dark and Light mode. Changes apply instantly — terminal colors, syntax highlighting, and all UI elements update automatically. Persists across restarts.', icon: 'Palette' },
+          { label: 'Font size', detail: 'Adjust terminal and UI font size (range 8–28, default 13). Changes apply instantly. Also adjustable with ⌘+/⌘− keyboard shortcuts; ⌘0 resets to default.' },
         ],
       },
       {

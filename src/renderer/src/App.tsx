@@ -305,7 +305,9 @@ export default function App() {
         }
       }),
     ]
-    return () => unsubs.forEach((u) => u())
+    const onFontSizeChanged = (e: Event) => setFontSize((e as CustomEvent).detail)
+    window.addEventListener('fontSize-changed', onFontSizeChanged)
+    return () => { unsubs.forEach((u) => u()); window.removeEventListener('fontSize-changed', onFontSizeChanged) }
   }, []) // empty deps — runs once, uses refs for fresh values
 
   // Toggle body class for fullscreen — lets CSS reduce traffic-light padding
@@ -1679,6 +1681,7 @@ export default function App() {
             onFocusInstance={(id) => { setActiveId(id); setView('instances') }}
             onNewSession={() => setShowNewDialog(true)}
             onNavigate={(v) => setView(v as View)}
+            onKill={handleKill}
           />
         )}
         {view === 'review' && (
@@ -1719,6 +1722,7 @@ export default function App() {
             onFocusInstance={(id) => { setActiveId(id); setView('instances') }}
             onNewSession={() => setShowNewDialog(true)}
             onNavigate={(v) => setView(v as View)}
+            onKill={handleKill}
           />
         )}
 

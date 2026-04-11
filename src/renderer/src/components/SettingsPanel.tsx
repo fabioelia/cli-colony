@@ -60,6 +60,7 @@ export default function SettingsPanel({ onBack }: Props) {
   const [apiToken, setApiToken] = useState('')
   const [showApiToken, setShowApiToken] = useState(false)
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+  const [fontSize, setFontSize] = useState(13)
 
   const [sessionTemplates, setSessionTemplates] = useState<SessionTemplate[]>([])
   const [showTemplatesSection, setShowTemplatesSection] = useState(false)
@@ -102,6 +103,7 @@ export default function SettingsPanel({ onBack }: Props) {
       setWebhookPort(s.webhookPort || '7474')
       setApiToken(s.apiToken || '')
       setTheme((s.theme === 'light' ? 'light' : 'dark') as 'dark' | 'light')
+      if (s.fontSize) setFontSize(parseInt(s.fontSize, 10) || 13)
     })
     window.api.settings.getShells().then(setAvailableShells)
     window.api.daemon.getVersion().then(setDaemonVersion).catch(() => {})
@@ -166,6 +168,19 @@ export default function SettingsPanel({ onBack }: Props) {
     } else {
       document.documentElement.removeAttribute('data-theme')
     }
+  }
+
+  const handleFontSizeChange = (delta: number) => {
+    const next = Math.min(Math.max(fontSize + delta, 8), 28)
+    setFontSize(next)
+    window.api.settings.set('fontSize', String(next))
+    window.dispatchEvent(new CustomEvent('fontSize-changed', { detail: next }))
+  }
+
+  const handleFontSizeReset = () => {
+    setFontSize(13)
+    window.api.settings.set('fontSize', '13')
+    window.dispatchEvent(new CustomEvent('fontSize-changed', { detail: 13 }))
   }
 
   const handleSave = async () => {
@@ -335,6 +350,16 @@ export default function SettingsPanel({ onBack }: Props) {
               <Sun size={14} /> Light
             </button>
           </div>
+        </div>
+        <div className="settings-field">
+          <label>Font size</label>
+          <div className="settings-font-size">
+            <button className="settings-font-size-btn" onClick={() => handleFontSizeChange(-1)} disabled={fontSize <= 8}>−</button>
+            <span className="settings-font-size-value">{fontSize}</span>
+            <button className="settings-font-size-btn" onClick={() => handleFontSizeChange(1)} disabled={fontSize >= 28}>+</button>
+            {fontSize !== 13 && <button className="settings-font-size-reset" onClick={handleFontSizeReset}>Reset</button>}
+          </div>
+          <p className="settings-help settings-help-bottom">Also adjustable with ⌘+/⌘− (range 8–28)</p>
         </div>
       </div>
 
