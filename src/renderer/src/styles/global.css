@@ -3354,6 +3354,42 @@ body:has(.daemon-update-banner) .app-update-banner {
   margin-bottom: 12px;
 }
 
+.commit-dialog-branch-warning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--warning);
+  margin-bottom: 8px;
+}
+.commit-dialog-branch-create {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+  margin-top: 4px;
+}
+.commit-dialog-branch-input {
+  flex: 1;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: var(--font-mono, monospace);
+}
+.commit-dialog-branch-error {
+  width: 100%;
+  font-size: 11px;
+  color: var(--danger);
+  margin-top: 2px;
+}
+
 .commit-dialog-success {
   display: flex;
   align-items: center;

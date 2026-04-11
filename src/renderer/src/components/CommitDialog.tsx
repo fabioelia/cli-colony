@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { GitCommit, Upload, AlertCircle, Check, Loader } from 'lucide-react'
+import { GitCommit, Upload, AlertCircle, AlertTriangle, Check, Loader, GitBranch } from 'lucide-react'
 import type { GitDiffEntry } from '../../../shared/types'
 
 interface CommitDialogProps {
@@ -18,6 +18,9 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted }: Com
   const [error, setError] = useState<string | null>(null)
   const [branchInfo, setBranchInfo] = useState<{ branch: string; remote: string | null; ahead: number } | null>(null)
   const [commitHash, setCommitHash] = useState('')
+  const [newBranchName, setNewBranchName] = useState('')
+  const [creatingBranch, setCreatingBranch] = useState(false)
+  const [branchError, setBranchError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -47,6 +50,23 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted }: Com
       setSelectedFiles(new Set(entries.map(e => e.file)))
     }
   }
+
+  const isProtectedBranch = branchInfo && /^(main|master)$/i.test(branchInfo.branch)
+
+  const handleCreateBranch = useCallback(async () => {
+    if (!newBranchName.trim()) return
+    setCreatingBranch(true)
+    setBranchError(null)
+    try {
+      const name = await window.api.git.createBranch(dir, newBranchName.trim())
+      setBranchInfo(prev => prev ? { ...prev, branch: name } : prev)
+      setNewBranchName('')
+    } catch (err) {
+      setBranchError(err instanceof Error ? err.message : 'Failed to create branch')
+    } finally {
+      setCreatingBranch(false)
+    }
+  }, [dir, newBranchName])
 
   const handleCommit = useCallback(async (andPush: boolean) => {
     if (!message.trim() || selectedFiles.size === 0) return
@@ -96,6 +116,33 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted }: Com
             </span>
           )}
         </div>
+
+        {/* Protected branch warning */}
+        {isProtectedBranch && (
+          <div className="commit-dialog-branch-warning">
+            <AlertTriangle size={13} />
+            <span>You're on <strong>{branchInfo!.branch}</strong> — consider creating a branch first.</span>
+            <div className="commit-dialog-branch-create">
+              <input
+                className="commit-dialog-branch-input"
+                value={newBranchName}
+                onChange={e => { setNewBranchName(e.target.value); setBranchError(null) }}
+                placeholder="feature/my-branch"
+                disabled={creatingBranch}
+                onKeyDown={e => { if (e.key === 'Enter') handleCreateBranch() }}
+              />
+              <button
+                className="dialog-btn dialog-btn-primary"
+                onClick={handleCreateBranch}
+                disabled={creatingBranch || !newBranchName.trim()}
+                style={{ padding: '3px 8px', fontSize: '11px' }}
+              >
+                {creatingBranch ? 'Creating...' : 'Create Branch'}
+              </button>
+            </div>
+            {branchError && <div className="commit-dialog-branch-error">{branchError}</div>}
+          </div>
+        )}
 
         {/* Commit message */}
         <div className="dialog-field">

@@ -97,6 +97,15 @@ export function registerGitHandlers(): void {
     }
   })
 
+  ipcMain.handle('git:createBranch', async (_e, cwd: string, name: string): Promise<string> => {
+    await assertGitRepo(cwd)
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9._/-]*$/.test(name)) {
+      throw new Error('Invalid branch name. Use letters, numbers, hyphens, dots, or slashes.')
+    }
+    await execFileAsync('git', ['checkout', '-b', name], { cwd, timeout: 10000 })
+    return name
+  })
+
   ipcMain.handle('git:commitDiff', async (_e, cwd: string, hash: string): Promise<string> => {
     await assertGitRepo(cwd)
     // Validate hash is hex-only to prevent injection
