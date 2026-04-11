@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { AgentDef, CliBackend } from '../types'
 import { COLORS, COLOR_MAP } from '../lib/constants'
 import { getHistory, addToHistory } from '../lib/prompt-history'
@@ -342,7 +343,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
 
         <div className="dialog-field">
           <label style={{ cursor: 'pointer' }} onClick={() => setShowEnvVars(!showEnvVars)}>
-            Environment Variables {showEnvVars ? '▾' : '▸'} <span style={{ opacity: 0.5, fontWeight: 'normal' }}>(optional)</span>
+            Environment Variables {showEnvVars ? <ChevronDown size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> : <ChevronRight size={12} style={{ display: 'inline', verticalAlign: 'middle' }} />} <span style={{ opacity: 0.5, fontWeight: 'normal' }}>(optional)</span>
           </label>
           {showEnvVars && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
