@@ -4,7 +4,7 @@ import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
   ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote, ArrowRightCircle, Save, Loader2,
   Hourglass, ArrowRight, FolderOpen, Search, Check, Bot, BarChart3, ArrowUpDown, DollarSign, TrendingUp,
-  CalendarClock, GitBranch,
+  CalendarClock, GitBranch, Brain,
 } from 'lucide-react'
 import EmptyStateHook from './EmptyStateHook'
 import MarkdownViewer from './MarkdownViewer'
@@ -16,7 +16,15 @@ import PersonaTriggerMap from './PersonaTriggerMap'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import { describeCron, nextRuns } from '../../../shared/cron'
 
-import type { PersonaInfo, ClaudeInstance, PersonaArtifact, PersonaRunEntry, PersonaAnalytics } from '../../../shared/types'
+import type { PersonaInfo, ClaudeInstance, PersonaArtifact, PersonaRunEntry, PersonaAnalytics, PersonaMemory } from '../../../shared/types'
+
+function formatRelativeTime(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime()
+  if (ms < 60000) return 'just now'
+  if (ms < 3600000) return `${Math.floor(ms / 60000)}m ago`
+  if (ms < 86400000) return `${Math.floor(ms / 3600000)}h ago`
+  return `${Math.floor(ms / 86400000)}d ago`
+}
 
 interface Props {
   onBack: () => void
@@ -795,10 +803,11 @@ function PersonaCard({
   const [editingSchedule, setEditingSchedule] = useState(false)
   const [whisperOpen, setWhisperOpen] = useState(false)
   const [whisperText, setWhisperText] = useState('')
-  const [activeTab, setActiveTab] = useState<'content' | 'outputs' | 'history' | 'analytics'>('content')
+  const [activeTab, setActiveTab] = useState<'content' | 'outputs' | 'history' | 'analytics' | 'memory'>('content')
   const [artifacts, setArtifacts] = useState<PersonaArtifact[] | null>(null)
   const [viewingArtifact, setViewingArtifact] = useState<{ name: string; content: string } | null>(null)
   const [runHistory, setRunHistory] = useState<PersonaRunEntry[] | null>(null)
+  const [memory, setMemory] = useState<PersonaMemory | null>(null)
   const whisperRef = useRef<HTMLTextAreaElement>(null)
   const { ref: whisperBarRef, isDragging: whisperDragging } = useFileDrop(paths => {
     const pathText = paths.join('\n')
@@ -832,6 +841,11 @@ function PersonaCard({
     if (!expanded || activeTab !== 'history' || runHistory !== null) return
     window.api.persona.getRunHistory(persona.id).then(setRunHistory)
   }, [expanded, activeTab, persona.id, runHistory])
+
+  useEffect(() => {
+    if (!expanded || activeTab !== 'memory' || memory !== null) return
+    window.api.personaMemory.get(persona.id).then(setMemory)
+  }, [expanded, activeTab, persona.id, memory])
 
   const handleViewArtifact = async (artifact: PersonaArtifact) => {
     const content = await window.api.persona.readArtifact(persona.id, artifact.name)
@@ -1025,6 +1039,10 @@ function PersonaCard({
               className={`persona-card-tab${activeTab === 'analytics' ? ' active' : ''}`}
               onClick={() => setActiveTab('analytics')}
             ><BarChart3 size={10} /> Analytics</button>
+            <button
+              className={`persona-card-tab${activeTab === 'memory' ? ' active' : ''}`}
+              onClick={() => setActiveTab('memory')}
+            ><Brain size={10} /> Memory</button>
           </div>
 
           {activeTab === 'outputs' && (
@@ -1085,6 +1103,50 @@ function PersonaCard({
 
           {activeTab === 'analytics' && (
             <PersonaAnalyticsTab analytics={analytics} personaName={persona.name} onRun={onRun} />
+          )}
+
+          {activeTab === 'memory' && (
+            <div className="persona-memory-tab">
+              {memory === null ? (
+                <div className="persona-outputs-loading"><Loader2 size={13} className="spin" /> Loading…</div>
+              ) : (
+                <>
+                  <div className="persona-memory-section">
+                    <h4 className="persona-memory-heading">Active Situations</h4>
+                    {memory.activeSituations.length === 0 ? (
+                      <div className="persona-memory-empty">No active situations</div>
+                    ) : memory.activeSituations.map((s, i) => (
+                      <div key={i} className="persona-memory-situation">
+                        <span className={`persona-memory-status ${s.status}`}>{s.status}</span>
+                        <span className="persona-memory-text">{s.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="persona-memory-section">
+                    <h4 className="persona-memory-heading">Learnings</h4>
+                    {memory.learnings.length === 0 ? (
+                      <div className="persona-memory-empty">No learnings yet</div>
+                    ) : memory.learnings.map((l, i) => (
+                      <div key={i} className="persona-memory-learning">
+                        <span className="persona-memory-text">{l.text}</span>
+                        <span className="persona-memory-time">{formatRelativeTime(l.addedAt)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="persona-memory-section">
+                    <h4 className="persona-memory-heading">Session Log</h4>
+                    {memory.sessionLog.length === 0 ? (
+                      <div className="persona-memory-empty">No session log</div>
+                    ) : [...memory.sessionLog].reverse().map((entry, i) => (
+                      <div key={i} className="persona-memory-log-entry">
+                        <span className="persona-memory-time">{formatRelativeTime(entry.timestamp)}</span>
+                        <span className="persona-memory-text">{entry.summary}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           )}
 
           {activeTab === 'content' && <>

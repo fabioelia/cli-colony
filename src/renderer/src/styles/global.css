@@ -16915,6 +16915,23 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .persona-analytics-table-row:hover { background: var(--bg-hover); }
 
+/* ===== Persona Memory Tab ===== */
+.persona-memory-tab { padding: 8px 0; }
+.persona-memory-section { margin-bottom: 12px; }
+.persona-memory-heading { font-size: 11px; font-weight: 600; color: var(--text-secondary); margin: 0 0 6px; text-transform: uppercase; letter-spacing: 0.03em; }
+.persona-memory-empty { font-size: 11px; color: var(--text-muted); font-style: italic; padding: 4px 0; }
+.persona-memory-situation { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; font-size: 11px; }
+.persona-memory-status { font-size: 10px; padding: 1px 5px; border-radius: 3px; font-weight: 600; flex-shrink: 0; text-transform: uppercase; }
+.persona-memory-status.delegated { background: rgba(59,130,246,0.15); color: var(--accent); }
+.persona-memory-status.pending { background: rgba(245,158,11,0.15); color: #f59e0b; }
+.persona-memory-status.done { background: rgba(16,185,129,0.15); color: var(--success); }
+.persona-memory-status.blocked { background: rgba(239,68,68,0.15); color: var(--danger); }
+.persona-memory-text { color: var(--text-primary); line-height: 1.4; }
+.persona-memory-learning { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; font-size: 11px; border-bottom: 1px solid var(--border); }
+.persona-memory-learning:last-child { border-bottom: none; }
+.persona-memory-time { font-size: 10px; color: var(--text-muted); flex-shrink: 0; white-space: nowrap; }
+.persona-memory-log-entry { display: flex; gap: 8px; padding: 3px 0; font-size: 11px; }
+
 /* ===== Persona Edit Meta Modal ===== */
 .persona-edit-meta-modal {
   max-width: 420px;
