@@ -1009,7 +1009,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .activity-source-session {
   background: rgba(168, 85, 247, 0.15);
-  color: var(--accent-purple, #a855f7);
+  color: var(--accent-purple);
 }
 
 .activity-event-name {
@@ -17110,6 +17110,95 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-radius: 4px;
 }
 
+/* ===== Persona Audit ===== */
+.audit-results-panel {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.audit-results-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg-secondary);
+  z-index: 1;
+}
+.audit-results-count {
+  font-weight: 400;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.audit-results-dismiss {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+}
+.audit-results-dismiss:hover { color: var(--text-primary); }
+.audit-results-loading {
+  padding: 16px 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+.audit-results-empty {
+  padding: 16px 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+.audit-result-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 11px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.audit-result-item:last-child { border-bottom: none; }
+.audit-result-severity {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.audit-severity-high .audit-result-severity { background: rgba(239,68,68,0.15); color: var(--danger); }
+.audit-severity-medium .audit-result-severity { background: rgba(245,158,11,0.15); color: var(--warning); }
+.audit-severity-low .audit-result-severity { background: rgba(59,130,246,0.15); color: var(--accent); }
+.audit-result-item-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+.audit-result-issue {
+  color: var(--text-secondary);
+}
+.audit-badge {
+  background: var(--danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 0 5px;
+  border-radius: 8px;
+  margin-left: 4px;
+  line-height: 16px;
+}
+.panel-header-btn--audit-alert {
+  color: var(--warning);
+}
+
 /* ===== Persona Schedule Heatmap ===== */
 .schedule-heatmap {
   display: flex;
@@ -18632,7 +18721,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: var(--bg-hover);
 }
 .global-search-match.selected {
-  outline: 1px solid var(--accent-blue);
+  outline: 1px solid var(--accent);
   outline-offset: -1px;
 }
 .global-search-context {
