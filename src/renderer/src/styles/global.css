@@ -12612,6 +12612,245 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-variant-numeric: tabular-nums;
 }
 
+/* ===== Pipeline Run Comparison ===== */
+.pipeline-comparison-check {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+.pipeline-history-row.compared {
+  outline: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  outline-offset: -1px;
+}
+
+.pipeline-comparison-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+
+.pipeline-comparison-toolbar-label {
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.pipeline-comparison {
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  font-size: 11px;
+  overflow: hidden;
+}
+
+.pipeline-comparison-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.pipeline-comparison-header > button {
+  margin-left: auto;
+}
+
+.pipeline-comparison-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pipeline-comparison-summary-run {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.pipeline-comparison-label {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.pipeline-comparison-ts {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+}
+
+.pipeline-comparison-status {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+}
+
+.pipeline-comparison-status.success {
+  color: var(--success);
+}
+
+.pipeline-comparison-status.failure {
+  color: var(--danger);
+}
+
+.pipeline-comparison-arrow {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.pipeline-comparison-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pipeline-comparison-metric {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: 10px;
+}
+
+.pipeline-comparison-metric-label {
+  color: var(--text-muted);
+  width: 52px;
+  flex-shrink: 0;
+}
+
+.pipeline-comparison-metric-val {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  min-width: 48px;
+}
+
+.pipeline-comparison-metric-val.success {
+  color: var(--success);
+}
+
+.pipeline-comparison-metric-val.failure {
+  color: var(--danger);
+}
+
+.pipeline-comparison-metric-sep {
+  color: var(--text-muted);
+}
+
+.pipeline-comparison-delta {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.pipeline-comparison-delta.positive {
+  color: var(--danger);
+}
+
+.pipeline-comparison-delta.negative {
+  color: var(--success);
+}
+
+.pipeline-comparison-stages {
+  padding: 4px 0 2px;
+}
+
+.pipeline-comparison-stages-header {
+  display: grid;
+  grid-template-columns: 1fr 90px 90px 60px;
+  gap: 4px;
+  padding: 2px 8px 4px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.pipeline-comparison-stage-row {
+  display: grid;
+  grid-template-columns: 1fr 90px 90px 60px;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 10px;
+  align-items: center;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+}
+
+.pipeline-comparison-stage-row:last-child {
+  border-bottom: none;
+}
+
+.pipeline-comparison-stage-changed {
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+}
+
+.pipeline-comparison-col-stage {
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipeline-comparison-col-run {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.pipeline-comparison-col-delta {
+  font-variant-numeric: tabular-nums;
+}
+
+.pipeline-comparison-missing {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+.pipeline-comparison-snippet-details {
+  grid-column: 1 / -1;
+  font-size: 9px;
+  color: var(--text-muted);
+  padding: 2px 0 2px 12px;
+}
+
+.pipeline-comparison-snippet-details summary {
+  cursor: pointer;
+  color: var(--accent);
+  user-select: none;
+}
+
+.pipeline-comparison-snippet {
+  margin-top: 2px;
+  font-style: italic;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: 400px;
+}
+
 /* ===== Pipeline Flow Diagram ===== */
 .pipeline-flow-diagram {
   padding: 16px;

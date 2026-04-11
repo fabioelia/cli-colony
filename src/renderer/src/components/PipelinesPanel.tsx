@@ -151,6 +151,8 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   type StageTrace = { index: number; actionType: string; sessionName?: string; model?: string; durationMs: number; startedAt?: number; completedAt?: number; success: boolean; error?: string; responseSnippet?: string; subStages?: StageTrace[] }
   const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; stages?: StageTrace[] }>>([])
   const [expandedHistoryRows, setExpandedHistoryRows] = useState<Set<number>>(new Set())
+  const [comparedRuns, setComparedRuns] = useState<Set<number>>(new Set())
+  const [showComparison, setShowComparison] = useState(false)
 
   const [triggeringPipelines, setTriggeringPipelines] = useState<Set<string>>(new Set())
   const [listMode, setListMode] = useState(() => localStorage.getItem('pipelines-list-mode') !== '0')
@@ -396,12 +398,16 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
       setEditingFileName(null)
       setReadmeContent(null)
       setDirty(false)
+      setComparedRuns(new Set())
+      setShowComparison(false)
       return
     }
     if ((dirty || memoryDirty) && expandedPipeline) {
       if (!window.confirm('You have unsaved changes. Discard?')) return
     }
     setExpandedPipeline(p.name)
+    setComparedRuns(new Set())
+    setShowComparison(false)
     const content = await window.api.pipeline.getContent(p.fileName)
     setEditingContent(content || '')
     setEditingFileName(p.fileName)
@@ -929,26 +935,26 @@ action:
                   <div className="pipeline-editor-tabs">
                     <button
                       className={`pipeline-tab ${expandedTab === 'yaml' ? 'active' : ''}`}
-                      onClick={() => setExpandedTab('yaml')}
+                      onClick={() => { setExpandedTab('yaml'); setComparedRuns(new Set()); setShowComparison(false) }}
                     >
                       <FileText size={11} /> Config
                     </button>
                     <button
                       className={`pipeline-tab ${expandedTab === 'flow' ? 'active' : ''}`}
-                      onClick={() => setExpandedTab('flow')}
+                      onClick={() => { setExpandedTab('flow'); setComparedRuns(new Set()); setShowComparison(false) }}
                     >
                       <GitBranch size={11} /> Flow
                     </button>
                     <button
                       className={`pipeline-tab ${expandedTab === 'memory' ? 'active' : ''}`}
-                      onClick={() => setExpandedTab('memory')}
+                      onClick={() => { setExpandedTab('memory'); setComparedRuns(new Set()); setShowComparison(false) }}
                     >
                       <BookOpen size={11} /> Memory
                     </button>
                     {p.outputsDir && (
                       <button
                         className={`pipeline-tab ${expandedTab === 'outputs' ? 'active' : ''}`}
-                        onClick={() => setExpandedTab('outputs')}
+                        onClick={() => { setExpandedTab('outputs'); setComparedRuns(new Set()); setShowComparison(false) }}
                       >
                         <FileText size={11} /> Outputs {outputFiles.length > 0 && `(${outputFiles.length})`}
                       </button>
@@ -956,7 +962,7 @@ action:
                     {readmeContent && (
                       <button
                         className={`pipeline-tab ${expandedTab === 'docs' ? 'active' : ''}`}
-                        onClick={() => setExpandedTab('docs')}
+                        onClick={() => { setExpandedTab('docs'); setComparedRuns(new Set()); setShowComparison(false) }}
                       >
                         <BookOpen size={11} /> Docs
                       </button>
@@ -969,7 +975,7 @@ action:
                     </button>
                     <button
                       className={`pipeline-tab ${expandedTab === 'debug' ? 'active' : ''}`}
-                      onClick={() => setExpandedTab('debug')}
+                      onClick={() => { setExpandedTab('debug'); setComparedRuns(new Set()); setShowComparison(false) }}
                     >
                       <List size={11} /> Logs {(p.debugLog?.filter(l => l !== '---').length ?? 0) > 0 && `(${p.debugLog!.filter(l => l !== '---').length})`}
                     </button>
@@ -1075,108 +1081,277 @@ action:
                     {historyEntries.length === 0 ? (
                       <p className="pipeline-memory-hint">No runs recorded yet. History is captured after each poll.</p>
                     ) : (
-                      <div className="pipeline-history-list">
-                        {historyEntries.map((entry, i) => {
-                          const hasStages = (entry.stages?.length ?? 0) >= 1
-                          const isExpanded = expandedHistoryRows.has(i)
-                          const prevEntry = i > 0 ? historyEntries[i - 1] : null
-                          const toggleExpand = () => setExpandedHistoryRows(prev => {
-                            const next = new Set(prev)
-                            if (next.has(i)) next.delete(i); else next.add(i)
-                            return next
-                          })
-                          return (
-                            <div key={i}>
-                              <div
-                                className={`pipeline-history-row ${entry.success ? '' : 'error'}${hasStages ? ' has-stages' : ''}`}
-                                onClick={hasStages ? toggleExpand : undefined}
-                              >
-                                {hasStages && (
-                                  <span className="pipeline-history-chevron">
-                                    {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                      <>
+                        {comparedRuns.size > 0 && (
+                          <div className="pipeline-comparison-toolbar">
+                            <span className="pipeline-comparison-toolbar-label">{comparedRuns.size} selected</span>
+                            {comparedRuns.size === 2 && (
+                              <button className="panel-header-btn primary" onClick={() => setShowComparison(true)}>
+                                <ArrowUpDown size={11} /> Compare
+                              </button>
+                            )}
+                            <button className="panel-header-btn" onClick={() => { setComparedRuns(new Set()); setShowComparison(false) }}>
+                              Clear
+                            </button>
+                          </div>
+                        )}
+                        <div className="pipeline-history-list">
+                          {historyEntries.map((entry, i) => {
+                            const hasStages = (entry.stages?.length ?? 0) >= 1
+                            const isExpanded = expandedHistoryRows.has(i)
+                            const isChecked = comparedRuns.has(i)
+                            const prevEntry = i > 0 ? historyEntries[i - 1] : null
+                            const toggleExpand = () => setExpandedHistoryRows(prev => {
+                              const next = new Set(prev)
+                              if (next.has(i)) next.delete(i); else next.add(i)
+                              return next
+                            })
+                            const toggleCompare = (e: React.MouseEvent) => {
+                              e.stopPropagation()
+                              setComparedRuns(prev => {
+                                const next = new Set(prev)
+                                if (next.has(i)) {
+                                  next.delete(i)
+                                  if (next.size === 0) setShowComparison(false)
+                                } else {
+                                  if (next.size >= 2) {
+                                    // deselect oldest (smallest index)
+                                    const oldest = Math.min(...Array.from(next))
+                                    next.delete(oldest)
+                                  }
+                                  next.add(i)
+                                }
+                                return next
+                              })
+                            }
+                            return (
+                              <div key={i}>
+                                <div
+                                  className={`pipeline-history-row ${entry.success ? '' : 'error'}${hasStages ? ' has-stages' : ''}${isChecked ? ' compared' : ''}`}
+                                  onClick={hasStages ? toggleExpand : undefined}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    className="pipeline-comparison-check"
+                                    checked={isChecked}
+                                    onClick={toggleCompare}
+                                    onChange={() => {/* controlled via onClick */}}
+                                  />
+                                  {hasStages && (
+                                    <span className="pipeline-history-chevron">
+                                      {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                                    </span>
+                                  )}
+                                  <span className={`pipeline-history-icon ${entry.success ? 'success' : 'failure'}`}>
+                                    {entry.success ? <CheckCircle size={11} /> : <XCircle size={11} />}
                                   </span>
+                                  <span className="pipeline-history-ts" title={new Date(entry.ts).toLocaleString()}>
+                                    {new Date(entry.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {new Date(entry.ts).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                  </span>
+                                  <span className="pipeline-history-trigger">{entry.trigger}</span>
+                                  <span className={`pipeline-history-action ${entry.actionExecuted ? 'fired' : ''}`}>
+                                    {entry.actionExecuted ? 'action fired' : 'no action'}
+                                  </span>
+                                  <span className="pipeline-history-duration">{entry.durationMs < 1000 ? `${entry.durationMs}ms` : `${(entry.durationMs / 1000).toFixed(1)}s`}</span>
+                                  {p.budget && entry.totalCost != null && (
+                                    <div className="pipeline-budget-bar" title={`$${entry.totalCost.toFixed(2)} of $${p.budget.maxCostUsd.toFixed(2)} budget`}>
+                                      <div
+                                        className="pipeline-budget-bar-fill"
+                                        style={{ width: `${Math.min(100, (entry.totalCost / p.budget.maxCostUsd) * 100).toFixed(1)}%`, background: entry.totalCost >= p.budget.maxCostUsd ? 'var(--danger)' : entry.totalCost >= p.budget.warnAt ? 'var(--warning)' : 'var(--accent)' }}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                                {hasStages && isExpanded && (() => {
+                                  const totalDuration = entry.stages!.reduce((sum, s) => sum + s.durationMs, 0)
+                                  const hasTimingData = entry.stages!.some(s => s.startedAt != null)
+                                  return (
+                                  <div className="pipeline-history-stages">
+                                    {hasTimingData && (
+                                      <div className="stage-timing-total">Total: {formatDuration(totalDuration)}</div>
+                                    )}
+                                    {entry.stages!.map((stage, si) => {
+                                      const prevStage = prevEntry?.stages?.[si]
+                                      const statusChanged = prevStage !== undefined && prevStage.success !== stage.success
+                                      const prevStatus = prevStage?.success ? 'PASS' : 'FAIL'
+                                      const barWidth = totalDuration > 0 ? Math.max(2, Math.min((stage.durationMs / totalDuration) * 200, 200)) : 2
+                                      return (
+                                      <div key={stage.index}>
+                                        <div className={`pipeline-history-stage-row ${stage.success ? '' : 'error'}`}>
+                                          <span className={`pipeline-history-icon ${stage.success ? 'success' : 'failure'}`}>
+                                            {stage.success ? <CheckCircle size={10} /> : <XCircle size={10} />}
+                                          </span>
+                                          <span className="pipeline-history-stage-type">
+                                            {stage.actionType === 'plan' && <FileText size={9} style={{ marginRight: 3, verticalAlign: 'middle' }} />}
+                                            {stage.actionType === 'wait_for_session' && <Hourglass size={9} style={{ marginRight: 3, verticalAlign: 'middle' }} />}
+                                            {stage.actionType === 'parallel' && stage.subStages?.length ? `Parallel (${stage.subStages.length})` : stageTypeLabel(stage.actionType)}
+                                          </span>
+                                          {statusChanged && <span className="pipeline-history-stage-delta" title={`Changed from ${prevStatus} in prior run`}>△</span>}
+                                          {stage.sessionName && <span className="pipeline-history-stage-name">{stage.sessionName}</span>}
+                                          {stage.model && <span className="pipeline-history-stage-model" title={stage.model}>· {stage.model.replace(/^claude-/, '').split('-')[0]}</span>}
+                                          {stage.responseSnippet && <span className="pipeline-history-stage-snippet" title={stage.responseSnippet}>{stage.responseSnippet.length > 60 ? stage.responseSnippet.slice(0, 60) + '…' : stage.responseSnippet}</span>}
+                                          <span className="pipeline-history-duration">{stage.durationMs < 1000 ? `${stage.durationMs}ms` : `${(stage.durationMs / 1000).toFixed(1)}s`}</span>
+                                          {stage.error && <span className="pipeline-history-stage-error" title={stage.error}>err</span>}
+                                        </div>
+                                        {stage.startedAt != null && (
+                                          <div className="stage-duration-bar-row">
+                                            <div className="stage-duration-bar" style={{ width: barWidth }} />
+                                          </div>
+                                        )}
+                                        {stage.subStages && stage.subStages.length > 0 && (
+                                          <div className="pipeline-history-parallel-group">
+                                            {stage.subStages.map(sub => (
+                                              <div key={sub.index} className={`pipeline-history-stage-row sub ${sub.success ? '' : 'error'}`}>
+                                                <span className={`pipeline-history-icon ${sub.success ? 'success' : 'failure'}`}>
+                                                  {sub.success ? <CheckCircle size={9} /> : <XCircle size={9} />}
+                                                </span>
+                                                <span className="pipeline-history-stage-type">{stageTypeLabel(sub.actionType)}</span>
+                                                {sub.sessionName && <span className="pipeline-history-stage-name">{sub.sessionName}</span>}
+                                                <span className="pipeline-history-duration">{sub.durationMs < 1000 ? `${sub.durationMs}ms` : `${(sub.durationMs / 1000).toFixed(1)}s`}</span>
+                                                {sub.error && <span className="pipeline-history-stage-error" title={sub.error}>err</span>}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                      )
+                                    })}
+                                  </div>
+                                  )
+                                })()}
+                              </div>
+                            )
+                          })}
+                        </div>
+                        {showComparison && comparedRuns.size === 2 && (() => {
+                          const [idxA, idxB] = Array.from(comparedRuns).sort((a, b) => {
+                            const tsA = new Date(historyEntries[a].ts).getTime()
+                            const tsB = new Date(historyEntries[b].ts).getTime()
+                            return tsA - tsB
+                          })
+                          const earlier = historyEntries[idxA]
+                          const later = historyEntries[idxB]
+                          const durDelta = later.durationMs - earlier.durationMs
+                          const hasCost = earlier.totalCost != null && later.totalCost != null
+                          const costDelta = hasCost ? later.totalCost! - earlier.totalCost! : 0
+                          const stageCount = Math.max(earlier.stages?.length ?? 0, later.stages?.length ?? 0)
+                          return (
+                            <div className="pipeline-comparison">
+                              <div className="pipeline-comparison-header">
+                                <ArrowUpDown size={12} />
+                                <span>Run Comparison</span>
+                                <button className="panel-header-btn" onClick={() => setShowComparison(false)}>
+                                  <X size={11} />
+                                </button>
+                              </div>
+                              <div className="pipeline-comparison-summary">
+                                <div className="pipeline-comparison-summary-run">
+                                  <span className="pipeline-comparison-label">Earlier</span>
+                                  <span className="pipeline-comparison-ts">{new Date(earlier.ts).toLocaleString()}</span>
+                                  <span className={`pipeline-comparison-status ${earlier.success ? 'success' : 'failure'}`}>
+                                    {earlier.success ? <CheckCircle size={10} /> : <XCircle size={10} />}
+                                    {earlier.success ? 'passed' : 'failed'}
+                                  </span>
+                                </div>
+                                <div className="pipeline-comparison-arrow"><ArrowRight size={12} /></div>
+                                <div className="pipeline-comparison-summary-run">
+                                  <span className="pipeline-comparison-label">Later</span>
+                                  <span className="pipeline-comparison-ts">{new Date(later.ts).toLocaleString()}</span>
+                                  <span className={`pipeline-comparison-status ${later.success ? 'success' : 'failure'}`}>
+                                    {later.success ? <CheckCircle size={10} /> : <XCircle size={10} />}
+                                    {later.success ? 'passed' : 'failed'}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="pipeline-comparison-metrics">
+                                <div className="pipeline-comparison-metric">
+                                  <span className="pipeline-comparison-metric-label">Duration</span>
+                                  <span className="pipeline-comparison-metric-val">{formatDuration(earlier.durationMs)}</span>
+                                  <span className="pipeline-comparison-metric-sep">→</span>
+                                  <span className="pipeline-comparison-metric-val">{formatDuration(later.durationMs)}</span>
+                                  <span className={`pipeline-comparison-delta ${durDelta > 0 ? 'positive' : durDelta < 0 ? 'negative' : ''}`}>
+                                    {durDelta === 0 ? '±0' : `${durDelta > 0 ? '+' : ''}${formatDuration(Math.abs(durDelta))}`}
+                                  </span>
+                                </div>
+                                {hasCost && (
+                                  <div className="pipeline-comparison-metric">
+                                    <span className="pipeline-comparison-metric-label">Cost</span>
+                                    <span className="pipeline-comparison-metric-val">${earlier.totalCost!.toFixed(4)}</span>
+                                    <span className="pipeline-comparison-metric-sep">→</span>
+                                    <span className="pipeline-comparison-metric-val">${later.totalCost!.toFixed(4)}</span>
+                                    <span className={`pipeline-comparison-delta ${costDelta > 0 ? 'positive' : costDelta < 0 ? 'negative' : ''}`}>
+                                      {costDelta === 0 ? '±0' : `${costDelta > 0 ? '+' : ''}$${Math.abs(costDelta).toFixed(4)}`}
+                                    </span>
+                                  </div>
                                 )}
-                                <span className={`pipeline-history-icon ${entry.success ? 'success' : 'failure'}`}>
-                                  {entry.success ? <CheckCircle size={11} /> : <XCircle size={11} />}
-                                </span>
-                                <span className="pipeline-history-ts" title={new Date(entry.ts).toLocaleString()}>
-                                  {new Date(entry.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {new Date(entry.ts).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                                </span>
-                                <span className="pipeline-history-trigger">{entry.trigger}</span>
-                                <span className={`pipeline-history-action ${entry.actionExecuted ? 'fired' : ''}`}>
-                                  {entry.actionExecuted ? 'action fired' : 'no action'}
-                                </span>
-                                <span className="pipeline-history-duration">{entry.durationMs < 1000 ? `${entry.durationMs}ms` : `${(entry.durationMs / 1000).toFixed(1)}s`}</span>
-                                {p.budget && entry.totalCost != null && (
-                                  <div className="pipeline-budget-bar" title={`$${entry.totalCost.toFixed(2)} of $${p.budget.maxCostUsd.toFixed(2)} budget`}>
-                                    <div
-                                      className="pipeline-budget-bar-fill"
-                                      style={{ width: `${Math.min(100, (entry.totalCost / p.budget.maxCostUsd) * 100).toFixed(1)}%`, background: entry.totalCost >= p.budget.maxCostUsd ? 'var(--danger)' : entry.totalCost >= p.budget.warnAt ? 'var(--warning)' : 'var(--accent)' }}
-                                    />
+                                {earlier.success !== later.success && (
+                                  <div className="pipeline-comparison-metric">
+                                    <span className="pipeline-comparison-metric-label">Result</span>
+                                    <span className={`pipeline-comparison-metric-val ${earlier.success ? 'success' : 'failure'}`}>{earlier.success ? 'pass' : 'fail'}</span>
+                                    <span className="pipeline-comparison-metric-sep">→</span>
+                                    <span className={`pipeline-comparison-metric-val ${later.success ? 'success' : 'failure'}`}>{later.success ? 'pass' : 'fail'}</span>
+                                    <span className="pipeline-comparison-delta positive">changed</span>
                                   </div>
                                 )}
                               </div>
-                              {hasStages && isExpanded && (() => {
-                                const totalDuration = entry.stages!.reduce((sum, s) => sum + s.durationMs, 0)
-                                const hasTimingData = entry.stages!.some(s => s.startedAt != null)
-                                return (
-                                <div className="pipeline-history-stages">
-                                  {hasTimingData && (
-                                    <div className="stage-timing-total">Total: {formatDuration(totalDuration)}</div>
-                                  )}
-                                  {entry.stages!.map((stage, si) => {
-                                    const prevStage = prevEntry?.stages?.[si]
-                                    const statusChanged = prevStage !== undefined && prevStage.success !== stage.success
-                                    const prevStatus = prevStage?.success ? 'PASS' : 'FAIL'
-                                    const barWidth = totalDuration > 0 ? Math.max(2, Math.min((stage.durationMs / totalDuration) * 200, 200)) : 2
+                              {stageCount > 0 && (
+                                <div className="pipeline-comparison-stages">
+                                  <div className="pipeline-comparison-stages-header">
+                                    <span className="pipeline-comparison-col-stage">Stage</span>
+                                    <span className="pipeline-comparison-col-run">Earlier</span>
+                                    <span className="pipeline-comparison-col-run">Later</span>
+                                    <span className="pipeline-comparison-col-delta">Delta</span>
+                                  </div>
+                                  {Array.from({ length: stageCount }, (_, si) => {
+                                    const stA = earlier.stages?.[si]
+                                    const stB = later.stages?.[si]
+                                    const stageDurDelta = stA && stB ? stB.durationMs - stA.durationMs : null
+                                    const statusChanged = stA !== undefined && stB !== undefined && stA.success !== stB.success
+                                    const stageName = stA?.sessionName ?? stB?.sessionName ?? stageTypeLabel(stA?.actionType ?? stB?.actionType ?? '')
+                                    const snippetA = stA?.responseSnippet
+                                    const snippetB = stB?.responseSnippet
                                     return (
-                                    <div key={stage.index}>
-                                      <div className={`pipeline-history-stage-row ${stage.success ? '' : 'error'}`}>
-                                        <span className={`pipeline-history-icon ${stage.success ? 'success' : 'failure'}`}>
-                                          {stage.success ? <CheckCircle size={10} /> : <XCircle size={10} />}
+                                      <div key={si} className={`pipeline-comparison-stage-row${statusChanged ? ' pipeline-comparison-stage-changed' : ''}`}>
+                                        <span className="pipeline-comparison-col-stage" title={stageName}>{stageName || `Stage ${si + 1}`}</span>
+                                        <span className="pipeline-comparison-col-run">
+                                          {stA ? (
+                                            <>
+                                              <span className={`pipeline-history-icon ${stA.success ? 'success' : 'failure'}`}>{stA.success ? <CheckCircle size={9} /> : <XCircle size={9} />}</span>
+                                              <span>{formatDuration(stA.durationMs)}</span>
+                                            </>
+                                          ) : <span className="pipeline-comparison-missing">—</span>}
                                         </span>
-                                        <span className="pipeline-history-stage-type">
-                                          {stage.actionType === 'plan' && <FileText size={9} style={{ marginRight: 3, verticalAlign: 'middle' }} />}
-                                          {stage.actionType === 'wait_for_session' && <Hourglass size={9} style={{ marginRight: 3, verticalAlign: 'middle' }} />}
-                                          {stage.actionType === 'parallel' && stage.subStages?.length ? `Parallel (${stage.subStages.length})` : stageTypeLabel(stage.actionType)}
+                                        <span className="pipeline-comparison-col-run">
+                                          {stB ? (
+                                            <>
+                                              <span className={`pipeline-history-icon ${stB.success ? 'success' : 'failure'}`}>{stB.success ? <CheckCircle size={9} /> : <XCircle size={9} />}</span>
+                                              <span>{formatDuration(stB.durationMs)}</span>
+                                            </>
+                                          ) : <span className="pipeline-comparison-missing">—</span>}
                                         </span>
-                                        {statusChanged && <span className="pipeline-history-stage-delta" title={`Changed from ${prevStatus} in prior run`}>△</span>}
-                                        {stage.sessionName && <span className="pipeline-history-stage-name">{stage.sessionName}</span>}
-                                        {stage.model && <span className="pipeline-history-stage-model" title={stage.model}>· {stage.model.replace(/^claude-/, '').split('-')[0]}</span>}
-                                        {stage.responseSnippet && <span className="pipeline-history-stage-snippet" title={stage.responseSnippet}>{stage.responseSnippet.length > 60 ? stage.responseSnippet.slice(0, 60) + '…' : stage.responseSnippet}</span>}
-                                        <span className="pipeline-history-duration">{stage.durationMs < 1000 ? `${stage.durationMs}ms` : `${(stage.durationMs / 1000).toFixed(1)}s`}</span>
-                                        {stage.error && <span className="pipeline-history-stage-error" title={stage.error}>err</span>}
+                                        <span className="pipeline-comparison-col-delta">
+                                          {stageDurDelta !== null ? (
+                                            <span className={`pipeline-comparison-delta ${stageDurDelta > 0 ? 'positive' : stageDurDelta < 0 ? 'negative' : ''}`}>
+                                              {stageDurDelta === 0 ? '±0' : `${stageDurDelta > 0 ? '+' : ''}${formatDuration(Math.abs(stageDurDelta))}`}
+                                            </span>
+                                          ) : '—'}
+                                        </span>
+                                        {(snippetA || snippetB) && (
+                                          <details className="pipeline-comparison-snippet-details">
+                                            <summary>response</summary>
+                                            {snippetA && <div className="pipeline-comparison-snippet"><span className="pipeline-comparison-label">Earlier:</span> {snippetA}</div>}
+                                            {snippetB && <div className="pipeline-comparison-snippet"><span className="pipeline-comparison-label">Later:</span> {snippetB}</div>}
+                                          </details>
+                                        )}
                                       </div>
-                                      {stage.startedAt != null && (
-                                        <div className="stage-duration-bar-row">
-                                          <div className="stage-duration-bar" style={{ width: barWidth }} />
-                                        </div>
-                                      )}
-                                      {stage.subStages && stage.subStages.length > 0 && (
-                                        <div className="pipeline-history-parallel-group">
-                                          {stage.subStages.map(sub => (
-                                            <div key={sub.index} className={`pipeline-history-stage-row sub ${sub.success ? '' : 'error'}`}>
-                                              <span className={`pipeline-history-icon ${sub.success ? 'success' : 'failure'}`}>
-                                                {sub.success ? <CheckCircle size={9} /> : <XCircle size={9} />}
-                                              </span>
-                                              <span className="pipeline-history-stage-type">{stageTypeLabel(sub.actionType)}</span>
-                                              {sub.sessionName && <span className="pipeline-history-stage-name">{sub.sessionName}</span>}
-                                              <span className="pipeline-history-duration">{sub.durationMs < 1000 ? `${sub.durationMs}ms` : `${(sub.durationMs / 1000).toFixed(1)}s`}</span>
-                                              {sub.error && <span className="pipeline-history-stage-error" title={sub.error}>err</span>}
-                                            </div>
-                                          ))}
-                                        </div>
-                                      )}
-                                    </div>
                                     )
                                   })}
                                 </div>
-                                )
-                              })()}
+                              )}
                             </div>
                           )
-                        })}
-                      </div>
+                        })()}
+                      </>
                     )}
                   </div>
                 ) : expandedTab === 'debug' ? (
