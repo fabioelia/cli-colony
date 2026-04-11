@@ -200,9 +200,11 @@ After evaluating, write your verdict to a file at ${verdictPath} containing WINN
     const completed = await completionPromise
 
     let winnerId: string | null = null
+    let verdictText: string | null = null
     if (completed) {
       try {
         const verdict = await fsp.readFile(verdictPath, 'utf-8')
+        verdictText = verdict
         const match = verdict.match(/WINNER:\s*(\d+)/i)
         if (match) {
           const paneIdx = parseInt(match[1], 10) - 1
@@ -236,6 +238,6 @@ After evaluating, write your verdict to a file at ${verdictPath} containing WINN
       } catch { /* stats are best-effort */ }
     }
 
-    return { winnerId, results: [] }
+    return { winnerId, results: [], verdictText }
   })
 }

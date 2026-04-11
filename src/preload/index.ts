@@ -408,7 +408,7 @@ export interface ClaudeManagerAPI {
     autoJudge: (opts: {
       instanceIds: string[]
       judgeConfig: { type: 'command'; cmd: string } | { type: 'llm'; prompt: string }
-    }) => Promise<{ winnerId: string | null; results: Array<{ instanceId: string; exitCode: number; stdout: string }> }>
+    }) => Promise<{ winnerId: string | null; results: Array<{ instanceId: string; exitCode: number; stdout: string }>; verdictText?: string | null }>
   }
   fork: {
     create: (parentId: string, opts: {

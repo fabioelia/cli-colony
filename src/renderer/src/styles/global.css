@@ -4671,6 +4671,44 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: white;
 }
 
+/* Arena verdict panel */
+.arena-verdict-panel {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.arena-verdict-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+.arena-verdict-dismiss {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.arena-verdict-dismiss:hover {
+  color: var(--text-primary);
+}
+.arena-verdict-text {
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 0;
+  color: var(--text-secondary);
+}
+
 /* Grid empty pane */
 .grid-empty-pane {
   display: flex;

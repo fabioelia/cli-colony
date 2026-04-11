@@ -86,6 +86,7 @@ export default function App() {
   const [arenaText, setArenaText] = useState('')
   const arenaTextareaRef = useRef<HTMLTextAreaElement>(null)
   const [arenaWinnerId, setArenaWinnerId] = useState<string | null>(null)
+  const [arenaVerdictText, setArenaVerdictText] = useState<string | null>(null)
   const [arenaStatsOpen, setArenaStatsOpen] = useState(false)
   const [arenaStats, setArenaStats] = useState<ArenaStats>({})
   const [arenaLaunchOpen, setArenaLaunchOpen] = useState(false)
@@ -796,6 +797,7 @@ export default function App() {
       setArenaBlind(false)
       setArenaText('')
       setArenaWinnerId(null)
+      setArenaVerdictText(null)
     } else {
       // Open split — auto-pick if 2 instances, show picker if more
       const others = regularInstances.filter((i) => i.id !== activeId)
@@ -833,6 +835,7 @@ export default function App() {
     setArenaBlind(false)
     setArenaText('')
     setArenaWinnerId(null)
+    setArenaVerdictText(null)
   }, [splitId, activeId])
 
   const handleArenaWin = useCallback(async (winnerInstId: string) => {
@@ -866,10 +869,13 @@ export default function App() {
     if (arenaIds.length < 2) return
     setArenaJudging(true)
     try {
-      const { winnerId } = await window.api.arena.autoJudge({ instanceIds: arenaIds, judgeConfig: config })
+      const { winnerId, verdictText } = await window.api.arena.autoJudge({ instanceIds: arenaIds, judgeConfig: config })
       if (winnerId) {
         setArenaWinnerId(winnerId)
         setArenaBlind(false)
+      }
+      if (verdictText) {
+        setArenaVerdictText(verdictText)
       }
     } finally {
       setArenaJudging(false)
@@ -935,6 +941,7 @@ export default function App() {
     setArenaBlind(false)
     setArenaText('')
     setArenaWinnerId(null)
+    setArenaVerdictText(null)
     // Refit all visible terminals
     requestAnimationFrame(() => {
       for (const p of panes) {
@@ -1520,6 +1527,18 @@ export default function App() {
             >
               <Trophy size={11} /> Board
             </button>
+          </div>
+        )}
+
+        {arenaVerdictText && (
+          <div className="arena-verdict-panel">
+            <div className="arena-verdict-header">
+              <Gavel size={12} /> Judge Verdict
+              <button className="arena-verdict-dismiss" onClick={() => setArenaVerdictText(null)}>
+                <XIcon size={11} />
+              </button>
+            </div>
+            <pre className="arena-verdict-text">{arenaVerdictText}</pre>
           </div>
         )}
 
