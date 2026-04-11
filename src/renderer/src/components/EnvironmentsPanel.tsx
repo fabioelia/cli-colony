@@ -1301,7 +1301,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
             <p className="env-dialog-description">
               Clone <strong>{cloneDialog.envName}</strong> with a new name:
             </p>
-            <input value={cloneName} onChange={e => setCloneName(e.target.value)} className="env-input" autoFocus />
+            <input value={cloneName} onChange={e => setCloneName(e.target.value)} onKeyDown={async e => { if (e.key === 'Enter' && cloneName.trim()) { await window.api.env.clone(cloneDialog.envId, cloneName.trim()); setCloneDialog(null); loadEnvironments() } if (e.key === 'Escape') setCloneDialog(null) }} className="env-input" autoFocus />
             <div className="env-dialog-actions">
               <button className="env-btn env-btn-secondary" onClick={() => setCloneDialog(null)}>Cancel</button>
               <button className="env-btn env-btn-primary" disabled={!cloneName.trim()} onClick={async () => {
