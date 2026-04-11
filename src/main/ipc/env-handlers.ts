@@ -7,7 +7,7 @@ import {
   listTemplates, getTemplate, saveTemplate, deleteTemplate,
   refreshRepoConfigs,
 } from '../env-manager'
-import { getRepoConfig, getAllRepoConfigs } from '../repo-config-loader'
+// getRepoConfig/getAllRepoConfigs removed — colony:repoConfig handlers were unreachable
 import {
   registerPendingLaunch,
   cancelPendingLaunch,
@@ -88,11 +88,7 @@ export function registerEnvHandlers(): void {
     return result.filePaths[0]
   })
 
-  // Repo .colony/ config
-  ipcMain.handle('colony:repoConfig', async (_e, repoPath: string) => {
-    return getRepoConfig(repoPath)
-  })
-  ipcMain.handle('colony:allRepoConfigs', () => {
-    return getAllRepoConfigs()
-  })
+  // Note: colony:repoConfig and colony:allRepoConfigs removed — they were registered
+  // but unreachable from the renderer (no preload entry). If needed, wire through
+  // the colony namespace in preload/index.ts and src/main/ipc/ipc-handlers.ts.
 }

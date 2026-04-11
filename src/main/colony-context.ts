@@ -13,6 +13,7 @@ import { app } from 'electron'
 import { getAllInstances } from './instance-manager'
 import { scanAgents } from './agent-scanner'
 import { getRepoContext } from './repo-config-loader'
+import { getRepos } from './github'
 import { getPersonaList } from './persona-manager'
 import { readPersonaMemory } from './persona-memory'
 import { listEnvironments } from './env-manager'
@@ -67,18 +68,13 @@ export async function updateColonyContext(): Promise<string> {
 
   // GitHub repos and PR summary
   try {
-    const configPath = join(COLONY_DIR, 'github.json')
-    if (await pathExists(configPath)) {
-      const raw = await fsp.readFile(configPath, 'utf-8')
-      const config = JSON.parse(raw)
-      const repos = config.repos || []
-      if (repos.length > 0) {
-        lines.push('## GitHub Repositories', '')
-        for (const repo of repos) {
-          lines.push(`- ${repo.owner}/${repo.name}${repo.localPath ? ` (local: ${repo.localPath})` : ''}`)
-        }
-        lines.push('')
+    const repos = await getRepos()
+    if (repos.length > 0) {
+      lines.push('## GitHub Repositories', '')
+      for (const repo of repos) {
+        lines.push(`- ${repo.owner}/${repo.name}${repo.localPath ? ` (local: ${repo.localPath})` : ''}`)
       }
+      lines.push('')
     }
 
     // PR context file reference

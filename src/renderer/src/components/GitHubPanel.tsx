@@ -224,13 +224,22 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const [workspacePath, setWorkspacePath] = useState<string | null>(null)
 
   useEffect(() => {
-    window.api.github.authStatus().then(setGhAuth)
-    window.api.github.getRepos().then(setRepos)
-    window.api.github.getPrompts().then(setPrompts)
-    window.api.github.getPrMemory().then(setMemory)
-    window.api.github.getPrMemoryPath().then(setMemoryPath)
-    window.api.github.getPrWorkspacePath().then(setWorkspacePath)
-    window.api.persona.list().then(setPersonaList)
+    const init = Promise.allSettled([
+      window.api.github.authStatus().then(setGhAuth),
+      window.api.github.getRepos().then(setRepos),
+      window.api.github.getPrompts().then(setPrompts),
+      window.api.github.getPrMemory().then(setMemory),
+      window.api.github.getPrMemoryPath().then(setMemoryPath),
+      window.api.github.getPrWorkspacePath().then(setWorkspacePath),
+      window.api.persona.list().then(setPersonaList),
+    ])
+    init.then(results => {
+      const failed = results.filter(r => r.status === 'rejected')
+      if (failed.length > 0) {
+        console.error('[github] init: %d/%d calls failed', failed.length, results.length,
+          failed.map(r => (r as PromiseRejectedResult).reason))
+      }
+    })
   }, [])
 
   // Reload prompts when panel becomes visible (picks up pipeline-enabled changes)
