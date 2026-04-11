@@ -3,7 +3,7 @@ import {
   Server, Play, Square, Trash2, RefreshCw, FileText,
   Plus, ExternalLink, ChevronDown, ChevronRight,
   Circle, AlertTriangle, Clock, X, FolderOpen, Terminal, Loader, CheckCircle, SkipForward, Upload, Download, MessageSquare, Wrench, Stethoscope,
-  GitBranch, Unlink
+  GitBranch, Unlink, Link
 } from 'lucide-react'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import { buildTemplateEditPrompt, buildDiagnosePrompt } from '../../../shared/env-prompts'
@@ -72,6 +72,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
   const [createDialogMode, setCreateDialogMode] = useState<'template' | 'instance'>('instance')
   const [createDialogTemplate, setCreateDialogTemplate] = useState<EnvironmentTemplate | null>(null)
   const [editingTemplateJson, setEditingTemplateJson] = useState<{ id: string; content: string; dirty: boolean } | null>(null)
+  const [mountingWorktreeId, setMountingWorktreeId] = useState<string | null>(null)
   const [actionInProgress, setActionInProgress] = useState<Set<string>>(new Set())
   const [confirmTeardown, setConfirmTeardown] = useState<string | null>(null)
   const [setupSteps, setSetupSteps] = useState<Record<string, Array<{ name: string; status: string; error?: string }>>>({})
@@ -1177,9 +1178,35 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                     <Unlink size={12} /> Unmount
                   </button>
                 ) : (
-                  <button className="panel-header-btn danger" onClick={() => window.api.worktree.remove(w.id)} title="Delete this worktree">
-                    <Trash2 size={12} /> Remove
-                  </button>
+                  <>
+                    {mountingWorktreeId === w.id ? (
+                      <div className="env-worktree-mount-dropdown">
+                        {environments.filter(e => e.status !== 'creating').map(env => (
+                          <button
+                            key={env.id}
+                            className="env-worktree-mount-option"
+                            onClick={async () => {
+                              await window.api.worktree.mount(w.id, env.id)
+                              setMountingWorktreeId(null)
+                            }}
+                          >{env.displayName || env.name}</button>
+                        ))}
+                        <button className="env-worktree-mount-option cancel" onClick={() => setMountingWorktreeId(null)}>Cancel</button>
+                      </div>
+                    ) : (
+                      <button
+                        className="panel-header-btn"
+                        onClick={() => setMountingWorktreeId(w.id)}
+                        disabled={environments.length === 0}
+                        title={environments.length === 0 ? 'No environments available' : 'Mount to environment'}
+                      >
+                        <Link size={12} /> Mount
+                      </button>
+                    )}
+                    <button className="panel-header-btn danger" onClick={() => window.api.worktree.remove(w.id)} title="Delete this worktree">
+                      <Trash2 size={12} /> Remove
+                    </button>
+                  </>
                 )}
               </div>
             </div>

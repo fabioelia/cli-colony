@@ -193,6 +193,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Trigger chain', detail: 'Click the info icon on a session that has a parent or children to see its full trigger chain — the tree of sessions that spawned from the same root. Click any node to navigate to that session. Useful for tracing persona orchestration chains.', icon: 'Info' },
           { label: 'Parent/child navigation', detail: 'Click the ↳ arrow on child sessions to jump to the parent, or click "N children" on parent sessions to jump to the first child.' },
           { label: 'Repo Memory', detail: 'Place a `.colony/memory.md` file in a repo to automatically inject its conventions, architecture decisions, and team notes into every Colony session started in that directory. Same pattern as AGENTS.md — no UI needed.' },
+          { label: 'Send Message', detail: 'Right-click a waiting session to send a prompt to it without switching views. Useful for orchestrating multiple parallel sessions.', icon: 'Send' },
         ],
       },
       {
@@ -607,6 +608,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Main area — Worktrees tab',
         items: [
           { label: 'Worktrees tab', detail: 'View and manage git worktrees created by arena runs and forked sessions. Remove unmounted worktrees to free disk space, or unmount active ones first. Auto-refreshes when changes are detected.' },
+          { label: 'Mount', detail: 'Attach an unmounted worktree to an environment. Pick from the environment dropdown to link them.', icon: 'Link' },
           { label: 'Unmount', detail: 'Detach a worktree from its environment without deleting it. The worktree becomes removable.', icon: 'Unlink' },
           { label: 'Remove', detail: 'Delete an unmounted worktree from disk.', icon: 'Trash2' },
           { label: 'Remove All Unmounted', detail: 'Bulk-remove all worktrees not attached to any environment. Asks for confirmation first.', icon: 'Trash2' },
