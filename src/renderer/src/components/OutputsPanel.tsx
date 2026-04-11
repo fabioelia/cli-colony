@@ -75,10 +75,16 @@ function formatAgentId(id: string): string {
   return id.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
 }
 
+function readOutputsFilters(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem('outputs-filters') || '{}') } catch { return {} }
+}
+
 export default function OutputsPanel() {
   const [entries, setEntries] = useState<OutputEntry[]>([])
   const [filter, setFilter] = useState<FilterType>('all')
   const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState<string>(() => readOutputsFilters().sortBy || 'newest')
+  const [filterAgent, setFilterAgent] = useState<string>(() => readOutputsFilters().filterAgent || 'all')
   const [selected, setSelected] = useState<OutputEntry | null>(null)
   const [content, setContent] = useState<string | null>(null)
   const [contentError, setContentError] = useState<string | null>(null)
@@ -143,17 +149,38 @@ export default function OutputsPanel() {
     return () => { cancelled = true }
   }, [debouncedSearch])
 
+  // Persist sort + agent filter to localStorage
+  useEffect(() => {
+    localStorage.setItem('outputs-filters', JSON.stringify({ sortBy, filterAgent }))
+  }, [sortBy, filterAgent])
+
+  const agents = useMemo(() => [...new Set(entries.map(e => e.agentId))].sort(), [entries])
+
   const totalContentMatches = contentResults.reduce((sum, r) => sum + r.matches.length, 0)
 
   const filteredEntries = entries.filter((e) => {
     if (filter === 'briefs' && e.type !== 'brief') return false
     if (filter === 'artifacts' && e.type !== 'artifact') return false
+    if (filterAgent !== 'all' && e.agentId !== filterAgent) return false
     if (debouncedSearch) {
       const q = debouncedSearch.toLowerCase()
       if (!e.name.toLowerCase().includes(q) && !e.agentId.toLowerCase().includes(q)) return false
     }
     return true
   })
+
+  const sortedEntries = useMemo(() => {
+    const sorted = [...filteredEntries]
+    switch (sortBy) {
+      case 'oldest': sorted.sort((a, b) => a.mtime - b.mtime); break
+      case 'name-az': sorted.sort((a, b) => a.name.localeCompare(b.name)); break
+      case 'name-za': sorted.sort((a, b) => b.name.localeCompare(a.name)); break
+      case 'largest': sorted.sort((a, b) => b.sizeBytes - a.sizeBytes); break
+      case 'by-agent': sorted.sort((a, b) => a.agentId.localeCompare(b.agentId) || b.mtime - a.mtime); break
+      default: sorted.sort((a, b) => b.mtime - a.mtime); break // newest
+    }
+    return sorted
+  }, [filteredEntries, sortBy])
 
   const handleSelect = useCallback(async (entry: OutputEntry) => {
     setSelected(entry)
@@ -283,6 +310,21 @@ export default function OutputsPanel() {
               </button>
             ))}
           </div>
+          <div className="outputs-filter-controls">
+            <select className="outputs-filter-select" value={filterAgent} onChange={e => setFilterAgent(e.target.value)}>
+              <option value="all">All Agents</option>
+              {agents.map(a => <option key={a} value={a}>{formatAgentId(a)}</option>)}
+            </select>
+            <select className="outputs-filter-select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+              <option value="name-az">Name A-Z</option>
+              <option value="name-za">Name Z-A</option>
+              <option value="largest">Largest</option>
+              <option value="by-agent">By Agent</option>
+            </select>
+            {filterAgent !== 'all' && <span className="outputs-filter-count">{sortedEntries.length} of {entries.length}</span>}
+          </div>
           <div className="outputs-list">
             {(() => {
               // Build content match lookup
@@ -290,10 +332,10 @@ export default function OutputsPanel() {
               for (const r of contentResults) contentMatchMap.set(r.path, r)
 
               // Content-only results: files not in filteredEntries
-              const filteredPaths = new Set(filteredEntries.map(e => e.path))
-              const contentOnlyResults = contentResults.filter(r => !filteredPaths.has(r.path))
+              const sortedPaths = new Set(sortedEntries.map(e => e.path))
+              const contentOnlyResults = contentResults.filter(r => !sortedPaths.has(r.path))
 
-              if (filteredEntries.length === 0 && contentOnlyResults.length === 0) {
+              if (sortedEntries.length === 0 && contentOnlyResults.length === 0) {
                 return entries.length === 0 ? (
                   <EmptyStateHook
                     icon={FileOutput}
@@ -348,7 +390,7 @@ export default function OutputsPanel() {
 
               return (
                 <>
-                  {filteredEntries.map(entry => renderRow(entry, contentMatchMap.get(entry.path)))}
+                  {sortedEntries.map(entry => renderRow(entry, contentMatchMap.get(entry.path)))}
                   {contentOnlyResults.map(r => renderRow(r, r))}
                 </>
               )

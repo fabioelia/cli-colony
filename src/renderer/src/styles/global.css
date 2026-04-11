@@ -18470,6 +18470,11 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: #fff;
 }
 
+.outputs-filter-controls { display: flex; gap: 6px; align-items: center; padding: 0 8px 6px; }
+.outputs-filter-select { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; font-size: 11px; color: var(--text-primary); outline: none; flex-shrink: 0; }
+.outputs-filter-select:focus { border-color: var(--accent); }
+.outputs-filter-count { font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
+
 .outputs-list {
   flex: 1;
   overflow-y: auto;

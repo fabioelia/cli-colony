@@ -1274,6 +1274,8 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Browse artifacts', detail: 'All output files sorted newest-first. Click any row to view contents in the right pane.', icon: 'FolderOpen' },
           { label: 'Filter by type', detail: 'Use the All / Briefs / Artifacts chips to narrow the list. Briefs are persona session summaries; Artifacts are pipeline and task outputs.', icon: 'Filter' },
+          { label: 'Agent filter', detail: 'Dropdown to narrow results to a single agent/persona. Shows "N of M" count when active. Populated dynamically from all output entries.' },
+          { label: 'Sort', detail: 'Sort the list by Newest, Oldest, Name A-Z, Name Z-A, Largest, or By Agent. Defaults to Newest (most recent first). Sort and agent filter persist across sessions.' },
           { label: 'Search', detail: 'Type to filter by name or agent ID. With 3+ characters, also searches inside file contents — matching lines appear as snippets below each result. A badge shows the total content match count.', icon: 'Search' },
           { label: 'Refresh', detail: 'Reload the file list from disk. Useful after a persona or pipeline run completes.', icon: 'RefreshCw' },
         ],
