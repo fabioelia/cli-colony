@@ -18627,6 +18627,22 @@ body:has(.daemon-update-banner) .app-update-banner {
   margin: 0;
 }
 
+/* Output Diff View */
+.output-diff { display: flex; flex-direction: column; height: 100%; }
+.output-diff-header { display: flex; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--border); margin-bottom: 8px; font-size: 11px; font-family: var(--font-mono, monospace); }
+.output-diff-label.del { color: var(--danger); }
+.output-diff-label.add { color: var(--success); }
+.output-diff-body { flex: 1; overflow-y: auto; margin: 0; font-family: var(--font-mono, monospace); font-size: 12px; line-height: 1.5; }
+.output-diff-line { display: flex; }
+.output-diff-add { background: rgba(16, 185, 129, 0.1); color: var(--success); }
+.output-diff-del { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+.output-diff-ctx { color: var(--text-muted); }
+.output-diff-gutter { width: 20px; flex-shrink: 0; text-align: center; user-select: none; opacity: 0.7; }
+.output-diff-text { white-space: pre-wrap; word-break: break-word; }
+.outputs-viewer-btn.primary { background: var(--accent-blue); color: #fff; border-color: var(--accent-blue); }
+.outputs-viewer-btn.primary:hover { opacity: 0.85; }
+.outputs-viewer-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
 /* Team Metrics Panel */
 .team-metrics-panel {
   display: flex;

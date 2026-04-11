@@ -1,9 +1,52 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { FolderOpen, FileText, Clock, RefreshCw, Search, FileOutput, Copy, Trash2, Send, ClipboardCopy, ChevronDown } from 'lucide-react'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { FolderOpen, FileText, Clock, RefreshCw, Search, FileOutput, Copy, Trash2, Send, ClipboardCopy, ChevronDown, GitCompare } from 'lucide-react'
 import MarkdownViewer from './MarkdownViewer'
 import HelpPopover from './HelpPopover'
 import EmptyStateHook from './EmptyStateHook'
 import type { OutputEntry, OutputSearchResult, ClaudeInstance } from '../../../shared/types'
+
+/** Minimal line-based diff — returns typed lines for unified diff display */
+interface DiffLine {
+  type: 'add' | 'del' | 'context'
+  content: string
+}
+
+function computeLineDiff(oldText: string, newText: string): DiffLine[] {
+  const oldLines = oldText.split('\n')
+  const newLines = newText.split('\n')
+  const n = oldLines.length
+  const m = newLines.length
+
+  // Build LCS table
+  const dp: number[][] = Array.from({ length: n + 1 }, () => Array(m + 1).fill(0))
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= m; j++) {
+      dp[i][j] = oldLines[i - 1] === newLines[j - 1]
+        ? dp[i - 1][j - 1] + 1
+        : Math.max(dp[i - 1][j], dp[i][j - 1])
+    }
+  }
+
+  // Backtrack to produce diff
+  const result: DiffLine[] = []
+  let i = n, j = m
+  const stack: DiffLine[] = []
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
+      stack.push({ type: 'context', content: oldLines[i - 1] })
+      i--; j--
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      stack.push({ type: 'add', content: newLines[j - 1] })
+      j--
+    } else {
+      stack.push({ type: 'del', content: oldLines[i - 1] })
+      i--
+    }
+  }
+  // Reverse (backtracked in reverse order)
+  for (let k = stack.length - 1; k >= 0; k--) result.push(stack[k])
+  return result
+}
 
 type FilterType = 'all' | 'briefs' | 'artifacts'
 
@@ -50,6 +93,19 @@ export default function OutputsPanel() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [contentResults, setContentResults] = useState<OutputSearchResult[]>([])
   const [contentSearching, setContentSearching] = useState(false)
+  const [diffMode, setDiffMode] = useState(false)
+  const [diffLines, setDiffLines] = useState<DiffLine[]>([])
+  const [diffPrevName, setDiffPrevName] = useState<string | null>(null)
+  const [diffLoading, setDiffLoading] = useState(false)
+
+  // Find the chronologically previous output from the same agent
+  const previousEntry = useMemo(() => {
+    if (!selected) return null
+    const candidates = entries
+      .filter(e => e.agentId === selected.agentId && e.path !== selected.path && e.mtime < selected.mtime)
+      .sort((a, b) => b.mtime - a.mtime)
+    return candidates[0] || null
+  }, [selected, entries])
 
   const loadEntries = useCallback(async () => {
     setRefreshing(true)
@@ -104,6 +160,9 @@ export default function OutputsPanel() {
     setContent(null)
     setContentError(null)
     setLoading(true)
+    setDiffMode(false)
+    setDiffLines([])
+    setDiffPrevName(null)
     try {
       const result = await window.api.outputs.read(entry.path)
       if ('error' in result) {
@@ -115,6 +174,22 @@ export default function OutputsPanel() {
       setLoading(false)
     }
   }, [])
+
+  const handleDiff = useCallback(async () => {
+    if (!previousEntry || !content) return
+    if (diffMode) { setDiffMode(false); return }
+    setDiffLoading(true)
+    try {
+      const result = await window.api.outputs.read(previousEntry.path)
+      if ('error' in result) return
+      const lines = computeLineDiff(result.content, content)
+      setDiffLines(lines)
+      setDiffPrevName(previousEntry.name)
+      setDiffMode(true)
+    } finally {
+      setDiffLoading(false)
+    }
+  }, [previousEntry, content, diffMode])
 
   const handleCopyContent = useCallback(() => {
     if (!content) return
@@ -304,6 +379,14 @@ export default function OutputsPanel() {
                 </span>
                 <div className="outputs-viewer-actions">
                   <button
+                    className={`outputs-viewer-btn ${diffMode ? 'primary' : ''}`}
+                    onClick={handleDiff}
+                    disabled={!previousEntry || diffLoading}
+                    title={previousEntry ? `Diff with ${previousEntry.name}` : 'No previous output from this agent'}
+                  >
+                    <GitCompare size={13} /> {diffLoading ? 'Loading…' : diffMode ? 'Exit Diff' : 'Diff with Previous'}
+                  </button>
+                  <button
                     className="outputs-viewer-btn"
                     onClick={handleCopyContent}
                     title="Copy file contents to clipboard"
@@ -368,7 +451,22 @@ export default function OutputsPanel() {
                 )}
               </div>
               <div className="outputs-viewer-content">
-                {isMarkdown(selected.name) ? (
+                {diffMode ? (
+                  <div className="output-diff">
+                    <div className="output-diff-header">
+                      <span className="output-diff-label del">− {diffPrevName}</span>
+                      <span className="output-diff-label add">+ {selected.name}</span>
+                    </div>
+                    <pre className="output-diff-body">
+                      {diffLines.map((line, idx) => (
+                        <div key={idx} className={`output-diff-line ${line.type === 'add' ? 'output-diff-add' : line.type === 'del' ? 'output-diff-del' : 'output-diff-ctx'}`}>
+                          <span className="output-diff-gutter">{line.type === 'add' ? '+' : line.type === 'del' ? '−' : ' '}</span>
+                          <span className="output-diff-text">{line.content}</span>
+                        </div>
+                      ))}
+                    </pre>
+                  </div>
+                ) : isMarkdown(selected.name) ? (
                   <MarkdownViewer content={content} />
                 ) : (
                   <pre className="outputs-raw">{content}</pre>

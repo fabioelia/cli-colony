@@ -1279,6 +1279,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Markdown rendering', detail: 'Files ending in .md are rendered with rich formatting: syntax-highlighted code blocks (Python, JS/TS, Bash, JSON, YAML, and more), copy-to-clipboard on code blocks, task list checkboxes, alternating table row colors, and styled headings with borders.' },
           { label: 'Size limit', detail: 'Files larger than 32KB are truncated with a notice at the end.' },
+          { label: 'Diff with Previous', detail: 'Compare the selected file with the chronologically previous output from the same agent/persona. Shows a unified diff with green additions and red deletions. Enabled when the agent has 2+ output files. Click again to exit diff view.', icon: 'GitCompare' },
           { label: 'Copy Content', detail: 'Copy the full file contents to clipboard — not just the path. Shows a brief "Copied!" confirmation.', icon: 'ClipboardCopy' },
           { label: 'Send to Session', detail: 'Open a dropdown of sessions currently waiting for input. Clicking one injects the output content as a prompt. Content over 4KB is truncated with a warning. Closes the colony loop: output produced → output consumed.', icon: 'Send' },
           { label: 'Copy Path', detail: 'Copy the absolute file path to clipboard.', icon: 'Copy' },
