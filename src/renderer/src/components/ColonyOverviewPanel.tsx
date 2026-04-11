@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   Home, Play, Plus, Zap, Clock, AlertCircle,
-  CheckCircle2, Circle, Users, FolderOpen, Activity, GanttChart, X, Square, Pin, PinOff
+  CheckCircle2, Circle, Users, FolderOpen, Activity, GanttChart, X, Eye, Square, Pin, PinOff
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import SessionTimeline from './SessionTimeline'
@@ -306,7 +306,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
             onClick={(e) => e.stopPropagation()}
           >
             <button className="context-menu-item" onClick={() => { onFocusInstance(ctxMenu.inst.id); setCtxMenu(null) }}>
-              Focus
+              <Eye size={12} /> Focus
             </button>
             {onKill && (
               <button className="context-menu-item" onClick={() => { onKill(ctxMenu.inst.id); setCtxMenu(null) }}>
