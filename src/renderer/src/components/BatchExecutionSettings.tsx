@@ -288,7 +288,7 @@ export default function BatchExecutionSettings({ isExpanded, onToggleExpand }: P
           )}
 
           {runningBatch && (
-            <div style={{ marginTop: '16px', padding: '12px', backgroundColor: 'var(--bg-surface)', borderRadius: '6px', border: '1px solid var(--accent-blue)' }}>
+            <div style={{ marginTop: '16px', padding: '12px', backgroundColor: 'var(--bg-surface)', borderRadius: '6px', border: '1px solid var(--accent)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <span style={{ fontSize: '13px', fontWeight: 600 }}>Running batch...</span>
                 <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
@@ -299,7 +299,7 @@ export default function BatchExecutionSettings({ isExpanded, onToggleExpand }: P
                 <div style={{
                   height: '100%',
                   width: `${runningBatch.total > 0 ? (runningBatch.completed / runningBatch.total) * 100 : 0}%`,
-                  backgroundColor: 'var(--accent-blue)',
+                  backgroundColor: 'var(--accent)',
                   borderRadius: '2px',
                   transition: 'width 0.3s ease',
                 }} />
