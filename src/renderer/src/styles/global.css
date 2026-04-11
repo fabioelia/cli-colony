@@ -12923,6 +12923,25 @@ body:has(.daemon-update-banner) .app-update-banner {
   outline-offset: -1px;
 }
 
+.pipeline-history-retry-btn {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  margin-left: 6px;
+  flex-shrink: 0;
+}
+.pipeline-history-retry-btn:hover {
+  color: var(--accent);
+  background: var(--bg-tertiary);
+}
+.pipeline-history-retry-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .pipeline-comparison-toolbar {
   display: flex;
   align-items: center;
@@ -18246,6 +18265,43 @@ body:has(.daemon-update-banner) .app-update-banner {
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
+}
+.persona-chain-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.persona-chain-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+.persona-chain-chip button {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+.persona-chain-chip button:hover {
+  color: var(--danger);
+}
+.persona-chain-add {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  border-radius: 4px;
+  font-size: 11px;
+  padding: 2px 4px;
+  cursor: pointer;
 }
 .persona-edit-meta-input {
   padding: 6px 8px;

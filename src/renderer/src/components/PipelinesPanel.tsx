@@ -156,6 +156,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [showComparison, setShowComparison] = useState(false)
 
   const [triggeringPipelines, setTriggeringPipelines] = useState<Set<string>>(new Set())
+  const [retryingFromHistory, setRetryingFromHistory] = useState(false)
   const [listMode, setListMode] = useState(() => localStorage.getItem('pipelines-list-mode') !== '0')
   const [sortBy, setSortBy] = useState<'name' | 'lastFired' | 'fireCount' | 'enabled'>(() =>
     (localStorage.getItem('pipelines-sort') as 'name' | 'lastFired' | 'fireCount' | 'enabled') || 'name'
@@ -329,6 +330,20 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
       await window.api.pipeline.triggerNow(name)
     } finally {
       setTriggeringPipelines(prev => { const next = new Set(prev); next.delete(name); return next })
+    }
+  }
+
+  const handleRetryFromHistory = async () => {
+    if (!p || retryingFromHistory) return
+    setRetryingFromHistory(true)
+    try {
+      await window.api.pipeline.triggerNow(p.name)
+    } finally {
+      setRetryingFromHistory(false)
+      setTimeout(async () => {
+        const history = await window.api.pipeline.getHistory(p.name)
+        setHistoryEntries(history.slice().reverse())
+      }, 2000)
     }
   }
 
@@ -1177,6 +1192,16 @@ action:
                                         style={{ width: `${Math.min(100, (entry.totalCost / p.budget.maxCostUsd) * 100).toFixed(1)}%`, background: entry.totalCost >= p.budget.maxCostUsd ? 'var(--danger)' : entry.totalCost >= p.budget.warnAt ? 'var(--warning)' : 'var(--accent)' }}
                                       />
                                     </div>
+                                  )}
+                                  {!entry.success && (
+                                    <button
+                                      className="pipeline-history-retry-btn"
+                                      title="Retry this pipeline"
+                                      onClick={(e) => { e.stopPropagation(); handleRetryFromHistory() }}
+                                      disabled={retryingFromHistory}
+                                    >
+                                      <RefreshCw size={11} className={retryingFromHistory ? 'spin' : ''} />
+                                    </button>
                                   )}
                                 </div>
                                 {hasStages && isExpanded && (() => {
