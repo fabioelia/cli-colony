@@ -753,13 +753,21 @@ export default function App() {
     if (arenaIds.length < 2) return
     setArenaJudging(true)
     try {
-      const { winnerId, verdictText } = await window.api.arena.autoJudge({ instanceIds: arenaIds, judgeConfig: config })
+      const { winnerId, results, verdictText } = await window.api.arena.autoJudge({ instanceIds: arenaIds, judgeConfig: config })
       if (winnerId) {
         setArenaWinnerId(winnerId)
         setArenaBlind(false)
       }
       if (verdictText) {
         setArenaVerdictText(verdictText)
+      } else if (results && results.length > 0) {
+        const lines = results.map((r, i) => {
+          const pass = r.exitCode === 0 ? '✓ PASS' : `✗ FAIL (exit ${r.exitCode})`
+          const isWinner = r.instanceId === winnerId ? ' ← WINNER' : ''
+          const output = r.stdout ? '\n' + r.stdout.slice(0, 500) + (r.stdout.length > 500 ? '...' : '') : ''
+          return `Pane ${i + 1}: ${pass}${isWinner}${output}`
+        })
+        setArenaVerdictText(lines.join('\n\n'))
       }
     } finally {
       setArenaJudging(false)
