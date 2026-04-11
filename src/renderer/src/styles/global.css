@@ -5115,7 +5115,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .send-message-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 1000; }
 .send-message-input { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 12px; width: 400px; max-width: 90vw; }
 .send-message-input label { display: block; font-size: 11px; color: var(--text-muted); margin-bottom: 6px; }
-.send-message-input textarea { width: 100%; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 4px; color: var(--text); padding: 8px; font-size: 12px; font-family: inherit; resize: vertical; box-sizing: border-box; }
+.send-message-input textarea { width: 100%; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary); padding: 8px; font-size: 12px; font-family: inherit; resize: vertical; box-sizing: border-box; }
 .send-message-hint { font-size: 10px; color: var(--text-muted); margin-top: 4px; }
 
 .context-menu-section {
@@ -12994,7 +12994,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .env-worktree-age { color: var(--text-muted); }
 .env-worktree-actions { flex-shrink: 0; }
 .env-worktree-mount-dropdown { display: flex; flex-direction: column; gap: 2px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 4px; padding: 4px; min-width: 120px; }
-.env-worktree-mount-option { background: none; border: none; color: var(--text); padding: 4px 8px; font-size: 11px; text-align: left; border-radius: 3px; cursor: pointer; }
+.env-worktree-mount-option { background: none; border: none; color: var(--text-primary); padding: 4px 8px; font-size: 11px; text-align: left; border-radius: 3px; cursor: pointer; }
 .env-worktree-mount-option:hover { background: var(--bg-hover); }
 .env-worktree-mount-option.cancel { color: var(--text-muted); }
 .env-worktree-create-form { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
