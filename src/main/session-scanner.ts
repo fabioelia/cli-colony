@@ -29,7 +29,22 @@ export async function scanSessions(limit = 50): Promise<CliSession[]> {
   }
 
   try {
-    const content = await fsp.readFile(historyPath, 'utf-8')
+    // Limit read to last 5MB to prevent unbounded memory use on large history files
+    const MAX_HISTORY_READ = 5 * 1024 * 1024
+    const stat = await fsp.stat(historyPath)
+    let content: string
+    if (stat.size > MAX_HISTORY_READ) {
+      const fh = await fsp.open(historyPath, 'r')
+      const buf = Buffer.alloc(MAX_HISTORY_READ)
+      await fh.read(buf, 0, MAX_HISTORY_READ, stat.size - MAX_HISTORY_READ)
+      await fh.close()
+      const str = buf.toString('utf-8')
+      // Skip partial first line
+      const nl = str.indexOf('\n')
+      content = nl >= 0 ? str.slice(nl + 1) : str
+    } else {
+      content = await fsp.readFile(historyPath, 'utf-8')
+    }
     const lines = content.trim().split('\n')
 
     // First pass: collect first message, last message, count, and last /rename per session

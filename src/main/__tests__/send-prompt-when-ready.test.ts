@@ -3,9 +3,11 @@
  *
  * The module wraps a non-trivial state machine:
  *   1. Listen for 'activity' events from the daemon client
- *   2. First 'waiting' → dismiss trust prompt with Enter
+ *   2. First 'waiting' → check buffer for trust dialog
+ *      a. Trust dialog present → dismiss with Enter, wait for second waiting
+ *      b. No trust dialog → send prompt directly (already trusted)
  *   3. Second 'waiting' → send actual prompt + Enter
- *   4. If only one 'waiting' comes, forceTimeout fires and sends
+ *   4. If trust dismissed but only one 'waiting' comes, forceTimeout fires
  *   5. abandonTimeout → resolve without sending if nothing happens
  *
  * Strategy: vi.doMock + vi.resetModules + vi.useFakeTimers to
@@ -16,7 +18,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // ---- Mock daemon-client ----
 
-function makeMockClient() {
+function makeMockClient(bufferContent = '') {
   const listeners: Record<string, ((...args: unknown[]) => void)[]> = {}
 
   const mockClient = {
@@ -31,6 +33,7 @@ function makeMockClient() {
     }),
     writeToInstance: vi.fn(),
     getInstance: vi.fn().mockResolvedValue(null),
+    getInstanceBuffer: vi.fn().mockResolvedValue(bufferContent),
     // Test helper: fire an event
     emit(event: string, ...args: unknown[]) {
       ;(listeners[event] ?? []).forEach((h) => h(...args))
@@ -66,15 +69,19 @@ async function importMod() {
 
 // ---- Tests ----
 
-describe('sendPromptWhenReady: two waiting events (normal path)', () => {
+describe('sendPromptWhenReady: two waiting events (trust dialog path)', () => {
   it('dismisses trust prompt on first waiting, sends prompt on second', async () => {
+    // Buffer contains trust dialog text
+    mockClient.getInstanceBuffer.mockResolvedValue('Do you trust the files in this folder?')
     const { sendPromptWhenReady } = await importMod()
     const onSent = vi.fn()
 
     const promise = sendPromptWhenReady('inst-1', { prompt: 'hello', onSent })
 
-    // First 'waiting' — trust/directory prompt
+    // First 'waiting' — triggers buffer check
     mockClient.emit('activity', 'inst-1', 'waiting')
+    // Flush the getInstanceBuffer promise
+    await vi.advanceTimersByTimeAsync(0)
     expect(mockClient.writeToInstance).toHaveBeenCalledWith('inst-1', '\r')
 
     // Second 'waiting' — CLI is ready
@@ -93,10 +100,12 @@ describe('sendPromptWhenReady: two waiting events (normal path)', () => {
   })
 
   it('removes the activity listener after firing', async () => {
+    mockClient.getInstanceBuffer.mockResolvedValue('trust prompt showing')
     const { sendPromptWhenReady } = await importMod()
 
     const promise = sendPromptWhenReady('inst-1', { prompt: 'test' })
     mockClient.emit('activity', 'inst-1', 'waiting')
+    await vi.advanceTimersByTimeAsync(0)
     mockClient.emit('activity', 'inst-1', 'waiting')
     await vi.advanceTimersByTimeAsync(200)
     await promise
@@ -120,8 +129,44 @@ describe('sendPromptWhenReady: two waiting events (normal path)', () => {
   })
 })
 
-describe('sendPromptWhenReady: force-send path (already trusted)', () => {
-  it('sends after forceTimeout when second waiting never arrives', async () => {
+describe('sendPromptWhenReady: already trusted (no trust dialog)', () => {
+  it('sends prompt directly on first waiting when no trust dialog detected', async () => {
+    // Buffer has no trust-related text
+    mockClient.getInstanceBuffer.mockResolvedValue('> ')
+    const { sendPromptWhenReady } = await importMod()
+    const onSent = vi.fn()
+
+    const promise = sendPromptWhenReady('inst-1', {
+      prompt: 'direct send',
+      abandonTimeout: 30000,
+      onSent,
+    })
+
+    // First 'waiting' — no trust dialog, should fire immediately
+    mockClient.emit('activity', 'inst-1', 'waiting')
+    // Flush the getInstanceBuffer promise
+    await vi.advanceTimersByTimeAsync(0)
+
+    // Should write prompt directly (no '\r' dismiss)
+    expect(mockClient.writeToInstance).toHaveBeenCalledWith('inst-1', 'direct send')
+
+    // Advance past 150ms post-fire delay
+    await vi.advanceTimersByTimeAsync(200)
+    await promise
+
+    expect(mockClient.writeToInstance).toHaveBeenCalledWith('inst-1', '\r')
+    expect(onSent).toHaveBeenCalledOnce()
+    // No trust dismiss '\r' — only prompt + submit '\r'
+    const calls = mockClient.writeToInstance.mock.calls
+    expect(calls).toHaveLength(2)
+    expect(calls[0]).toEqual(['inst-1', 'direct send'])
+    expect(calls[1]).toEqual(['inst-1', '\r'])
+  })
+})
+
+describe('sendPromptWhenReady: force-send after trust dismiss', () => {
+  it('sends after forceTimeout when trust dismissed but second waiting never arrives', async () => {
+    mockClient.getInstanceBuffer.mockResolvedValue('Do you trust this directory?')
     const { sendPromptWhenReady } = await importMod()
     const onSent = vi.fn()
 
@@ -132,8 +177,9 @@ describe('sendPromptWhenReady: force-send path (already trusted)', () => {
       onSent,
     })
 
-    // First 'waiting' only
+    // First 'waiting' — trust dialog detected
     mockClient.emit('activity', 'inst-1', 'waiting')
+    await vi.advanceTimersByTimeAsync(0)
     expect(mockClient.writeToInstance).toHaveBeenCalledWith('inst-1', '\r')
 
     // Advance past forceTimeout
@@ -148,6 +194,7 @@ describe('sendPromptWhenReady: force-send path (already trusted)', () => {
   })
 
   it('second waiting before forceTimeout cancels the force timer', async () => {
+    mockClient.getInstanceBuffer.mockResolvedValue('trust prompt here')
     const { sendPromptWhenReady } = await importMod()
 
     const promise = sendPromptWhenReady('inst-1', {
@@ -157,6 +204,7 @@ describe('sendPromptWhenReady: force-send path (already trusted)', () => {
     })
 
     mockClient.emit('activity', 'inst-1', 'waiting')
+    await vi.advanceTimersByTimeAsync(0)
     // Second waiting comes before the 2s forceTimeout
     mockClient.emit('activity', 'inst-1', 'waiting')
 
@@ -169,6 +217,36 @@ describe('sendPromptWhenReady: force-send path (already trusted)', () => {
     expect(calls[0]).toEqual(['inst-1', '\r'])
     expect(calls[1]).toEqual(['inst-1', 'test'])
     expect(calls[2]).toEqual(['inst-1', '\r'])
+  })
+})
+
+describe('sendPromptWhenReady: buffer check failure fallback', () => {
+  it('falls back to dismiss + force-send when getInstanceBuffer rejects', async () => {
+    mockClient.getInstanceBuffer.mockRejectedValue(new Error('disconnected'))
+    const { sendPromptWhenReady } = await importMod()
+    const onSent = vi.fn()
+
+    const promise = sendPromptWhenReady('inst-1', {
+      prompt: 'fallback',
+      forceTimeout: 500,
+      abandonTimeout: 30000,
+      onSent,
+    })
+
+    mockClient.emit('activity', 'inst-1', 'waiting')
+    // Flush rejected promise
+    await vi.advanceTimersByTimeAsync(0)
+
+    // Falls back to dismiss behavior
+    expect(mockClient.writeToInstance).toHaveBeenCalledWith('inst-1', '\r')
+
+    // Force-send after timeout
+    await vi.advanceTimersByTimeAsync(600)
+    await vi.advanceTimersByTimeAsync(200)
+    await promise
+
+    expect(mockClient.writeToInstance).toHaveBeenCalledWith('inst-1', 'fallback')
+    expect(onSent).toHaveBeenCalledOnce()
   })
 })
 
@@ -204,8 +282,9 @@ describe('sendPromptWhenReady: abandon path', () => {
 
 describe('sendPromptWhenReady: already-waiting race condition', () => {
   it('calls handler immediately when instance is already waiting on attach', async () => {
-    // getInstance resolves with activity='waiting'
+    // getInstance resolves with activity='waiting', no trust dialog
     mockClient.getInstance.mockResolvedValue({ id: 'inst-1', activity: 'waiting' })
+    mockClient.getInstanceBuffer.mockResolvedValue('> ')
 
     const { sendPromptWhenReady } = await importMod()
 
@@ -215,19 +294,20 @@ describe('sendPromptWhenReady: already-waiting race condition', () => {
       abandonTimeout: 10000,
     })
 
-    // Let the getInstance promise resolve
+    // Let the getInstance promise resolve + buffer check
     await vi.advanceTimersByTimeAsync(0)
-    // After detecting 'waiting' via race-check, forceTimer starts
-    // Advance past forceTimeout + fire delay
-    await vi.advanceTimersByTimeAsync(600)
+    await vi.advanceTimersByTimeAsync(0)
+
+    // No trust dialog — fires directly
+    expect(mockClient.writeToInstance).toHaveBeenCalledWith('inst-1', 'race win')
+
     await vi.advanceTimersByTimeAsync(200)
     await promise
-
-    expect(mockClient.writeToInstance).toHaveBeenCalledWith('inst-1', 'race win')
   })
 
   it('does not double-fire if a waiting event also arrives', async () => {
     mockClient.getInstance.mockResolvedValue({ id: 'inst-1', activity: 'waiting' })
+    mockClient.getInstanceBuffer.mockResolvedValue('> ')
 
     const { sendPromptWhenReady } = await importMod()
     const onSent = vi.fn()
@@ -239,11 +319,11 @@ describe('sendPromptWhenReady: already-waiting race condition', () => {
       onSent,
     })
 
-    // Race check fires (waitCount=1 via getInstance)
+    // Race check fires (waitCount=1 via getInstance + buffer check)
+    await vi.advanceTimersByTimeAsync(0)
     await vi.advanceTimersByTimeAsync(0)
 
-    // Listener event arrives for the same instance — waitCount would go to 2
-    // which triggers fire(), but sent=false so it fires once
+    // Listener event arrives for the same instance — should be no-op (already sent)
     mockClient.emit('activity', 'inst-1', 'waiting')
 
     await vi.advanceTimersByTimeAsync(200)
@@ -256,6 +336,7 @@ describe('sendPromptWhenReady: already-waiting race condition', () => {
 
 describe('sendPromptWhenReady: no-op on sent guard', () => {
   it('does not re-fire after already sent', async () => {
+    mockClient.getInstanceBuffer.mockResolvedValue('trust dialog')
     const { sendPromptWhenReady } = await importMod()
     const onSent = vi.fn()
 
@@ -265,9 +346,11 @@ describe('sendPromptWhenReady: no-op on sent guard', () => {
       onSent,
     })
 
-    // Trigger two back-to-back second-waitings
-    mockClient.emit('activity', 'inst-1', 'waiting') // waitCount=1
-    mockClient.emit('activity', 'inst-1', 'waiting') // waitCount=2, fires
+    // Trigger first waiting — trust dialog detected
+    mockClient.emit('activity', 'inst-1', 'waiting')
+    await vi.advanceTimersByTimeAsync(0)
+    // Second waiting — fires
+    mockClient.emit('activity', 'inst-1', 'waiting')
 
     await vi.advanceTimersByTimeAsync(200)
     await promise
@@ -279,5 +362,43 @@ describe('sendPromptWhenReady: no-op on sent guard', () => {
 
     expect(mockClient.writeToInstance.mock.calls.length).toBe(callsBefore)
     expect(onSent).toHaveBeenCalledOnce()
+  })
+})
+
+describe('sendPromptWhenReady: return value', () => {
+  it('returns "sent" on successful delivery', async () => {
+    mockClient.getInstanceBuffer.mockResolvedValue('> ')
+    const { sendPromptWhenReady } = await importMod()
+
+    const promise = sendPromptWhenReady('inst-1', { prompt: 'test' })
+    mockClient.emit('activity', 'inst-1', 'waiting')
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(200)
+
+    expect(await promise).toBe('sent')
+  })
+
+  it('returns "abandoned" on timeout', async () => {
+    const { sendPromptWhenReady } = await importMod()
+
+    const promise = sendPromptWhenReady('inst-1', { prompt: 'test', abandonTimeout: 100 })
+    await vi.advanceTimersByTimeAsync(200)
+
+    expect(await promise).toBe('abandoned')
+  })
+})
+
+describe('sendPromptWhenReady: planFirst prefix', () => {
+  it('prepends PLAN_FIRST_PREFIX when planFirst is true', async () => {
+    mockClient.getInstanceBuffer.mockResolvedValue('> ')
+    const { sendPromptWhenReady, PLAN_FIRST_PREFIX } = await importMod()
+
+    const promise = sendPromptWhenReady('inst-1', { prompt: 'my task', planFirst: true })
+    mockClient.emit('activity', 'inst-1', 'waiting')
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(200)
+    await promise
+
+    expect(mockClient.writeToInstance).toHaveBeenCalledWith('inst-1', PLAN_FIRST_PREFIX + 'my task')
   })
 })

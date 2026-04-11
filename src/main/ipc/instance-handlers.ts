@@ -154,7 +154,12 @@ export function registerInstanceHandlers(): void {
         if (/Electron|claude-electron|ShipIt/.test(fullCmd)) continue
 
         // Match: command path or arguments reference this instance's directory
-        if (!fullCmd.includes(dir)) continue
+        // Use boundary check to avoid false positives when dirs are prefixes
+        // of each other (e.g. /project matching /project-v2)
+        const dirIdx = fullCmd.indexOf(dir)
+        if (dirIdx < 0) continue
+        const charAfter = fullCmd[dirIdx + dir.length]
+        if (charAfter && charAfter !== '/' && charAfter !== ' ' && charAfter !== "'" && charAfter !== '"' && charAfter !== ':') continue
 
         // Derive a short human-readable name from the command
         const name = deriveProcessName(fullCmd, dir)

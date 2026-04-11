@@ -87,10 +87,22 @@ export async function sendPromptWhenReady(instanceId: string, opts: SendPromptOp
       if (activity === 'waiting') {
         waitCount++
         if (waitCount === 1) {
-          // Dismiss trust/directory prompt
-          client.writeToInstance(instanceId, '\r')
-          // If no second waiting arrives, force-send after timeout
-          forceTimer = setTimeout(() => fire(), forceTimeout)
+          // Check buffer to determine if trust dialog is showing
+          client.getInstanceBuffer(instanceId).then((buffer) => {
+            if (sent) return
+            if (/trust|safety check/i.test(buffer || '')) {
+              // Trust dialog present — dismiss it and wait for second waiting
+              client.writeToInstance(instanceId, '\r')
+              forceTimer = setTimeout(() => fire(), forceTimeout)
+            } else {
+              // No trust dialog — CLI is already ready, send prompt directly
+              fire()
+            }
+          }).catch(() => {
+            // Can't check buffer — fall back to dismiss + force-send
+            client.writeToInstance(instanceId, '\r')
+            forceTimer = setTimeout(() => fire(), forceTimeout)
+          })
         } else {
           // Second 'waiting' = CLI is actually ready for input
           clearTimeout(forceTimer)
