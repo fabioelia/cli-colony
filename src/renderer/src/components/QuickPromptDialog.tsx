@@ -13,11 +13,23 @@ export default function QuickPromptDialog({ onClose, onLaunch, recentDirs, promp
   const [workingDir, setWorkingDir] = useState('')
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [showDirList, setShowDirList] = useState(false)
+  const [tokenCount, setTokenCount] = useState(0)
   const promptRef = useRef<HTMLTextAreaElement>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
 
   useEffect(() => {
     requestAnimationFrame(() => promptRef.current?.focus())
   }, [])
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (!prompt.trim()) { setTokenCount(0); return }
+    debounceRef.current = setTimeout(async () => {
+      const count = await window.api.session.tokenizeApproximate(prompt)
+      setTokenCount(count)
+    }, 300)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [prompt])
 
   const filteredDirs = workingDir
     ? recentDirs.filter((d) => d.toLowerCase().includes(workingDir.toLowerCase()))
@@ -64,6 +76,9 @@ export default function QuickPromptDialog({ onClose, onLaunch, recentDirs, promp
             onKeyDown={handlePromptKeyDown}
             rows={5}
           />
+          {tokenCount > 0 && (
+            <span className="quick-prompt-token-count">~{tokenCount.toLocaleString()} tokens</span>
+          )}
         </div>
 
         <div className="dialog-field" style={{ position: 'relative' }}>

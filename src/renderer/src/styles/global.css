@@ -3266,6 +3266,14 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-color: var(--accent);
 }
 
+.quick-prompt-token-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  display: block;
+  text-align: right;
+}
+
 .quick-prompt-dir-list {
   position: absolute;
   top: 100%;
