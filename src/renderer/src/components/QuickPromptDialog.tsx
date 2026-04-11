@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { Play, Bookmark, Trash2 } from 'lucide-react'
-import { getSnippets, saveSnippet, deleteSnippet } from '../lib/prompt-snippets'
+import { Play, Bookmark, Trash2, Pencil } from 'lucide-react'
+import { getSnippets, saveSnippet, updateSnippet, deleteSnippet } from '../lib/prompt-snippets'
 
 interface Props {
   onClose: () => void
@@ -18,6 +18,8 @@ export default function QuickPromptDialog({ onClose, onLaunch, recentDirs, promp
   const [snippetsOpen, setSnippetsOpen] = useState(false)
   const [savingSnippet, setSavingSnippet] = useState(false)
   const [snippetName, setSnippetName] = useState('')
+  const [snippetSearch, setSnippetSearch] = useState('')
+  const [editingExisting, setEditingExisting] = useState(false)
   const promptRef = useRef<HTMLTextAreaElement>(null)
   const snippetsRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>()
@@ -99,23 +101,51 @@ export default function QuickPromptDialog({ onClose, onLaunch, recentDirs, promp
               <button type="button" className="panel-header-btn" onClick={() => setSnippetsOpen(!snippetsOpen)}>
                 <Bookmark size={12} /> Snippets
               </button>
-              {snippetsOpen && (
-                <div className="prompt-history-dropdown">
-                  {getSnippets().map(s => (
-                    <div key={s.name} className="prompt-history-item" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <button type="button" title={s.prompt} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '2px 4px', fontSize: 12 }}
-                        onClick={() => { setPrompt(s.prompt); setSnippetsOpen(false) }}>
-                        <span className="prompt-history-text">{s.name}</span>
-                      </button>
-                      <button type="button" title="Delete snippet" style={{ opacity: 0.5, padding: '2px 4px', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}
-                        onClick={(e) => { e.stopPropagation(); deleteSnippet(s.name); setSnippetsOpen(false); setTimeout(() => setSnippetsOpen(true), 0) }}>
-                        <Trash2 size={11} />
-                      </button>
-                    </div>
-                  ))}
-                  {getSnippets().length === 0 && <div style={{ padding: '8px 12px', opacity: 0.5, fontSize: 12 }}>No snippets saved</div>}
-                </div>
-              )}
+              {snippetsOpen && (() => {
+                const allSnippets = getSnippets()
+                const filtered = allSnippets.filter(s => !snippetSearch.trim() || s.name.toLowerCase().includes(snippetSearch.toLowerCase()))
+                return (
+                  <div className="prompt-history-dropdown">
+                    {allSnippets.length > 0 && (
+                      <input
+                        placeholder="Filter snippets..."
+                        value={snippetSearch}
+                        onChange={e => setSnippetSearch(e.target.value)}
+                        onClick={e => e.stopPropagation()}
+                        onMouseDown={e => e.stopPropagation()}
+                        style={{ width: '100%', fontSize: 12, padding: '4px 8px', marginBottom: 4, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-primary)', boxSizing: 'border-box' }}
+                        autoFocus
+                      />
+                    )}
+                    {filtered.map(s => (
+                      <div key={s.name} className="prompt-history-item" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <button type="button" title={s.prompt} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '2px 4px', fontSize: 12 }}
+                          onClick={() => { setPrompt(s.prompt); setSnippetsOpen(false); setSnippetSearch('') }}>
+                          <span className="prompt-history-text">{s.name}</span>
+                        </button>
+                        <button type="button" title="Edit snippet" style={{ opacity: 0.5, padding: '2px 4px', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setPrompt(s.prompt)
+                            setSnippetName(s.name)
+                            setSavingSnippet(true)
+                            setEditingExisting(true)
+                            setSnippetsOpen(false)
+                            setSnippetSearch('')
+                          }}>
+                          <Pencil size={11} />
+                        </button>
+                        <button type="button" title="Delete snippet" style={{ opacity: 0.5, padding: '2px 4px', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}
+                          onClick={(e) => { e.stopPropagation(); deleteSnippet(s.name); setSnippetsOpen(false); setSnippetSearch(''); setTimeout(() => setSnippetsOpen(true), 0) }}>
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
+                    ))}
+                    {allSnippets.length === 0 && <div style={{ padding: '8px 12px', opacity: 0.5, fontSize: 12 }}>No snippets saved</div>}
+                    {allSnippets.length > 0 && filtered.length === 0 && <div style={{ padding: '8px 12px', opacity: 0.5, fontSize: 12 }}>No matching snippets</div>}
+                  </div>
+                )
+              })()}
             </div>
             {prompt.trim() && !savingSnippet && (
               <button type="button" className="panel-header-btn" onClick={() => setSavingSnippet(true)}>Save as snippet</button>
@@ -123,10 +153,19 @@ export default function QuickPromptDialog({ onClose, onLaunch, recentDirs, promp
             {savingSnippet && (
               <>
                 <input placeholder="Snippet name..." value={snippetName} onChange={e => setSnippetName(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && snippetName.trim()) { saveSnippet(snippetName, prompt); setSavingSnippet(false); setSnippetName('') } if (e.key === 'Escape') setSavingSnippet(false) }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && snippetName.trim()) {
+                      editingExisting ? updateSnippet(snippetName, prompt) : saveSnippet(snippetName, prompt)
+                      setSavingSnippet(false); setSnippetName(''); setEditingExisting(false)
+                    }
+                    if (e.key === 'Escape') { setSavingSnippet(false); setEditingExisting(false) }
+                  }}
                   autoFocus style={{ fontSize: 12, padding: '2px 6px', width: 160 }} />
                 <button type="button" className="panel-header-btn" disabled={!snippetName.trim()}
-                  onClick={() => { saveSnippet(snippetName, prompt); setSavingSnippet(false); setSnippetName('') }}>Save</button>
+                  onClick={() => {
+                    editingExisting ? updateSnippet(snippetName, prompt) : saveSnippet(snippetName, prompt)
+                    setSavingSnippet(false); setSnippetName(''); setEditingExisting(false)
+                  }}>{editingExisting ? 'Update' : 'Save'}</button>
               </>
             )}
           </div>

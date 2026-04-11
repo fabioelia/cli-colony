@@ -22,6 +22,13 @@ export function saveSnippet(name: string, prompt: string): void {
   localStorage.setItem(KEY, JSON.stringify(snippets))
 }
 
+export function updateSnippet(name: string, prompt: string): void {
+  const snippets = getSnippets().map(s =>
+    s.name === name ? { ...s, prompt: prompt.trim() } : s
+  )
+  localStorage.setItem(KEY, JSON.stringify(snippets))
+}
+
 export function deleteSnippet(name: string): void {
   const snippets = getSnippets().filter(s => s.name !== name)
   localStorage.setItem(KEY, JSON.stringify(snippets))
