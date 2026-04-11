@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X, Shield, Sparkles, Check, Circle, Sun, Moon, Palette, Eye, EyeOff } from 'lucide-react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X, Shield, Sparkles, Check, Circle, Sun, Moon, Palette, Eye, EyeOff, Search } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import BatchExecutionSettings from './BatchExecutionSettings'
 import AppUpdateSettings from './AppUpdateSettings'
@@ -81,6 +81,42 @@ export default function SettingsPanel({ onBack }: Props) {
   const [approvalRuleFormType, setApprovalRuleFormType] = useState<ApprovalRuleType>('file_pattern')
   const [approvalRuleFormCondition, setApprovalRuleFormCondition] = useState('')
   const [approvalRuleFormAction, setApprovalRuleFormAction] = useState<ApprovalRuleAction>('auto_approve')
+
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const SECTION_KEYWORDS: Record<string, string> = {
+    cli: 'cli arguments args default backend claude cursor slash commands sync',
+    appearance: 'appearance theme dark light font size',
+    general: 'general tray keep running close quit',
+    notifications: 'notifications sound desktop alert pipeline persona approval session budget system',
+    sessions: 'sessions cleanup auto-cleanup idle cost daily budget hotkey global shortcut',
+    mcp: 'mcp server catalog stdio sse environment variables',
+    audit: 'mcp audit tool call approval log',
+    commit: 'commit attribution git',
+    webhook: 'webhook server api token port rest url',
+    templates: 'session templates model directory role prompt permissions',
+    daemon: 'daemon version restart pty heartbeat liveness',
+    logs: 'logs app daemon output debug',
+    approval: 'approval rules file pattern cost threshold risk auto-approve escalate',
+    updates: 'app updates version download install release check',
+    batch: 'batch execution parallel concurrent',
+    onboarding: 'onboarding welcome checklist activation reset replay',
+    scheduler: 'scheduler log cron schedule',
+  }
+
+  const sectionVisible = useMemo(() => {
+    if (!searchQuery.trim()) return (_id: string) => true
+    const q = searchQuery.toLowerCase()
+    return (sectionId: string) => {
+      const keywords = SECTION_KEYWORDS[sectionId] || ''
+      return keywords.includes(q)
+    }
+  }, [searchQuery])
+
+  const visibleCount = useMemo(() => {
+    if (!searchQuery.trim()) return Object.keys(SECTION_KEYWORDS).length
+    return Object.keys(SECTION_KEYWORDS).filter(id => sectionVisible(id)).length
+  }, [searchQuery, sectionVisible])
 
   useEffect(() => {
     window.api.settings.getAll().then((s) => {
@@ -234,8 +270,27 @@ export default function SettingsPanel({ onBack }: Props) {
         </div>
       </div>
 
+      <div className="settings-search">
+        <Search size={12} />
+        <input
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="Filter settings..."
+        />
+        {searchQuery && (
+          <button className="settings-search-clear" onClick={() => setSearchQuery('')} title="Clear">
+            <X size={12} />
+          </button>
+        )}
+        {searchQuery.trim() && (
+          <span className="settings-search-count">
+            {visibleCount} section{visibleCount !== 1 ? 's' : ''} matching
+          </span>
+        )}
+      </div>
+
       {/* CLI */}
-      <div className="settings-section">
+      <div className="settings-section" style={{ display: sectionVisible('cli') ? undefined : 'none' }}>
         <div className="settings-section-title">
           <Terminal size={12} />
           CLI
@@ -337,7 +392,7 @@ export default function SettingsPanel({ onBack }: Props) {
       </div>
 
       {/* Appearance */}
-      <div className="settings-section">
+      <div className="settings-section" style={{ display: sectionVisible('appearance') ? undefined : 'none' }}>
         <div className="settings-section-title">
           <Palette size={12} />
           Appearance
@@ -372,7 +427,7 @@ export default function SettingsPanel({ onBack }: Props) {
       </div>
 
       {/* General */}
-      <div className="settings-section">
+      <div className="settings-section" style={{ display: sectionVisible('general') ? undefined : 'none' }}>
         <div className="settings-section-title">
           <Settings size={12} />
           General
@@ -393,7 +448,7 @@ export default function SettingsPanel({ onBack }: Props) {
       </div>
 
       {/* Notifications */}
-      <div className="settings-section">
+      <div className="settings-section" style={{ display: sectionVisible('notifications') ? undefined : 'none' }}>
         <div className="settings-section-title">
           <Bell size={12} />
           Notifications
@@ -445,7 +500,7 @@ export default function SettingsPanel({ onBack }: Props) {
       </div>
 
       {/* Sessions */}
-      <div className="settings-section">
+      <div className="settings-section" style={{ display: sectionVisible('sessions') ? undefined : 'none' }}>
         <div className="settings-section-title">
           <Clock size={12} />
           Sessions
@@ -487,7 +542,7 @@ export default function SettingsPanel({ onBack }: Props) {
       </div>
 
       {/* MCP Server Catalog */}
-      <div className={`settings-section settings-logs-section ${showMcpSection ? '' : 'collapsed'}`}>
+      <div className={`settings-section settings-logs-section ${showMcpSection ? '' : 'collapsed'}`} style={{ display: sectionVisible('mcp') ? undefined : 'none' }}>
         <div className="settings-section-title">
           <Network size={12} />
           MCP Server Catalog
@@ -707,7 +762,7 @@ export default function SettingsPanel({ onBack }: Props) {
       </div>
 
       {/* MCP Audit Log */}
-      <div className={`settings-section settings-logs-section ${showAuditSection ? '' : 'collapsed'}`}>
+      <div className={`settings-section settings-logs-section ${showAuditSection ? '' : 'collapsed'}`} style={{ display: sectionVisible('audit') ? undefined : 'none' }}>
         <div className="settings-section-title">
           <ClipboardList size={12} />
           MCP Audit
@@ -780,7 +835,7 @@ export default function SettingsPanel({ onBack }: Props) {
       </div>
 
       {/* Commit Attribution */}
-      <div className={`settings-section settings-logs-section ${showCommitSection ? '' : 'collapsed'}`}>
+      <div className={`settings-section settings-logs-section ${showCommitSection ? '' : 'collapsed'}`} style={{ display: sectionVisible('commit') ? undefined : 'none' }}>
         <div className="settings-section-title">
           <GitCommit size={12} />
           Commit Attribution
@@ -852,7 +907,7 @@ export default function SettingsPanel({ onBack }: Props) {
       </div>
 
       {/* Webhook Server */}
-      <div className="settings-section">
+      <div className="settings-section" style={{ display: sectionVisible('webhook') ? undefined : 'none' }}>
         <div className="settings-section-title">
           <Globe size={12} />
           Webhook Server
@@ -931,7 +986,7 @@ export default function SettingsPanel({ onBack }: Props) {
       </div>
 
       {/* Session Templates */}
-      <div className={`settings-section settings-logs-section ${showTemplatesSection ? '' : 'collapsed'}`}>
+      <div className={`settings-section settings-logs-section ${showTemplatesSection ? '' : 'collapsed'}`} style={{ display: sectionVisible('templates') ? undefined : 'none' }}>
         <div className="settings-section-title">
           <BookTemplate size={12} />
           Session Templates
@@ -1000,7 +1055,7 @@ export default function SettingsPanel({ onBack }: Props) {
       </div>
 
       {/* Daemon */}
-      <div className="settings-section">
+      <div className="settings-section" style={{ display: sectionVisible('daemon') ? undefined : 'none' }}>
         <div className="settings-section-title">
           <Cpu size={12} />
           Daemon
@@ -1070,7 +1125,7 @@ export default function SettingsPanel({ onBack }: Props) {
       </div>
 
       {/* Logs */}
-      <div className={`settings-section settings-logs-section ${showLogs ? '' : 'collapsed'}`}>
+      <div className={`settings-section settings-logs-section ${showLogs ? '' : 'collapsed'}`} style={{ display: sectionVisible('logs') ? undefined : 'none' }}>
         <div className="settings-section-title">
           <ScrollText size={12} />
           Logs
@@ -1101,6 +1156,7 @@ export default function SettingsPanel({ onBack }: Props) {
       </div>
 
       {/* Approval Rules */}
+      <div style={{ display: sectionVisible('approval') ? undefined : 'none' }}>
       {(() => {
         const handleAddRule = () => {
           setApprovalRuleFormName('')
@@ -1384,21 +1440,26 @@ export default function SettingsPanel({ onBack }: Props) {
           </div>
         )
       })()}
+      </div>
 
       {/* App Updates */}
+      <div style={{ display: sectionVisible('updates') ? undefined : 'none' }}>
       <AppUpdateSettings
         isExpanded={showUpdateSection}
         onToggleExpand={() => setShowUpdateSection(!showUpdateSection)}
       />
+      </div>
 
       {/* Batch Execution */}
+      <div style={{ display: sectionVisible('batch') ? undefined : 'none' }}>
       <BatchExecutionSettings
         isExpanded={showBatchSection}
         onToggleExpand={() => setShowBatchSection(!showBatchSection)}
       />
+      </div>
 
       {/* Onboarding */}
-      <div className={`settings-section settings-logs-section ${showOnboardingSection ? '' : 'collapsed'}`}>
+      <div className={`settings-section settings-logs-section ${showOnboardingSection ? '' : 'collapsed'}`} style={{ display: sectionVisible('onboarding') ? undefined : 'none' }}>
         <div className="settings-section-title">
           <Sparkles size={12} />
           Onboarding
@@ -1469,7 +1530,7 @@ export default function SettingsPanel({ onBack }: Props) {
       </div>
 
       {/* Scheduler Log */}
-      <div className={`settings-section settings-logs-section ${showSchedulerLogs ? '' : 'collapsed'}`}>
+      <div className={`settings-section settings-logs-section ${showSchedulerLogs ? '' : 'collapsed'}`} style={{ display: sectionVisible('scheduler') ? undefined : 'none' }}>
         <div className="settings-section-title">
           <ScrollText size={12} />
           Scheduler Log

@@ -709,8 +709,15 @@ export const helpContent: Record<string, HelpEntry> = {
 
   settings: {
     title: 'Settings',
-    description: 'Configure Colony\'s behavior, CLI defaults, and manage the background PTY daemon that owns all terminal sessions.',
+    description: 'Configure Colony\'s behavior, CLI defaults, and manage the background PTY daemon that owns all terminal sessions. Use the search bar at the top to filter the 17 sections by keyword.',
     zones: [
+      {
+        name: 'Search',
+        position: 'Top, below header',
+        items: [
+          { label: 'Filter settings', detail: 'Type keywords to filter sections. Matches section titles, field names, and descriptions. Case-insensitive substring match. Shows count of matching sections.', icon: 'Search' },
+        ],
+      },
       {
         name: 'CLI Section',
         position: 'Top section',

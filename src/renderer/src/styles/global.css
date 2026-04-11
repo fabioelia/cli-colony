@@ -4083,6 +4083,51 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-weight: 600;
 }
 
+/* Search filter */
+.settings-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: var(--text-muted);
+}
+
+.settings-search input {
+  flex: 1;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 10px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.settings-search input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.settings-search-clear {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+}
+
+.settings-search-clear:hover {
+  color: var(--text-primary);
+}
+
+.settings-search-count {
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 /* Section cards */
 .settings-section {
   margin-bottom: 16px;
@@ -6904,6 +6949,14 @@ body:has(.daemon-update-banner) .app-update-banner {
   flex: 1;
   padding-left: 4px;
   min-width: 0;
+}
+.diff-split-cell.diff-del .diff-word-change {
+  background: color-mix(in srgb, var(--danger) 30%, transparent);
+  border-radius: 2px;
+}
+.diff-split-cell.diff-add .diff-word-change {
+  background: color-mix(in srgb, var(--success) 30%, transparent);
+  border-radius: 2px;
 }
 .diff-split-hunk {
   grid-template-columns: 1fr;
