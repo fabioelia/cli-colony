@@ -746,17 +746,23 @@ function restartInstance(id: string, defaultArgs?: string[]): ClaudeInstance | n
   const cliBackend = inst.cliBackend
   const permissionMode = inst.permissionMode
   const parentId = inst.parentId
-  instances.delete(id)
-  return createInstance({
-    name: inst.name,
-    workingDirectory: inst.workingDirectory,
-    color: inst.color,
-    args: [...resumeArgs, ...filteredArgs].length > 0 ? [...resumeArgs, ...filteredArgs] : undefined,
-    defaultArgs: dArgs,
-    cliBackend,
-    permissionMode,
-    parentId: parentId || undefined,
-  })
+  try {
+    instances.delete(id)
+    return createInstance({
+      name: inst.name,
+      workingDirectory: inst.workingDirectory,
+      color: inst.color,
+      args: [...resumeArgs, ...filteredArgs].length > 0 ? [...resumeArgs, ...filteredArgs] : undefined,
+      defaultArgs: dArgs,
+      cliBackend,
+      permissionMode,
+      parentId: parentId || undefined,
+    })
+  } catch (err) {
+    inst.status = 'exited'
+    instances.set(id, inst)
+    throw err
+  }
 }
 
 function getInstanceBuffer(id: string): string {

@@ -128,11 +128,23 @@ export function registerPipelineHandlers(): void {
     await loadPipelines()
     return true
   })
-  ipcMain.handle('pipeline:getContent', (_e, fileName: string) => getPipelineContent(fileName))
-  ipcMain.handle('pipeline:saveContent', (_e, fileName: string, content: string) => savePipelineContent(fileName, content))
+  ipcMain.handle('pipeline:getContent', (_e, fileName: string) => {
+    if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) return null
+    return getPipelineContent(fileName)
+  })
+  ipcMain.handle('pipeline:saveContent', (_e, fileName: string, content: string) => {
+    if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) return false
+    return savePipelineContent(fileName, content)
+  })
   ipcMain.handle('pipeline:reload', async () => { await loadPipelines(); return getPipelineList() })
-  ipcMain.handle('pipeline:setCron', (_e, fileName: string, cron: string | null) => setPipelineCron(fileName, cron))
-  ipcMain.handle('pipeline:preview', (_e, fileName: string) => previewPipeline(fileName))
+  ipcMain.handle('pipeline:setCron', (_e, fileName: string, cron: string | null) => {
+    if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) return false
+    return setPipelineCron(fileName, cron)
+  })
+  ipcMain.handle('pipeline:preview', (_e, fileName: string) => {
+    if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) return null
+    return previewPipeline(fileName)
+  })
   ipcMain.handle('pipeline:listApprovals', () => listApprovals())
   ipcMain.handle('pipeline:approve', (_e, id: string) => approveAction(id))
   ipcMain.handle('pipeline:dismiss', (_e, id: string) => dismissAction(id))
