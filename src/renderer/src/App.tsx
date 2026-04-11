@@ -1025,6 +1025,7 @@ export default function App() {
       if (e.key === 'Escape') {
         if (cmdPaletteOpen) { setCmdPaletteOpen(false); e.stopPropagation(); return }
         if (quickPromptOpen) { setQuickPromptOpen(false); e.stopPropagation(); return }
+        if (showRestoreDialog) { setShowRestoreDialog(false); e.stopPropagation(); return }
         if (showSplitPicker) { setShowSplitPicker(false); e.stopPropagation() }
         if (showNewDialog) { setShowNewDialog(false); e.stopPropagation() }
       }
@@ -1035,7 +1036,7 @@ export default function App() {
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [showSplitPicker, showNewDialog, cmdPaletteOpen, quickPromptOpen])
+  }, [showSplitPicker, showNewDialog, showRestoreDialog, cmdPaletteOpen, quickPromptOpen])
 
   // Custom event for Command Palette → Shortcut Overlay
   useEffect(() => {
