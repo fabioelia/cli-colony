@@ -1117,8 +1117,26 @@ function PersonaCard({
                       <div className="persona-memory-empty">No active situations</div>
                     ) : memory.activeSituations.map((s, i) => (
                       <div key={i} className="persona-memory-situation">
-                        <span className={`persona-memory-status ${s.status}`}>{s.status}</span>
+                        <span
+                          className={`persona-memory-status ${s.status}`}
+                          onClick={() => {
+                            const order = ['pending', 'done', 'delegated', 'blocked'] as const
+                            const next = order[(order.indexOf(s.status as typeof order[number]) + 1) % order.length]
+                            window.api.personaMemory.updateSituation(persona.id, i, { status: next })
+                              .then(() => window.api.personaMemory.get(persona.id).then(setMemory))
+                          }}
+                          title={`Click to cycle status (current: ${s.status})`}
+                          style={{ cursor: 'pointer' }}
+                        >{s.status}</span>
                         <span className="persona-memory-text">{s.text}</span>
+                        <button
+                          className="persona-memory-remove"
+                          onClick={() => {
+                            window.api.personaMemory.removeSituation(persona.id, i)
+                              .then(() => window.api.personaMemory.get(persona.id).then(setMemory))
+                          }}
+                          title="Remove situation"
+                        ><X size={10} /></button>
                       </div>
                     ))}
                   </div>
@@ -1130,11 +1148,31 @@ function PersonaCard({
                       <div key={i} className="persona-memory-learning">
                         <span className="persona-memory-text">{l.text}</span>
                         <span className="persona-memory-time">{formatRelativeTime(l.addedAt)}</span>
+                        <button
+                          className="persona-memory-remove"
+                          onClick={() => {
+                            window.api.personaMemory.removeLearning(persona.id, i)
+                              .then(() => window.api.personaMemory.get(persona.id).then(setMemory))
+                          }}
+                          title="Remove learning"
+                        ><X size={10} /></button>
                       </div>
                     ))}
                   </div>
                   <div className="persona-memory-section">
-                    <h4 className="persona-memory-heading">Session Log</h4>
+                    <h4 className="persona-memory-heading">
+                      Session Log
+                      {memory.sessionLog.length > 5 && (
+                        <button
+                          className="persona-memory-clear"
+                          onClick={() => {
+                            window.api.personaMemory.setLog(persona.id, memory.sessionLog.slice(-5))
+                              .then(() => window.api.personaMemory.get(persona.id).then(setMemory))
+                          }}
+                          title="Keep only last 5 entries"
+                        ><Trash2 size={10} /></button>
+                      )}
+                    </h4>
                     {memory.sessionLog.length === 0 ? (
                       <div className="persona-memory-empty">No session log</div>
                     ) : [...memory.sessionLog].reverse().map((entry, i) => (

@@ -12987,6 +12987,10 @@ body:has(.daemon-update-banner) .app-update-banner {
 .env-worktree-unmounted { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(245,158,11,0.1); color: var(--text-muted); }
 .env-worktree-age { color: var(--text-muted); }
 .env-worktree-actions { flex-shrink: 0; }
+.env-worktree-create-form { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.env-worktree-create-form select,
+.env-worktree-create-form input { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 3px; color: var(--text); padding: 4px 8px; font-size: 11px; }
+.env-worktree-create-actions { display: flex; gap: 6px; justify-content: flex-end; }
 
 .env-btn-secondary.active {
   background: var(--bg-active);
@@ -16954,6 +16958,14 @@ body:has(.daemon-update-banner) .app-update-banner {
 .persona-memory-learning:last-child { border-bottom: none; }
 .persona-memory-time { font-size: 10px; color: var(--text-muted); flex-shrink: 0; white-space: nowrap; }
 .persona-memory-log-entry { display: flex; gap: 8px; padding: 3px 0; font-size: 11px; }
+.persona-memory-remove,
+.persona-memory-clear { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px; opacity: 0; transition: opacity 0.15s; flex-shrink: 0; }
+.persona-memory-situation:hover .persona-memory-remove,
+.persona-memory-learning:hover .persona-memory-remove,
+.persona-memory-heading:hover .persona-memory-clear { opacity: 1; }
+.persona-memory-remove:hover,
+.persona-memory-clear:hover { color: var(--danger); }
+.persona-memory-heading { display: flex; align-items: center; gap: 6px; }
 
 /* ===== Persona Edit Meta Modal ===== */
 .persona-edit-meta-modal {

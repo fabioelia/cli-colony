@@ -610,6 +610,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Unmount', detail: 'Detach a worktree from its environment without deleting it. The worktree becomes removable.', icon: 'Unlink' },
           { label: 'Remove', detail: 'Delete an unmounted worktree from disk.', icon: 'Trash2' },
           { label: 'Remove All Unmounted', detail: 'Bulk-remove all worktrees not attached to any environment. Asks for confirmation first.', icon: 'Trash2' },
+          { label: 'New worktree', detail: 'Create a standalone git worktree from a tracked repo. Pick a repo and branch — Colony creates the worktree in its managed directory. Mount it to an environment later.', icon: 'Plus' },
         ],
       },
       {
@@ -832,7 +833,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Outputs tab', detail: 'Switch to the Outputs tab in an expanded card to browse files the persona wrote to ~/.claude-colony/outputs/<persona>/. Click any file to open a read-only viewer. Session Brief is always listed first.', icon: 'FolderOpen' },
           { label: 'History tab', detail: 'Switch to the History tab in an expanded card to see a timeline of past runs — timestamp, duration, and success status.', icon: 'Clock' },
           { label: 'Analytics tab', detail: 'Switch to the Analytics tab to see aggregate stats: total runs, success rate, average duration, total cost, 7-day cost. Includes a run-duration sparkline (green=success, red=fail), daily cost bar chart, and a table of the last 10 runs with per-run cost.', icon: 'BarChart3' },
-          { label: 'Memory tab', detail: 'View a persona\'s structured memory — active situations (with status badges), accumulated learnings, and session log. Data is loaded from the persona\'s JSON sidecar.', icon: 'Brain' },
+          { label: 'Memory tab', detail: 'View and edit a persona\'s structured memory. Click a situation status badge to cycle it (pending → done → delegated → blocked). Hover any row for a remove button. Session log has a "clear old" button that keeps only the last 5 entries.', icon: 'Brain' },
           { label: 'Sort dropdown', detail: 'Sort the persona list by Name, Last Run, Runs, Cost, or Success Rate. In the panel header, next to the help icon.', icon: 'ArrowUpDown' },
           { label: 'Stat chips', detail: 'Inline success rate and 7-day cost chips on each persona card row. Color-coded: green ≥80%, amber ≥50%, red <50%.' },
           { label: 'Edit persona settings', detail: 'Click the Pencil icon (list view) to open a quick-edit modal for schedule, model, max sessions, and enabled state — without touching the raw markdown.', icon: 'Pencil' },
