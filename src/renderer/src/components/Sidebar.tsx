@@ -62,6 +62,7 @@ interface InstanceItemProps {
   onToggleSelect: (id: string, shiftKey?: boolean) => void
   conflictFiles: { file: string; otherSessions: { id: string; name: string }[] }[] | null
   errorMessage: string | null
+  idleMs: number | null
 }
 
 function dirName(path: string) {
@@ -111,7 +112,7 @@ function buildTriggerChain(inst: ClaudeInstance, allInstances: ClaudeInstance[])
   return result
 }
 
-const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcutIndex, isUnread, ctxLevel, splitBadge, focusedPane, isRenaming, renameValue, renameRef, isEditingNote, noteValue, noteRef, onCommitNote, onCancelNote, onNoteChange, callbacks, selectMode, isSelected, onToggleSelect, conflictFiles, errorMessage }: InstanceItemProps) {
+const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcutIndex, isUnread, ctxLevel, splitBadge, focusedPane, isRenaming, renameValue, renameRef, isEditingNote, noteValue, noteRef, onCommitNote, onCancelNote, onNoteChange, callbacks, selectMode, isSelected, onToggleSelect, conflictFiles, errorMessage, idleMs }: InstanceItemProps) {
   return (
     <div
       className={`instance-item ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''}`}
@@ -211,6 +212,11 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
               badges.push({ node: <span key="cf" className="instance-conflict-badge" title={conflictFiles.map(o => `${o.file} (also in ${o.otherSessions.map(s => s.name).join(', ')})`).join('\n')}><AlertTriangle size={11} /> {conflictFiles.length}</span>, label: `${conflictFiles.length} conflict${conflictFiles.length > 1 ? 's' : ''}` })
             if (inst.budgetExceeded)
               badges.push({ node: <span key="be" className="instance-budget-badge" title="Budget exceeded — session stopped">$cap</span>, label: 'Budget exceeded' })
+            if (idleMs !== null && inst.activity === 'busy' && idleMs > 300000) {
+              const isStale = idleMs > 900000
+              const mins = Math.floor(idleMs / 60000)
+              badges.push({ node: <span key="id" className={`instance-idle-badge${isStale ? ' stale' : ''}`} title={`No output for ${mins} minute${mins !== 1 ? 's' : ''}`}>{isStale ? 'stale' : 'idle'}</span>, label: isStale ? 'Stale' : 'Idle' })
+            }
             if (badges.length === 0) return null
             return (
               <div className="instance-badges">
@@ -440,6 +446,19 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     const poll = () => window.api.instance.fileOverlaps().then(setFileOverlaps).catch(() => {})
     poll()
     const id = setInterval(poll, 30000)
+    return () => clearInterval(id)
+  }, [])
+
+  // Idle detection — poll every 60s
+  const [idleMap, setIdleMap] = useState<Map<string, number>>(new Map())
+  useEffect(() => {
+    const poll = () => window.api.sessions.idleInfo().then(entries => {
+      const m = new Map<string, number>()
+      for (const e of entries) m.set(e.id, e.idleMs)
+      setIdleMap(m)
+    }).catch(() => {})
+    poll()
+    const id = setInterval(poll, 60000)
     return () => clearInterval(id)
   }, [])
 
@@ -957,6 +976,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
         onToggleSelect={toggleSelect}
         conflictFiles={fileOverlaps[inst.id] || null}
         errorMessage={errorSummaries?.get(inst.id) ? `${errorSummaries.get(inst.id)!.errorType}: ${errorSummaries.get(inst.id)!.message}` : null}
+        idleMs={idleMap.get(inst.id) ?? null}
       />
     )
   }

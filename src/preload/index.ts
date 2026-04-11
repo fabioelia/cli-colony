@@ -116,6 +116,7 @@ export interface ClaudeManagerAPI {
       name: string
       matches: Array<{ lineNum: number; line: string; contextBefore: string; contextAfter: string }>
     }>>
+    idleInfo: () => Promise<Array<{ id: string; idleMs: number }>>
   }
   daemon: {
     restart: () => Promise<void>
@@ -626,6 +627,7 @@ const api: ClaudeManagerAPI = {
     clearRestorable: () => ipcRenderer.invoke('sessions:clearRestorable'),
     recent: () => ipcRenderer.invoke('sessions:recent'),
     searchOutput: (query) => ipcRenderer.invoke('sessions:searchOutput', query),
+    idleInfo: () => ipcRenderer.invoke('sessions:idleInfo') as Promise<Array<{ id: string; idleMs: number }>>,
   },
   daemon: {
     restart: () => ipcRenderer.invoke('daemon:restart'),

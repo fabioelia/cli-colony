@@ -129,13 +129,14 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Pending approvals', detail: 'Pipeline approval gates waiting for your decision. Approve or dismiss inline, or click the pipeline name to navigate.', icon: 'Zap' },
           { label: 'Pipeline errors', detail: 'Pipelines that encountered an error on their last run. Hover to see the error message in a tooltip.', icon: 'AlertCircle' },
           { label: 'Blocked tasks', detail: 'Task board items marked as blocked.', icon: 'Circle' },
+          { label: 'Stale sessions', detail: 'Sessions that are marked "busy" but have produced no output for 15+ minutes. May indicate a stuck process or hung PTY. Click to navigate to the session terminal.', icon: 'Clock' },
         ],
       },
       {
         name: 'Running Sessions',
         position: 'Middle',
         items: [
-          { label: 'Session tile', detail: 'Click any session to focus it. Right-click for a context menu with Focus, Stop, and Pin/Unpin actions. Shows name, activity status (busy/idle), role tag, and cost.', icon: 'Play' },
+          { label: 'Session tile', detail: 'Click any session to focus it. Right-click for a context menu with Focus, Stop, and Pin/Unpin actions. Shows name, activity status (busy/idle/stale), role tag, and cost. Idle badge (amber, 5+ min no output) and stale badge (red, 15+ min) appear for busy sessions with no recent output.', icon: 'Play' },
         ],
       },
       {
@@ -237,6 +238,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Parent/child navigation', detail: 'Click the ↳ arrow on child sessions to jump to the parent, or click "N children" on parent sessions to jump to the first child.' },
           { label: 'Repo Memory', detail: 'Place a `.colony/memory.md` file in a repo to automatically inject its conventions, architecture decisions, and team notes into every Colony session started in that directory. Same pattern as AGENTS.md — no UI needed.' },
           { label: 'Send Message', detail: 'Right-click a waiting session to send a prompt to it without switching views. Useful for orchestrating multiple parallel sessions.', icon: 'Send' },
+          { label: 'Idle / Stale detection', detail: 'Sessions marked "busy" that produce no output for 5+ minutes show an amber "idle" badge. After 15+ minutes with no output, the badge turns red and says "stale". Stale sessions also appear in the Overview\'s Needs Attention section. Only applies to busy sessions — waiting sessions are excluded. Hover the badge to see exact idle duration.' },
         ],
       },
       {

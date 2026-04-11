@@ -6217,6 +6217,23 @@ body:has(.daemon-update-banner) .app-update-banner {
   white-space: nowrap;
 }
 
+/* Idle / stale session badge — amber idle, red stale */
+.instance-idle-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  color: var(--warning);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  white-space: nowrap;
+}
+.instance-idle-badge.stale {
+  background: color-mix(in srgb, var(--danger) 20%, transparent);
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+}
+
 /* ---- Session Error Card ---- */
 .session-error-card {
   border-left: 3px solid var(--danger);
@@ -19326,7 +19343,11 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .badge-busy { background: rgba(59, 130, 246, 0.15); color: var(--accent); }
 .badge-waiting { background: rgba(107, 107, 128, 0.12); color: var(--text-muted); }
+.badge-idle { background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning); }
+.badge-stale { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); }
 .badge-role { background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border); }
+.attention-stale { cursor: pointer; }
+.attention-stale:hover { background: var(--bg-hover); }
 /* Activity date navigation */
 .activity-date-nav {
   display: flex; align-items: center; gap: 6px; margin-bottom: 6px;

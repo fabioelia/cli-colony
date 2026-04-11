@@ -28,6 +28,9 @@ import type { ClaudeInstance } from '../daemon/protocol'
 // Track MCP config files by instance ID so we can clean them up on exit
 const _mcpConfigPaths = new Map<string, string>()
 
+// Track last output timestamp per instance for idle detection
+const _lastOutputAt = new Map<string, number>()
+
 // Rate-limit cost checks: track last check timestamp per instance (30s throttle)
 const _lastCostCheckAt = new Map<string, number>()
 // Track which instances have already been budget-stopped (prevent double-stop)
@@ -36,6 +39,16 @@ const _budgetStopped = new Set<string>()
 /** Check if an instance was stopped due to budget exceeded. */
 export function wasBudgetStopped(instanceId: string): boolean {
   return _budgetStopped.has(instanceId)
+}
+
+/** Get idle info for all running instances. Only includes instances that have output tracking. */
+export function getIdleInfo(): Array<{ id: string; idleMs: number }> {
+  const now = Date.now()
+  const result: Array<{ id: string; idleMs: number }> = []
+  for (const [id, lastAt] of _lastOutputAt) {
+    result.push({ id, idleMs: now - lastAt })
+  }
+  return result
 }
 
 // Callback to resolve persona cost cap — registered by persona-manager at startup to avoid circular import
@@ -75,9 +88,10 @@ export function wireDaemonEvents(): void {
 
   const client = getDaemonClient()
 
-  // Forward output to renderer + check persona cost cap
+  // Forward output to renderer + track idle time + check persona cost cap
   client.on('output', (instanceId: string, data: string) => {
     broadcast('instance:output', { id: instanceId, data })
+    _lastOutputAt.set(instanceId, Date.now())
 
     // Rate-limited persona cost cap check (every 30s)
     if (!_budgetStopped.has(instanceId)) {
@@ -156,6 +170,7 @@ export function wireDaemonEvents(): void {
   client.on('exited', async (instanceId: string, exitCode: number) => {
     broadcast('instance:exited', { id: instanceId, exitCode })
     trackClosed(instanceId, 'exited')
+    _lastOutputAt.delete(instanceId)
     _lastCostCheckAt.delete(instanceId)
     _budgetStopped.delete(instanceId)
     onSessionExitCallback?.(instanceId)
@@ -299,6 +314,7 @@ export async function createInstance(opts: {
   if (mcpConfigPath) {
     _mcpConfigPaths.set(inst.id, mcpConfigPath)
   }
+  _lastOutputAt.set(inst.id, Date.now())
 
   markChecklistItem('createdSession')
 

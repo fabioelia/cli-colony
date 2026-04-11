@@ -52,6 +52,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const [tasks, setTasks] = useState<TaskBoardItem[]>([])
   const [costTrend, setCostTrend] = useState<{ date: string; cost: number }[]>([])
   const [personaHealth, setPersonaHealth] = useState<PersonaHealthEntry[]>([])
+  const [idleMap, setIdleMap] = useState<Map<string, number>>(new Map())
 
   useEffect(() => {
     window.api.activity.list().then(setActivity)
@@ -61,6 +62,11 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
     window.api.tasksBoard.list().then(setTasks)
     window.api.persona.getColonyCostTrend().then(setCostTrend)
     window.api.persona.healthSummary().then(setPersonaHealth)
+    window.api.sessions.idleInfo().then(entries => {
+      const m = new Map<string, number>()
+      for (const e of entries) m.set(e.id, e.idleMs)
+      setIdleMap(m)
+    }).catch(() => {})
   }, [])
 
   // Listen for live updates
@@ -92,6 +98,9 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const pendingApprovals = approvals
   const inProgressTasks = useMemo(() => tasks.filter(t => t.status === 'in_progress'), [tasks])
   const blockedTasks = useMemo(() => tasks.filter(t => t.status === 'blocked'), [tasks])
+  const staleSessions = useMemo(() => running.filter(inst =>
+    inst.activity === 'busy' && (idleMap.get(inst.id) || 0) > 900000
+  ), [running, idleMap])
   // Health score: weighted composite of persona, pipeline, and session health
   const healthScore = useMemo(() => {
     // Persona health (40%): of enabled personas with run history, % whose last run succeeded
@@ -251,10 +260,17 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
         })()}
 
         {/* Attention needed */}
-        {(pendingApprovals.length > 0 || errorPipelines.length > 0 || blockedTasks.length > 0) && (
+        {(pendingApprovals.length > 0 || errorPipelines.length > 0 || blockedTasks.length > 0 || staleSessions.length > 0) && (
           <div className="overview-section">
             <h3><AlertCircle size={14} /> Needs Attention</h3>
             <div className="overview-attention-list">
+              {staleSessions.map(inst => (
+                <div key={inst.id} className="overview-attention-item attention-stale" onClick={() => onFocusInstance(inst.id)} title={`No output for ${Math.floor((idleMap.get(inst.id) || 0) / 60000)} minutes`}>
+                  <Clock size={13} />
+                  <span className="attention-label">{inst.name || 'Unnamed'} — stale</span>
+                  <span className="attention-time">{Math.floor((idleMap.get(inst.id) || 0) / 60000)}m idle</span>
+                </div>
+              ))}
               {pendingApprovals.map(a => (
                 <div key={a.id} className="overview-attention-item attention-approval">
                   <Zap size={13} style={{ cursor: 'pointer' }} onClick={() => onNavigate('pipelines')} />
@@ -302,7 +318,9 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                     style={{ background: inst.color || 'var(--accent)' }}
                   />
                   <span className="overview-session-name">{inst.name || 'Unnamed'}</span>
-                  {inst.activity === 'busy' && <span className="overview-badge badge-busy">busy</span>}
+                  {inst.activity === 'busy' && (idleMap.get(inst.id) || 0) > 900000 && <span className="overview-badge badge-stale">stale</span>}
+                  {inst.activity === 'busy' && (idleMap.get(inst.id) || 0) > 300000 && (idleMap.get(inst.id) || 0) <= 900000 && <span className="overview-badge badge-idle">idle</span>}
+                  {inst.activity === 'busy' && (idleMap.get(inst.id) || 0) <= 300000 && <span className="overview-badge badge-busy">busy</span>}
                   {inst.activity === 'waiting' && <span className="overview-badge badge-waiting">idle</span>}
                   {inst.roleTag && <span className="overview-badge badge-role">{inst.roleTag}</span>}
                   {inst.tokenUsage.cost ? (

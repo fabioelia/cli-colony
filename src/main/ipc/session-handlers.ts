@@ -7,7 +7,7 @@ import {
   searchSessions, takeoverSession,
 } from '../session-scanner'
 import { getRestorableSessions, clearRestorable, getRecentSessions } from '../recent-sessions'
-import { getAllInstances } from '../instance-manager'
+import { getAllInstances, getIdleInfo } from '../instance-manager'
 import { getContextUsage, tokenizeApproximate } from '../context-counter'
 import { getArtifact } from '../session-artifacts'
 import { getDaemonClient } from '../daemon-client'
@@ -83,6 +83,8 @@ export function registerSessionHandlers(): void {
   ipcMain.handle('sessions:searchOutput', async (_e, query: string) => {
     return searchSessionOutput(query)
   })
+
+  ipcMain.handle('sessions:idleInfo', () => getIdleInfo())
 
   ipcMain.handle('session:exportMarkdown', async (_e, instanceId: string): Promise<string> => {
     return buildExportMarkdown(instanceId)
