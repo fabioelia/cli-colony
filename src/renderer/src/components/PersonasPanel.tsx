@@ -4,7 +4,7 @@ import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
   ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote, ArrowRightCircle, Save, Loader2,
   Hourglass, ArrowRight, FolderOpen, Search, Check, Bot, BarChart3, ArrowUpDown, DollarSign, TrendingUp,
-  CalendarClock, GitBranch, Brain,
+  CalendarClock, GitBranch, Brain, ShieldCheck,
 } from 'lucide-react'
 import EmptyStateHook from './EmptyStateHook'
 import MarkdownViewer from './MarkdownViewer'
@@ -16,7 +16,7 @@ import PersonaTriggerMap from './PersonaTriggerMap'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import { describeCron, nextRuns } from '../../../shared/cron'
 
-import type { PersonaInfo, ClaudeInstance, PersonaArtifact, PersonaRunEntry, PersonaAnalytics, PersonaMemory } from '../../../shared/types'
+import type { PersonaInfo, ClaudeInstance, PersonaArtifact, PersonaRunEntry, PersonaAnalytics, PersonaMemory, AuditResult } from '../../../shared/types'
 
 function formatRelativeTime(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime()
@@ -171,6 +171,12 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
   const [sortBy, setSortBy] = useState<'name' | 'lastRun' | 'runs' | 'cost' | 'successRate'>('name')
   const [panelView, setPanelView] = useState<'list' | 'schedule' | 'triggers'>('list')
 
+  // Audit
+  const [auditResults, setAuditResults] = useState<AuditResult[] | null>(null)
+  const [auditRunning, setAuditRunning] = useState(false)
+  const [auditOpen, setAuditOpen] = useState(false)
+  const [auditLastRun, setAuditLastRun] = useState<{ ts: number; issueCount: number } | null>(null)
+
   // Tick every 60s to refresh next-run countdowns
   const [, setTick] = useState(0)
   useEffect(() => {
@@ -232,6 +238,24 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
     }
   }, [chatQuery, chatLoading])
 
+  const handleRunAudit = useCallback(async () => {
+    setAuditRunning(true)
+    setAuditResults(null)
+    setAuditOpen(true)
+    const context = {
+      personas: personas.map(p => ({
+        name: p.name, id: p.id, enabled: p.enabled, schedule: p.schedule,
+        model: p.model, maxSessions: p.maxSessions, canPush: p.canPush,
+        canMerge: p.canMerge, runCount: p.runCount, lastRun: p.lastRun,
+        learningsCount: 0, situationsCount: 0,
+      })),
+    }
+    const results = await window.api.audit.runPanel('personas', context)
+    setAuditResults(results)
+    setAuditRunning(false)
+    window.api.audit.getLastRun('personas').then(setAuditLastRun)
+  }, [personas])
+
   const loadPersonas = useCallback(async () => {
     try {
       const list = await window.api.persona.list()
@@ -250,6 +274,10 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
 
   useEffect(() => {
     window.api.persona.getDir().then(setPersonasDir)
+  }, [])
+
+  useEffect(() => {
+    window.api.audit.getLastRun('personas').then(setAuditLastRun).catch(() => {})
   }, [])
 
   // Track if assistant is still alive
@@ -374,11 +402,49 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
         )}
         <HelpPopover topic="personas" align="right" />
         <div className="panel-header-actions">
+          <button
+            className={`panel-header-btn${auditResults && auditResults.length > 0 ? ' panel-header-btn--audit-alert' : ''}`}
+            onClick={handleRunAudit}
+            disabled={auditRunning}
+            title={auditLastRun ? `Last run: ${new Date(auditLastRun.ts).toLocaleString()}, ${auditLastRun.issueCount} issue${auditLastRun.issueCount !== 1 ? 's' : ''}` : 'Run AI audit — identify misconfigured personas'}
+          >
+            <ShieldCheck size={12} />
+            {auditRunning ? 'Auditing…' : auditLastRun
+              ? (() => { const secs = (Date.now() - auditLastRun.ts) / 1000; const ago = secs < 3600 ? `${Math.floor(secs / 60)}m ago` : `${Math.floor(secs / 3600)}h ago`; return `Audit (${ago}, ${auditLastRun.issueCount} issue${auditLastRun.issueCount !== 1 ? 's' : ''})` })()
+              : 'Audit'}
+            {auditResults && auditResults.length > 0 && (
+              <span className="audit-badge">{auditResults.length}</span>
+            )}
+          </button>
           <button className="panel-header-btn primary" onClick={() => setShowNewDialog(true)}>
             <Plus size={13} /> New Persona
           </button>
         </div>
       </div>
+
+      {auditOpen && (auditRunning || auditResults !== null) && (
+        <div className="audit-results-panel">
+          <div className="audit-results-header">
+            <ShieldCheck size={13} />
+            <span>Persona Audit</span>
+            {!auditRunning && <span className="audit-results-count">{auditResults?.length ?? 0} issue{auditResults?.length !== 1 ? 's' : ''}</span>}
+            <button className="audit-results-dismiss" onClick={() => { setAuditOpen(false); setAuditResults(null) }} title="Dismiss">
+              <X size={11} />
+            </button>
+          </div>
+          {auditRunning && <div className="audit-results-loading">Running audit with Claude…</div>}
+          {!auditRunning && auditResults !== null && auditResults.length === 0 && (
+            <div className="audit-results-empty">No issues found</div>
+          )}
+          {!auditRunning && auditResults?.map((r, i) => (
+            <div key={i} className={`audit-result-item audit-severity-${r.severity.toLowerCase()}`}>
+              <span className="audit-result-severity">{r.severity}</span>
+              <span className="audit-result-item-name">{r.item}</span>
+              <span className="audit-result-issue">{r.issue}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {panelView === 'schedule' && (
         <PersonaScheduleHeatmap personas={personas} />

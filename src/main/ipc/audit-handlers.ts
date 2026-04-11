@@ -48,6 +48,7 @@ async function getLastAuditRun(panel: string): Promise<{ ts: number; issueCount:
 
 interface AuditContext {
   pipelines?: Array<{ name: string; enabled: boolean; fileName: string; yaml: string; lastError: string | null; fireCount: number }>
+  personas?: Array<{ name: string; id: string; enabled: boolean; schedule: string; model: string; maxSessions: number; canPush: boolean; canMerge: boolean; runCount: number; lastRun: string | null; learningsCount: number; situationsCount: number }>
 }
 
 function runAuditPrompt(panelName: string, context: AuditContext): Promise<AuditResult[]> {
@@ -59,6 +60,16 @@ function runAuditPrompt(panelName: string, context: AuditContext): Promise<Audit
       const errLine = p.lastError ? `\nLast error: ${p.lastError}` : ''
       const fireLine = `\nFire count: ${p.fireCount}`
       return `=== Pipeline: ${p.name} (${status}) ===\n${p.yaml}${errLine}${fireLine}`
+    }).join('\n\n')
+  }
+
+  if (panelName === 'personas' && context.personas) {
+    contextText = context.personas.map((p) => {
+      const status = p.enabled ? 'enabled' : 'disabled'
+      const schedule = p.schedule || '(manual only)'
+      const lastRun = p.lastRun ? `Last run: ${p.lastRun}` : 'Never run'
+      const perms = [p.canPush && 'push', p.canMerge && 'merge'].filter(Boolean).join(', ') || 'none'
+      return `=== Persona: ${p.name} (${status}) ===\nID: ${p.id}\nSchedule: ${schedule}\nModel: ${p.model}\nMax sessions: ${p.maxSessions}\nPermissions: ${perms}\nRun count: ${p.runCount}\n${lastRun}\nLearnings: ${p.learningsCount} items\nSituations: ${p.situationsCount} items`
     }).join('\n\n')
   }
 

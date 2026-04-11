@@ -796,6 +796,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Top bar',
         items: [
           { label: 'New button', detail: 'Create a new persona from a blank template with a name.', icon: 'Plus' },
+          { label: 'Audit', detail: 'Run an AI-powered audit of all persona configurations. Detects broken cron schedules, impossible permission combos, stale model names, and other misconfigurations. Results show severity (HIGH/MEDIUM/LOW) and actionable fix suggestions.', icon: 'ShieldCheck' },
           { label: 'List / Schedule / Triggers tabs', detail: 'List shows persona cards. Schedule shows a 24-hour heatmap of when each persona fires. Triggers shows a directed graph of cross-persona trigger chains.', icon: 'CalendarClock' },
         ],
       },
