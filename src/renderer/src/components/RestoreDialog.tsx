@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { RotateCcw, X } from 'lucide-react'
 import type { RecentSession } from '../types'
 
@@ -40,9 +40,41 @@ export default function RestoreDialog({ sessions, onRestore, onDismiss }: Props)
     return short.length > 45 ? '…' + short.slice(-42) : short
   }
 
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    dialogRef.current?.focus()
+  }, [])
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') { onDismiss(); return }
+    if (e.key !== 'Tab') return
+    const dialog = dialogRef.current
+    if (!dialog) return
+    const focusable = dialog.querySelectorAll<HTMLElement>(
+      'button, input, [tabindex]:not([tabindex="-1"])'
+    )
+    if (focusable.length === 0) return
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+
   return (
     <div className="removal-modal-overlay" onClick={onDismiss}>
-      <div className="restore-dialog" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="restore-dialog"
+        ref={dialogRef}
+        tabIndex={-1}
+        onKeyDown={handleKeyDown}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="restore-dialog-header">
           <RotateCcw size={14} />
           <span>Restore Sessions</span>

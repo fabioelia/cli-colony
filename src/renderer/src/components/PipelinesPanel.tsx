@@ -342,12 +342,16 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
 
   const handleExpand = async (p: PipelineInfo) => {
     if (expandedPipeline === p.name) {
+      if ((dirty || memoryDirty) && !window.confirm('You have unsaved changes. Discard?')) return
       setExpandedPipeline(null)
       setEditingContent(null)
       setEditingFileName(null)
       setReadmeContent(null)
       setDirty(false)
       return
+    }
+    if ((dirty || memoryDirty) && expandedPipeline) {
+      if (!window.confirm('You have unsaved changes. Discard?')) return
     }
     setExpandedPipeline(p.name)
     const content = await window.api.pipeline.getContent(p.fileName)
