@@ -103,11 +103,11 @@ export default function QuickPromptDialog({ onClose, onLaunch, recentDirs, promp
                 <div className="prompt-history-dropdown">
                   {getSnippets().map(s => (
                     <div key={s.name} className="prompt-history-item" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <button type="button" style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '2px 4px', fontSize: 12 }}
+                      <button type="button" title={s.prompt} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: '2px 4px', fontSize: 12 }}
                         onClick={() => { setPrompt(s.prompt); setSnippetsOpen(false) }}>
                         <span className="prompt-history-text">{s.name}</span>
                       </button>
-                      <button type="button" style={{ opacity: 0.5, padding: '2px 4px', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}
+                      <button type="button" title="Delete snippet" style={{ opacity: 0.5, padding: '2px 4px', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}
                         onClick={(e) => { e.stopPropagation(); deleteSnippet(s.name); setSnippetsOpen(false); setTimeout(() => setSnippetsOpen(true), 0) }}>
                         <Trash2 size={11} />
                       </button>
