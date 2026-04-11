@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Server, Play, Square, Trash2, RefreshCw, FileText,
   Plus, ExternalLink, ChevronDown, ChevronRight,
-  Circle, AlertTriangle, Clock, X, FolderOpen, Terminal, Loader, CheckCircle, SkipForward, Upload, Download, MessageSquare, Wrench, Stethoscope
+  Circle, AlertTriangle, Clock, X, FolderOpen, Terminal, Loader, CheckCircle, SkipForward, Upload, Download, MessageSquare, Wrench, Stethoscope,
+  GitBranch, Unlink
 } from 'lucide-react'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import { buildTemplateEditPrompt, buildDiagnosePrompt } from '../../../shared/env-prompts'
@@ -14,7 +15,7 @@ import NewEnvironmentDialog from './NewEnvironmentDialog'
 import { usePanelTabKeys } from '../hooks/usePanelTabKeys'
 import { formatTime } from '../lib/constants'
 
-import type { EnvStatus, EnvServiceStatus, EnvironmentTemplate } from '../../../shared/types'
+import type { EnvStatus, EnvServiceStatus, EnvironmentTemplate, WorktreeInfo } from '../../../shared/types'
 
 interface Props {
   onLaunchInstance: (opts: { name?: string; workingDirectory?: string; color?: string; args?: string[] }) => Promise<string>
@@ -27,6 +28,13 @@ function formatUptime(seconds: number): string {
   const h = Math.floor(seconds / 3600)
   const m = Math.floor((seconds % 3600) / 60)
   return `${h}h ${m}m`
+}
+
+function formatAge(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime()
+  if (ms < 3600000) return `${Math.floor(ms / 60000)}m ago`
+  if (ms < 86400000) return `${Math.floor(ms / 3600000)}h ago`
+  return `${Math.floor(ms / 86400000)}d ago`
 }
 
 function statusColor(status: string): string {
@@ -54,8 +62,9 @@ function serviceStatusColor(status: string): string {
 export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }: Props) {
   const [environments, setEnvironments] = useState<EnvStatus[]>([])
   const [templates, setTemplates] = useState<EnvironmentTemplate[]>([])
-  const [activeTab, setActiveTab] = useState<'instances' | 'templates'>('instances')
-  const envTabs = useMemo(() => ['instances', 'templates'] as const, [])
+  const [worktrees, setWorktrees] = useState<WorktreeInfo[]>([])
+  const [activeTab, setActiveTab] = useState<'instances' | 'templates' | 'worktrees'>('instances')
+  const envTabs = useMemo(() => ['instances', 'templates', 'worktrees'] as const, [])
   usePanelTabKeys(envTabs, activeTab, setActiveTab)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [logViewEnv, setLogViewEnv] = useState<{ envId: string; envName: string; serviceNames?: string[] } | null>(null)
@@ -129,6 +138,15 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
       window.removeEventListener('focus', onFocus)
     }
   }, [loadEnvironments, loadTemplates])
+
+  // Load and subscribe to worktree changes
+  useEffect(() => {
+    window.api.worktree.list().then(setWorktrees)
+    const unsub = window.api.worktree.onChanged(() => {
+      window.api.worktree.list().then(setWorktrees)
+    })
+    return unsub
+  }, [])
 
   // Poll more aggressively when services are in transitional states
   useEffect(() => {
@@ -392,6 +410,13 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
             title="Environment templates (Cmd+Shift+{ / Cmd+Shift+})"
           >
             Templates {templates.length > 0 && <span className="panel-header-count">{templates.length}</span>}
+          </button>
+          <button
+            className={`panel-header-tab ${activeTab === 'worktrees' ? 'active' : ''}`}
+            onClick={() => setActiveTab('worktrees')}
+            title="Git worktrees (Cmd+Shift+{ / Cmd+Shift+})"
+          >
+            Worktrees {worktrees.length > 0 && <span className="panel-header-count">{worktrees.length}</span>}
           </button>
         </div>
         <div className="panel-header-spacer" />
@@ -1034,6 +1059,59 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Worktrees tab */}
+      {activeTab === 'worktrees' && (
+        <div className="env-list">
+          {worktrees.length > 0 && worktrees.some(w => !w.mountedEnvId) && (
+            <div className="env-worktrees-bulk">
+              <button
+                className="panel-header-btn danger"
+                onClick={async () => {
+                  const unmounted = worktrees.filter(w => !w.mountedEnvId)
+                  if (!confirm(`Remove ${unmounted.length} unmounted worktree${unmounted.length !== 1 ? 's' : ''}?`)) return
+                  for (const w of unmounted) {
+                    await window.api.worktree.remove(w.id)
+                  }
+                }}
+              >
+                <Trash2 size={12} /> Remove All Unmounted
+              </button>
+            </div>
+          )}
+          {worktrees.length === 0 ? (
+            <div className="env-empty">
+              <GitBranch size={32} />
+              <p>No worktrees</p>
+              <p className="env-empty-detail">Arena runs and forked sessions create worktrees here.</p>
+            </div>
+          ) : worktrees.map(w => (
+            <div key={w.id} className="env-worktree-item">
+              <div className="env-worktree-info">
+                <span className="env-worktree-repo">{w.repo.owner}/{w.repo.name}</span>
+                <span className="env-worktree-branch"><GitBranch size={10} /> {w.branch}</span>
+                <span className="env-worktree-path" title={w.path}>{w.path.split('/').slice(-2).join('/')}</span>
+                {w.mountedEnvId
+                  ? <span className="env-worktree-mounted">Mounted</span>
+                  : <span className="env-worktree-unmounted">Unmounted</span>
+                }
+                <span className="env-worktree-age">{formatAge(w.createdAt)}</span>
+              </div>
+              <div className="env-worktree-actions">
+                {w.mountedEnvId ? (
+                  <button className="panel-header-btn" onClick={() => window.api.worktree.unmount(w.id)} title="Unmount from environment">
+                    <Unlink size={12} /> Unmount
+                  </button>
+                ) : (
+                  <button className="panel-header-btn danger" onClick={() => window.api.worktree.remove(w.id)} title="Delete this worktree">
+                    <Trash2 size={12} /> Remove
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

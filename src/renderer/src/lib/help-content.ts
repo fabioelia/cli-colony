@@ -549,7 +549,8 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Environments tab', detail: 'Shows running and stopped environments. Click a card to expand and manage services.' },
           { label: 'Templates tab', detail: 'Browse and manage environment templates. Create new environments from templates.' },
-          { label: 'Tab navigation', detail: 'Cmd+Shift+{ / Cmd+Shift+} cycles between the Environments and Templates tabs without touching the mouse.' },
+          { label: 'Worktrees tab', detail: 'View and manage git worktrees. Clean up stale worktrees from arena runs and forked sessions.' },
+          { label: 'Tab navigation', detail: 'Cmd+Shift+{ / Cmd+Shift+} cycles between the Environments, Templates, and Worktrees tabs without touching the mouse.' },
           { label: 'Refresh button', detail: 'Re-fetches bare repos and re-scans for .colony/ templates (Templates tab only).', icon: 'RefreshCw' },
           { label: 'Import button', detail: 'Import a template from a JSON file.', icon: 'Upload' },
         ],
@@ -598,6 +599,16 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Launch', detail: 'Provision a new environment from this template. Repos are checked out as git worktrees.', icon: 'Play' },
           { label: 'Edit', detail: 'Modify template in an AI-assisted editor session.', icon: 'Pencil' },
           { label: 'Delete', detail: 'Remove this template.', icon: 'Trash2' },
+        ],
+      },
+      {
+        name: 'Worktrees',
+        position: 'Main area — Worktrees tab',
+        items: [
+          { label: 'Worktrees tab', detail: 'View and manage git worktrees created by arena runs and forked sessions. Remove unmounted worktrees to free disk space, or unmount active ones first. Auto-refreshes when changes are detected.' },
+          { label: 'Unmount', detail: 'Detach a worktree from its environment without deleting it. The worktree becomes removable.', icon: 'Unlink' },
+          { label: 'Remove', detail: 'Delete an unmounted worktree from disk.', icon: 'Trash2' },
+          { label: 'Remove All Unmounted', detail: 'Bulk-remove all worktrees not attached to any environment. Asks for confirmation first.', icon: 'Trash2' },
         ],
       },
       {

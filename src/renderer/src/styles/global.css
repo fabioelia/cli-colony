@@ -12969,6 +12969,19 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-color: var(--accent);
 }
 
+/* Worktrees tab */
+.env-worktrees-bulk { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.env-worktree-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; border-bottom: 1px solid var(--border); font-size: 11px; }
+.env-worktree-item:last-child { border-bottom: none; }
+.env-worktree-info { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; min-width: 0; }
+.env-worktree-repo { font-weight: 600; color: var(--text-primary); }
+.env-worktree-branch { color: var(--text-secondary); display: flex; align-items: center; gap: 3px; }
+.env-worktree-path { color: var(--text-muted); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.env-worktree-mounted { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(59,130,246,0.15); color: var(--accent); font-weight: 600; }
+.env-worktree-unmounted { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(245,158,11,0.1); color: var(--text-muted); }
+.env-worktree-age { color: var(--text-muted); }
+.env-worktree-actions { flex-shrink: 0; }
+
 .env-btn-secondary.active {
   background: var(--bg-active);
   color: var(--text-primary);
