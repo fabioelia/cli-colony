@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate } from '../../../shared/types'
@@ -449,47 +449,19 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     setGroupBy(val)
     localStorage.setItem('sidebar-group-by', val)
   }, [])
-  const toggleCollapseAll = useCallback(() => {
-    if (!groupedSections) return
-    const allLabels = groupedSections.map(s => s.label)
-    const allCollapsed = allLabels.every(l => collapsedGroups.has(l))
-    const next = allCollapsed ? new Set<string>() : new Set(allLabels)
-    setCollapsedGroups(next)
-    localStorage.setItem('sidebar-collapsed-groups', JSON.stringify([...next]))
-  }, [groupedSections, collapsedGroups])
 
   const exitSelectMode = useCallback(() => {
     setSelectMode(false)
     setSelectedIds(new Set())
   }, [])
 
-  // Instance ordering + grouping — must be declared before the useEffect that references flatOrderForIndexing
+  // Instance ordering + grouping — must be declared before callbacks/effects that reference them
   const { pinned, running, exited, orderedInstances } = useMemo(() => {
     const p = instances.filter((i) => i.pinned)
     const r = instances.filter((i) => i.status === 'running' && !i.pinned)
     const e = instances.filter((i) => i.status !== 'running' && !i.pinned)
     return { pinned: p, running: r, exited: e, orderedInstances: [...p, ...r, ...e] }
   }, [instances])
-
-  const toggleSelect = useCallback((id: string, shiftKey?: boolean) => {
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      if (shiftKey && lastSelectedRef.current && lastSelectedRef.current !== id) {
-        const ids = orderedInstances.map(i => i.id)
-        const fromIdx = ids.indexOf(lastSelectedRef.current)
-        const toIdx = ids.indexOf(id)
-        if (fromIdx !== -1 && toIdx !== -1) {
-          const [lo, hi] = fromIdx < toIdx ? [fromIdx, toIdx] : [toIdx, fromIdx]
-          for (let i = lo; i <= hi; i++) next.add(ids[i])
-        }
-      } else {
-        if (next.has(id)) next.delete(id); else next.add(id)
-      }
-      return next
-    })
-    lastSelectedRef.current = id
-    setSelectMode(true)
-  }, [orderedInstances])
 
   const groupedSections = useMemo(() => {
     if (groupBy === 'none') return null
@@ -523,6 +495,35 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     }
     return m
   }, [flatOrderForIndexing])
+
+  const toggleCollapseAll = useCallback(() => {
+    if (!groupedSections) return
+    const allLabels = groupedSections.map(s => s.label)
+    const allCollapsed = allLabels.every(l => collapsedGroups.has(l))
+    const next = allCollapsed ? new Set<string>() : new Set(allLabels)
+    setCollapsedGroups(next)
+    localStorage.setItem('sidebar-collapsed-groups', JSON.stringify([...next]))
+  }, [groupedSections, collapsedGroups])
+
+  const toggleSelect = useCallback((id: string, shiftKey?: boolean) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (shiftKey && lastSelectedRef.current && lastSelectedRef.current !== id) {
+        const ids = orderedInstances.map(i => i.id)
+        const fromIdx = ids.indexOf(lastSelectedRef.current)
+        const toIdx = ids.indexOf(id)
+        if (fromIdx !== -1 && toIdx !== -1) {
+          const [lo, hi] = fromIdx < toIdx ? [fromIdx, toIdx] : [toIdx, fromIdx]
+          for (let i = lo; i <= hi; i++) next.add(ids[i])
+        }
+      } else {
+        if (next.has(id)) next.delete(id); else next.add(id)
+      }
+      return next
+    })
+    lastSelectedRef.current = id
+    setSelectMode(true)
+  }, [orderedInstances])
 
   // Escape exits select mode, Cmd+A selects all visible instances
   useEffect(() => {
@@ -578,6 +579,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const [popoverType, setPopoverType] = useState<'color' | 'info' | null>(null)
   const [templates, setTemplates] = useState<SessionTemplate[]>([])
   const [showTemplatePopover, setShowTemplatePopover] = useState(false)
+  const [showNavOverflow, setShowNavOverflow] = useState(false)
   const [savedTemplateId, setSavedTemplateId] = useState<string | null>(null)
   const [exportedId, setExportedId] = useState<string | null>(null)
   const newSessionBtnRef = useRef<HTMLButtonElement>(null)
@@ -777,6 +779,15 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     return () => window.removeEventListener('click', handler)
   }, [showTemplatePopover])
 
+  useEffect(() => {
+    if (!showNavOverflow) return
+    const onClick = () => setShowNavOverflow(false)
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowNavOverflow(false) }
+    window.addEventListener('click', onClick)
+    window.addEventListener('keydown', onKey)
+    return () => { window.removeEventListener('click', onClick); window.removeEventListener('keydown', onKey) }
+  }, [showNavOverflow])
+
   const startRename = (inst: ClaudeInstance) => {
     setRenamingId(inst.id)
     setRenameValue(inst.name)
@@ -947,6 +958,15 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
               <span className="sidebar-nav-label">Home</span>
             </button>
           </Tooltip>
+          <Tooltip text="Sessions" detail={`${instances.filter(i => i.status === 'running').length} running, ${instances.length} total`} shortcut="Cmd+1-9" position="bottom">
+            <button className={`sidebar-nav-btn ${view === 'instances' ? 'active' : ''}`} onClick={() => onViewChange('instances')}>
+              <span className="sidebar-nav-icon">
+                <TerminalSquare size={17} />
+                {instances.length > 0 && <span className="sidebar-nav-badge">{instances.length}</span>}
+              </span>
+              <span className="sidebar-nav-label">Sessions</span>
+            </button>
+          </Tooltip>
           <Tooltip text="Activity" detail="Automation events from personas, pipelines, and environments" position="bottom">
             <button className={`sidebar-nav-btn ${view === 'activity' ? 'active' : ''}`} onClick={() => { onViewChange('activity'); window.api.activity.markRead().catch(() => {}); setActivityUnread(0) }}>
               <span className="sidebar-nav-icon" style={{ position: 'relative' }}>
@@ -960,72 +980,79 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
               <span className="sidebar-nav-label">Activity</span>
             </button>
           </Tooltip>
-          <Tooltip text="Sessions" detail={`${instances.filter(i => i.status === 'running').length} running, ${instances.length} total`} shortcut="Cmd+1-9" position="bottom">
-            <button className={`sidebar-nav-btn ${view === 'instances' ? 'active' : ''}`} onClick={() => onViewChange('instances')}>
-              <span className="sidebar-nav-icon">
-                <TerminalSquare size={17} />
-                {instances.length > 0 && <span className="sidebar-nav-badge">{instances.length}</span>}
-              </span>
-              <span className="sidebar-nav-label">Sessions</span>
-            </button>
-          </Tooltip>
-          <Tooltip text="Agents" detail="Browse and create agent definitions" position="bottom">
-            <button className={`sidebar-nav-btn ${view === 'agents' ? 'active' : ''}`} onClick={() => onViewChange('agents')}>
-              <span className="sidebar-nav-icon"><Bot size={17} /></span>
-              <span className="sidebar-nav-label">Agents</span>
-            </button>
-          </Tooltip>
-          <Tooltip text="Pull Requests" detail="GitHub PRs, reviews, comments" position="bottom">
-            <button className={`sidebar-nav-btn ${view === 'github' ? 'active' : ''}`} onClick={() => onViewChange('github')}>
-              <span className="sidebar-nav-icon"><GitPullRequest size={17} /></span>
-              <span className="sidebar-nav-label">PRs</span>
-            </button>
-          </Tooltip>
-          <Tooltip text="Tasks" detail="Task queue and batch execution" position="bottom">
-            <button className={`sidebar-nav-btn ${view === 'tasks' ? 'active' : ''}`} onClick={() => onViewChange('tasks')}>
-              <span className="sidebar-nav-icon"><ListChecks size={17} /></span>
-              <span className="sidebar-nav-label">Tasks</span>
-            </button>
-          </Tooltip>
-          <Tooltip text="Pipelines" detail="Automated triggers and actions" position="bottom">
-            <button className={`sidebar-nav-btn ${view === 'pipelines' ? 'active' : ''}`} onClick={() => onViewChange('pipelines')}>
-              <span className="sidebar-nav-icon"><Zap size={17} /></span>
-              <span className="sidebar-nav-label">Pipes</span>
-            </button>
-          </Tooltip>
-          <Tooltip text="Environments" detail={runningEnvCount > 0 ? `${runningEnvCount} running` : 'Dev environment management'} position="bottom">
-            <button className={`sidebar-nav-btn ${view === 'environments' ? 'active' : ''}`} onClick={() => onViewChange('environments')}>
-              <span className="sidebar-nav-icon">
-                <Server size={17} />
-                {runningEnvCount > 0 && <span className="sidebar-nav-badge">{runningEnvCount}</span>}
-              </span>
-              <span className="sidebar-nav-label">Envs</span>
-            </button>
-          </Tooltip>
           <Tooltip text="Personas" detail="Autonomous AI agents with identity, goals, and memory" position="bottom">
             <button className={`sidebar-nav-btn ${view === 'personas' ? 'active' : ''}`} onClick={() => onViewChange('personas')}>
               <span className="sidebar-nav-icon"><User size={17} /></span>
               <span className="sidebar-nav-label">Personas</span>
             </button>
           </Tooltip>
-          <Tooltip text="Outputs" detail="Browse artifacts, briefs, and pipeline outputs" position="bottom">
-            <button className={`sidebar-nav-btn ${view === 'outputs' ? 'active' : ''}`} onClick={() => onViewChange('outputs')}>
-              <span className="sidebar-nav-icon"><FolderOpen size={17} /></span>
-              <span className="sidebar-nav-label">Outputs</span>
-            </button>
-          </Tooltip>
-          <Tooltip text="Review" detail="Cross-session diff review dashboard" position="bottom">
-            <button className={`sidebar-nav-btn ${view === 'review' ? 'active' : ''}`} onClick={() => onViewChange('review')}>
-              <span className="sidebar-nav-icon"><GitCompare size={17} /></span>
-              <span className="sidebar-nav-label">Review</span>
-            </button>
-          </Tooltip>
-          <Tooltip text="Artifacts" detail="Browse past session artifacts — commits, changes, and costs" position="bottom">
-            <button className={`sidebar-nav-btn ${view === 'artifacts' ? 'active' : ''}`} onClick={() => onViewChange('artifacts')}>
-              <span className="sidebar-nav-icon"><Archive size={17} /></span>
-              <span className="sidebar-nav-label">History</span>
-            </button>
-          </Tooltip>
+          {/* More button — shows active panel icon when an overflow view is selected */}
+          <div style={{ position: 'relative', flex: 1, minWidth: 40 }}>
+            <Tooltip text={(() => {
+              const overflowLabels: Record<string, string> = { github: 'PRs', review: 'Review', agents: 'Agents', pipelines: 'Pipelines', tasks: 'Tasks', environments: 'Environments', outputs: 'Outputs', artifacts: 'History' }
+              return overflowLabels[view] || 'More panels'
+            })()} position="bottom">
+              <button
+                className={`sidebar-nav-btn ${!['overview', 'instances', 'activity', 'personas', 'settings'].includes(view) ? 'active' : ''}`}
+                onClick={(e) => { e.stopPropagation(); setShowNavOverflow(v => !v) }}
+              >
+                <span className="sidebar-nav-icon">
+                  {(() => {
+                    const iconMap: Record<string, typeof Home> = { github: GitPullRequest, review: GitCompare, agents: Bot, pipelines: Zap, tasks: ListChecks, environments: Server, outputs: FolderOpen, artifacts: Archive }
+                    const ActiveIcon = iconMap[view]
+                    return ActiveIcon ? <ActiveIcon size={17} /> : <MoreHorizontal size={17} />
+                  })()}
+                </span>
+                <span className="sidebar-nav-label">More</span>
+              </button>
+            </Tooltip>
+            {showNavOverflow && (
+              <div className="nav-overflow-popover" onClick={(e) => e.stopPropagation()}>
+                <div className="nav-overflow-group-label">Code</div>
+                <div className="nav-overflow-grid">
+                  <button className={`nav-overflow-item ${view === 'github' ? 'active' : ''}`} onClick={() => { onViewChange('github'); setShowNavOverflow(false) }}>
+                    <GitPullRequest size={16} />
+                    <span>PRs</span>
+                  </button>
+                  <button className={`nav-overflow-item ${view === 'review' ? 'active' : ''}`} onClick={() => { onViewChange('review'); setShowNavOverflow(false) }}>
+                    <GitCompare size={16} />
+                    <span>Review</span>
+                  </button>
+                  <button className={`nav-overflow-item ${view === 'agents' ? 'active' : ''}`} onClick={() => { onViewChange('agents'); setShowNavOverflow(false) }}>
+                    <Bot size={16} />
+                    <span>Agents</span>
+                  </button>
+                </div>
+                <div className="nav-overflow-group-label">Automation</div>
+                <div className="nav-overflow-grid">
+                  <button className={`nav-overflow-item ${view === 'pipelines' ? 'active' : ''}`} onClick={() => { onViewChange('pipelines'); setShowNavOverflow(false) }}>
+                    <Zap size={16} />
+                    <span>Pipes</span>
+                  </button>
+                  <button className={`nav-overflow-item ${view === 'tasks' ? 'active' : ''}`} onClick={() => { onViewChange('tasks'); setShowNavOverflow(false) }}>
+                    <ListChecks size={16} />
+                    <span>Tasks</span>
+                  </button>
+                  <button className={`nav-overflow-item ${view === 'environments' ? 'active' : ''}`} onClick={() => { onViewChange('environments'); setShowNavOverflow(false) }}>
+                    <Server size={16} />
+                    <span>Envs</span>
+                    {runningEnvCount > 0 && <span className="sidebar-nav-badge" style={{ position: 'static', marginLeft: 4 }}>{runningEnvCount}</span>}
+                  </button>
+                </div>
+                <div className="nav-overflow-group-label">Data</div>
+                <div className="nav-overflow-grid">
+                  <button className={`nav-overflow-item ${view === 'outputs' ? 'active' : ''}`} onClick={() => { onViewChange('outputs'); setShowNavOverflow(false) }}>
+                    <FolderOpen size={16} />
+                    <span>Outputs</span>
+                  </button>
+                  <button className={`nav-overflow-item ${view === 'artifacts' ? 'active' : ''}`} onClick={() => { onViewChange('artifacts'); setShowNavOverflow(false) }}>
+                    <Archive size={16} />
+                    <span>History</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

@@ -271,14 +271,11 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-radius: 8px;
   border: 1px solid var(--border);
   width: 100%;
-  overflow-x: auto;
-  scrollbar-width: none;
 }
-.sidebar-nav::-webkit-scrollbar { display: none; }
 
 .sidebar-nav > .tooltip-wrapper {
   flex: 1;
-  min-width: 24px;
+  min-width: 40px;
 }
 
 .sidebar-nav-btn {
@@ -288,7 +285,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   justify-content: center;
   gap: 3px;
   flex: 1;
-  min-width: 24px;
+  min-width: 40px;
   height: 50px;
   border-radius: 6px;
   color: var(--text-muted);
@@ -347,7 +344,69 @@ body:has(.daemon-update-banner) .app-update-banner {
   box-shadow: 0 0 0 1.5px var(--bg-secondary);
 }
 
+/* Nav overflow popover (More menu) */
+.nav-overflow-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 200;
+  width: 210px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
 
+.nav-overflow-group-label {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding: 6px 6px 2px;
+}
+
+.nav-overflow-group-label:first-child {
+  padding-top: 2px;
+}
+
+.nav-overflow-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+}
+
+.nav-overflow-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 500;
+  transition: color 0.12s, background 0.12s;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+.nav-overflow-item span {
+  line-height: 1;
+}
+
+.nav-overflow-item:hover {
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+}
+
+.nav-overflow-item.active {
+  color: var(--accent);
+  background: var(--bg-tertiary);
+}
 
 .sidebar-new-btn {
   margin: 8px 10px 4px;

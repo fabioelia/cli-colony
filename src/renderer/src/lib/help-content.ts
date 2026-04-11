@@ -41,6 +41,39 @@ export interface HelpEntry {
 }
 
 export const helpContent: Record<string, HelpEntry> = {
+  navigation: {
+    title: 'Navigation',
+    description: 'The top bar shows 5 tabs: Home, Sessions, Activity, Personas, and More. The More button opens a grouped menu with the remaining panels.',
+    zones: [
+      {
+        name: 'Primary Tabs',
+        position: 'Top of sidebar',
+        items: [
+          { label: 'Home', detail: 'Colony overview — sessions, personas, pipelines, cost at a glance.', icon: 'Home' },
+          { label: 'Sessions', detail: 'All Claude CLI sessions. Badge shows total count.', icon: 'TerminalSquare' },
+          { label: 'Activity', detail: 'Live automation events. Badge shows unread count.', icon: 'Bell' },
+          { label: 'Personas', detail: 'Autonomous AI agents with identity, goals, and memory.', icon: 'User' },
+        ],
+      },
+      {
+        name: 'More Menu',
+        position: 'Popover from the ⋯ button',
+        items: [
+          { label: 'PRs', detail: 'GitHub pull requests, reviews, and comments.', icon: 'GitPullRequest' },
+          { label: 'Review', detail: 'Cross-session diff review dashboard.', icon: 'GitCompare' },
+          { label: 'Agents', detail: 'Browse and create agent definitions.', icon: 'Bot' },
+          { label: 'Pipelines', detail: 'Automated triggers and actions.', icon: 'Zap' },
+          { label: 'Tasks', detail: 'Task queues and batch execution.', icon: 'ListChecks' },
+          { label: 'Environments', detail: 'Dev environment management.', icon: 'Server' },
+          { label: 'Outputs', detail: 'Browse artifacts, briefs, and pipeline outputs.', icon: 'FolderOpen' },
+          { label: 'History', detail: 'Past session artifacts — commits, changes, and costs.', icon: 'Archive' },
+        ],
+      },
+    ],
+    shortcuts: [
+      { keys: 'Cmd+K', action: 'Open palette to navigate to any panel' },
+    ],
+  },
   activity: {
     title: 'Activity Feed',
     description: 'A live stream of automation events from personas, pipelines, environments, and sessions. Filter by source, level, or text to find specific events. Click session names to jump to the originating session.',
