@@ -5,7 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, RefreshCw, Columns2, LayoutGrid, ExternalLink, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation, MessageCircleWarning, ThumbsUp, Sparkles, Bot, BarChart3, Package, GitCommit, Globe, Bug, FileDown, CheckCircle } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, RefreshCw, Columns2, LayoutGrid, ExternalLink, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation, MessageCircleWarning, ThumbsUp, Sparkles, Bot, BarChart3, Package, GitCommit, Globe, Bug, FileDown, CheckCircle, Copy } from 'lucide-react'
 import { TeamMetricsPanel } from './TeamMetricsPanel'
 import ServicesTab from './ServicesTab'
 import FilesTab from './FilesTab'
@@ -148,6 +148,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const [coordinatorTeam, setCoordinatorTeam] = useState<CoordinatorTeam | null>(null)
   const [teamLoading, setTeamLoading] = useState(false)
   const [exportSuccess, setExportSuccess] = useState(false)
+  const [copySuccess, setCopySuccess] = useState(false)
 
   // Session steering
   const [steerOpen, setSteerOpen] = useState(false)
@@ -977,6 +978,23 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 aria-label="Export session as markdown"
               >
                 {exportSuccess ? <CheckCircle size={14} /> : <FileDown size={14} />}
+              </button>
+            </Tooltip>
+          )}
+          {viewTab === 'session' && (
+            <Tooltip text="Copy Output" detail="Copy session output as markdown to clipboard" position="bottom">
+              <button
+                onClick={async () => {
+                  const md = await window.api.session.exportMarkdown(instance.id)
+                  if (md) {
+                    await navigator.clipboard.writeText(md)
+                    setCopySuccess(true)
+                    setTimeout(() => setCopySuccess(false), 2000)
+                  }
+                }}
+                aria-label="Copy session output to clipboard"
+              >
+                {copySuccess ? <CheckCircle size={14} /> : <Copy size={14} />}
               </button>
             </Tooltip>
           )}
