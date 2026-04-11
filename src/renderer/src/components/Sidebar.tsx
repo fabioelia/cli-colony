@@ -1761,11 +1761,14 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                 const inst = instances.find((i) => i.id === contextMenu.id)
                 if (!inst) { setContextMenu(null); return }
                 const id = Date.now().toString(36) + Math.random().toString(36).slice(2)
+                const mi = inst.args.indexOf('--model')
                 const template: SessionTemplate = {
                   id,
                   name: inst.name,
                   workingDir: inst.workingDirectory,
                   role: inst.roleTag ?? undefined,
+                  model: mi >= 0 ? inst.args[mi + 1] : undefined,
+                  permissionMode: inst.permissionMode,
                   lastUsed: Date.now(),
                   launchCount: 0,
                 }

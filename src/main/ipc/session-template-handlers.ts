@@ -54,6 +54,9 @@ export function registerSessionTemplateHandlers(): void {
     if (template.model) {
       args.push('--model', template.model)
     }
+    if (template.permissionMode) {
+      args.push('--permission-mode', template.permissionMode)
+    }
 
     const inst = await createInstance({
       name: template.name,
