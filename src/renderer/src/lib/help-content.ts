@@ -237,7 +237,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Help icon', detail: 'Opens this help popover.', icon: 'HelpCircle' },
           { label: 'Activity bell', detail: 'Shows recent automation events from personas, pipelines, environments, and sessions. Persona completion events include outcome stats: duration, commits made, and files changed. Turns amber when pipeline actions are waiting for approval.', icon: 'Bell' },
-          { label: 'Notification history', detail: 'Persistent log of all desktop notifications — what happened while you were away. Grouped by Today/Yesterday/Older. Filter by source type (Pipeline, Persona, Session, Approval, System) using the chip bar. Click an entry to navigate to its source. Red badge shows unread count. Persists across app restarts.', icon: 'BellRing' },
+          { label: 'Notification history', detail: 'Persistent log of all desktop notifications — what happened while you were away. Grouped by Today/Yesterday/Older. Filter by source type (Pipeline, Persona, Session, Approval, Budget, System) using the chip bar. Click an entry to navigate to its source. Red badge shows unread count. Persists across app restarts.', icon: 'BellRing' },
           { label: 'Workspace presets', detail: 'Save and restore workspace layouts (sidebar view, layout mode, sidebar width). Ships with 3 built-in presets: Monitor, Review, Compare. Cmd+Shift+1-5 for quick-switch.', icon: 'LayoutGrid' },
           { label: 'Settings gear', detail: 'Opens the Settings panel for CLI defaults, shell profile, daemon management, and more.', icon: 'Settings' },
         ],

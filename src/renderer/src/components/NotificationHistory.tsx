@@ -113,7 +113,7 @@ export default function NotificationHistory({ onClose, onNavigate }: Notificatio
         </div>
       </div>
       <div className="notification-history-filters">
-        {([null, 'pipeline', 'persona', 'session', 'approval', 'system'] as const).map(s => (
+        {([null, 'pipeline', 'persona', 'session', 'approval', 'budget', 'system'] as const).map(s => (
           <button key={s ?? 'all'} className={`activity-filter-chip${sourceFilter === s ? ' active' : ''}`}
             onClick={() => setSourceFilter(s)}>
             {s ? s.charAt(0).toUpperCase() + s.slice(1) : 'All'}
