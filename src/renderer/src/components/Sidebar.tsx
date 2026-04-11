@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate } from '../../../shared/types'
@@ -422,6 +422,9 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const lastSelectedRef = useRef<string | null>(null)
   const [expandedForkGroups, setExpandedForkGroups] = useState<Set<string>>(new Set())
   const [forkSectionOpen, setForkSectionOpen] = useState(true)
+  const [bulkPromptOpen, setBulkPromptOpen] = useState(false)
+  const [bulkPromptText, setBulkPromptText] = useState('')
+  const [bulkPromptSent, setBulkPromptSent] = useState<number | null>(null)
 
   // Concurrent file conflict detection — poll every 30s
   const [fileOverlaps, setFileOverlaps] = useState<Record<string, { file: string; otherSessions: { id: string; name: string }[] }[]>>({})
@@ -453,6 +456,8 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const exitSelectMode = useCallback(() => {
     setSelectMode(false)
     setSelectedIds(new Set())
+    setBulkPromptOpen(false)
+    setBulkPromptText('')
   }, [])
 
   // Instance ordering + grouping — must be declared before callbacks/effects that reference them
@@ -1287,54 +1292,108 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
 
       {/* Floating bulk action bar */}
       {selectMode && selectedIds.size > 0 && (
-        <div className="sidebar-bulk-actions">
-          <span className="sidebar-bulk-count">{selectedIds.size} selected</span>
-          <Tooltip text="Stop selected" detail="Kill all selected running sessions">
-            <button
-              className="panel-header-btn"
-              disabled={![...selectedIds].some(id => instances.find(i => i.id === id)?.status === 'running')}
-              onClick={async () => {
-                for (const id of selectedIds) {
-                  const inst = instances.find(i => i.id === id)
-                  if (inst?.status === 'running') await onKill(id)
-                }
-              }}
-            >
-              <Square size={12} /> Stop
+        <div className="sidebar-bulk-actions-wrap">
+          {bulkPromptOpen && (
+            <div className="sidebar-bulk-prompt">
+              <textarea
+                className="sidebar-bulk-prompt-input"
+                placeholder="Send prompt to selected running sessions…"
+                value={bulkPromptText}
+                autoFocus
+                rows={2}
+                onChange={e => setBulkPromptText(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey && bulkPromptText.trim()) {
+                    e.preventDefault()
+                    const running = [...selectedIds].filter(id => instances.find(i => i.id === id)?.status === 'running')
+                    for (const id of running) window.api.session.steer(id, bulkPromptText.trim())
+                    setBulkPromptText('')
+                    setBulkPromptOpen(false)
+                    setBulkPromptSent(running.length)
+                    setTimeout(() => setBulkPromptSent(null), 2000)
+                  } else if (e.key === 'Escape') {
+                    setBulkPromptText('')
+                    setBulkPromptOpen(false)
+                  }
+                }}
+              />
+              <button
+                className="panel-header-btn primary"
+                disabled={!bulkPromptText.trim()}
+                onClick={() => {
+                  if (!bulkPromptText.trim()) return
+                  const running = [...selectedIds].filter(id => instances.find(i => i.id === id)?.status === 'running')
+                  for (const id of running) window.api.session.steer(id, bulkPromptText.trim())
+                  setBulkPromptText('')
+                  setBulkPromptOpen(false)
+                  setBulkPromptSent(running.length)
+                  setTimeout(() => setBulkPromptSent(null), 2000)
+                }}
+              >
+                <Send size={12} />
+              </button>
+            </div>
+          )}
+          <div className="sidebar-bulk-actions">
+            <span className="sidebar-bulk-count">
+              {bulkPromptSent !== null ? `Sent to ${bulkPromptSent} session${bulkPromptSent !== 1 ? 's' : ''}` : `${selectedIds.size} selected`}
+            </span>
+            <Tooltip text="Send prompt" detail="Send a prompt to all selected running sessions">
+              <button
+                className="panel-header-btn"
+                disabled={![...selectedIds].some(id => instances.find(i => i.id === id)?.status === 'running')}
+                onClick={() => setBulkPromptOpen(o => !o)}
+              >
+                <MessageSquare size={12} /> Send
+              </button>
+            </Tooltip>
+            <Tooltip text="Stop selected" detail="Kill all selected running sessions">
+              <button
+                className="panel-header-btn"
+                disabled={![...selectedIds].some(id => instances.find(i => i.id === id)?.status === 'running')}
+                onClick={async () => {
+                  for (const id of selectedIds) {
+                    const inst = instances.find(i => i.id === id)
+                    if (inst?.status === 'running') await onKill(id)
+                  }
+                }}
+              >
+                <Square size={12} /> Stop
+              </button>
+            </Tooltip>
+            <Tooltip text="Restart selected" detail="Restart all selected stopped sessions">
+              <button
+                className="panel-header-btn"
+                disabled={![...selectedIds].some(id => instances.find(i => i.id === id)?.status !== 'running')}
+                onClick={async () => {
+                  for (const id of selectedIds) {
+                    const inst = instances.find(i => i.id === id)
+                    if (inst?.status !== 'running') await onRestart(id)
+                  }
+                }}
+              >
+                <Play size={12} /> Restart
+              </button>
+            </Tooltip>
+            <Tooltip text="Remove selected" detail="Remove all selected stopped sessions">
+              <button
+                className="panel-header-btn danger"
+                disabled={![...selectedIds].some(id => instances.find(i => i.id === id)?.status !== 'running')}
+                onClick={async () => {
+                  const removable = [...selectedIds].filter(id => instances.find(i => i.id === id)?.status !== 'running')
+                  if (removable.length === 0) return
+                  if (!confirm(`Remove ${removable.length} session${removable.length > 1 ? 's' : ''}? This cannot be undone.`)) return
+                  for (const id of removable) await onRemove(id)
+                  exitSelectMode()
+                }}
+              >
+                <Trash2 size={12} /> Remove
+              </button>
+            </Tooltip>
+            <button className="sidebar-bulk-deselect" onClick={exitSelectMode} title="Exit multi-select">
+              <X size={12} />
             </button>
-          </Tooltip>
-          <Tooltip text="Restart selected" detail="Restart all selected stopped sessions">
-            <button
-              className="panel-header-btn"
-              disabled={![...selectedIds].some(id => instances.find(i => i.id === id)?.status !== 'running')}
-              onClick={async () => {
-                for (const id of selectedIds) {
-                  const inst = instances.find(i => i.id === id)
-                  if (inst?.status !== 'running') await onRestart(id)
-                }
-              }}
-            >
-              <Play size={12} /> Restart
-            </button>
-          </Tooltip>
-          <Tooltip text="Remove selected" detail="Remove all selected stopped sessions">
-            <button
-              className="panel-header-btn danger"
-              disabled={![...selectedIds].some(id => instances.find(i => i.id === id)?.status !== 'running')}
-              onClick={async () => {
-                const removable = [...selectedIds].filter(id => instances.find(i => i.id === id)?.status !== 'running')
-                if (removable.length === 0) return
-                if (!confirm(`Remove ${removable.length} session${removable.length > 1 ? 's' : ''}? This cannot be undone.`)) return
-                for (const id of removable) await onRemove(id)
-                exitSelectMode()
-              }}
-            >
-              <Trash2 size={12} /> Remove
-            </button>
-          </Tooltip>
-          <button className="sidebar-bulk-deselect" onClick={exitSelectMode} title="Exit multi-select">
-            <X size={12} />
-          </button>
+          </div>
         </div>
       )}
 

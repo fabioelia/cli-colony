@@ -641,6 +641,9 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .sidebar-select-toggle:hover { color: var(--text-secondary); border-color: var(--border-active); }
 .sidebar-select-toggle.active { color: var(--accent); border-color: var(--accent); }
+.sidebar-bulk-actions-wrap {
+  flex-shrink: 0;
+}
 .sidebar-bulk-actions {
   display: flex;
   align-items: center;
@@ -650,6 +653,35 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+}
+.sidebar-bulk-prompt {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  align-items: flex-end;
+}
+.sidebar-bulk-prompt-input {
+  flex: 1;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 11px;
+  padding: 5px 8px;
+  resize: none;
+  font-family: inherit;
+  line-height: 1.4;
+}
+.sidebar-bulk-prompt-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.sidebar-bulk-prompt .panel-header-btn {
+  font-size: 11px;
+  padding: 5px 8px;
+  align-self: flex-end;
 }
 .sidebar-bulk-count {
   font-size: 11px;
