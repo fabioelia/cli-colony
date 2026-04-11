@@ -195,6 +195,7 @@ export async function createInstance(opts: {
   mcpServers?: string[]
   model?: string
   permissionMode?: 'autonomous' | 'supervised'
+  env?: Record<string, string>
 }): Promise<ClaudeInstance> {
   const defaultArgs = await getDefaultArgs()
   const home = app.getPath('home')

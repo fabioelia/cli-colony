@@ -439,6 +439,7 @@ export default function App() {
     initialPrompt?: string
     permissionMode?: 'autonomous' | 'supervised'
     planFirst?: boolean
+    env?: Record<string, string>
   }) => {
     agentToLaunchRef.current = null
     const { initialPrompt, planFirst, ...createOpts } = opts

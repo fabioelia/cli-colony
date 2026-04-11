@@ -52,6 +52,7 @@ export interface ClaudeManagerAPI {
       cliBackend?: CliBackend
       mcpServers?: string[]
       permissionMode?: 'autonomous' | 'supervised'
+      env?: Record<string, string>
     }) => Promise<ClaudeInstance>
     write: (id: string, data: string) => void
     resize: (id: string, cols: number, rows: number) => Promise<boolean>

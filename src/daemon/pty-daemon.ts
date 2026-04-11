@@ -313,6 +313,8 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
   const userArgs = opts.args || []
   const { command, argv } = buildSpawn(cliBackend, cwd, name, defaultArgs, userArgs, opts.model, opts.permissionMode)
 
+  const mergedEnv = opts.env ? { ...shellEnv, ...opts.env } : shellEnv
+
   log(`creating instance name="${name}" cwd=${cwd} cliBackend=${cliBackend} command=${command} args=${JSON.stringify(argv)}`)
 
   let ptyProcess: pty.IPty | null = null
@@ -324,7 +326,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
       cols: 120,
       rows: 30,
       cwd,
-      env: shellEnv,
+      env: mergedEnv,
     })
     log(`spawned ${spawnCmd} pid=${ptyProcess.pid}`)
   } catch (err) {
@@ -341,7 +343,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
           cols: 120,
           rows: 30,
           cwd,
-          env: shellEnv,
+          env: mergedEnv,
         })
         spawnCmd = freshCmd
         spawnErr = null

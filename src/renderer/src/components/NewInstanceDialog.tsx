@@ -30,6 +30,7 @@ interface Props {
     initialPrompt?: string
     permissionMode?: 'autonomous' | 'supervised'
     planFirst?: boolean
+    env?: Record<string, string>
   }) => void | Promise<void>
   onClose: () => void
   prefill?: AgentDef
@@ -107,6 +108,8 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
   const promptRef = useRef<HTMLTextAreaElement | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const historyRef = useRef<HTMLDivElement | null>(null)
+  const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>([])
+  const [showEnvVars, setShowEnvVars] = useState(false)
 
   // When the starter-card path opens the dialog, focus the prompt textarea
   // and place the cursor at the end so the user can just press Enter.
@@ -154,6 +157,10 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
     const mcpServers = selectedMcpServers.size > 0 ? Array.from(selectedMcpServers) : undefined
     const trimmedPrompt = firstPrompt.trim()
     if (trimmedPrompt) addToHistory(trimmedPrompt)
+    const envRecord = envVars.reduce((acc, { key, value }) => {
+      if (key.trim()) acc[key.trim()] = value
+      return acc
+    }, {} as Record<string, string>)
     try {
       await onCreate({
         name: name.trim() || undefined,
@@ -165,6 +172,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
         initialPrompt: trimmedPrompt || undefined,
         permissionMode,
         planFirst: planFirst || undefined,
+        env: Object.keys(envRecord).length > 0 ? envRecord : undefined,
       })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -330,6 +338,27 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
               title="Custom color"
             />
           </div>
+        </div>
+
+        <div className="dialog-field">
+          <label style={{ cursor: 'pointer' }} onClick={() => setShowEnvVars(!showEnvVars)}>
+            Environment Variables {showEnvVars ? '▾' : '▸'} <span style={{ opacity: 0.5, fontWeight: 'normal' }}>(optional)</span>
+          </label>
+          {showEnvVars && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {envVars.map((ev, i) => (
+                <div key={i} style={{ display: 'flex', gap: 4 }}>
+                  <input placeholder="KEY" value={ev.key} style={{ flex: 1 }}
+                    onChange={e => { const updated = [...envVars]; updated[i] = { ...ev, key: e.target.value }; setEnvVars(updated) }} />
+                  <input placeholder="value" value={ev.value} style={{ flex: 2 }}
+                    onChange={e => { const updated = [...envVars]; updated[i] = { ...ev, value: e.target.value }; setEnvVars(updated) }} />
+                  <button type="button" className="panel-header-btn" onClick={() => setEnvVars(envVars.filter((_, j) => j !== i))}>×</button>
+                </div>
+              ))}
+              <button type="button" className="panel-header-btn" style={{ alignSelf: 'flex-start' }}
+                onClick={() => setEnvVars([...envVars, { key: '', value: '' }])}>+ Add variable</button>
+            </div>
+          )}
         </div>
 
         <div className="dialog-field">
