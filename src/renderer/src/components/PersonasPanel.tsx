@@ -1114,7 +1114,7 @@ function PersonaCard({
                 }}
                 title="Copy to clipboard"
               >
-                {copiedArtifact ? <Check size={14} /> : <Copy size={14} />}
+                {copiedArtifact ? <Check size={16} /> : <Copy size={16} />}
               </button>
               <button className="persona-modal-close" onClick={() => { setViewingArtifact(null); setCopiedArtifact(false) }}><X size={16} /></button>
             </div>
