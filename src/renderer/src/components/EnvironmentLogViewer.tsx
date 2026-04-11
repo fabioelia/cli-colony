@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { ArrowLeft, RefreshCw, Download } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { ArrowLeft, RefreshCw, Download, Search } from 'lucide-react'
 
 interface Props {
   envId: string
@@ -16,6 +16,7 @@ export default function EnvironmentLogViewer({ envId, envName, serviceNames: pro
   const [logContent, setLogContent] = useState('')
   const [autoScroll, setAutoScroll] = useState(true)
   const [loading, setLoading] = useState(false)
+  const [filterText, setFilterText] = useState('')
   const logRef = useRef<HTMLPreElement>(null)
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -77,6 +78,18 @@ export default function EnvironmentLogViewer({ envId, envName, serviceNames: pro
     return unsub
   }, [envId, activeService])
 
+  const filteredContent = useMemo(() => {
+    if (!filterText.trim()) return logContent
+    const lower = filterText.toLowerCase()
+    return logContent.split('\n').filter(line => line.toLowerCase().includes(lower)).join('\n')
+  }, [logContent, filterText])
+
+  const matchCount = useMemo(() => {
+    if (!filterText.trim()) return 0
+    const lower = filterText.toLowerCase()
+    return logContent.split('\n').filter(line => line.toLowerCase().includes(lower)).length
+  }, [logContent, filterText])
+
   const handleScroll = () => {
     if (!logRef.current) return
     const { scrollTop, scrollHeight, clientHeight } = logRef.current
@@ -103,6 +116,22 @@ export default function EnvironmentLogViewer({ envId, envName, serviceNames: pro
           <h2>{envName} Logs</h2>
           <div className="panel-header-spacer" />
           <div className="panel-header-actions">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Search size={12} style={{ opacity: 0.5 }} />
+              <input
+                type="text"
+                placeholder="Filter logs..."
+                value={filterText}
+                onChange={e => setFilterText(e.target.value)}
+                style={{ width: 140, fontSize: 11, padding: '2px 6px' }}
+              />
+              {filterText && (
+                <>
+                  <span style={{ fontSize: 10, opacity: 0.6 }}>{matchCount} match{matchCount !== 1 ? 'es' : ''}</span>
+                  <button className="panel-header-btn" onClick={() => setFilterText('')} title="Clear filter" style={{ padding: '0 4px' }}>×</button>
+                </>
+              )}
+            </div>
             <button className="panel-header-btn" onClick={loadLogs} title="Refresh">
               <RefreshCw size={14} className={loading ? 'spinning' : ''} />
             </button>
@@ -140,7 +169,7 @@ export default function EnvironmentLogViewer({ envId, envName, serviceNames: pro
         className="env-log-content"
         onScroll={handleScroll}
       >
-        {logContent}
+        {filteredContent}
       </pre>
     </div>
   )

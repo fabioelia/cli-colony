@@ -594,6 +594,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Ports section', detail: 'Allocated ports per service — unique across environments to avoid conflicts.' },
           { label: 'Paths section', detail: 'Root path, backend path, frontend path, etc. for the environment.' },
           { label: 'Worktrees section', detail: 'Lists git worktrees mounted to this environment. Worktree badges in the Worktrees tab also show which environment they belong to.', icon: 'GitBranch' },
+          { label: 'Log filter', detail: 'Type in the search box to filter log lines by keyword. Match count updates in real-time. Download always exports the full unfiltered log.', icon: 'Search' },
         ],
       },
       {
@@ -1352,6 +1353,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Status badge', detail: 'Shows whether the session is running or exited.' },
           { label: 'File count + stats', detail: 'Number of changed files with total insertions (green) and deletions (red).' },
           { label: 'Branch name', detail: 'Git branch the session is working on, if available.' },
+          { label: 'Commit', detail: 'Open the commit dialog for this session. Stage files, write a message, and optionally push — without leaving the review dashboard.', icon: 'GitCommit' },
           { label: 'Open in terminal', detail: 'Jump to this session in the Sessions view.', icon: 'Terminal' },
           { label: 'Copy branch', detail: 'Copy the branch name to clipboard.', icon: 'Copy' },
         ],
