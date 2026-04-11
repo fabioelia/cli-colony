@@ -858,6 +858,12 @@ export default function App() {
     setGridPanes([null, null, null, null])
     setFocusedGridIdx(0)
     if (first) setActiveId(first)
+    // Reset arena state (mirror handleEnterGrid resets)
+    setArenaMode(false)
+    setArenaBlind(false)
+    setArenaText('')
+    setArenaWinnerId(null)
+    setArenaVerdictText(null)
     // Prompt to clean up arena worktrees if any
     if (arenaWorktreeIds.length > 0) handleArenaCleanup()
   }, [gridPanes, arenaWorktreeIds, handleArenaCleanup])

@@ -38,9 +38,10 @@ export default function ArenaLeaderboard({ open, onClose }: Props) {
         merged[key] = {
           wins: Math.max(merged[key].wins, val.wins),
           losses: Math.max(merged[key].losses, val.losses),
-          totalRuns: Math.max(merged[key].totalRuns, val.totalRuns),
+          totalRuns: 0, // recomputed below
         }
       }
+      merged[key].totalRuns = merged[key].wins + merged[key].losses
     }
 
     // Persist merged stats back to localStorage

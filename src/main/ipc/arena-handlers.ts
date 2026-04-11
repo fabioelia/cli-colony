@@ -138,24 +138,27 @@ export function registerArenaHandlers(): void {
         : results.reduce((best, r, i) => r.exitCode < results[best].exitCode ? i : best, 0)
       const winnerId = results[winnerIdx]?.instanceId ?? null
 
-      // Record stats
+      // Record stats (skip if session name unavailable to avoid UUID keys)
       if (winnerId) {
         try {
           const stats = await readArenaStats()
           const winner = await getDaemonClient().getInstance(winnerId)
-          const winnerKey = winner?.name || winnerId
-          if (!stats[winnerKey]) stats[winnerKey] = { wins: 0, losses: 0, totalRuns: 0 }
-          stats[winnerKey].wins++
-          stats[winnerKey].totalRuns++
-          for (const r of results) {
-            if (r.instanceId === winnerId) continue
-            const loser = await getDaemonClient().getInstance(r.instanceId)
-            const loserKey = loser?.name || r.instanceId
-            if (!stats[loserKey]) stats[loserKey] = { wins: 0, losses: 0, totalRuns: 0 }
-            stats[loserKey].losses++
-            stats[loserKey].totalRuns++
+          if (winner?.name) {
+            const winnerKey = winner.name
+            if (!stats[winnerKey]) stats[winnerKey] = { wins: 0, losses: 0, totalRuns: 0 }
+            stats[winnerKey].wins++
+            stats[winnerKey].totalRuns++
+            for (const r of results) {
+              if (r.instanceId === winnerId) continue
+              const loser = await getDaemonClient().getInstance(r.instanceId)
+              if (!loser?.name) continue
+              const loserKey = loser.name
+              if (!stats[loserKey]) stats[loserKey] = { wins: 0, losses: 0, totalRuns: 0 }
+              stats[loserKey].losses++
+              stats[loserKey].totalRuns++
+            }
+            await writeArenaStats(stats)
           }
-          await writeArenaStats(stats)
         } catch { /* stats are best-effort */ }
       }
       return { winnerId, results }
