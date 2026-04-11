@@ -816,16 +816,16 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                           )}
                           <div className="env-service-actions">
                             {(svc.status === 'stopped' || svc.status === 'crashed') && (
-                              <button className="env-service-btn" onClick={() => { window.api.env.start(env.id, [svc.name]).then(loadEnvironments).then(() => setTimeout(loadEnvironments, 3000)) }} title={`Start ${svc.name}`}>
+                              <button className="env-service-btn" onClick={() => { window.api.env.start(env.id, [svc.name]).then(loadEnvironments).then(() => setTimeout(loadEnvironments, 3000)).catch(err => console.error('[env] start service failed:', err)) }} title={`Start ${svc.name}`}>
                                 <Play size={11} />
                               </button>
                             )}
                             {svc.status === 'running' && (
-                              <button className="env-service-btn" onClick={() => { window.api.env.stop(env.id, [svc.name]).then(loadEnvironments) }} title={`Stop ${svc.name}`}>
+                              <button className="env-service-btn" onClick={() => { window.api.env.stop(env.id, [svc.name]).then(loadEnvironments).catch(err => console.error('[env] stop service failed:', err)) }} title={`Stop ${svc.name}`}>
                                 <Square size={11} />
                               </button>
                             )}
-                            <button className="env-service-btn" onClick={() => { window.api.env.restartService(env.id, svc.name).then(loadEnvironments).then(() => setTimeout(loadEnvironments, 3000)) }} title={`Restart ${svc.name}`}>
+                            <button className="env-service-btn" onClick={() => { window.api.env.restartService(env.id, svc.name).then(loadEnvironments).then(() => setTimeout(loadEnvironments, 3000)).catch(err => console.error('[env] restart service failed:', err)) }} title={`Restart ${svc.name}`}>
                               <RefreshCw size={11} />
                             </button>
                           </div>

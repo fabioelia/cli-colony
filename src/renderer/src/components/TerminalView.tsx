@@ -395,7 +395,11 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
         return combined.length > 2000 ? combined.slice(-2000) : combined
       })
     })
-    return unsub
+    return () => {
+      unsub()
+      // Reset so initial logs re-load on next activation (e.g. after env restart)
+      logsInitialized.current = false
+    }
   }, [viewTab, envStatus])
 
   // Auto-scroll logs
@@ -610,8 +614,10 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [fileSearchInput])
 
-  // Auto-load more results — use callback ref for the sentinel
-  const loadMoreCallbackRef = useCallback((el: HTMLDivElement | null) => {
+  // Auto-load more results — single IntersectionObserver via useRef+useEffect
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const el = loadMoreSentinelRef.current
     if (!el) return
     const observer = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting) {
@@ -619,15 +625,8 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
       }
     }, { threshold: 0.1 })
     observer.observe(el)
-    // Cleanup on unmount via MutationObserver trick — observer disconnects when element is removed
-    const parent = el.parentElement
-    if (parent) {
-      const mo = new MutationObserver(() => {
-        if (!parent.contains(el)) { observer.disconnect(); mo.disconnect() }
-      })
-      mo.observe(parent, { childList: true })
-    }
-  }, [])
+    return () => observer.disconnect()
+  }, [contentResults])
 
   // Load custom ignore rules
   useEffect(() => {
@@ -1727,7 +1726,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                     })()}
                     {contentResults && visibleResultCount < contentResults.length && (
                       <div
-                        ref={loadMoreCallbackRef}
+                        ref={loadMoreSentinelRef}
                         className="filetree-search-load-more"
                         onClick={() => setVisibleResultCount((p) => p + 30)}
                       >

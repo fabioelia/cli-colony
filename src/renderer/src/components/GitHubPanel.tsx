@@ -160,7 +160,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
 
   useEffect(() => {
     if (!hasPrs) return
-    window.api.github.writePrContext(prsByRepo).then(setContextPath)
+    window.api.github.writePrContext(prsByRepo).then(setContextPath).catch(err => console.error('[github] writePrContext failed:', err))
   }, [prsByRepo, hasPrs])
 
   // Ensure all repos have PRs fetched and context file is up-to-date before launching a prompt
