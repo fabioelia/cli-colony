@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { Zap, User, AlertCircle, Play, X, CheckCheck, Trash2, DollarSign, Monitor } from 'lucide-react'
 import type { NotificationEntry } from '../../../shared/types'
 
@@ -50,6 +50,13 @@ function groupEntries(entries: NotificationEntry[]): Array<{ label: string; entr
 
 export default function NotificationHistory({ onClose, onNavigate }: NotificationHistoryProps) {
   const [entries, setEntries] = useState<NotificationEntry[]>([])
+  const [sourceFilter, setSourceFilter] = useState<string | null>(null)
+
+  const sourceCounts = useMemo(() => {
+    const m = new Map<string, number>()
+    entries.filter(e => !e.read).forEach(e => { const s = e.source || 'system'; m.set(s, (m.get(s) ?? 0) + 1) })
+    return m
+  }, [entries])
 
   const loadHistory = useCallback(() => {
     window.api.notifications.history().then(setEntries).catch(() => {})
@@ -81,7 +88,8 @@ export default function NotificationHistory({ onClose, onNavigate }: Notificatio
     }
   }, [onNavigate, onClose])
 
-  const grouped = groupEntries(entries)
+  const filteredEntries = sourceFilter ? entries.filter(e => (e.source || 'system') === sourceFilter) : entries
+  const grouped = groupEntries(filteredEntries)
   const unreadCount = entries.filter(e => !e.read).length
 
   return (
@@ -104,8 +112,17 @@ export default function NotificationHistory({ onClose, onNavigate }: Notificatio
           </button>
         </div>
       </div>
+      <div className="notification-history-filters">
+        {([null, 'pipeline', 'persona', 'session', 'approval', 'system'] as const).map(s => (
+          <button key={s ?? 'all'} className={`activity-filter-chip${sourceFilter === s ? ' active' : ''}`}
+            onClick={() => setSourceFilter(s)}>
+            {s ? s.charAt(0).toUpperCase() + s.slice(1) : 'All'}
+            {s && sourceCounts.get(s) ? ` (${sourceCounts.get(s)})` : ''}
+          </button>
+        ))}
+      </div>
       <div className="notification-history-body">
-        {entries.length === 0 ? (
+        {filteredEntries.length === 0 ? (
           <div className="notification-history-empty">No notifications yet</div>
         ) : (
           grouped.map(group => (
