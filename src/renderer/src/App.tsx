@@ -1758,6 +1758,7 @@ export default function App() {
               setActiveId(id)
               setView('instances')
             }}
+            onNavigate={(v) => setView(v as View)}
           />
         )}
         {view === 'overview' && (

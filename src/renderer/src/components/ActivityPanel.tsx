@@ -8,6 +8,7 @@ type LevelFilter = 'info' | 'warn' | 'error'
 
 interface Props {
   onFocusSession?: (sessionId: string) => void
+  onNavigate?: (view: string) => void
 }
 
 const formatActivityTime = (iso: string) => {
@@ -35,7 +36,7 @@ const formatDuration = (sec: number) => {
 
 type TypeChip = 'all' | 'session' | 'pipeline' | 'persona' | 'approval'
 
-export default function ActivityPanel({ onFocusSession }: Props) {
+export default function ActivityPanel({ onFocusSession, onNavigate }: Props) {
   const [events, setEvents] = useState<ActivityEvent[]>([])
   const [pendingApprovals, setPendingApprovals] = useState<ApprovalRequest[]>([])
   const [sourceFilters, setSourceFilters] = useState<Set<SourceFilter>>(new Set(['persona', 'pipeline', 'env', 'session']))
@@ -238,19 +239,21 @@ export default function ActivityPanel({ onFocusSession }: Props) {
                 : 'No matching activity. Adjust filters or wait for personas and pipelines to fire.'}
             </div>
           )}
-          {filtered.map(ev => (
-            <div key={ev.id} className={`activity-event activity-event-${ev.level}`}>
+          {filtered.map(ev => {
+            const isClickable = (ev.sessionId && onFocusSession) || (onNavigate && (ev.source === 'persona' || ev.source === 'pipeline' || ev.source === 'env'))
+            return (
+            <div key={ev.id} className={`activity-event activity-event-${ev.level}`}
+              style={isClickable ? { cursor: 'pointer' } : undefined}
+              onClick={() => {
+                if (ev.sessionId && onFocusSession) onFocusSession(ev.sessionId)
+                else if (ev.source === 'persona' && onNavigate) onNavigate('personas')
+                else if (ev.source === 'pipeline' && onNavigate) onNavigate('pipelines')
+                else if (ev.source === 'env' && onNavigate) onNavigate('environments')
+              }}
+            >
               <div className="activity-event-header">
                 <span className={`activity-event-source activity-source-${ev.source}`}>{ev.source}</span>
-                {ev.sessionId && onFocusSession ? (
-                  <span
-                    className="activity-event-name activity-event-link"
-                    onClick={() => onFocusSession(ev.sessionId!)}
-                    title="Go to session"
-                  >{ev.name}</span>
-                ) : (
-                  <span className="activity-event-name">{ev.name}</span>
-                )}
+                <span className={`activity-event-name${isClickable ? ' activity-event-link' : ''}`}>{ev.name}</span>
                 <span className="activity-event-time">{formatActivityTime(ev.timestamp)}</span>
               </div>
               <div className="activity-event-summary">{ev.summary}</div>
@@ -268,7 +271,7 @@ export default function ActivityPanel({ onFocusSession }: Props) {
                 </div>
               )}
             </div>
-          ))}
+          )})}
           {!showAll && filteredAll.length > 20 && (
             <button className="activity-show-more" onClick={() => setShowAll(true)}>
               Show all ({filteredAll.length - 20} more)
