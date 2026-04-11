@@ -53,6 +53,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const [costTrend, setCostTrend] = useState<{ date: string; cost: number }[]>([])
   const [personaHealth, setPersonaHealth] = useState<PersonaHealthEntry[]>([])
   const [idleMap, setIdleMap] = useState<Map<string, number>>(new Map())
+  const [costLeaderboard, setCostLeaderboard] = useState<Array<{ name: string; id: string; cost: number }>>([])
 
   useEffect(() => {
     window.api.activity.list().then(setActivity)
@@ -68,6 +69,16 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
       setIdleMap(m)
     }).catch(() => {})
   }, [])
+
+  // Fetch per-persona cost analytics once personas are loaded
+  useEffect(() => {
+    if (personas.length === 0) return
+    Promise.all(personas.map(p =>
+      window.api.persona.getAnalytics(p.id).then(a => ({ name: p.name, id: p.id, cost: a.costLast7d })).catch(() => ({ name: p.name, id: p.id, cost: 0 }))
+    )).then(results => {
+      setCostLeaderboard(results.filter(r => r.cost > 0).sort((a, b) => b.cost - a.cost))
+    })
+  }, [personas])
 
   // Listen for live updates
   useEffect(() => {
@@ -254,6 +265,33 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                     </div>
                   )
                 })}
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* Top Spenders (7d) */}
+        {costLeaderboard.length > 0 && (() => {
+          const shown = costLeaderboard.slice(0, 10)
+          const maxCost = shown[0]?.cost || 1
+          const totalCost7d = costLeaderboard.reduce((s, r) => s + r.cost, 0)
+          return (
+            <div className="overview-section">
+              <h3><GanttChart size={14} /> Top Spenders (7d)</h3>
+              <div className="overview-cost-leaderboard">
+                {shown.map(entry => (
+                  <div key={entry.id} className="cost-leader-row" onClick={() => onNavigate('personas')} title={`${entry.name}: $${entry.cost.toFixed(2)} (${totalCost7d > 0 ? ((entry.cost / totalCost7d) * 100).toFixed(0) : 0}%)`}>
+                    <span className="cost-leader-name">{entry.name}</span>
+                    <span className="cost-leader-pct">{totalCost7d > 0 ? `${((entry.cost / totalCost7d) * 100).toFixed(0)}%` : ''}</span>
+                    <div className="cost-leader-bar-track">
+                      <div className="cost-leader-bar" style={{ width: `${(entry.cost / maxCost) * 100}%` }} />
+                    </div>
+                    <span className="cost-leader-amount">{formatCost(entry.cost)}</span>
+                  </div>
+                ))}
+                {costLeaderboard.length > 10 && (
+                  <div className="cost-leader-more" onClick={() => onNavigate('personas')}>and {costLeaderboard.length - 10} more</div>
+                )}
               </div>
             </div>
           )

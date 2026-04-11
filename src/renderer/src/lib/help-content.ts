@@ -120,6 +120,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Colony Health', detail: 'Composite health score (0–100%). Weighted: persona last-run success (40%), pipeline error-free (30%), session health (30%). Green ≥80%, amber 50–79%, red <50%. Click to scroll to Needs Attention. Hover for per-component breakdown.' },
           { label: 'Session Cost', detail: 'Total cost across all current sessions.' },
           { label: 'Daily Cost (7d)', detail: 'A 7-day bar chart showing total cost across all persona runs per day. Hover a bar to see the exact date and amount. Only appears when there is cost data.', icon: 'Activity' },
+          { label: 'Top Spenders (7d)', detail: 'Ranked list of personas by 7-day cost. Shows persona name, percentage of total, a proportional bar, and dollar amount. Top 10 shown. Click any row to navigate to the Personas panel. Hidden when no persona has cost data.', icon: 'GanttChart' },
         ],
       },
       {
