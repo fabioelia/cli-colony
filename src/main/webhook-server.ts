@@ -41,11 +41,22 @@ function log(msg: string): void {
   console.log(`${PREFIX} ${msg}`)
 }
 
-/** Return raw body bytes from an incoming request. */
+const MAX_BODY_BYTES = 1_048_576 // 1 MB
+
+/** Return raw body bytes from an incoming request. Rejects if body exceeds 1 MB. */
 function readBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
-    req.on('data', (chunk: Buffer) => chunks.push(chunk))
+    let totalBytes = 0
+    req.on('data', (chunk: Buffer) => {
+      totalBytes += chunk.length
+      if (totalBytes > MAX_BODY_BYTES) {
+        req.destroy()
+        reject(new Error('Body exceeds maximum size'))
+        return
+      }
+      chunks.push(chunk)
+    })
     req.on('end', () => resolve(Buffer.concat(chunks)))
     req.on('error', reject)
   })
@@ -69,6 +80,14 @@ export function verifyGitHubSignature(secret: string, body: Buffer, header: stri
   }
 }
 
+/** Constant-time string comparison. Returns false for different lengths (no timing leak on length). */
+function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a, 'utf8')
+  const bufB = Buffer.from(b, 'utf8')
+  if (bufA.length !== bufB.length) return false
+  return timingSafeEqual(bufA, bufB)
+}
+
 /**
  * Verify generic bearer token.
  * Accepts: Authorization: Bearer <secret>  or  X-Colony-Token: <secret>
@@ -76,10 +95,10 @@ export function verifyGitHubSignature(secret: string, body: Buffer, header: stri
 export function verifyGenericToken(secret: string, req: IncomingMessage): boolean {
   const authHeader = req.headers['authorization']
   if (authHeader) {
-    if (authHeader === `Bearer ${secret}`) return true
+    if (safeEqual(authHeader, `Bearer ${secret}`)) return true
   }
   const colonyToken = req.headers['x-colony-token']
-  if (typeof colonyToken === 'string' && colonyToken === secret) return true
+  if (typeof colonyToken === 'string' && safeEqual(colonyToken, secret)) return true
   return false
 }
 
@@ -145,8 +164,9 @@ async function handleApiRequest(req: IncomingMessage, res: ServerResponse): Prom
     let body: Buffer
     try {
       body = await readBody(req)
-    } catch {
-      sendJson(res, 400, { error: 'Failed to read request body' })
+    } catch (err) {
+      const status = (err as Error).message?.includes('maximum size') ? 413 : 400
+      sendJson(res, status, { error: status === 413 ? 'Request body too large' : 'Failed to read request body' })
       return
     }
     let parsed: { prompt?: unknown } = {}
@@ -252,8 +272,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   try {
     body = await readBody(req)
   } catch (err) {
+    const status = (err as Error).message?.includes('maximum size') ? 413 : 400
     log(`Failed to read body: ${err}`)
-    sendJson(res, 400, { error: 'Failed to read request body' })
+    sendJson(res, status, { error: status === 413 ? 'Request body too large' : 'Failed to read request body' })
     return
   }
 

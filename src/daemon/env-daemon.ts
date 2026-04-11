@@ -145,6 +145,7 @@ interface ManagedService {
   logStream: fs.WriteStream | null
   healthTimer: ReturnType<typeof setInterval> | null
   backoffTimer: ReturnType<typeof setTimeout> | null
+  initialTimer: ReturnType<typeof setTimeout> | null
 }
 
 interface ManagedEnvironment {
@@ -236,6 +237,7 @@ function checkPortTcp(port: number): Promise<boolean> {
       resolve(false)
     })
     socket.on('error', () => {
+      socket.destroy()
       resolve(false)
     })
     socket.connect(port, '127.0.0.1')
@@ -434,7 +436,8 @@ function startHealthCheck(env: ManagedEnvironment, svc: ManagedService): void {
   const hc = svc.resolved.healthCheck || svc.def.healthCheck
   if (!hc) {
     // No health check defined — mark as running after a short delay
-    setTimeout(() => {
+    svc.initialTimer = setTimeout(() => {
+      svc.initialTimer = null
       if (svc.process && svc.status === 'starting') {
         svc.status = 'running'
         notifyChanged()
@@ -457,7 +460,7 @@ function startHealthCheck(env: ManagedEnvironment, svc: ManagedService): void {
       try {
         const http = require('http') as typeof import('http')
         healthy = await new Promise<boolean>((resolve) => {
-          const timer = setTimeout(() => resolve(false), timeout)
+          const timer = setTimeout(() => { req.destroy(); resolve(false) }, timeout)
           const req = http.get(url, (res) => {
             clearTimeout(timer)
             // If expectedStatus is set, match exactly. Otherwise, any response = alive.
@@ -489,7 +492,7 @@ function startHealthCheck(env: ManagedEnvironment, svc: ManagedService): void {
   }
 
   // Initial check after 2s, then on interval
-  setTimeout(check, 2000)
+  svc.initialTimer = setTimeout(check, 2000)
   svc.healthTimer = setInterval(check, interval)
 }
 
@@ -504,6 +507,11 @@ function stopService(svc: ManagedService): void {
   if (svc.backoffTimer) {
     clearTimeout(svc.backoffTimer)
     svc.backoffTimer = null
+  }
+
+  if (svc.initialTimer) {
+    clearTimeout(svc.initialTimer)
+    svc.initialTimer = null
   }
 
   if (svc.process) {
@@ -607,6 +615,7 @@ function registerEnvironment(manifest: InstanceManifest): void {
         logStream: null,
         healthTimer: null,
         backoffTimer: null,
+        initialTimer: null,
       })
     }
 
