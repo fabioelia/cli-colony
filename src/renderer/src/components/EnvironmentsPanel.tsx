@@ -212,6 +212,21 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
     }
   }
 
+  const handleRestart = async (envId: string) => {
+    setActionInProgress(prev => new Set(prev).add(envId))
+    try {
+      await window.api.env.stop(envId)
+      await new Promise(r => setTimeout(r, 1000))
+      await window.api.env.start(envId)
+      loadEnvironments()
+    } catch (err) {
+      console.error('[env] restart failed:', err)
+    } finally {
+      setActionInProgress(prev => { const n = new Set(prev); n.delete(envId); return n })
+      setTimeout(loadEnvironments, 3000)
+    }
+  }
+
   const handleTeardown = async (envId: string) => {
     setConfirmTeardown(envId)
   }
@@ -616,6 +631,17 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                       >
                         <Square size={13} />
                         {isLoading ? 'Stopping…' : 'Stop'}
+                      </button>
+                    </Tooltip>
+                  )}
+                  {env.status === 'running' && (
+                    <Tooltip text={isLoading ? 'Restarting…' : 'Restart'} detail="Stop and restart all services">
+                      <button
+                        className="env-action-btn"
+                        onClick={() => handleRestart(env.id)}
+                        disabled={isLoading}
+                      >
+                        <RefreshCw size={13} />
                       </button>
                     </Tooltip>
                   )}
