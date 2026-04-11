@@ -265,7 +265,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
           ) : (
             <div className="overview-activity-list">
               {filteredActivity.map(ev => (
-                <div key={ev.id} className="overview-activity-item" style={{ cursor: 'pointer' }}
+                <div key={ev.id} className="overview-activity-item"
                   onClick={() => {
                     if (ev.source === 'session' && ev.sessionId) onFocusInstance(ev.sessionId)
                     else if (ev.source === 'persona') onNavigate('personas')

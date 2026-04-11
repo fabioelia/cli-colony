@@ -18503,6 +18503,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   padding: 6px 12px;
   font-size: 12px;
   border-radius: 6px;
+  cursor: pointer;
 }
 .overview-activity-item:hover {
   background: var(--bg-hover);
