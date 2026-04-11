@@ -454,7 +454,8 @@ export default function SettingsPanel({ onBack }: Props) {
               min="0"
               max="60"
               value={autoCleanupMinutes}
-              onChange={(e) => { const v = parseInt(e.target.value, 10); if (isNaN(v)) return; setAutoCleanupMinutes(String(Math.max(0, Math.min(60, v)))) }}
+              onChange={(e) => setAutoCleanupMinutes(e.target.value)}
+              onBlur={() => { const v = parseInt(autoCleanupMinutes, 10); setAutoCleanupMinutes(String(isNaN(v) ? 0 : Math.max(0, Math.min(60, v)))) }}
               className="settings-compact-number"
             />
             <span className="settings-unit">min</span>
@@ -853,7 +854,8 @@ export default function SettingsPanel({ onBack }: Props) {
               <input
                 type="number"
                 value={webhookPort}
-                onChange={(e) => { const v = parseInt(e.target.value, 10); if (isNaN(v)) return; setWebhookPort(String(Math.max(1024, Math.min(65535, v)))) }}
+                onChange={(e) => setWebhookPort(e.target.value)}
+                onBlur={() => { const v = parseInt(webhookPort, 10); setWebhookPort(String(isNaN(v) ? 7474 : Math.max(1024, Math.min(65535, v)))) }}
                 placeholder="7474"
                 min="1024"
                 max="65535"
