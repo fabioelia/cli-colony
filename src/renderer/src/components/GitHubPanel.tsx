@@ -78,6 +78,8 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set()) // keyed by "owner/name#number:filename"
   const [loadingPRFiles, setLoadingPRFiles] = useState<Set<string>>(new Set())
   const [showPRFiles, setShowPRFiles] = useState<Set<string>>(new Set())
+  const [fileSearchQuery, setFileSearchQuery] = useState('')
+  const [fileStatusFilter, setFileStatusFilter] = useState<Set<string>>(new Set())
 
   // Issues state
   const [issuesByRepo, setIssuesByRepo] = useState<Record<string, GitHubIssue[]>>({})
@@ -1527,6 +1529,8 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                                   return
                                 }
                                 setShowPRFiles(prev => new Set([...prev, key]))
+                                setFileSearchQuery('')
+                                setFileStatusFilter(new Set())
                                 if (prFiles[key]) return
                                 setLoadingPRFiles(prev => new Set([...prev, key]))
                                 try {
@@ -1546,44 +1550,122 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                               }
                               {showPRFiles.has(prKey) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                             </button>
-                            {showPRFiles.has(prKey) && prFiles[prKey] && (
-                              <div className="github-pr-files-list">
-                                {prFiles[prKey].map(file => {
-                                  const fileKey = `${prKey}:${file.filename}`
-                                  const statusChar = file.status === 'renamed' ? 'R' : file.status[0].toUpperCase()
-                                  return (
-                                    <div key={file.filename} className="github-pr-file">
-                                      <div
-                                        className="github-pr-file-header"
-                                        onClick={() => {
-                                          setExpandedFiles(prev => {
-                                            const n = new Set(prev)
-                                            if (n.has(fileKey)) n.delete(fileKey); else n.add(fileKey)
-                                            return n
-                                          })
-                                        }}
-                                      >
-                                        {expandedFiles.has(fileKey) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                                        <span className={`github-pr-file-status ${file.status}`}>{statusChar}</span>
-                                        <span className="github-pr-file-name">
-                                          {file.previousFilename ? `${file.previousFilename} → ${file.filename}` : file.filename}
-                                        </span>
-                                        <span className="github-pr-file-stats">
-                                          {file.additions > 0 && <span className="additions">+{file.additions}</span>}
-                                          {file.deletions > 0 && <span className="deletions"> −{file.deletions}</span>}
-                                        </span>
-                                      </div>
-                                      {expandedFiles.has(fileKey) && file.patch && (
-                                        <DiffViewer diff={file.patch} filename={file.filename} />
-                                      )}
-                                      {expandedFiles.has(fileKey) && !file.patch && (
-                                        <div className="github-pr-file-binary">Binary file or diff too large</div>
+                            {showPRFiles.has(prKey) && prFiles[prKey] && (() => {
+                              const allFiles = prFiles[prKey]
+                              const statusCounts = { added: 0, modified: 0, removed: 0, renamed: 0 } as Record<string, number>
+                              for (const f of allFiles) statusCounts[f.status] = (statusCounts[f.status] || 0) + 1
+                              const visibleFiles = allFiles.filter(f => {
+                                if (fileSearchQuery && !f.filename.toLowerCase().includes(fileSearchQuery.toLowerCase())) return false
+                                if (fileStatusFilter.size > 0 && !fileStatusFilter.has(f.status)) return false
+                                return true
+                              })
+                              const isFiltered = fileSearchQuery || fileStatusFilter.size > 0
+                              return (
+                                <div className="github-pr-files-list">
+                                  <div className="github-pr-files-toolbar">
+                                    <div className="github-pr-files-summary">
+                                      {isFiltered ? `${visibleFiles.length} of ${allFiles.length} files` : `${allFiles.length} files`}
+                                      {': '}
+                                      {statusCounts.added > 0 && <span className="github-pr-file-status added">{statusCounts.added}A</span>}
+                                      {statusCounts.modified > 0 && <span className="github-pr-file-status modified">{statusCounts.modified}M</span>}
+                                      {statusCounts.removed > 0 && <span className="github-pr-file-status removed">{statusCounts.removed}D</span>}
+                                      {statusCounts.renamed > 0 && <span className="github-pr-file-status renamed">{statusCounts.renamed}R</span>}
+                                    </div>
+                                    <div className="github-pr-files-search-wrap">
+                                      <input
+                                        className="github-pr-files-search"
+                                        placeholder="Filter files..."
+                                        value={fileSearchQuery}
+                                        onChange={e => setFileSearchQuery(e.target.value)}
+                                      />
+                                      {fileSearchQuery && (
+                                        <button className="github-pr-files-search-clear" onClick={() => setFileSearchQuery('')}>×</button>
                                       )}
                                     </div>
-                                  )
-                                })}
-                              </div>
-                            )}
+                                    <div className="github-pr-files-status-chips">
+                                      {(['added', 'modified', 'removed', 'renamed'] as const).map(status => {
+                                        const count = statusCounts[status] || 0
+                                        if (count === 0) return null
+                                        const label = status === 'added' ? 'A' : status === 'modified' ? 'M' : status === 'removed' ? 'D' : 'R'
+                                        const active = fileStatusFilter.has(status)
+                                        return (
+                                          <button
+                                            key={status}
+                                            className={`github-pr-files-chip ${status}${active ? ' active' : ''}`}
+                                            onClick={() => setFileStatusFilter(prev => {
+                                              const n = new Set(prev)
+                                              if (n.has(status)) n.delete(status); else n.add(status)
+                                              return n
+                                            })}
+                                          >
+                                            {label} ({count})
+                                          </button>
+                                        )
+                                      })}
+                                    </div>
+                                    <button
+                                      className="panel-header-btn"
+                                      onClick={() => setExpandedFiles(prev => {
+                                        const n = new Set(prev)
+                                        visibleFiles.forEach(f => n.add(`${prKey}:${f.filename}`))
+                                        return n
+                                      })}
+                                    >
+                                      Expand All
+                                    </button>
+                                    <button
+                                      className="panel-header-btn"
+                                      onClick={() => setExpandedFiles(prev => {
+                                        const n = new Set(prev)
+                                        visibleFiles.forEach(f => n.delete(`${prKey}:${f.filename}`))
+                                        return n
+                                      })}
+                                    >
+                                      Collapse All
+                                    </button>
+                                  </div>
+                                  {visibleFiles.map(file => {
+                                    const fileKey = `${prKey}:${file.filename}`
+                                    const statusChar = file.status === 'renamed' ? 'R' : file.status[0].toUpperCase()
+                                    return (
+                                      <div key={file.filename} className="github-pr-file">
+                                        <div
+                                          className="github-pr-file-header"
+                                          onClick={() => {
+                                            setExpandedFiles(prev => {
+                                              const n = new Set(prev)
+                                              if (n.has(fileKey)) n.delete(fileKey); else n.add(fileKey)
+                                              return n
+                                            })
+                                          }}
+                                        >
+                                          {expandedFiles.has(fileKey) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                                          <span className={`github-pr-file-status ${file.status}`}>{statusChar}</span>
+                                          <span className="github-pr-file-name">
+                                            {file.previousFilename ? `${file.previousFilename} → ${file.filename}` : file.filename}
+                                          </span>
+                                          <span className="github-pr-file-stats">
+                                            {file.additions > 0 && <span className="additions">+{file.additions}</span>}
+                                            {file.deletions > 0 && <span className="deletions"> −{file.deletions}</span>}
+                                          </span>
+                                          {(() => { const count = pr.comments.filter(c => c.path === file.filename && c.line).length; return count > 0 ? <span className="github-pr-file-comments">{count} comment{count > 1 ? 's' : ''}</span> : null })()}
+                                        </div>
+                                        {expandedFiles.has(fileKey) && file.patch && (
+                                          <DiffViewer
+                                            diff={file.patch}
+                                            filename={file.filename}
+                                            comments={pr.comments.filter(c => c.path === file.filename)}
+                                          />
+                                        )}
+                                        {expandedFiles.has(fileKey) && !file.patch && (
+                                          <div className="github-pr-file-binary">Binary file or diff too large</div>
+                                        )}
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              )
+                            })()}
 
                             <div className="github-pr-quick-actions">
                               {prompts.filter((p) => !p.scope || p.scope === 'pr').map((prompt) => (

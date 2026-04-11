@@ -6977,6 +6977,53 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 11px;
 }
 
+/* Inline PR review comments within diff */
+.diff-inline-comments {
+  padding: 4px 8px;
+}
+.diff-inline-comments-toggle {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.diff-inline-comments-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+.diff-inline-comment {
+  background: var(--bg-secondary);
+  border-left: 3px solid var(--accent);
+  padding: 6px 10px;
+  margin: 2px 0;
+  font-size: 12px;
+  border-radius: 4px;
+}
+.diff-inline-comment-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.diff-inline-comment-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+.diff-split-comment-row {
+  grid-template-columns: 1fr;
+}
+.github-pr-file-comments {
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-left: auto;
+}
+
 /* Syntax highlighting tokens within diff lines */
 .diff-viewer .diff-content .hljs-keyword,
 .diff-viewer .diff-content .hljs-selector-tag,
@@ -8282,6 +8329,88 @@ body:has(.daemon-update-banner) .app-update-banner {
 .github-pr-files-toggle:hover { background: var(--bg-hover); color: var(--text-primary); }
 .github-pr-files-toggle.active { color: var(--text-primary); border-color: var(--border-active); }
 .github-pr-files-list { border: 1px solid var(--border-subtle); border-radius: 4px; overflow: hidden; }
+.github-pr-files-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+}
+.github-pr-files-summary {
+  color: var(--text-muted);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.github-pr-files-search-wrap {
+  position: relative;
+  max-width: 180px;
+}
+.github-pr-files-search {
+  font-size: 11px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 2px 18px 2px 4px;
+  width: 100%;
+  outline: none;
+}
+.github-pr-files-search:focus {
+  border-color: var(--accent);
+}
+.github-pr-files-search-clear {
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0 2px;
+  line-height: 1;
+}
+.github-pr-files-status-chips {
+  display: flex;
+  gap: 4px;
+}
+.github-pr-files-chip {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.github-pr-files-chip:hover {
+  background: var(--bg-hover);
+}
+.github-pr-files-chip.active.added {
+  background: color-mix(in srgb, var(--success) 20%, transparent);
+  border-color: var(--success);
+  color: var(--success);
+}
+.github-pr-files-chip.active.modified {
+  background: color-mix(in srgb, var(--warning) 20%, transparent);
+  border-color: var(--warning);
+  color: var(--warning);
+}
+.github-pr-files-chip.active.removed {
+  background: color-mix(in srgb, var(--danger) 20%, transparent);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.github-pr-files-chip.active.renamed {
+  background: color-mix(in srgb, var(--accent-purple) 20%, transparent);
+  border-color: var(--accent-purple);
+  color: var(--accent-purple);
+}
 .github-pr-file { border-bottom: 1px solid var(--border-subtle); }
 .github-pr-file:last-child { border-bottom: none; }
 .github-pr-file-header {
