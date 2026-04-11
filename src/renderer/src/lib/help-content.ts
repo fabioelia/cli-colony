@@ -129,11 +129,11 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Below stats (when applicable)',
         items: [
           { label: 'Pending approvals', detail: 'Pipeline approval gates waiting for your decision. Approve or dismiss inline, or click the pipeline name to navigate.', icon: 'Zap' },
-          { label: 'Pipeline errors', detail: 'Pipelines that encountered an error on their last run. Hover to see the error message in a tooltip.', icon: 'AlertCircle' },
-          { label: 'Blocked tasks', detail: 'Task board items marked as blocked.', icon: 'Circle' },
-          { label: 'Stale sessions', detail: 'Sessions that are marked "busy" but have produced no output for 15+ minutes. May indicate a stuck process or hung PTY. Click to navigate to the session terminal.', icon: 'Clock' },
-          { label: 'Unhealthy environments', detail: 'Environments in error or partial state. Click to navigate to the Environments panel for details and recovery actions.', icon: 'AlertCircle' },
-          { label: 'Failed persona runs', detail: 'Enabled personas whose last run failed. Click to navigate to the Personas panel for analytics and error details. Capped at 5 entries with an overflow indicator.', icon: 'Users' },
+          { label: 'Pipeline errors', detail: 'Pipelines that encountered an error on their last run. Hover to see the error message in a tooltip. Inline Retry button triggers the pipeline immediately.', icon: 'AlertCircle' },
+          { label: 'Blocked tasks', detail: 'Task board items marked as blocked. No inline action — unblocking requires manual judgment.', icon: 'Circle' },
+          { label: 'Stale sessions', detail: 'Sessions that are marked "busy" but have produced no output for 15+ minutes. May indicate a stuck process or hung PTY. Inline Stop button kills the session. Click to navigate to the session terminal.', icon: 'Clock' },
+          { label: 'Unhealthy environments', detail: 'Environments in error or partial state. Inline Restart button retries setup for error state or restarts services for partial state.', icon: 'AlertCircle' },
+          { label: 'Failed persona runs', detail: 'Enabled personas whose last run failed. Inline Run Now button triggers a new run immediately. Click to navigate to the Personas panel. Capped at 5 entries.', icon: 'Users' },
         ],
       },
       {

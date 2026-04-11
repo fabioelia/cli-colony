@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import {
   Home, Play, Plus, Zap, Clock, AlertCircle,
   CheckCircle2, Circle, Users, FolderOpen, Activity, GanttChart, BarChart3, X, Eye, Square, Pin, PinOff,
-  ChevronLeft, ChevronRight, Calendar
+  ChevronLeft, ChevronRight, Calendar, RotateCcw
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import SessionTimeline from './SessionTimeline'
@@ -156,6 +156,13 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
       envPct: Math.round(envScore * 100),
     }
   }, [personas, pipelines, personaHealth, instances, environments])
+
+  // Track actioned attention items for brief feedback (checkmark for 3s)
+  const [actionedIds, setActionedIds] = useState<Set<string>>(new Set())
+  function markActioned(id: string) {
+    setActionedIds(prev => new Set(prev).add(id))
+    setTimeout(() => setActionedIds(prev => { const next = new Set(prev); next.delete(id); return next }), 3000)
+  }
 
   const [activitySourceFilter, setActivitySourceFilter] = useState<'all' | 'persona' | 'pipeline' | 'env'>('all')
   const [activityLevelFilter, setActivityLevelFilter] = useState<'all' | 'info' | 'warn' | 'error'>('all')
@@ -327,6 +334,13 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                   <Clock size={13} />
                   <span className="attention-label">{inst.name || 'Unnamed'} — stale</span>
                   <span className="attention-time">{Math.floor((idleMap.get(inst.id) || 0) / 60000)}m idle</span>
+                  {onKill && (actionedIds.has(`stale-${inst.id}`) ? (
+                    <span className="attention-action-btn approve"><CheckCircle2 size={13} /></span>
+                  ) : (
+                    <button className="attention-action-btn dismiss" title="Stop" onClick={(e) => { e.stopPropagation(); onKill(inst.id); markActioned(`stale-${inst.id}`) }}>
+                      <Square size={13} />
+                    </button>
+                  ))}
                 </div>
               ))}
               {pendingApprovals.map(a => (
@@ -347,6 +361,13 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                 <div key={p.name} className="overview-attention-item attention-error" onClick={() => onNavigate('pipelines')} title={p.lastError || undefined}>
                   <AlertCircle size={13} />
                   <span className="attention-label">{p.name} failed</span>
+                  {actionedIds.has(`pipe-${p.name}`) ? (
+                    <span className="attention-action-btn approve"><CheckCircle2 size={13} /></span>
+                  ) : (
+                    <button className="attention-action-btn" title="Retry" onClick={(e) => { e.stopPropagation(); window.api.pipeline.triggerNow(p.name); markActioned(`pipe-${p.name}`) }}>
+                      <RotateCcw size={13} />
+                    </button>
+                  )}
                 </div>
               ))}
               {blockedTasks.map(t => (
@@ -359,6 +380,18 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                 <div key={e.id} className="overview-attention-item attention-error" onClick={() => onNavigate('environments')}>
                   <AlertCircle size={13} />
                   <span className="attention-label">{e.name} — {e.status}</span>
+                  {actionedIds.has(`env-${e.id}`) ? (
+                    <span className="attention-action-btn approve"><CheckCircle2 size={13} /></span>
+                  ) : (
+                    <button className="attention-action-btn" title={e.status === 'error' ? 'Retry Setup' : 'Restart'} onClick={(ev) => {
+                      ev.stopPropagation()
+                      if (e.status === 'error') window.api.env.retrySetup(e.id)
+                      else window.api.env.start(e.id)
+                      markActioned(`env-${e.id}`)
+                    }}>
+                      <RotateCcw size={13} />
+                    </button>
+                  )}
                 </div>
               ))}
               {failedPersonas.slice(0, 5).map(ph => {
@@ -367,6 +400,13 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                   <div key={ph.personaId} className="overview-attention-item attention-error" onClick={() => onNavigate('personas')}>
                     <Users size={13} />
                     <span className="attention-label">{p?.name || ph.personaId} — last run failed</span>
+                    {actionedIds.has(`persona-${ph.personaId}`) ? (
+                      <span className="attention-action-btn approve"><CheckCircle2 size={13} /></span>
+                    ) : (
+                      <button className="attention-action-btn" title="Run Now" onClick={(ev) => { ev.stopPropagation(); window.api.persona.run(ph.personaId); markActioned(`persona-${ph.personaId}`) }}>
+                        <Play size={13} />
+                      </button>
+                    )}
                   </div>
                 )
               })}

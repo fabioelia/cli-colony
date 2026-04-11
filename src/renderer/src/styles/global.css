@@ -16394,7 +16394,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 /* Persona batch selection */
-.persona-select-checkbox { width: 13px; height: 13px; flex-shrink: 0; cursor: pointer; accent-color: var(--accent-blue); margin: 0; }
+.persona-select-checkbox { width: 13px; height: 13px; flex-shrink: 0; cursor: pointer; accent-color: var(--accent); margin: 0; }
 .persona-bulk-bar {
   display: flex; align-items: center; gap: 8px; padding: 6px 12px;
   background: var(--bg-hover); border-bottom: 1px solid var(--border);
@@ -16406,7 +16406,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .persona-bulk-actions { display: flex; gap: 4px; margin-left: auto; }
 .persona-bulk-btn { display: flex; align-items: center; gap: 3px; font-size: 11px; padding: 3px 8px; border-radius: 4px; background: var(--bg-hover); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; }
 .persona-bulk-btn:hover { background: var(--bg-active); color: var(--text-primary); }
-.persona-bulk-btn.primary { background: var(--accent-blue); color: #fff; border-color: var(--accent-blue); }
+.persona-bulk-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
 .persona-bulk-btn.primary:hover { opacity: 0.85; }
 .persona-bulk-btn.danger:hover { background: rgba(239,68,68,0.15); color: var(--danger); border-color: var(--danger); }
 
@@ -18656,7 +18656,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .output-diff-ctx { color: var(--text-muted); }
 .output-diff-gutter { width: 20px; flex-shrink: 0; text-align: center; user-select: none; opacity: 0.7; }
 .output-diff-text { white-space: pre-wrap; word-break: break-word; }
-.outputs-viewer-btn.primary { background: var(--accent-blue); color: #fff; border-color: var(--accent-blue); }
+.outputs-viewer-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
 .outputs-viewer-btn.primary:hover { opacity: 0.85; }
 .outputs-viewer-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
