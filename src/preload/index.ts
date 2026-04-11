@@ -415,6 +415,11 @@ export interface ClaudeManagerAPI {
     unpushedCommits: (cwd: string) => Promise<Array<{ hash: string; subject: string; author: string; date: string }>>
     commitDiff: (cwd: string, hash: string) => Promise<string>
     createBranch: (cwd: string, name: string) => Promise<string>
+    fetch: (cwd: string) => Promise<{ success: boolean; error?: string }>
+    pull: (cwd: string) => Promise<{ success: boolean; error?: string }>
+    behindCount: (cwd: string) => Promise<number>
+    listBranches: (cwd: string) => Promise<Array<{ name: string; current: boolean }>>
+    switchBranch: (cwd: string, branch: string) => Promise<{ success: boolean; error?: string }>
   }
   audit: {
     runPanel: (panel: string, context: object) => Promise<AuditResult[]>
@@ -974,6 +979,11 @@ const api: ClaudeManagerAPI = {
     unpushedCommits: (cwd) => ipcRenderer.invoke('git:unpushedCommits', cwd),
     commitDiff: (cwd, hash) => ipcRenderer.invoke('git:commitDiff', cwd, hash),
     createBranch: (cwd, name) => ipcRenderer.invoke('git:createBranch', cwd, name),
+    fetch: (cwd) => ipcRenderer.invoke('git:fetch', cwd),
+    pull: (cwd) => ipcRenderer.invoke('git:pull', cwd),
+    behindCount: (cwd) => ipcRenderer.invoke('git:behindCount', cwd),
+    listBranches: (cwd) => ipcRenderer.invoke('git:listBranches', cwd),
+    switchBranch: (cwd, branch) => ipcRenderer.invoke('git:switchBranch', cwd, branch),
   },
   arena: {
     recordWinner: (winnerKey, loserKey, matchCtx) => ipcRenderer.invoke('arena:recordWinner', winnerKey, loserKey, matchCtx),

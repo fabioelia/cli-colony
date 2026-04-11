@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { GitCompare, RefreshCw, ChevronDown, ChevronRight, Terminal, GitBranch, Copy, Filter, RotateCw, Clock, GitCommit, Upload, AlertTriangle, Undo2 } from 'lucide-react'
+import { GitCompare, RefreshCw, ChevronDown, ChevronRight, Terminal, GitBranch, Copy, Filter, RotateCw, Clock, GitCommit, Upload, AlertTriangle, Undo2, Download, ArrowDown } from 'lucide-react'
 import type { ClaudeInstance } from '../types'
 import type { GitDiffEntry } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
@@ -62,6 +62,14 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
   const [pushError, setPushError] = useState(false)
   const [pushConfirm, setPushConfirm] = useState(false)
   const [branchName, setBranchName] = useState<string>('')
+  const [behindCount, setBehindCount] = useState(0)
+  const [pulling, setPulling] = useState(false)
+  const [fetching, setFetching] = useState(false)
+  const [pullError, setPullError] = useState<string | null>(null)
+  const [branches, setBranches] = useState<Array<{ name: string; current: boolean }>>([])
+  const [showBranchPicker, setShowBranchPicker] = useState(false)
+  const [switching, setSwitching] = useState(false)
+  const branchPickerRef = useRef<HTMLDivElement>(null)
 
   const instancesWithDir = instances.filter(i => i.workingDirectory)
   const instanceIds = instancesWithDir.map(i => i.id).join(',')
@@ -141,12 +149,16 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
     if (!projectDir) return
     setCommitsLoading(true)
     try {
-      const [commits, info] = await Promise.all([
+      const [commits, info, behind, branchList] = await Promise.all([
         window.api.git.unpushedCommits(projectDir),
         window.api.git.branchInfo(projectDir),
+        window.api.git.behindCount(projectDir),
+        window.api.git.listBranches(projectDir).catch(() => [] as Array<{ name: string; current: boolean }>),
       ])
       setUnpushedCommits(commits)
       setBranchName(info.branch)
+      setBehindCount(behind)
+      setBranches(branchList)
     } catch {
       setUnpushedCommits([])
     } finally {
@@ -259,6 +271,68 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
     }
   }, [projectDir])
 
+  const handleFetch = useCallback(async () => {
+    if (!projectDir) return
+    setFetching(true)
+    try {
+      await window.api.git.fetch(projectDir)
+      await loadUnpushedCommits()
+    } finally {
+      setFetching(false)
+    }
+  }, [projectDir, loadUnpushedCommits])
+
+  const handlePull = useCallback(async () => {
+    if (!projectDir) return
+    const hasChanges = sessionChanges.some(s => s.entries.length > 0)
+    if (hasChanges) {
+      if (!window.confirm('You have uncommitted changes. Pull may fail if there are conflicts. Continue?')) return
+    }
+    setPulling(true)
+    setPullError(null)
+    try {
+      const result = await window.api.git.pull(projectDir)
+      if (!result.success) {
+        setPullError(result.error || 'Pull failed')
+        setTimeout(() => setPullError(null), 5000)
+      }
+      await Promise.all([loadUnpushedCommits(), loadAllChanges()])
+    } finally {
+      setPulling(false)
+    }
+  }, [projectDir, sessionChanges, loadUnpushedCommits, loadAllChanges])
+
+  const handleSwitchBranch = useCallback(async (branch: string) => {
+    if (!projectDir || branch === branchName) return
+    const hasChanges = sessionChanges.some(s => s.entries.length > 0)
+    if (hasChanges) {
+      if (!window.confirm(`You have uncommitted changes. Switch to "${branch}" anyway? Changes will carry over to the new branch.`)) return
+    }
+    setSwitching(true)
+    setShowBranchPicker(false)
+    try {
+      const result = await window.api.git.switchBranch(projectDir, branch)
+      if (!result.success) {
+        window.alert(result.error || 'Failed to switch branch')
+      }
+      await Promise.all([loadUnpushedCommits(), loadAllChanges()])
+    } finally {
+      setSwitching(false)
+    }
+  }, [projectDir, branchName, sessionChanges, loadUnpushedCommits, loadAllChanges])
+
+  // Close branch picker on click outside
+  useEffect(() => {
+    if (!showBranchPicker) return
+    const handler = (e: MouseEvent) => {
+      if (branchPickerRef.current && !branchPickerRef.current.contains(e.target as Node)) {
+        setShowBranchPicker(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showBranchPicker])
+
   // Apply filter
   const displayed = filter === 'changes'
     ? sessionChanges.filter(s => s.entries.length > 0 || s.loading)
@@ -329,6 +403,29 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
             >
               <Filter size={13} /> {filter === 'changes' ? 'Changed' : 'All'}
             </button>
+          )}
+          {activeTab === 'commits' && (
+            <>
+              <button
+                className="panel-header-btn"
+                onClick={handleFetch}
+                disabled={fetching}
+                title="Fetch from remote"
+              >
+                <Download size={13} /> {fetching ? 'Fetching...' : 'Fetch'}
+              </button>
+              {behindCount > 0 && (
+                <button
+                  className={`panel-header-btn${pullError ? '' : ' primary'}`}
+                  onClick={handlePull}
+                  disabled={pulling}
+                  title={pullError || `Pull ${behindCount} commit${behindCount !== 1 ? 's' : ''} from upstream`}
+                  style={pullError ? { color: 'var(--danger)' } : undefined}
+                >
+                  {pullError ? <><AlertTriangle size={13} /> Failed</> : <><ArrowDown size={13} /> {pulling ? 'Pulling...' : `Pull (${behindCount})`}</>}
+                </button>
+              )}
+            </>
           )}
           {activeTab === 'commits' && unpushedCommits.length > 0 && (
             <button
@@ -554,9 +651,45 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
           {!commitsLoading && unpushedCommits.length === 0 && (
             <div className="changes-empty">No unpushed commits. All changes have been pushed to origin.</div>
           )}
-          {unpushedCommits.length > 0 && (
-            <div className="review-summary" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-              <span>{unpushedCommits.length} commit{unpushedCommits.length !== 1 ? 's' : ''} ahead of origin/{branchName || 'main'}</span>
+          {(unpushedCommits.length > 0 || behindCount > 0 || branchName) && (
+            <div className="review-summary" style={{ WebkitAppRegion: 'no-drag', position: 'relative' } as React.CSSProperties}>
+              {unpushedCommits.length > 0 ? (
+                <span>
+                  {unpushedCommits.length} commit{unpushedCommits.length !== 1 ? 's' : ''} ahead
+                </span>
+              ) : (
+                <span>Up to date</span>
+              )}
+              {behindCount > 0 && (
+                <span style={{ color: 'var(--warning)', marginLeft: '6px' }}>
+                  · {behindCount} behind
+                </span>
+              )}
+              <span style={{ marginLeft: '6px' }}>·</span>
+              <span
+                style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', marginLeft: '6px' }}
+                onClick={() => setShowBranchPicker(!showBranchPicker)}
+                title="Switch branch"
+              >
+                <GitBranch size={11} />
+                <strong style={{ textDecoration: 'underline dotted' }}>{branchName || 'main'}</strong>
+                <ChevronDown size={11} />
+              </span>
+              {showBranchPicker && (
+                <div className="branch-picker-dropdown" ref={branchPickerRef}>
+                  {branches.map(b => (
+                    <button
+                      key={b.name}
+                      className={`branch-picker-item${b.current ? ' current' : ''}`}
+                      onClick={() => handleSwitchBranch(b.name)}
+                      disabled={b.current || switching}
+                    >
+                      {b.current && <span style={{ color: 'var(--success)' }}>●</span>}
+                      {b.name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {unpushedCommits.map(commit => {

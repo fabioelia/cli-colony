@@ -84,7 +84,7 @@ export function registerGitHandlers(): void {
     await assertGitRepo(cwd)
     try {
       const { stdout } = await execFileAsync('git', [
-        'log', 'origin/main..HEAD', '--format=%H|%s|%an|%ar',
+        'log', '@{u}..HEAD', '--format=%H|%s|%an|%ar',
       ], { cwd, timeout: 10000, encoding: 'utf-8' })
       if (!stdout.trim()) return []
       return stdout.trim().split('\n').map(line => {
@@ -104,6 +104,64 @@ export function registerGitHandlers(): void {
     }
     await execFileAsync('git', ['checkout', '-b', name], { cwd, timeout: 10000 })
     return name
+  })
+
+  ipcMain.handle('git:fetch', async (_e, cwd: string): Promise<{ success: boolean; error?: string }> => {
+    await assertGitRepo(cwd)
+    try {
+      await execFileAsync('git', ['fetch'], { cwd, timeout: 30000 })
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.stderr || err.message }
+    }
+  })
+
+  ipcMain.handle('git:pull', async (_e, cwd: string): Promise<{ success: boolean; error?: string }> => {
+    await assertGitRepo(cwd)
+    try {
+      await execFileAsync('git', ['pull', '--ff-only'], { cwd, timeout: 60000 })
+      return { success: true }
+    } catch (err: any) {
+      const msg = err.stderr || err.message || ''
+      return { success: false, error: msg }
+    }
+  })
+
+  ipcMain.handle('git:behindCount', async (_e, cwd: string): Promise<number> => {
+    await assertGitRepo(cwd)
+    try {
+      const { stdout } = await execFileAsync('git', ['rev-list', '--count', 'HEAD..@{u}'], {
+        cwd, timeout: 5000, encoding: 'utf-8',
+      })
+      return parseInt(stdout.trim(), 10) || 0
+    } catch {
+      return 0
+    }
+  })
+
+  ipcMain.handle('git:listBranches', async (_e, cwd: string): Promise<Array<{ name: string; current: boolean }>> => {
+    await assertGitRepo(cwd)
+    const { stdout } = await execFileAsync('git', ['branch', '--format=%(refname:short)|%(HEAD)'], {
+      cwd, timeout: 5000, encoding: 'utf-8',
+    })
+    if (!stdout.trim()) return []
+    return stdout.trim().split('\n').map(line => {
+      const [name, head] = line.split('|')
+      return { name: name.trim(), current: head.trim() === '*' }
+    })
+  })
+
+  ipcMain.handle('git:switchBranch', async (_e, cwd: string, branch: string): Promise<{ success: boolean; error?: string }> => {
+    await assertGitRepo(cwd)
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9._/-]*$/.test(branch)) {
+      return { success: false, error: 'Invalid branch name' }
+    }
+    try {
+      await execFileAsync('git', ['checkout', branch], { cwd, timeout: 15000 })
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.stderr || err.message }
+    }
   })
 
   ipcMain.handle('git:commitDiff', async (_e, cwd: string, hash: string): Promise<string> => {

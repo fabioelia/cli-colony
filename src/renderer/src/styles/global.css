@@ -7196,6 +7196,43 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: var(--bg-surface);
 }
 
+.branch-picker-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+  min-width: 180px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.branch-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: var(--font-mono, monospace);
+  cursor: pointer;
+  border-radius: 4px;
+  text-align: left;
+}
+.branch-picker-item:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.branch-picker-item.current {
+  color: var(--success);
+  font-weight: 600;
+}
+
 .review-content {
   flex: 1;
   overflow-y: auto;

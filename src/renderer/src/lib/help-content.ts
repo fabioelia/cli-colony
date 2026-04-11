@@ -1449,6 +1449,8 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Changes tab', detail: 'Uncommitted working-tree changes across all sessions. Shows per-session file diffs.', icon: 'GitCompare' },
           { label: 'Commits tab', detail: 'Committed-but-unpushed changes (origin/main..HEAD). Badge shows count. Click to see per-commit diffs.', icon: 'GitCommit' },
           { label: 'Filter toggle', detail: 'Switch between "Changed" (only sessions with uncommitted changes) and "All" (every session with a working directory). Only visible on the Changes tab.', icon: 'Filter' },
+          { label: 'Fetch', detail: 'Fetch latest changes from the remote without merging. Updates the behind-count indicator.', icon: 'Download' },
+          { label: 'Pull', detail: 'Pull upstream changes (fast-forward only). Only visible when behind the remote. Warns if there are uncommitted changes.', icon: 'ArrowDown' },
           { label: 'Push', detail: 'Push all unpushed commits to origin. Only visible on the Commits tab when commits exist. Warns with a confirmation dialog when pushing to main/master.', icon: 'Upload' },
           { label: 'Refresh', detail: 'Manually re-fetch git changes for all sessions. Also auto-refreshes every 30 seconds.', icon: 'RefreshCw' },
         ],
@@ -1458,6 +1460,8 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Below header',
         items: [
           { label: 'Change totals', detail: 'Total files changed, sessions with changes, and aggregate insertions/deletions across all sessions.' },
+          { label: 'Branch switcher', detail: 'Click the branch name in the commits summary bar to see all local branches and switch between them. Warns if there are uncommitted changes.', icon: 'GitBranch' },
+          { label: 'Behind indicator', detail: 'Shows how many commits the local branch is behind upstream. Fetch to update, Pull to merge.', icon: 'ArrowDown' },
         ],
       },
       {
