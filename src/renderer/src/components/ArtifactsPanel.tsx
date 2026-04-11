@@ -210,7 +210,7 @@ export default function ArtifactsPanel() {
                     fontSize: 10,
                     padding: '1px 6px',
                     borderRadius: 3,
-                    background: 'var(--accent-blue)',
+                    background: 'var(--accent)',
                     color: '#fff',
                     whiteSpace: 'nowrap',
                   }}>
@@ -285,7 +285,7 @@ export default function ArtifactsPanel() {
                       </div>
                       {artifact.commits.map((c) => (
                         <div key={c.hash} style={{ display: 'flex', gap: 8, alignItems: 'baseline', padding: '2px 0' }}>
-                          <code style={{ fontSize: 11, opacity: 0.6, fontFamily: 'var(--font-mono)' }}>{c.hash.slice(0, 7)}</code>
+                          <code style={{ fontSize: 11, opacity: 0.6, fontFamily: 'monospace' }}>{c.hash.slice(0, 7)}</code>
                           <span>{c.shortMsg}</span>
                         </div>
                       ))}

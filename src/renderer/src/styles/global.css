@@ -18136,7 +18136,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .activity-panel-search input {
   flex: 1; background: none; border: none; outline: none;
-  color: var(--text); font-size: 12px; font-family: inherit;
+  color: var(--text-primary); font-size: 12px; font-family: inherit;
 }
 .activity-panel-search input::placeholder { color: var(--text-muted); }
 .activity-panel-search svg { color: var(--text-muted); flex-shrink: 0; }
