@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import SessionTimeline from './SessionTimeline'
-import type { ClaudeInstance, ActivityEvent, PersonaInfo, ApprovalRequest, TaskBoardItem, PersonaHealthEntry } from '../../../preload'
+import type { ClaudeInstance, ActivityEvent, PersonaInfo, ApprovalRequest, TaskBoardItem, PersonaHealthEntry, EnvStatus } from '../../../preload'
 
 interface PipelineSummary {
   name: string
@@ -54,6 +54,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const [personaHealth, setPersonaHealth] = useState<PersonaHealthEntry[]>([])
   const [idleMap, setIdleMap] = useState<Map<string, number>>(new Map())
   const [costLeaderboard, setCostLeaderboard] = useState<Array<{ name: string; id: string; cost: number }>>([])
+  const [environments, setEnvironments] = useState<EnvStatus[]>([])
 
   useEffect(() => {
     window.api.activity.list().then(setActivity)
@@ -63,6 +64,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
     window.api.tasksBoard.list().then(setTasks)
     window.api.persona.getColonyCostTrend().then(setCostTrend)
     window.api.persona.healthSummary().then(setPersonaHealth)
+    window.api.env.list().then(setEnvironments)
     window.api.sessions.idleInfo().then(entries => {
       const m = new Map<string, number>()
       for (const e of entries) m.set(e.id, e.idleMs)
@@ -97,6 +99,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
           setApprovals(prev => prev.filter(a => a.id !== id))
         }
       }),
+      window.api.env.onStatusUpdate((list) => setEnvironments(list)),
     ]
     return () => unsubs.forEach(fn => fn())
   }, [])
@@ -112,9 +115,14 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const staleSessions = useMemo(() => running.filter(inst =>
     inst.activity === 'busy' && (idleMap.get(inst.id) || 0) > 900000
   ), [running, idleMap])
-  // Health score: weighted composite of persona, pipeline, and session health
+  const runningEnvs = useMemo(() => environments.filter(e => e.status === 'running'), [environments])
+  const unhealthyEnvs = useMemo(() => environments.filter(e => e.status === 'error' || e.status === 'partial'), [environments])
+  const failedPersonas = useMemo(() => personaHealth.filter(ph =>
+    !ph.lastRunSuccess && personas.some(p => p.id === ph.personaId && p.enabled)
+  ), [personaHealth, personas])
+  // Health score: weighted composite of persona, pipeline, session, and environment health
   const healthScore = useMemo(() => {
-    // Persona health (40%): of enabled personas with run history, % whose last run succeeded
+    // Persona health (35%): of enabled personas with run history, % whose last run succeeded
     const enabledWithHistory = personaHealth.filter(ph =>
       personas.some(p => p.id === ph.personaId && p.enabled)
     )
@@ -122,16 +130,21 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
       ? enabledWithHistory.filter(ph => ph.lastRunSuccess).length / enabledWithHistory.length
       : 1 // No history = assume healthy
 
-    // Pipeline health (30%): of enabled pipelines, % without lastError
+    // Pipeline health (25%): of enabled pipelines, % without lastError
     const enabledPipelines = pipelines.filter(p => p.enabled)
     const pipelineScore = enabledPipelines.length > 0
       ? enabledPipelines.filter(p => !p.lastError).length / enabledPipelines.length
       : 1
 
-    // Session health (30%): all running sessions counted as healthy (errors handled by #179)
+    // Session health (25%): all running sessions counted as healthy (errors handled by #179)
     const sessionScore = 1
 
-    const composite = personaScore * 0.4 + pipelineScore * 0.3 + sessionScore * 0.3
+    // Environment health (15%): of all environments, % that are running
+    const envScore = environments.length > 0
+      ? environments.filter(e => e.status === 'running').length / environments.length
+      : 1
+
+    const composite = personaScore * 0.35 + pipelineScore * 0.25 + sessionScore * 0.25 + envScore * 0.15
     const pct = Math.round(composite * 100)
     const color = pct >= 80 ? 'green' : pct >= 50 ? 'amber' : 'red'
     return {
@@ -140,8 +153,9 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
       personaPct: Math.round(personaScore * 100),
       pipelinePct: Math.round(pipelineScore * 100),
       sessionPct: Math.round(sessionScore * 100),
+      envPct: Math.round(envScore * 100),
     }
-  }, [personas, pipelines, personaHealth, instances])
+  }, [personas, pipelines, personaHealth, instances, environments])
 
   const [activitySourceFilter, setActivitySourceFilter] = useState<'all' | 'persona' | 'pipeline' | 'env'>('all')
   const [activityLevelFilter, setActivityLevelFilter] = useState<'all' | 'info' | 'warn' | 'error'>('all')
@@ -223,13 +237,19 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
             <div className="overview-stat-value">{activePipelines.length}</div>
             <div className="overview-stat-label">Pipelines Enabled</div>
           </div>
+          <div className="overview-stat-card" onClick={() => onNavigate('environments')}>
+            <div className={`overview-stat-value${unhealthyEnvs.some(e => e.status === 'error') ? ' env-error' : unhealthyEnvs.length > 0 ? ' env-warn' : ''}`}>
+              {runningEnvs.length}/{environments.length}
+            </div>
+            <div className="overview-stat-label">Environments</div>
+          </div>
           <div
             className="overview-stat-card"
             onClick={() => {
               const el = document.querySelector('.overview-section .overview-attention-list')
               if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
             }}
-            title={`Personas: ${healthScore.personaPct}% | Pipelines: ${healthScore.pipelinePct}% | Sessions: ${healthScore.sessionPct}%`}
+            title={`Personas: ${healthScore.personaPct}% | Pipelines: ${healthScore.pipelinePct}% | Sessions: ${healthScore.sessionPct}% | Environments: ${healthScore.envPct}%`}
           >
             <div className="overview-stat-value">
               <span className={`health-score-badge health-${healthScore.color}`}>{healthScore.pct}%</span>
@@ -298,7 +318,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
         })()}
 
         {/* Attention needed */}
-        {(pendingApprovals.length > 0 || errorPipelines.length > 0 || blockedTasks.length > 0 || staleSessions.length > 0) && (
+        {(pendingApprovals.length > 0 || errorPipelines.length > 0 || blockedTasks.length > 0 || staleSessions.length > 0 || unhealthyEnvs.length > 0 || failedPersonas.length > 0) && (
           <div className="overview-section">
             <h3><AlertCircle size={14} /> Needs Attention</h3>
             <div className="overview-attention-list">
@@ -335,6 +355,27 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                   <span className="attention-label">{t.title}</span>
                 </div>
               ))}
+              {unhealthyEnvs.map(e => (
+                <div key={e.id} className="overview-attention-item attention-error" onClick={() => onNavigate('environments')}>
+                  <AlertCircle size={13} />
+                  <span className="attention-label">{e.name} — {e.status}</span>
+                </div>
+              ))}
+              {failedPersonas.slice(0, 5).map(ph => {
+                const p = personas.find(pp => pp.id === ph.personaId)
+                return (
+                  <div key={ph.personaId} className="overview-attention-item attention-error" onClick={() => onNavigate('personas')}>
+                    <Users size={13} />
+                    <span className="attention-label">{p?.name || ph.personaId} — last run failed</span>
+                  </div>
+                )
+              })}
+              {failedPersonas.length > 5 && (
+                <div className="overview-attention-item attention-error" onClick={() => onNavigate('personas')}>
+                  <Users size={13} />
+                  <span className="attention-label">and {failedPersonas.length - 5} more failed</span>
+                </div>
+              )}
             </div>
           </div>
         )}

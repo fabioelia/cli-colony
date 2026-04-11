@@ -19217,6 +19217,14 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--danger);
 }
 
+.overview-stat-value.env-warn {
+  color: var(--warning);
+}
+
+.overview-stat-value.env-error {
+  color: var(--danger);
+}
+
 .overview-section h3 {
   font-size: 12px;
   font-weight: 600;

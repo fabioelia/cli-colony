@@ -117,7 +117,8 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Running Sessions', detail: 'Count of live sessions. Click to jump to the sessions list.' },
           { label: 'Active Personas', detail: 'Personas currently executing a scheduled or manual run.' },
           { label: 'Pipelines Enabled', detail: 'Number of pipelines with automation turned on.' },
-          { label: 'Colony Health', detail: 'Composite health score (0–100%). Weighted: persona last-run success (40%), pipeline error-free (30%), session health (30%). Green ≥80%, amber 50–79%, red <50%. Click to scroll to Needs Attention. Hover for per-component breakdown.' },
+          { label: 'Environments', detail: 'Running vs. total environment count. Amber when any environment is in partial/creating state, red when any is in error state. Click to navigate to the Environments panel.', icon: 'FolderOpen' },
+          { label: 'Colony Health', detail: 'Composite health score (0–100%). Weighted: persona last-run success (35%), pipeline error-free (25%), session health (25%), environment health (15%). Green ≥80%, amber 50–79%, red <50%. Click to scroll to Needs Attention. Hover for per-component breakdown.' },
           { label: 'Session Cost', detail: 'Total cost across all current sessions.' },
           { label: 'Daily Cost (7d)', detail: 'A 7-day bar chart showing total cost across all persona runs per day. Hover a bar to see the exact date and amount. Only appears when there is cost data.', icon: 'Activity' },
           { label: 'Top Spenders (7d)', detail: 'Ranked list of personas by 7-day cost. Shows persona name, percentage of total, a proportional bar, and dollar amount. Top 10 shown. Click any row to navigate to the Personas panel. Hidden when no persona has cost data.', icon: 'GanttChart' },
@@ -131,6 +132,8 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Pipeline errors', detail: 'Pipelines that encountered an error on their last run. Hover to see the error message in a tooltip.', icon: 'AlertCircle' },
           { label: 'Blocked tasks', detail: 'Task board items marked as blocked.', icon: 'Circle' },
           { label: 'Stale sessions', detail: 'Sessions that are marked "busy" but have produced no output for 15+ minutes. May indicate a stuck process or hung PTY. Click to navigate to the session terminal.', icon: 'Clock' },
+          { label: 'Unhealthy environments', detail: 'Environments in error or partial state. Click to navigate to the Environments panel for details and recovery actions.', icon: 'AlertCircle' },
+          { label: 'Failed persona runs', detail: 'Enabled personas whose last run failed. Click to navigate to the Personas panel for analytics and error details. Capped at 5 entries with an overflow indicator.', icon: 'Users' },
         ],
       },
       {
