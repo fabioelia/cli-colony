@@ -1721,8 +1721,8 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-weight: 600;
   text-transform: uppercase;
   border-radius: 3px;
-  background: rgba(148, 163, 184, 0.2);
-  color: #94a3b8;
+  background: color-mix(in srgb, var(--text-muted) 20%, transparent);
+  color: var(--text-muted);
   vertical-align: middle;
 }
 
@@ -1783,14 +1783,14 @@ body:has(.daemon-update-banner) .app-update-banner {
 .instance-role-badge.role-tester       { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
 .instance-role-badge.role-reviewer     { background: rgba(239, 68, 68, 0.15);  color: var(--danger); }
 .instance-role-badge.role-researcher   { background: color-mix(in srgb, var(--accent-purple) 15%, transparent); color: #a78bfa; }
-.instance-role-badge.role-coordinator  { background: rgba(217, 119, 6, 0.15); color: #d97706; }
+.instance-role-badge.role-coordinator  { background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning); }
 .instance-role-badge.role-worker       { background: rgba(107, 114, 128, 0.15); color: var(--text-secondary); }
 
 .instance-coordinator-badge {
   display: inline-flex;
   align-items: center;
   margin-left: 4px;
-  color: #d97706;
+  color: var(--warning);
   opacity: 0.8;
 }
 
