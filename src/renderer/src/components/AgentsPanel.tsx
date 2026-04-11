@@ -240,6 +240,10 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
         />
       )}
 
+      {q && matchingAgents.length === 0 && (
+        <div className="overview-empty-hint" style={{ padding: '24px 16px' }}>No matching agents</div>
+      )}
+
       {(!q || personal.length > 0) && (
         <div className="agents-section">
           {renderSectionHeader('Personal', personal, 'personal')}
