@@ -810,7 +810,7 @@ export default function SettingsPanel({ onBack }: Props) {
                         <td className="mcp-audit-ts">{relTime}</td>
                         <td className="mcp-audit-tool" title={entry.shortMsg}>{entry.shortMsg.slice(0, 60)}{entry.shortMsg.length > 60 ? '…' : ''}</td>
                         <td className="mcp-audit-session">{entry.sessionName}</td>
-                        <td style={{ color: 'var(--green)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                        <td style={{ color: 'var(--success)', fontFamily: 'monospace', fontSize: 11 }}>
                           {entry.costUsd != null ? `$${entry.costUsd.toFixed(2)}` : '—'}
                         </td>
                         <td><code>{shortHash}</code></td>
