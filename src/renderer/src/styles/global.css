@@ -7349,6 +7349,12 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-left: 2px solid var(--accent);
 }
 
+/* Colony review notes in expanded PR card */
+.github-pr-colony-notes { margin: 8px 0; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.github-pr-colony-notes-header { display: flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 11px; font-weight: 600; color: var(--text-secondary); cursor: pointer; background: var(--bg-secondary); }
+.github-pr-colony-notes-header:hover { color: var(--text-primary); }
+.github-pr-colony-notes-body { padding: 8px 12px; font-size: 12px; max-height: 400px; overflow-y: auto; }
+
 .github-pr-view-comments {
   display: flex;
   align-items: center;

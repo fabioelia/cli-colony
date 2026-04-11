@@ -63,6 +63,10 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const [postingComment, setPostingComment] = useState<Set<string>>(new Set())
   const [commentError, setCommentError] = useState<Record<string, string>>({})
 
+  // Colony review notes
+  const [colonyNotesByPR, setColonyNotesByPR] = useState<Record<string, string>>({}) // keyed by "owner/name#number"
+  const [colonyNotesCollapsed, setColonyNotesCollapsed] = useState<Set<string>>(new Set())
+
   // PR file diffs
   const [prFiles, setPRFiles] = useState<Record<string, PRFile[]>>({}) // keyed by "owner/name#number"
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set()) // keyed by "owner/name#number:filename"
@@ -157,6 +161,17 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   useEffect(() => {
     window.api.github.getUser().then(setGhUser)
   }, [])
+
+  // Load colony review notes when a PR card is expanded
+  useEffect(() => {
+    if (!expandedPR) return
+    if (colonyNotesByPR[expandedPR] !== undefined) return // already loaded
+    const [slug, numStr] = expandedPR.split('#')
+    const num = parseInt(numStr, 10)
+    window.api.github.getCommentsFile(slug, num).then(content => {
+      if (content) setColonyNotesByPR(prev => ({ ...prev, [expandedPR]: content }))
+    }).catch(() => {})
+  }, [expandedPR])
 
   useEffect(() => {
     if (!hasPrs) return
@@ -1206,6 +1221,24 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                                 className="github-pr-body"
                                 preprocessor={(md) => preprocessGitHubUrls(md, slug, pr.branch || 'main')}
                               />
+                            )}
+                            {colonyNotesByPR[prKey] && (
+                              <div className="github-pr-colony-notes">
+                                <div
+                                  className="github-pr-colony-notes-header"
+                                  onClick={() => setColonyNotesCollapsed(prev => {
+                                    const next = new Set(prev)
+                                    next.has(prKey) ? next.delete(prKey) : next.add(prKey)
+                                    return next
+                                  })}
+                                >
+                                  {colonyNotesCollapsed.has(prKey) ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                                  <Brain size={12} /> Colony Review Notes
+                                </div>
+                                {!colonyNotesCollapsed.has(prKey) && (
+                                  <MarkdownViewer content={colonyNotesByPR[prKey]} className="github-pr-colony-notes-body" />
+                                )}
+                              </div>
                             )}
                             {pr.additions + pr.deletions > 0 && (
                               <div className="github-pr-diff-stats">
