@@ -92,7 +92,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Below stats (when applicable)',
         items: [
           { label: 'Pending approvals', detail: 'Pipeline approval gates waiting for your decision. Approve or dismiss inline, or click the pipeline name to navigate.', icon: 'Zap' },
-          { label: 'Pipeline errors', detail: 'Pipelines that encountered an error on their last run.', icon: 'AlertCircle' },
+          { label: 'Pipeline errors', detail: 'Pipelines that encountered an error on their last run. Hover to see the error message in a tooltip.', icon: 'AlertCircle' },
           { label: 'Blocked tasks', detail: 'Task board items marked as blocked.', icon: 'Circle' },
         ],
       },
@@ -110,6 +110,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Source filter chips', detail: 'Filter events by source: All, Persona, Pipeline, or Env. Chips are toggles — click to select one.' },
           { label: 'Level filter chips', detail: 'Filter by severity: All, Info, Warn, or Error. Warn and Error chips show badge counts when events exist. Filters combine with source filter (AND).' },
           { label: 'Show more', detail: 'Expands from 20 events (default) to 50. The activity manager stores up to 100 events total.' },
+          { label: 'Click to navigate', detail: 'Click any activity item to jump to its source — session events focus the session, persona/pipeline/env events navigate to the corresponding panel.' },
           { label: 'Live updates', detail: 'New events from personas, pipelines, and environments appear at the top in real-time, respecting active filters.' },
         ],
       },
@@ -153,7 +154,8 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'New Session Button',
         position: 'Below navigation',
         items: [
-          { label: '+ New Session', detail: 'Opens a dialog to create a Claude CLI session. Set a name, color, working directory, optional CLI args, and custom environment variables. Keyboard shortcut: Cmd+N.', icon: 'Plus' },
+          { label: '+ New Session', detail: 'Opens a dialog to create a Claude CLI session. Set a name, working directory, color, model, CLI backend, permission mode, optional CLI args, MCP servers, and custom environment variables. Keyboard shortcut: Cmd+N.', icon: 'Plus' },
+          { label: 'Model picker', detail: 'Dedicated dropdown to select the Claude model (Opus, Sonnet, Haiku) instead of typing --model in CLI args. When cloning a session, the model is extracted from args and pre-selected.' },
           { label: 'Environment Variables', detail: 'Set custom environment variables (API keys, debug flags) for a session. Expand the collapsible section, add KEY=value rows. Variables are merged on top of your shell environment so session-specific overrides work without polluting your profile.' },
           { label: 'Plan first', detail: 'When a first prompt is set, toggle "Plan first" to make Claude outline its approach (files to modify, steps, risks) and wait for your approval before taking any action. Useful for complex tasks where you want to review the strategy before committing tokens. Works with both the dialog and session templates.', icon: 'ListChecks' },
           { label: 'Prompt history', detail: 'When the "First prompt" field is visible, a History button appears next to the label. Click it to see your last 20 session prompts with timestamps. Click an entry to fill the textarea. History is saved automatically on session creation and stored in localStorage.', icon: 'Clock' },

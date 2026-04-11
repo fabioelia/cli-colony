@@ -86,11 +86,19 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
   const [name, setName] = useState(cloneSource ? cloneName(cloneSource.name) : prefill?.name || '')
   const [workingDirectory, setWorkingDirectory] = useState(cloneSource?.workingDirectory || initialWorkingDirectory || '')
   const [color, setColor] = useState(cloneSource ? resolveColor(cloneSource.color) : resolveColor(prefill?.color))
+  const [model, setModel] = useState(() => {
+    const src = cloneSource?.args || prefill?.args || []
+    for (let i = 0; i < src.length; i++) {
+      if (src[i] === '--model' && src[i + 1]) return src[i + 1]
+    }
+    return ''
+  })
   const [extraArgs, setExtraArgs] = useState(() => {
     if (!cloneSource) return ''
     const filtered: string[] = []
     for (let i = 0; i < cloneSource.args.length; i++) {
       if (cloneSource.args[i] === '--resume') { i++; continue } // skip --resume and its value
+      if (cloneSource.args[i] === '--model') { i++; continue } // skip --model (now in dropdown)
       filtered.push(cloneSource.args[i])
     }
     return filtered.join(' ')
@@ -154,7 +162,9 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
   const handleCreate = async () => {
     if (creating) return
     setCreating(true)
-    const args = extraArgs.trim() ? extraArgs.trim().split(/\s+/) : undefined
+    const extraParts = extraArgs.trim() ? extraArgs.trim().split(/\s+/) : []
+    const modelParts = model ? ['--model', model] : []
+    const args = modelParts.length || extraParts.length ? [...modelParts, ...extraParts] : undefined
     const mcpServers = selectedMcpServers.size > 0 ? Array.from(selectedMcpServers) : undefined
     const trimmedPrompt = firstPrompt.trim()
     if (trimmedPrompt) addToHistory(trimmedPrompt)
@@ -363,9 +373,19 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
         </div>
 
         <div className="dialog-field">
+          <label>Model (optional)</label>
+          <select value={model} onChange={e => setModel(e.target.value)} className="settings-select" style={{ width: '100%' }}>
+            <option value="">Default</option>
+            <option value="claude-opus-4-6">Opus (claude-opus-4-6)</option>
+            <option value="claude-sonnet-4-6">Sonnet (claude-sonnet-4-6)</option>
+            <option value="claude-haiku-4-5-20251001">Haiku (claude-haiku-4-5)</option>
+          </select>
+        </div>
+
+        <div className="dialog-field">
           <label>Extra CLI Arguments (optional)</label>
           <input
-            placeholder="e.g. --model sonnet"
+            placeholder="e.g. --allowedTools Edit,Write"
             value={extraArgs}
             onChange={(e) => setExtraArgs(e.target.value)}
           />
