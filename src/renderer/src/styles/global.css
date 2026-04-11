@@ -7036,7 +7036,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .review-push-confirm {
   padding: 8px 16px;
-  background: rgba(234, 179, 8, 0.08);
+  background: rgba(245, 158, 11, 0.08);
   border-bottom: 1px solid var(--border);
 }
 .review-push-confirm-inner {

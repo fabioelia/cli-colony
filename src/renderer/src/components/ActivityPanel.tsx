@@ -33,12 +33,16 @@ const formatDuration = (sec: number) => {
   return `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}m`
 }
 
+type TypeChip = 'all' | 'session' | 'pipeline' | 'persona' | 'approval'
+
 export default function ActivityPanel({ onFocusSession }: Props) {
   const [events, setEvents] = useState<ActivityEvent[]>([])
   const [pendingApprovals, setPendingApprovals] = useState<ApprovalRequest[]>([])
   const [sourceFilters, setSourceFilters] = useState<Set<SourceFilter>>(new Set(['persona', 'pipeline', 'env', 'session']))
   const [levelFilters, setLevelFilters] = useState<Set<LevelFilter>>(new Set(['info', 'warn', 'error']))
   const [searchQuery, setSearchQuery] = useState('')
+  const [showAll, setShowAll] = useState(false)
+  const [typeChip, setTypeChip] = useState<TypeChip>('all')
 
   useEffect(() => {
     window.api.activity.list().then(all => {
@@ -77,12 +81,24 @@ export default function ActivityPanel({ onFocusSession }: Props) {
   }
 
   const query = searchQuery.toLowerCase().trim()
-  const filtered = useMemo(() => events.filter(ev => {
-    if (!sourceFilters.has(ev.source)) return false
-    if (!levelFilters.has(ev.level)) return false
-    if (query && !ev.name.toLowerCase().includes(query) && !ev.summary.toLowerCase().includes(query)) return false
-    return true
-  }), [events, sourceFilters, levelFilters, query])
+  const filtered = useMemo(() => {
+    let items = events.filter(ev => {
+      if (!sourceFilters.has(ev.source)) return false
+      if (!levelFilters.has(ev.level)) return false
+      if (typeChip !== 'all' && typeChip !== 'approval' && ev.source !== typeChip) return false
+      if (query && !ev.name.toLowerCase().includes(query) && !ev.summary.toLowerCase().includes(query)) return false
+      return true
+    })
+    if (!showAll) items = items.slice(0, 20)
+    return items
+  }, [events, sourceFilters, levelFilters, typeChip, query, showAll])
+
+  const typeCounts = useMemo(() => ({
+    session: events.filter(e => e.source === 'session').length,
+    pipeline: events.filter(e => e.source === 'pipeline').length,
+    persona: events.filter(e => e.source === 'persona').length,
+    approval: pendingApprovals.length,
+  }), [events, pendingApprovals])
 
   const sourceCounts = useMemo(() => {
     const c: Record<SourceFilter, number> = { persona: 0, pipeline: 0, env: 0, session: 0 }
@@ -118,8 +134,20 @@ export default function ActivityPanel({ onFocusSession }: Props) {
       </div>
 
       <div style={{ WebkitAppRegion: 'no-drag', overflowY: 'auto', flex: 1 } as React.CSSProperties}>
-        {/* Filters */}
+        {/* Type filter chips */}
         <div className="activity-filters" style={{ marginTop: 8 }}>
+          <div className="activity-filter-row">
+            {(['all', 'session', 'pipeline', 'persona', 'approval'] as TypeChip[]).map(t => (
+              <button
+                key={t}
+                className={`activity-filter-chip${typeChip === t ? ' active' : ''}`}
+                onClick={() => setTypeChip(t)}
+              >
+                {t === 'all' ? 'All' : t === 'session' ? 'Sessions' : t === 'pipeline' ? 'Pipelines' : t === 'persona' ? 'Personas' : 'Approvals'}
+                {t !== 'all' && typeCounts[t] > 0 && <span className="filter-badge">{typeCounts[t]}</span>}
+              </button>
+            ))}
+          </div>
           <div className="activity-filter-row">
             <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 4, alignSelf: 'center' }}>Source:</span>
             {(['persona', 'pipeline', 'env', 'session'] as SourceFilter[]).map(s => (
@@ -159,7 +187,7 @@ export default function ActivityPanel({ onFocusSession }: Props) {
         </div>
 
         {/* Pending Approvals */}
-        {pendingApprovals.length > 0 && (
+        {pendingApprovals.length > 0 && (typeChip === 'all' || typeChip === 'approval') && (
           <div className="activity-approvals-section" style={{ marginBottom: 12 }}>
             <div className="activity-approvals-title">Pending Approval ({pendingApprovals.length})</div>
             {pendingApprovals.map(req => (
@@ -234,6 +262,16 @@ export default function ActivityPanel({ onFocusSession }: Props) {
               )}
             </div>
           ))}
+          {!showAll && events.length > 20 && (
+            <button className="activity-show-more" onClick={() => setShowAll(true)}>
+              Show all ({events.length - 20} more)
+            </button>
+          )}
+          {showAll && events.length > 20 && (
+            <button className="activity-show-more" onClick={() => setShowAll(false)}>
+              Show less
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -129,7 +129,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
     let items = displayActivity
     if (activitySourceFilter !== 'all') items = items.filter(e => e.source === activitySourceFilter)
     if (activityLevelFilter !== 'all') items = items.filter(e => e.level === activityLevelFilter)
-    return items.slice(0, activityExpanded ? 50 : 20)
+    return items.slice(0, activityExpanded ? 100 : 20)
   }, [displayActivity, activitySourceFilter, activityLevelFilter, activityExpanded])
 
   const warnCount = useMemo(() => displayActivity.filter(e => e.level === 'warn').length, [displayActivity])

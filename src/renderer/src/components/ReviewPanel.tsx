@@ -57,6 +57,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
   const [commitDiffLoading, setCommitDiffLoading] = useState(false)
   const commitDiffCache = useRef<Record<string, string>>({})
   const [pushing, setPushing] = useState(false)
+  const [pushError, setPushError] = useState(false)
   const [pushConfirm, setPushConfirm] = useState(false)
   const [branchName, setBranchName] = useState<string>('')
 
@@ -220,12 +221,14 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
   const handlePush = useCallback(async () => {
     if (!projectDir) return
     setPushing(true)
+    setPushError(false)
     try {
       await window.api.git.push(projectDir)
       setUnpushedCommits([])
       setPushConfirm(false)
     } catch {
-      // Push failed — user will see commits remain
+      setPushError(true)
+      setTimeout(() => setPushError(false), 4000)
     } finally {
       setPushing(false)
     }
@@ -304,16 +307,17 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
           )}
           {activeTab === 'commits' && unpushedCommits.length > 0 && (
             <button
-              className="panel-header-btn primary"
+              className={`panel-header-btn${pushError ? '' : ' primary'}`}
               onClick={() => {
                 const isSensitive = /^(main|master)$/i.test(branchName)
                 if (isSensitive) setPushConfirm(true)
                 else handlePush()
               }}
               disabled={pushing}
-              title={`Push ${unpushedCommits.length} commit${unpushedCommits.length !== 1 ? 's' : ''} to origin`}
+              title={pushError ? 'Push failed — try again' : `Push ${unpushedCommits.length} commit${unpushedCommits.length !== 1 ? 's' : ''} to origin`}
+              style={pushError ? { color: 'var(--danger)' } : undefined}
             >
-              <Upload size={13} /> {pushing ? 'Pushing...' : 'Push'}
+              {pushError ? <><AlertTriangle size={13} /> Failed</> : <><Upload size={13} /> {pushing ? 'Pushing...' : 'Push'}</>}
             </button>
           )}
           <button
@@ -329,11 +333,15 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
 
       {/* Push confirmation dialog */}
       {pushConfirm && (
-        <div className="review-push-confirm" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <div
+          className="review-push-confirm"
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          onKeyDown={e => { if (e.key === 'Escape') setPushConfirm(false) }}
+        >
           <div className="review-push-confirm-inner">
             <AlertTriangle size={16} style={{ color: 'var(--warning)' }} />
             <span>Push {unpushedCommits.length} commit{unpushedCommits.length !== 1 ? 's' : ''} to <strong>{branchName}</strong>?</span>
-            <button className="panel-header-btn primary" onClick={handlePush} disabled={pushing}>
+            <button className="panel-header-btn primary" onClick={handlePush} disabled={pushing} autoFocus>
               {pushing ? 'Pushing...' : 'Confirm Push'}
             </button>
             <button className="panel-header-btn" onClick={() => setPushConfirm(false)}>Cancel</button>
@@ -519,7 +527,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
                   <span className="review-card-chevron">
                     {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                   </span>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--accent)', marginRight: '8px', flexShrink: 0 }}>
+                  <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: '11px', color: 'var(--accent)', marginRight: '8px', flexShrink: 0 }}>
                     {commit.hash.slice(0, 7)}
                   </span>
                   <span className="review-card-name" style={{ flex: 1 }}>{commit.subject}</span>

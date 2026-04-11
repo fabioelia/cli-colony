@@ -696,11 +696,11 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
 
   useEffect(() => {
     window.api.activity.list().then(events => {
-      setActivityEvents(events.slice(-20).reverse())
+      setActivityEvents(events.slice(-100).reverse())
     }).catch(() => {})
     window.api.activity.unreadCount().then(setActivityUnread).catch(() => {})
     const unsubNew = window.api.activity.onNew(({ event, unreadCount }) => {
-      setActivityEvents(prev => [event, ...prev].slice(0, 20))
+      setActivityEvents(prev => [event, ...prev].slice(0, 100))
       setActivityUnread(unreadCount)
     })
     const unsubUnread = window.api.activity.onUnread(({ count }) => {
