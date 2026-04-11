@@ -8,9 +8,14 @@ interface DiffLine {
   newLine: number | null
 }
 
+interface WordSegment {
+  text: string
+  changed: boolean
+}
+
 interface SplitRow {
-  left: { line: number | null; content: string; type: 'del' | 'context' | 'empty' | 'hunk' }
-  right: { line: number | null; content: string; type: 'add' | 'context' | 'empty' | 'hunk' }
+  left: { line: number | null; content: string; type: 'del' | 'context' | 'empty' | 'hunk'; segments?: WordSegment[] }
+  right: { line: number | null; content: string; type: 'add' | 'context' | 'empty' | 'hunk'; segments?: WordSegment[] }
 }
 
 interface DiffViewerProps {
@@ -51,6 +56,74 @@ function parseDiff(raw: string): DiffLine[] {
   return lines
 }
 
+function computeWordDiff(oldStr: string, newStr: string): { left: WordSegment[]; right: WordSegment[] } | null {
+  const oldWords = oldStr.split(/(\s+)/)
+  const newWords = newStr.split(/(\s+)/)
+
+  // Skip when lines are very different (>80% changed) or very short
+  if (oldWords.length <= 1 && newWords.length <= 1) return null
+  const maxLen = Math.max(oldWords.length, newWords.length)
+  if (maxLen === 0) return null
+
+  // LCS on words
+  const m = oldWords.length
+  const n = newWords.length
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0))
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = oldWords[i - 1] === newWords[j - 1]
+        ? dp[i - 1][j - 1] + 1
+        : Math.max(dp[i - 1][j], dp[i][j - 1])
+    }
+  }
+
+  // Skip if similarity is too low (less than 20% common words)
+  const lcsLen = dp[m][n]
+  if (lcsLen / maxLen < 0.2) return null
+
+  // Backtrack to find common words
+  const common = new Set<string>()  // "i,j" pairs
+  let i = m, j = n
+  while (i > 0 && j > 0) {
+    if (oldWords[i - 1] === newWords[j - 1]) {
+      common.add(`${i - 1},${j - 1}`)
+      i--; j--
+    } else if (dp[i - 1][j] > dp[i][j - 1]) {
+      i--
+    } else {
+      j--
+    }
+  }
+
+  // Build segment arrays — track which old/new indices are in LCS
+  const oldInLcs = new Set<number>()
+  const newInLcs = new Set<number>()
+  for (const key of common) {
+    const [oi, ni] = key.split(',').map(Number)
+    oldInLcs.add(oi)
+    newInLcs.add(ni)
+  }
+
+  const buildSegments = (words: string[], inLcs: Set<number>): WordSegment[] => {
+    const segs: WordSegment[] = []
+    let buf = ''
+    let bufChanged: boolean | null = null
+    for (let k = 0; k < words.length; k++) {
+      const changed = !inLcs.has(k)
+      if (bufChanged !== null && changed !== bufChanged) {
+        if (buf) segs.push({ text: buf, changed: bufChanged })
+        buf = ''
+      }
+      buf += words[k]
+      bufChanged = changed
+    }
+    if (buf && bufChanged !== null) segs.push({ text: buf, changed: bufChanged })
+    return segs
+  }
+
+  return { left: buildSegments(oldWords, oldInLcs), right: buildSegments(newWords, newInLcs) }
+}
+
 function buildSplitRows(lines: DiffLine[]): SplitRow[] {
   const rows: SplitRow[] = []
   let i = 0
@@ -76,12 +149,14 @@ function buildSplitRows(lines: DiffLine[]): SplitRow[] {
       while (i < lines.length && lines[i].type === 'add') { adds.push(lines[i]); i++ }
       const maxLen = Math.max(dels.length, adds.length)
       for (let j = 0; j < maxLen; j++) {
+        const hasBoth = j < dels.length && j < adds.length
+        const wordDiff = hasBoth ? computeWordDiff(dels[j].content, adds[j].content) : null
         rows.push({
           left: j < dels.length
-            ? { line: dels[j].oldLine, content: dels[j].content, type: 'del' }
+            ? { line: dels[j].oldLine, content: dels[j].content, type: 'del', segments: wordDiff?.left }
             : { line: null, content: '', type: 'empty' },
           right: j < adds.length
-            ? { line: adds[j].newLine, content: adds[j].content, type: 'add' }
+            ? { line: adds[j].newLine, content: adds[j].content, type: 'add', segments: wordDiff?.right }
             : { line: null, content: '', type: 'empty' },
         })
       }
@@ -148,13 +223,21 @@ function DiffViewer({ diff, filename, maxLines = 500 }: DiffViewerProps) {
                 <div className={`diff-split-cell diff-split-left diff-${row.left.type}`}>
                   <span className="diff-gutter">{row.left.line ?? ''}</span>
                   <span className="diff-content">
-                    {highlightContent(row.left.content, lang, row.left.type)}
+                    {row.left.segments
+                      ? row.left.segments.map((seg, si) => seg.changed
+                        ? <span key={si} className="diff-word-change">{seg.text}</span>
+                        : <span key={si}>{seg.text}</span>)
+                      : highlightContent(row.left.content, lang, row.left.type)}
                   </span>
                 </div>
                 <div className={`diff-split-cell diff-split-right diff-${row.right.type}`}>
                   <span className="diff-gutter">{row.right.line ?? ''}</span>
                   <span className="diff-content">
-                    {highlightContent(row.right.content, lang, row.right.type)}
+                    {row.right.segments
+                      ? row.right.segments.map((seg, si) => seg.changed
+                        ? <span key={si} className="diff-word-change">{seg.text}</span>
+                        : <span key={si}>{seg.text}</span>)
+                      : highlightContent(row.right.content, lang, row.right.type)}
                   </span>
                 </div>
               </div>
