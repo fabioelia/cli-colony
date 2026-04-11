@@ -40,6 +40,7 @@ interface PipelineInfo {
   debugLog: string[]
   budget?: { maxCostUsd: number; warnAt: number } | null
   lastRunStoppedBudget?: boolean
+  consecutiveFailures?: number
   actionShape?: ActionShape
 }
 
@@ -798,6 +799,13 @@ action:
                 <span className="pipeline-error-text">{p.lastError}</span>
               </div>
             )}
+            {(p.consecutiveFailures ?? 0) > 0 && (
+              <div className="pipeline-error-block" style={{ color: 'var(--warning)' }}>
+                <AlertTriangle size={10} />
+                {/* Threshold hardcoded to match CONSECUTIVE_FAILURE_THRESHOLD in pipeline-engine.ts */}
+                <span className="pipeline-error-text">{p.consecutiveFailures}/3 consecutive failures</span>
+              </div>
+            )}
 
             {expandedPipeline === p.name && editingContent !== null && (
               <div className="pipeline-editor">
@@ -953,7 +961,7 @@ action:
                     ) : (
                       <div className="pipeline-history-list">
                         {historyEntries.map((entry, i) => {
-                          const hasStages = (entry.stages?.length ?? 0) > 1
+                          const hasStages = (entry.stages?.length ?? 0) >= 1
                           const isExpanded = expandedHistoryRows.has(i)
                           const prevEntry = i > 0 ? historyEntries[i - 1] : null
                           const toggleExpand = () => setExpandedHistoryRows(prev => {
