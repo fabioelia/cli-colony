@@ -23,6 +23,9 @@ export default function SettingsPanel({ onBack }: Props) {
     pipeline: true, persona: true, approval: true, session: true, budget: true, system: true,
   })
   const [soundOnFinish, setSoundOnFinish] = useState(true)
+  const [quietHoursEnabled, setQuietHoursEnabled] = useState(false)
+  const [quietHoursStart, setQuietHoursStart] = useState('22:00')
+  const [quietHoursEnd, setQuietHoursEnd] = useState('07:00')
   const [autoCleanupMinutes, setAutoCleanupMinutes] = useState('5')
   const [dailyCostBudget, setDailyCostBudget] = useState('')
   const [globalHotkey, setGlobalHotkey] = useState('CommandOrControl+Shift+Space')
@@ -135,6 +138,9 @@ export default function SettingsPanel({ onBack }: Props) {
         system: s.notifySystem !== 'false',
       })
       setSoundOnFinish(s.soundOnFinish !== 'false')
+      setQuietHoursEnabled(s.quietHoursEnabled === 'true')
+      setQuietHoursStart(s.quietHoursStart || '22:00')
+      setQuietHoursEnd(s.quietHoursEnd || '07:00')
       setAutoCleanupMinutes(s.autoCleanupMinutes || '5')
       setDailyCostBudget(s.dailyCostBudgetUsd || '')
       setGlobalHotkey(s.globalHotkey || 'CommandOrControl+Shift+Space')
@@ -238,6 +244,9 @@ export default function SettingsPanel({ onBack }: Props) {
       window.api.settings.set('notifyBudget', notifySources.budget ? 'true' : 'false'),
       window.api.settings.set('notifySystem', notifySources.system ? 'true' : 'false'),
       window.api.settings.set('soundOnFinish', soundOnFinish ? 'true' : 'false'),
+      window.api.settings.set('quietHoursEnabled', quietHoursEnabled ? 'true' : 'false'),
+      window.api.settings.set('quietHoursStart', quietHoursStart),
+      window.api.settings.set('quietHoursEnd', quietHoursEnd),
       window.api.settings.set('autoCleanupMinutes', autoCleanupMinutes),
       window.api.settings.set('dailyCostBudgetUsd', dailyCostBudget),
       window.api.settings.set('globalHotkey', globalHotkey),
@@ -503,6 +512,27 @@ export default function SettingsPanel({ onBack }: Props) {
           </button>
         </div>
         <p className="settings-help settings-help-bottom">Plays when a session goes from busy to waiting and the app is not focused.</p>
+        <div className="settings-row">
+          <span className="settings-row-label">Quiet hours</span>
+          <button
+            className={`settings-toggle ${quietHoursEnabled ? 'active' : ''}`}
+            onClick={() => setQuietHoursEnabled(!quietHoursEnabled)}
+            role="switch"
+            aria-checked={quietHoursEnabled}
+            title={quietHoursEnabled ? 'Disable quiet hours' : 'Enable quiet hours'}
+          >
+            <span className="settings-toggle-knob" />
+          </button>
+        </div>
+        {quietHoursEnabled && (
+          <div className="settings-row" style={{ paddingLeft: 24 }}>
+            <span className="settings-row-label">Suppress from</span>
+            <input type="time" value={quietHoursStart} onChange={e => setQuietHoursStart(e.target.value)} className="settings-compact-number" style={{ width: 90 }} />
+            <span style={{ margin: '0 8px', color: 'var(--text-secondary)' }}>to</span>
+            <input type="time" value={quietHoursEnd} onChange={e => setQuietHoursEnd(e.target.value)} className="settings-compact-number" style={{ width: 90 }} />
+          </div>
+        )}
+        <p className="settings-help settings-help-bottom">Suppress desktop notifications during quiet hours. In-app history still records everything.</p>
       </div>
 
       {/* Sessions */}
@@ -1041,6 +1071,24 @@ export default function SettingsPanel({ onBack }: Props) {
                     onClick={() => setEditingTemplate({ ...t })}
                   >
                     <Pencil size={11} />
+                  </button>
+                  <button
+                    className="mcp-catalog-edit"
+                    title="Duplicate template"
+                    onClick={async () => {
+                      const dup: SessionTemplate = {
+                        ...t,
+                        id: crypto.randomUUID(),
+                        name: `${t.name} (copy)`,
+                        launchCount: 0,
+                        lastUsed: undefined,
+                      }
+                      await window.api.sessionTemplates.save(dup)
+                      setSessionTemplates(prev => [...prev, dup])
+                      setEditingTemplate({ ...dup })
+                    }}
+                  >
+                    <Copy size={11} />
                   </button>
                   <button
                     className="mcp-catalog-delete"

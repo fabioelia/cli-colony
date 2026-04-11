@@ -18,6 +18,20 @@ import type { NotificationEntry } from '../shared/types'
 const MAX_HISTORY = 200
 const DEBOUNCE_MS = 2000
 
+function isInQuietHours(start: string, end: string): boolean {
+  const now = new Date()
+  const [sh, sm] = start.split(':').map(Number)
+  const [eh, em] = end.split(':').map(Number)
+  const nowMin = now.getHours() * 60 + now.getMinutes()
+  const startMin = sh * 60 + sm
+  const endMin = eh * 60 + em
+  if (startMin <= endMin) {
+    return nowMin >= startMin && nowMin < endMin
+  } else {
+    return nowMin >= startMin || nowMin < endMin
+  }
+}
+
 let _history: NotificationEntry[] = []
 let _loaded = false
 let _saveTimer: ReturnType<typeof setTimeout> | null = null
@@ -113,6 +127,11 @@ export async function notify(
 
   // Desktop notification (respects user opt-out)
   if (await getSetting('notificationsEnabled') === 'false') return
+  if (await getSetting('quietHoursEnabled') === 'true') {
+    const start = await getSetting('quietHoursStart')
+    const end = await getSetting('quietHoursEnd')
+    if (start && end && isInQuietHours(start, end)) return
+  }
   const sourceKey = `notify${entry.source.charAt(0).toUpperCase() + entry.source.slice(1)}`
   if (await getSetting(sourceKey) === 'false') return
   if (!Notification.isSupported()) return
