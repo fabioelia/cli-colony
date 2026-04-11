@@ -233,25 +233,30 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
     }
   }
 
+  // Track which env IDs have already been fetched to avoid duplicate manifest calls
+  const manifestFetchedRef = useRef<Set<string>>(new Set())
+
   // Bulk-load purpose tags when environment list changes (for filtering)
   useEffect(() => {
     if (environments.length === 0) return
     environments.forEach(env => {
+      if (manifestFetchedRef.current.has(env.id)) return
+      manifestFetchedRef.current.add(env.id)
       window.api.env.manifest(env.id).then((m: any) => {
         const tag = (m?.meta?.purposeTag as 'interactive' | 'background' | 'nightly') || null
         setPurposeTags(prev => ({ ...prev, [env.id]: tag }))
-      }).catch(() => {})
+      }).catch(() => {
+        manifestFetchedRef.current.delete(env.id)
+      })
     })
   }, [environments])
 
-  // Load restart policy and purpose tag when an environment card is expanded
+  // Load restart policy when an environment card is expanded (purpose tag already loaded above)
   useEffect(() => {
     if (!expandedId) return
     window.api.env.manifest(expandedId).then((m: any) => {
       const policy = (m?.meta?.restartPolicy as 'manual' | 'on-crash') || 'manual'
       setRestartPolicies(prev => ({ ...prev, [expandedId]: policy }))
-      const tag = (m?.meta?.purposeTag as 'interactive' | 'background' | 'nightly') || null
-      setPurposeTags(prev => ({ ...prev, [expandedId]: tag }))
     }).catch(() => {})
   }, [expandedId])
 
