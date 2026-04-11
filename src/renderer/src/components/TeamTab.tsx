@@ -5,11 +5,13 @@ import type { CoordinatorTeam, CoordinatorWorker } from '../../../shared/types'
 interface TeamTabProps {
   instanceId: string
   onWorkerCountChange?: (count: number) => void
+  onNavigateToWorker?: (id: string) => void
 }
 
-export default function TeamTab({ instanceId, onWorkerCountChange }: TeamTabProps) {
+export default function TeamTab({ instanceId, onWorkerCountChange, onNavigateToWorker }: TeamTabProps) {
   const [coordinatorTeam, setCoordinatorTeam] = useState<CoordinatorTeam | null>(null)
   const [teamLoading, setTeamLoading] = useState(false)
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; worker: CoordinatorWorker } | null>(null)
 
   useEffect(() => {
     setTeamLoading(true)
@@ -37,6 +39,13 @@ export default function TeamTab({ instanceId, onWorkerCountChange }: TeamTabProp
     })
   }
 
+  useEffect(() => {
+    if (!ctxMenu) return
+    const handler = () => setCtxMenu(null)
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [ctxMenu])
+
   return (
     <div className="changes-panel">
       <div className="changes-panel-header">
@@ -59,7 +68,13 @@ export default function TeamTab({ instanceId, onWorkerCountChange }: TeamTabProp
           <div className="changes-empty">No worker sessions active.</div>
         )}
         {!teamLoading && coordinatorTeam && coordinatorTeam.workers.map((worker: CoordinatorWorker) => (
-          <div key={worker.id} className="changes-event" style={{ cursor: 'default' }}>
+          <div
+            key={worker.id}
+            className="changes-event"
+            style={{ cursor: 'pointer' }}
+            onClick={() => onNavigateToWorker?.(worker.id)}
+            onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, worker }) }}
+          >
             <div className="changes-event-header" style={{ alignItems: 'center' }}>
               <span style={{
                 fontSize: '11px',
@@ -112,6 +127,13 @@ export default function TeamTab({ instanceId, onWorkerCountChange }: TeamTabProp
           </div>
         ))}
       </div>
+      {ctxMenu && (
+        <div className="context-menu" style={{ left: ctxMenu.x, top: ctxMenu.y }}>
+          <button className="context-menu-item" onClick={() => { onNavigateToWorker?.(ctxMenu.worker.id); setCtxMenu(null) }}>Focus</button>
+          <button className="context-menu-item" onClick={async () => { await window.api.instance.kill(ctxMenu.worker.id); setCtxMenu(null); refresh() }}>Kill</button>
+          <button className="context-menu-item" onClick={async () => { await window.api.instance.restart(ctxMenu.worker.id); setCtxMenu(null); refresh() }}>Restart</button>
+        </div>
+      )}
     </div>
   )
 }

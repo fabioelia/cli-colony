@@ -1288,6 +1288,7 @@ export default function App() {
                 layoutMode={showGrid ? '4-up' : isSplit ? '2-up' : 'single'}
                 onCycleLayout={handleCycleLayout}
                 onEnterGrid={handleEnterGrid}
+                onNavigateToSession={setActiveId}
               />
             </div>
           )

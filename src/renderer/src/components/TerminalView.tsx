@@ -67,6 +67,7 @@ interface Props {
   layoutMode?: 'single' | '2-up' | '4-up'
   onCycleLayout?: () => void
   onEnterGrid?: () => void
+  onNavigateToSession?: (id: string) => void
 }
 
 function formatUptime(seconds: number): string {
@@ -79,7 +80,7 @@ function formatUptime(seconds: number): string {
 
 type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'changes' | 'artifacts' | 'team' | 'metrics' | 'browser'
 
-export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid }: Props) {
+export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid, onNavigateToSession }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const initializedRef = useRef(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -930,7 +931,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
         <ArtifactsTab instanceId={instance.id} instanceStatus={instance.status} onArtifactCount={setArtifactCount} />
       )}
       {viewTab === 'team' && instance.roleTag === 'Coordinator' && (
-        <TeamTab instanceId={instance.id} onWorkerCountChange={setTeamWorkerCount} />
+        <TeamTab instanceId={instance.id} onWorkerCountChange={setTeamWorkerCount} onNavigateToWorker={onNavigateToSession} />
       )}
       {viewTab === 'metrics' && instance.roleTag === 'Coordinator' && (
         <div className="changes-panel">
