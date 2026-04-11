@@ -800,8 +800,24 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
       parts.push(
         `**CLI:** ${handoffInst.cliBackend}${handoffInst.args.length ? ' ' + handoffInst.args.join(' ') : ''}`,
         `**Started:** ${new Date(handoffInst.createdAt).toLocaleString()}`,
-        '',
       )
+      // Duration
+      const durationMs = Date.now() - new Date(handoffInst.createdAt).getTime()
+      const dMins = Math.floor(durationMs / 60000)
+      const dStr = dMins < 60 ? `${dMins}m` : dMins < 1440 ? `${Math.floor(dMins/60)}h ${dMins%60}m` : `${Math.floor(dMins/1440)}d ${Math.floor((dMins%1440)/60)}h`
+      parts.push(`**Duration:** ${dStr}`)
+      // Cost + tokens (only if meaningful)
+      if (handoffInst.tokenUsage.cost && handoffInst.tokenUsage.cost > 0) {
+        parts.push(`**Cost:** $${handoffInst.tokenUsage.cost.toFixed(2)}`)
+      }
+      if (handoffInst.tokenUsage.input > 0 || handoffInst.tokenUsage.output > 0) {
+        parts.push(`**Tokens:** ${handoffInst.tokenUsage.input.toLocaleString()} in / ${handoffInst.tokenUsage.output.toLocaleString()} out`)
+      }
+      // Optional metadata
+      if (handoffInst.roleTag) parts.push(`**Role:** ${handoffInst.roleTag}`)
+      if (handoffInst.note) parts.push(`**Note:** ${handoffInst.note}`)
+      if (handoffInst.permissionMode) parts.push(`**Permission:** ${handoffInst.permissionMode}`)
+      parts.push('')
       if (gitLog.trim()) {
         parts.push('## Recent Git Commits', '```', gitLog.trim(), '```', '')
       }
