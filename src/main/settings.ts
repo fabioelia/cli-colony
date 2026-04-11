@@ -23,20 +23,33 @@ async function ensureDir(): Promise<void> {
 }
 
 let _cache: AppSettings | null = null
+let _cacheMtimeMs: number | null = null
 
 export async function getSettings(): Promise<AppSettings> {
-  if (_cache) return _cache
+  if (_cache) {
+    // Check if file has been modified externally
+    try {
+      const stat = await fsp.stat(getSettingsPath())
+      if (stat.mtimeMs === _cacheMtimeMs) return _cache
+    } catch {
+      // File deleted — return cached defaults
+      return _cache
+    }
+  }
   await ensureDir()
   const path = getSettingsPath()
   try {
+    const stat = await fsp.stat(path)
     const data = JSON.parse(await fsp.readFile(path, 'utf-8'))
     _cache = data
+    _cacheMtimeMs = stat.mtimeMs
     return data
   } catch {
     // File doesn't exist or invalid JSON
   }
   const defaults = { defaultArgs: '' }
   _cache = defaults
+  _cacheMtimeMs = null
   return defaults
 }
 
@@ -61,6 +74,7 @@ export async function setSetting(key: string, value: string): Promise<void> {
   await ensureDir()
   const path = getSettingsPath()
   await fsp.writeFile(path, JSON.stringify(settings, null, 2), 'utf-8')
+  try { _cacheMtimeMs = (await fsp.stat(path)).mtimeMs } catch { /* */ }
   console.log(`[settings] saved ${key}=${value} to ${path}`)
 }
 

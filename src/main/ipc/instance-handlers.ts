@@ -331,16 +331,24 @@ export function registerInstanceHandlers(): void {
       })
       let out = ''
       let err = ''
+      let killed = false
+      const killTimer = setTimeout(() => {
+        killed = true
+        proc.kill('SIGTERM')
+      }, 30_000)
       proc.stdout.on('data', (chunk: Buffer) => { out += chunk.toString() })
       proc.stderr.on('data', (chunk: Buffer) => { err += chunk.toString() })
       proc.on('close', (code) => {
-        if (out.trim()) {
+        clearTimeout(killTimer)
+        if (killed) {
+          resolve('Summary timed out.')
+        } else if (out.trim()) {
           resolve(out.trim())
         } else {
           reject(new Error(err.trim() || `claude exited with code ${code}`))
         }
       })
-      proc.on('error', reject)
+      proc.on('error', (e) => { clearTimeout(killTimer); reject(e) })
     })
   })
 

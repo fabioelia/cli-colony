@@ -125,17 +125,23 @@ export function registerPipelineHandlers(): void {
   ipcMain.handle('pipeline:listOutputs', async (_e, outputDir: string) => {
     const resolved = outputDir.replace(/^~/, app.getPath('home'))
     try {
-      const scanDir = async (dir: string, prefix = ''): Promise<Array<{ name: string; path: string; size: number; modified: number }>> => {
+      const MAX_DEPTH = 4
+      const MAX_FILES = 500
+      let totalFiles = 0
+      const scanDir = async (dir: string, prefix = '', depth = 0): Promise<Array<{ name: string; path: string; size: number; modified: number }>> => {
+        if (depth > MAX_DEPTH || totalFiles >= MAX_FILES) return []
         const results: Array<{ name: string; path: string; size: number; modified: number }> = []
         let entries: string[]
         try { entries = await fsp.readdir(dir) } catch { return results }
         for (const entry of entries) {
+          if (totalFiles >= MAX_FILES) break
           const full = join(dir, entry)
           try {
             const stat = await fsp.stat(full)
             if (stat.isDirectory()) {
-              results.push(...await scanDir(full, prefix ? `${prefix}/${entry}` : entry))
+              results.push(...await scanDir(full, prefix ? `${prefix}/${entry}` : entry, depth + 1))
             } else {
+              totalFiles++
               results.push({
                 name: prefix ? `${prefix}/${entry}` : entry,
                 path: full,

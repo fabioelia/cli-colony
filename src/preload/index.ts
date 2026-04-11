@@ -316,7 +316,7 @@ export interface ClaudeManagerAPI {
   env: {
     list: () => Promise<EnvStatus[]>
     get: (envId: string) => Promise<EnvStatus | null>
-    create: (opts: { name: string; branch?: string; baseBranch?: string; projectType?: string; target?: string }) => Promise<any>
+    create: (opts: { name: string; branch?: string; baseBranch?: string; projectType?: string; target?: string; targetDir?: string; templateId?: string }) => Promise<any>
     start: (envId: string, services?: string[]) => Promise<void>
     stop: (envId: string, services?: string[]) => Promise<void>
     teardown: (envId: string) => Promise<void>
