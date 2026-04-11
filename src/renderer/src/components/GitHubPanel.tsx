@@ -1624,6 +1624,11 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                                       Collapse All
                                     </button>
                                   </div>
+                                  {isFiltered && visibleFiles.length === 0 && (
+                                    <div style={{ padding: '12px 16px', color: 'var(--text-muted)', fontSize: '12px', textAlign: 'center' }}>
+                                      No files match the current filter
+                                    </div>
+                                  )}
                                   {visibleFiles.map(file => {
                                     const fileKey = `${prKey}:${file.filename}`
                                     const statusChar = file.status === 'renamed' ? 'R' : file.status[0].toUpperCase()
