@@ -323,7 +323,7 @@ export default function ArtifactsPanel() {
                       padding: '1px 6px',
                       borderRadius: 3,
                       background: 'rgba(245, 158, 11, 0.15)',
-                      color: '#f59e0b',
+                      color: 'var(--warning)',
                       whiteSpace: 'nowrap',
                       display: 'inline-flex',
                       alignItems: 'center',
