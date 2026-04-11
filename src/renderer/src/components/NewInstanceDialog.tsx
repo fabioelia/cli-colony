@@ -99,6 +99,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
     for (let i = 0; i < cloneSource.args.length; i++) {
       if (cloneSource.args[i] === '--resume') { i++; continue } // skip --resume and its value
       if (cloneSource.args[i] === '--model') { i++; continue } // skip --model (now in dropdown)
+      if (cloneSource.args[i] === '--agent') { i++; continue } // skip --agent (now in dropdown)
       filtered.push(cloneSource.args[i])
     }
     return filtered.join(' ')
@@ -119,6 +120,8 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
   const historyRef = useRef<HTMLDivElement | null>(null)
   const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>([])
   const [showEnvVars, setShowEnvVars] = useState(false)
+  const [agents, setAgents] = useState<AgentDef[]>([])
+  const [selectedAgent, setSelectedAgent] = useState<string>('')  // filePath or empty
 
   // When the starter-card path opens the dialog, focus the prompt textarea
   // and place the cursor at the end so the user can just press Enter.
@@ -140,6 +143,20 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
     // Load environments for picker
     window.api.env?.list?.().then((envs: any[]) => {
       if (envs?.length) setEnvironments(envs)
+    }).catch(() => {})
+    // Load agents
+    window.api.agents?.list?.().then((a: AgentDef[]) => {
+      if (a?.length) {
+        setAgents(a)
+        // Pre-select from clone source if --agent was used
+        if (cloneSource) {
+          const ai = cloneSource.args.indexOf('--agent')
+          if (ai >= 0 && cloneSource.args[ai + 1]) {
+            const path = cloneSource.args[ai + 1]
+            if (a.some(ag => ag.filePath === path)) setSelectedAgent(path)
+          }
+        }
+      }
     }).catch(() => {})
     // Load MCP servers
     window.api.mcp?.list?.().then((servers: McpServer[]) => {
@@ -164,7 +181,8 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
     setCreating(true)
     const extraParts = extraArgs.trim() ? extraArgs.trim().split(/\s+/) : []
     const modelParts = model ? ['--model', model] : []
-    const args = modelParts.length || extraParts.length ? [...modelParts, ...extraParts] : undefined
+    const agentParts = selectedAgent ? ['--agent', selectedAgent] : []
+    const args = modelParts.length || agentParts.length || extraParts.length ? [...modelParts, ...agentParts, ...extraParts] : undefined
     const mcpServers = selectedMcpServers.size > 0 ? Array.from(selectedMcpServers) : undefined
     const trimmedPrompt = firstPrompt.trim()
     if (trimmedPrompt) addToHistory(trimmedPrompt)
@@ -381,6 +399,37 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
             <option value="claude-haiku-4-5-20251001">Haiku (claude-haiku-4-5)</option>
           </select>
         </div>
+
+        {agents.length > 0 && (
+          <div className="dialog-field">
+            <label>Agent (optional)</label>
+            <select
+              value={selectedAgent}
+              onChange={e => setSelectedAgent(e.target.value)}
+              className="settings-select"
+              style={{ width: '100%' }}
+            >
+              <option value="">None</option>
+              {['personal', 'project'].map(scope => {
+                const scoped = agents.filter(a => a.scope === scope)
+                if (scoped.length === 0) return null
+                return (
+                  <optgroup key={scope} label={scope === 'personal' ? 'Personal' : 'Project'}>
+                    {scoped.map(a => (
+                      <option key={a.filePath} value={a.filePath}>{a.name}</option>
+                    ))}
+                  </optgroup>
+                )
+              })}
+            </select>
+            {selectedAgent && (() => {
+              const ag = agents.find(a => a.filePath === selectedAgent)
+              return ag?.description ? (
+                <div className="dialog-agent-info">{ag.description}</div>
+              ) : null
+            })()}
+          </div>
+        )}
 
         <div className="dialog-field">
           <label>Extra CLI Arguments (optional)</label>
