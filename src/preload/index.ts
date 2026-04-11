@@ -398,6 +398,8 @@ export interface ClaudeManagerAPI {
     commit: (cwd: string, message: string) => Promise<string>
     push: (cwd: string) => Promise<void>
     branchInfo: (cwd: string) => Promise<{ branch: string; remote: string | null; ahead: number }>
+    unpushedCommits: (cwd: string) => Promise<Array<{ hash: string; subject: string; author: string; date: string }>>
+    commitDiff: (cwd: string, hash: string) => Promise<string>
   }
   audit: {
     runPanel: (panel: string, context: object) => Promise<AuditResult[]>
@@ -934,6 +936,8 @@ const api: ClaudeManagerAPI = {
     commit: (cwd, message) => ipcRenderer.invoke('git:commit', cwd, message),
     push: (cwd) => ipcRenderer.invoke('git:push', cwd),
     branchInfo: (cwd) => ipcRenderer.invoke('git:branchInfo', cwd),
+    unpushedCommits: (cwd) => ipcRenderer.invoke('git:unpushedCommits', cwd),
+    commitDiff: (cwd, hash) => ipcRenderer.invoke('git:commitDiff', cwd, hash),
   },
   arena: {
     recordWinner: (winnerKey, loserKey) => ipcRenderer.invoke('arena:recordWinner', winnerKey, loserKey),

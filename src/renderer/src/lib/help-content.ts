@@ -1390,13 +1390,16 @@ export const helpContent: Record<string, HelpEntry> = {
   },
   review: {
     title: 'Review Dashboard',
-    description: 'Cross-session diff review — see uncommitted changes across all running and stopped sessions in one view. Expands inline to show per-file diffs with insertion/deletion stats.',
+    description: 'Cross-session diff review — see uncommitted changes and unpushed commits in one view. Two tabs: Changes (per-session working-tree diffs) and Commits (committed-but-not-pushed history with inline diffs).',
     zones: [
       {
         name: 'Header',
         position: 'Top bar',
         items: [
-          { label: 'Filter toggle', detail: 'Switch between "Changed" (only sessions with uncommitted changes) and "All" (every session with a working directory).', icon: 'Filter' },
+          { label: 'Changes tab', detail: 'Uncommitted working-tree changes across all sessions. Shows per-session file diffs.', icon: 'GitCompare' },
+          { label: 'Commits tab', detail: 'Committed-but-unpushed changes (origin/main..HEAD). Badge shows count. Click to see per-commit diffs.', icon: 'GitCommit' },
+          { label: 'Filter toggle', detail: 'Switch between "Changed" (only sessions with uncommitted changes) and "All" (every session with a working directory). Only visible on the Changes tab.', icon: 'Filter' },
+          { label: 'Push', detail: 'Push all unpushed commits to origin. Only visible on the Commits tab when commits exist. Warns with a confirmation dialog when pushing to main/master.', icon: 'Upload' },
           { label: 'Refresh', detail: 'Manually re-fetch git changes for all sessions. Also auto-refreshes every 30 seconds.', icon: 'RefreshCw' },
         ],
       },
@@ -1409,7 +1412,7 @@ export const helpContent: Record<string, HelpEntry> = {
       },
       {
         name: 'Session Cards',
-        position: 'Main area',
+        position: 'Main area (Changes tab)',
         items: [
           { label: 'Session name', detail: 'Color-coded dot + session name. Click to expand and see per-file changes.' },
           { label: 'Status badge', detail: 'Shows whether the session is running or exited.' },
@@ -1422,12 +1425,21 @@ export const helpContent: Record<string, HelpEntry> = {
       },
       {
         name: 'Expanded File List',
-        position: 'Below card when expanded',
+        position: 'Below card when expanded (Changes tab)',
         items: [
           { label: 'File status', detail: 'A = Added (green), M = Modified (yellow), D = Deleted (red), R = Renamed, ? = Untracked.' },
           { label: 'File path', detail: 'Full path of the changed file in monospace font. Click to expand inline diff.' },
           { label: 'Inline diff', detail: 'Click any file row to expand a line-level diff with syntax highlighting (auto-detected from file extension). Toggle Unified/Split view in the toolbar — Split shows old vs. new side-by-side. Lazy-loaded and cached per session.' },
           { label: 'Insertions / Deletions', detail: 'Per-file line counts: green for additions, red for removals.' },
+        ],
+      },
+      {
+        name: 'Commit List',
+        position: 'Main area (Commits tab)',
+        items: [
+          { label: 'Commit row', detail: 'Short hash (7 chars), subject, author, and relative date. Click to expand inline diff.' },
+          { label: 'Inline commit diff', detail: 'Full diff for that commit with syntax highlighting. Lazy-loaded and cached.' },
+          { label: 'Empty state', detail: 'Shows when all commits are pushed to origin.' },
         ],
       },
     ],

@@ -10,6 +10,13 @@ export interface BranchInfo {
   ahead: number
 }
 
+export interface UnpushedCommit {
+  hash: string
+  subject: string
+  author: string
+  date: string
+}
+
 /** Validate that cwd is a real git repo before running any commands. */
 async function assertGitRepo(cwd: string): Promise<void> {
   await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd, timeout: 5000 })
@@ -71,5 +78,32 @@ export function registerGitHandlers(): void {
     } catch { /* no upstream */ }
 
     return { branch, remote, ahead }
+  })
+
+  ipcMain.handle('git:unpushedCommits', async (_e, cwd: string): Promise<UnpushedCommit[]> => {
+    await assertGitRepo(cwd)
+    try {
+      const { stdout } = await execFileAsync('git', [
+        'log', 'origin/main..HEAD', '--format=%H|%s|%an|%ar',
+      ], { cwd, timeout: 10000, encoding: 'utf-8' })
+      if (!stdout.trim()) return []
+      return stdout.trim().split('\n').map(line => {
+        const [hash, subject, author, date] = line.split('|')
+        return { hash, subject, author, date }
+      })
+    } catch {
+      // No upstream or no commits ahead
+      return []
+    }
+  })
+
+  ipcMain.handle('git:commitDiff', async (_e, cwd: string, hash: string): Promise<string> => {
+    await assertGitRepo(cwd)
+    // Validate hash is hex-only to prevent injection
+    if (!/^[0-9a-f]{7,40}$/i.test(hash)) throw new Error('Invalid commit hash')
+    const { stdout } = await execFileAsync('git', [
+      'diff-tree', '-p', '--no-commit-id', hash,
+    ], { cwd, timeout: 15000, encoding: 'utf-8', maxBuffer: 5 * 1024 * 1024 })
+    return stdout
   })
 }

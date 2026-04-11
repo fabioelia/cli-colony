@@ -7034,6 +7034,18 @@ body:has(.daemon-update-banner) .app-update-banner {
   gap: 3px;
 }
 
+.review-push-confirm {
+  padding: 8px 16px;
+  background: rgba(234, 179, 8, 0.08);
+  border-bottom: 1px solid var(--border);
+}
+.review-push-confirm-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
 /* ===== Terminal Drag Drop Overlay ===== */
 .terminal-container.drag-over {
   outline: 2px dashed var(--accent);

@@ -1,10 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { GitCompare, RefreshCw, ChevronDown, ChevronRight, Terminal, GitBranch, Copy, Filter, RotateCw, Clock, GitCommit } from 'lucide-react'
+import { GitCompare, RefreshCw, ChevronDown, ChevronRight, Terminal, GitBranch, Copy, Filter, RotateCw, Clock, GitCommit, Upload, AlertTriangle } from 'lucide-react'
 import type { ClaudeInstance } from '../types'
 import type { GitDiffEntry } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
 import DiffViewer from './DiffViewer'
 import CommitDialog from './CommitDialog'
+
+interface UnpushedCommit {
+  hash: string
+  subject: string
+  author: string
+  date: string
+}
 
 interface SessionChanges {
   instanceId: string
@@ -25,8 +32,10 @@ interface ReviewPanelProps {
 }
 
 type FilterMode = 'changes' | 'all'
+type ReviewTab = 'changes' | 'commits'
 
 function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
+  const [activeTab, setActiveTab] = useState<ReviewTab>('changes')
   const [sessionChanges, setSessionChanges] = useState<SessionChanges[]>([])
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState<FilterMode>('changes')
@@ -39,6 +48,17 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
   const [commitSession, setCommitSession] = useState<SessionChanges | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const initialLoadDone = useRef(false)
+
+  // Commits tab state
+  const [unpushedCommits, setUnpushedCommits] = useState<UnpushedCommit[]>([])
+  const [commitsLoading, setCommitsLoading] = useState(false)
+  const [expandedCommitHash, setExpandedCommitHash] = useState<string | null>(null)
+  const [commitDiffContent, setCommitDiffContent] = useState<string | null>(null)
+  const [commitDiffLoading, setCommitDiffLoading] = useState(false)
+  const commitDiffCache = useRef<Record<string, string>>({})
+  const [pushing, setPushing] = useState(false)
+  const [pushConfirm, setPushConfirm] = useState(false)
+  const [branchName, setBranchName] = useState<string>('')
 
   const instancesWithDir = instances.filter(i => i.workingDirectory)
   const instanceIds = instancesWithDir.map(i => i.id).join(',')
@@ -111,21 +131,52 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
     loadAllChanges()
   }, [instanceIds])
 
+  // Load unpushed commits — uses first instance's workingDirectory as project root
+  const projectDir = instancesWithDir[0]?.workingDirectory ?? ''
+
+  const loadUnpushedCommits = useCallback(async () => {
+    if (!projectDir) return
+    setCommitsLoading(true)
+    try {
+      const [commits, info] = await Promise.all([
+        window.api.git.unpushedCommits(projectDir),
+        window.api.git.branchInfo(projectDir),
+      ])
+      setUnpushedCommits(commits)
+      setBranchName(info.branch)
+    } catch {
+      setUnpushedCommits([])
+    } finally {
+      setCommitsLoading(false)
+    }
+  }, [projectDir])
+
+  // Load commits on tab switch and initial mount
+  useEffect(() => {
+    if (activeTab === 'commits') loadUnpushedCommits()
+  }, [activeTab, loadUnpushedCommits])
+
   // Poll every 30s — show subtle spinner during background polls
   useEffect(() => {
     pollRef.current = setInterval(async () => {
       setRefreshing(true)
-      await loadAllChanges()
+      await Promise.all([
+        loadAllChanges(),
+        activeTab === 'commits' ? loadUnpushedCommits() : Promise.resolve(),
+      ])
       setRefreshing(false)
     }, 30000)
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
-  }, [loadAllChanges])
+  }, [loadAllChanges, loadUnpushedCommits, activeTab])
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true)
-    await loadAllChanges()
+    await Promise.all([
+      loadAllChanges(),
+      activeTab === 'commits' ? loadUnpushedCommits() : Promise.resolve(),
+    ])
     setRefreshing(false)
-  }, [loadAllChanges])
+  }, [loadAllChanges, loadUnpushedCommits, activeTab])
 
   const toggleExpand = (id: string) => {
     setExpandedIds(prev => {
@@ -141,6 +192,44 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
     setCopiedBranch(branch)
     setTimeout(() => setCopiedBranch(null), 1500)
   }
+
+  const toggleCommitDiff = useCallback(async (hash: string) => {
+    if (expandedCommitHash === hash) {
+      setExpandedCommitHash(null)
+      setCommitDiffContent(null)
+      return
+    }
+    setExpandedCommitHash(hash)
+    if (commitDiffCache.current[hash]) {
+      setCommitDiffContent(commitDiffCache.current[hash])
+      return
+    }
+    setCommitDiffLoading(true)
+    setCommitDiffContent(null)
+    try {
+      const raw = await window.api.git.commitDiff(projectDir, hash)
+      commitDiffCache.current[hash] = raw
+      setCommitDiffContent(raw)
+    } catch {
+      setCommitDiffContent('')
+    } finally {
+      setCommitDiffLoading(false)
+    }
+  }, [expandedCommitHash, projectDir])
+
+  const handlePush = useCallback(async () => {
+    if (!projectDir) return
+    setPushing(true)
+    try {
+      await window.api.git.push(projectDir)
+      setUnpushedCommits([])
+      setPushConfirm(false)
+    } catch {
+      // Push failed — user will see commits remain
+    } finally {
+      setPushing(false)
+    }
+  }, [projectDir])
 
   // Apply filter
   const displayed = filter === 'changes'
@@ -187,17 +276,46 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
     <div className="review-panel" style={{ padding: 'var(--titlebar-pad, 44px) 16px 0', WebkitAppRegion: 'drag' } as React.CSSProperties}>
       <div className="panel-header" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <h2><GitCompare size={16} /> Review</h2>
-        <span className="panel-subtitle">Uncommitted changes across all sessions</span>
+        <div className="panel-header-tabs">
+          <button
+            className={`panel-header-tab${activeTab === 'changes' ? ' active' : ''}`}
+            onClick={() => setActiveTab('changes')}
+          >
+            Changes
+          </button>
+          <button
+            className={`panel-header-tab${activeTab === 'commits' ? ' active' : ''}`}
+            onClick={() => setActiveTab('commits')}
+          >
+            Commits{unpushedCommits.length > 0 ? ` (${unpushedCommits.length})` : ''}
+          </button>
+        </div>
         <div className="panel-header-spacer" />
         <HelpPopover topic="review" align="right" />
         <div className="panel-header-actions">
-          <button
-            className={`panel-header-btn${filter === 'changes' ? ' primary' : ''}`}
-            onClick={() => setFilter(f => f === 'changes' ? 'all' : 'changes')}
-            title={filter === 'changes' ? 'Showing sessions with changes only' : 'Showing all sessions'}
-          >
-            <Filter size={13} /> {filter === 'changes' ? 'Changed' : 'All'}
-          </button>
+          {activeTab === 'changes' && (
+            <button
+              className={`panel-header-btn${filter === 'changes' ? ' primary' : ''}`}
+              onClick={() => setFilter(f => f === 'changes' ? 'all' : 'changes')}
+              title={filter === 'changes' ? 'Showing sessions with changes only' : 'Showing all sessions'}
+            >
+              <Filter size={13} /> {filter === 'changes' ? 'Changed' : 'All'}
+            </button>
+          )}
+          {activeTab === 'commits' && unpushedCommits.length > 0 && (
+            <button
+              className="panel-header-btn primary"
+              onClick={() => {
+                const isSensitive = /^(main|master)$/i.test(branchName)
+                if (isSensitive) setPushConfirm(true)
+                else handlePush()
+              }}
+              disabled={pushing}
+              title={`Push ${unpushedCommits.length} commit${unpushedCommits.length !== 1 ? 's' : ''} to origin`}
+            >
+              <Upload size={13} /> {pushing ? 'Pushing...' : 'Push'}
+            </button>
+          )}
           <button
             className="panel-header-btn"
             onClick={handleRefresh}
@@ -209,25 +327,41 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
         </div>
       </div>
 
-      {/* Summary bar */}
-      {totalChanges > 0 && (
-        <div className="review-summary" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-          <span>{totalChanges} file{totalChanges !== 1 ? 's' : ''} changed across {sessionChanges.filter(s => s.entries.length > 0).length} session{sessionChanges.filter(s => s.entries.length > 0).length !== 1 ? 's' : ''}</span>
-          <span style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
-            {totalInsertions > 0 && <span style={{ color: 'var(--success)' }}>+{totalInsertions}</span>}
-            {totalDeletions > 0 && <span style={{ color: 'var(--danger)' }}>-{totalDeletions}</span>}
-          </span>
+      {/* Push confirmation dialog */}
+      {pushConfirm && (
+        <div className="review-push-confirm" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          <div className="review-push-confirm-inner">
+            <AlertTriangle size={16} style={{ color: 'var(--warning)' }} />
+            <span>Push {unpushedCommits.length} commit{unpushedCommits.length !== 1 ? 's' : ''} to <strong>{branchName}</strong>?</span>
+            <button className="panel-header-btn primary" onClick={handlePush} disabled={pushing}>
+              {pushing ? 'Pushing...' : 'Confirm Push'}
+            </button>
+            <button className="panel-header-btn" onClick={() => setPushConfirm(false)}>Cancel</button>
+          </div>
         </div>
       )}
 
-      <div className="review-content" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-        {sorted.length === 0 && !refreshing && (
-          <div className="changes-empty">
-            {filter === 'changes' ? 'No sessions with uncommitted changes.' : 'No sessions with a working directory.'}
-          </div>
-        )}
+      {activeTab === 'changes' && (
+        <>
+          {/* Summary bar */}
+          {totalChanges > 0 && (
+            <div className="review-summary" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+              <span>{totalChanges} file{totalChanges !== 1 ? 's' : ''} changed across {sessionChanges.filter(s => s.entries.length > 0).length} session{sessionChanges.filter(s => s.entries.length > 0).length !== 1 ? 's' : ''}</span>
+              <span style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+                {totalInsertions > 0 && <span style={{ color: 'var(--success)' }}>+{totalInsertions}</span>}
+                {totalDeletions > 0 && <span style={{ color: 'var(--danger)' }}>-{totalDeletions}</span>}
+              </span>
+            </div>
+          )}
 
-        {sorted.map(session => {
+          <div className="review-content" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+            {sorted.length === 0 && !refreshing && (
+              <div className="changes-empty">
+                {filter === 'changes' ? 'No sessions with uncommitted changes.' : 'No sessions with a working directory.'}
+              </div>
+            )}
+
+            {sorted.map(session => {
           const expanded = expandedIds.has(session.instanceId)
           const insertions = session.entries.reduce((a, e) => a + e.insertions, 0)
           const deletions = session.entries.reduce((a, e) => a + e.deletions, 0)
@@ -356,7 +490,58 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
             </div>
           )
         })}
-      </div>
+          </div>
+        </>
+      )}
+
+      {activeTab === 'commits' && (
+        <div className="review-content" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          {commitsLoading && unpushedCommits.length === 0 && (
+            <div className="changes-empty" style={{ opacity: 0.5 }}>Loading commits...</div>
+          )}
+          {!commitsLoading && unpushedCommits.length === 0 && (
+            <div className="changes-empty">No unpushed commits. All changes have been pushed to origin.</div>
+          )}
+          {unpushedCommits.length > 0 && (
+            <div className="review-summary" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+              <span>{unpushedCommits.length} commit{unpushedCommits.length !== 1 ? 's' : ''} ahead of origin/{branchName || 'main'}</span>
+            </div>
+          )}
+          {unpushedCommits.map(commit => {
+            const isExpanded = expandedCommitHash === commit.hash
+            return (
+              <div key={commit.hash} className="review-card">
+                <div
+                  className="review-card-header"
+                  onClick={() => toggleCommitDiff(commit.hash)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <span className="review-card-chevron">
+                    {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                  </span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--accent)', marginRight: '8px', flexShrink: 0 }}>
+                    {commit.hash.slice(0, 7)}
+                  </span>
+                  <span className="review-card-name" style={{ flex: 1 }}>{commit.subject}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '8px', flexShrink: 0 }}>{commit.author}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '8px', flexShrink: 0 }}>{commit.date}</span>
+                </div>
+                {isExpanded && (
+                  <div className="review-card-files">
+                    {commitDiffLoading ? (
+                      <div className="diff-viewer-empty">Loading diff...</div>
+                    ) : commitDiffContent !== null ? (
+                      <div className="changes-diff-container">
+                        <DiffViewer diff={commitDiffContent} filename={`${commit.hash.slice(0, 7)} ${commit.subject}`} />
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {commitSession && (
         <CommitDialog
