@@ -1070,6 +1070,15 @@ export default function SettingsPanel({ onBack }: Props) {
           setApprovalRuleForm({})
         }
 
+        const handleEditRule = (rule: ApprovalRule) => {
+          setApprovalRuleFormName(rule.name)
+          setApprovalRuleFormType(rule.type)
+          setApprovalRuleFormCondition(rule.condition)
+          setApprovalRuleFormAction(rule.action)
+          setApprovalRuleFormError(null)
+          setApprovalRuleForm({ id: rule.id })
+        }
+
         const handleSaveRule = async () => {
           if (!approvalRuleFormName.trim()) {
             setApprovalRuleFormError('Rule name is required')
@@ -1080,13 +1089,24 @@ export default function SettingsPanel({ onBack }: Props) {
             return
           }
           try {
-            const created = await window.api.approvalRules.create(
-              approvalRuleFormName,
-              approvalRuleFormType,
-              approvalRuleFormCondition,
-              approvalRuleFormAction
-            )
-            setApprovalRules([...approvalRules, created])
+            const editId = approvalRuleForm?.id
+            if (editId) {
+              await window.api.approvalRules.update(editId, {
+                name: approvalRuleFormName,
+                type: approvalRuleFormType,
+                condition: approvalRuleFormCondition,
+                action: approvalRuleFormAction,
+              })
+              setApprovalRules(approvalRules.map(r => r.id === editId ? { ...r, name: approvalRuleFormName, type: approvalRuleFormType, condition: approvalRuleFormCondition, action: approvalRuleFormAction } : r))
+            } else {
+              const created = await window.api.approvalRules.create(
+                approvalRuleFormName,
+                approvalRuleFormType,
+                approvalRuleFormCondition,
+                approvalRuleFormAction
+              )
+              setApprovalRules([...approvalRules, created])
+            }
             setApprovalRuleForm(null)
             setApprovalRuleFormError(null)
           } catch (error) {
@@ -1141,7 +1161,7 @@ export default function SettingsPanel({ onBack }: Props) {
                 {approvalRuleForm !== null ? (
                   <div className="approval-rule-form">
                     <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: '12px', color: 'var(--text-muted)' }}>
-                      Add New Rule
+                      {approvalRuleForm?.id ? 'Edit Rule' : 'Add New Rule'}
                     </div>
                     <div style={{ marginBottom: '8px' }}>
                       <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Rule Name</label>
@@ -1244,7 +1264,7 @@ export default function SettingsPanel({ onBack }: Props) {
                         onClick={handleSaveRule}
                         style={{ padding: '4px 12px', fontSize: '12px' }}
                       >
-                        Save Rule
+                        {approvalRuleForm?.id ? 'Update Rule' : 'Save Rule'}
                       </button>
                     </div>
                   </div>
@@ -1258,7 +1278,7 @@ export default function SettingsPanel({ onBack }: Props) {
                           <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600' }}>Condition</th>
                           <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600' }}>Action</th>
                           <th style={{ padding: '6px 8px', textAlign: 'center', fontWeight: '600' }}>Enabled</th>
-                          <th style={{ padding: '6px 8px', textAlign: 'center', fontWeight: '600' }}>Delete</th>
+                          <th style={{ padding: '6px 8px', textAlign: 'center', fontWeight: '600' }}>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1287,6 +1307,14 @@ export default function SettingsPanel({ onBack }: Props) {
                               />
                             </td>
                             <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                              <button
+                                className="settings-logs-toggle"
+                                onClick={() => handleEditRule(rule)}
+                                style={{ padding: '2px 6px', color: 'var(--text-muted)', opacity: 0.8 }}
+                                title="Edit rule"
+                              >
+                                <Pencil size={10} />
+                              </button>
                               <button
                                 className="settings-logs-toggle"
                                 onClick={() => handleDeleteRule(rule.id)}
