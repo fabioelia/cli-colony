@@ -125,16 +125,23 @@ export default function OutputsPanel() {
     setTimeout(() => setSendFeedback(null), 2000)
   }, [content])
 
-  // Close session picker on outside click
+  // Close session picker on outside click or Escape
   useEffect(() => {
     if (!sessionPickerOpen) return
-    const handler = (e: MouseEvent) => {
+    const handleClick = (e: MouseEvent) => {
       if (sessionPickerRef.current && !sessionPickerRef.current.contains(e.target as Node)) {
         setSessionPickerOpen(false)
       }
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSessionPickerOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey)
+    }
   }, [sessionPickerOpen])
 
   return (
