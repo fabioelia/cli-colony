@@ -941,6 +941,23 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                     </div>
                   </div>
 
+                  {/* Worktrees */}
+                  <div className="env-detail-section">
+                    <div className="env-detail-label">Worktrees</div>
+                    {worktrees.filter(wt => wt.mountedEnvId === env.id).length > 0 ? (
+                      worktrees.filter(wt => wt.mountedEnvId === env.id).map(wt => (
+                        <div key={wt.id} className="env-detail-row">
+                          <span className="env-detail-key">{wt.branch}</span>
+                          <span className="env-detail-value">{wt.path}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="env-detail-row">
+                        <span className="env-detail-value" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No worktrees mounted</span>
+                      </div>
+                    )}
+                  </div>
+
                 </div>
               )}
             </div>
@@ -1172,7 +1189,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                 <span className="env-worktree-branch"><GitBranch size={10} /> {w.branch}</span>
                 <span className="env-worktree-path" title={w.path}>{w.path.split('/').slice(-2).join('/')}</span>
                 {w.mountedEnvId
-                  ? <span className="env-worktree-mounted">Mounted</span>
+                  ? <span className="env-worktree-mounted">Mounted: {environments.find(e => e.id === w.mountedEnvId)?.name || w.mountedEnvId}</span>
                   : <span className="env-worktree-unmounted">Unmounted</span>
                 }
                 <span className="env-worktree-age">{formatAge(w.createdAt)}</span>

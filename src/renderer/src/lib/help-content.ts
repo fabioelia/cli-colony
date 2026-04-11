@@ -590,6 +590,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Purpose tag', detail: 'Tag an environment as interactive (sprint work), background (parallel tasks), or nightly (overnight batch jobs). Shows as a colored badge on the card. Optional — helps you filter and understand at a glance what each environment is for.' },
           { label: 'Ports section', detail: 'Allocated ports per service — unique across environments to avoid conflicts.' },
           { label: 'Paths section', detail: 'Root path, backend path, frontend path, etc. for the environment.' },
+          { label: 'Worktrees section', detail: 'Lists git worktrees mounted to this environment. Worktree badges in the Worktrees tab also show which environment they belong to.', icon: 'GitBranch' },
         ],
       },
       {
@@ -1428,6 +1429,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Session row', detail: 'Each row shows the session name, commit-type tags (feat, fix, ux, etc.), persona badge, git branch, commit count, insertions/deletions, cost, and relative time. Click to expand.', icon: 'Archive' },
           { label: 'Commit-type tags', detail: 'Colored badges extracted from conventional commit prefixes (feat, fix, ux, refactor, test, chore). Use the type filter chips to show only sessions of a specific type.' },
           { label: 'Exit status dot', detail: 'Green = exited successfully (code 0). Red = non-zero exit code (error or cancellation).', icon: 'Circle' },
+          { label: 'Pipeline badge', detail: 'Artifacts from pipeline-triggered sessions show an amber lightning bolt badge. Hover for the pipeline run ID.', icon: 'Zap' },
           { label: 'Expanded view', detail: 'Shows full commit list (hash + message), file change list (with M/A/D/R status), duration, and cost.', icon: 'FileText' },
         ],
       },

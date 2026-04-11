@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import { Archive, GitCommit, ChevronRight, Search, Trash2, Clock, DollarSign, FileText } from 'lucide-react'
+import { Archive, GitCommit, ChevronRight, Search, Trash2, Clock, DollarSign, FileText, Zap } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import EmptyStateHook from './EmptyStateHook'
 import type { SessionArtifact } from '../../../shared/types'
@@ -313,6 +313,24 @@ export default function ArtifactsPanel() {
                     whiteSpace: 'nowrap',
                   }}>
                     {artifact.personaName}
+                  </span>
+                )}
+                {artifact.pipelineRunId && (
+                  <span
+                    title={`Pipeline run: ${artifact.pipelineRunId}`}
+                    style={{
+                      fontSize: 10,
+                      padding: '1px 6px',
+                      borderRadius: 3,
+                      background: 'rgba(245, 158, 11, 0.15)',
+                      color: '#f59e0b',
+                      whiteSpace: 'nowrap',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 3,
+                    }}
+                  >
+                    <Zap size={10} /> Pipeline
                   </span>
                 )}
                 {artifact.gitBranch && (
