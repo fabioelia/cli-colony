@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate, ErrorSummary } from '../../../shared/types'
@@ -68,6 +68,16 @@ interface InstanceItemProps {
 function dirName(path: string) {
   const parts = path.split('/')
   return parts[parts.length - 1] || path
+}
+
+function formatElapsed(createdAt: string): string {
+  const ms = Date.now() - new Date(createdAt).getTime()
+  const mins = Math.floor(ms / 60000)
+  if (mins < 60) return `${mins}m`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ${mins % 60}m`
+  const days = Math.floor(hrs / 24)
+  return `${days}d ${hrs % 24}h`
 }
 
 interface TriggerChainNode {
@@ -256,6 +266,11 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
             </span>
           )}
           {inst.childIds?.length > 0 && <span className="instance-parent-badge clickable" title={`Go to child session (${inst.childIds.length} total)`} onClick={(e) => { e.stopPropagation(); callbacks.onSelect(inst.childIds[0]) }}> · {inst.childIds.length} child{inst.childIds.length > 1 ? 'ren' : ''}</span>}
+          {inst.status === 'running' && inst.createdAt && (
+            <span className="instance-elapsed" title={`Started ${new Date(inst.createdAt).toLocaleString()}`}>
+              <Clock size={9} /> {formatElapsed(inst.createdAt)}
+            </span>
+          )}
         </div>
         {errorMessage && (
           <div className="instance-error-preview" title={errorMessage}>{errorMessage}</div>
@@ -459,6 +474,13 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     }).catch(() => {})
     poll()
     const id = setInterval(poll, 60000)
+    return () => clearInterval(id)
+  }, [])
+
+  // Elapsed time tick — forces re-render every 60s so formatElapsed stays current
+  const [, setElapsedTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setElapsedTick(t => t + 1), 60_000)
     return () => clearInterval(id)
   }, [])
 

@@ -1868,6 +1868,18 @@ body:has(.daemon-update-banner) .app-update-banner {
   gap: 4px;
 }
 
+.instance-elapsed {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+.instance-elapsed::before {
+  content: '·';
+  margin-right: 1px;
+}
+
 .instance-branch-badge {
   display: inline-flex;
   align-items: center;
