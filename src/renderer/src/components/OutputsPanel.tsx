@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { FolderOpen, FileText, Clock, RefreshCw, Search, FileOutput, Copy, Trash2 } from 'lucide-react'
+import { FolderOpen, FileText, Clock, RefreshCw, Search, FileOutput, Copy, Trash2, Send, ClipboardCopy, ChevronDown } from 'lucide-react'
 import MarkdownViewer from './MarkdownViewer'
 import HelpPopover from './HelpPopover'
 import EmptyStateHook from './EmptyStateHook'
-import type { OutputEntry } from '../../../shared/types'
+import type { OutputEntry, ClaudeInstance } from '../../../shared/types'
 
 type FilterType = 'all' | 'briefs' | 'artifacts'
 
@@ -41,6 +41,11 @@ export default function OutputsPanel() {
   const [contentError, setContentError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [copyFeedback, setCopyFeedback] = useState(false)
+  const [sendFeedback, setSendFeedback] = useState<string | null>(null)
+  const [sessionPickerOpen, setSessionPickerOpen] = useState(false)
+  const [sessionList, setSessionList] = useState<ClaudeInstance[]>([])
+  const sessionPickerRef = useRef<HTMLDivElement>(null)
   const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [debouncedSearch, setDebouncedSearch] = useState('')
 
@@ -91,6 +96,46 @@ export default function OutputsPanel() {
       setLoading(false)
     }
   }, [])
+
+  const handleCopyContent = useCallback(() => {
+    if (!content) return
+    navigator.clipboard.writeText(content).then(() => {
+      setCopyFeedback(true)
+      setTimeout(() => setCopyFeedback(false), 1500)
+    })
+  }, [content])
+
+  const handleOpenSessionPicker = useCallback(async () => {
+    if (sessionPickerOpen) { setSessionPickerOpen(false); return }
+    const list = await window.api.instance.list()
+    setSessionList(list.filter((i: ClaudeInstance) => i.status === 'running' && i.activity === 'waiting'))
+    setSessionPickerOpen(true)
+  }, [sessionPickerOpen])
+
+  const MAX_SEND_BYTES = 4096
+
+  const handleSendToSession = useCallback((inst: ClaudeInstance) => {
+    if (!content) return
+    setSessionPickerOpen(false)
+    const truncated = content.length > MAX_SEND_BYTES
+    const payload = truncated ? content.slice(0, MAX_SEND_BYTES) : content
+    window.api.instance.write(inst.id, payload)
+    setTimeout(() => window.api.instance.write(inst.id, '\r'), 150)
+    setSendFeedback(truncated ? `Sent first 4KB to ${inst.name}` : `Sent to ${inst.name}`)
+    setTimeout(() => setSendFeedback(null), 2000)
+  }, [content])
+
+  // Close session picker on outside click
+  useEffect(() => {
+    if (!sessionPickerOpen) return
+    const handler = (e: MouseEvent) => {
+      if (sessionPickerRef.current && !sessionPickerRef.current.contains(e.target as Node)) {
+        setSessionPickerOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [sessionPickerOpen])
 
   return (
     <div className="outputs-panel">
@@ -197,6 +242,40 @@ export default function OutputsPanel() {
                 <div className="outputs-viewer-actions">
                   <button
                     className="outputs-viewer-btn"
+                    onClick={handleCopyContent}
+                    title="Copy file contents to clipboard"
+                  >
+                    <ClipboardCopy size={13} /> {copyFeedback ? 'Copied!' : 'Copy Content'}
+                  </button>
+                  <div className="outputs-session-picker" ref={sessionPickerRef}>
+                    <button
+                      className="outputs-viewer-btn"
+                      onClick={handleOpenSessionPicker}
+                      title="Send content to a running session"
+                    >
+                      <Send size={13} /> Send to Session <ChevronDown size={10} />
+                    </button>
+                    {sessionPickerOpen && (
+                      <div className="outputs-session-dropdown">
+                        {sessionList.length === 0 ? (
+                          <div className="outputs-session-empty">No sessions waiting for input</div>
+                        ) : (
+                          sessionList.map((inst) => (
+                            <button
+                              key={inst.id}
+                              className="outputs-session-item"
+                              onClick={() => handleSendToSession(inst)}
+                            >
+                              <span className="outputs-session-dot" style={{ background: inst.color }} />
+                              <span className="outputs-session-name">{inst.name}</span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    className="outputs-viewer-btn"
                     onClick={() => window.api.outputs.copyPath(selected.path)}
                     title="Copy file path"
                   >
@@ -221,6 +300,9 @@ export default function OutputsPanel() {
                     <Trash2 size={13} /> Delete
                   </button>
                 </div>
+                {sendFeedback && (
+                  <div className="outputs-send-toast">{sendFeedback}</div>
+                )}
               </div>
               <div className="outputs-viewer-content">
                 {isMarkdown(selected.name) ? (

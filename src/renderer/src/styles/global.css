@@ -17961,6 +17961,30 @@ body:has(.daemon-update-banner) .app-update-banner {
 .outputs-viewer-btn:hover { background: var(--bg-active); color: var(--text-primary); }
 .outputs-viewer-btn.danger:hover { background: rgba(239,68,68,0.15); color: var(--danger); border-color: var(--danger); }
 
+.outputs-session-picker { position: relative; }
+.outputs-session-dropdown {
+  position: absolute; top: 100%; left: 0; margin-top: 4px; z-index: 50;
+  min-width: 220px; max-height: 200px; overflow-y: auto;
+  background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+.outputs-session-empty { padding: 10px 12px; font-size: 11px; color: var(--text-muted); text-align: center; }
+.outputs-session-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 12px;
+  font-size: 12px; color: var(--text-primary); background: none; border: none; cursor: pointer; text-align: left;
+}
+.outputs-session-item:hover { background: var(--bg-hover); }
+.outputs-session-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.outputs-session-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.outputs-send-toast {
+  font-size: 11px; color: var(--success); margin-top: 4px;
+  animation: outputs-toast-fade 2s ease-out forwards;
+}
+@keyframes outputs-toast-fade {
+  0%, 70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 .outputs-viewer-content {
   flex: 1;
   overflow-y: auto;

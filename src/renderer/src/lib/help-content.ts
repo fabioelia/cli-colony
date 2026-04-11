@@ -1224,6 +1224,8 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Markdown rendering', detail: 'Files ending in .md are rendered with rich formatting: syntax-highlighted code blocks (Python, JS/TS, Bash, JSON, YAML, and more), copy-to-clipboard on code blocks, task list checkboxes, alternating table row colors, and styled headings with borders.' },
           { label: 'Size limit', detail: 'Files larger than 32KB are truncated with a notice at the end.' },
+          { label: 'Copy Content', detail: 'Copy the full file contents to clipboard — not just the path. Shows a brief "Copied!" confirmation.', icon: 'ClipboardCopy' },
+          { label: 'Send to Session', detail: 'Open a dropdown of sessions currently waiting for input. Clicking one injects the output content as a prompt. Content over 4KB is truncated with a warning. Closes the colony loop: output produced → output consumed.', icon: 'Send' },
           { label: 'Copy Path', detail: 'Copy the absolute file path to clipboard.', icon: 'Copy' },
           { label: 'Reveal in Finder', detail: 'Open the parent folder in Finder with the file selected.', icon: 'FolderOpen' },
           { label: 'Delete', detail: 'Permanently delete the output file. Shows a confirmation prompt first.', icon: 'Trash2' },
