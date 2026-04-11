@@ -96,6 +96,9 @@ export interface ActionDef {
   session_name?: string      // name of the session to wait for
   timeout_minutes?: number   // max wait time in minutes (default: 30)
   artifact_output?: string   // artifact name to write exit reason to
+  // retry
+  max_retries?: number       // retry failed stages up to N times (default: 0 = no retry)
+  retry_delay_ms?: number    // base delay between retries in ms, doubles each attempt (default: 5000)
   // best-of-n specific fields
   n?: number                    // number of parallel contestants (default: 3, clamped 2-8)
   repo?: { owner: string; name: string }  // repo to create worktrees in
@@ -332,6 +335,7 @@ export interface PipelineStageTrace {
   error?: string
   responseSnippet?: string // first ~120 chars of reviewer response (diff_review only)
   subStages?: PipelineStageTrace[] // parallel sub-stage results
+  retryCount?: number // how many retry attempts were needed (0 = succeeded first try)
 }
 
 export interface PipelineRunEntry {
@@ -1164,9 +1168,11 @@ async function runParallel(
     const sessionName = resolveTemplate(subAction.name || `${baseName} [${i + 1}]`, ctx)
     let stageError: string | undefined
     let stageCost = 0
+    let retryCount = 0
     try {
-      const result = await fireAction(subAction, ctx, pipelineName)
+      const result = await fireActionWithRetry(subAction, ctx, pipelineName)
       stageCost = result.cost
+      retryCount = result.retryCount
     } catch (err) {
       stageError = String(err)
       throw err
@@ -1181,6 +1187,7 @@ async function runParallel(
         completedAt: end,
         success: !stageError,
         error: stageError,
+        retryCount,
       }
     }
     return { cost: stageCost, i }
@@ -1447,6 +1454,34 @@ async function runBestOfN(
 }
 
 // ---- Action Execution ----
+
+async function fireActionWithRetry(
+  action: ActionDef,
+  ctx: TriggerContext,
+  pipelineName: string,
+): Promise<{ cost: number; responseSnippet?: string; subStages?: PipelineStageTrace[]; retryCount: number }> {
+  // wait_for_session is a polling action — never retry it
+  const maxRetries = action.type === 'wait_for_session' ? 0 : (action.max_retries ?? 0)
+  const baseDelay = action.retry_delay_ms ?? 5000
+  let lastError: unknown
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      if (attempt > 0) {
+        const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), 60000)
+        plog(pipelineName, `retry ${attempt}/${maxRetries} after ${delay}ms`)
+        await new Promise(r => setTimeout(r, delay))
+      }
+      const result = await fireAction(action, ctx, pipelineName)
+      return { ...result, retryCount: attempt }
+    } catch (err) {
+      lastError = err
+      if (attempt < maxRetries) {
+        plog(pipelineName, `stage failed (attempt ${attempt + 1}/${maxRetries + 1}): ${String(err)}`)
+      }
+    }
+  }
+  throw lastError
+}
 
 async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<{ cost: number; responseSnippet?: string; subStages?: PipelineStageTrace[] }> {
   markChecklistItem('ranPipeline')
@@ -1922,11 +1957,13 @@ async function runPoll(pipelineName: string): Promise<void> {
       let stageCost = 0
       let stageResponseSnippet: string | undefined
       let stageSubStages: PipelineStageTrace[] | undefined
+      let stageRetryCount = 0
       try {
-        const result = await fireAction(p.def.action, ctx, p.def.name)
+        const result = await fireActionWithRetry(p.def.action, ctx, p.def.name)
         stageCost = result.cost
         stageResponseSnippet = result.responseSnippet
         stageSubStages = result.subStages
+        stageRetryCount = result.retryCount
       } catch (stageErr) {
         stageError = String(stageErr)
         throw stageErr
@@ -1944,6 +1981,7 @@ async function runPoll(pipelineName: string): Promise<void> {
           error: stageError,
           responseSnippet: stageResponseSnippet,
           subStages: stageSubStages,
+          retryCount: stageRetryCount,
         })
       }
       totalCost += stageCost
@@ -2423,7 +2461,7 @@ export async function approveAction(id: string): Promise<boolean> {
   }
 
   try {
-    const { cost: _ } = await fireAction(action, ctx, request.pipelineName)
+    const { cost: _ } = await fireActionWithRetry(action, ctx, request.pipelineName)
     await recordFired(request.pipelineName, dedupKey, ctx.contentSha)
     appendActivity({ source: 'pipeline', name: request.pipelineName, summary: `Pipeline "${request.pipelineName}" approved and fired — ${request.summary}`, level: 'info' })
   } catch (err) {
