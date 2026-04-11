@@ -10420,7 +10420,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   margin-left: auto;
   margin-right: 8px;
   font-size: 10px;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   background: var(--bg-secondary);
   padding: 1px 5px;
   border-radius: 3px;
