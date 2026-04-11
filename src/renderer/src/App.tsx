@@ -1234,13 +1234,13 @@ export default function App() {
       )}
       {daemonUnresponsive && createPortal(
         <div className="daemon-update-banner daemon-unresponsive-banner">
-          <span>Daemon became unresponsive — automatic restart in progress.</span>
+          <span>Daemon became unresponsive — restarting automatically.</span>
           <button onClick={async () => {
             setDaemonUnresponsive(false)
             await window.api.daemon.restart()
             const list = await window.api.instance.list()
             setInstances(prev => instancesEqual(prev, list) ? prev : list)
-          }}>Restart Daemon</button>
+          }}>Restart Now</button>
           <button className="daemon-update-dismiss" onClick={() => setDaemonUnresponsive(false)}>Dismiss</button>
         </div>,
         document.body
