@@ -764,8 +764,11 @@ export default function App() {
     if (loserNames.length === 0) return
     setArenaWinnerId(winnerInstId)
     setArenaBlind(false)
-    await window.api.arena.recordWinner(winner.name, loserNames)
-  }, [activeId, splitId, arenaWinnerId, instances, gridPanes])
+    await window.api.arena.recordWinner(winner.name, loserNames, {
+      prompt: arenaText || undefined,
+      judgeType: 'manual',
+    })
+  }, [activeId, splitId, arenaWinnerId, instances, gridPanes, arenaText])
 
   const openArenaStats = useCallback(async () => {
     const stats = await window.api.arena.getStats()

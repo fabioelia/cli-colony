@@ -449,6 +449,19 @@ export interface ArenaStatEntry {
 
 export type ArenaStats = Record<string, ArenaStatEntry>
 
+export interface ArenaMatchRecord {
+  id: string
+  timestamp: string
+  prompt?: string
+  participants: Array<{ name: string; model?: string; instanceId?: string }>
+  winnerId: string        // participant name
+  winnerName: string
+  judgeType: 'manual' | 'command' | 'llm'
+  verdictText?: string
+  repo?: string
+  branch?: string
+}
+
 // ---- Notification History ----
 
 export interface NotificationEntry {

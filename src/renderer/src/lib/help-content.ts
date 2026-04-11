@@ -1604,9 +1604,10 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Leaderboard',
         position: 'Trophy icon in arena toolbar',
         items: [
-          { label: 'Win/Loss Stats', detail: 'Cumulative record across all arena rounds. Shows win rate percentage.', icon: 'Trophy' },
+          { label: 'Win/Loss Stats', detail: 'Cumulative record across all arena rounds. Shows win rate percentage. Click a row to expand match history.', icon: 'Trophy' },
+          { label: 'Match History', detail: 'Click a leaderboard row to see that session\'s individual matches — date, opponent, W/L, judge type (manual/command/LLM), and prompt preview. Click a match row for full details including verdict text.' },
           { label: 'Voting', detail: 'In blind mode, panes are anonymized. Click a pane to vote it as the winner. Toggle blind mode with the eye icon.', icon: 'EyeOff' },
-          { label: 'Clear Stats', detail: 'Trash icon in the leaderboard header. Clears all arena win/loss data from both localStorage and the stats file. Requires confirmation.', icon: 'Trash2' },
+          { label: 'Clear Stats', detail: 'Trash icon in the leaderboard header. Clears all arena win/loss data and match history. Requires confirmation.', icon: 'Trash2' },
         ],
       },
     ],

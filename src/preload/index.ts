@@ -3,7 +3,7 @@ import type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, GitHubIssue, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
-  TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
+  TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats, ArenaMatchRecord,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
   PersonaRunEntry, ScoreCard, ApprovalRule, ApprovalRuleType, ApprovalRuleAction,
   CoordinatorTeam, BatchConfig, BatchRun, TeamMetrics, WorkerStats, TeamMetricsEntry, ContextUsage,
@@ -22,7 +22,7 @@ export type {
   CliBackend, ClaudeInstance, AgentDef, CliSession,
   CheckRun, PRChecks, PRComment, GitHubPR, GitHubIssue, QuickPrompt, GitHubRepo,
   FeedbackFile, PersonaInfo, EnvServiceStatus, EnvStatus, ActivityEvent, ApprovalRequest,
-  TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats,
+  TaskBoardItem, AuditResult, McpAuditEntry, CommitAttribution, ArenaStats, ArenaMatchRecord,
   ForkGroup, GitDiffEntry, PersonaArtifact, SessionTemplate, ColonyComment, OutputEntry,
   PersonaRunEntry, ScoreCard, ApprovalRule, ApprovalRuleType, ApprovalRuleAction,
   CoordinatorTeam, BatchConfig, BatchRun, TeamMetrics, WorkerStats, TeamMetricsEntry, ContextUsage,
@@ -414,8 +414,9 @@ export interface ClaudeManagerAPI {
     getLastRun: (panel: string) => Promise<{ ts: number; issueCount: number } | null>
   }
   arena: {
-    recordWinner: (winnerKey: string, loserKey: string | string[]) => Promise<boolean>
+    recordWinner: (winnerKey: string, loserKey: string | string[], matchCtx?: { prompt?: string; judgeType?: 'manual' | 'command' | 'llm'; models?: (string | null)[] }) => Promise<boolean>
     getStats: () => Promise<ArenaStats>
+    getMatchHistory: () => Promise<ArenaMatchRecord[]>
     clearStats: () => Promise<void>
     launchWithWorktrees: (opts: {
       owner: string
@@ -961,8 +962,9 @@ const api: ClaudeManagerAPI = {
     commitDiff: (cwd, hash) => ipcRenderer.invoke('git:commitDiff', cwd, hash),
   },
   arena: {
-    recordWinner: (winnerKey, loserKey) => ipcRenderer.invoke('arena:recordWinner', winnerKey, loserKey),
+    recordWinner: (winnerKey, loserKey, matchCtx) => ipcRenderer.invoke('arena:recordWinner', winnerKey, loserKey, matchCtx),
     getStats: () => ipcRenderer.invoke('arena:getStats'),
+    getMatchHistory: () => ipcRenderer.invoke('arena:getMatchHistory'),
     clearStats: () => ipcRenderer.invoke('arena:clearStats'),
     launchWithWorktrees: (opts) => ipcRenderer.invoke('arena:launchWithWorktrees', opts),
     cleanupWorktrees: (ids) => ipcRenderer.invoke('arena:cleanupWorktrees', ids),

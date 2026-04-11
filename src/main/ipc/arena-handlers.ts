@@ -3,7 +3,8 @@ import { promises as fsp } from 'fs'
 import { promisify } from 'util'
 import { execFile } from 'child_process'
 import { join } from 'path'
-import { readArenaStats, writeArenaStats } from '../arena-stats'
+import { readArenaStats, writeArenaStats, readMatchHistory, appendMatchRecord, clearMatchHistory } from '../arena-stats'
+import type { ArenaMatchRecord } from '../../shared/types'
 import { createWorktree, removeWorktree } from '../worktree-manager'
 import { createInstance } from '../instance-manager'
 import { sendPromptWhenReady } from '../send-prompt-when-ready'
@@ -15,7 +16,12 @@ const execFileAsync = promisify(execFile)
 const MAX_DIFF_BYTES = 8 * 1024 // 8KB per pane
 
 export function registerArenaHandlers(): void {
-  ipcMain.handle('arena:recordWinner', async (_e, winnerKey: string, loserKey: string | string[]): Promise<boolean> => {
+  ipcMain.handle('arena:recordWinner', async (
+    _e,
+    winnerKey: string,
+    loserKey: string | string[],
+    matchCtx?: { prompt?: string; judgeType?: 'manual' | 'command' | 'llm'; models?: (string | null)[] },
+  ): Promise<boolean> => {
     try {
       const stats = await readArenaStats()
       const loserKeys = Array.isArray(loserKey) ? loserKey : [loserKey]
@@ -28,6 +34,23 @@ export function registerArenaHandlers(): void {
         stats[lk].totalRuns++
       }
       await writeArenaStats(stats)
+
+      // Append match record
+      const participants = [winnerKey, ...loserKeys].map((name, i) => ({
+        name,
+        model: matchCtx?.models?.[i] ?? undefined,
+      }))
+      const record: ArenaMatchRecord = {
+        id: `match-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        timestamp: new Date().toISOString(),
+        prompt: matchCtx?.prompt,
+        participants,
+        winnerId: winnerKey,
+        winnerName: winnerKey,
+        judgeType: matchCtx?.judgeType ?? 'manual',
+      }
+      await appendMatchRecord(record)
+
       return true
     } catch {
       return false
@@ -36,8 +59,11 @@ export function registerArenaHandlers(): void {
 
   ipcMain.handle('arena:getStats', () => readArenaStats())
 
+  ipcMain.handle('arena:getMatchHistory', () => readMatchHistory())
+
   ipcMain.handle('arena:clearStats', async (): Promise<void> => {
     await writeArenaStats({})
+    await clearMatchHistory()
   })
 
   /**
@@ -148,6 +174,7 @@ export function registerArenaHandlers(): void {
             if (!stats[winnerKey]) stats[winnerKey] = { wins: 0, losses: 0, totalRuns: 0 }
             stats[winnerKey].wins++
             stats[winnerKey].totalRuns++
+            const allParticipants: Array<{ name: string; instanceId: string }> = [{ name: winnerKey, instanceId: winnerId }]
             for (const r of results) {
               if (r.instanceId === winnerId) continue
               const loser = await getDaemonClient().getInstance(r.instanceId)
@@ -156,8 +183,20 @@ export function registerArenaHandlers(): void {
               if (!stats[loserKey]) stats[loserKey] = { wins: 0, losses: 0, totalRuns: 0 }
               stats[loserKey].losses++
               stats[loserKey].totalRuns++
+              allParticipants.push({ name: loserKey, instanceId: r.instanceId })
             }
             await writeArenaStats(stats)
+
+            // Append match record
+            await appendMatchRecord({
+              id: `match-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              timestamp: new Date().toISOString(),
+              participants: allParticipants,
+              winnerId: winnerKey,
+              winnerName: winnerKey,
+              judgeType: 'command',
+              verdictText: results.map(r => `${allParticipants.find(p => p.instanceId === r.instanceId)?.name ?? r.instanceId}: exit ${r.exitCode}`).join('; '),
+            })
           }
         } catch { /* stats are best-effort */ }
       }
@@ -233,6 +272,7 @@ After evaluating, write your verdict to a file at ${verdictPath} containing WINN
         if (!stats[winnerKey]) stats[winnerKey] = { wins: 0, losses: 0, totalRuns: 0 }
         stats[winnerKey].wins++
         stats[winnerKey].totalRuns++
+        const allParticipants: Array<{ name: string; instanceId: string }> = [{ name: winnerKey, instanceId: winnerId }]
         for (const instId of instanceIds) {
           if (instId === winnerId) continue
           const loser = await getDaemonClient().getInstance(instId)
@@ -240,8 +280,21 @@ After evaluating, write your verdict to a file at ${verdictPath} containing WINN
           if (!stats[loserKey]) stats[loserKey] = { wins: 0, losses: 0, totalRuns: 0 }
           stats[loserKey].losses++
           stats[loserKey].totalRuns++
+          allParticipants.push({ name: loserKey, instanceId: instId })
         }
         await writeArenaStats(stats)
+
+        // Append match record with LLM verdict
+        await appendMatchRecord({
+          id: `match-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          timestamp: new Date().toISOString(),
+          prompt: judgeConfig.prompt,
+          participants: allParticipants,
+          winnerId: winnerKey,
+          winnerName: winnerKey,
+          judgeType: 'llm',
+          verdictText: verdictText ?? undefined,
+        })
       } catch { /* stats are best-effort */ }
     }
 
