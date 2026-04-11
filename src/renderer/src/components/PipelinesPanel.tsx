@@ -137,6 +137,7 @@ function formatDuration(ms: number): string {
 export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, instances }: Props) {
   const [pipelines, setPipelines] = useState<PipelineInfo[]>([])
   const [expandedPipeline, setExpandedPipeline] = useState<string | null>(null)
+  const [pipelineCtx, setPipelineCtx] = useState<{ name: string; fileName: string; enabled: boolean; x: number; y: number } | null>(null)
   const [editingContent, setEditingContent] = useState<string | null>(null)
   const [editingFileName, setEditingFileName] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -155,6 +156,13 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   // 60s tick for next-run countdown refresh
   const [, setTick] = useState(0)
   useEffect(() => { const id = setInterval(() => setTick(t => t + 1), 60000); return () => clearInterval(id) }, [])
+
+  useEffect(() => {
+    if (!pipelineCtx) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setPipelineCtx(null) }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [pipelineCtx])
 
   // Cron editor — tracks which pipeline's cron is being edited
   const [cronEditingPipeline, setCronEditingPipeline] = useState<string | null>(null)
@@ -630,7 +638,10 @@ action:
       <div className={`pipelines-list${listMode ? ' list-mode' : ''}`}>
         {pipelines.map((p) => (
           <div key={p.name} className={`pipeline-card ${p.enabled ? '' : 'disabled'}${expandedPipeline === p.name ? ' expanded' : ''}`}>
-            <div className="pipeline-card-header" onClick={() => handleExpand(p)}>
+            <div className="pipeline-card-header" onClick={() => handleExpand(p)} onContextMenu={(e) => {
+              e.preventDefault()
+              setPipelineCtx({ name: p.name, fileName: p.fileName, enabled: p.enabled, x: Math.min(e.clientX, window.innerWidth - 180), y: Math.min(e.clientY, window.innerHeight - 200) })
+            }}>
               <div className="pipeline-card-left">
                 {expandedPipeline === p.name ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                 <span className={`pipeline-status-dot ${p.running ? 'running' : p.enabled ? 'active' : 'inactive'}`} />
@@ -1361,6 +1372,26 @@ action:
                 </div>
               </div>
             ) : null}
+          </div>
+        </div>
+      )}
+      {pipelineCtx && (
+        <div className="context-menu-overlay" onClick={() => setPipelineCtx(null)}>
+          <div className="context-menu" style={{ top: pipelineCtx.y, left: pipelineCtx.x }} onClick={(e) => e.stopPropagation()}>
+            <div className="context-menu-item" onClick={() => { handleToggle(pipelineCtx.name, !pipelineCtx.enabled); setPipelineCtx(null) }}>
+              {pipelineCtx.enabled ? 'Disable' : 'Enable'}
+            </div>
+            {pipelineCtx.enabled && (
+              <div className="context-menu-item" onClick={() => { handleTriggerNow(pipelineCtx.name); setPipelineCtx(null) }}>
+                Trigger Now
+              </div>
+            )}
+            <div className="context-menu-item" onClick={() => { const p = pipelines.find(pp => pp.name === pipelineCtx.name); if (p) handleDuplicate(p); setPipelineCtx(null) }}>
+              Duplicate
+            </div>
+            <div className="context-menu-item" onClick={() => { const p = pipelines.find(pp => pp.name === pipelineCtx.name); if (p) handlePreview(p); setPipelineCtx(null) }}>
+              Preview Next Run
+            </div>
           </div>
         </div>
       )}

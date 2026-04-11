@@ -489,6 +489,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Repo pipelines', detail: 'Pipelines from .colony/pipelines/ in tracked repos appear here (disabled by default).' },
           { label: 'Next-run countdown', detail: 'For cron-triggered pipelines, shows when the next fire will happen. Updates every 60 seconds. Shows "Paused" when the pipeline is disabled.', icon: 'Timer' },
           { label: 'Duplicate', detail: 'Create a copy of this pipeline with "(copy)" appended to the name. The copy starts disabled so it won\'t fire until you review and enable it.', icon: 'Copy' },
+          { label: 'Right-click menu', detail: 'Right-click any pipeline card for quick actions: enable/disable, trigger now, duplicate, or preview next run — without expanding the detail panel.' },
         ],
       },
       {
