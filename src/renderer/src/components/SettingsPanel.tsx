@@ -289,6 +289,12 @@ export default function SettingsPanel({ onBack }: Props) {
         )}
       </div>
 
+      {searchQuery.trim() && visibleCount === 0 && (
+        <div className="settings-no-results">
+          No sections match &ldquo;{searchQuery.trim()}&rdquo;
+        </div>
+      )}
+
       {/* CLI */}
       <div className="settings-section" style={{ display: sectionVisible('cli') ? undefined : 'none' }}>
         <div className="settings-section-title">

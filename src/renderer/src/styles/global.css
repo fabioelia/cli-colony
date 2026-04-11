@@ -4128,6 +4128,13 @@ body:has(.daemon-update-banner) .app-update-banner {
   white-space: nowrap;
 }
 
+.settings-no-results {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 32px 0;
+}
+
 /* Section cards */
 .settings-section {
   margin-bottom: 16px;
