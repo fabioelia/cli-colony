@@ -18504,6 +18504,9 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 12px;
   border-radius: 6px;
 }
+.overview-activity-item:hover {
+  background: var(--bg-hover);
+}
 .overview-activity-dot {
   width: 6px;
   height: 6px;

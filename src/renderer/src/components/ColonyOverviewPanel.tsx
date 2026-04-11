@@ -154,7 +154,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                 </div>
               ))}
               {errorPipelines.map(p => (
-                <div key={p.name} className="overview-attention-item attention-error" onClick={() => onNavigate('pipelines')}>
+                <div key={p.name} className="overview-attention-item attention-error" onClick={() => onNavigate('pipelines')} title={p.lastError || undefined}>
                   <AlertCircle size={13} />
                   <span className="attention-label">{p.name} failed</span>
                 </div>
@@ -265,7 +265,14 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
           ) : (
             <div className="overview-activity-list">
               {filteredActivity.map(ev => (
-                <div key={ev.id} className="overview-activity-item">
+                <div key={ev.id} className="overview-activity-item" style={{ cursor: 'pointer' }}
+                  onClick={() => {
+                    if (ev.source === 'session' && ev.sessionId) onFocusInstance(ev.sessionId)
+                    else if (ev.source === 'persona') onNavigate('personas')
+                    else if (ev.source === 'pipeline') onNavigate('pipelines')
+                    else if (ev.source === 'env') onNavigate('environments')
+                  }}
+                >
                   <span className={`overview-activity-dot activity-${ev.level}`} />
                   <span className="overview-activity-source">{ev.name}</span>
                   <span className="overview-activity-summary">{ev.summary}</span>
