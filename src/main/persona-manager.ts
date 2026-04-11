@@ -1259,3 +1259,10 @@ export function startWatcher(): void {
     })
   } catch { /* non-fatal */ }
 }
+
+export function stopWatcher(): void {
+  if (watcher) {
+    watcher.close()
+    watcher = null
+  }
+}

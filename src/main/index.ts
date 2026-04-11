@@ -24,7 +24,7 @@ if (process.env.COLONY_CDP_PORT) {
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerIpcHandlers } from './ipc-handlers'
 import { initDaemon, disconnectDaemon, setOnInstanceListChanged, setOnSessionExit, getAllInstances } from './instance-manager'
-import { initEnvDaemon, refreshRepoConfigs } from './env-manager'
+import { initEnvDaemon, refreshRepoConfigs, stopWatching as stopEnvWatching } from './env-manager'
 import { createTray, updateTrayMenu } from './tray'
 import { initLogger } from './logger'
 import { getSetting, getSettingSync, getSettings } from './settings'
@@ -32,7 +32,7 @@ import { updateColonyContext } from './colony-context'
 import { killAllShells } from './shell-pty'
 import { snapshotRunning } from './recent-sessions'
 import { ensureRepoClones } from './github'
-import { loadPersonas, startWatcher as startPersonaWatcher, startScheduler as startPersonaScheduler, onSessionExit as onPersonaSessionExit, runPersona, getPersonaList, addWhisper } from './persona-manager'
+import { loadPersonas, startWatcher as startPersonaWatcher, stopWatcher as stopPersonaWatcher, startScheduler as startPersonaScheduler, stopScheduler as stopPersonaScheduler, onSessionExit as onPersonaSessionExit, runPersona, getPersonaList, addWhisper } from './persona-manager'
 import { initTriggerWatcher } from './persona-triggers'
 import { recordWorkerExit } from './team-metrics'
 import { collectSessionArtifact } from './session-artifacts'
@@ -75,7 +75,7 @@ for e in envs:
 esac
 `
 import { broadcast } from './broadcast'
-import { seedDefaultPipelines, startPipelines, getPipelineList } from './pipeline-engine'
+import { seedDefaultPipelines, startPipelines, stopPipelines, getPipelineList } from './pipeline-engine'
 import { cleanupStaleForkGroups } from './fork-manager'
 import { startWebhookServer, stopWebhookServer } from './webhook-server'
 import { initAppUpdater, shutdownAppUpdater } from './app-updater'
@@ -607,6 +607,11 @@ app.on('before-quit', () => {
   stopWebhookServer()
   // Tear down auto-updater timers
   shutdownAppUpdater()
+  // Stop persona watcher, scheduler, and env polling (prevent firing after quit)
+  stopPersonaWatcher()
+  stopPersonaScheduler()
+  stopEnvWatching()
+  stopPipelines()
   // Just disconnect — daemon keeps instances alive for reconnection
   disconnectDaemon()
 })

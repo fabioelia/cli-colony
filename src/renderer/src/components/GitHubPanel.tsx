@@ -132,6 +132,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const [checksByPR, setChecksByPR] = useState<Record<string, PRChecks>>({})
   const [checksLoading, setChecksLoading] = useState<Set<string>>(new Set())
   const checksFetchedRef = useRef<Set<string>>(new Set())
+  const prsFetchedRef = useRef<Set<string>>(new Set())
   const repoRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [checkLogContent, setCheckLogContent] = useState<string | null>(null)
   const [checkLogName, setCheckLogName] = useState<string | null>(null)
@@ -288,7 +289,8 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     (async () => {
       for (const repo of repos) {
         const slug = `${repo.owner}/${repo.name}`
-        if (!prsByRepo[slug]) {
+        if (!prsFetchedRef.current.has(slug)) {
+          prsFetchedRef.current.add(slug)
           await fetchPRsForRepo(repo)
         }
       }

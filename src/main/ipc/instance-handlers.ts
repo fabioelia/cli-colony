@@ -312,7 +312,7 @@ export function registerInstanceHandlers(): void {
   })
 
   // AI-generated summary of a session's terminal buffer.
-  ipcMain.handle('session:summarize', async (_e, id: string): Promise<string> => {
+  ipcMain.handle('instance:summarize', async (_e, id: string): Promise<string> => {
     const COMPACTION_RE = /context.*(?:compacted|summarized)|conversation.*continued.*previous.*context/i
     const rawBuf = await client.getInstanceBuffer(id).catch(() => '')
     const clean = stripAnsi(rawBuf)

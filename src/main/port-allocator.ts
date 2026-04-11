@@ -86,10 +86,14 @@ async function findFreePort(startFrom: number, allocated: Set<number>): Promise<
  * @param names - e.g. ["backend", "frontend"]
  * @returns Map of name -> port, e.g. { backend: 8030, frontend: 8040 }
  */
+// In-flight allocations not yet written to manifest — prevents concurrent createEnvironment races
+const pendingAllocations = new Set<number>()
+
 export async function allocatePorts(names: string[]): Promise<Record<string, number>> {
   if (names.length === 0) return {}
 
   const allocated = scanAllocatedPorts(ENVIRONMENTS_DIR)
+  for (const p of pendingAllocations) allocated.add(p)
   const result: Record<string, number> = {}
 
   let cursor = DYNAMIC_PORT_MIN
@@ -97,11 +101,17 @@ export async function allocatePorts(names: string[]): Promise<Record<string, num
     const port = await findFreePort(cursor, allocated)
     result[name] = port
     allocated.add(port)
+    pendingAllocations.add(port)
     cursor = port + 10
   }
 
   console.log(`[port-allocator] allocated ports: ${JSON.stringify(result)}`)
   return result
+}
+
+/** Call after manifest is written to disk so in-flight reservations can be released. */
+export function commitAllocations(ports: Record<string, number>): void {
+  for (const p of Object.values(ports)) pendingAllocations.delete(p)
 }
 
 /**

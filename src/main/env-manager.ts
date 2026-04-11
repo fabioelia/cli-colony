@@ -15,7 +15,7 @@ async function pathExists(p: string): Promise<boolean> {
   try { await fsp.access(p); return true } catch { return false }
 }
 import { getEnvDaemonClient, EnvDaemonClient } from './env-daemon-client'
-import { allocatePorts, isPortInUse } from './port-allocator'
+import { allocatePorts, commitAllocations, isPortInUse } from './port-allocator'
 import { removeWorktree, isWorktree, getBareRepoForWorktree, pruneAllBareRepos, migrateReposToBare } from '../shared/git-worktree'
 import { unmountAllForEnv } from './worktree-manager'
 import { buildContext, resolveTemplate as resolveTemplateVars, findUnresolved } from '../shared/template-resolver'
@@ -96,6 +96,13 @@ export function wireEnvDaemonEvents(): void {
 
 let watchInterval: ReturnType<typeof setInterval> | null = null
 const knownManifests = new Set<string>()
+
+export function stopWatching(): void {
+  if (watchInterval) {
+    clearInterval(watchInterval)
+    watchInterval = null
+  }
+}
 
 export async function initEnvDaemon(): Promise<void> {
   try {
@@ -431,6 +438,7 @@ export async function createEnvironment(opts: CreateEnvironmentOpts): Promise<In
   }
 
   await fsp.writeFile(path.join(envDir, 'instance.json'), manifestJson, 'utf-8')
+  commitAllocations(portMap)
 
   // Write initial state.json with all services stopped
   writeState(envDir, emptyState(manifest.id, Object.keys(services)))
@@ -785,6 +793,7 @@ export async function fixEnvironment(envId: string): Promise<{ fixed: string[] }
   const envDirPath = await findEnvDir(envId)
   if (!envDirPath) throw new Error(`Environment directory not found for ${envId}`)
   await fsp.writeFile(path.join(envDirPath, 'instance.json'), manifestJson, 'utf-8')
+  if (portsNeedRealloc) commitAllocations(portMap)
   await getEnvDaemonClient().register(updated).catch(() => {})
 
   if (fixed.length === 0) fixed.push('no changes needed')
