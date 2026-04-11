@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { GitCompare, RefreshCw, ChevronDown, ChevronRight, Terminal, GitBranch, Copy, Filter, RotateCw, Clock } from 'lucide-react'
+import { GitCompare, RefreshCw, ChevronDown, ChevronRight, Terminal, GitBranch, Copy, Filter, RotateCw, Clock, GitCommit } from 'lucide-react'
 import type { ClaudeInstance } from '../types'
 import type { GitDiffEntry } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
 import DiffViewer from './DiffViewer'
+import CommitDialog from './CommitDialog'
 
 interface SessionChanges {
   instanceId: string
@@ -35,6 +36,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
   const reviewDiffCache = useRef<Record<string, string>>({})
   const [refreshing, setRefreshing] = useState(false)
   const [copiedBranch, setCopiedBranch] = useState<string | null>(null)
+  const [commitSession, setCommitSession] = useState<SessionChanges | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const initialLoadDone = useRef(false)
 
@@ -277,6 +279,15 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
 
                 {/* Quick actions */}
                 <span className="review-card-actions" onClick={e => e.stopPropagation()}>
+                  {session.entries.length > 0 && (
+                    <button
+                      className="changes-refresh-btn"
+                      title="Commit changes"
+                      onClick={() => setCommitSession(session)}
+                    >
+                      <GitCommit size={12} />
+                    </button>
+                  )}
                   <button
                     className="changes-refresh-btn"
                     title="Open in terminal"
@@ -346,6 +357,15 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
           )
         })}
       </div>
+
+      {commitSession && (
+        <CommitDialog
+          dir={commitSession.dir}
+          entries={commitSession.entries}
+          onClose={() => setCommitSession(null)}
+          onCommitted={() => { setCommitSession(null); loadAllChanges() }}
+        />
+      )}
     </div>
   )
 }
