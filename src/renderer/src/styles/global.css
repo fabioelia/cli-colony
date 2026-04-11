@@ -6248,13 +6248,13 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .session-error-card-location {
   font-size: 11px;
-  color: var(--accent-blue);
-  font-family: var(--font-mono, monospace);
+  color: var(--accent);
+  font-family: monospace;
   margin-bottom: 6px;
 }
 .session-error-card-snippet {
   font-size: 11px;
-  font-family: var(--font-mono, monospace);
+  font-family: monospace;
   background: color-mix(in srgb, var(--danger) 4%, var(--bg-primary));
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -18174,24 +18174,24 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-radius: 8px;
   font-size: 9px;
   font-weight: 600;
-  background: rgba(99, 102, 241, 0.15);
+  background: rgba(59, 130, 246, 0.15);
   color: var(--accent);
   white-space: nowrap;
 }
 
 .outputs-search-badge.searching {
-  background: rgba(234, 179, 8, 0.12);
-  color: var(--warning, #eab308);
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--warning);
 }
 
 .outputs-match-snippet {
   margin-top: 4px;
   padding: 4px 6px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--text-primary) 3%, var(--bg-surface));
   border-left: 2px solid var(--accent);
   font-size: 10px;
-  font-family: var(--font-mono, monospace);
+  font-family: monospace;
   line-height: 1.5;
   overflow: hidden;
 }
@@ -18914,17 +18914,17 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .health-score-badge.health-green {
   background: rgba(16, 185, 129, 0.15);
-  color: var(--success, #10b981);
+  color: var(--success);
 }
 
 .health-score-badge.health-amber {
-  background: rgba(234, 179, 8, 0.15);
-  color: var(--warning, #eab308);
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warning);
 }
 
 .health-score-badge.health-red {
   background: rgba(239, 68, 68, 0.15);
-  color: var(--danger, #ef4444);
+  color: var(--danger);
 }
 
 .overview-section h3 {
