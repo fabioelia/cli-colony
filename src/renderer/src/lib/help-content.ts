@@ -1439,4 +1439,40 @@ export const helpContent: Record<string, HelpEntry> = {
       hook: 'Session artifacts appear here after sessions exit.\nRun some sessions and come back to see what they produced.',
     },
   },
+
+  arena: {
+    title: 'Arena Mode',
+    description: 'Run the same prompt across multiple sessions in parallel and compare results. Use blind mode to eliminate bias, then vote or auto-judge to pick a winner.',
+    zones: [
+      {
+        name: 'Launch',
+        position: 'Launch dialog (Swords icon in grid toolbar)',
+        items: [
+          { label: 'Repository & Branch', detail: 'Select a tracked GitHub repo and branch. Each arena pane gets its own git worktree.' },
+          { label: 'Pane Count', detail: 'Run 2\u20134 sessions in parallel. Each gets an isolated worktree from the same branch.' },
+          { label: 'Model Override', detail: 'Optionally set a different model per pane to compare model performance head-to-head.' },
+          { label: 'Shared Prompt', detail: 'The prompt sent to all panes simultaneously. All sessions start from the same state.' },
+        ],
+      },
+      {
+        name: 'Judge',
+        position: 'Judge dialog (Gavel icon in arena toolbar)',
+        items: [
+          { label: 'Command Judge', detail: 'Run a shell command (e.g., test suite) in each worktree. Pass/fail determines the winner.', icon: 'Terminal' },
+          { label: 'LLM Judge', detail: 'An AI evaluator reads the diffs from each pane and picks a winner based on criteria you define.', icon: 'Bot' },
+        ],
+      },
+      {
+        name: 'Leaderboard',
+        position: 'Trophy icon in arena toolbar',
+        items: [
+          { label: 'Win/Loss Stats', detail: 'Cumulative record across all arena rounds. Shows win rate percentage.', icon: 'Trophy' },
+          { label: 'Voting', detail: 'In blind mode, panes are anonymized. Click a pane to vote it as the winner. Toggle blind mode with the eye icon.', icon: 'EyeOff' },
+        ],
+      },
+    ],
+    shortcuts: [
+      { keys: 'Click pane', action: 'Vote for winner (blind mode)' },
+    ],
+  },
 }

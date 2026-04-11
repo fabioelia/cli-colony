@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Swords, X, Loader2 } from 'lucide-react'
+import HelpPopover from './HelpPopover'
 import type { GitHubRepo } from '../types'
 
 interface Props {
@@ -78,6 +79,7 @@ export default function ArenaLaunchDialog({ onClose, onLaunch }: Props) {
           <span className="fork-modal-title">
             <Swords size={15} /> Launch Arena
           </span>
+          <HelpPopover topic="arena" align="right" />
           <button className="fork-modal-close" onClick={onClose} aria-label="Close">
             <X size={14} />
           </button>
