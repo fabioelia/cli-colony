@@ -19,6 +19,7 @@ import { broadcast } from './broadcast'
 import { buildMcpConfig, cleanMcpConfigFile } from './mcp-catalog'
 import { scanNewCommits } from './commit-attributor'
 import { markChecklistItem } from './onboarding-state'
+import { appendActivity } from './activity-manager'
 
 export type { ClaudeInstance } from '../daemon/protocol'
 import type { ClaudeInstance } from '../daemon/protocol'
@@ -105,6 +106,21 @@ export function wireDaemonEvents(): void {
     broadcast('instance:exited', { id: instanceId, exitCode })
     trackClosed(instanceId, 'exited')
     onSessionExitCallback?.(instanceId)
+
+    // Emit session exit activity event
+    client.getInstance(instanceId).then(inst => {
+      if (inst) {
+        appendActivity({
+          source: 'session',
+          name: inst.name,
+          summary: exitCode === 0
+            ? 'Session exited normally'
+            : `Session exited with code ${exitCode}`,
+          level: exitCode === 0 ? 'info' : 'warn',
+          sessionId: instanceId,
+        }).catch(() => {})
+      }
+    }).catch(() => {})
 
     // Fire-and-forget: attribute any commits made during this session
     client.getInstance(instanceId).then(inst => {
@@ -213,6 +229,14 @@ export async function createInstance(opts: {
   }
 
   markChecklistItem('createdSession')
+
+  appendActivity({
+    source: 'session',
+    name: inst.name,
+    summary: `Session started in ${(cwd || '').split('/').pop() || cwd}`,
+    level: 'info',
+    sessionId: inst.id,
+  }).catch(() => {})
 
   // Track in recent sessions
   const allArgs = inst.args || []

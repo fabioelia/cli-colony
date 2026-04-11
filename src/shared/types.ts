@@ -213,7 +213,7 @@ export interface EnvironmentTemplate {
 export interface ActivityEvent {
   id: string
   timestamp: string
-  source: 'persona' | 'pipeline' | 'env'
+  source: 'persona' | 'pipeline' | 'env' | 'session'
   name: string
   summary: string
   level: 'info' | 'warn' | 'error'

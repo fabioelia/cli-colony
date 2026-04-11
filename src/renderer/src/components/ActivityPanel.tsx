@@ -3,7 +3,7 @@ import { Bell, Search } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import type { ActivityEvent, ApprovalRequest } from '../../../shared/types'
 
-type SourceFilter = 'persona' | 'pipeline' | 'env'
+type SourceFilter = 'persona' | 'pipeline' | 'env' | 'session'
 type LevelFilter = 'info' | 'warn' | 'error'
 
 interface Props {
@@ -36,7 +36,7 @@ const formatDuration = (sec: number) => {
 export default function ActivityPanel({ onFocusSession }: Props) {
   const [events, setEvents] = useState<ActivityEvent[]>([])
   const [pendingApprovals, setPendingApprovals] = useState<ApprovalRequest[]>([])
-  const [sourceFilters, setSourceFilters] = useState<Set<SourceFilter>>(new Set(['persona', 'pipeline', 'env']))
+  const [sourceFilters, setSourceFilters] = useState<Set<SourceFilter>>(new Set(['persona', 'pipeline', 'env', 'session']))
   const [levelFilters, setLevelFilters] = useState<Set<LevelFilter>>(new Set(['info', 'warn', 'error']))
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -85,7 +85,7 @@ export default function ActivityPanel({ onFocusSession }: Props) {
   }), [events, sourceFilters, levelFilters, query])
 
   const sourceCounts = useMemo(() => {
-    const c = { persona: 0, pipeline: 0, env: 0 }
+    const c: Record<SourceFilter, number> = { persona: 0, pipeline: 0, env: 0, session: 0 }
     for (const ev of events) c[ev.source]++
     return c
   }, [events])
@@ -109,7 +109,7 @@ export default function ActivityPanel({ onFocusSession }: Props) {
         <div className="activity-filters" style={{ marginTop: 8 }}>
           <div className="activity-filter-row">
             <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 4, alignSelf: 'center' }}>Source:</span>
-            {(['persona', 'pipeline', 'env'] as SourceFilter[]).map(s => (
+            {(['persona', 'pipeline', 'env', 'session'] as SourceFilter[]).map(s => (
               <button
                 key={s}
                 className={`activity-filter-chip ${sourceFilters.has(s) ? 'active' : ''}`}
