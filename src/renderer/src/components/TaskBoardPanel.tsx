@@ -104,8 +104,14 @@ function draftToItem(draft: TaskDraft, base?: TaskBoardItem): TaskBoardItem {
   }
 }
 
-function sortTasks(tasks: TaskBoardItem[]): TaskBoardItem[] {
+type SortMode = 'priority' | 'newest' | 'oldest' | 'alpha'
+
+function sortTasks(tasks: TaskBoardItem[], mode: SortMode = 'priority'): TaskBoardItem[] {
   return [...tasks].sort((a, b) => {
+    if (mode === 'alpha') return a.title.localeCompare(b.title)
+    if (mode === 'newest') return (b.updated || b.created || '').localeCompare(a.updated || a.created || '')
+    if (mode === 'oldest') return (a.updated || a.created || '').localeCompare(b.updated || b.created || '')
+    // priority (default)
     const pa = PRIORITY_RANK[effectivePriority(a)]
     const pb = PRIORITY_RANK[effectivePriority(b)]
     if (pa !== pb) return pa - pb
@@ -144,6 +150,7 @@ export default function TaskBoardPanel() {
   const [filterPriority, setFilterPriority] = useState<'all' | TaskPriority>('all')
   const [filterAssignee, setFilterAssignee] = useState('all')
   const [filterSource, setFilterSource] = useState('all')
+  const [sortBy, setSortBy] = useState<SortMode>('priority')
 
   // Detail panel
   const [detailItem, setDetailItem] = useState<TaskBoardItem | null>(null)
@@ -212,9 +219,9 @@ export default function TaskBoardPanel() {
     const g: Record<TaskStatus, TaskBoardItem[]> = { todo: [], in_progress: [], blocked: [], done: [] }
     filtered.forEach(i => g[i.status].push(i))
     // Sort within each column
-    for (const s of STATUS_ORDER) g[s] = sortTasks(g[s])
+    for (const s of STATUS_ORDER) g[s] = sortTasks(g[s], sortBy)
     return g
-  }, [filtered])
+  }, [filtered, sortBy])
 
   const activeFilterCount = (filterText ? 1 : 0) + (filterPriority !== 'all' ? 1 : 0) + (filterAssignee !== 'all' ? 1 : 0) + (filterSource !== 'all' ? 1 : 0)
   const activeCount = items.filter(i => i.status !== 'done').length
@@ -346,6 +353,16 @@ export default function TaskBoardPanel() {
             {sources.filter(s => s !== 'user').map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         )}
+        <select
+          className="tasks-board-filter-select"
+          value={sortBy}
+          onChange={e => setSortBy(e.target.value as SortMode)}
+        >
+          <option value="priority">Sort: Priority</option>
+          <option value="newest">Sort: Newest</option>
+          <option value="oldest">Sort: Oldest</option>
+          <option value="alpha">Sort: A → Z</option>
+        </select>
         {activeFilterCount > 0 && (
           <button className="tasks-board-filter-clear" onClick={clearFilters}>
             Clear ({activeFilterCount})
