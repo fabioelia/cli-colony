@@ -808,6 +808,10 @@ function PersonaCard({
   const [viewingArtifact, setViewingArtifact] = useState<{ name: string; content: string } | null>(null)
   const [runHistory, setRunHistory] = useState<PersonaRunEntry[] | null>(null)
   const [memory, setMemory] = useState<PersonaMemory | null>(null)
+  const [addingSituation, setAddingSituation] = useState(false)
+  const [addingLearning, setAddingLearning] = useState(false)
+  const [newSituationText, setNewSituationText] = useState('')
+  const [newLearningText, setNewLearningText] = useState('')
   const whisperRef = useRef<HTMLTextAreaElement>(null)
   const { ref: whisperBarRef, isDragging: whisperDragging } = useFileDrop(paths => {
     const pathText = paths.join('\n')
@@ -1112,8 +1116,50 @@ function PersonaCard({
               ) : (
                 <>
                   <div className="persona-memory-section">
-                    <h4 className="persona-memory-heading">Active Situations</h4>
-                    {memory.activeSituations.length === 0 ? (
+                    <h4 className="persona-memory-heading">
+                      Active Situations
+                      <button
+                        className="persona-memory-clear"
+                        onClick={() => setAddingSituation(!addingSituation)}
+                        title="Add situation"
+                      ><Plus size={10} /></button>
+                    </h4>
+                    {addingSituation && (
+                      <div className="persona-memory-add-form">
+                        <input
+                          type="text"
+                          value={newSituationText}
+                          onChange={e => setNewSituationText(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && newSituationText.trim()) {
+                              window.api.personaMemory.addSituation(persona.id, {
+                                status: 'pending',
+                                text: newSituationText.trim(),
+                                updatedAt: new Date().toISOString()
+                              }).then(() => window.api.personaMemory.get(persona.id).then(setMemory))
+                              setNewSituationText('')
+                              setAddingSituation(false)
+                            }
+                          }}
+                          placeholder="Describe the situation…"
+                          autoFocus
+                        />
+                        <button
+                          className="persona-memory-add-btn"
+                          onClick={() => {
+                            if (!newSituationText.trim()) return
+                            window.api.personaMemory.addSituation(persona.id, {
+                              status: 'pending',
+                              text: newSituationText.trim(),
+                              updatedAt: new Date().toISOString()
+                            }).then(() => window.api.personaMemory.get(persona.id).then(setMemory))
+                            setNewSituationText('')
+                            setAddingSituation(false)
+                          }}
+                        >Add</button>
+                      </div>
+                    )}
+                    {memory.activeSituations.length === 0 && !addingSituation ? (
                       <div className="persona-memory-empty">No active situations</div>
                     ) : memory.activeSituations.map((s, i) => (
                       <div key={i} className="persona-memory-situation">
@@ -1141,8 +1187,44 @@ function PersonaCard({
                     ))}
                   </div>
                   <div className="persona-memory-section">
-                    <h4 className="persona-memory-heading">Learnings</h4>
-                    {memory.learnings.length === 0 ? (
+                    <h4 className="persona-memory-heading">
+                      Learnings
+                      <button
+                        className="persona-memory-clear"
+                        onClick={() => setAddingLearning(!addingLearning)}
+                        title="Add learning"
+                      ><Plus size={10} /></button>
+                    </h4>
+                    {addingLearning && (
+                      <div className="persona-memory-add-form">
+                        <input
+                          type="text"
+                          value={newLearningText}
+                          onChange={e => setNewLearningText(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && newLearningText.trim()) {
+                              window.api.personaMemory.addLearning(persona.id, newLearningText.trim())
+                                .then(() => window.api.personaMemory.get(persona.id).then(setMemory))
+                              setNewLearningText('')
+                              setAddingLearning(false)
+                            }
+                          }}
+                          placeholder="What did the persona learn?"
+                          autoFocus
+                        />
+                        <button
+                          className="persona-memory-add-btn"
+                          onClick={() => {
+                            if (!newLearningText.trim()) return
+                            window.api.personaMemory.addLearning(persona.id, newLearningText.trim())
+                              .then(() => window.api.personaMemory.get(persona.id).then(setMemory))
+                            setNewLearningText('')
+                            setAddingLearning(false)
+                          }}
+                        >Add</button>
+                      </div>
+                    )}
+                    {memory.learnings.length === 0 && !addingLearning ? (
                       <div className="persona-memory-empty">No learnings yet</div>
                     ) : memory.learnings.map((l, i) => (
                       <div key={i} className="persona-memory-learning">
