@@ -16969,12 +16969,15 @@ body:has(.daemon-update-banner) .app-update-banner {
 .persona-memory-time { font-size: 10px; color: var(--text-muted); flex-shrink: 0; white-space: nowrap; }
 .persona-memory-log-entry { display: flex; gap: 8px; padding: 3px 0; font-size: 11px; }
 .persona-memory-remove,
-.persona-memory-clear { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px; opacity: 0; transition: opacity 0.15s; flex-shrink: 0; }
+.persona-memory-clear,
+.persona-memory-add { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px; opacity: 0; transition: opacity 0.15s; flex-shrink: 0; }
 .persona-memory-situation:hover .persona-memory-remove,
 .persona-memory-learning:hover .persona-memory-remove,
-.persona-memory-heading:hover .persona-memory-clear { opacity: 1; }
+.persona-memory-heading:hover .persona-memory-clear,
+.persona-memory-heading:hover .persona-memory-add { opacity: 1; }
 .persona-memory-remove:hover,
 .persona-memory-clear:hover { color: var(--danger); }
+.persona-memory-add:hover { color: var(--accent); }
 .persona-memory-heading { display: flex; align-items: center; gap: 6px; }
 .persona-memory-add-form { display: flex; gap: 4px; margin-bottom: 6px; }
 .persona-memory-add-form input { flex: 1; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; font-size: 11px; color: var(--text-primary); outline: none; }

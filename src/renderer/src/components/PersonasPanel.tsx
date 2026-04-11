@@ -1119,7 +1119,7 @@ function PersonaCard({
                     <h4 className="persona-memory-heading">
                       Active Situations
                       <button
-                        className="persona-memory-clear"
+                        className="persona-memory-add"
                         onClick={() => setAddingSituation(!addingSituation)}
                         title="Add situation"
                       ><Plus size={10} /></button>
@@ -1190,7 +1190,7 @@ function PersonaCard({
                     <h4 className="persona-memory-heading">
                       Learnings
                       <button
-                        className="persona-memory-clear"
+                        className="persona-memory-add"
                         onClick={() => setAddingLearning(!addingLearning)}
                         title="Add learning"
                       ><Plus size={10} /></button>
