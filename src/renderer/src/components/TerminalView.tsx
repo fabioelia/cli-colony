@@ -5,13 +5,16 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronsDown, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, RefreshCw, Columns2, LayoutGrid, ExternalLink, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Trophy, GitCompare, RotateCw, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, Bug, FileDown, CheckCircle, Copy } from 'lucide-react'
+import { ChevronUp, ChevronDown, X, RotateCcw, GitBranch, TerminalSquare, FolderTree, Columns2, LayoutGrid, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Trophy, GitCompare, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, FileDown, CheckCircle, Copy } from 'lucide-react'
 import { TeamMetricsPanel } from './TeamMetricsPanel'
 import ServicesTab from './ServicesTab'
 import FilesTab from './FilesTab'
 import ChangesTab from './ChangesTab'
 import ArtifactsTab from './ArtifactsTab'
-import type { EnvStatus, CoordinatorTeam, CoordinatorWorker } from '../../../shared/types'
+import LogsTab from './LogsTab'
+import BrowserTab from './BrowserTab'
+import TeamTab from './TeamTab'
+import type { EnvStatus } from '../../../shared/types'
 import '@xterm/xterm/css/xterm.css'
 import type { ClaudeInstance } from '../types'
 import Tooltip from './Tooltip'
@@ -74,12 +77,6 @@ function formatUptime(seconds: number): string {
   return m > 0 ? `${h}h ${m}m` : `${h}h`
 }
 
-function levelMatches(line: string, filter: 'all' | 'error' | 'warn'): boolean {
-  if (filter === 'all') return true
-  if (filter === 'error') return /error|ERROR|FATAL|FAIL/i.test(line)
-  return /warn|WARN|WARNING/i.test(line)
-}
-
 type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'changes' | 'artifacts' | 'team' | 'metrics' | 'browser'
 
 export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, fontSize = 13, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid }: Props) {
@@ -110,27 +107,8 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     return rest.split('/')[0] || null
   })()
   const [envStatus, setEnvStatus] = useState<EnvStatus | null>(null)
-  // Browser tab state
-  const [browserService, setBrowserService] = useState<string | null>(null)
-  const [browserUrl, setBrowserUrl] = useState<string | null>(null)
-  const [browserUrlInput, setBrowserUrlInput] = useState<string>('')
-  const [browserError, setBrowserError] = useState<string | null>(null)
-  const webviewRef = useRef<Electron.WebviewTag>(null)
-  const browserUrlIntentRef = useRef<string | null>(null)
-  // Logs tab state
-  const [logsFilter, setLogsFilter] = useState<string | null>(null) // null = all services
-  const [logsLevelFilter, setLogsLevelFilter] = useState<'all' | 'error' | 'warn'>('all')
-  const [logsContent, setLogsContent] = useState<Array<{ service: string; line: string; ts: number }>>([])
-  const logsEndRef = useRef<HTMLDivElement>(null)
-  const [logsAutoScroll, setLogsAutoScroll] = useState(true)
-  const logsInitialized = useRef(false)
-  // Browser context menu state
-  const [webviewContextMenu, setWebviewContextMenu] = useState<{
-    x: number; y: number; editFlags: Record<string, boolean>
-  } | null>(null)
-  // Team tab state (Coordinator role)
-  const [coordinatorTeam, setCoordinatorTeam] = useState<CoordinatorTeam | null>(null)
-  const [teamLoading, setTeamLoading] = useState(false)
+  // Team worker count for badge display
+  const [teamWorkerCount, setTeamWorkerCount] = useState(0)
   const [exportSuccess, setExportSuccess] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
 
@@ -158,147 +136,6 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     })
     return unsub
   }, [envName])
-
-  // Logs tab: load initial logs + subscribe to streaming output
-  useEffect(() => {
-    if (viewTab !== 'logs' || !envStatus) return
-    // Load initial logs for all services (only once)
-    if (!logsInitialized.current) {
-      logsInitialized.current = true
-      const loadAll = async () => {
-        const entries: Array<{ service: string; line: string; ts: number }> = []
-        for (const svc of envStatus.services) {
-          try {
-            const content = await window.api.env.logs(envStatus.id, svc.name, 100)
-            if (content) {
-              for (const line of content.split('\n')) {
-                if (line.trim()) entries.push({ service: svc.name, line, ts: Date.now() })
-              }
-            }
-          } catch { /* skip */ }
-        }
-        setLogsContent(entries)
-      }
-      loadAll()
-    }
-    // Subscribe to streaming output
-    const unsub = window.api.env.onServiceOutput((data) => {
-      if (data.envId !== envStatus.id) return
-      const lines = data.data.split('\n').filter((l: string) => l.trim())
-      if (lines.length === 0) return
-      setLogsContent(prev => {
-        const newEntries = lines.map((line: string) => ({ service: data.service, line, ts: Date.now() }))
-        const combined = [...prev, ...newEntries]
-        // Keep last 2000 lines to avoid memory bloat
-        return combined.length > 2000 ? combined.slice(-2000) : combined
-      })
-    })
-    return () => {
-      unsub()
-      // Reset so initial logs re-load on next activation (e.g. after env restart)
-      logsInitialized.current = false
-    }
-  }, [viewTab, envStatus])
-
-  // Auto-scroll logs
-  useEffect(() => {
-    if (logsAutoScroll && logsEndRef.current) {
-      logsEndRef.current.scrollIntoView({ behavior: 'smooth' })
-    }
-  }, [logsContent, logsAutoScroll])
-
-  // Scroll to bottom when switching to the Logs tab
-  useEffect(() => {
-    if (viewTab === 'logs' && logsEndRef.current) {
-      logsEndRef.current.scrollIntoView()
-    }
-  }, [viewTab])
-
-  // Auto-select first URL when browser tab opens or urls change
-  useEffect(() => {
-    if (!envStatus?.urls) return
-    const entries = Object.entries(envStatus.urls)
-    if (entries.length === 0) return
-    // Auto-select first service if none selected or current service no longer exists
-    if (!browserService || !envStatus.urls[browserService]) {
-      // Check localStorage for persisted URL first
-      const stored = localStorage.getItem(`colony:browserUrl:${instance.id}`)
-      if (stored) {
-        try {
-          const { service, url, ts } = JSON.parse(stored)
-          if (Date.now() - ts < 20 * 60 * 1000 && envStatus.urls[service]) {
-            browserUrlIntentRef.current = url
-            setBrowserService(service)
-            setBrowserUrl(url)
-            setBrowserUrlInput(url)
-            return
-          }
-        } catch { /* ignore corrupt data */ }
-        localStorage.removeItem(`colony:browserUrl:${instance.id}`)
-      }
-      browserUrlIntentRef.current = entries[0][1]
-      setBrowserService(entries[0][0])
-      setBrowserUrl(entries[0][1])
-    }
-  }, [envStatus?.urls, browserService, instance.id])
-
-  // Imperatively set webview src and handle navigation events
-  useEffect(() => {
-    const wv = webviewRef.current
-    if (!wv || !browserUrl || viewTab !== 'browser') return
-
-    // Only set src on intentional URL change (service tab click, Enter key), not on tab re-focus
-    if (browserUrlIntentRef.current) {
-      wv.src = browserUrlIntentRef.current
-      browserUrlIntentRef.current = null
-    }
-    // Sync URL bar with current webview location on tab re-focus
-    if (wv.src && wv.src !== 'about:blank') {
-      try {
-        const currentUrl = wv.getURL?.() || wv.src
-        if (currentUrl && currentUrl !== 'about:blank') {
-          setBrowserUrlInput(currentUrl)
-        }
-      } catch { /* webview not ready yet */ }
-    }
-    setBrowserError(null)
-
-    const handleNavigation = (e: { url: string }) => {
-      setBrowserUrl(e.url)
-      setBrowserUrlInput(e.url)
-      // Persist to localStorage for tab-switch resilience
-      if (e.url && e.url !== 'about:blank' && browserService) {
-        localStorage.setItem(`colony:browserUrl:${instance.id}`, JSON.stringify({
-          service: browserService, url: e.url, ts: Date.now()
-        }))
-      }
-    }
-    const handleFailLoad = (e: Electron.DidFailLoadEvent) => {
-      if (e.errorCode === -3) return // Aborted navigations (user clicked quickly)
-      setBrowserError(`Failed to load: ${e.errorDescription || 'Unknown error'}`)
-    }
-    const handleContextMenu = (e: any) => {
-      e.preventDefault()
-      const params = e.params || {}
-      const wvRect = wv.getBoundingClientRect()
-      setWebviewContextMenu({
-        x: Math.min((params.x ?? 0) + wvRect.left, window.innerWidth - 200),
-        y: Math.min((params.y ?? 0) + wvRect.top, window.innerHeight - 300),
-        editFlags: params.editFlags ?? {}
-      })
-    }
-
-    wv.addEventListener('did-navigate', handleNavigation)
-    wv.addEventListener('did-navigate-in-page', handleNavigation)
-    wv.addEventListener('did-fail-load', handleFailLoad)
-    wv.addEventListener('context-menu', handleContextMenu)
-    return () => {
-      wv.removeEventListener('did-navigate', handleNavigation)
-      wv.removeEventListener('did-navigate-in-page', handleNavigation)
-      wv.removeEventListener('did-fail-load', handleFailLoad)
-      wv.removeEventListener('context-menu', handleContextMenu)
-    }
-  }, [browserUrl, viewTab, instance.id, browserService])
 
   // Shell terminal — lazy init when tab is first opened, re-init on shellResetKey
   useEffect(() => {
@@ -394,22 +231,6 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     return () => window.removeEventListener('resize', handleResize)
   }, [viewTab])
 
-
-  // Load coordinator team when tab switches to team and role is Coordinator
-  useEffect(() => {
-    if (viewTab !== 'team' || instance.roleTag !== 'Coordinator') {
-      if (viewTab !== 'team') setCoordinatorTeam(null)
-      return
-    }
-    setTeamLoading(true)
-    window.api.session.getCoordinatorTeam(instance.id).then((team) => {
-      setCoordinatorTeam(team)
-      setTeamLoading(false)
-    }).catch(() => {
-      setCoordinatorTeam(null)
-      setTeamLoading(false)
-    })
-  }, [viewTab, instance.id, instance.roleTag])
 
   // Track context usage periodically (every 5 seconds)
   useEffect(() => {
@@ -800,8 +621,8 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 title="Coordinator team"
               >
                 <Bot size={12} /> Team
-                {viewTab !== 'team' && coordinatorTeam?.workers?.length ? (
-                  <span className="services-tab-badge" style={{ background: 'var(--warning)' }}>{coordinatorTeam.workers.length}</span>
+                {viewTab !== 'team' && teamWorkerCount > 0 ? (
+                  <span className="services-tab-badge" style={{ background: 'var(--warning)' }}>{teamWorkerCount}</span>
                 ) : null}
               </button>
             )}
@@ -1095,169 +916,10 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
         <ServicesTab envStatus={envStatus} instance={instance} />
       )}
       {viewTab === 'logs' && envStatus && (
-        <div className="logs-panel">
-          <div className="logs-panel-header">
-            <div className="logs-panel-filters-wrap">
-              <div className="logs-panel-filters">
-                <button
-                  className={`logs-filter-btn ${logsFilter === null ? 'active' : ''}`}
-                  onClick={() => setLogsFilter(null)}
-                >
-                  All
-                </button>
-                {envStatus.services.map(svc => (
-                  <button
-                    key={svc.name}
-                    className={`logs-filter-btn ${logsFilter === svc.name ? 'active' : ''}`}
-                    onClick={() => setLogsFilter(logsFilter === svc.name ? null : svc.name)}
-                  >
-                    <span className={`logs-filter-dot ${svc.status}`} />
-                    {svc.name}
-                  </button>
-                ))}
-              </div>
-              <div className="logs-level-filters">
-                {(['all', 'error', 'warn'] as const).map(level => (
-                  <button
-                    key={level}
-                    className={`logs-filter-btn logs-level-btn ${logsLevelFilter === level ? 'active' : ''} ${level !== 'all' ? level : ''}`}
-                    onClick={() => setLogsLevelFilter(level)}
-                  >
-                    {level === 'all' ? 'All' : level.charAt(0).toUpperCase() + level.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="logs-panel-actions">
-              <button
-                className="logs-action-btn"
-                title="Clear logs"
-                onClick={() => setLogsContent([])}
-              >
-                <Trash2 size={12} />
-              </button>
-              <button
-                className={`logs-action-btn ${logsAutoScroll ? 'active' : ''}`}
-                title="Follow latest output"
-                onClick={() => { setLogsAutoScroll(v => !v) }}
-              >
-                <ChevronsDown size={12} />
-              </button>
-            </div>
-          </div>
-          <div className="logs-panel-content" onScroll={(e) => {
-            const el = e.currentTarget
-            const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40
-            setLogsAutoScroll(atBottom)
-          }}>
-            {logsContent
-              .filter(entry => (logsFilter === null || entry.service === logsFilter) && levelMatches(entry.line, logsLevelFilter))
-              .map((entry, i) => (
-                <div key={i} className="logs-line">
-                  <span className={`logs-line-service ${entry.service}`}>{entry.service}</span>
-                  <span className="logs-line-text">{entry.line}</span>
-                </div>
-              ))
-            }
-            {logsContent.filter(entry => (logsFilter === null || entry.service === logsFilter) && levelMatches(entry.line, logsLevelFilter)).length === 0 && (
-              <div className="logs-empty">
-                {logsContent.length === 0 ? 'No logs yet. Start services to see output.' : 'No logs match the current filters.'}
-              </div>
-            )}
-            <div ref={logsEndRef} />
-          </div>
-        </div>
+        <LogsTab envStatus={envStatus} />
       )}
       {viewTab === 'browser' && envStatus && (
-        <div className="browser-panel">
-          <div className="browser-panel-tabs">
-            {Object.entries(envStatus.urls).map(([name, url]) => (
-              <button
-                key={name}
-                className={`browser-panel-tab ${browserService === name ? 'active' : ''}`}
-                onClick={() => { browserUrlIntentRef.current = url; setBrowserService(name); setBrowserUrl(url); setBrowserUrlInput(url); setBrowserError(null) }}
-              >
-                {name}
-              </button>
-            ))}
-            <div style={{ flex: 1 }} />
-            <button className="browser-panel-nav-btn" onClick={() => webviewRef.current?.goBack()} title="Back">
-              <ChevronUp size={12} style={{ transform: 'rotate(-90deg)' }} />
-            </button>
-            <button className="browser-panel-nav-btn" onClick={() => webviewRef.current?.goForward()} title="Forward">
-              <ChevronUp size={12} style={{ transform: 'rotate(90deg)' }} />
-            </button>
-            <button className="browser-panel-nav-btn" onClick={() => webviewRef.current?.reload()} title="Reload">
-              <RotateCw size={12} />
-            </button>
-            <input
-              className="browser-panel-url"
-              value={browserUrlInput}
-              onChange={(e) => setBrowserUrlInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && browserUrlInput) {
-                  const url = browserUrlInput.startsWith('http') ? browserUrlInput : `http://${browserUrlInput}`
-                  browserUrlIntentRef.current = url
-                  setBrowserUrl(url)
-                  setBrowserUrlInput(url)
-                  setBrowserError(null)
-                }
-              }}
-              onFocus={(e) => e.target.select()}
-              spellCheck={false}
-              placeholder="Enter URL..."
-            />
-            <button
-              className="browser-panel-nav-btn"
-              onClick={() => browserUrl && window.api.shell.openExternal(browserUrl)}
-              title="Open in external browser"
-            >
-              <ExternalLink size={12} />
-            </button>
-            <button
-              className="browser-panel-nav-btn"
-              onClick={() => webviewRef.current?.openDevTools()}
-              title="Open DevTools"
-            >
-              <Bug size={12} />
-            </button>
-          </div>
-          {browserError ? (
-            <div className="browser-panel-error">
-              <AlertTriangle size={16} />
-              <span>{browserError}</span>
-              <button className="browser-panel-retry-btn" onClick={() => { setBrowserError(null); webviewRef.current?.reload() }}>
-                Retry
-              </button>
-            </div>
-          ) : (
-            <webview
-              ref={webviewRef as any}
-              className="browser-panel-webview"
-              partition={`persist:env-${envStatus.id}`}
-            />
-          )}
-          {webviewContextMenu && (
-            <>
-              <div className="context-menu-overlay" onClick={() => setWebviewContextMenu(null)} />
-              <div
-                className="context-menu"
-                style={{ top: webviewContextMenu.y, left: webviewContextMenu.x }}
-              >
-                <button className="context-menu-item" onClick={() => { webviewRef.current?.goBack(); setWebviewContextMenu(null) }}>Back</button>
-                <button className="context-menu-item" onClick={() => { webviewRef.current?.goForward(); setWebviewContextMenu(null) }}>Forward</button>
-                <button className="context-menu-item" onClick={() => { webviewRef.current?.reload(); setWebviewContextMenu(null) }}>Reload</button>
-                <div className="context-menu-separator" />
-                <button className="context-menu-item" disabled={!webviewContextMenu.editFlags.canCut} onClick={() => { webviewRef.current?.cut(); setWebviewContextMenu(null) }}>Cut</button>
-                <button className="context-menu-item" disabled={!webviewContextMenu.editFlags.canCopy} onClick={() => { webviewRef.current?.copy(); setWebviewContextMenu(null) }}>Copy</button>
-                <button className="context-menu-item" disabled={!webviewContextMenu.editFlags.canPaste} onClick={() => { webviewRef.current?.paste(); setWebviewContextMenu(null) }}>Paste</button>
-                <button className="context-menu-item" disabled={!webviewContextMenu.editFlags.canSelectAll} onClick={() => { webviewRef.current?.selectAll(); setWebviewContextMenu(null) }}>Select All</button>
-                <div className="context-menu-separator" />
-                <button className="context-menu-item" onClick={() => { webviewRef.current?.openDevTools(); setWebviewContextMenu(null) }}>Inspect Element</button>
-              </div>
-            </>
-          )}
-        </div>
+        <BrowserTab envStatus={envStatus} instanceId={instance.id} />
       )}
       {viewTab === 'changes' && (
         <ChangesTab instance={instance} />
@@ -1266,90 +928,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
         <ArtifactsTab instanceId={instance.id} instanceStatus={instance.status} />
       )}
       {viewTab === 'team' && instance.roleTag === 'Coordinator' && (
-        <div className="changes-panel">
-          <div className="changes-panel-header">
-            <span className="changes-panel-title">
-              <Bot size={13} /> Coordinator Team
-            </span>
-            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-              <button
-                className="changes-refresh-btn"
-                title="Refresh"
-                onClick={() => {
-                  setTeamLoading(true)
-                  window.api.session.getCoordinatorTeam(instance.id).then((team) => {
-                    setCoordinatorTeam(team)
-                    setTeamLoading(false)
-                  }).catch(() => {
-                    setCoordinatorTeam(null)
-                    setTeamLoading(false)
-                  })
-                }}
-              >
-                <RefreshCw size={12} />
-              </button>
-            </div>
-          </div>
-          <div className="changes-panel-content">
-            {teamLoading && <div className="changes-empty">Loading workers...</div>}
-            {!teamLoading && (!coordinatorTeam || coordinatorTeam.workers.length === 0) && (
-              <div className="changes-empty">No worker sessions active.</div>
-            )}
-            {!teamLoading && coordinatorTeam && coordinatorTeam.workers.map((worker: CoordinatorWorker) => (
-              <div key={worker.id} className="changes-event" style={{ cursor: 'default' }}>
-                <div className="changes-event-header" style={{ alignItems: 'center' }}>
-                  <span style={{
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    flex: 1,
-                  }}>
-                    {worker.name}
-                  </span>
-                  <span style={{
-                    fontSize: '10px',
-                    padding: '2px 6px',
-                    borderRadius: '3px',
-                    background: worker.status === 'running'
-                      ? 'rgba(16,185,129,0.15)'
-                      : 'rgba(107,114,128,0.15)',
-                    color: worker.status === 'running'
-                      ? 'var(--success)'
-                      : 'var(--text-muted)',
-                    textTransform: 'capitalize',
-                  }}>
-                    {worker.status}
-                  </span>
-                  {worker.activity && (
-                    <span style={{
-                      fontSize: '10px',
-                      padding: '2px 6px',
-                      borderRadius: '3px',
-                      background: worker.activity === 'busy'
-                        ? 'rgba(245,158,11,0.15)'
-                        : 'rgba(16,185,129,0.15)',
-                      color: worker.activity === 'busy'
-                        ? 'var(--warning)'
-                        : 'var(--success)',
-                      textTransform: 'capitalize',
-                      marginLeft: '6px',
-                    }}>
-                      {worker.activity}
-                    </span>
-                  )}
-                  {worker.costUsd !== undefined && (
-                    <span style={{
-                      fontSize: '10px',
-                      opacity: 0.7,
-                      marginLeft: '6px',
-                    }}>
-                      ${worker.costUsd.toFixed(3)}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <TeamTab instanceId={instance.id} onWorkerCountChange={setTeamWorkerCount} />
       )}
       {viewTab === 'metrics' && instance.roleTag === 'Coordinator' && (
         <div className="changes-panel">
