@@ -87,7 +87,8 @@ export async function scoreSessionDir(
   dir: string,
   sessionName: string,
   metadataBranch: string | null,
-  match: RouteMatch
+  match: RouteMatch,
+  repos?: { name: string }[]
 ): Promise<number> {
   let score = 0
 
@@ -161,7 +162,7 @@ export async function scoreSessionDir(
     const dirLower = dir.toLowerCase()
     const repoLower = match.repoName.toLowerCase()
     // Get all configured repos to detect siblings
-    const allRepos = await getRepos()
+    const allRepos = repos ?? await getRepos()
     for (const r of allRepos) {
       const otherLower = r.name.toLowerCase()
       if (otherLower === repoLower) continue // same repo, no penalty
@@ -188,12 +189,15 @@ export async function findBestRoute(
 ): Promise<RouteResult | null> {
   const candidates: RouteResult[] = []
 
+  // Hoist repo list once — avoids O(N) getRepos() per candidate
+  const repos = await getRepos()
+
   // ---- 1. Score running instances ----
   const all = await getAllInstances()
   const running = all.filter(i => i.status === 'running')
 
   for (const inst of running) {
-    let score = await scoreSessionDir(inst.workingDirectory, inst.name || '', inst.gitBranch, match)
+    let score = await scoreSessionDir(inst.workingDirectory, inst.name || '', inst.gitBranch, match, repos)
 
     // Role tag matching: strong +20 bonus when role matches
     if (match.role && (inst as any).roleTag === match.role) {
@@ -220,14 +224,14 @@ export async function findBestRoute(
         if (runningArgs.includes(session.sessionId)) continue
 
         const sessionName = session.name || session.display || ''
-        const score = await scoreSessionDir(session.project, sessionName, null, match)
+        const score = await scoreSessionDir(session.project, sessionName, null, match, repos)
 
         if (score > 0) {
           candidates.push({
             type: 'resume',
             sessionId: session.sessionId,
             project: session.project,
-            name: session.name || session.display.slice(0, 40),
+            name: session.name || session.display?.slice(0, 40) || '',
             score: score - 2,
             messageCount: session.messageCount,
           })

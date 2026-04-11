@@ -480,6 +480,11 @@ function startHealthCheck(env: ManagedEnvironment, svc: ManagedService): void {
       svc.status = 'running'
       log(`[${env.manifest.name}/${svc.name}] healthy`)
       notifyChanged()
+      // Stop health probes — service is running, no need to keep checking
+      if (svc.healthTimer) {
+        clearInterval(svc.healthTimer)
+        svc.healthTimer = null
+      }
     }
   }
 
