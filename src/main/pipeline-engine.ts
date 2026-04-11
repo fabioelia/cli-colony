@@ -32,7 +32,7 @@ import { tagArtifactPipeline } from './session-artifacts'
 
 const execFileAsync = promisify(execFileCb)
 
-async function pathExists(p: string): Promise<boolean> {
+export async function pathExists(p: string): Promise<boolean> {
   try { await fsp.access(p); return true } catch { return false }
 }
 
@@ -132,7 +132,7 @@ export interface PipelineDef {
   budget?: BudgetDef
 }
 
-interface PendingApproval {
+export interface PendingApproval {
   request: ApprovalRequest
   action: ActionDef
   ctx: TriggerContext
@@ -186,9 +186,9 @@ export interface PipelineInfo {
 const MAX_DEBUG_ITERATIONS = 20
 const DEBUG_ITERATION_SEP = '---'
 const CONSECUTIVE_FAILURE_THRESHOLD = 3
-const APPROVAL_DEFAULT_TTL_HOURS = 24
+export const APPROVAL_DEFAULT_TTL_HOURS = 24
 
-interface TriggerContext {
+export interface TriggerContext {
   repo?: GitHubRepo
   pr?: GitHubPR
   checks?: PRChecks
@@ -206,14 +206,14 @@ interface TriggerContext {
 import { colonyPaths } from '../shared/colony-paths'
 
 const COLONY_DIR = colonyPaths.root
-const PIPELINES_DIR = colonyPaths.pipelines
+export const PIPELINES_DIR = colonyPaths.pipelines
 const STATE_PATH = join(COLONY_DIR, 'pipeline-state.json')
 
 // ---- Engine ----
 
-const pipelines = new Map<string, { def: PipelineDef; state: PipelineState; fileName: string }>()
-const pendingApprovals = new Map<string, PendingApproval>()
-const pendingApprovalKeys = new Set<string>() // dedup keys with a queued approval
+export const pipelines = new Map<string, { def: PipelineDef; state: PipelineState; fileName: string }>()
+export const pendingApprovals = new Map<string, PendingApproval>()
+export const pendingApprovalKeys = new Set<string>() // dedup keys with a queued approval
 const timers = new Map<string, ReturnType<typeof setInterval>>()
 const runningPolls = new Set<string>()
 /** Stores incoming webhook payloads keyed by pipeline name before runPoll is called */
@@ -224,12 +224,12 @@ let githubUser: string | null = null
 let started = false
 let approvalSweepTimer: ReturnType<typeof setInterval> | null = null
 
-function log(msg: string): void {
+export function log(msg: string): void {
   console.log(`[pipeline] ${msg}`)
 }
 
 /** Log to both console and a pipeline's in-memory debug buffer */
-function plog(name: string, msg: string): void {
+export function plog(name: string, msg: string): void {
   const ts = new Date().toISOString().slice(11, 19)
   const entry = `[${ts}] ${msg}`
   log(`${name}: ${msg}`)
@@ -240,6 +240,7 @@ function plog(name: string, msg: string): void {
 }
 
 import { broadcast } from './broadcast'
+import { runMakerChecker, runDiffReview, runPlanStage, runParallel, runWaitForSession, runBestOfN, captureArtifacts, loadArtifactPreamble, loadHandoffPreamble } from './pipeline-stages'
 import { parseYaml as parseYamlShared, parseYamlArray } from '../shared/yaml-parser'
 
 // ---- Pipeline YAML Parsing (uses shared parser + pipeline-specific post-processing) ----
@@ -431,7 +432,7 @@ function freshState(): PipelineState {
 
 // ---- Template Resolution ----
 
-function resolveTemplate(template: string, ctx: TriggerContext): string {
+export function resolveTemplate(template: string, ctx: TriggerContext): string {
   // Build a flat context that exposes aliases the pipeline YAML expects:
   // {{github.user}} -> ctx.githubUser, {{timestamp}} -> ctx.timestamp
   const ghPayload = (ctx.webhookPayload as Record<string, unknown> | null) || {}
@@ -502,7 +503,7 @@ async function recordFired(pipelineName: string, key: string, contentSha?: strin
 
 // ---- Write prompt to file, send short trigger to PTY ----
 
-async function writePromptFile(prompt: string): Promise<string> {
+export async function writePromptFile(prompt: string): Promise<string> {
   const promptsDir = join(COLONY_DIR, 'pipeline-prompts')
   if (!await pathExists(promptsDir)) await fsp.mkdir(promptsDir, { recursive: true })
   const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
