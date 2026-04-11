@@ -1290,7 +1290,7 @@ action:
                                     <span className={`pipeline-comparison-metric-val ${earlier.success ? 'success' : 'failure'}`}>{earlier.success ? 'pass' : 'fail'}</span>
                                     <span className="pipeline-comparison-metric-sep">→</span>
                                     <span className={`pipeline-comparison-metric-val ${later.success ? 'success' : 'failure'}`}>{later.success ? 'pass' : 'fail'}</span>
-                                    <span className="pipeline-comparison-delta positive">changed</span>
+                                    <span className={`pipeline-comparison-delta ${later.success ? 'negative' : 'positive'}`}>{later.success ? 'fixed' : 'regressed'}</span>
                                   </div>
                                 )}
                               </div>

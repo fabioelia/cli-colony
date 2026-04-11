@@ -12841,6 +12841,20 @@ body:has(.daemon-update-banner) .app-update-banner {
   cursor: pointer;
   color: var(--accent);
   user-select: none;
+  list-style: none;
+}
+
+.pipeline-comparison-snippet-details summary::marker,
+.pipeline-comparison-snippet-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.pipeline-comparison-snippet-details summary::before {
+  content: '▸ ';
+}
+
+.pipeline-comparison-snippet-details[open] summary::before {
+  content: '▾ ';
 }
 
 .pipeline-comparison-snippet {
