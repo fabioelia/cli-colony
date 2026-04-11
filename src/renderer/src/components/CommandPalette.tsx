@@ -4,7 +4,7 @@ import {
   MonitorPlay, History, Search, ArrowRight, Terminal, Server, User, Bot, Zap, ListChecks, RotateCcw, Keyboard,
 } from 'lucide-react'
 import type { ClaudeInstance, CliSession, AgentDef } from '../types'
-import type { PersonaInfo } from '../../../shared/types'
+import type { PersonaInfo, SessionTemplate } from '../../../shared/types'
 import { cliBackendLabel } from '../lib/constants'
 import { stripAnsi } from '../../../shared/utils'
 
@@ -53,6 +53,7 @@ export default function CommandPalette({
   const [allSessions, setAllSessions] = useState<CliSession[]>([])
   const [personas, setPersonas] = useState<PersonaInfo[]>([])
   const [agents, setAgents] = useState<AgentDef[]>([])
+  const [templates, setTemplates] = useState<SessionTemplate[]>([])
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -226,6 +227,19 @@ export default function CommandPalette({
       })
     }
 
+    // Session templates
+    for (const t of templates) {
+      items.push({
+        id: `template-${t.id}`,
+        label: t.name,
+        detail: [t.description, t.model, t.workingDir?.split('/').pop()].filter(Boolean).join(' · '),
+        icon: <Play size={14} />,
+        section: 'Templates',
+        keywords: `template ${t.initialPrompt?.slice(0, 50) || ''} ${t.workingDir || ''}`,
+        onExecute: () => { window.api.sessionTemplates.launch(t.id) },
+      })
+    }
+
     items.push({
       id: 'show-welcome',
       label: 'Show Welcome',
@@ -267,7 +281,7 @@ export default function CommandPalette({
     }
 
     return items
-  }, [instances, activeId, sessions, personas, agents, onSelect, onNew, onKill, onRestart, onViewChange, onToggleSplit, onResumeSession, onRunPersona, onLaunchAgent, onOpenQuickPrompt])
+  }, [instances, activeId, sessions, personas, agents, templates, onSelect, onNew, onKill, onRestart, onViewChange, onToggleSplit, onResumeSession, onRunPersona, onLaunchAgent, onOpenQuickPrompt])
 
   // Search terminal output buffers when query is 3+ chars
   useEffect(() => {
@@ -398,6 +412,7 @@ export default function CommandPalette({
     if (!open) return
     window.api.persona.list().then(setPersonas).catch(() => {})
     window.api.agents.list().then(setAgents).catch(() => {})
+    window.api.sessionTemplates.list().then(setTemplates).catch(() => {})
   }, [open])
 
   // Focus input when opened
