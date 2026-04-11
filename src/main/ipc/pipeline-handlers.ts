@@ -112,7 +112,7 @@ export function registerPipelineHandlers(): void {
   ipcMain.handle('pipeline:triggerNow', (_e, name: string) => triggerPollNow(name))
   ipcMain.handle('pipeline:getDir', () => getPipelinesDir())
   ipcMain.handle('pipeline:delete', async (_e, fileName: string) => {
-    if (fileName.includes('..')) return false
+    if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) return false
     const dir = getPipelinesDir()
     const base = fileName.replace(/\.(yaml|yml)$/, '')
     const targets = [
@@ -189,10 +189,12 @@ export function registerPipelineHandlers(): void {
   // Pipeline memory
   const PIPELINES_DIR_MEM = colonyPaths.pipelines
   ipcMain.handle('pipeline:getMemory', async (_e, fileName: string) => {
+    if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) return ''
     const memPath = join(PIPELINES_DIR_MEM, `${fileName.replace(/\.(yaml|yml)$/, '')}.memory.md`)
     try { return await fsp.readFile(memPath, 'utf-8') } catch { return '' }
   })
   ipcMain.handle('pipeline:saveMemory', async (_e, fileName: string, content: string) => {
+    if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) return false
     await fsp.mkdir(PIPELINES_DIR_MEM, { recursive: true })
     const memPath = join(PIPELINES_DIR_MEM, `${fileName.replace(/\.(yaml|yml)$/, '')}.memory.md`)
     await fsp.writeFile(memPath, content, 'utf-8')

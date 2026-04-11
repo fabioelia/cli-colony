@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron'
+import path from 'path'
 import { execFile, spawn } from 'child_process'
 import { promisify } from 'util'
 import { DEFAULT_SCORING_PROMPT } from '../scoring-config'
@@ -248,6 +249,8 @@ export function registerInstanceHandlers(): void {
   })
 
   ipcMain.handle('session:gitRevert', async (_e, dir: string, file: string): Promise<boolean> => {
+    const resolved = path.resolve(dir, file)
+    if (!resolved.startsWith(path.resolve(dir) + path.sep) && resolved !== path.resolve(dir)) return false
     try {
       await execFileAsync('git', ['checkout', 'HEAD', '--', file], { encoding: 'utf-8', timeout: 10000, cwd: dir })
       return true

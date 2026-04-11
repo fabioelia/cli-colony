@@ -76,9 +76,10 @@ export function registerIpcHandlers(): void {
 
   // ---- Temp files ----
   ipcMain.handle('fs:writeTempFile', async (_e, prefix: string, content: string) => {
+    const safePrefix = (prefix || 'tmp').replace(/[^a-zA-Z0-9_-]/g, '_')
     const dir = path.join(os.tmpdir(), 'claude-colony')
     await fsp.mkdir(dir, { recursive: true })
-    const filePath = path.join(dir, `${prefix}-${Date.now()}.txt`)
+    const filePath = path.join(dir, `${safePrefix}-${Date.now()}.txt`)
     await fsp.writeFile(filePath, content, 'utf-8')
     return filePath
   })
