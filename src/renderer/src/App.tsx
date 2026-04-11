@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Swords, BarChart3, X as XIcon, EyeOff, Trophy, Rocket, Gavel } from 'lucide-react'
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
+import { useResourceMonitor } from './hooks/useResourceMonitor'
+import { useOutputTracking } from './hooks/useOutputTracking'
+import { useFocusHistory } from './hooks/useFocusHistory'
 import { createPortal } from 'react-dom'
 import type { ClaudeInstance, AgentDef, CliSession, RecentSession, CliBackend, ArenaStats } from './types'
 import Sidebar, { SidebarView } from './components/Sidebar'
@@ -94,7 +97,6 @@ export default function App() {
   const [arenaLeaderboardOpen, setArenaLeaderboardOpen] = useState(false)
   const [arenaJudgeOpen, setArenaJudgeOpen] = useState(false)
   const [arenaJudging, setArenaJudging] = useState(false)
-  const [unreadIds, setUnreadIds] = useState<Set<string>>(new Set())
   const [fontSize, setFontSize] = useState(13)
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
   const [cmdPaletteSessions, setCmdPaletteSessions] = useState<import('./types').CliSession[]>([])
@@ -102,12 +104,6 @@ export default function App() {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [quickPromptHistory, setQuickPromptHistory] = useState<string[]>([])
   const pendingPromptRef = useRef<{ id: string; prompt: string } | null>(null)
-  const [outputBytes, setOutputBytes] = useState<Map<string, number>>(new Map())
-  const outputBytesAccRef = useRef<Map<string, number>>(new Map())
-  const [resourceUsage, setResourceUsage] = useState<{
-    perInstance: Record<string, { cpu: number; memory: number }>
-    total: { cpu: number; memory: number }
-  } | null>(null)
   const [daemonStale, setDaemonStale] = useState(false)
   const [daemonFailed, setDaemonFailed] = useState(false)
   const [envPromptRequest, setEnvPromptRequest] = useState<{ requestId: string; envId: string; hookName: string; prompt: string; promptType: string; defaultPath?: string; defaultPathValid?: boolean; options?: string[] } | null>(null)
@@ -117,10 +113,6 @@ export default function App() {
   const [forkGroups, setForkGroups] = useState<ForkGroup[]>([])
   const terminalsRef = useRef<Map<string, any>>(new Map())
   const agentToLaunchRef = useRef<AgentDef | null>(null)
-  // Focus history for back/forward navigation (Cmd+Alt+Left/Right)
-  const [focusHistory, setFocusHistory] = useState<string[]>([])
-  const [focusHistoryIdx, setFocusHistoryIdx] = useState(-1)
-  const focusNavRef = useRef(false) // suppress push during back/forward
   // Track activeId + view in a ref so the output listener always has fresh values
   const activeViewRef = useRef<{ activeId: string | null; view: View }>({ activeId: null, view: 'instances' })
   activeViewRef.current = { activeId, view }
@@ -133,20 +125,10 @@ export default function App() {
   // Derived: are we in 4-up grid mode?
   const isGrid = gridPanes.some(p => p !== null)
 
-  // Push to focus history when activeId changes (skip during back/forward nav)
-  useEffect(() => {
-    if (!activeId || focusNavRef.current) {
-      focusNavRef.current = false
-      return
-    }
-    setFocusHistory(prev => {
-      const trimmed = prev.slice(0, focusHistoryIdx + 1) // clear forward stack
-      if (trimmed[trimmed.length - 1] === activeId) return trimmed // collapse duplicates
-      const next = [...trimmed, activeId].slice(-20) // cap at 20
-      setFocusHistoryIdx(next.length - 1)
-      return next
-    })
-  }, [activeId]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Extracted hooks
+  const resourceUsage = useResourceMonitor()
+  const { unreadIds, setUnreadIds, outputBytes } = useOutputTracking(activeViewRef, instances)
+  const { focusNavRef, removeFromHistory } = useFocusHistory(activeId, setActiveId)
 
   useEffect(() => {
     window.api.instance.list().then((list) => setInstances(prev => instancesEqual(prev, list) ? prev : list))
@@ -197,72 +179,6 @@ export default function App() {
     return unsub
   }, [])
 
-  // Single onOutput listener — handles both unread tracking and output byte counting
-  useEffect(() => {
-    const recentOutput = new Map<string, string>()
-    const novelBytes = new Map<string, number>()
-    const THRESHOLD = 80
-
-    const unsub = window.api.instance.onOutput(({ id, data }) => {
-      // Output byte accumulator (cheap — always runs)
-      const acc = outputBytesAccRef.current
-      acc.set(id, (acc.get(id) || 0) + data.length)
-
-      // Unread tracking — skip if user is looking at this instance
-      const { activeId: currentActive, view: currentView } = activeViewRef.current
-      const isVisible = currentView === 'instances' && id === currentActive
-      if (isVisible) {
-        novelBytes.delete(id)
-        recentOutput.delete(id)
-        return
-      }
-
-      // Strip ANSI escapes and control chars
-      const clean = stripAnsi(data)
-        .replace(/[\x00-\x1F\x7F]/g, '')
-        .trim()
-      if (clean.length < 3) return
-
-      // Compare against recent output — if the new text is a substring of
-      // what we've already seen (or vice versa), it's a TUI redraw
-      const prev = recentOutput.get(id) || ''
-      if (prev.includes(clean) || clean.includes(prev)) {
-        recentOutput.set(id, clean)
-        return
-      }
-
-      // Check character-level novelty
-      const prevChars = new Set(prev.split(''))
-      let novelCount = 0
-      for (const ch of clean) {
-        if (!prevChars.has(ch)) novelCount++
-      }
-      if (clean.length > 10 && novelCount / clean.length < 0.3) {
-        recentOutput.set(id, clean)
-        return
-      }
-
-      recentOutput.set(id, clean)
-      const total = (novelBytes.get(id) || 0) + clean.length
-      novelBytes.set(id, total)
-
-      if (total >= THRESHOLD) {
-        novelBytes.delete(id)
-        setUnreadIds((prev) => {
-          if (prev.has(id)) return prev
-          const next = new Set(prev)
-          next.add(id)
-          return next
-        })
-      }
-    })
-    // Flush accumulated bytes to state every 15s so renders stay infrequent
-    const timer = setInterval(() => {
-      setOutputBytes(new Map(outputBytesAccRef.current))
-    }, 15_000)
-    return () => { unsub(); clearInterval(timer) }
-  }, [])
-
   useEffect(() => {
     const unsub = window.api.instance.onFocus(({ id }) => {
       setActiveId(id)
@@ -270,14 +186,6 @@ export default function App() {
     })
     return unsub
   }, [])
-
-  // Remove stale entries when sessions are removed
-  useEffect(() => {
-    const ids = new Set(instances.map(i => i.id))
-    outputBytesAccRef.current.forEach((_, id) => {
-      if (!ids.has(id)) outputBytesAccRef.current.delete(id)
-    })
-  }, [instances])
 
   // Write pending quick-prompts when the target session becomes ready
   useEffect(() => {
@@ -405,28 +313,6 @@ export default function App() {
     return window.api.window.onFullScreenChanged((isFS) => {
       document.body.classList.toggle('fullscreen', isFS)
     })
-  }, [])
-
-  // Resource monitor: poll every 15 seconds, only when the window is focused
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | null = null
-    const poll = () => {
-      if (document.hidden) return
-      window.api.resources.getUsage().then(setResourceUsage).catch(() => {})
-    }
-    const start = () => {
-      poll()
-      if (interval) clearInterval(interval)
-      interval = setInterval(poll, 15000)
-    }
-    const stop = () => { if (interval) { clearInterval(interval); interval = null } }
-    const onVisChange = () => { document.hidden ? stop() : start() }
-    document.addEventListener('visibilitychange', onVisChange)
-    if (!document.hidden) start()
-    return () => {
-      stop()
-      document.removeEventListener('visibilitychange', onVisChange)
-    }
   }, [])
 
   const handleCreate = useCallback(async (opts: {
@@ -570,12 +456,7 @@ export default function App() {
       }
       return next
     })
-    // Clean up focus history
-    setFocusHistory(prev => prev.filter(h => h !== id))
-    setFocusHistoryIdx(prev => {
-      const filtered = focusHistory.filter(h => h !== id)
-      return Math.min(prev, filtered.length - 1)
-    })
+    removeFromHistory(id)
     if (activeId === id) setActiveId(null)
     if (editorInstanceId === id) {
       setEditorInstanceId(null)
@@ -1052,33 +933,6 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler, true)
   }, [handleLoadPreset])
 
-  // Cmd+Alt+Left/Right for session focus history (back/forward)
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || !e.altKey) return
-      if (e.key === 'ArrowLeft') {
-        e.preventDefault()
-        setFocusHistoryIdx(prev => {
-          if (prev <= 0) return prev
-          const newIdx = prev - 1
-          focusNavRef.current = true
-          setActiveId(focusHistory[newIdx])
-          return newIdx
-        })
-      } else if (e.key === 'ArrowRight') {
-        e.preventDefault()
-        setFocusHistoryIdx(prev => {
-          if (prev >= focusHistory.length - 1) return prev
-          const newIdx = prev + 1
-          focusNavRef.current = true
-          setActiveId(focusHistory[newIdx])
-          return newIdx
-        })
-      }
-    }
-    window.addEventListener('keydown', handler, true)
-    return () => window.removeEventListener('keydown', handler, true)
-  }, [focusHistory])
 
   // Direct keyboard handler for zoom (fallback for when menu accelerators don't fire)
   useEffect(() => {
