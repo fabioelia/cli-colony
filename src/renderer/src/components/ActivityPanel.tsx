@@ -81,17 +81,16 @@ export default function ActivityPanel({ onFocusSession }: Props) {
   }
 
   const query = searchQuery.toLowerCase().trim()
-  const filtered = useMemo(() => {
-    let items = events.filter(ev => {
+  const filteredAll = useMemo(() => {
+    return events.filter(ev => {
       if (!sourceFilters.has(ev.source)) return false
       if (!levelFilters.has(ev.level)) return false
       if (typeChip !== 'all' && typeChip !== 'approval' && ev.source !== typeChip) return false
       if (query && !ev.name.toLowerCase().includes(query) && !ev.summary.toLowerCase().includes(query)) return false
       return true
     })
-    if (!showAll) items = items.slice(0, 20)
-    return items
-  }, [events, sourceFilters, levelFilters, typeChip, query, showAll])
+  }, [events, sourceFilters, levelFilters, typeChip, query])
+  const filtered = useMemo(() => showAll ? filteredAll : filteredAll.slice(0, 20), [filteredAll, showAll])
 
   const typeCounts = useMemo(() => ({
     session: events.filter(e => e.source === 'session').length,
@@ -222,7 +221,15 @@ export default function ActivityPanel({ onFocusSession }: Props) {
           </div>
         )}
 
+        {/* Approval-only empty state */}
+        {typeChip === 'approval' && pendingApprovals.length === 0 && (
+          <div className="activity-popover-empty" style={{ textAlign: 'center', padding: 24 }}>
+            No pending approvals. Approvals appear when pipelines require manual authorization.
+          </div>
+        )}
+
         {/* Event List */}
+        {typeChip !== 'approval' && (
         <div className="activity-panel-list">
           {filtered.length === 0 && (
             <div className="activity-popover-empty" style={{ textAlign: 'center', padding: 24 }}>
@@ -262,17 +269,18 @@ export default function ActivityPanel({ onFocusSession }: Props) {
               )}
             </div>
           ))}
-          {!showAll && events.length > 20 && (
+          {!showAll && filteredAll.length > 20 && (
             <button className="activity-show-more" onClick={() => setShowAll(true)}>
-              Show all ({events.length - 20} more)
+              Show all ({filteredAll.length - 20} more)
             </button>
           )}
-          {showAll && events.length > 20 && (
+          {showAll && filteredAll.length > 20 && (
             <button className="activity-show-more" onClick={() => setShowAll(false)}>
               Show less
             </button>
           )}
         </div>
+        )}
       </div>
     </div>
   )
