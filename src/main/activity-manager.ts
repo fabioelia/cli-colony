@@ -76,3 +76,10 @@ export async function markRead(): Promise<void> {
   }
   broadcast('activity:unread', { count: 0 })
 }
+
+export async function clearActivity(): Promise<void> {
+  _events = []
+  _lastReadId = null
+  await writeLog([])
+  broadcast('activity:unread', { count: 0 })
+}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Bell, Search } from 'lucide-react'
+import { Bell, Search, Trash2 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import type { ActivityEvent, ApprovalRequest } from '../../../shared/types'
 
@@ -102,6 +102,19 @@ export default function ActivityPanel({ onFocusSession }: Props) {
         <h2><Bell size={16} /> Activity</h2>
         <div className="panel-header-spacer" />
         <HelpPopover topic="activity" align="right" />
+        <div className="panel-header-actions">
+          <button
+            className="panel-header-btn"
+            onClick={async () => {
+              if (!confirm('Clear all activity events?')) return
+              await window.api.activity.clear()
+              setEvents([])
+            }}
+            title="Clear all activity events"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
       </div>
 
       <div style={{ WebkitAppRegion: 'no-drag', overflowY: 'auto', flex: 1 } as React.CSSProperties}>

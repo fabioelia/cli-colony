@@ -357,6 +357,7 @@ export interface ClaudeManagerAPI {
     list: () => Promise<ActivityEvent[]>
     markRead: () => Promise<boolean>
     unreadCount: () => Promise<number>
+    clear: () => Promise<boolean>
     onNew: (cb: (data: { event: ActivityEvent; unreadCount: number }) => void) => () => void
     onUnread: (cb: (data: { count: number }) => void) => () => void
   }
@@ -860,6 +861,7 @@ const api: ClaudeManagerAPI = {
     list: () => ipcRenderer.invoke('activity:list'),
     markRead: () => ipcRenderer.invoke('activity:markRead'),
     unreadCount: () => ipcRenderer.invoke('activity:unreadCount'),
+    clear: () => ipcRenderer.invoke('activity:clear'),
     onNew: (cb) => {
       const l = (_e: any, data: { event: ActivityEvent; unreadCount: number }) => cb(data)
       ipcRenderer.on('activity:new', l)
