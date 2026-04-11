@@ -347,7 +347,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Colony Review', detail: 'Launches a Claude session that reviews the code and pushes structured feedback to the colony-feedback branch.', icon: 'Play' },
           { label: 'Quick actions', detail: 'Buttons (Review, Summarize, Checkout & Test). Click any button to open the environment selector modal.', icon: 'Play' },
           { label: 'File diffs', detail: 'Click "Files changed" to fetch and display per-file diffs with syntax highlighting. Each file is collapsible. Shows status badge (A/M/D/R), filename, and +/- line counts. Binary files and oversized diffs show a placeholder.', icon: 'FileDiff' },
-          { label: 'Comments', detail: 'Click to view all PR comments (general + file-level) in a split modal with markdown rendering.', icon: 'MessageSquare' },
+          { label: 'Comments', detail: 'Click to view all PR comments (general + file-level) in a split modal with markdown rendering. The modal includes a reply input at the bottom to post responses directly.', icon: 'MessageSquare' },
           { label: 'Post comment', detail: 'Type in the comment box on an expanded PR and click Comment to post a general PR comment via the GitHub API. Uses your authenticated gh CLI identity.', icon: 'Send' },
           { label: 'Test in Environment', detail: 'Launch a new environment pre-filled with the PR\'s branch. Opens the New Environment dialog with the branch field populated.', icon: 'GitBranch' },
           { label: 'Colony review notes', detail: 'When a Colony persona reviews a PR, their analysis is saved locally. If notes exist for a PR, they appear as a collapsible section in the expanded PR card. Click the header to collapse/expand.', icon: 'Brain' },

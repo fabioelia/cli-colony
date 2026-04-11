@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Bot, RefreshCw } from 'lucide-react'
+import { Bot, Eye, RefreshCw, RotateCcw, Square } from 'lucide-react'
 import type { CoordinatorTeam, CoordinatorWorker } from '../../../shared/types'
 
 interface TeamTabProps {
@@ -129,9 +129,9 @@ export default function TeamTab({ instanceId, onWorkerCountChange, onNavigateToW
       </div>
       {ctxMenu && (
         <div className="context-menu" style={{ left: ctxMenu.x, top: ctxMenu.y }}>
-          <button className="context-menu-item" onClick={() => { onNavigateToWorker?.(ctxMenu.worker.id); setCtxMenu(null) }}>Focus</button>
-          <button className="context-menu-item" onClick={async () => { await window.api.instance.kill(ctxMenu.worker.id); setCtxMenu(null); refresh() }}>Kill</button>
-          <button className="context-menu-item" onClick={async () => { await window.api.instance.restart(ctxMenu.worker.id); setCtxMenu(null); refresh() }}>Restart</button>
+          <button className="context-menu-item" onClick={() => { onNavigateToWorker?.(ctxMenu.worker.id); setCtxMenu(null) }}><Eye size={12} /> Focus</button>
+          <button className="context-menu-item" onClick={async () => { await window.api.instance.kill(ctxMenu.worker.id); setCtxMenu(null); refresh() }}><Square size={12} /> Stop</button>
+          <button className="context-menu-item" onClick={async () => { await window.api.instance.restart(ctxMenu.worker.id); setCtxMenu(null); refresh() }}><RotateCcw size={12} /> Restart</button>
         </div>
       )}
     </div>
