@@ -220,14 +220,24 @@ export function registerPipelineHandlers(): void {
         detached: false,
       })
       let out = ''
+      let killed = false
+      const killTimer = setTimeout(() => {
+        killed = true
+        proc.kill('SIGTERM')
+      }, 30_000)
       proc.stdout.on('data', (chunk: Buffer) => { out += chunk.toString() })
       proc.on('close', () => {
+        clearTimeout(killTimer)
+        if (killed) {
+          resolve('')
+          return
+        }
         const raw = out.trim()
         // Strip markdown fences if the model added them
         const cleaned = raw.replace(/^```(?:yaml)?\s*/i, '').replace(/\s*```$/, '').trim()
         resolve(cleaned || raw)
       })
-      proc.on('error', () => resolve(''))
+      proc.on('error', () => { clearTimeout(killTimer); resolve('') })
     })
   })
 }

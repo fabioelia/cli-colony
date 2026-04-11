@@ -1268,37 +1268,37 @@ async function runPoll(pipelineName: string): Promise<void> {
         level: 'warn',
       })
     }
+  } finally {
+    runningPolls.delete(pipelineName)
+
+    p.state.lastRunStoppedBudget = stoppedBudget
+
+    // Record run history
+    await appendHistory(pipelineName, {
+      ts: new Date().toISOString(),
+      trigger: p.def.trigger.type,
+      actionExecuted: fired,
+      success: !pollError,
+      durationMs: Date.now() - pollStartedAt,
+      stages: stages.length > 0 ? stages : undefined,
+      totalCost: totalCost > 0 ? totalCost : undefined,
+      stoppedBudget: stoppedBudget || undefined,
+    })
+
+    // Trim debug log to the last N iterations
+    const sepIndices: number[] = []
+    for (let i = 0; i < p.state.debugLog.length; i++) {
+      if (p.state.debugLog[i] === DEBUG_ITERATION_SEP) sepIndices.push(i)
+    }
+    if (sepIndices.length > MAX_DEBUG_ITERATIONS) {
+      const cutAt = sepIndices[sepIndices.length - MAX_DEBUG_ITERATIONS]
+      p.state.debugLog = p.state.debugLog.slice(cutAt)
+    }
+
+    await saveDebugLogs() // persist debug logs after every poll
+    if (fired) await saveState()
+    broadcast('pipeline:status', getPipelineList())
   }
-
-  runningPolls.delete(pipelineName)
-
-  p.state.lastRunStoppedBudget = stoppedBudget
-
-  // Record run history
-  await appendHistory(pipelineName, {
-    ts: new Date().toISOString(),
-    trigger: p.def.trigger.type,
-    actionExecuted: fired,
-    success: !pollError,
-    durationMs: Date.now() - pollStartedAt,
-    stages: stages.length > 0 ? stages : undefined,
-    totalCost: totalCost > 0 ? totalCost : undefined,
-    stoppedBudget: stoppedBudget || undefined,
-  })
-
-  // Trim debug log to the last N iterations
-  const sepIndices: number[] = []
-  for (let i = 0; i < p.state.debugLog.length; i++) {
-    if (p.state.debugLog[i] === DEBUG_ITERATION_SEP) sepIndices.push(i)
-  }
-  if (sepIndices.length > MAX_DEBUG_ITERATIONS) {
-    const cutAt = sepIndices[sepIndices.length - MAX_DEBUG_ITERATIONS]
-    p.state.debugLog = p.state.debugLog.slice(cutAt)
-  }
-
-  await saveDebugLogs() // persist debug logs after every poll
-  if (fired) await saveState()
-  broadcast('pipeline:status', getPipelineList())
 }
 
 // ---- Public API ----

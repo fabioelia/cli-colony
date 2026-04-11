@@ -375,12 +375,13 @@ export function togglePersona(fileName: string, enabled: boolean): boolean {
 
 // ---- Send trigger when CLI is ready ----
 
-function sendTriggerWhenReady(instanceId: string, message: string, timeoutMinutes?: number): void {
+function sendTriggerWhenReady(instanceId: string, message: string, timeoutMinutes?: number, onStateCommit?: () => void): void {
   // Use the shared sendPromptWhenReady, then watch for persona completion
   sendPromptWhenReady(instanceId, {
     prompt: message,
     onSent: () => {
       console.log(`[persona] sent trigger to ${instanceId}`)
+      if (onStateCommit) onStateCommit()
 
       const client = getDaemonClient()
       let resolved = false
@@ -508,21 +509,22 @@ export async function runPersona(fileName: string, trigger: TriggerSource = { ty
   const kickoff = buildKickoff(filePath, trigger, customMessage)
   // Only apply auto-close timeout for non-manual triggers
   const timeoutMinutes = trigger.type !== 'manual' ? (fm.session_timeout_minutes || 10) : undefined
-  sendTriggerWhenReady(inst.id, kickoff, timeoutMinutes)
+  sendTriggerWhenReady(inst.id, kickoff, timeoutMinutes, () => {
+    // Defer state mutations until prompt is confirmed delivered.
+    // If sendPromptWhenReady abandons (timeout, daemon down), state stays clean.
+    state.activeSessionId = inst.id
+    state.lastRunAt = new Date().toISOString()
+    state.sessionStartedAt = state.lastRunAt
+    state.sessionWorkingDir = cwd
+    state.triggerType = trigger.type
+    state.triggeredBy = trigger.type === 'handoff' ? (trigger.from ?? null) : null
+    state.runCount++
+    saveState()
 
-  // Update state
-  state.activeSessionId = inst.id
-  state.lastRunAt = new Date().toISOString()
-  state.sessionStartedAt = state.lastRunAt
-  state.sessionWorkingDir = cwd
-  state.triggerType = trigger.type
-  state.triggeredBy = trigger.type === 'handoff' ? (trigger.from ?? null) : null
-  state.runCount++
-  saveState()
-
-  broadcast('persona:run', { persona: fm.name, instanceId: inst.id })
-  broadcastStatus()
-  notify(`Colony: Persona started`, `${fm.name} run #${state.runCount} started`, 'personas')
+    broadcast('persona:run', { persona: fm.name, instanceId: inst.id })
+    broadcastStatus()
+    notify(`Colony: Persona started`, `${fm.name} run #${state.runCount} started`, 'personas')
+  })
 
   console.log(`[persona] launched "${fm.name}" as session ${inst.id}`)
   return inst.id
