@@ -116,6 +116,10 @@ export default function App() {
   const [forkGroups, setForkGroups] = useState<ForkGroup[]>([])
   const terminalsRef = useRef<Map<string, any>>(new Map())
   const agentToLaunchRef = useRef<AgentDef | null>(null)
+  // Focus history for back/forward navigation (Cmd+Alt+Left/Right)
+  const [focusHistory, setFocusHistory] = useState<string[]>([])
+  const [focusHistoryIdx, setFocusHistoryIdx] = useState(-1)
+  const focusNavRef = useRef(false) // suppress push during back/forward
   // Track activeId + view in a ref so the output listener always has fresh values
   const activeViewRef = useRef<{ activeId: string | null; view: View }>({ activeId: null, view: 'instances' })
   activeViewRef.current = { activeId, view }
@@ -127,6 +131,21 @@ export default function App() {
   splitRef.current = { splitId, focusedPane }
   // Derived: are we in 4-up grid mode?
   const isGrid = gridPanes.some(p => p !== null)
+
+  // Push to focus history when activeId changes (skip during back/forward nav)
+  useEffect(() => {
+    if (!activeId || focusNavRef.current) {
+      focusNavRef.current = false
+      return
+    }
+    setFocusHistory(prev => {
+      const trimmed = prev.slice(0, focusHistoryIdx + 1) // clear forward stack
+      if (trimmed[trimmed.length - 1] === activeId) return trimmed // collapse duplicates
+      const next = [...trimmed, activeId].slice(-20) // cap at 20
+      setFocusHistoryIdx(next.length - 1)
+      return next
+    })
+  }, [activeId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     window.api.instance.list().then((list) => setInstances(prev => instancesEqual(prev, list) ? prev : list))
@@ -548,6 +567,12 @@ export default function App() {
         return [null, null, null, null]
       }
       return next
+    })
+    // Clean up focus history
+    setFocusHistory(prev => prev.filter(h => h !== id))
+    setFocusHistoryIdx(prev => {
+      const filtered = focusHistory.filter(h => h !== id)
+      return Math.min(prev, filtered.length - 1)
     })
     if (activeId === id) setActiveId(null)
     if (editorInstanceId === id) {
@@ -1018,6 +1043,34 @@ export default function App() {
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
   }, [handleLoadPreset])
+
+  // Cmd+Alt+Left/Right for session focus history (back/forward)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || !e.altKey) return
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        setFocusHistoryIdx(prev => {
+          if (prev <= 0) return prev
+          const newIdx = prev - 1
+          focusNavRef.current = true
+          setActiveId(focusHistory[newIdx])
+          return newIdx
+        })
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        setFocusHistoryIdx(prev => {
+          if (prev >= focusHistory.length - 1) return prev
+          const newIdx = prev + 1
+          focusNavRef.current = true
+          setActiveId(focusHistory[newIdx])
+          return newIdx
+        })
+      }
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [focusHistory])
 
   // Direct keyboard handler for zoom (fallback for when menu accelerators don't fire)
   useEffect(() => {
