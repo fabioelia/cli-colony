@@ -7,24 +7,26 @@ import { getDefaultBatchConfig, getBatchHistory, parseTaskQueue } from '../batch
 import { BatchConfig, BatchRun } from '../../shared/types'
 import { join } from 'path'
 import { colonyPaths } from '../../shared/colony-paths'
-
-// In a real implementation, these would read/write to settings.json
-// For now, we use in-memory defaults
-let currentBatchConfig: BatchConfig = getDefaultBatchConfig()
+import { getSetting, setSetting } from '../settings'
 
 export function registerBatchHandlers(): void {
   /**
    * batch:getConfig — return current batch configuration
    */
-  ipcMain.handle('batch:getConfig', (): BatchConfig => {
-    return { ...currentBatchConfig }
+  ipcMain.handle('batch:getConfig', async (): Promise<BatchConfig> => {
+    const stored = await getSetting('batchConfig')
+    if (stored) {
+      try { return JSON.parse(stored) as BatchConfig }
+      catch { /* fall through */ }
+    }
+    return getDefaultBatchConfig()
   })
 
   /**
    * batch:setConfig — save batch configuration
    * Validates cron expression and parameters
    */
-  ipcMain.handle('batch:setConfig', (_event, config: BatchConfig): boolean => {
+  ipcMain.handle('batch:setConfig', async (_event, config: BatchConfig): Promise<boolean> => {
     try {
       // Basic validation
       if (typeof config.schedule !== 'string' || !config.schedule.trim()) {
@@ -37,9 +39,7 @@ export function registerBatchHandlers(): void {
         throw new Error('Timeout must be >= 1 minute')
       }
 
-      currentBatchConfig = { ...config }
-
-      // TODO: Persist to settings.json
+      await setSetting('batchConfig', JSON.stringify(config))
       return true
     } catch (err) {
       console.error('Failed to set batch config:', err)
