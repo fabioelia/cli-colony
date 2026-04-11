@@ -187,6 +187,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Role badge', detail: 'Purple/gold tag (Orchestrator, Planner, Coder, Tester, Reviewer, Researcher, Coordinator, Worker) set via right-click. Coordinator shows a gold Crown icon 👑. Helps coordinate multi-agent workflows at a glance. Coordinator sessions display a Team tab showing all active Worker sessions.' },
           { label: 'Split/Grid indicator', detail: 'A columns icon appears on sessions in a split view or grid view. In grid mode, all assigned panes show the indicator.', icon: 'Columns2' },
           { label: 'Group by', detail: 'A grouping selector appears above the session history list. Group by Project (working directory) or Date (Today, Yesterday, This Week, This Month, Older). Groups are collapsible and the mode persists across sessions.', icon: 'Layers' },
+          { label: 'Collapse/Expand All', detail: 'Toggle all session group headers collapsed or expanded at once. Appears when sessions are grouped by persona, project, or status.' },
           { label: 'Multi-select', detail: 'Click the checkbox icon (next to group-by) or Cmd+click any session to enter select mode. A floating action bar appears for bulk Stop, Restart, or Remove. Cmd+A selects all visible sessions; Escape exits. Remove only affects stopped sessions.', icon: 'CheckSquare' },
           { label: 'Permission mode', detail: 'Choose Autonomous (default — full permissions) or Supervised (Claude asks before risky actions) when creating a session. Supervised sessions show a shield icon in the sidebar.', icon: 'Shield' },
           { label: 'Global Search', detail: 'Search across all sessions\' terminal output. Find which session produced an error or output. Opens a side panel with results grouped by session. Use ↑↓ to navigate results, Enter to jump to the matching session.', shortcut: '\u2318\u21e7F', icon: 'Search' },
@@ -910,6 +911,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Git branch badge', detail: 'Shows the current git branch and repo name.', icon: 'GitBranch' },
           { label: 'Info button', detail: 'Opens a popover with launch command, PID, working directory, MCP servers, token usage, and child processes.', icon: 'Info' },
+          { label: 'Export Session', detail: 'Save the session output as a markdown file. Includes terminal content, metadata, and git state.', icon: 'FileDown' },
           { label: 'Steer session', detail: 'Send a mid-run redirect message without stopping the session. If idle, the message is delivered immediately. If busy, it is queued and delivered the moment the session next becomes idle. Prefixed with [Operator steering]: so the agent recognises it as a course correction.', icon: 'Navigation' },
           { label: 'Reset terminal', detail: 'Destroy the terminal and create a fresh one. On the Session tab, clears and re-replays the buffer. On the Shell tab, kills the shell and spawns a new one.', icon: 'RotateCcw' },
           { label: 'Spawn child', detail: 'Create a child session that reports back via a handoff document when done.', icon: 'GitFork' },

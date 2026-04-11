@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate } from '../../../shared/types'
@@ -448,6 +448,14 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     setGroupBy(val)
     localStorage.setItem('sidebar-group-by', val)
   }, [])
+  const toggleCollapseAll = useCallback(() => {
+    if (!groupedSections) return
+    const allLabels = groupedSections.map(s => s.label)
+    const allCollapsed = allLabels.every(l => collapsedGroups.has(l))
+    const next = allCollapsed ? new Set<string>() : new Set(allLabels)
+    setCollapsedGroups(next)
+    localStorage.setItem('sidebar-collapsed-groups', JSON.stringify([...next]))
+  }, [groupedSections, collapsedGroups])
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -1089,6 +1097,16 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
               <CheckSquare size={12} />
             </button>
           </Tooltip>
+          {groupBy !== 'none' && groupedSections && (
+            <Tooltip text={groupedSections.every(s => collapsedGroups.has(s.label)) ? 'Expand all groups' : 'Collapse all groups'} position="bottom">
+              <button
+                className="sidebar-select-toggle"
+                onClick={toggleCollapseAll}
+              >
+                {groupedSections.every(s => collapsedGroups.has(s.label)) ? <ChevronsDown size={12} /> : <ChevronsUp size={12} />}
+              </button>
+            </Tooltip>
+          )}
         </div>
       )}
 
