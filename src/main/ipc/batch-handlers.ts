@@ -3,7 +3,7 @@
  */
 
 import { ipcMain } from 'electron'
-import { getDefaultBatchConfig, getBatchHistory, executeBatch } from '../batch-runner'
+import { getDefaultBatchConfig, getBatchHistory, executeBatch, startBatchScheduler, stopBatchScheduler } from '../batch-runner'
 import { BatchConfig, BatchRun } from '../../shared/types'
 import { getSetting, setSetting } from '../settings'
 
@@ -38,6 +38,11 @@ export function registerBatchHandlers(): void {
       }
 
       await setSetting('batchConfig', JSON.stringify(config))
+      if (config.enabled) {
+        startBatchScheduler(config)
+      } else {
+        stopBatchScheduler()
+      }
       return true
     } catch (err) {
       console.error('Failed to set batch config:', err)
@@ -66,6 +71,16 @@ export function registerBatchHandlers(): void {
         success: false,
         error: err instanceof Error ? err.message : 'Unknown error',
       }
+    }
+  })
+
+  // Start batch scheduler on init if config is enabled
+  getSetting('batchConfig').then(stored => {
+    if (stored) {
+      try {
+        const config = JSON.parse(stored) as BatchConfig
+        if (config.enabled) startBatchScheduler(config)
+      } catch { /* ignore corrupt config */ }
     }
   })
 }

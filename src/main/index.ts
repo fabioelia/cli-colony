@@ -80,6 +80,7 @@ import { seedDefaultPipelines, startPipelines, stopPipelines, getPipelineList } 
 import { cleanupStaleForkGroups } from './fork-manager'
 import { startWebhookServer, stopWebhookServer } from './webhook-server'
 import { initAppUpdater, shutdownAppUpdater } from './app-updater'
+import { stopBatchScheduler } from './batch-runner'
 import { colonyPaths } from '../shared/colony-paths'
 
 let mainWindow: BrowserWindow | null = null
@@ -613,6 +614,7 @@ app.on('before-quit', () => {
   stopPersonaScheduler()
   stopEnvWatching()
   stopPipelines()
+  stopBatchScheduler()
   // Just disconnect — daemon keeps instances alive for reconnection
   disconnectDaemon()
 })

@@ -8,6 +8,7 @@ import { join } from 'path'
 import { v4 as uuid } from 'uuid'
 import { parseYaml } from '../shared/yaml-parser'
 import { colonyPaths } from '../shared/colony-paths'
+import { cronMatches } from '../shared/cron'
 import { BatchConfig, BatchRun, BatchTaskRun, BatchTaskStatus } from '../shared/types'
 import { createInstance } from './instance-manager'
 import { sendPromptWhenReady } from './send-prompt-when-ready'
@@ -248,4 +249,40 @@ export async function executeBatch(config: BatchConfig): Promise<BatchRun> {
 
   broadcast('batch:completed', { batchId: run.id, run })
   return run
+}
+
+// --- Batch Cron Scheduler ---
+
+let batchTimer: ReturnType<typeof setInterval> | null = null
+let lastBatchCronMinute = -1
+
+/**
+ * Start the batch cron scheduler. Clears any existing timer first.
+ * Checks every 60s if the cron expression matches and fires executeBatch.
+ */
+export function startBatchScheduler(config: BatchConfig): void {
+  stopBatchScheduler()
+  if (!config.enabled || !config.schedule) return
+
+  batchTimer = setInterval(() => {
+    const now = new Date()
+    const currentMinute = now.getHours() * 60 + now.getMinutes()
+    if (cronMatches(config.schedule, now) && currentMinute !== lastBatchCronMinute) {
+      lastBatchCronMinute = currentMinute
+      console.log(`[batch] Cron matched at ${now.toLocaleTimeString()}, firing batch`)
+      executeBatch(config).catch(err => {
+        console.error('[batch] Scheduled batch execution failed:', err)
+      })
+    }
+  }, 60_000)
+}
+
+/**
+ * Stop the batch cron scheduler.
+ */
+export function stopBatchScheduler(): void {
+  if (batchTimer) {
+    clearInterval(batchTimer)
+    batchTimer = null
+  }
 }
