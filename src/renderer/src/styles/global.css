@@ -17707,6 +17707,28 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 10px;
 }
 
+.team-metrics-worker-row { transition: background 0.15s; }
+.team-metrics-worker-row:hover { background: var(--bg-hover); }
+.team-metrics-worker-row.expanded { background: var(--bg-active); }
+.team-metrics-chevron { display: inline-block; transition: transform 0.15s; margin-right: 4px; vertical-align: middle; }
+.team-metrics-chevron.open { transform: rotate(180deg); }
+.team-metrics-history-row td { padding: 0 !important; }
+.team-metrics-history { padding: 8px 12px 12px; border-top: 1px solid var(--border); }
+.team-metrics-history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 11px; color: var(--text-secondary); }
+.team-metrics-history-filters { display: flex; gap: 4px; }
+.team-metrics-history-chip { font-size: 10px; padding: 2px 6px; border-radius: 3px; background: var(--bg-hover); border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; }
+.team-metrics-history-chip.active { background: var(--accent); color: white; border-color: var(--accent); }
+.team-metrics-history-loading, .team-metrics-history-empty { font-size: 11px; color: var(--text-muted); padding: 6px 0; }
+.team-metrics-history-list { display: flex; flex-direction: column; gap: 3px; }
+.team-metrics-run { display: flex; gap: 10px; align-items: center; font-size: 11px; padding: 3px 0; }
+.team-metrics-run-status { font-size: 10px; padding: 1px 5px; border-radius: 3px; font-weight: 600; }
+.team-metrics-run-status.success { background: rgba(16,185,129,0.15); color: var(--success); }
+.team-metrics-run-status.failed { background: rgba(239,68,68,0.15); color: var(--danger); }
+.team-metrics-run-time { color: var(--text-muted); min-width: 60px; }
+.team-metrics-run-duration { color: var(--text-secondary); }
+.team-metrics-run-cost { color: var(--text-secondary); }
+.team-metrics-run-session { color: var(--accent); font-family: monospace; font-size: 10px; }
+
 /* Empty and error states */
 .team-metrics-empty,
 .team-metrics-no-workers {

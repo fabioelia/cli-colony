@@ -1385,6 +1385,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Avg Duration (s)', detail: 'Mean session duration in seconds.' },
           { label: 'Total Cost (USD)', detail: 'Cumulative cost for all runs of this worker in the selected window.' },
           { label: 'Last Run', detail: 'When this worker last completed a session (relative time: e.g., "2h ago").' },
+          { label: 'Worker drill-down', detail: 'Click any worker row to expand and see their recent individual runs with status, duration, and cost. Filter by success/failed.', icon: 'ChevronDown' },
         ],
       },
       {

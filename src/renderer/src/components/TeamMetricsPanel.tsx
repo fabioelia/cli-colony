@@ -3,9 +3,9 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { Download, AlertCircle, BarChart3 } from 'lucide-react'
+import { Download, AlertCircle, BarChart3, ChevronDown } from 'lucide-react'
 import HelpPopover from './HelpPopover'
-import type { TeamMetrics } from '../../../shared/types'
+import type { TeamMetrics, TeamMetricsEntry } from '../../../shared/types'
 
 interface TeamMetricsPanelProps {
   coordinatorSessionId?: string  // optional, for contextual filtering
@@ -57,6 +57,10 @@ export const TeamMetricsPanel: React.FC<TeamMetricsPanelProps> = ({ coordinatorS
   const [timeWindow, setTimeWindow] = useState<'7d' | '30d'>('7d')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [expandedWorker, setExpandedWorker] = useState<string | null>(null)
+  const [workerHistory, setWorkerHistory] = useState<TeamMetricsEntry[]>([])
+  const [historyFilter, setHistoryFilter] = useState<'all' | 'success' | 'failed'>('all')
+  const [historyLoading, setHistoryLoading] = useState(false)
 
   const fetchMetrics = useCallback(async () => {
     setLoading(true)
@@ -89,6 +93,26 @@ export const TeamMetricsPanel: React.FC<TeamMetricsPanelProps> = ({ coordinatorS
     } catch {
       setError('Failed to export metrics')
     }
+  }
+
+  const handleWorkerClick = async (workerId: string) => {
+    if (expandedWorker === workerId) { setExpandedWorker(null); return }
+    setExpandedWorker(workerId)
+    setHistoryLoading(true)
+    setHistoryFilter('all')
+    try {
+      const runs = await window.api.team.getWorkerHistory(workerId, 20)
+      setWorkerHistory(runs)
+    } finally { setHistoryLoading(false) }
+  }
+
+  const handleHistoryFilter = async (workerId: string, status: 'all' | 'success' | 'failed') => {
+    setHistoryFilter(status)
+    setHistoryLoading(true)
+    try {
+      const runs = await window.api.team.getWorkerHistory(workerId, 20, status === 'all' ? undefined : status)
+      setWorkerHistory(runs)
+    } finally { setHistoryLoading(false) }
   }
 
   // Chart data: real per-worker run counts (sorted descending for scanability).
@@ -190,16 +214,62 @@ export const TeamMetricsPanel: React.FC<TeamMetricsPanelProps> = ({ coordinatorS
                   </thead>
                   <tbody>
                     {metrics.workers.map((worker) => (
-                      <tr key={worker.workerId} className="team-metrics-worker-row">
-                        <td className="team-metrics-worker-name">{worker.workerId}</td>
-                        <td className="team-metrics-cell-numeric">{worker.runsCount}</td>
-                        <td className="team-metrics-cell-numeric">{worker.successRate.toFixed(1)}</td>
-                        <td className="team-metrics-cell-numeric">{Math.round(worker.avgDurationMs / 1000)}</td>
-                        <td className="team-metrics-cell-numeric">${worker.totalCostUsd.toFixed(4)}</td>
-                        <td className="team-metrics-cell-muted">
-                          {worker.lastRunAt ? formatLastRun(worker.lastRunAt) : 'Never'}
-                        </td>
-                      </tr>
+                      <React.Fragment key={worker.workerId}>
+                        <tr
+                          className={`team-metrics-worker-row ${expandedWorker === worker.workerId ? 'expanded' : ''}`}
+                          onClick={() => handleWorkerClick(worker.workerId)}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <td className="team-metrics-worker-name">
+                            <ChevronDown size={12} className={`team-metrics-chevron ${expandedWorker === worker.workerId ? 'open' : ''}`} />
+                            {worker.workerId}
+                          </td>
+                          <td className="team-metrics-cell-numeric">{worker.runsCount}</td>
+                          <td className="team-metrics-cell-numeric">{worker.successRate.toFixed(1)}</td>
+                          <td className="team-metrics-cell-numeric">{Math.round(worker.avgDurationMs / 1000)}</td>
+                          <td className="team-metrics-cell-numeric">${worker.totalCostUsd.toFixed(4)}</td>
+                          <td className="team-metrics-cell-muted">
+                            {worker.lastRunAt ? formatLastRun(worker.lastRunAt) : 'Never'}
+                          </td>
+                        </tr>
+                        {expandedWorker === worker.workerId && (
+                          <tr className="team-metrics-history-row">
+                            <td colSpan={6}>
+                              <div className="team-metrics-history">
+                                <div className="team-metrics-history-header">
+                                  <span>Recent Runs</span>
+                                  <div className="team-metrics-history-filters">
+                                    {(['all', 'success', 'failed'] as const).map(s => (
+                                      <button
+                                        key={s}
+                                        className={`team-metrics-history-chip ${historyFilter === s ? 'active' : ''}`}
+                                        onClick={(e) => { e.stopPropagation(); handleHistoryFilter(worker.workerId, s) }}
+                                      >
+                                        {s.charAt(0).toUpperCase() + s.slice(1)}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                                {historyLoading ? <div className="team-metrics-history-loading">Loading…</div> : (
+                                  workerHistory.length === 0 ? <div className="team-metrics-history-empty">No runs found</div> : (
+                                    <div className="team-metrics-history-list">
+                                      {workerHistory.map(run => (
+                                        <div key={run.id} className="team-metrics-run">
+                                          <span className={`team-metrics-run-status ${run.status}`}>{run.status}</span>
+                                          <span className="team-metrics-run-time">{formatLastRun(run.timestamp)}</span>
+                                          <span className="team-metrics-run-duration">{Math.round(run.durationMs / 1000)}s</span>
+                                          <span className="team-metrics-run-cost">${run.costUsd.toFixed(4)}</span>
+                                          {run.sessionId && <span className="team-metrics-run-session">{run.sessionId.slice(0, 8)}</span>}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>
