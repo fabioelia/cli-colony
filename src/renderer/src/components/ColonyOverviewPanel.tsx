@@ -55,6 +55,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const [idleMap, setIdleMap] = useState<Map<string, number>>(new Map())
   const [costLeaderboard, setCostLeaderboard] = useState<Array<{ name: string; id: string; cost: number }>>([])
   const [environments, setEnvironments] = useState<EnvStatus[]>([])
+  const [dailyCostBudget, setDailyCostBudget] = useState(0)
 
   useEffect(() => {
     window.api.activity.list().then(setActivity)
@@ -65,6 +66,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
     window.api.persona.getColonyCostTrend().then(setCostTrend)
     window.api.persona.healthSummary().then(setPersonaHealth)
     window.api.env.list().then(setEnvironments)
+    window.api.settings.getAll().then(s => setDailyCostBudget(parseFloat(s.dailyCostBudgetUsd) || 0))
     window.api.sessions.idleInfo().then(entries => {
       const m = new Map<string, number>()
       for (const e of entries) m.set(e.id, e.idleMs)
@@ -156,6 +158,11 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
       envPct: Math.round(envScore * 100),
     }
   }, [personas, pipelines, personaHealth, instances, environments])
+
+  const todayCost = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10)
+    return costTrend.find(d => d.date === today)?.cost || 0
+  }, [costTrend])
 
   // Track actioned attention items for brief feedback (checkmark for 3s)
   const [actionedIds, setActionedIds] = useState<Set<string>>(new Set())
@@ -264,29 +271,42 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
             <div className="overview-stat-label">Colony Health</div>
           </div>
           <div className="overview-stat-card" onClick={() => onNavigate('instances')}>
-            <div className="overview-stat-value">{formatCost(totalCost)}</div>
+            <div className={`overview-stat-value${dailyCostBudget > 0 && todayCost > dailyCostBudget ? ' stat-over-budget' : dailyCostBudget > 0 && todayCost > dailyCostBudget * 0.75 ? ' stat-warn-budget' : ''}`}>{formatCost(totalCost)}</div>
             <div className="overview-stat-label">Session Cost</div>
           </div>
         </div>
 
         {/* Daily cost trend chart */}
         {costTrend.some(d => d.cost > 0) && (() => {
-          const maxCost = Math.max(...costTrend.map(d => d.cost), 0.01)
+          const chartMax = dailyCostBudget > 0
+            ? Math.max(...costTrend.map(d => d.cost), dailyCostBudget * 1.1, 0.01)
+            : Math.max(...costTrend.map(d => d.cost), 0.01)
           const totalWeek = costTrend.reduce((s, d) => s + d.cost, 0)
+          const todayDate = new Date().toISOString().slice(0, 10)
           const dayNames = costTrend.map(d => {
             const dt = new Date(d.date + 'T12:00:00')
             return dt.toLocaleDateString(undefined, { weekday: 'short' })
           })
+          const budgetLinePct = dailyCostBudget > 0 ? Math.min((dailyCostBudget / chartMax) * 100, 100) : 0
           return (
             <div className="overview-section">
               <h3><Activity size={14} /> Daily Cost (7d) <span className="overview-cost-total">${totalWeek.toFixed(2)}</span></h3>
-              <div className="overview-cost-chart">
+              <div className="overview-cost-chart" style={{ position: 'relative' }}>
+                {dailyCostBudget > 0 && (
+                  <div className="cost-budget-line" style={{ bottom: `${budgetLinePct}%` }}>
+                    <span className="cost-budget-label">${dailyCostBudget.toFixed(0)}</span>
+                  </div>
+                )}
                 {costTrend.map((d, i) => {
-                  const pct = d.cost > 0 ? Math.max(8, (d.cost / maxCost) * 100) : 0
+                  const pct = d.cost > 0 ? Math.max(8, (d.cost / chartMax) * 100) : 0
+                  const isToday = d.date === todayDate
+                  const overBudget = dailyCostBudget > 0 && d.cost > dailyCostBudget
+                  const warnBudget = dailyCostBudget > 0 && d.cost > dailyCostBudget * 0.75 && !overBudget
+                  const barClass = `overview-cost-bar${isToday && overBudget ? ' cost-bar-over-budget' : isToday && warnBudget ? ' cost-bar-warn' : ''}`
                   return (
                     <div key={d.date} className="overview-cost-bar-col" title={`${d.date}: $${d.cost.toFixed(2)}`}>
                       <div className="overview-cost-bar-track">
-                        <div className="overview-cost-bar" style={{ height: `${pct}%` }} />
+                        <div className={barClass} style={{ height: `${pct}%` }} />
                       </div>
                       <span className="overview-cost-bar-label">{dayNames[i]}</span>
                     </div>

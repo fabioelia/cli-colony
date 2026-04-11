@@ -21,7 +21,7 @@ import { slugify, parseFrontmatter as parseRawFrontmatter, stripAnsi } from '../
 import type { PersonaInfo } from '../shared/types'
 import { JsonFile } from '../shared/json-file'
 import { appendActivity } from './activity-manager'
-import { appendRunEntry } from './persona-run-history'
+import { appendRunEntry, checkDailyCostBudget } from './persona-run-history'
 import { migrateFromMarkdown, readPersonaMemory, extractMemoryInBackground } from './persona-memory'
 import { buildPlanningPrompt, buildKickoff } from './persona-prompt-builder'
 
@@ -813,6 +813,7 @@ export async function onSessionExit(instanceId: string): Promise<void> {
           success: true, // budget_exceeded counts as success (session did real work)
           stopReason: budgetExceeded ? 'budget_exceeded' : undefined,
         })
+        checkDailyCostBudget()
         const overridePath = join(PERSONAS_DIR, `${personaId}.triggers.json`)
         let dynamicTriggers: Array<{ persona: string; message?: string }> | null = null
 

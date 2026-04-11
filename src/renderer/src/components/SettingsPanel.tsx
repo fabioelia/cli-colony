@@ -24,6 +24,7 @@ export default function SettingsPanel({ onBack }: Props) {
   })
   const [soundOnFinish, setSoundOnFinish] = useState(true)
   const [autoCleanupMinutes, setAutoCleanupMinutes] = useState('5')
+  const [dailyCostBudget, setDailyCostBudget] = useState('')
   const [globalHotkey, setGlobalHotkey] = useState('CommandOrControl+Shift+Space')
   const [hotkeyError, setHotkeyError] = useState('')
   const [availableShells, setAvailableShells] = useState<string[]>([])
@@ -99,6 +100,7 @@ export default function SettingsPanel({ onBack }: Props) {
       })
       setSoundOnFinish(s.soundOnFinish !== 'false')
       setAutoCleanupMinutes(s.autoCleanupMinutes || '5')
+      setDailyCostBudget(s.dailyCostBudgetUsd || '')
       setGlobalHotkey(s.globalHotkey || 'CommandOrControl+Shift+Space')
       setKeepInTray(s.keepInTray !== 'false')
       setWebhookEnabled(s.webhookEnabled !== 'false')
@@ -201,6 +203,7 @@ export default function SettingsPanel({ onBack }: Props) {
       window.api.settings.set('notifySystem', notifySources.system ? 'true' : 'false'),
       window.api.settings.set('soundOnFinish', soundOnFinish ? 'true' : 'false'),
       window.api.settings.set('autoCleanupMinutes', autoCleanupMinutes),
+      window.api.settings.set('dailyCostBudgetUsd', dailyCostBudget),
       window.api.settings.set('globalHotkey', globalHotkey),
       window.api.settings.set('keepInTray', keepInTray ? 'true' : 'false'),
       window.api.settings.set('webhookEnabled', webhookEnabled ? 'true' : 'false'),
@@ -463,6 +466,24 @@ export default function SettingsPanel({ onBack }: Props) {
           </div>
         </div>
         <p className="settings-help settings-help-bottom">Set to 0 to keep stopped sessions indefinitely.</p>
+        <div className="settings-row">
+          <span className="settings-row-label">Daily cost budget</span>
+          <div className="settings-row-control">
+            <span className="settings-unit">$</span>
+            <input
+              type="number"
+              min="0"
+              step="0.50"
+              placeholder="e.g. 10.00"
+              value={dailyCostBudget}
+              onChange={(e) => setDailyCostBudget(e.target.value)}
+              onBlur={() => { const v = parseFloat(dailyCostBudget); setDailyCostBudget(isNaN(v) || v <= 0 ? '' : v.toFixed(2)) }}
+              className="settings-compact-number"
+              style={{ width: 80 }}
+            />
+          </div>
+        </div>
+        <p className="settings-help settings-help-bottom">Alert when daily persona run cost exceeds this amount. Leave empty to disable.</p>
       </div>
 
       {/* MCP Server Catalog */}

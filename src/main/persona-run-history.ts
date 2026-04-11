@@ -1,6 +1,8 @@
 import { readFileSync, writeFileSync, readdirSync } from 'fs'
 import { join } from 'path'
+import { Notification } from 'electron'
 import { colonyPaths } from '../shared/colony-paths'
+import { getSettingSync } from './settings'
 import type { PersonaRunEntry, PersonaAnalytics } from '../shared/types'
 
 export interface DailyCostEntry {
@@ -116,4 +118,31 @@ export function getColonyCostTrend(): DailyCostEntry[] {
     result.push({ date, cost })
   }
   return result
+}
+
+/** Check if today's persona cost exceeds the daily budget and send a one-time notification. */
+export function checkDailyCostBudget(): void {
+  const budgetStr = getSettingSync('dailyCostBudgetUsd')
+  const budget = parseFloat(budgetStr)
+  if (!budget || budget <= 0) return
+
+  // Get today's cost from the trend
+  const trend = getColonyCostTrend()
+  const today = new Date().toISOString().slice(0, 10)
+  const todayCost = trend.find(d => d.date === today)?.cost || 0
+  if (todayCost <= budget) return
+
+  // Dedup: only notify once per day
+  const flagPath = join(colonyPaths.root, '.cost-alert-date')
+  try {
+    const lastDate = readFileSync(flagPath, 'utf-8').trim()
+    if (lastDate === today) return
+  } catch { /* first alert or file missing */ }
+
+  try { writeFileSync(flagPath, today, 'utf-8') } catch { /* non-fatal */ }
+
+  new Notification({
+    title: 'Colony Daily Cost Budget Exceeded',
+    body: `Today's persona run cost ($${todayCost.toFixed(2)}) exceeds your daily budget ($${budget.toFixed(2)}).`,
+  }).show()
 }

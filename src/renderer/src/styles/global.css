@@ -19326,6 +19326,18 @@ body:has(.daemon-update-banner) .app-update-banner {
   transition: opacity 0.15s;
 }
 .overview-cost-bar-col:hover .overview-cost-bar { opacity: 1; }
+.overview-cost-bar.cost-bar-warn { background: var(--warning); }
+.overview-cost-bar.cost-bar-over-budget { background: var(--danger); }
+.cost-budget-line {
+  position: absolute; left: 0; right: 0; z-index: 1; pointer-events: none;
+  border-top: 1px dashed var(--warning); opacity: 0.7;
+}
+.cost-budget-label {
+  position: absolute; right: 0; top: -14px;
+  font-size: 9px; color: var(--warning); opacity: 0.8;
+}
+.stat-over-budget { color: var(--danger) !important; }
+.stat-warn-budget { color: var(--warning) !important; }
 .overview-cost-bar-label {
   font-size: 9px;
   color: var(--text-muted);

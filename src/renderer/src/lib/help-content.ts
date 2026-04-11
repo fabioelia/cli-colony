@@ -119,8 +119,8 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Pipelines Enabled', detail: 'Number of pipelines with automation turned on.' },
           { label: 'Environments', detail: 'Running vs. total environment count. Amber when any environment is in partial/creating state, red when any is in error state. Click to navigate to the Environments panel.', icon: 'FolderOpen' },
           { label: 'Colony Health', detail: 'Composite health score (0–100%). Weighted: persona last-run success (35%), pipeline error-free (25%), session health (25%), environment health (15%). Green ≥80%, amber 50–79%, red <50%. Click to scroll to Needs Attention. Hover for per-component breakdown.' },
-          { label: 'Session Cost', detail: 'Total cost across all current sessions.' },
-          { label: 'Daily Cost (7d)', detail: 'A 7-day bar chart showing total cost across all persona runs per day. Hover a bar to see the exact date and amount. Only appears when there is cost data.', icon: 'Activity' },
+          { label: 'Session Cost', detail: 'Total cost across all current sessions. Text turns amber at 75% of daily cost budget, red when exceeded.' },
+          { label: 'Daily Cost (7d)', detail: 'A 7-day bar chart showing total cost across all persona runs per day. Hover a bar to see the exact date and amount. When a daily cost budget is set, a dashed line shows the threshold and today\'s bar turns amber (75%) or red (exceeded).', icon: 'Activity' },
           { label: 'Top Spenders (7d)', detail: 'Ranked list of personas by 7-day cost. Shows persona name, percentage of total, a proportional bar, and dollar amount. Top 10 shown. Click any row to navigate to the Personas panel. Hidden when no persona has cost data.', icon: 'BarChart3' },
         ],
       },
@@ -751,6 +751,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Desktop notifications', detail: 'Show system notifications for pipeline fires, approval gates, and persona run start/complete events. Per-source toggles appear below when enabled — mute noisy sources (e.g. pipelines) while keeping important ones (e.g. approval gates).' },
           { label: 'Sound on finish', detail: 'Play a sound when Claude finishes processing and the app isn\'t focused.' },
           { label: 'Auto-cleanup', detail: 'Remove stopped sessions after N minutes. Set to 0 to keep them forever.' },
+          { label: 'Daily cost budget', detail: 'Set a daily dollar limit for persona run costs. When exceeded, a desktop notification fires (once per day). The overview cost chart shows a dashed budget line and today\'s bar turns amber/red. Leave empty to disable.' },
         ],
       },
       {
