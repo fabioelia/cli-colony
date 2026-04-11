@@ -600,26 +600,23 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   app.isQuitting = true
-  // Snapshot running sessions BEFORE disconnect so we know what to restore
-  snapshotRunningSync()
-  // Stop webhook HTTP server
-  stopWebhookServer()
-  // Tear down auto-updater timers
-  shutdownAppUpdater()
-  // Stop persona watcher, scheduler, and env polling (prevent firing after quit)
-  stopPersonaWatcher()
-  stopPersonaScheduler()
-  stopEnvWatching()
-  stopTasksBoardWatcher()
-  stopPipelines()
-  stopBatchScheduler()
-  // Just disconnect — daemon keeps instances alive for reconnection
-  disconnectDaemon()
+  // Each cleanup call is independently try-caught so one failure
+  // doesn't skip the rest (e.g. snapshot must save, daemon must disconnect)
+  try { snapshotRunningSync() } catch (e) { console.error('[quit] snapshotRunningSync:', e) }
+  try { stopWebhookServer() } catch (e) { console.error('[quit] stopWebhookServer:', e) }
+  try { shutdownAppUpdater() } catch (e) { console.error('[quit] shutdownAppUpdater:', e) }
+  try { stopPersonaWatcher() } catch (e) { console.error('[quit] stopPersonaWatcher:', e) }
+  try { stopPersonaScheduler() } catch (e) { console.error('[quit] stopPersonaScheduler:', e) }
+  try { stopEnvWatching() } catch (e) { console.error('[quit] stopEnvWatching:', e) }
+  try { stopTasksBoardWatcher() } catch (e) { console.error('[quit] stopTasksBoardWatcher:', e) }
+  try { stopPipelines() } catch (e) { console.error('[quit] stopPipelines:', e) }
+  try { stopBatchScheduler() } catch (e) { console.error('[quit] stopBatchScheduler:', e) }
+  try { disconnectDaemon() } catch (e) { console.error('[quit] disconnectDaemon:', e) }
 })
 
 app.on('will-quit', () => {
-  globalShortcut.unregisterAll()
-  killAllShells()
+  try { globalShortcut.unregisterAll() } catch (e) { console.error('[quit] unregisterAll:', e) }
+  try { killAllShells() } catch (e) { console.error('[quit] killAllShells:', e) }
 })
 
 declare global {

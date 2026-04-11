@@ -45,7 +45,14 @@ export async function runSetup(
   getTemplate: (id: string) => Promise<EnvironmentTemplate | null>,
 ): Promise<void> {
   const manifestPath = path.join(envDir, 'instance.json')
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as InstanceManifest
+  let manifest: InstanceManifest
+  try {
+    manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as InstanceManifest
+  } catch (err) {
+    console.error(`[env-setup] Failed to read manifest at ${manifestPath}:`, err)
+    broadcast('env:status', { envId: path.basename(envDir), status: 'error' })
+    return
+  }
   const envId = manifest.id
 
   let hasStepError = false
