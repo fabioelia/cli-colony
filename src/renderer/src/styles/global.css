@@ -7298,6 +7298,30 @@ body:has(.daemon-update-banner) .app-update-banner {
   gap: 3px;
 }
 
+.review-file-revert-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  margin-left: auto;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.review-file-row:hover .review-file-revert-btn {
+  opacity: 1;
+}
+.review-file-revert-btn:hover {
+  color: var(--danger);
+  background: var(--bg-tertiary);
+}
+.review-file-revert-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
 .review-push-confirm {
   padding: 8px 16px;
   background: rgba(245, 158, 11, 0.08);

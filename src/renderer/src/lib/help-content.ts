@@ -1471,6 +1471,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Commit', detail: 'Open the commit dialog for this session. Stage files, write a message, and optionally push — without leaving the review dashboard.', icon: 'GitCommit' },
           { label: 'Open in terminal', detail: 'Jump to this session in the Sessions view.', icon: 'Terminal' },
           { label: 'Copy branch', detail: 'Copy the branch name to clipboard.', icon: 'Copy' },
+          { label: 'Revert all', detail: 'Discard all uncommitted changes for this session. Confirmation required — this cannot be undone.', icon: 'Undo2' },
         ],
       },
       {
@@ -1481,6 +1482,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'File path', detail: 'Full path of the changed file in monospace font. Click to expand inline diff.' },
           { label: 'Inline diff', detail: 'Click any file row to expand a line-level diff with syntax highlighting (auto-detected from file extension). Toggle Unified/Split view in the toolbar — Split shows old vs. new side-by-side. Lazy-loaded and cached per session.' },
           { label: 'Insertions / Deletions', detail: 'Per-file line counts: green for additions, red for removals.' },
+          { label: 'Revert file', detail: 'Undo changes to a single file (git checkout). Appears on hover. Confirmation required — cannot be undone. Disabled for untracked files.', icon: 'Undo2' },
         ],
       },
       {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { GitCompare, RefreshCw, ChevronDown, ChevronRight, Terminal, GitBranch, Copy, Filter, RotateCw, Clock, GitCommit, Upload, AlertTriangle } from 'lucide-react'
+import { GitCompare, RefreshCw, ChevronDown, ChevronRight, Terminal, GitBranch, Copy, Filter, RotateCw, Clock, GitCommit, Upload, AlertTriangle, Undo2 } from 'lucide-react'
 import type { ClaudeInstance } from '../types'
 import type { GitDiffEntry } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
@@ -45,6 +45,8 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
   const reviewDiffCache = useRef<Record<string, string>>({})
   const [refreshing, setRefreshing] = useState(false)
   const [copiedBranch, setCopiedBranch] = useState<string | null>(null)
+  const [revertingFile, setRevertingFile] = useState<string | null>(null)
+  const [revertingAllSession, setRevertingAllSession] = useState<string | null>(null)
   const [commitSession, setCommitSession] = useState<SessionChanges | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const initialLoadDone = useRef(false)
@@ -193,6 +195,29 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
     setCopiedBranch(branch)
     setTimeout(() => setCopiedBranch(null), 1500)
   }
+
+  const handleRevertFile = useCallback(async (dir: string, file: string) => {
+    if (!window.confirm(`Revert "${file}"? This cannot be undone.`)) return
+    const key = `${dir}:${file}`
+    setRevertingFile(key)
+    try {
+      await window.api.session.gitRevert(dir, file)
+    } finally {
+      setRevertingFile(null)
+      loadAllChanges()
+    }
+  }, [loadAllChanges])
+
+  const handleRevertAll = useCallback(async (session: SessionChanges) => {
+    if (!window.confirm(`Revert all ${session.entries.length} changed file(s) in "${session.name}"? This cannot be undone.`)) return
+    setRevertingAllSession(session.instanceId)
+    try {
+      await Promise.all(session.entries.map(e => window.api.session.gitRevert(session.dir, e.file).catch(() => {})))
+    } finally {
+      setRevertingAllSession(null)
+      loadAllChanges()
+    }
+  }, [loadAllChanges])
 
   const toggleCommitDiff = useCallback(async (hash: string) => {
     if (expandedCommitHash === hash) {
@@ -430,6 +455,17 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
                       <GitCommit size={12} />
                     </button>
                   )}
+                  {session.entries.length > 0 && (
+                    <button
+                      className="changes-refresh-btn"
+                      title="Revert all changes"
+                      onClick={() => handleRevertAll(session)}
+                      disabled={revertingAllSession === session.instanceId}
+                      style={{ color: revertingAllSession === session.instanceId ? undefined : 'var(--danger)' }}
+                    >
+                      <Undo2 size={12} className={revertingAllSession === session.instanceId ? 'spinning' : ''} />
+                    </button>
+                  )}
                   <button
                     className="changes-refresh-btn"
                     title="Open in terminal"
@@ -480,6 +516,14 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
                             {entry.insertions > 0 && entry.deletions > 0 && ' '}
                             {entry.deletions > 0 && <span style={{ color: 'var(--danger)' }}>-{entry.deletions}</span>}
                           </span>
+                          <button
+                            className="review-file-revert-btn"
+                            title={entry.status === '?' ? 'Cannot revert untracked files' : `Revert ${entry.file}`}
+                            onClick={(e) => { e.stopPropagation(); handleRevertFile(session.dir, entry.file) }}
+                            disabled={revertingFile === `${session.dir}:${entry.file}` || entry.status === '?'}
+                          >
+                            <Undo2 size={10} className={revertingFile === `${session.dir}:${entry.file}` ? 'spinning' : ''} />
+                          </button>
                         </div>
                         {isExpanded && (
                           <div className="changes-diff-container">
