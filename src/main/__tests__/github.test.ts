@@ -913,12 +913,12 @@ describe('github module', () => {
     })
   })
 
-  // ---- shallowCloneRepo ----
+  // ---- ensureBareClone ----
 
-  describe('shallowCloneRepo', () => {
+  describe('ensureBareClone', () => {
     it('delegates to ensureBareRepo with correct remote URL', async () => {
       mockGitRemoteUrl.mockReturnValue('git@github.com:test/repo.git')
-      await mod.shallowCloneRepo({ owner: 'test', name: 'repo' })
+      await mod.ensureBareClone({ owner: 'test', name: 'repo' })
       expect(mockEnsureBareRepo).toHaveBeenCalledWith('test', 'repo', 'git@github.com:test/repo.git')
     })
   })

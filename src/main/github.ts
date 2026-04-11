@@ -532,7 +532,7 @@ export function addRepo(repo: GitHubRepo): GitHubRepo[] {
  * Ensure a bare repo exists for the given repo, creating it if needed.
  * This is the unified entry point — all repo cloning goes through bare repos now.
  */
-export async function shallowCloneRepo(repo: GitHubRepo): Promise<void> {
+export async function ensureBareClone(repo: GitHubRepo): Promise<void> {
   const remoteUrl = await gitRemoteUrl(repo.owner, repo.name)
   await ensureBareRepoWorktree(repo.owner, repo.name, remoteUrl)
 }

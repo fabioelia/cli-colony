@@ -479,7 +479,7 @@ app.whenReady().then(async () => {
   console.log('[app] Claude Colony starting up')
 
   // Clean up fork groups from previous run
-  try { cleanupStaleForkGroups() } catch { /* ignore */ }
+  try { cleanupStaleForkGroups() } catch (err) { console.warn('[app] cleanupStaleForkGroups failed:', err) }
 
   // Set dock icon on macOS
   if (process.platform === 'darwin') {
@@ -532,7 +532,7 @@ app.whenReady().then(async () => {
       const cliDst = join(binDir, 'colony')
       fs.writeFileSync(cliDst, COLONY_CLI_SCRIPT, 'utf-8')
       fs.chmodSync(cliDst, 0o755)
-    } catch { /* ignore */ }
+    } catch (err) { console.warn('[app] colony CLI install failed:', err) }
     // Ensure all repos have bare clones, then pre-warm .colony/ config cache
     ensureRepoClones().catch(() => { /* ignore */ })
     refreshRepoConfigs().catch(() => { /* ignore */ })
@@ -555,7 +555,7 @@ app.whenReady().then(async () => {
       startPersonaWatcher()
       startPersonaScheduler()
       initTriggerWatcher(runPersona, getPersonaList, addWhisper)
-    } catch { /* ignore */ }
+    } catch (err) { console.warn('[app] persona/scheduler init failed:', err) }
   }).catch((err) => {
     console.error('[app] daemon init failed:', err)
     broadcast('daemon:connection-failed', { error: err instanceof Error ? err.message : String(err) })

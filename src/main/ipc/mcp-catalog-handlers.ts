@@ -14,7 +14,7 @@ export function registerMcpCatalogHandlers(): void {
       catalog.push(server)
     }
     await writeCatalog(catalog)
-    return readCatalog()
+    return catalog
   })
 
   ipcMain.handle('mcp:delete', async (_e, name: string) => {

@@ -553,20 +553,8 @@ async function listEnvironmentsFromDisk(): Promise<EnvStatus[]> {
       else if (running === total) status = 'running'
       else status = 'partial'
 
-      // Resolve live git branch from the first repo subdirectory
-      let liveBranch = manifest.git?.branch || ''
-      try {
-        const entries = await fsp.readdir(envDir, { withFileTypes: true })
-        for (const entry of entries) {
-          if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === 'logs') continue
-          const subdir = path.join(envDir, entry.name)
-          try {
-            const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: subdir, encoding: 'utf-8', timeout: 2000 })
-            liveBranch = stdout.trim()
-            break
-          } catch { /* not a git repo, try next */ }
-        }
-      } catch { /* can't read dir */ }
+      // Use branch from manifest — avoids N sequential git probes in the fallback path
+      const liveBranch = manifest.git?.branch || ''
 
       results.push({
         id: manifest.id,

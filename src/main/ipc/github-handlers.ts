@@ -6,7 +6,7 @@ import {
   checkGhAuth, fetchPRs, fetchPRFiles, postPRComment, fetchIssues, createIssue, getRepos, addRepo, removeRepo, getRemovalImpact,
   updateRepoPath, getPrompts, savePrompts, resolvePrompt, writePrContext,
   getPrMemory, savePrMemory, getPrMemoryPath, getPrWorkspacePath,
-  fetchChecks, fetchCheckLogs, shallowCloneRepo,
+  fetchChecks, fetchCheckLogs, ensureBareClone,
   getGitHubUser, fetchFeedbackFiles,
 } from '../github'
 import type { GitHubRepo, QuickPrompt, GitHubPR } from '../github'
@@ -17,7 +17,7 @@ export function registerGitHubHandlers(): void {
   ipcMain.handle('github:getRepos', () => getRepos())
   ipcMain.handle('github:addRepo', (_e, repo: GitHubRepo) => addRepo(repo))
   ipcMain.handle('github:cloneRepo', async (_e, repo: GitHubRepo) => {
-    await shallowCloneRepo(repo)
+    await ensureBareClone(repo)
     return true
   })
   ipcMain.handle('github:removeRepo', (_e, owner: string, name: string) => removeRepo(owner, name))
