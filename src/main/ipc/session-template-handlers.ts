@@ -58,11 +58,18 @@ export function registerSessionTemplateHandlers(): void {
     if (template.permissionMode) {
       args.push('--permission-mode', template.permissionMode)
     }
+    if (template.agent) {
+      args.push('--agent', template.agent)
+    }
 
     const inst = await createInstance({
       name: template.name,
       workingDirectory: workingDir,
       args: args.length > 0 ? args : undefined,
+      color: template.color,
+      cliBackend: template.cliBackend,
+      mcpServers: template.mcpServers,
+      env: template.envVars,
     })
 
     // Set role if present

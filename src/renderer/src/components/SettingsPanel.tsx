@@ -1124,6 +1124,10 @@ export default function SettingsPanel({ onBack }: Props) {
                     <div className="session-template-item-meta">
                       {t.model && <span className="template-popover-model">{t.model}</span>}
                       {t.role && <span className={`instance-role-badge role-${t.role.toLowerCase()}`}>{t.role}</span>}
+                      {t.cliBackend && t.cliBackend !== 'claude' && <span className="template-popover-model">{t.cliBackend}</span>}
+                      {t.mcpServers && t.mcpServers.length > 0 && <span className="template-popover-model">MCP: {t.mcpServers.length}</span>}
+                      {t.agent && <span className="template-popover-model">Agent</span>}
+                      {t.color && <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: t.color, verticalAlign: 'middle' }} />}
                       {t.workingDir && <span className="session-template-item-dir">{t.workingDir}</span>}
                       {t.lastUsed != null && (
                         <span title={new Date(t.lastUsed).toLocaleString()}>

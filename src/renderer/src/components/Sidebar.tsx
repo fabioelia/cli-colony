@@ -1927,6 +1927,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                 if (!inst) { setContextMenu(null); return }
                 const id = Date.now().toString(36) + Math.random().toString(36).slice(2)
                 const mi = inst.args.indexOf('--model')
+                const ai = inst.args.indexOf('--agent')
                 const template: SessionTemplate = {
                   id,
                   name: inst.name,
@@ -1934,6 +1935,10 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                   role: inst.roleTag ?? undefined,
                   model: mi >= 0 ? inst.args[mi + 1] : undefined,
                   permissionMode: inst.permissionMode,
+                  color: inst.color,
+                  cliBackend: inst.cliBackend !== 'claude' ? inst.cliBackend : undefined,
+                  mcpServers: inst.mcpServers.length > 0 ? [...inst.mcpServers] : undefined,
+                  agent: ai >= 0 ? inst.args[ai + 1] : undefined,
                   lastUsed: Date.now(),
                   launchCount: 0,
                 }

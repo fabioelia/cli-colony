@@ -510,6 +510,11 @@ export interface SessionTemplate {
   planFirst?: boolean
   lastUsed?: number
   launchCount?: number
+  color?: string
+  cliBackend?: CliBackend
+  mcpServers?: string[]
+  agent?: string       // --agent file path
+  envVars?: Record<string, string>
 }
 
 export interface OutputEntry {
