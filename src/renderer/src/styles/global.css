@@ -16927,7 +16927,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .persona-memory-situation { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; font-size: 11px; }
 .persona-memory-status { font-size: 10px; padding: 1px 5px; border-radius: 3px; font-weight: 600; flex-shrink: 0; text-transform: uppercase; }
 .persona-memory-status.delegated { background: rgba(59,130,246,0.15); color: var(--accent); }
-.persona-memory-status.pending { background: rgba(245,158,11,0.15); color: #f59e0b; }
+.persona-memory-status.pending { background: rgba(245,158,11,0.15); color: var(--warning); }
 .persona-memory-status.done { background: rgba(16,185,129,0.15); color: var(--success); }
 .persona-memory-status.blocked { background: rgba(239,68,68,0.15); color: var(--danger); }
 .persona-memory-text { color: var(--text-primary); line-height: 1.4; }
