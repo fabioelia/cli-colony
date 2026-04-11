@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useFileDrop } from '../hooks/useFileDrop'
-import { ArrowLeft, Plus, Trash2, RefreshCw, GitPullRequest, ExternalLink, Play, Pencil, ChevronDown, ChevronRight, MessageSquare, Send, User, Users, Eye, GitBranch, Clock, FileDiff, ShieldCheck, ShieldAlert, ShieldQuestion, Brain, Save, X, FileText, File, Filter, Search, CheckCircle, XCircle, Loader, CircleDot, Wrench, Download, AlertCircle, UserPlus } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, RefreshCw, GitPullRequest, ExternalLink, Play, Pencil, ChevronDown, ChevronRight, MessageSquare, Send, User, Users, Eye, GitBranch, Clock, FileDiff, ShieldCheck, ShieldAlert, ShieldQuestion, Brain, Save, X, FileText, File, Filter, Search, CheckCircle, XCircle, Loader, CircleDot, Wrench, Download, AlertCircle, UserPlus, GitMerge } from 'lucide-react'
 import RepoRemovalModal, { type RemovalImpact } from './RepoRemovalModal'
 import PromptEnvironmentSelector from './PromptEnvironmentSelector'
 import MarkdownViewer from './MarkdownViewer'
@@ -158,6 +158,11 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
 
   // Feedback files per PR (keyed by "owner/name#number")
   const [feedbackByPR, setFeedbackByPR] = useState<Record<string, FeedbackFile[]>>({})
+
+  // Merge PR state
+  const [mergingPR, setMergingPR] = useState<Set<string>>(new Set())
+  const [mergeConfirm, setMergeConfirm] = useState<string | null>(null) // prKey showing method picker
+  const [mergeError, setMergeError] = useState<Record<string, string>>({})
 
   // Prompt Environment Selector modal
   const [showEnvSelector, setShowEnvSelector] = useState(false)
@@ -1119,11 +1124,26 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                                 )
                                 return <span className="github-pr-ci pending" title="Checks in progress"><CircleDot size={11} /> CI</span>
                               })()}
-                              {/* Merge readiness badge */}
+                              {/* Merge readiness badge + merge button */}
                               {checksByPR[prKey] && !pr.draft && pr.reviewDecision === 'APPROVED' && checksByPR[prKey].overall === 'success' && (
-                                <span className="github-pr-merge-ready" title="Ready to merge">
-                                  <CheckCircle size={11} /> Ready
-                                </span>
+                                <>
+                                  <span className="github-pr-merge-ready" title="Ready to merge">
+                                    <CheckCircle size={11} /> Ready
+                                  </span>
+                                  <button
+                                    className={`github-pr-merge-btn${mergeConfirm === prKey ? ' active' : ''}`}
+                                    title="Merge this PR"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setMergeConfirm(mergeConfirm === prKey ? null : prKey)
+                                      setMergeError((prev) => { const n = { ...prev }; delete n[prKey]; return n })
+                                    }}
+                                    disabled={mergingPR.has(prKey)}
+                                  >
+                                    {mergingPR.has(prKey) ? <Loader size={11} className="spin" /> : <GitMerge size={11} />}
+                                    {mergingPR.has(prKey) ? ' Merging…' : ' Merge'}
+                                  </button>
+                                </>
                               )}
                               {checksByPR[prKey] && pr.reviewDecision === 'CHANGES_REQUESTED' && (
                                 <span className="github-pr-merge-blocked" title="Changes requested — not mergeable">
@@ -1184,6 +1204,41 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                             <ExternalLink size={13} />
                           </button>
                         </div>
+                        {mergeConfirm === prKey && (
+                          <div className="github-merge-popover" onClick={(e) => e.stopPropagation()}>
+                            <div className="github-merge-header">
+                              <GitMerge size={11} /> Merge PR #{pr.number}
+                              <button className="github-dispatch-close" onClick={() => setMergeConfirm(null)} title="Close"><X size={12} /></button>
+                            </div>
+                            <div className="github-merge-methods">
+                              {(['squash', 'merge', 'rebase'] as const).map((method) => (
+                                <button
+                                  key={method}
+                                  className="github-merge-method-btn"
+                                  disabled={mergingPR.has(prKey)}
+                                  onClick={async () => {
+                                    setMergingPR((prev) => new Set(prev).add(prKey))
+                                    setMergeError((prev) => { const n = { ...prev }; delete n[prKey]; return n })
+                                    try {
+                                      await window.api.github.mergePR(repo, pr.number, method)
+                                      setMergeConfirm(null)
+                                      fetchPRsForRepo(repo)
+                                    } catch (err: any) {
+                                      setMergeError((prev) => ({ ...prev, [prKey]: err.message || 'Merge failed' }))
+                                    } finally {
+                                      setMergingPR((prev) => { const n = new Set(prev); n.delete(prKey); return n })
+                                    }
+                                  }}
+                                >
+                                  {method === 'squash' ? 'Squash & merge' : method === 'merge' ? 'Merge commit' : 'Rebase & merge'}
+                                </button>
+                              ))}
+                            </div>
+                            {mergeError[prKey] && (
+                              <div className="github-merge-error"><AlertCircle size={11} /> {mergeError[prKey]}</div>
+                            )}
+                          </div>
+                        )}
                         {dispatchingPRKey === prKey && (
                           <div className="github-dispatch-popover" onClick={(e) => e.stopPropagation()}>
                             <div className="github-dispatch-header">

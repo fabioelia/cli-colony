@@ -10005,6 +10005,75 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: rgba(16, 185, 129, 0.12);
   white-space: nowrap;
 }
+/* Merge button on Ready PRs */
+.github-pr-merge-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 7px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--success);
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+.github-pr-merge-btn:hover { opacity: 0.85; }
+.github-pr-merge-btn.active { background: var(--accent); }
+.github-pr-merge-btn:disabled { opacity: 0.6; cursor: default; }
+.github-pr-merge-btn .spin { animation: spin 1s linear infinite; }
+
+/* Merge method popover */
+.github-merge-popover {
+  padding: 8px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin: 4px 0 2px 0;
+}
+.github-merge-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+.github-merge-methods {
+  display: flex;
+  gap: 4px;
+}
+.github-merge-method-btn {
+  flex: 1;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.github-merge-method-btn:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.github-merge-method-btn:disabled { opacity: 0.5; cursor: default; }
+.github-merge-error {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--danger);
+}
+
 .github-pr-merge-blocked {
   display: inline-flex;
   align-items: center;

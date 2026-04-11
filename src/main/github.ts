@@ -184,6 +184,14 @@ export async function fetchPRs(repo: GitHubRepo): Promise<GitHubPR[]> {
   return prs
 }
 
+/** Merge a pull request using the gh CLI. */
+export async function mergePR(
+  repo: GitHubRepo, prNumber: number,
+  method: 'merge' | 'squash' | 'rebase'
+): Promise<void> {
+  await gh(['pr', 'merge', String(prNumber), '--repo', `${repo.owner}/${repo.name}`, `--${method}`])
+}
+
 /** Post a general comment on a PR (uses the Issues API endpoint). */
 export async function postPRComment(repo: GitHubRepo, prNumber: number, body: string): Promise<PRComment> {
   const slug = `${repo.owner}/${repo.name}`

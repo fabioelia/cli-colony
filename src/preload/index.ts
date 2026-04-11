@@ -191,6 +191,7 @@ export interface ClaudeManagerAPI {
     fetchPRFiles: (repo: GitHubRepo, prNumber: number) => Promise<import('../shared/types').PRFile[]>
     postPRComment: (repo: GitHubRepo, prNumber: number, body: string) => Promise<import('../shared/types').PRComment>
     submitReview: (repo: GitHubRepo, prNumber: number, event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT', body?: string) => Promise<void>
+    mergePR: (repo: GitHubRepo, prNumber: number, method: 'merge' | 'squash' | 'rebase') => Promise<void>
     fetchIssues: (repo: GitHubRepo) => Promise<GitHubIssue[]>
     createIssue: (repo: GitHubRepo, title: string, body: string, labels: string[]) => Promise<GitHubIssue>
   }
@@ -691,6 +692,7 @@ const api: ClaudeManagerAPI = {
     fetchPRFiles: (repo, prNumber) => ipcRenderer.invoke('github:fetchPRFiles', repo, prNumber),
     postPRComment: (repo, prNumber, body) => ipcRenderer.invoke('github:postPRComment', repo, prNumber, body),
     submitReview: (repo, prNumber, event, body) => ipcRenderer.invoke('github:submitReview', repo, prNumber, event, body),
+    mergePR: (repo, prNumber, method) => ipcRenderer.invoke('github:mergePR', repo, prNumber, method),
     fetchIssues: (repo) => ipcRenderer.invoke('github:fetchIssues', repo),
     createIssue: (repo, title, body, labels) => ipcRenderer.invoke('github:createIssue', repo, title, body, labels),
   },
