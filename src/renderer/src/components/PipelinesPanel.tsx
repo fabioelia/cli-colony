@@ -6,7 +6,7 @@ import {
   FileText, Clock, CheckCircle, XCircle, AlertTriangle, Save, BookOpen,
   MessageSquare, Send, Plus, Search, Pencil, Eye, X, LayoutList, LayoutGrid,
   ShieldCheck, List, Globe, Wand2, ArrowRight, ArrowLeft, Hourglass, ArrowUpDown,
-  GitPullRequest, GitMerge, GitBranch, Sparkles, RotateCw, Copy, Timer,
+  GitPullRequest, GitMerge, GitBranch, Sparkles, RotateCw, Copy, Timer, Activity,
 } from 'lucide-react'
 import type { AuditResult, GitHubRepo } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
@@ -157,6 +157,8 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [sortBy, setSortBy] = useState<'name' | 'lastFired' | 'fireCount' | 'enabled'>(() =>
     (localStorage.getItem('pipelines-sort') as 'name' | 'lastFired' | 'fireCount' | 'enabled') || 'name'
   )
+  const [healthView, setHealthView] = useState(() => localStorage.getItem('pipelines-health-view') === '1')
+  const [successRates, setSuccessRates] = useState<Map<string, number | null>>(new Map())
 
   // 60s tick for next-run countdown refresh
   const [, setTick] = useState(0)
@@ -232,6 +234,27 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     const unsub = window.api.pipeline.onStatus((list) => setPipelines(list))
     return unsub
   }, [loadPipelines])
+
+  // Fetch success rates for health view
+  useEffect(() => {
+    if (!healthView || pipelines.length === 0) return
+    let cancelled = false
+    const fetchRates = async () => {
+      const rates = new Map<string, number | null>()
+      await Promise.all(pipelines.map(async (p) => {
+        try {
+          const history = await window.api.pipeline.getHistory(p.name)
+          if (history.length === 0) { rates.set(p.name, null); return }
+          const last10 = history.slice(-10)
+          const successes = last10.filter(e => e.success).length
+          rates.set(p.name, Math.round((successes / last10.length) * 100))
+        } catch { rates.set(p.name, null) }
+      }))
+      if (!cancelled) setSuccessRates(rates)
+    }
+    fetchRates()
+    return () => { cancelled = true }
+  }, [healthView, pipelines])
 
   // Load pipelines dir + last audit run
   useEffect(() => {
@@ -346,6 +369,24 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     }
     return sorted
   }, [pipelines, sortBy])
+
+  // Health view: sorted by failures desc, then fire count desc
+  const healthPipelines = useMemo(() => {
+    return [...pipelines].sort((a, b) => {
+      const af = a.consecutiveFailures ?? 0
+      const bf = b.consecutiveFailures ?? 0
+      if (bf !== af) return bf - af
+      return b.fireCount - a.fireCount
+    })
+  }, [pipelines])
+
+  const healthAggregate = useMemo(() => {
+    const total = pipelines.length
+    const healthy = pipelines.filter(p => (p.consecutiveFailures ?? 0) === 0).length
+    const totalFires = pipelines.reduce((s, p) => s + p.fireCount, 0)
+    const totalErrors = pipelines.filter(p => (p.consecutiveFailures ?? 0) > 0).length
+    return { total, healthy, totalFires, totalErrors }
+  }, [pipelines])
 
   const handleExpand = async (p: PipelineInfo) => {
     if (expandedPipeline === p.name) {
@@ -556,15 +597,17 @@ action:
       <div className="panel-header">
         <h2><Zap size={16} /> Pipelines</h2>
         <div className="panel-header-spacer" />
-        <div className="persona-sort-dropdown">
-          <ArrowUpDown size={11} />
-          <select value={sortBy} onChange={(e) => { setSortBy(e.target.value as typeof sortBy); localStorage.setItem('pipelines-sort', e.target.value) }}>
-            <option value="name">Name</option>
-            <option value="lastFired">Last Fired</option>
-            <option value="fireCount">Most Active</option>
-            <option value="enabled">Enabled First</option>
-          </select>
-        </div>
+        {!healthView && (
+          <div className="persona-sort-dropdown">
+            <ArrowUpDown size={11} />
+            <select value={sortBy} onChange={(e) => { setSortBy(e.target.value as typeof sortBy); localStorage.setItem('pipelines-sort', e.target.value) }}>
+              <option value="name">Name</option>
+              <option value="lastFired">Last Fired</option>
+              <option value="fireCount">Most Active</option>
+              <option value="enabled">Enabled First</option>
+            </select>
+          </div>
+        )}
         <HelpPopover topic="pipelines" align="right" />
         <div className="panel-header-actions">
           <button className="panel-header-btn primary" onClick={openAutomationWizard} title="Create a new automation with a step-by-step wizard">
@@ -574,12 +617,21 @@ action:
             <Sparkles size={12} /> AI Generate
           </button>
           <button
-            className={`panel-header-btn${listMode ? ' active' : ''}`}
-            title={listMode ? 'Switch to card view' : 'Switch to list view'}
-            onClick={() => { const next = !listMode; setListMode(next); localStorage.setItem('pipelines-list-mode', next ? '1' : '0') }}
+            className={`panel-header-btn${healthView ? ' active' : ''}`}
+            title={healthView ? 'Switch to pipeline list' : 'Show health dashboard'}
+            onClick={() => { const next = !healthView; setHealthView(next); localStorage.setItem('pipelines-health-view', next ? '1' : '0') }}
           >
-            {listMode ? <LayoutGrid size={13} /> : <LayoutList size={13} />}
+            <Activity size={13} />
           </button>
+          {!healthView && (
+            <button
+              className={`panel-header-btn${listMode ? ' active' : ''}`}
+              title={listMode ? 'Switch to card view' : 'Switch to list view'}
+              onClick={() => { const next = !listMode; setListMode(next); localStorage.setItem('pipelines-list-mode', next ? '1' : '0') }}
+            >
+              {listMode ? <LayoutGrid size={13} /> : <LayoutList size={13} />}
+            </button>
+          )}
           <button className="panel-header-btn" onClick={handleReload} title="Reload all pipeline files">
             <RefreshCw size={12} /> Reload
           </button>
@@ -677,7 +729,59 @@ action:
         />
       )}
 
-      <div className={`pipelines-list${listMode ? ' list-mode' : ''}`}>
+      {healthView && pipelines.length > 0 && (
+        <div className="pipeline-health-table">
+          <div className="pipeline-health-aggregate">
+            {healthAggregate.healthy}/{healthAggregate.total} healthy · {healthAggregate.totalFires} total fires · {healthAggregate.totalErrors} error{healthAggregate.totalErrors !== 1 ? 's' : ''}
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Pipeline</th>
+                <th>Status</th>
+                <th>Last Fired</th>
+                <th>Fires</th>
+                <th>Failures</th>
+                <th>Success Rate</th>
+                <th>Last Error</th>
+              </tr>
+            </thead>
+            <tbody>
+              {healthPipelines.map(p => {
+                const failures = p.consecutiveFailures ?? 0
+                const rate = successRates.get(p.name)
+                const lastFiredAgo = p.lastFiredAt ? (() => {
+                  const secs = (Date.now() - new Date(p.lastFiredAt!).getTime()) / 1000
+                  if (secs < 60) return 'just now'
+                  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`
+                  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`
+                  return `${Math.floor(secs / 86400)}d ago`
+                })() : '—'
+                return (
+                  <tr
+                    key={p.name}
+                    className={failures > 0 ? 'health-row-failing' : ''}
+                    onClick={() => { setHealthView(false); localStorage.setItem('pipelines-health-view', '0'); handleExpand(p) }}
+                  >
+                    <td className="health-name">
+                      <span className={`pipeline-status-dot ${p.running ? 'running' : p.enabled ? 'active' : 'inactive'}`} />
+                      {p.name}
+                    </td>
+                    <td>{p.enabled ? <span className="health-badge health-enabled">Enabled</span> : <span className="health-badge health-disabled">Off</span>}</td>
+                    <td className="health-mono">{lastFiredAgo}</td>
+                    <td className="health-mono">{p.fireCount}</td>
+                    <td className={`health-mono${failures > 0 ? ' health-failures' : ''}`}>{failures}</td>
+                    <td className="health-mono">{rate != null ? `${rate}%` : '—'}</td>
+                    <td className="health-error" title={p.lastError ?? undefined}>{p.lastError ? (p.lastError.length > 80 ? p.lastError.slice(0, 80) + '…' : p.lastError) : '—'}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {!healthView && <div className={`pipelines-list${listMode ? ' list-mode' : ''}`}>
         {sortedPipelines.map((p) => (
           <div key={p.name} className={`pipeline-card ${p.enabled ? '' : 'disabled'}${expandedPipeline === p.name ? ' expanded' : ''}`}>
             <div className="pipeline-card-header" onClick={() => handleExpand(p)} onContextMenu={(e) => {
@@ -1103,7 +1207,7 @@ action:
             )}
           </div>
         ))}
-      </div>
+      </div>}
 
       {/* AI Generate Pipeline Modal */}
       {showGenerateModal && (

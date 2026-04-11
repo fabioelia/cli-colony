@@ -12150,6 +12150,94 @@ body:has(.daemon-update-banner) .app-update-banner {
   margin: 6px 0;
 }
 
+/* Pipeline Health Table */
+.pipeline-health-table {
+  padding: 8px 12px;
+  overflow-y: auto;
+  flex: 1;
+}
+.pipeline-health-aggregate {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  background: var(--bg-hover);
+  border-radius: 4px;
+}
+.pipeline-health-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.pipeline-health-table th {
+  text-align: left;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  padding: 4px 8px 6px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.pipeline-health-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  vertical-align: middle;
+}
+.pipeline-health-table tbody tr {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.pipeline-health-table tbody tr:hover {
+  background: var(--bg-hover);
+}
+.pipeline-health-table .health-row-failing {
+  background: rgba(239, 68, 68, 0.06);
+}
+.pipeline-health-table .health-row-failing:hover {
+  background: rgba(239, 68, 68, 0.12);
+}
+.pipeline-health-table .health-name {
+  color: var(--text-primary);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pipeline-health-table .health-mono {
+  font-family: Menlo, Monaco, 'Courier New', monospace;
+  font-size: 11px;
+}
+.pipeline-health-table .health-failures {
+  color: var(--danger);
+  font-weight: 600;
+}
+.pipeline-health-table .health-error {
+  font-size: 11px;
+  color: var(--text-muted);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.health-badge {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 500;
+}
+.health-enabled {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+}
+.health-disabled {
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+
 .pipeline-history {
   padding: 4px 0;
 }
