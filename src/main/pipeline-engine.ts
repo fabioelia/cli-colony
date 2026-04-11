@@ -1089,7 +1089,7 @@ async function runPoll(pipelineName: string): Promise<void> {
       }
 
       // Scoped approval gate: check rules before the binary requireApproval check
-      const ruleMatch = matchRules(p.def.action.type, estimateActionCost(p.def.action.type), [])
+      const ruleMatch = await matchRules(p.def.action.type, estimateActionCost(p.def.action.type), [])
       if (ruleMatch) {
         if (ruleMatch.action === 'auto_approve') {
           plog(pipelineName, `✓ auto-approved by rule "${ruleMatch.name}"`)
