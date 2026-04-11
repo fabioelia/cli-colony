@@ -16936,10 +16936,10 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-variant-numeric: tabular-nums;
 }
 .persona-history-cost {
-  color: var(--text-muted);
+  color: var(--success);
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
-  min-width: 48px;
-  text-align: right;
+  margin-left: auto;
 }
 
 /* ===== Persona Sort Dropdown ===== */

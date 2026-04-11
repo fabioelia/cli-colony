@@ -887,6 +887,7 @@ function PersonaCard({
   const [activeTab, setActiveTab] = useState<'content' | 'outputs' | 'history' | 'analytics' | 'memory'>('content')
   const [artifacts, setArtifacts] = useState<PersonaArtifact[] | null>(null)
   const [viewingArtifact, setViewingArtifact] = useState<{ name: string; content: string } | null>(null)
+  const [copiedArtifact, setCopiedArtifact] = useState(false)
   const [runHistory, setRunHistory] = useState<PersonaRunEntry[] | null>(null)
   const [memory, setMemory] = useState<PersonaMemory | null>(null)
   const [addingSituation, setAddingSituation] = useState(false)
@@ -1100,11 +1101,22 @@ function PersonaCard({
       )}
 
       {viewingArtifact && (
-        <div className="persona-modal-overlay" onClick={() => setViewingArtifact(null)}>
+        <div className="persona-modal-overlay" onClick={() => { setViewingArtifact(null); setCopiedArtifact(false) }}>
           <div className="persona-modal persona-edit-modal" onClick={(e) => e.stopPropagation()}>
             <div className="persona-modal-header">
               <h3><FolderOpen size={14} /> {viewingArtifact.name}</h3>
-              <button className="persona-modal-close" onClick={() => setViewingArtifact(null)}><X size={16} /></button>
+              <button
+                className="persona-modal-close"
+                onClick={async () => {
+                  await navigator.clipboard.writeText(viewingArtifact.content)
+                  setCopiedArtifact(true)
+                  setTimeout(() => setCopiedArtifact(false), 1000)
+                }}
+                title="Copy to clipboard"
+              >
+                {copiedArtifact ? <Check size={14} /> : <Copy size={14} />}
+              </button>
+              <button className="persona-modal-close" onClick={() => { setViewingArtifact(null); setCopiedArtifact(false) }}><X size={16} /></button>
             </div>
             <pre className="persona-artifact-content">{viewingArtifact.content}</pre>
           </div>
@@ -1184,6 +1196,9 @@ function PersonaCard({
                           </span>
                           <span className="persona-history-time">{ago}</span>
                           <span className="persona-history-dur">{dur}</span>
+                          {entry.costUsd != null && entry.costUsd > 0 && (
+                            <span className="persona-history-cost">${entry.costUsd.toFixed(2)}</span>
+                          )}
                         </div>
                       )
                     })}
