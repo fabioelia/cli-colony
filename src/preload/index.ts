@@ -14,6 +14,7 @@ import type {
   SessionArtifact, SessionArtifactCommit, PersonaAnalytics,
   NotificationEntry,
   ErrorSummary,
+  PersonaHealthEntry,
 } from '../shared/types'
 
 // Re-export shared types so existing imports from this module continue to work
@@ -32,6 +33,7 @@ export type {
   SessionArtifact, SessionArtifactCommit, PersonaAnalytics,
   NotificationEntry,
   ErrorSummary,
+  PersonaHealthEntry,
 }
 
 
@@ -273,6 +275,7 @@ export interface ClaudeManagerAPI {
     getRunHistory: (personaId: string) => Promise<PersonaRunEntry[]>
     getAnalytics: (personaId: string) => Promise<PersonaAnalytics>
     getColonyCostTrend: () => Promise<{ date: string; cost: number }[]>
+    healthSummary: () => Promise<PersonaHealthEntry[]>
     onStatus: (cb: (personas: PersonaInfo[]) => void) => () => void
     onRun: (cb: (data: { persona: string; instanceId: string }) => void) => () => void
   }
@@ -806,6 +809,7 @@ const api: ClaudeManagerAPI = {
     getRunHistory: (personaId) => ipcRenderer.invoke('persona:getRunHistory', personaId),
     getAnalytics: (personaId) => ipcRenderer.invoke('persona:analytics', personaId),
     getColonyCostTrend: () => ipcRenderer.invoke('persona:analytics:colony'),
+    healthSummary: () => ipcRenderer.invoke('persona:healthSummary'),
     onStatus: (cb) => {
       const l = (_e: any, data: PersonaInfo[]) => cb(data)
       ipcRenderer.on('persona:status', l)

@@ -18903,6 +18903,30 @@ body:has(.daemon-update-banner) .app-update-banner {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+.health-score-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.health-score-badge.health-green {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success, #10b981);
+}
+
+.health-score-badge.health-amber {
+  background: rgba(234, 179, 8, 0.15);
+  color: var(--warning, #eab308);
+}
+
+.health-score-badge.health-red {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger, #ef4444);
+}
+
 .overview-section h3 {
   font-size: 12px;
   font-weight: 600;

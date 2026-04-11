@@ -61,6 +61,27 @@ export function getPersonaAnalytics(personaId: string): PersonaAnalytics {
   return { totalRuns: allRuns.length, successRate, avgDurationMs, totalCostUsd, costLast7d, recentRuns: allRuns.slice(0, 20) }
 }
 
+/** Return last-run success for each persona with ≥1 run. Lightweight — reads only 1 entry per persona. */
+export function getPersonaHealthSummary(): { personaId: string; lastRunSuccess: boolean }[] {
+  let files: string[] = []
+  try {
+    files = readdirSync(colonyPaths.root).filter(f => f.startsWith('persona-run-history-') && f.endsWith('.json'))
+  } catch { return [] }
+
+  const results: { personaId: string; lastRunSuccess: boolean }[] = []
+  for (const file of files) {
+    const personaId = file.replace('persona-run-history-', '').replace('.json', '')
+    try {
+      const raw = readFileSync(join(colonyPaths.root, file), 'utf-8')
+      const entries = JSON.parse(raw)
+      if (Array.isArray(entries) && entries.length > 0) {
+        results.push({ personaId, lastRunSuccess: !!entries[0].success })
+      }
+    } catch { /* skip corrupt */ }
+  }
+  return results
+}
+
 /** Aggregate daily cost across all personas for the last 7 days. */
 export function getColonyCostTrend(): DailyCostEntry[] {
   // Discover all persona run history files

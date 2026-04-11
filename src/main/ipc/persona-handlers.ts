@@ -5,7 +5,7 @@ import {
   togglePersona, getPersonasDir, setPersonaSchedule, addWhisper, deleteNote,
   updatePersonaMeta, getPersonaArtifacts, readPersonaArtifact, askPersonas,
 } from '../persona-manager'
-import { getRunHistory, getPersonaAnalytics, getColonyCostTrend } from '../persona-run-history'
+import { getRunHistory, getPersonaAnalytics, getColonyCostTrend, getPersonaHealthSummary } from '../persona-run-history'
 import { markChecklistItem } from '../onboarding-state'
 
 export function registerPersonaHandlers(): void {
@@ -32,4 +32,5 @@ export function registerPersonaHandlers(): void {
   ipcMain.handle('persona:getRunHistory', (_e, personaId: string) => getRunHistory(personaId))
   ipcMain.handle('persona:analytics', (_e, personaId: string) => getPersonaAnalytics(personaId))
   ipcMain.handle('persona:analytics:colony', () => getColonyCostTrend())
+  ipcMain.handle('persona:healthSummary', () => getPersonaHealthSummary())
 }

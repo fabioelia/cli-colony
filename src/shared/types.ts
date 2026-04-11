@@ -360,6 +360,11 @@ export interface PersonaAnalytics {
   recentRuns: PersonaRunEntry[]
 }
 
+export interface PersonaHealthEntry {
+  personaId: string
+  lastRunSuccess: boolean
+}
+
 export interface AuditResult {
   severity: 'HIGH' | 'MEDIUM' | 'LOW'
   panel: string

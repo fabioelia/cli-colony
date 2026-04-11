@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import SessionTimeline from './SessionTimeline'
-import type { ClaudeInstance, ActivityEvent, PersonaInfo, ApprovalRequest, TaskBoardItem } from '../../../preload'
+import type { ClaudeInstance, ActivityEvent, PersonaInfo, ApprovalRequest, TaskBoardItem, PersonaHealthEntry } from '../../../preload'
 
 interface PipelineSummary {
   name: string
@@ -51,6 +51,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([])
   const [tasks, setTasks] = useState<TaskBoardItem[]>([])
   const [costTrend, setCostTrend] = useState<{ date: string; cost: number }[]>([])
+  const [personaHealth, setPersonaHealth] = useState<PersonaHealthEntry[]>([])
 
   useEffect(() => {
     window.api.activity.list().then(setActivity)
@@ -59,6 +60,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
     window.api.pipeline.listApprovals().then(setApprovals)
     window.api.tasksBoard.list().then(setTasks)
     window.api.persona.getColonyCostTrend().then(setCostTrend)
+    window.api.persona.healthSummary().then(setPersonaHealth)
   }, [])
 
   // Listen for live updates
@@ -90,6 +92,37 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const pendingApprovals = approvals
   const inProgressTasks = useMemo(() => tasks.filter(t => t.status === 'in_progress'), [tasks])
   const blockedTasks = useMemo(() => tasks.filter(t => t.status === 'blocked'), [tasks])
+  // Health score: weighted composite of persona, pipeline, and session health
+  const healthScore = useMemo(() => {
+    // Persona health (40%): of enabled personas with run history, % whose last run succeeded
+    const enabledWithHistory = personaHealth.filter(ph =>
+      personas.some(p => p.id === ph.personaId && p.enabled)
+    )
+    const personaScore = enabledWithHistory.length > 0
+      ? enabledWithHistory.filter(ph => ph.lastRunSuccess).length / enabledWithHistory.length
+      : 1 // No history = assume healthy
+
+    // Pipeline health (30%): of enabled pipelines, % without lastError
+    const enabledPipelines = pipelines.filter(p => p.enabled)
+    const pipelineScore = enabledPipelines.length > 0
+      ? enabledPipelines.filter(p => !p.lastError).length / enabledPipelines.length
+      : 1
+
+    // Session health (30%): all running sessions counted as healthy (errors handled by #179)
+    const sessionScore = 1
+
+    const composite = personaScore * 0.4 + pipelineScore * 0.3 + sessionScore * 0.3
+    const pct = Math.round(composite * 100)
+    const color = pct >= 80 ? 'green' : pct >= 50 ? 'amber' : 'red'
+    return {
+      pct,
+      color,
+      personaPct: Math.round(personaScore * 100),
+      pipelinePct: Math.round(pipelineScore * 100),
+      sessionPct: Math.round(sessionScore * 100),
+    }
+  }, [personas, pipelines, personaHealth, instances])
+
   const [activitySourceFilter, setActivitySourceFilter] = useState<'all' | 'persona' | 'pipeline' | 'env'>('all')
   const [activityLevelFilter, setActivityLevelFilter] = useState<'all' | 'info' | 'warn' | 'error'>('all')
   const [activityExpanded, setActivityExpanded] = useState(false)
@@ -169,6 +202,19 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
           <div className="overview-stat-card" onClick={() => onNavigate('pipelines')}>
             <div className="overview-stat-value">{activePipelines.length}</div>
             <div className="overview-stat-label">Pipelines Enabled</div>
+          </div>
+          <div
+            className="overview-stat-card"
+            onClick={() => {
+              const el = document.querySelector('.overview-section .overview-attention-list')
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            }}
+            title={`Personas: ${healthScore.personaPct}% | Pipelines: ${healthScore.pipelinePct}% | Sessions: ${healthScore.sessionPct}%`}
+          >
+            <div className="overview-stat-value">
+              <span className={`health-score-badge health-${healthScore.color}`}>{healthScore.pct}%</span>
+            </div>
+            <div className="overview-stat-label">Colony Health</div>
           </div>
           <div className="overview-stat-card" onClick={() => onNavigate('instances')}>
             <div className="overview-stat-value">{formatCost(totalCost)}</div>

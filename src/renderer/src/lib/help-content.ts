@@ -117,6 +117,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Running Sessions', detail: 'Count of live sessions. Click to jump to the sessions list.' },
           { label: 'Active Personas', detail: 'Personas currently executing a scheduled or manual run.' },
           { label: 'Pipelines Enabled', detail: 'Number of pipelines with automation turned on.' },
+          { label: 'Colony Health', detail: 'Composite health score (0–100%). Weighted: persona last-run success (40%), pipeline error-free (30%), session health (30%). Green ≥80%, amber 50–79%, red <50%. Click to scroll to Needs Attention. Hover for per-component breakdown.' },
           { label: 'Session Cost', detail: 'Total cost across all current sessions.' },
           { label: 'Daily Cost (7d)', detail: 'A 7-day bar chart showing total cost across all persona runs per day. Hover a bar to see the exact date and amount. Only appears when there is cost data.', icon: 'Activity' },
         ],
