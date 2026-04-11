@@ -39,12 +39,30 @@ function statusTitle(status: string): string {
   return 'Modified'
 }
 
+const COMMIT_TYPE_REGEX = /^(feat|fix|ux|perf|refactor|test|chore|docs)(\(.*?\))?!?:/
+const COMMIT_TYPE_COLORS: Record<string, string> = {
+  feat: 'var(--accent)', fix: 'var(--danger)', ux: 'var(--warning)',
+  perf: 'var(--warning)', refactor: 'var(--text-secondary)',
+  test: 'var(--success)', chore: 'var(--text-muted)', docs: 'var(--text-muted)',
+}
+
+function extractCommitTypes(artifact: SessionArtifact): string[] {
+  const types = new Set<string>()
+  for (const c of artifact.commits) {
+    const match = c.shortMsg.match(COMMIT_TYPE_REGEX)
+    if (match) types.add(match[1])
+  }
+  return [...types]
+}
+
 export default function ArtifactsPanel() {
   const [artifacts, setArtifacts] = useState<SessionArtifact[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('')
   const [sort, setSort] = useState<SortMode>('newest')
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [timeFilter, setTimeFilter] = useState<'today' | '7d' | 'all'>('today')
+  const [typeFilter, setTypeFilter] = useState<string | null>(null)
 
   const loadArtifacts = useCallback(async () => {
     try {
@@ -61,8 +79,44 @@ export default function ArtifactsPanel() {
     return () => clearInterval(interval)
   }, [loadArtifacts])
 
+  const timeFiltered = useMemo(() => {
+    if (timeFilter === 'all') return artifacts
+    const now = Date.now()
+    const threshold = timeFilter === 'today'
+      ? new Date().setHours(0, 0, 0, 0)
+      : now - 7 * 24 * 60 * 60 * 1000
+    return artifacts.filter(a => new Date(a.createdAt).getTime() >= threshold)
+  }, [artifacts, timeFilter])
+
+  const summary = useMemo(() => {
+    let commits = 0, ins = 0, del = 0, cost = 0, dur = 0
+    for (const a of timeFiltered) {
+      commits += a.commits.length
+      ins += a.totalInsertions
+      del += a.totalDeletions
+      cost += a.costUsd ?? 0
+      dur += a.durationMs
+    }
+    return { sessions: timeFiltered.length, commits, insertions: ins, deletions: del, costUsd: cost, durationMs: dur }
+  }, [timeFiltered])
+
+  const availableTypes = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const a of timeFiltered) {
+      for (const t of extractCommitTypes(a)) {
+        counts.set(t, (counts.get(t) ?? 0) + 1)
+      }
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([type, count]) => ({ type, count }))
+  }, [timeFiltered])
+
   const filtered = useMemo(() => {
-    let items = artifacts
+    let items = timeFiltered
+    if (typeFilter) {
+      items = items.filter(a => extractCommitTypes(a).includes(typeFilter))
+    }
     if (filter) {
       const q = filter.toLowerCase()
       items = items.filter(
@@ -78,7 +132,7 @@ export default function ArtifactsPanel() {
     }
     // 'newest' is already default order from API
     return items
-  }, [artifacts, filter, sort])
+  }, [timeFiltered, typeFilter, filter, sort])
 
   const handleClear = useCallback(async () => {
     if (!confirm('Clear all session artifacts? This cannot be undone.')) return
@@ -105,6 +159,34 @@ export default function ArtifactsPanel() {
           )}
         </div>
       </div>
+
+      {/* Summary strip */}
+      {!loading && artifacts.length > 0 && (
+        <div className="artifacts-summary-strip">
+          <div className="artifacts-summary-chips">
+            {(['today', '7d', 'all'] as const).map(t => (
+              <button key={t} className={`activity-filter-chip ${timeFilter === t ? 'active' : ''}`}
+                onClick={() => setTimeFilter(t)}>
+                {t === 'today' ? 'Today' : t === '7d' ? '7 days' : 'All'}
+              </button>
+            ))}
+          </div>
+          {timeFiltered.length === 0 ? (
+            <div className="artifacts-summary-stats" style={{ fontStyle: 'italic' }}>
+              No sessions completed {timeFilter === 'today' ? 'today' : 'in the last 7 days'}
+            </div>
+          ) : (
+            <div className="artifacts-summary-stats">
+              <span>{summary.sessions} sessions</span>
+              <span>{summary.commits} commits</span>
+              <span style={{ color: 'var(--success)' }}>+{summary.insertions}</span>
+              <span style={{ color: 'var(--danger)' }}>−{summary.deletions}</span>
+              {summary.costUsd > 0 && <span>${summary.costUsd.toFixed(2)}</span>}
+              <span>{formatDuration(summary.durationMs)}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Controls */}
       {artifacts.length > 0 && (
@@ -144,6 +226,19 @@ export default function ArtifactsPanel() {
             <option value="changes">Most changes</option>
             <option value="cost">Highest cost</option>
           </select>
+          {availableTypes.length > 0 && (
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              <button className={`activity-filter-chip ${!typeFilter ? 'active' : ''}`}
+                onClick={() => setTypeFilter(null)}>All</button>
+              {availableTypes.map(({ type, count }) => (
+                <button key={type} className={`activity-filter-chip ${typeFilter === type ? 'active' : ''}`}
+                  onClick={() => setTypeFilter(typeFilter === type ? null : type)}>
+                  <span style={{ color: typeFilter === type ? 'inherit' : COMMIT_TYPE_COLORS[type] }}>{type}</span>
+                  <span style={{ fontSize: 10, opacity: 0.7 }}>{count}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -205,6 +300,9 @@ export default function ArtifactsPanel() {
                 <span style={{ fontWeight: 600, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {artifact.sessionName}
                 </span>
+                {extractCommitTypes(artifact).map(t => (
+                  <span key={t} className="artifact-commit-tag" style={{ color: COMMIT_TYPE_COLORS[t] }}>{t}</span>
+                ))}
                 {artifact.personaName && (
                   <span style={{
                     fontSize: 10,

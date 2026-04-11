@@ -1401,17 +1401,27 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Session List',
         position: 'Main area',
         items: [
-          { label: 'Session row', detail: 'Each row shows the session name, persona badge (if any), git branch, commit count, insertions/deletions, cost, and relative time. Click to expand.', icon: 'Archive' },
+          { label: 'Session row', detail: 'Each row shows the session name, commit-type tags (feat, fix, ux, etc.), persona badge, git branch, commit count, insertions/deletions, cost, and relative time. Click to expand.', icon: 'Archive' },
+          { label: 'Commit-type tags', detail: 'Colored badges extracted from conventional commit prefixes (feat, fix, ux, refactor, test, chore). Use the type filter chips to show only sessions of a specific type.' },
           { label: 'Exit status dot', detail: 'Green = exited successfully (code 0). Red = non-zero exit code (error or cancellation).', icon: 'Circle' },
           { label: 'Expanded view', detail: 'Shows full commit list (hash + message), file change list (with M/A/D/R status), duration, and cost.', icon: 'FileText' },
         ],
       },
       {
-        name: 'Controls',
+        name: 'Summary Strip',
         position: 'Below header',
+        items: [
+          { label: 'Time filter', detail: 'Today / 7 days / All — filters both the summary stats and the artifact list.', icon: 'Clock' },
+          { label: 'Aggregate stats', detail: 'Total sessions, commits, insertions, deletions, cost, and duration for the selected time range.' },
+        ],
+      },
+      {
+        name: 'Controls',
+        position: 'Below summary',
         items: [
           { label: 'Filter', detail: 'Text search across session names and persona names.', icon: 'Search' },
           { label: 'Sort', detail: 'Sort by: Newest (default), Most changes (insertions + deletions), or Highest cost.', icon: 'Filter' },
+          { label: 'Type filter', detail: 'Filter artifacts by conventional commit type (feat, fix, ux, etc.). Shows counts per type. Click a type to toggle, click again to clear.' },
           { label: 'Clear All', detail: 'Permanently removes all stored artifacts. Cannot be undone.', icon: 'Trash2' },
         ],
       },
