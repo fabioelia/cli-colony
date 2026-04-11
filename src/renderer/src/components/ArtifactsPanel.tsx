@@ -189,6 +189,7 @@ export default function ArtifactsPanel() {
   const [timeFilter, setTimeFilter] = useState<'today' | '7d' | 'all'>('today')
   const [typeFilter, setTypeFilter] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [selectModeActive, setSelectModeActive] = useState(false)
   const [comparing, setComparing] = useState(false)
 
   const loadArtifacts = useCallback(async () => {
@@ -267,6 +268,7 @@ export default function ArtifactsPanel() {
     setArtifacts([])
     setExpandedId(null)
     setSelectedIds(new Set())
+    setSelectModeActive(false)
   }, [])
 
   const toggleExpand = useCallback((id: string) => {
@@ -287,6 +289,8 @@ export default function ArtifactsPanel() {
 
   const handleBackFromCompare = useCallback(() => {
     setComparing(false)
+    setSelectModeActive(false)
+    setSelectedIds(new Set())
   }, [])
 
   // Resolve the two selected artifacts for comparison
@@ -304,7 +308,7 @@ export default function ArtifactsPanel() {
     return <ArtifactCompareView a={compareArtifacts.a} b={compareArtifacts.b} onBack={handleBackFromCompare} />
   }
 
-  const selectMode = selectedIds.size > 0
+  const selectMode = selectModeActive || selectedIds.size > 0
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -316,7 +320,7 @@ export default function ArtifactsPanel() {
           {artifacts.length > 0 && (
             <>
               {selectMode && (
-                <button className="panel-header-btn" onClick={() => setSelectedIds(new Set())} title="Cancel selection">
+                <button className="panel-header-btn" onClick={() => { setSelectedIds(new Set()); setSelectModeActive(false) }} title="Cancel selection">
                   Cancel
                 </button>
               )}
@@ -326,7 +330,7 @@ export default function ArtifactsPanel() {
                 </button>
               )}
               {!selectMode && (
-                <button className="panel-header-btn" onClick={() => setSelectedIds(new Set())} title="Select sessions to compare">
+                <button className="panel-header-btn" onClick={() => setSelectModeActive(true)} title="Select sessions to compare">
                   <CheckSquare size={13} /> Select
                 </button>
               )}
@@ -450,7 +454,7 @@ export default function ArtifactsPanel() {
                 border: `1px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
                 borderRadius: 6,
                 marginBottom: 6,
-                background: selected ? 'rgba(99, 102, 241, 0.08)' : expanded ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
+                background: selected ? 'rgba(59, 130, 246, 0.08)' : expanded ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
                 transition: 'background 0.15s, border-color 0.15s',
               }}
             >

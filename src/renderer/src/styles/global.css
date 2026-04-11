@@ -2062,6 +2062,16 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-muted);
 }
 
+.instance-error-preview {
+  font-size: 10px;
+  color: var(--danger);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  opacity: 0.85;
+}
+
 /* Show actions on hover, hide status */
 .instance-item-actions {
   display: none;
@@ -6194,6 +6204,66 @@ body:has(.daemon-update-banner) .app-update-banner {
   align-items: center;
   color: var(--text-muted);
   opacity: 0.7;
+}
+
+/* ---- Session Error Card ---- */
+.session-error-card {
+  border-left: 3px solid var(--danger);
+  background: color-mix(in srgb, var(--danger) 6%, var(--bg-surface));
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.session-error-card-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  color: var(--danger);
+  user-select: none;
+  list-style: none;
+}
+.session-error-card-summary::-webkit-details-marker { display: none; }
+.session-error-card-summary::before {
+  content: '▸';
+  font-size: 10px;
+  transition: transform 0.15s;
+}
+.session-error-card[open] > .session-error-card-summary::before {
+  transform: rotate(90deg);
+}
+.session-error-card-type {
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.session-error-card-message {
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.session-error-card-body {
+  padding: 0 12px 10px 28px;
+}
+.session-error-card-location {
+  font-size: 11px;
+  color: var(--accent-blue);
+  font-family: var(--font-mono, monospace);
+  margin-bottom: 6px;
+}
+.session-error-card-snippet {
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  background: color-mix(in srgb, var(--danger) 4%, var(--bg-primary));
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  max-height: 120px;
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
 }
 
 /* ---- Tool Deferred Banner ---- */
@@ -18991,7 +19061,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .artifact-compare-row:nth-child(odd) { background: var(--bg-secondary); }
 .artifact-compare-row:nth-child(even) { background: var(--bg-tertiary); }
 .artifact-compare-val {
-  font-variant-numeric: tabular-nums; font-family: monospace; font-size: 12px;
+  font-variant-numeric: tabular-nums; font-family: Menlo, Monaco, 'Courier New', monospace; font-size: 12px;
 }
 .artifact-compare-val:last-child { text-align: right; }
 .artifact-compare-val.better { color: var(--success); font-weight: 600; }
@@ -19005,12 +19075,12 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 11px; font-weight: 600; color: var(--text-secondary);
 }
 .artifact-compare-file {
-  font-size: 12px; font-family: monospace; padding: 2px 8px;
+  font-size: 12px; font-family: Menlo, Monaco, 'Courier New', monospace; padding: 2px 8px;
   border-radius: 3px; margin-bottom: 2px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .artifact-compare-file.both { background: rgba(245, 158, 11, 0.1); border-left: 2px solid var(--warning); }
-.artifact-compare-file.only-a { background: rgba(99, 102, 241, 0.08); border-left: 2px solid var(--accent); }
+.artifact-compare-file.only-a { background: rgba(59, 130, 246, 0.08); border-left: 2px solid var(--accent); }
 .artifact-compare-file.only-b { background: rgba(245, 158, 11, 0.06); border-left: 2px solid var(--warning); }
 /* Activity panel (full panel view) */
 .activity-panel { display: flex; flex-direction: column; height: 100%; }
