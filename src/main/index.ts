@@ -36,6 +36,7 @@ import { loadPersonas, startWatcher as startPersonaWatcher, stopWatcher as stopP
 import { startScheduler as startPersonaScheduler, stopScheduler as stopPersonaScheduler } from './persona-scheduler'
 import { initTriggerWatcher } from './persona-triggers'
 import { recordWorkerExit } from './team-metrics'
+import { stopTasksBoardWatcher } from './ipc/tasks-board-handlers'
 import { collectSessionArtifact } from './session-artifacts'
 
 const COLONY_CLI_SCRIPT = `#!/bin/bash
@@ -609,6 +610,7 @@ app.on('before-quit', () => {
   stopPersonaWatcher()
   stopPersonaScheduler()
   stopEnvWatching()
+  stopTasksBoardWatcher()
   stopPipelines()
   stopBatchScheduler()
   // Just disconnect — daemon keeps instances alive for reconnection
