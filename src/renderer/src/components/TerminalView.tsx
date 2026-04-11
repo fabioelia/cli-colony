@@ -5,7 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, File, Folder, FolderOpen, RefreshCw, Search, Columns2, LayoutGrid, ExternalLink, GitFork, Server, Square, Play, ScrollText, MessageSquare, AlertTriangle, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation, MessageCircleWarning, ThumbsUp, Sparkles, Bot, BarChart3, Package, GitCommit, Globe, Bug } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronsDown, ChevronRight, X, RotateCcw, Trash2, GitBranch, TerminalSquare, FolderTree, RefreshCw, Columns2, LayoutGrid, ExternalLink, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Clock, Trophy, GitCompare, RotateCw, Undo2, Navigation, MessageCircleWarning, ThumbsUp, Sparkles, Bot, BarChart3, Package, GitCommit, Globe, Bug, FileDown, CheckCircle } from 'lucide-react'
 import { TeamMetricsPanel } from './TeamMetricsPanel'
 import ServicesTab from './ServicesTab'
 import FilesTab from './FilesTab'
@@ -147,6 +147,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   // Team tab state (Coordinator role)
   const [coordinatorTeam, setCoordinatorTeam] = useState<CoordinatorTeam | null>(null)
   const [teamLoading, setTeamLoading] = useState(false)
+  const [exportSuccess, setExportSuccess] = useState(false)
 
   // Session steering
   const [steerOpen, setSteerOpen] = useState(false)
@@ -963,6 +964,22 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           )}
         </div>
         <div className="terminal-header-actions">
+          {viewTab === 'session' && (
+            <Tooltip text="Export Session" detail="Save this session's output as a markdown file" position="bottom">
+              <button
+                onClick={async () => {
+                  const ok = await window.api.session.exportMarkdownToFile(instance.id)
+                  if (ok) {
+                    setExportSuccess(true)
+                    setTimeout(() => setExportSuccess(false), 2000)
+                  }
+                }}
+                aria-label="Export session as markdown"
+              >
+                {exportSuccess ? <CheckCircle size={14} /> : <FileDown size={14} />}
+              </button>
+            </Tooltip>
+          )}
           {viewTab === 'session' && instance.status === 'running' && (
             <Tooltip text="Steer Session" detail="Send a mid-run redirect message — delivered immediately if waiting, or queued for next idle" position="bottom">
               <button
