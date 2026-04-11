@@ -1297,7 +1297,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             <div className="sidebar-bulk-prompt">
               <textarea
                 className="sidebar-bulk-prompt-input"
-                placeholder="Send prompt to selected running sessions…"
+                placeholder="Send prompt to selected running sessions… (Enter to send)"
                 value={bulkPromptText}
                 autoFocus
                 rows={2}
