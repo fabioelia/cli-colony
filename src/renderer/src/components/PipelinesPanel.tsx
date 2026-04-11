@@ -6,14 +6,14 @@ import {
   FileText, Clock, CheckCircle, XCircle, AlertTriangle, Save, BookOpen,
   MessageSquare, Send, Plus, Search, Pencil, Eye, X, LayoutList, LayoutGrid,
   ShieldCheck, List, Globe, Wand2, ArrowRight, ArrowLeft, Hourglass,
-  GitPullRequest, GitMerge, GitBranch, Sparkles, RotateCw,
+  GitPullRequest, GitMerge, GitBranch, Sparkles, RotateCw, Copy, Timer,
 } from 'lucide-react'
 import type { AuditResult, GitHubRepo } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
 import EmptyStateHook from './EmptyStateHook'
 import CronEditor from './CronEditor'
 import PipelineFlowDiagram from './PipelineFlowDiagram'
-import { describeCron } from '../../../shared/cron'
+import { describeCron, nextRuns } from '../../../shared/cron'
 import { slugify } from '../../../shared/utils'
 
 interface ActionShape {
@@ -151,6 +151,10 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [expandedHistoryRows, setExpandedHistoryRows] = useState<Set<number>>(new Set())
 
   const [listMode, setListMode] = useState(() => localStorage.getItem('pipelines-list-mode') !== '0')
+
+  // 60s tick for next-run countdown refresh
+  const [, setTick] = useState(0)
+  useEffect(() => { const id = setInterval(() => setTick(t => t + 1), 60000); return () => clearInterval(id) }, [])
 
   // Cron editor — tracks which pipeline's cron is being edited
   const [cronEditingPipeline, setCronEditingPipeline] = useState<string | null>(null)
@@ -291,6 +295,19 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     const result = await window.api.pipeline.preview(p.fileName)
     setPreviewResult(result)
     setPreviewLoading(false)
+  }
+
+  const handleDuplicate = async (p: PipelineInfo) => {
+    const yaml = await window.api.pipeline.getContent(p.fileName)
+    if (!yaml) return
+    let modified = yaml.replace(/^(name:\s*["']?)(.+?)(["']?\s*)$/m, '$1$2 (copy)$3')
+    modified = modified.replace(/^(enabled:\s*)\S+/m, '$1false')
+    if (!/^enabled:/m.test(modified)) {
+      modified = modified.replace(/^(name:.*)$/m, '$1\nenabled: false')
+    }
+    const slug = p.fileName.replace(/\.(yaml|yml)$/, '') + '-copy'
+    await window.api.pipeline.createFromTemplate(modified, slug)
+    await window.api.pipeline.reload()
   }
 
   const handleExpand = async (p: PipelineInfo) => {
@@ -643,6 +660,20 @@ action:
                     <Zap size={10} /> {p.fireCount}
                   </span>
                 )}
+                {p.cron && (() => {
+                  if (!p.enabled) return <span className="pipeline-next-run paused">Paused</span>
+                  const fires = nextRuns(p.cron, 1)
+                  if (!fires.length) return null
+                  const diffMs = fires[0].getTime() - Date.now()
+                  if (diffMs < 0) return null
+                  const mins = Math.floor(diffMs / 60000)
+                  let label: string
+                  if (mins < 1) label = '<1m'
+                  else if (mins < 60) label = `${mins}m`
+                  else if (mins < 1440) label = `${Math.floor(mins / 60)}h ${mins % 60}m`
+                  else label = fires[0].toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })
+                  return <span className="pipeline-next-run" title={`Next fire: ${fires[0].toLocaleString()}`}>Next: {label}</span>
+                })()}
                 {listMode && expandedPipeline !== p.name && p.lastFiredAt && (
                   <span className="pipeline-list-last-fired" title={`Last fired: ${new Date(p.lastFiredAt).toLocaleString()}`}>
                     {timeSince(p.lastFiredAt)}
@@ -676,6 +707,13 @@ action:
                     title="Dry-run: evaluate conditions without firing"
                   >
                     <Eye size={11} />
+                  </button>
+                  <button
+                    className="pipeline-action-btn"
+                    onClick={() => handleDuplicate(p)}
+                    title="Duplicate this pipeline"
+                  >
+                    <Copy size={11} />
                   </button>
                 </div>
               </div>
