@@ -70,22 +70,23 @@ export default function ArenaLeaderboard({ open, onClose }: Props) {
       <div className="arena-leaderboard" onClick={e => e.stopPropagation()}>
         <div className="arena-leaderboard-header">
           <span><Trophy size={14} /> Leaderboard</span>
-          <button
-            className="fork-modal-close"
-            onClick={async () => {
-              if (!confirm('Clear all arena stats?')) return
-              await window.api.arena.clearStats()
-              localStorage.removeItem(LS_KEY)
-              setEntries([])
-            }}
-            aria-label="Clear stats"
-            style={{ marginRight: 4 }}
-          >
-            <Trash2 size={13} />
-          </button>
-          <button className="fork-modal-close" onClick={onClose} aria-label="Close">
-            <X size={13} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <button
+              className="fork-modal-close"
+              onClick={async () => {
+                if (!confirm('Clear all arena stats?')) return
+                await window.api.arena.clearStats()
+                localStorage.removeItem(LS_KEY)
+                setEntries([])
+              }}
+              aria-label="Clear stats"
+            >
+              <Trash2 size={13} />
+            </button>
+            <button className="fork-modal-close" onClick={onClose} aria-label="Close">
+              <X size={13} />
+            </button>
+          </div>
         </div>
         <div className="arena-leaderboard-body">
           {entries.length === 0 ? (
