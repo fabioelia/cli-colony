@@ -25,6 +25,7 @@ export default function SettingsPanel({ onBack }: Props) {
   const [soundOnFinish, setSoundOnFinish] = useState(true)
   const [autoCleanupMinutes, setAutoCleanupMinutes] = useState('5')
   const [globalHotkey, setGlobalHotkey] = useState('CommandOrControl+Shift+Space')
+  const [hotkeyError, setHotkeyError] = useState('')
   const [availableShells, setAvailableShells] = useState<string[]>([])
   const [saved, setSaved] = useState(false)
   const [restarting, setRestarting] = useState(false)
@@ -206,6 +207,9 @@ export default function SettingsPanel({ onBack }: Props) {
       window.api.settings.set('apiToken', apiToken),
       window.api.settings.set('theme', theme),
     ])
+    // Re-register hotkey immediately (no app restart needed)
+    const result = await window.api.settings.reregisterHotkey(globalHotkey)
+    setHotkeyError(result.success ? '' : (result.error || 'Invalid hotkey'))
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -318,13 +322,13 @@ export default function SettingsPanel({ onBack }: Props) {
           <label>Global Hotkey</label>
           <p className="settings-help">
             Brings the app to front from anywhere.
-            <span className="settings-restart-note">Requires app restart</span>
           </p>
           <input
             value={globalHotkey}
-            onChange={(e) => setGlobalHotkey(e.target.value)}
+            onChange={(e) => { setGlobalHotkey(e.target.value); setHotkeyError('') }}
             placeholder="CommandOrControl+Shift+Space"
           />
+          {hotkeyError && <p className="settings-help" style={{ color: 'var(--danger)' }}>Invalid hotkey: {hotkeyError}</p>}
         </div>
       </div>
 

@@ -82,6 +82,7 @@ import { startWebhookServer, stopWebhookServer } from './webhook-server'
 import { initAppUpdater, shutdownAppUpdater } from './app-updater'
 import { stopBatchScheduler } from './batch-runner'
 import { colonyPaths } from '../shared/colony-paths'
+import { registerGlobalHotkey } from './global-hotkey'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -572,17 +573,8 @@ app.whenReady().then(async () => {
 
   // Register global hotkey to bring app to front
   const hotkey = await getSetting('globalHotkey') || 'CommandOrControl+Shift+Space'
-  try {
-    globalShortcut.register(hotkey, () => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.show()
-        mainWindow.focus()
-      }
-    })
-    console.log(`[app] registered global hotkey: ${hotkey}`)
-  } catch (err) {
-    console.error(`[app] failed to register global hotkey:`, err)
-  }
+  registerGlobalHotkey(hotkey)
+
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

@@ -5,6 +5,7 @@ import * as path from 'path'
 import { join } from 'path'
 import { colonyPaths } from '../shared/colony-paths'
 import { getSettings, setSetting, detectGitProtocol } from './settings'
+import { registerGlobalHotkey } from './global-hotkey'
 import { getLogs, clearLogs } from './logger'
 import { updateColonyContext, getColonyContextPath, getColonyContextInstruction } from './colony-context'
 
@@ -96,6 +97,9 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('settings:set', async (_e, key: string, value: string) => {
     await setSetting(key, value)
     return true
+  })
+  ipcMain.handle('settings:reregisterHotkey', (_e, hotkey: string) => {
+    return registerGlobalHotkey(hotkey)
   })
 
   // ---- Logs ----
