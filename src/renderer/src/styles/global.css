@@ -12989,7 +12989,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .env-worktree-actions { flex-shrink: 0; }
 .env-worktree-create-form { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
 .env-worktree-create-form select,
-.env-worktree-create-form input { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 3px; color: var(--text); padding: 4px 8px; font-size: 11px; }
+.env-worktree-create-form input { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 3px; color: var(--text-primary); padding: 4px 8px; font-size: 11px; }
 .env-worktree-create-actions { display: flex; gap: 6px; justify-content: flex-end; }
 
 .env-btn-secondary.active {
