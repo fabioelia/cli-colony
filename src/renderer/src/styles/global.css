@@ -19818,6 +19818,8 @@ body:has(.daemon-update-banner) .app-update-banner {
   stroke-dasharray: 4 3;
   opacity: 0.7;
 }
+.session-timeline-filter { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 4px; padding: 4px 6px; font-size: 11px; color: var(--text-primary); outline: none; margin-left: auto; }
+.session-timeline-filter:focus { border-color: var(--accent); }
 .session-timeline-bar-running {
   animation: timeline-pulse 2s ease-in-out infinite;
 }

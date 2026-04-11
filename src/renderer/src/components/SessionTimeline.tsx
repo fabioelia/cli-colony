@@ -57,6 +57,14 @@ function minuteToTime(m: number): string {
   return `${h.toString().padStart(2, '0')}:${mm.toString().padStart(2, '0')}`
 }
 
+/** Deterministic persona color from name hash → HSL */
+function personaColor(name: string): string {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0
+  const hue = ((hash % 360) + 360) % 360
+  return `hsl(${hue}, 55%, 55%)`
+}
+
 const HOUR_WIDTH = 40
 const ROW_HEIGHT = 28
 const LABEL_WIDTH = 160
@@ -72,6 +80,7 @@ export default function SessionTimeline({ instances, onFocusInstance }: Props) {
   const [hoveredBar, setHoveredBar] = useState<string | null>(null)
   const [hoveredChain, setHoveredChain] = useState<Set<string>>(new Set())
   const [now, setNow] = useState(Date.now())
+  const [filterPersona, setFilterPersona] = useState<string>('all')
 
   const selectedDate = useMemo(() => {
     const d = new Date()
@@ -118,7 +127,7 @@ export default function SessionTimeline({ instances, onFocusInstance }: Props) {
         id: art.sessionId,
         name: art.sessionName,
         personaName: art.personaName,
-        color: 'var(--accent)',
+        color: art.personaName ? personaColor(art.personaName) : 'var(--accent)',
         startMinute: startDate.getHours() * 60 + startDate.getMinutes() + startDate.getSeconds() / 60,
         endMinute: endDate.getHours() * 60 + endDate.getMinutes() + endDate.getSeconds() / 60,
         running: false,
@@ -188,19 +197,30 @@ export default function SessionTimeline({ instances, onFocusInstance }: Props) {
     return result
   }, [artifacts, instances, selectedDate, isToday, now])
 
-  // Summary stats
+  const personaNames = useMemo(() =>
+    [...new Set(bars.filter(b => b.personaName).map(b => b.personaName!))].sort()
+  , [bars])
+
+  const filteredBars = useMemo(() => {
+    if (filterPersona === 'all') return bars
+    if (filterPersona === 'running') return bars.filter(b => b.running)
+    if (filterPersona === 'manual') return bars.filter(b => !b.personaName)
+    return bars.filter(b => b.personaName === filterPersona)
+  }, [bars, filterPersona])
+
+  // Summary stats (from filtered bars)
   const summary = useMemo(() => {
-    const totalMs = bars.reduce((s, b) => s + b.durationMs, 0)
-    const totalCost = bars.reduce((s, b) => s + b.costUsd, 0)
-    const totalCommits = bars.reduce((s, b) => s + b.commitCount, 0)
+    const totalMs = filteredBars.reduce((s, b) => s + b.durationMs, 0)
+    const totalCost = filteredBars.reduce((s, b) => s + b.costUsd, 0)
+    const totalCommits = filteredBars.reduce((s, b) => s + b.commitCount, 0)
     const hrs = totalMs / 3600000
     return {
-      count: bars.length,
+      count: filteredBars.length,
       hours: hrs < 1 ? `${Math.round(hrs * 60)}m` : `${hrs.toFixed(1)}h`,
       cost: fmtCost(totalCost),
       commits: totalCommits,
     }
-  }, [bars])
+  }, [filteredBars])
 
   // Pick persona color or session color
   const barColor = useCallback((bar: TimelineBar) => {
@@ -244,7 +264,7 @@ export default function SessionTimeline({ instances, onFocusInstance }: Props) {
   }, [getChainIds])
 
   const svgWidth = LABEL_WIDTH + 24 * HOUR_WIDTH
-  const rowCount = Math.max(bars.length, 1)
+  const rowCount = Math.max(filteredBars.length, 1)
   const svgHeight = HEADER_HEIGHT + SVG_PADDING_TOP + rowCount * ROW_HEIGHT + 4
 
   return (
@@ -257,6 +277,12 @@ export default function SessionTimeline({ instances, onFocusInstance }: Props) {
         {!isToday && (
           <button className="schedule-heatmap-today" onClick={() => setDayOffset(0)}>Today</button>
         )}
+        <select className="session-timeline-filter" value={filterPersona} onChange={e => setFilterPersona(e.target.value)}>
+          <option value="all">All Sessions</option>
+          <option value="running">Running Only</option>
+          <option value="manual">Manual Only</option>
+          {personaNames.map(n => <option key={n} value={n}>{n}</option>)}
+        </select>
       </div>
 
       {/* Summary strip */}
@@ -328,11 +354,11 @@ export default function SessionTimeline({ instances, onFocusInstance }: Props) {
           </defs>
 
           {/* Dependency arrows (behind bars in z-order) */}
-          {bars.map((bar, idx) => {
+          {filteredBars.map((bar, idx) => {
             if (!bar.parentBarId) return null
-            const parentIdx = bars.findIndex(b => b.id === bar.parentBarId)
+            const parentIdx = filteredBars.findIndex(b => b.id === bar.parentBarId)
             if (parentIdx < 0 || parentIdx === idx) return null
-            const parent = bars[parentIdx]
+            const parent = filteredBars[parentIdx]
 
             const x1 = LABEL_WIDTH + (parent.endMinute / 60) * HOUR_WIDTH
             const y1 = HEADER_HEIGHT + SVG_PADDING_TOP + parentIdx * ROW_HEIGHT + ROW_HEIGHT / 2
@@ -354,7 +380,7 @@ export default function SessionTimeline({ instances, onFocusInstance }: Props) {
           })}
 
           {/* Session bars */}
-          {bars.length === 0 ? (
+          {filteredBars.length === 0 ? (
             <text
               x={svgWidth / 2}
               y={HEADER_HEIGHT + 40}
@@ -363,7 +389,7 @@ export default function SessionTimeline({ instances, onFocusInstance }: Props) {
             >
               No sessions on this day
             </text>
-          ) : bars.map((bar, i) => {
+          ) : filteredBars.map((bar, i) => {
             const y = HEADER_HEIGHT + SVG_PADDING_TOP + i * ROW_HEIGHT
             const x1 = LABEL_WIDTH + (bar.startMinute / 60) * HOUR_WIDTH
             const x2 = LABEL_WIDTH + (bar.endMinute / 60) * HOUR_WIDTH
@@ -469,9 +495,14 @@ export default function SessionTimeline({ instances, onFocusInstance }: Props) {
 
       {/* Legend */}
       <div className="schedule-heatmap-legend">
-        <span className="schedule-legend-item"><span className="session-timeline-legend-bar" /> Session</span>
+        <span className="schedule-legend-item"><span className="session-timeline-legend-bar" /> Manual</span>
         <span className="schedule-legend-item"><span className="session-timeline-legend-bar running" /> Running</span>
         <span className="schedule-legend-item"><span className="session-timeline-legend-now" /> Now</span>
+        {personaNames.slice(0, 3).map(n => (
+          <span key={n} className="schedule-legend-item">
+            <span className="session-timeline-legend-bar" style={{ background: personaColor(n) }} /> {n}
+          </span>
+        ))}
       </div>
     </div>
   )
