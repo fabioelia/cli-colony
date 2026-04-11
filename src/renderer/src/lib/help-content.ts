@@ -532,6 +532,8 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Health view', detail: 'Toggle a compact health dashboard showing all pipelines in one table — name, enabled status, last fired, fire count, consecutive failures, success rate (last 10 runs), and last error. Sorted by failures first. Click a row to jump to that pipeline. Problems (consecutive failures > 0) appear at the top in red.', icon: 'Activity' },
           { label: 'List/card toggle', detail: 'Switch between compact list rows and card view. Hidden when health view is active. Preference is saved per device.', icon: 'LayoutList' },
           { label: 'Sort', detail: 'Reorder pipelines by name, last fired time, fire count, or enabled status. Hidden when health view is active. Your choice is saved.', icon: 'ArrowUpDown' },
+          { label: 'Export', detail: 'Download all pipeline YAML files (and companion memory/readme files) as a zip archive.', icon: 'Download' },
+          { label: 'Import', detail: 'Import pipeline YAML files from a zip archive. Runtime state files are excluded.', icon: 'Upload' },
           { label: 'Reload button', detail: 'Re-read all pipeline YAML files from disk.', icon: 'RefreshCw' },
           { label: 'Audit button', detail: 'Run an AI audit of all pipelines. Claude reviews each pipeline\'s YAML, error history, and configuration and returns a list of HIGH/MEDIUM/LOW findings. Each finding with a clear fix has a Fix button that opens the editor or applies the fix directly. Badge shows issue count from the last audit.', icon: 'ShieldCheck' },
         ],

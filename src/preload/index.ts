@@ -256,6 +256,8 @@ export interface ClaudeManagerAPI {
     createFromTemplate: (yaml: string, slug: string) => Promise<boolean>
     generate: (description: string) => Promise<string>
     delete: (fileName: string) => Promise<boolean>
+    export: (fileNames: string[]) => Promise<boolean>
+    import: () => Promise<number>
   }
   persona: {
     list: () => Promise<PersonaInfo[]>
@@ -798,6 +800,8 @@ const api: ClaudeManagerAPI = {
     createFromTemplate: (yaml, slug) => ipcRenderer.invoke('pipeline:createFromTemplate', yaml, slug),
     generate: (description) => ipcRenderer.invoke('pipeline:generate', description),
     delete: (fileName) => ipcRenderer.invoke('pipeline:delete', fileName),
+    export: (fileNames) => ipcRenderer.invoke('pipeline:export', fileNames),
+    import: () => ipcRenderer.invoke('pipeline:import'),
   },
   persona: {
     list: () => ipcRenderer.invoke('persona:list'),

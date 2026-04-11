@@ -7,6 +7,7 @@ import {
   MessageSquare, Send, Plus, Search, Pencil, Eye, X, LayoutList, LayoutGrid,
   ShieldCheck, List, Globe, Wand2, ArrowRight, ArrowLeft, Hourglass, ArrowUpDown,
   GitPullRequest, GitMerge, GitBranch, Sparkles, RotateCw, Copy, Timer, Activity,
+  Download, Upload,
 } from 'lucide-react'
 import type { AuditResult, GitHubRepo } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
@@ -456,6 +457,16 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     loadPipelines()
   }
 
+  const handleExport = async () => {
+    if (pipelines.length === 0) return
+    await window.api.pipeline.export(pipelines.map(p => p.fileName))
+  }
+
+  const handleImport = async () => {
+    const count = await window.api.pipeline.import()
+    if (count > 0) await handleReload()
+  }
+
   const handleRunAudit = async () => {
     setAuditRunning(true)
     setAuditResults(null)
@@ -616,6 +627,12 @@ action:
         )}
         <HelpPopover topic="pipelines" align="right" />
         <div className="panel-header-actions">
+          <button className="panel-header-btn" onClick={handleExport} title="Export all pipelines as zip">
+            <Download size={12} />
+          </button>
+          <button className="panel-header-btn" onClick={handleImport} title="Import pipelines from zip">
+            <Upload size={12} />
+          </button>
           <button className="panel-header-btn primary" onClick={openAutomationWizard} title="Create a new automation with a step-by-step wizard">
             <Wand2 size={12} /> New Automation
           </button>

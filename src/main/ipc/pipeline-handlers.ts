@@ -1,7 +1,9 @@
-import { ipcMain, app } from 'electron'
-import { promises as fsp } from 'fs'
-import { join } from 'path'
+import { ipcMain, app, dialog } from 'electron'
+import { promises as fsp, createWriteStream, createReadStream } from 'fs'
+import { join, basename } from 'path'
 import { spawn } from 'child_process'
+import archiver from 'archiver'
+import * as unzipper from 'unzipper'
 import { colonyPaths } from '../../shared/colony-paths'
 import {
   getPipelineList, togglePipeline, triggerPollNow, getPipelinesDir,
@@ -149,6 +151,56 @@ export function registerPipelineHandlers(): void {
   ipcMain.handle('pipeline:approve', (_e, id: string) => approveAction(id))
   ipcMain.handle('pipeline:dismiss', (_e, id: string) => dismissAction(id))
   ipcMain.handle('pipeline:getHistory', (_e, name: string) => getHistory(name))
+
+  ipcMain.handle('pipeline:export', async (_e, fileNames: string[]) => {
+    const result = await dialog.showSaveDialog({
+      defaultPath: 'pipelines.zip',
+      filters: [{ name: 'ZIP', extensions: ['zip'] }],
+    })
+    if (result.canceled || !result.filePath) return false
+    const dir = getPipelinesDir()
+    return new Promise<boolean>((resolve) => {
+      const output = createWriteStream(result.filePath!)
+      const archive = archiver('zip', { zlib: { level: 9 } })
+      archive.pipe(output)
+      for (const fn of fileNames) {
+        const base = fn.replace(/\.(yaml|yml)$/, '')
+        archive.file(join(dir, fn), { name: fn })
+        for (const ext of ['.memory.md', '.readme.md']) {
+          try { archive.file(join(dir, base + ext), { name: base + ext }) } catch { /* skip */ }
+        }
+      }
+      output.on('close', () => resolve(true))
+      archive.on('error', () => resolve(false))
+      archive.finalize()
+    })
+  })
+
+  ipcMain.handle('pipeline:import', async () => {
+    const result = await dialog.showOpenDialog({
+      filters: [{ name: 'ZIP', extensions: ['zip'] }],
+      properties: ['openFile'],
+    })
+    if (result.canceled || result.filePaths.length === 0) return 0
+    const dir = getPipelinesDir()
+    await fsp.mkdir(dir, { recursive: true })
+    return new Promise<number>((resolve) => {
+      let count = 0
+      createReadStream(result.filePaths[0])
+        .pipe(unzipper.Parse())
+        .on('entry', (entry: any) => {
+          const name = basename(entry.path)
+          if ((name.endsWith('.yaml') || name.endsWith('.yml') || name.endsWith('.md')) && !name.startsWith('.')) {
+            count++
+            entry.pipe(createWriteStream(join(dir, name)))
+          } else {
+            entry.autodrain()
+          }
+        })
+        .on('close', async () => { await loadPipelines(); resolve(count) })
+        .on('error', () => resolve(count))
+    })
+  })
 
   // Pipeline outputs
   ipcMain.handle('pipeline:listOutputs', async (_e, outputDir: string) => {
