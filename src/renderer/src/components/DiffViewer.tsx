@@ -18,12 +18,20 @@ interface SplitRow {
   right: { line: number | null; content: string; type: 'add' | 'context' | 'empty' | 'hunk'; segments?: WordSegment[] }
 }
 
+interface InlineComment {
+  author: string
+  body: string
+  createdAt: string
+}
+
 interface DiffViewerProps {
   diff: string
   /** Filename for syntax highlighting language detection */
   filename?: string
   /** Max lines to show before truncation (default 500) */
   maxLines?: number
+  /** PR review comments to render inline at matching line positions */
+  comments?: Array<{ author: string; body: string; createdAt: string; line?: number; originalLine?: number }>
 }
 
 function parseDiff(raw: string): DiffLine[] {
@@ -171,7 +179,67 @@ function highlightContent(content: string, lang: string | null, type: string): R
   return <span dangerouslySetInnerHTML={{ __html: html }} />
 }
 
-function DiffViewer({ diff, filename, maxLines = 500 }: DiffViewerProps) {
+function timeSince(dateStr: string): string {
+  const secs = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`
+  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`
+  return `${Math.floor(secs / 86400)}d ago`
+}
+
+function buildCommentMaps(comments?: DiffViewerProps['comments']): {
+  byNewLine: Map<number, InlineComment[]>
+  byOldLine: Map<number, InlineComment[]>
+} {
+  const byNewLine = new Map<number, InlineComment[]>()
+  const byOldLine = new Map<number, InlineComment[]>()
+  if (!comments) return { byNewLine, byOldLine }
+  for (const c of comments) {
+    const entry: InlineComment = { author: c.author, body: c.body, createdAt: c.createdAt }
+    if (c.line) {
+      const arr = byNewLine.get(c.line) || []
+      arr.push(entry)
+      byNewLine.set(c.line, arr)
+    }
+    if (c.originalLine) {
+      const arr = byOldLine.get(c.originalLine) || []
+      arr.push(entry)
+      byOldLine.set(c.originalLine, arr)
+    }
+  }
+  return { byNewLine, byOldLine }
+}
+
+function InlineCommentCards({ comments, defaultCollapsed }: { comments: InlineComment[]; defaultCollapsed: boolean }) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed)
+  return (
+    <div className="diff-inline-comments">
+      {collapsed ? (
+        <button className="diff-inline-comments-toggle" onClick={() => setCollapsed(false)}>
+          {comments.length} comment{comments.length > 1 ? 's' : ''} — click to expand
+        </button>
+      ) : (
+        <>
+          {comments.length > 3 && (
+            <button className="diff-inline-comments-toggle" onClick={() => setCollapsed(true)}>
+              Collapse {comments.length} comments
+            </button>
+          )}
+          {comments.map((c, i) => (
+            <div key={i} className="diff-inline-comment">
+              <div className="diff-inline-comment-meta">
+                <strong>{c.author}</strong>
+                <span>{timeSince(c.createdAt)}</span>
+              </div>
+              <div className="diff-inline-comment-body">{c.body}</div>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  )
+}
+
+function DiffViewer({ diff, filename, maxLines = 500, comments }: DiffViewerProps) {
   const [showFull, setShowFull] = useState(false)
   const [mode, setMode] = useState<'unified' | 'split'>(() =>
     (localStorage.getItem('diff-view-mode') as 'unified' | 'split') || 'unified'
@@ -179,6 +247,9 @@ function DiffViewer({ diff, filename, maxLines = 500 }: DiffViewerProps) {
 
   const allLines = useMemo(() => parseDiff(diff), [diff])
   const splitRows = useMemo(() => mode === 'split' ? buildSplitRows(allLines) : [], [allLines, mode])
+  const commentMaps = useMemo(() => buildCommentMaps(comments), [comments])
+  const totalComments = comments?.filter(c => c.line || c.originalLine).length || 0
+  const defaultCollapsed = totalComments > 3
 
   const displayCount = mode === 'split' ? splitRows.length : allLines.length
   const isTruncated = !showFull && displayCount > maxLines
@@ -211,63 +282,85 @@ function DiffViewer({ diff, filename, maxLines = 500 }: DiffViewerProps) {
       </div>
       {mode === 'split' ? (
         <div className="diff-split">
-          {visibleSplitRows.map((row, i) => (
-            row.left.type === 'hunk' ? (
-              <div key={i} className="diff-split-row diff-split-hunk">
-                <div className="diff-split-cell diff-hunk" style={{ gridColumn: '1 / -1' }}>
-                  <span className="diff-content">{row.left.content}</span>
-                </div>
-              </div>
-            ) : (
-              <div key={i} className="diff-split-row">
-                <div className={`diff-split-cell diff-split-left diff-${row.left.type}`}>
-                  <span className="diff-gutter">{row.left.line ?? ''}</span>
-                  <span className="diff-content">
-                    {row.left.segments
-                      ? row.left.segments.map((seg, si) => seg.changed
-                        ? <span key={si} className="diff-word-change">{seg.text}</span>
-                        : <span key={si}>{seg.text}</span>)
-                      : highlightContent(row.left.content, lang, row.left.type)}
-                  </span>
-                </div>
-                <div className={`diff-split-cell diff-split-right diff-${row.right.type}`}>
-                  <span className="diff-gutter">{row.right.line ?? ''}</span>
-                  <span className="diff-content">
-                    {row.right.segments
-                      ? row.right.segments.map((seg, si) => seg.changed
-                        ? <span key={si} className="diff-word-change">{seg.text}</span>
-                        : <span key={si}>{seg.text}</span>)
-                      : highlightContent(row.right.content, lang, row.right.type)}
-                  </span>
-                </div>
-              </div>
+          {visibleSplitRows.map((row, i) => {
+            const newLineComments = row.right.line != null ? commentMaps.byNewLine.get(row.right.line) : undefined
+            const oldLineComments = row.left.line != null && !newLineComments ? commentMaps.byOldLine.get(row.left.line) : undefined
+            const lineComments = newLineComments || oldLineComments
+            return (
+              <React.Fragment key={i}>
+                {row.left.type === 'hunk' ? (
+                  <div className="diff-split-row diff-split-hunk">
+                    <div className="diff-split-cell diff-hunk" style={{ gridColumn: '1 / -1' }}>
+                      <span className="diff-content">{row.left.content}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="diff-split-row">
+                    <div className={`diff-split-cell diff-split-left diff-${row.left.type}`}>
+                      <span className="diff-gutter">{row.left.line ?? ''}</span>
+                      <span className="diff-content">
+                        {row.left.segments
+                          ? row.left.segments.map((seg, si) => seg.changed
+                            ? <span key={si} className="diff-word-change">{seg.text}</span>
+                            : <span key={si}>{seg.text}</span>)
+                          : highlightContent(row.left.content, lang, row.left.type)}
+                      </span>
+                    </div>
+                    <div className={`diff-split-cell diff-split-right diff-${row.right.type}`}>
+                      <span className="diff-gutter">{row.right.line ?? ''}</span>
+                      <span className="diff-content">
+                        {row.right.segments
+                          ? row.right.segments.map((seg, si) => seg.changed
+                            ? <span key={si} className="diff-word-change">{seg.text}</span>
+                            : <span key={si}>{seg.text}</span>)
+                          : highlightContent(row.right.content, lang, row.right.type)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {lineComments && (
+                  <div className="diff-split-row diff-split-comment-row">
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <InlineCommentCards comments={lineComments} defaultCollapsed={defaultCollapsed} />
+                    </div>
+                  </div>
+                )}
+              </React.Fragment>
             )
-          ))}
+          })}
         </div>
       ) : (
         lines.map((line, i) => {
           const highlighted = lang && line.type !== 'hunk'
             ? hljs.highlight(line.content, { language: lang }).value
             : null
+          const newLineComments = line.newLine != null ? commentMaps.byNewLine.get(line.newLine) : undefined
+          const oldLineComments = line.oldLine != null && !newLineComments ? commentMaps.byOldLine.get(line.oldLine) : undefined
+          const lineComments = newLineComments || oldLineComments
           return (
-            <div key={i} className={`diff-line diff-${line.type}`}>
-              <span className="diff-gutter diff-gutter-old">
-                {line.oldLine ?? ''}
-              </span>
-              <span className="diff-gutter diff-gutter-new">
-                {line.newLine ?? ''}
-              </span>
-              {highlighted ? (
-                <span
-                  className="diff-content"
-                  dangerouslySetInnerHTML={{ __html: highlighted }}
-                />
-              ) : (
-                <span className="diff-content">
-                  {line.content}
+            <React.Fragment key={i}>
+              <div className={`diff-line diff-${line.type}`}>
+                <span className="diff-gutter diff-gutter-old">
+                  {line.oldLine ?? ''}
                 </span>
+                <span className="diff-gutter diff-gutter-new">
+                  {line.newLine ?? ''}
+                </span>
+                {highlighted ? (
+                  <span
+                    className="diff-content"
+                    dangerouslySetInnerHTML={{ __html: highlighted }}
+                  />
+                ) : (
+                  <span className="diff-content">
+                    {line.content}
+                  </span>
+                )}
+              </div>
+              {lineComments && (
+                <InlineCommentCards comments={lineComments} defaultCollapsed={defaultCollapsed} />
               )}
-            </div>
+            </React.Fragment>
           )
         })
       )}

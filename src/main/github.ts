@@ -159,7 +159,7 @@ export async function fetchPRs(repo: GitHubRepo): Promise<GitHubPR[]> {
       try {
         const reviewJson = await gh([
           'api', `repos/${repoSlug}/pulls/${pr.number}/comments`,
-          '--jq', '.[].{author: .user.login, body: .body, createdAt: .created_at, path: .path}',
+          '--jq', '.[].{author: .user.login, body: .body, createdAt: .created_at, path: .path, line: .line, originalLine: .original_line}',
         ])
         if (!reviewJson.trim()) return
         const reviewComments: PRComment[] = reviewJson.trim().split('\n')
@@ -167,7 +167,7 @@ export async function fetchPRs(repo: GitHubRepo): Promise<GitHubPR[]> {
           .map((l) => {
             try {
               const c = JSON.parse(l)
-              return { author: c.author, body: c.body, createdAt: c.createdAt, path: c.path }
+              return { author: c.author, body: c.body, createdAt: c.createdAt, path: c.path, line: c.line || undefined, originalLine: c.originalLine || undefined }
             } catch { return null }
           })
           .filter(Boolean) as PRComment[]

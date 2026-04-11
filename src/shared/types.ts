@@ -78,6 +78,8 @@ export interface PRComment {
   body: string
   createdAt: string
   path?: string
+  line?: number
+  originalLine?: number
 }
 
 export interface GitHubPR {
