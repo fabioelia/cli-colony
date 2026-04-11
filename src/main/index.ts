@@ -30,7 +30,7 @@ import { initLogger } from './logger'
 import { getSetting, getSettingSync, getSettings } from './settings'
 import { updateColonyContext } from './colony-context'
 import { killAllShells } from './shell-pty'
-import { snapshotRunning } from './recent-sessions'
+import { snapshotRunningSync } from './recent-sessions'
 import { ensureRepoClones } from './github'
 import { loadPersonas, startWatcher as startPersonaWatcher, stopWatcher as stopPersonaWatcher, onSessionExit as onPersonaSessionExit, runPersona, getPersonaList, addWhisper } from './persona-manager'
 import { startScheduler as startPersonaScheduler, stopScheduler as stopPersonaScheduler } from './persona-scheduler'
@@ -604,7 +604,7 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   app.isQuitting = true
   // Snapshot running sessions BEFORE disconnect so we know what to restore
-  snapshotRunning()
+  snapshotRunningSync()
   // Stop webhook HTTP server
   stopWebhookServer()
   // Tear down auto-updater timers

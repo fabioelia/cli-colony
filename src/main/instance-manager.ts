@@ -173,6 +173,11 @@ export function wireDaemonEvents(): void {
     console.log('[instance-manager] daemon disconnected')
   })
 
+  client.on('connection-failed', () => {
+    console.error('[instance-manager] daemon reconnect exhausted — notifying renderer')
+    broadcast('daemon:connection-failed', { error: 'Daemon reconnect failed after multiple attempts' })
+  })
+
   client.on('connected', () => {
     console.log('[instance-manager] daemon connected')
   })

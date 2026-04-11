@@ -23,6 +23,7 @@ export abstract class BaseDaemonClient extends EventEmitter {
   private _connected = false
   private _reconnecting = false
   private _intentionalDisconnect = false
+  private _reconnectAttempts = 0
   private _reqCounter = 0
 
   protected abstract socketPath: string
@@ -41,6 +42,7 @@ export abstract class BaseDaemonClient extends EventEmitter {
 
   async connect(): Promise<void> {
     this._intentionalDisconnect = false
+    this._reconnectAttempts = 0
     await this.ensureDaemon()
     await this.connectToSocket()
     await this.request({ type: 'subscribe', reqId: this.nextReqId() })
@@ -118,19 +120,31 @@ export abstract class BaseDaemonClient extends EventEmitter {
     })
   }
 
+  private static readonly MAX_RECONNECT_ATTEMPTS = 5
+  private static readonly MAX_RECONNECT_DELAY_MS = 30_000
+
   private scheduleReconnect(): void {
     if (this._reconnecting || this._intentionalDisconnect) return
+    if (this._reconnectAttempts >= BaseDaemonClient.MAX_RECONNECT_ATTEMPTS) {
+      console.error(`[${this.label}] exhausted ${BaseDaemonClient.MAX_RECONNECT_ATTEMPTS} reconnect attempts — giving up`)
+      this.emit('connection-failed')
+      return
+    }
     this._reconnecting = true
-    console.log(`[${this.label}] will attempt reconnect in 2s`)
+    const delay = Math.min(2000 * Math.pow(2, this._reconnectAttempts), BaseDaemonClient.MAX_RECONNECT_DELAY_MS)
+    this._reconnectAttempts++
+    console.log(`[${this.label}] reconnect attempt ${this._reconnectAttempts}/${BaseDaemonClient.MAX_RECONNECT_ATTEMPTS} in ${delay}ms`)
     setTimeout(async () => {
       this._reconnecting = false
       try {
         await this.connect()
+        this._reconnectAttempts = 0
         console.log(`[${this.label}] reconnected`)
       } catch (err) {
-        console.error(`[${this.label}] reconnect failed:`, err)
+        console.error(`[${this.label}] reconnect attempt ${this._reconnectAttempts} failed:`, err)
+        this.scheduleReconnect()
       }
-    }, 2000)
+    }, delay)
   }
 
   disconnect(): void {
