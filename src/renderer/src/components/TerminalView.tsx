@@ -107,8 +107,10 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     return rest.split('/')[0] || null
   })()
   const [envStatus, setEnvStatus] = useState<EnvStatus | null>(null)
-  // Team worker count for badge display
+  // Tab badge counts (pushed from child components)
   const [teamWorkerCount, setTeamWorkerCount] = useState(0)
+  const [changeCount, setChangeCount] = useState(0)
+  const [artifactCount, setArtifactCount] = useState(0)
   const [exportSuccess, setExportSuccess] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
 
@@ -599,8 +601,8 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 title="Git changes"
               >
                 <GitCompare size={12} /> Changes
-                {viewTab !== 'changes' && gitChanges.length > 0 && (
-                  <span className="services-tab-badge" style={{ background: 'var(--warning)' }}>{gitChanges.length}</span>
+                {viewTab !== 'changes' && changeCount > 0 && (
+                  <span className="services-tab-badge" style={{ background: 'var(--warning)' }}>{changeCount}</span>
                 )}
               </button>
             )}
@@ -610,8 +612,8 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               title="Session artifacts"
             >
               <Package size={12} /> Artifacts
-              {viewTab !== 'artifacts' && artifact && (
-                <span className="services-tab-badge" style={{ background: 'var(--accent)' }}>{artifact.commits.length || artifact.changes.length}</span>
+              {viewTab !== 'artifacts' && artifactCount > 0 && (
+                <span className="services-tab-badge" style={{ background: 'var(--accent)' }}>{artifactCount}</span>
               )}
             </button>
             {instance.roleTag === 'Coordinator' && (
@@ -922,10 +924,10 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
         <BrowserTab envStatus={envStatus} instanceId={instance.id} />
       )}
       {viewTab === 'changes' && (
-        <ChangesTab instance={instance} />
+        <ChangesTab instance={instance} onChangeCount={setChangeCount} />
       )}
       {viewTab === 'artifacts' && (
-        <ArtifactsTab instanceId={instance.id} instanceStatus={instance.status} />
+        <ArtifactsTab instanceId={instance.id} instanceStatus={instance.status} onArtifactCount={setArtifactCount} />
       )}
       {viewTab === 'team' && instance.roleTag === 'Coordinator' && (
         <TeamTab instanceId={instance.id} onWorkerCountChange={setTeamWorkerCount} />

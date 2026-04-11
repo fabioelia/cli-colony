@@ -5,9 +5,10 @@ import type { SessionArtifact } from '../../../shared/types'
 interface ArtifactsTabProps {
   instanceId: string
   instanceStatus: string
+  onArtifactCount?: (count: number) => void
 }
 
-export default function ArtifactsTab({ instanceId, instanceStatus }: ArtifactsTabProps) {
+export default function ArtifactsTab({ instanceId, instanceStatus, onArtifactCount }: ArtifactsTabProps) {
   const [artifact, setArtifact] = useState<SessionArtifact | null>(null)
   const [artifactLoading, setArtifactLoading] = useState(false)
 
@@ -16,14 +17,21 @@ export default function ArtifactsTab({ instanceId, instanceStatus }: ArtifactsTa
     setArtifactLoading(true)
     window.api.artifacts.get(instanceId).then(a => {
       setArtifact(a)
+      onArtifactCount?.(a ? (a.commits.length || a.changes.length) : 0)
       setArtifactLoading(false)
-    }).catch(() => setArtifactLoading(false))
+    }).catch(() => {
+      onArtifactCount?.(0)
+      setArtifactLoading(false)
+    })
   }, [instanceId])
 
   // Auto-load artifact when session exits
   useEffect(() => {
     if (instanceStatus === 'exited') {
-      window.api.artifacts.get(instanceId).then(a => setArtifact(a)).catch(() => {})
+      window.api.artifacts.get(instanceId).then(a => {
+        setArtifact(a)
+        onArtifactCount?.(a ? (a.commits.length || a.changes.length) : 0)
+      }).catch(() => {})
     }
   }, [instanceStatus, instanceId])
 
@@ -41,6 +49,7 @@ export default function ArtifactsTab({ instanceId, instanceStatus }: ArtifactsTa
               setArtifactLoading(true)
               window.api.artifacts.get(instanceId).then(a => {
                 setArtifact(a)
+                onArtifactCount?.(a ? (a.commits.length || a.changes.length) : 0)
                 setArtifactLoading(false)
               }).catch(() => setArtifactLoading(false))
             }}
@@ -56,6 +65,7 @@ export default function ArtifactsTab({ instanceId, instanceStatus }: ArtifactsTa
                 setArtifactLoading(true)
                 window.api.artifacts.collect(instanceId).then(a => {
                   setArtifact(a)
+                  onArtifactCount?.(a ? (a.commits.length || a.changes.length) : 0)
                   setArtifactLoading(false)
                 }).catch(() => setArtifactLoading(false))
               }}

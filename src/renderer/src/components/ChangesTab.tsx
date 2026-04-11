@@ -7,9 +7,10 @@ import CommitDialog from './CommitDialog'
 
 interface ChangesTabProps {
   instance: ClaudeInstance
+  onChangeCount?: (count: number) => void
 }
 
-export default function ChangesTab({ instance }: ChangesTabProps) {
+export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps) {
   const [gitChanges, setGitChanges] = useState<GitDiffEntry[]>([])
   const [gitChangesLoading, setGitChangesLoading] = useState(false)
   const [colonyComments, setColonyComments] = useState<ColonyComment[]>([])
@@ -29,9 +30,11 @@ export default function ChangesTab({ instance }: ChangesTabProps) {
     diffCacheRef.current = {}
     window.api.session.gitChanges(instance.workingDirectory).then((entries) => {
       setGitChanges(entries)
+      onChangeCount?.(entries.length)
       setGitChangesLoading(false)
     }).catch(() => {
       setGitChanges([])
+      onChangeCount?.(0)
       setGitChangesLoading(false)
     })
   }, [instance.workingDirectory])
