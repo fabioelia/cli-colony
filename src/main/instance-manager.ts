@@ -18,6 +18,7 @@ import { trackOpened, trackClosed } from './recent-sessions'
 import { broadcast } from './broadcast'
 import { buildMcpConfig, cleanMcpConfigFile } from './mcp-catalog'
 import { scanNewCommits } from './commit-attributor'
+import { markChecklistItem } from './onboarding-state'
 
 export type { ClaudeInstance } from '../daemon/protocol'
 import type { ClaudeInstance } from '../daemon/protocol'
@@ -210,6 +211,8 @@ export async function createInstance(opts: {
   if (mcpConfigPath) {
     _mcpConfigPaths.set(inst.id, mcpConfigPath)
   }
+
+  markChecklistItem('createdSession')
 
   // Track in recent sessions
   const allArgs = inst.args || []

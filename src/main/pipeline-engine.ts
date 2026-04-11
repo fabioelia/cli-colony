@@ -13,6 +13,7 @@ import { join, basename } from 'path'
 import { createHash } from 'crypto'
 import { app } from 'electron'
 import { createInstance, getAllInstances, killInstance } from './instance-manager'
+import { markChecklistItem } from './onboarding-state'
 import { getDaemonClient } from './daemon-client'
 import { sendPromptWhenReady } from './send-prompt-when-ready'
 import { getRepos, fetchPRs, fetchChecks, gh } from './github'
@@ -1447,6 +1448,7 @@ async function runBestOfN(
 // ---- Action Execution ----
 
 async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<{ cost: number; responseSnippet?: string; subStages?: PipelineStageTrace[] }> {
+  markChecklistItem('ranPipeline')
   if (action.type === 'maker-checker') {
     return { cost: await runMakerChecker(action, ctx, pipelineName) }
   }

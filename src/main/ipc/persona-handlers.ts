@@ -6,12 +6,17 @@ import {
   updatePersonaMeta, getPersonaArtifacts, readPersonaArtifact, askPersonas,
 } from '../persona-manager'
 import { getRunHistory, getPersonaAnalytics } from '../persona-run-history'
+import { markChecklistItem } from '../onboarding-state'
 
 export function registerPersonaHandlers(): void {
   ipcMain.handle('persona:list', () => getPersonaList())
   ipcMain.handle('persona:getContent', (_e, fileName: string) => getPersonaContent(fileName))
   ipcMain.handle('persona:saveContent', (_e, fileName: string, content: string) => savePersonaContent(fileName, content))
-  ipcMain.handle('persona:create', (_e, name: string) => createPersona(name))
+  ipcMain.handle('persona:create', async (_e, name: string) => {
+    const result = await createPersona(name)
+    if (result) markChecklistItem('createdPersona')
+    return result
+  })
   ipcMain.handle('persona:delete', (_e, fileName: string) => deletePersona(fileName))
   ipcMain.handle('persona:run', (_e, fileName: string) => runPersona(fileName))
   ipcMain.handle('persona:stop', (_e, fileName: string) => stopPersona(fileName))

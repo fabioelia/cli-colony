@@ -14,6 +14,7 @@
  */
 
 import { getDaemonClient } from './daemon-client'
+import { markChecklistItem } from './onboarding-state'
 
 /** Planning prefix prepended to prompts when planFirst is enabled */
 export const PLAN_FIRST_PREFIX = `IMPORTANT: Before taking any action, first create a structured plan:
@@ -77,6 +78,7 @@ export async function sendPromptWhenReady(instanceId: string, opts: SendPromptOp
       client.writeToInstance(instanceId, promptText)
       setTimeout(() => {
         client.writeToInstance(instanceId, '\r')
+        markChecklistItem('ranFirstPrompt')
         opts.onSent?.()
         resolve('sent')
       }, 150)

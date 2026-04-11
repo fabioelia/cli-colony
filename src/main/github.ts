@@ -10,6 +10,7 @@ import { join } from 'path'
 import { app } from 'electron'
 import type { PRComment, GitHubPR, GitHubIssue, FeedbackFile, QuickPrompt, GitHubRepo, PRFile } from '../shared/types'
 import { resolveMustacheTemplate, parseFrontmatter } from '../shared/utils'
+import { markChecklistItem } from './onboarding-state'
 
 interface GitHubConfig {
   repos: GitHubRepo[]
@@ -89,6 +90,7 @@ export function gh(args: string[]): Promise<string> {
 export async function checkGhAuth(): Promise<boolean> {
   try {
     await gh(['auth', 'status'])
+    markChecklistItem('connectedGitHub')
     return true
   } catch {
     return false
