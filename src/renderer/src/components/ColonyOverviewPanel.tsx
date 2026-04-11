@@ -320,7 +320,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
             </div>
           </div>
           {filteredActivity.length === 0 ? (
-            <div className="overview-empty-hint">No activity recorded yet</div>
+            <div className="overview-empty-hint">{isToday ? 'No activity recorded yet' : `No activity on ${formatDateLabel(selectedDate)}`}</div>
           ) : (
             <div className="overview-activity-list">
               {filteredActivity.map(ev => (
