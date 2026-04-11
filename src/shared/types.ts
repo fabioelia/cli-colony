@@ -538,6 +538,7 @@ export type BatchTaskStatus = 'running' | 'success' | 'timeout' | 'failed'
 
 export interface BatchTaskRun {
   taskId: string
+  queueName?: string
   status: BatchTaskStatus
   costUsd?: number
   durationMs?: number

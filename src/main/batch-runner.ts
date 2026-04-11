@@ -9,6 +9,10 @@ import { v4 as uuid } from 'uuid'
 import { parseYaml } from '../shared/yaml-parser'
 import { colonyPaths } from '../shared/colony-paths'
 import { BatchConfig, BatchRun, BatchTaskRun, BatchTaskStatus } from '../shared/types'
+import { createInstance } from './instance-manager'
+import { sendPromptWhenReady } from './send-prompt-when-ready'
+import { waitForSessionCompletion } from './session-completion'
+import { broadcast } from './broadcast'
 
 const BATCH_HISTORY_FILE = join(colonyPaths.root, 'batch-history.jsonl')
 const BATCH_CONFIG_KEY = 'batch-config'
@@ -163,4 +167,85 @@ export function addTaskToBatchRun(
  */
 export function completeBatchRun(run: BatchRun): void {
   run.completedAt = new Date().toISOString()
+}
+
+/**
+ * Execute a batch run: scan task queues, spawn sessions with concurrency limit,
+ * track results, and persist history.
+ */
+export async function executeBatch(config: BatchConfig): Promise<BatchRun> {
+  // 1. Scan task queue directory
+  const taskQueueDir = colonyPaths.taskQueues
+  const files = (await fsp.readdir(taskQueueDir))
+    .filter(f => (f.endsWith('.yaml') || f.endsWith('.yml')) && !f.endsWith('.memory.md'))
+
+  // 2. Parse all tasks
+  const allTasks: Array<{ task: TaskQueueItem; queueName: string }> = []
+  for (const file of files) {
+    const tasks = await parseTaskQueue(join(taskQueueDir, file))
+    if (tasks) {
+      const queueName = file.replace(/\.(yaml|yml)$/, '')
+      for (const task of tasks) allTasks.push({ task, queueName })
+    }
+  }
+
+  if (allTasks.length === 0) throw new Error('No tasks found in task queues')
+
+  // 3. Create batch run tracker
+  const run = createBatchRun(allTasks.length)
+  broadcast('batch:started', { batchId: run.id, taskCount: allTasks.length })
+
+  // 4. Execute with concurrency limit
+  const taskQueue = [...allTasks]
+  const timeoutMs = config.timeoutPerTaskMinutes * 60_000
+
+  async function runNext(): Promise<void> {
+    const item = taskQueue.shift()
+    if (!item) return
+    const { task, queueName } = item
+    const start = Date.now()
+    const taskRun: BatchTaskRun = {
+      taskId: task.id || task.name || uuid(),
+      queueName,
+      status: 'running' as BatchTaskStatus,
+      startedAt: new Date().toISOString(),
+      durationMs: 0,
+    }
+    try {
+      const inst = await createInstance({
+        name: `Batch: ${task.name || task.id}`,
+        workingDirectory: (task as any).directory || colonyPaths.root,
+      })
+      // Attach completion listener BEFORE sending prompt (race condition guard)
+      const completionPromise = waitForSessionCompletion(inst.id, timeoutMs)
+      await sendPromptWhenReady(inst.id, { prompt: task.prompt, abandonTimeout: 30_000 })
+      const completed = await completionPromise
+      taskRun.status = completed ? 'success' : 'timeout'
+    } catch (err) {
+      taskRun.status = 'failed'
+    }
+    taskRun.durationMs = Date.now() - start
+    addTaskToBatchRun(run, taskRun)
+    broadcast('batch:taskComplete', { batchId: run.id, task: taskRun })
+    await runNext()
+  }
+
+  // Launch up to concurrency workers
+  const workers = Array.from({ length: config.concurrency }, () => runNext())
+  await Promise.all(workers)
+
+  // 5. Finalize
+  completeBatchRun(run)
+  await appendBatchHistory(run)
+
+  // Generate report if configured
+  if (config.onCompletion === 'report') {
+    const report = generateBatchReport(run)
+    const reportDir = join(colonyPaths.root, 'outputs', 'batch-reports')
+    await fsp.mkdir(reportDir, { recursive: true })
+    await fsp.writeFile(join(reportDir, `${run.id}.md`), report, 'utf-8')
+  }
+
+  broadcast('batch:completed', { batchId: run.id, run })
+  return run
 }
