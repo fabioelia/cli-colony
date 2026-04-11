@@ -52,6 +52,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Source chips', detail: 'Toggle visibility of events by source: Persona, Pipeline, Environment, or Session. At least one must be active.' },
           { label: 'Level chips', detail: 'Toggle by severity: Info (normal), Warn (attention needed), Error (failures). Badges show counts.' },
           { label: 'Search', detail: 'Free-text filter — matches against event name and summary.' },
+          { label: 'Clear all', detail: 'Remove all activity events and reset the feed. Requires confirmation.', icon: 'Trash2' },
         ],
       },
       {
@@ -175,6 +176,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Active sessions', detail: 'Pulsing dot = Claude is working. Solid dot = waiting for input. Click to open.' },
           { label: 'Sort & filter', detail: 'Below the search bar: sort by Recent (default), Most Messages, or Name A-Z. Filter by project to narrow to a specific repo. Active project filter shows in the History header. Filter state persists across restarts.' },
+          { label: 'Clear project filter', detail: 'Remove the active project filter and show sessions from all repositories. Appears as an X button next to the project filter dropdown.', icon: 'X' },
           { label: 'Stopped sessions', detail: 'Dimmed with exit code. Auto-cleaned after 5 minutes (configurable in Settings). "Clear all" appears on the Stopped divider when 2+ sessions are stopped.' },
           { label: 'Session notes', detail: 'Right-click a session → Add Note to annotate it with freeform text (e.g., "waiting for CI", "investigating auth bug"). Notes appear as an italic subtitle under the session name. Edit or clear via the same menu. Max 500 characters.' },
           { label: 'Pin to top', detail: 'Right-click a session to pin it. Pinned sessions stay at the top and are restored on launch.', icon: 'Pin' },
@@ -915,6 +917,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Export Session', detail: 'Save the session output as a markdown file. Includes terminal content, metadata, and git state.', icon: 'FileDown' },
           { label: 'Copy Output', detail: 'Copy the session output as markdown to the clipboard for pasting into docs, issues, or chat.', icon: 'Copy' },
           { label: 'Steer session', detail: 'Send a mid-run redirect message without stopping the session. If idle, the message is delivered immediately. If busy, it is queued and delivered the moment the session next becomes idle. Prefixed with [Operator steering]: so the agent recognises it as a course correction.', icon: 'Navigation' },
+          { label: 'Cancel queued steer', detail: 'Dismiss a pending steering message before it is delivered. Appears as an X button next to the steer indicator when a message is queued.', icon: 'X' },
           { label: 'Reset terminal', detail: 'Destroy the terminal and create a fresh one. On the Session tab, clears and re-replays the buffer. On the Shell tab, kills the shell and spawns a new one.', icon: 'RotateCcw' },
           { label: 'Spawn child', detail: 'Create a child session that reports back via a handoff document when done.', icon: 'GitFork' },
           { label: 'Split View', detail: 'Opens a second session side-by-side (2-up). Shortcut: Cmd+\\. In 2-up mode, a "Grid" button appears to expand to 4-up (2×2 grid) for monitoring multiple sessions at once.', icon: 'Columns2' },
@@ -966,6 +969,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Full terminal', detail: 'xterm.js terminal rendering Claude CLI output. Supports search, zoom, and scroll preservation.' },
           { label: 'Drag & drop', detail: 'Drop files onto the terminal to paste their path.' },
           { label: 'Scroll behavior', detail: 'Reading history while output streams won\'t jump you to the bottom.' },
+          { label: 'Search navigation', detail: 'Use the Next (Enter) and Previous (Shift+Enter) buttons in the search bar to jump between matches in the terminal output. Press Escape to clear.' },
         ],
       },
     ],
