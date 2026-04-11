@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, RefreshCw, Download, Upload, Pencil, Play, ChevronRight, FolderOpen, FileCode, Trash2 } from 'lucide-react'
+import { Plus, RefreshCw, Download, Upload, Pencil, Play, ChevronRight, FolderOpen, FileCode, Trash2, Search, Copy } from 'lucide-react'
 import EmptyStateHook from './EmptyStateHook'
 import type { AgentDef } from '../types'
 import { COLOR_MAP } from '../lib/constants'
@@ -22,6 +22,7 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [newAgentName, setNewAgentName] = useState('')
   const [addingTo, setAddingTo] = useState<{ scope: 'personal' | 'project'; projectPath?: string } | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     window.api.agents.list().then(setAgents)
@@ -57,8 +58,12 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
 
   const refresh = () => window.api.agents.list().then(setAgents)
 
-  const personal = agents.filter((a) => a.scope === 'personal')
-  const byProject = agents
+  const q = searchQuery.toLowerCase().trim()
+  const matchingAgents = q
+    ? agents.filter(a => a.name.toLowerCase().includes(q) || (a.description || '').toLowerCase().includes(q))
+    : agents
+  const personal = matchingAgents.filter((a) => a.scope === 'personal')
+  const byProject = matchingAgents
     .filter((a) => a.scope === 'project')
     .reduce<Record<string, { agents: AgentDef[]; path: string }>>((acc, a) => {
       const key = a.projectName || 'unknown'
@@ -112,6 +117,22 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
             <div className="agent-card-actions">
               <button className="agent-btn-edit" onClick={() => onEditAgent(agent)} title="Edit agent definition in split view">
                 <Pencil size={13} /> Edit
+              </button>
+              <button className="agent-btn-edit" onClick={async () => {
+                const content = await window.api.agents.read(agent.filePath)
+                if (!content) return
+                const newName = agent.name + ' (copy)'
+                const newContent = content.replace(/^name:\s*["']?.*["']?$/m, `name: "${newName}"`)
+                const dir = agent.filePath.replace(/\/[^/]+$/, '')
+                const slug = newName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+                const newPath = `${dir}/${slug}.md`
+                await window.api.agents.write(newPath, newContent)
+                const updated = await window.api.agents.list()
+                setAgents(updated)
+                const newAgent = updated.find(a => a.filePath === newPath)
+                if (newAgent) onEditAgent(newAgent)
+              }} title="Duplicate agent">
+                <Copy size={13} /> Duplicate
               </button>
               <button className="agent-btn-launch" onClick={() => onLaunchAgent(agent)} title="Launch a new session with this agent">
                 <Play size={13} /> Launch
@@ -190,6 +211,14 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
     <div className="agents-panel">
       <div className="panel-header">
         <h2><FileCode size={16} /> Agents</h2>
+        <div className="agents-search">
+          <Search size={13} />
+          <input
+            placeholder="Search agents..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+        </div>
         <div className="panel-header-spacer" />
         <HelpPopover topic="agents" align="right" />
         <div className="panel-header-actions">
@@ -211,17 +240,19 @@ export default function AgentsPanel({ onLaunchAgent, onEditAgent }: Props) {
         />
       )}
 
-      <div className="agents-section">
-        {renderSectionHeader('Personal', personal, 'personal')}
-        {personal.map(renderAgent)}
-        {renderAddForm('personal')}
-      </div>
+      {(!q || personal.length > 0) && (
+        <div className="agents-section">
+          {renderSectionHeader('Personal', personal, 'personal')}
+          {personal.map(renderAgent)}
+          {!q && renderAddForm('personal')}
+        </div>
+      )}
 
       {Object.entries(byProject).map(([projName, { agents: projAgents, path }]) => (
         <div key={projName} className="agents-section">
           {renderSectionHeader(projName, projAgents, 'project', path)}
           {projAgents.map(renderAgent)}
-          {renderAddForm('project', path)}
+          {!q && renderAddForm('project', path)}
         </div>
       ))}
     </div>

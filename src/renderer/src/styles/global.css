@@ -3590,6 +3590,29 @@ body:has(.daemon-update-banner) .app-update-banner {
   padding: var(--titlebar-pad) 32px 24px;
 }
 
+.agents-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  flex: 1;
+  max-width: 220px;
+  margin-left: 12px;
+}
+.agents-search svg { color: var(--text-muted); flex-shrink: 0; }
+.agents-search input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+.agents-search input::placeholder { color: var(--text-muted); }
+
 .agents-panel-toolbar {
   display: flex;
   align-items: center;

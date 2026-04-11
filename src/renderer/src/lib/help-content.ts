@@ -100,7 +100,7 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Event List',
         position: 'Main area',
         items: [
-          { label: 'Event row', detail: 'Source badge (color-coded), name, relative timestamp, and summary. Session-linked names are clickable.' },
+          { label: 'Event row', detail: 'Source badge (color-coded), name, relative timestamp, and summary. Click any event to navigate to its source — sessions open directly, pipeline/persona/environment events jump to the relevant panel.' },
           { label: 'Outcome stats', detail: 'For session completions: duration, commit count, and files changed.' },
         ],
       },
@@ -316,6 +316,7 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Header',
         position: 'Top bar',
         items: [
+          { label: 'Search', detail: 'Filter agents by name or description. Searches across personal and all project agent groups.', icon: 'Search' },
           { label: 'Refresh button', detail: 'Re-scans agent directories (~/.claude/agents/ and project-level) for new or changed agents.', icon: 'RefreshCw' },
         ],
       },
@@ -334,6 +335,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Play button', detail: 'Launch a new Claude session pre-configured with this agent definition.', icon: 'Play' },
           { label: 'Edit button', detail: 'Opens a split view: markdown file editor on the left, Claude terminal on the right to help refine the agent.', icon: 'Pencil' },
+          { label: 'Duplicate button', detail: 'Clone the agent file with "(copy)" appended to the name. Opens the copy in the editor for customization.', icon: 'Copy' },
           { label: 'Delete button', detail: 'Permanently deletes the agent definition file after confirmation. Cannot be undone.', icon: 'Trash2' },
           { label: 'Export', detail: 'Download the agent as a zip file to share with others.', icon: 'Download' },
         ],
