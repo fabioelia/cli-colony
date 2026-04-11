@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X, Shield, Sparkles, Check, Circle, Sun, Moon, Palette } from 'lucide-react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X, Shield, Sparkles, Check, Circle, Sun, Moon, Palette, Eye, EyeOff } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import BatchExecutionSettings from './BatchExecutionSettings'
 import AppUpdateSettings from './AppUpdateSettings'
@@ -57,6 +57,8 @@ export default function SettingsPanel({ onBack }: Props) {
   const [keepInTray, setKeepInTray] = useState(true)
   const [webhookEnabled, setWebhookEnabled] = useState(true)
   const [webhookPort, setWebhookPort] = useState('7474')
+  const [apiToken, setApiToken] = useState('')
+  const [showApiToken, setShowApiToken] = useState(false)
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
 
   const [sessionTemplates, setSessionTemplates] = useState<SessionTemplate[]>([])
@@ -98,6 +100,7 @@ export default function SettingsPanel({ onBack }: Props) {
       setKeepInTray(s.keepInTray !== 'false')
       setWebhookEnabled(s.webhookEnabled !== 'false')
       setWebhookPort(s.webhookPort || '7474')
+      setApiToken(s.apiToken || '')
       setTheme((s.theme === 'light' ? 'light' : 'dark') as 'dark' | 'light')
     })
     window.api.settings.getShells().then(setAvailableShells)
@@ -185,6 +188,7 @@ export default function SettingsPanel({ onBack }: Props) {
       window.api.settings.set('keepInTray', keepInTray ? 'true' : 'false'),
       window.api.settings.set('webhookEnabled', webhookEnabled ? 'true' : 'false'),
       window.api.settings.set('webhookPort', webhookPort),
+      window.api.settings.set('apiToken', apiToken),
       window.api.settings.set('theme', theme),
     ])
     setSaved(true)
@@ -839,6 +843,28 @@ export default function SettingsPanel({ onBack }: Props) {
                   <Copy size={12} />
                 </button>
               </div>
+            </div>
+            <div className="settings-field">
+              <label>API Token</label>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <input
+                  type={showApiToken ? 'text' : 'password'}
+                  value={apiToken}
+                  onChange={(e) => setApiToken(e.target.value)}
+                  placeholder="Leave empty for no auth"
+                  style={{ flex: 1 }}
+                />
+                <button
+                  className="panel-header-btn"
+                  onClick={() => setShowApiToken(!showApiToken)}
+                  title={showApiToken ? 'Hide token' : 'Show token'}
+                >
+                  {showApiToken ? <EyeOff size={12} /> : <Eye size={12} />}
+                </button>
+              </div>
+              <p className="settings-help">
+                When set, API requests require a <code>Bearer</code> token or <code>X-Colony-Token</code> header.
+              </p>
             </div>
           </>
         )}
