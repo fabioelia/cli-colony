@@ -1674,6 +1674,10 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-muted);
   font-size: 10px;
 }
+.instance-child-indicator.clickable,
+.instance-parent-badge.clickable { cursor: pointer; }
+.instance-child-indicator.clickable:hover { color: var(--accent); filter: brightness(1.3); }
+.instance-parent-badge.clickable:hover { color: var(--accent); text-decoration: underline; }
 
 .instance-attention-badge {
   display: inline-block;

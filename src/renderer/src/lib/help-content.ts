@@ -191,6 +191,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Global Search', detail: 'Search across all sessions\' terminal output. Find which session produced an error or output. Opens a side panel with results grouped by session.', shortcut: '\u2318\u21e7F', icon: 'Search' },
           { label: 'Shortcut numbers', detail: 'Numbers 1-9 shown next to sessions for quick Cmd+N jumping.' },
           { label: 'Trigger chain', detail: 'Click the info icon on a session that has a parent or children to see its full trigger chain — the tree of sessions that spawned from the same root. Click any node to navigate to that session. Useful for tracing persona orchestration chains.', icon: 'Info' },
+          { label: 'Parent/child navigation', detail: 'Click the ↳ arrow on child sessions to jump to the parent, or click "N children" on parent sessions to jump to the first child.' },
           { label: 'Repo Memory', detail: 'Place a `.colony/memory.md` file in a repo to automatically inject its conventions, architecture decisions, and team notes into every Colony session started in that directory. Same pattern as AGENTS.md — no UI needed.' },
         ],
       },
