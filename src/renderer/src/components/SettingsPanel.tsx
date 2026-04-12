@@ -5,7 +5,7 @@ import BatchExecutionSettings from './BatchExecutionSettings'
 import AppUpdateSettings from './AppUpdateSettings'
 import { parseShellArgs } from '../../../shared/utils'
 import type { McpAuditEntry, CommitAttribution, ApprovalRule, ApprovalRuleType, ApprovalRuleAction, OnboardingState } from '../../../preload'
-import type { SessionTemplate } from '../../../shared/types'
+import type { SessionTemplate, AgentDef } from '../../../shared/types'
 
 interface Props {
   onBack: () => void
@@ -75,6 +75,7 @@ export default function SettingsPanel({ onBack }: Props) {
   const [sessionTemplates, setSessionTemplates] = useState<SessionTemplate[]>([])
   const [showTemplatesSection, setShowTemplatesSection] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<SessionTemplate | null>(null)
+  const [availableAgents, setAvailableAgents] = useState<AgentDef[]>([])
 
   const [approvalRules, setApprovalRules] = useState<ApprovalRule[]>([])
   const [showApprovalRulesSection, setShowApprovalRulesSection] = useState(false)
@@ -167,6 +168,7 @@ export default function SettingsPanel({ onBack }: Props) {
     window.api.mcp.getAuditLog().then(setAuditLog).catch(() => {})
     window.api.session.getAttributedCommits().then(setCommitAttributions).catch(() => {})
     window.api.sessionTemplates.list().then(setSessionTemplates).catch(() => {})
+    window.api.agents.list().then(setAvailableAgents).catch(() => {})
     window.api.approvalRules.list().then(setApprovalRules).catch(() => {})
     window.api.onboarding.getState().then(setOnboardingState).catch(() => {})
   }, [])
@@ -1825,6 +1827,109 @@ export default function SettingsPanel({ onBack }: Props) {
                   <input type="checkbox" checked={editingTemplate.planFirst || false} onChange={e => setEditingTemplate({ ...editingTemplate, planFirst: e.target.checked || undefined })} style={{ marginRight: 6 }} />
                   Plan first
                 </label>
+              </div>
+
+              {/* Color */}
+              <div className="dialog-field">
+                <label>Color</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    type="color"
+                    value={editingTemplate.color || '#6b7280'}
+                    onChange={e => setEditingTemplate({ ...editingTemplate, color: e.target.value })}
+                    style={{ width: 32, height: 24, border: 'none', background: 'none', cursor: 'pointer' }}
+                  />
+                  {editingTemplate.color && (
+                    <button className="settings-font-size-reset" onClick={() => setEditingTemplate({ ...editingTemplate, color: undefined })}>Clear</button>
+                  )}
+                </div>
+              </div>
+
+              {/* CLI Backend */}
+              <div className="dialog-field">
+                <label>CLI Backend</label>
+                <select
+                  value={editingTemplate.cliBackend || 'claude'}
+                  onChange={e => setEditingTemplate({ ...editingTemplate, cliBackend: (e.target.value === 'claude' ? undefined : e.target.value) as any })}
+                  className="settings-select" style={{ width: '100%' }}
+                >
+                  <option value="claude">Claude (default)</option>
+                  <option value="cursor-agent">Cursor Agent</option>
+                </select>
+              </div>
+
+              {/* MCP Servers */}
+              <div className="dialog-field">
+                <label>MCP Servers</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
+                  {(editingTemplate.mcpServers || []).map((s, i) => (
+                    <span key={s} className="env-tpl-chip">
+                      {s}
+                      <button onClick={() => {
+                        const next = editingTemplate.mcpServers!.filter((_, j) => j !== i)
+                        setEditingTemplate({ ...editingTemplate, mcpServers: next.length ? next : undefined })
+                      }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', marginLeft: 4 }}>×</button>
+                    </span>
+                  ))}
+                </div>
+                <select
+                  value=""
+                  onChange={e => {
+                    if (!e.target.value) return
+                    const current = editingTemplate.mcpServers || []
+                    if (!current.includes(e.target.value)) {
+                      setEditingTemplate({ ...editingTemplate, mcpServers: [...current, e.target.value] })
+                    }
+                    e.target.value = ''
+                  }}
+                  className="settings-select" style={{ width: '100%' }}
+                >
+                  <option value="">Add MCP server...</option>
+                  {mcpServers.filter(s => !(editingTemplate.mcpServers || []).includes(s.name)).map(s => (
+                    <option key={s.name} value={s.name}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Agent */}
+              <div className="dialog-field">
+                <label>Agent</label>
+                <select
+                  value={editingTemplate.agent || ''}
+                  onChange={e => setEditingTemplate({ ...editingTemplate, agent: e.target.value || undefined })}
+                  className="settings-select" style={{ width: '100%' }}
+                >
+                  <option value="">None</option>
+                  {availableAgents.map(a => (
+                    <option key={a.filePath} value={a.filePath}>{a.name} ({a.scope})</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Environment Variables */}
+              <div className="dialog-field">
+                <label>Environment Variables</label>
+                {Object.entries(editingTemplate.envVars || {}).map(([key, val]) => (
+                  <div key={key} style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+                    <input value={key} readOnly style={{ width: '40%', opacity: 0.8 }} />
+                    <input value={val} onChange={e => {
+                      const next = { ...editingTemplate.envVars, [key]: e.target.value }
+                      setEditingTemplate({ ...editingTemplate, envVars: next })
+                    }} style={{ flex: 1 }} />
+                    <button className="settings-font-size-reset" onClick={() => {
+                      const next = { ...editingTemplate.envVars }
+                      delete next[key]
+                      setEditingTemplate({ ...editingTemplate, envVars: Object.keys(next).length ? next : undefined })
+                    }}>×</button>
+                  </div>
+                ))}
+                <button className="panel-header-btn" onClick={() => {
+                  const key = prompt('Variable name:')
+                  if (!key?.trim()) return
+                  setEditingTemplate({ ...editingTemplate, envVars: { ...(editingTemplate.envVars || {}), [key.trim()]: '' } })
+                }} style={{ marginTop: 4 }}>
+                  + Add variable
+                </button>
               </div>
             </div>
             <div className="dialog-footer">
