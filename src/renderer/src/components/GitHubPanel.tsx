@@ -500,6 +500,30 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     setPendingPromptAction(null)
   }
 
+  const handleEnvSelectorWorktreeSwap = async (envId: string) => {
+    if (!pendingPromptAction) return
+    const { prompt, pr, repo } = pendingPromptAction
+    const resolved = await window.api.github.resolvePrompt(prompt, pr, repo)
+    const slug = `${repo.owner}/${repo.name}`
+    const commentRef = pr.comments?.length > 0
+      ? `\n\nThe PR has ${pr.comments.length} comments. Read the comments file at ~/.claude-colony/pr-workspace/comments/${slug.replace(/\//g, '-')}-${pr.number}.md for full details.`
+      : ''
+
+    // Create worktree from PR branch, swap into env, launch session
+    const remoteUrl = `https://github.com/${repo.owner}/${repo.name}.git`
+    const wt = await window.api.worktree.create(repo.owner, repo.name, pr.branch, repo.name, remoteUrl, `PR #${pr.number}`)
+    await window.api.worktree.swap(envId, wt.id)
+
+    // Launch session in the env (cwd resolves from worktree primary repo)
+    const id = await onLaunchInstance({
+      name: `${prompt.label}: ${repo.name}#${pr.number}`,
+      workingDirectory: wt.repos[0]?.path || wt.path,
+    })
+    sendPromptToInstance(id, resolved + commentRef + memoryInstructions + colonyContextInstruction, `${prompt.label}: ${repo.name}#${pr.number}`)
+    setShowEnvSelector(false)
+    setPendingPromptAction(null)
+  }
+
   const handleOpenPromptEditor = () => {
     setEditingPrompts(prompts.map((p) => ({ ...p })))
     setShowPromptEditor(true)
@@ -2156,6 +2180,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
           }}
           onSelect={handleEnvSelectorCreate}
           onSelectReuse={handleEnvSelectorReuse}
+          onSelectWorktreeSwap={handleEnvSelectorWorktreeSwap}
         />
       )}
 

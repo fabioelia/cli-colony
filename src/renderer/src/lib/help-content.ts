@@ -410,11 +410,12 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Prompt Actions',
         position: 'Environment selector modal',
         items: [
-          { label: 'Create new environment', detail: 'Set up a fresh instance with all dependencies. Takes 30–60s to initialize. Default option.' },
-          { label: 'Reuse existing', detail: 'Send the prompt to an already-running instance. Shows instance name, status, age, and cost. Choose this if you\'re testing multiple PRs in the same environment.' },
-          { label: 'Instance dropdown', detail: 'Lists running instances only. Each entry shows the session name, status, how long it\'s been running, and its current cost (if available).' },
-          { label: 'Cancel', detail: 'Close the modal without launching anything.' },
-          { label: 'Next', detail: 'Proceed with your selection. For new environments, the session starts in a "building" state. For reuse, the prompt is queued immediately.' },
+          { label: 'Swap worktree in running env', detail: 'Fastest option (~5s). Creates a worktree from the PR branch and hot-swaps it into a running environment. Services restart automatically. Requires at least one running environment.', icon: 'GitBranch' },
+          { label: 'Create new environment', detail: 'Set up a fresh instance with all dependencies. Takes 30–60s to initialize. Launches a full environment from scratch.' },
+          { label: 'Continue in existing session', detail: 'Send the prompt to an already-running session (instant). Shows session name, status, age, and cost. Choose this if you\'re testing multiple PRs in the same context.' },
+          { label: 'Environment dropdown', detail: 'When swapping worktrees, lists running environments with branch info and service counts. Only running environments can accept hot-swaps.' },
+          { label: 'Session dropdown', detail: 'When continuing in an existing session, lists running sessions. Each entry shows the session name, status, how long it\'s been running, and its current cost.' },
+          { label: 'Time estimates', detail: 'Each option shows estimated setup time: ~5s for worktree swap, ~60s for new environment, instant for session reuse.' },
         ],
       },
       {
