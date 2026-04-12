@@ -586,7 +586,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Tabs within expanded card',
         items: [
           { label: 'Flow', detail: 'SVG node graph of the pipeline structure. Shows trigger → action → sub-stages as connected nodes. Parallel actions fork and rejoin via diamond nodes. Nodes are color-coded by last-run status: green (success), red (failure), gray (no data). Active stages pulse when the pipeline is running.', icon: 'GitBranch' },
-          { label: 'Memory', detail: 'Per-pipeline memory file. Sessions are told to append learnings here.' },
+          { label: 'Memory', detail: 'Per-pipeline memory file. Maker learnings and checker review rules are injected into prompts automatically. On approval, the checker\'s observations are persisted under a "Review Rules" header. Size-capped at ~4K tokens.' },
           { label: 'Outputs', detail: 'Configurable output directory for pipeline-generated files.' },
           { label: 'History', detail: 'Ring buffer of the last 20 poll runs: timestamp, trigger type, whether an action fired, success/failure, and duration. Click rows with a chevron (▶) to expand per-stage details — stage type, session name (clickable if session still exists — navigates to that session), reviewer response snippet (diff_review stages), individual duration, and a △ badge on any stage whose status changed from the prior run. Use the checkboxes on the left to select two runs for side-by-side comparison.', icon: 'Clock' },
           { label: 'Retry Failed Run', detail: 'Re-trigger the pipeline from a failed history entry. Appears as a refresh icon on failed rows.', icon: 'RefreshCw' },

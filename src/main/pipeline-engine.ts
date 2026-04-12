@@ -76,6 +76,7 @@ export interface ActionDef {
   checkerPrompt?: string
   approvedKeyword?: string // keyword to detect approval in checker output (default: 'APPROVED')
   maxIterations?: number   // max maker retries (default: 3)
+  checkerMemory?: boolean  // inject review rules memory into checker prompt (default: true)
   // diff_review specific fields
   diffBase?: string             // git ref to diff against (default: 'HEAD~1')
   autoFix?: boolean             // on FAIL, launch fixer session and retry (default: false)

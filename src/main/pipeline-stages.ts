@@ -104,6 +104,51 @@ export function isApproved(text: string): boolean {
   return lower.includes('approved') || lower.includes('lgtm')
 }
 
+const MAX_MEMORY_BYTES = 16 * 1024 // ~4K tokens
+
+/** Extract review observations from an APPROVED verdict (lines after the APPROVED keyword). */
+export function extractReviewObservations(verdict: string): string {
+  const lines = verdict.split('\n')
+  const approvedIdx = lines.findIndex(l => /approved|lgtm/i.test(l))
+  if (approvedIdx < 0) return ''
+  const observations = lines.slice(approvedIdx + 1).filter(l => l.trim()).join('\n').trim()
+  return observations
+}
+
+/** Append review rules to .memory.md under a --- Review Rules --- header, with size cap. */
+async function appendReviewRules(memPath: string, observations: string): Promise<void> {
+  const HEADER = '--- Review Rules ---'
+  let existing = ''
+  try { existing = await pathExists(memPath) ? await fsp.readFile(memPath, 'utf-8') : '' } catch {}
+
+  const timestamp = new Date().toISOString().slice(0, 10)
+  const entry = `\n[${timestamp}] ${observations}`
+
+  let updated: string
+  if (existing.includes(HEADER)) {
+    updated = existing + entry
+  } else {
+    updated = existing + (existing.trim() ? '\n\n' : '') + HEADER + entry
+  }
+
+  // Truncate oldest entries if over size limit
+  if (Buffer.byteLength(updated, 'utf-8') > MAX_MEMORY_BYTES) {
+    const lines = updated.split('\n')
+    while (lines.length > 2 && Buffer.byteLength(lines.join('\n'), 'utf-8') > MAX_MEMORY_BYTES) {
+      // Remove the oldest line after the first header
+      const firstHeaderIdx = lines.findIndex(l => l.startsWith('---'))
+      if (firstHeaderIdx >= 0 && firstHeaderIdx + 1 < lines.length) {
+        lines.splice(firstHeaderIdx + 1, 1)
+      } else {
+        break
+      }
+    }
+    updated = lines.join('\n')
+  }
+
+  await fsp.writeFile(memPath, updated, 'utf-8')
+}
+
 /**
  * Execute a maker-checker loop: maker produces output, checker reviews it.
  * Iterates up to maxIterations times. Completes when checker says APPROVED
@@ -126,6 +171,12 @@ export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pi
   const cwd = resolveTemplate(action.workingDirectory || '', ctx) || undefined
   const baseName = resolveTemplate(action.name || pipelineName, ctx)
 
+  // Hoist pipeline entry + memory path for maker and checker use
+  const pipelineEntry = [...pipelines.values()].find(pp => pp.def.name === pipelineName)
+  const memPath = pipelineEntry
+    ? join(PIPELINES_DIR, `${pipelineEntry.fileName.replace(/\.(yaml|yml)$/, '')}.memory.md`)
+    : null
+
   let prevFeedback = ''
   let accumulatedCost = 0
   let lastMakerSessionId: string | undefined
@@ -140,15 +191,11 @@ export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pi
     }
     makerFullPrompt += `\n\n--- Required Output Step ---\nWhen you are done, write a comprehensive summary of what you did (including relevant file paths, test results, and key decisions) to:\n${makerOutputFile}\nThis MUST be written before you finish — the checker agent depends on it.`
 
-    // Inject pipeline memory
-    const p = [...pipelines.values()].find(pp => pp.def.name === pipelineName)
-    if (p) {
-      const memPath = join(PIPELINES_DIR, `${p.fileName.replace(/\.(yaml|yml)$/, '')}.memory.md`)
-      if (await pathExists(memPath)) {
-        const memory = (await fsp.readFile(memPath, 'utf-8')).trim()
-        if (memory) {
-          makerFullPrompt += `\n\n--- Pipeline Memory ---\n${memory}`
-        }
+    // Inject pipeline memory (maker learnings)
+    if (memPath && await pathExists(memPath)) {
+      const memory = (await fsp.readFile(memPath, 'utf-8')).trim()
+      if (memory) {
+        makerFullPrompt += `\n\n--- Pipeline Memory ---\n${memory}`
       }
     }
 
@@ -186,7 +233,16 @@ export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pi
     // ---- Checker ----
     let checkerFullPrompt = `--- Maker Output (iteration ${iteration}) ---\n${makerOutput}\n\n--- End Maker Output ---\n\n`
     checkerFullPrompt += resolveTemplate(checkerPrompt, ctx)
-    checkerFullPrompt += `\n\n--- Required Verdict Step ---\nAfter your evaluation, write one of the following to:\n${verdictFile}\n\n- Work is complete and acceptable → write exactly: APPROVED\n- Changes needed → write: NEEDS REVISION: <your specific feedback>\n\nThis file MUST be written before you finish.`
+
+    // Inject pipeline memory into checker (review rules from past reviews)
+    if (action.checkerMemory !== false && memPath && await pathExists(memPath)) {
+      const memory = (await fsp.readFile(memPath, 'utf-8')).trim()
+      if (memory) {
+        checkerFullPrompt += `\n\n--- Review Rules (from past reviews) ---\nApply these learned standards when evaluating the work:\n\n${memory}`
+      }
+    }
+
+    checkerFullPrompt += `\n\n--- Required Verdict Step ---\nAfter your evaluation, write one of the following to:\n${verdictFile}\n\n- Work is complete and acceptable → write: APPROVED on the first line, then on subsequent lines list any review patterns or quality rules worth remembering for future reviews (one per line, prefixed with "- ").\n- Changes needed → write: NEEDS REVISION: <your specific feedback>\n\nThis file MUST be written before you finish.`
 
     // Clear any previous verdict
     try { await fsp.writeFile(verdictFile, '', 'utf-8') } catch {}
@@ -222,6 +278,16 @@ export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pi
     if (isApproved(verdict) || verdict.includes(approvedKeyword)) {
       plog(pipelineName, `maker-checker: APPROVED after ${iteration} iteration(s)`)
       appendActivity({ source: 'pipeline', name: pipelineName, summary: `Maker-checker "${pipelineName}" APPROVED after ${iteration} iteration(s)`, level: 'info' })
+
+      // Persist checker's review observations as learned review rules
+      if (action.checkerMemory !== false && memPath) {
+        const observations = extractReviewObservations(verdict)
+        if (observations) {
+          await appendReviewRules(memPath, observations)
+          plog(pipelineName, `maker-checker: appended ${observations.split('\n').length} review rule(s) to memory`)
+        }
+      }
+
       return { cost: accumulatedCost, sessionId: lastMakerSessionId }
     }
 

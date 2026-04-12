@@ -1110,7 +1110,7 @@ action:
                 ) : expandedTab === 'memory' ? (
                   <div className="pipeline-memory-editor">
                     <p className="pipeline-memory-hint">
-                      Learnings from previous runs — tools, patterns, and approaches that help future executions. Injected into prompts automatically.
+                      Learnings from previous runs. Maker learnings and review rules are injected into both maker and checker prompts automatically. Use <code>--- Review Rules ---</code> to separate checker-specific rules.
                     </p>
                     <textarea
                       className="pipeline-editor-textarea"
