@@ -52,6 +52,12 @@ export class EnvDaemonClient extends BaseDaemonClient {
     await this.request({ type: 'restart-service', reqId: this.nextReqId(), envId, service })
   }
 
+  /** Atomic worktree remount: stop → re-register with new manifest → start */
+  async remount(envId: string, manifest: InstanceManifest): Promise<void> {
+    // Remount stops + restarts services; needs generous timeout like start()
+    await this.request({ type: 'remount', reqId: this.nextReqId(), envId, manifest }, 120000)
+  }
+
   async status(): Promise<EnvStatus[]> {
     return (await this.request({ type: 'status', reqId: this.nextReqId() })) as EnvStatus[]
   }

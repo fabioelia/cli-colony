@@ -727,22 +727,39 @@ export interface ErrorSummary {
   snippet: string[]
 }
 
+/** A single repo checkout within a worktree bundle. */
+export interface WorktreeRepo {
+  owner: string
+  name: string
+  /** Template repo alias (e.g. "backend", "frontend") */
+  alias: string
+  /** Absolute path to this repo's checkout */
+  path: string
+  /** Absolute path to the bare repo (shared object store) */
+  bareRepoPath: string
+}
+
 /** A standalone worktree decoupled from any specific environment. */
 export interface WorktreeInfo {
   id: string
-  /** Owner/name of the GitHub repo (e.g. "Newton-Research-Inc/newton") */
-  repo: { owner: string; name: string }
+  /** User-facing display name (e.g. "PR #42: fix auth", "NP-1234: payment flow") */
+  displayName: string
+  /** All repos in this worktree bundle (multi-repo support) */
+  repos: WorktreeRepo[]
   /** The remote branch this worktree tracks (e.g. "develop") */
   branch: string
-  /** Absolute path to the worktree directory */
-  path: string
-  /** Absolute path to the bare repo this worktree belongs to */
-  bareRepoPath: string
   /** ISO timestamp when this worktree was created */
   createdAt: string
   /** ID of the environment this worktree is currently mounted to, or null */
   mountedEnvId: string | null
-  /** Repo alias used in the environment template (e.g. "backend", "frontend") */
+  // ---- Deprecated: kept for backward compat, derived from repos[0] ----
+  /** @deprecated Use repos[0] */
+  repo: { owner: string; name: string }
+  /** @deprecated Use repos[0].path */
+  path: string
+  /** @deprecated Use repos[0].bareRepoPath */
+  bareRepoPath: string
+  /** @deprecated Use repos[0].alias */
   repoAlias: string
 }
 

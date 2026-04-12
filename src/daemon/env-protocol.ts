@@ -99,6 +99,11 @@ export interface InstanceManifest {
   }
 
   meta?: Record<string, unknown>
+
+  /** ID of the currently mounted worktree (set after worktree swap) */
+  activeWorktreeId?: string
+  /** Which repo alias is the session cwd (e.g. "backend") */
+  primaryRepo?: string
 }
 
 // ---- Domain types (single source of truth in shared/types.ts) ----
@@ -113,6 +118,7 @@ export type EnvRequest =
   | { type: 'start'; reqId: string; envId: string; services?: string[] }
   | { type: 'stop'; reqId: string; envId: string; services?: string[] }
   | { type: 'restart-service'; reqId: string; envId: string; service: string }
+  | { type: 'remount'; reqId: string; envId: string; manifest: InstanceManifest }
   | { type: 'status'; reqId: string }
   | { type: 'status-one'; reqId: string; envId: string }
   | { type: 'logs'; reqId: string; envId: string; service: string; lines?: number }

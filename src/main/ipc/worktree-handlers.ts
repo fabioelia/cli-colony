@@ -8,6 +8,7 @@ import {
   removeWorktree,
   getWorktreesForEnv,
 } from '../worktree-manager'
+import { swapWorktree } from '../worktree-swap'
 
 export function registerWorktreeHandlers(): void {
   ipcMain.handle('worktree:list', () => listWorktrees())
@@ -21,8 +22,9 @@ export function registerWorktreeHandlers(): void {
     branch: string,
     repoAlias: string,
     remoteUrl?: string,
+    displayName?: string,
   ) => {
-    return createWorktree(owner, name, branch, repoAlias, remoteUrl)
+    return createWorktree(owner, name, branch, repoAlias, remoteUrl, displayName)
   })
 
   ipcMain.handle('worktree:mount', async (_e, worktreeId: string, envId: string) => {
@@ -39,4 +41,8 @@ export function registerWorktreeHandlers(): void {
   })
 
   ipcMain.handle('worktree:forEnv', (_e, envId: string) => getWorktreesForEnv(envId))
+
+  ipcMain.handle('worktree:swap', async (_e, envId: string, worktreeId: string) => {
+    return swapWorktree(envId, worktreeId)
+  })
 }

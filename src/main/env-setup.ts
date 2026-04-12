@@ -120,9 +120,15 @@ export async function runSetup(
         } catch { /* ignore -- bare repo already has the correct remote */ }
       }
     }
-    // Store worktree mount mapping in manifest meta
+    // Store worktree mount mapping and active worktree in manifest meta
     if (Object.keys(mountedWorktrees).length > 0) {
       manifest.meta = { ...manifest.meta, mountedWorktrees }
+      // Set activeWorktreeId to the first mounted worktree
+      const firstWtId = Object.values(mountedWorktrees)[0]
+      if (firstWtId) manifest.activeWorktreeId = firstWtId
+      // Set primaryRepo to the first repo alias
+      const firstAlias = Object.keys(mountedWorktrees)[0]
+      if (firstAlias && !manifest.primaryRepo) manifest.primaryRepo = firstAlias
 
       // Re-resolve hooks and services now that manifest.paths point to actual worktree locations.
       // The initial resolution in createEnvironment() used placeholder paths (envDir/repoName)

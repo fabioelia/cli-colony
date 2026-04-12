@@ -16,6 +16,7 @@ import type {
   ErrorSummary,
   PersonaHealthEntry,
 } from '../shared/types'
+import type { InstanceManifest } from '../daemon/env-protocol'
 
 // Re-export shared types so existing imports from this module continue to work
 export type {
@@ -529,11 +530,12 @@ export interface ClaudeManagerAPI {
   worktree: {
     list: () => Promise<WorktreeInfo[]>
     get: (id: string) => Promise<WorktreeInfo | null>
-    create: (owner: string, name: string, branch: string, repoAlias: string, remoteUrl?: string) => Promise<WorktreeInfo>
+    create: (owner: string, name: string, branch: string, repoAlias: string, remoteUrl?: string, displayName?: string) => Promise<WorktreeInfo>
     mount: (worktreeId: string, envId: string) => Promise<WorktreeInfo>
     unmount: (worktreeId: string) => Promise<WorktreeInfo>
     remove: (worktreeId: string) => Promise<boolean>
     forEnv: (envId: string) => Promise<WorktreeInfo[]>
+    swap: (envId: string, worktreeId: string) => Promise<InstanceManifest>
     onChanged: (cb: () => void) => () => void
   }
   artifacts: {
@@ -1133,11 +1135,12 @@ const api: ClaudeManagerAPI = {
   worktree: {
     list: () => ipcRenderer.invoke('worktree:list'),
     get: (id) => ipcRenderer.invoke('worktree:get', id),
-    create: (owner, name, branch, repoAlias, remoteUrl) => ipcRenderer.invoke('worktree:create', owner, name, branch, repoAlias, remoteUrl),
+    create: (owner, name, branch, repoAlias, remoteUrl, displayName) => ipcRenderer.invoke('worktree:create', owner, name, branch, repoAlias, remoteUrl, displayName),
     mount: (worktreeId, envId) => ipcRenderer.invoke('worktree:mount', worktreeId, envId),
     unmount: (worktreeId) => ipcRenderer.invoke('worktree:unmount', worktreeId),
     remove: (worktreeId) => ipcRenderer.invoke('worktree:remove', worktreeId),
     forEnv: (envId) => ipcRenderer.invoke('worktree:forEnv', envId),
+    swap: (envId, worktreeId) => ipcRenderer.invoke('worktree:swap', envId, worktreeId),
     onChanged: (cb) => {
       const l = () => cb()
       ipcRenderer.on('worktree:changed', l)

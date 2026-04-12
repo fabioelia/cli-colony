@@ -862,6 +862,49 @@ function notifyChanged(): void {
   broadcastEvent({ type: 'env-changed', environments: getAllStatus() })
 }
 
+/**
+ * Atomic worktree remount: stop services → update manifest → restart services.
+ * The caller (main process) handles worktree mount/unmount and manifest path updates;
+ * envd just needs to cycle services with the new manifest.
+ */
+async function remountEnvironment(envId: string, newManifest: InstanceManifest): Promise<void> {
+  const env = environments.get(envId)
+  if (!env) throw new Error(`environment ${envId} not found`)
+
+  log(`[${env.manifest.name}] remount: stopping services for worktree swap`)
+
+  // 1. Stop all services (graceful)
+  await stopEnvironment(envId)
+
+  // 2. Wait for processes to die (up to 5s)
+  const deadline = Date.now() + 5000
+  while (Date.now() < deadline) {
+    const anyAlive = Array.from(env.services.values()).some(svc =>
+      svc.pid != null && isPidAlive(svc.pid)
+    )
+    if (!anyAlive) break
+    await new Promise(r => setTimeout(r, 200))
+  }
+
+  // 3. Force kill stragglers
+  for (const svc of env.services.values()) {
+    if (svc.pid != null && isPidAlive(svc.pid)) {
+      try { process.kill(-svc.pid, 'SIGKILL') } catch {
+        try { process.kill(svc.pid, 'SIGKILL') } catch { /* */ }
+      }
+    }
+  }
+
+  // 4. Re-register with new manifest (updates paths, services, etc.)
+  registerEnvironment(newManifest)
+
+  // 5. Start all services with the new paths
+  log(`[${newManifest.name}] remount: starting services with new worktree paths`)
+  await startEnvironment(envId)
+
+  log(`[${newManifest.name}] remount complete`)
+}
+
 // ---- Request Handler ----
 
 function handleRequest(req: EnvRequest, socket: net.Socket): void {
@@ -895,6 +938,12 @@ function handleRequest(req: EnvRequest, socket: net.Socket): void {
       }
       case 'stop': {
         stopEnvironment(req.envId, req.services)
+          .then(() => send({ type: 'ok', reqId: req.reqId }))
+          .catch(err => send({ type: 'error', reqId: req.reqId, message: String(err) }))
+        break
+      }
+      case 'remount': {
+        remountEnvironment(req.envId, req.manifest)
           .then(() => send({ type: 'ok', reqId: req.reqId }))
           .catch(err => send({ type: 'error', reqId: req.reqId, message: String(err) }))
         break

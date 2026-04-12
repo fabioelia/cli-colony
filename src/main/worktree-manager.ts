@@ -17,7 +17,7 @@ import { genId } from '../shared/utils'
 import { ensureBareRepo, addWorktree as gitAddWorktree, removeWorktree as gitRemoveWorktree } from '../shared/git-worktree'
 import { gitRemoteUrl } from './settings'
 import { broadcast } from './broadcast'
-import type { WorktreeInfo } from '../shared/types'
+import type { WorktreeInfo, WorktreeRepo } from '../shared/types'
 
 async function pathExists(p: string): Promise<boolean> {
   try { await fsp.access(p); return true } catch { return false }
@@ -33,6 +33,7 @@ const WORKTREES_DIR = colonyPaths.worktrees
  * @param branch - Remote branch to track (e.g. "develop")
  * @param repoAlias - Alias used in environment templates (e.g. "backend")
  * @param remoteUrl - Optional explicit remote URL (resolved from settings if omitted)
+ * @param displayName - User-facing name (defaults to "<branch> (<id[:6]>)")
  */
 export async function createWorktree(
   owner: string,
@@ -40,6 +41,7 @@ export async function createWorktree(
   branch: string,
   repoAlias: string,
   remoteUrl?: string,
+  displayName?: string,
 ): Promise<WorktreeInfo> {
   const id = genId()
   const wtDir = colonyPaths.worktreeDir(id)
@@ -54,14 +56,25 @@ export async function createWorktree(
   // Create the worktree with wt/<id>/<branch> naming
   await gitAddWorktree(bareDir, repoDir, branch, `wt-${id}`)
 
-  const info: WorktreeInfo = {
-    id,
-    repo: { owner, name },
-    branch,
+  const repoEntry: WorktreeRepo = {
+    owner,
+    name,
+    alias: repoAlias,
     path: repoDir,
     bareRepoPath: bareDir,
+  }
+
+  const info: WorktreeInfo = {
+    id,
+    displayName: displayName || `${branch} (${id.slice(0, 6)})`,
+    repos: [repoEntry],
+    branch,
     createdAt: new Date().toISOString(),
     mountedEnvId: null,
+    // Deprecated compat fields (derived from repos[0])
+    repo: { owner, name },
+    path: repoDir,
+    bareRepoPath: bareDir,
     repoAlias,
   }
 
@@ -89,7 +102,7 @@ export async function listWorktrees(): Promise<WorktreeInfo[]> {
     const manifestPath = path.join(WORKTREES_DIR, entry, 'worktree.json')
     try {
       const raw = await fsp.readFile(manifestPath, 'utf-8')
-      results.push(JSON.parse(raw))
+      results.push(migrateWorktreeInfo(JSON.parse(raw)))
     } catch { /* skip invalid entries */ }
   }
 
@@ -102,7 +115,7 @@ export async function listWorktrees(): Promise<WorktreeInfo[]> {
 export async function getWorktree(id: string): Promise<WorktreeInfo | null> {
   const manifestPath = path.join(colonyPaths.worktreeDir(id), 'worktree.json')
   try {
-    return JSON.parse(await fsp.readFile(manifestPath, 'utf-8'))
+    return migrateWorktreeInfo(JSON.parse(await fsp.readFile(manifestPath, 'utf-8')))
   } catch {
     return null
   }
@@ -194,6 +207,26 @@ export async function unmountAllForEnv(envId: string): Promise<void> {
 }
 
 // ---- Internal ----
+
+/** Backfill displayName + repos[] for worktrees created before multi-repo support. */
+function migrateWorktreeInfo(raw: any): WorktreeInfo {
+  const info = raw as WorktreeInfo
+  // Backfill repos[] from legacy single-repo fields
+  if (!info.repos || info.repos.length === 0) {
+    info.repos = [{
+      owner: info.repo?.owner || '',
+      name: info.repo?.name || '',
+      alias: info.repoAlias || '',
+      path: info.path || '',
+      bareRepoPath: info.bareRepoPath || '',
+    }]
+  }
+  // Backfill displayName
+  if (!info.displayName) {
+    info.displayName = `${info.branch || 'unknown'} (${info.id.slice(0, 6)})`
+  }
+  return info
+}
 
 async function saveWorktreeManifest(info: WorktreeInfo): Promise<void> {
   const manifestPath = path.join(colonyPaths.worktreeDir(info.id), 'worktree.json')
