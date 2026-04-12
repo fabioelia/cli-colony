@@ -14336,6 +14336,10 @@ body:has(.daemon-update-banner) .app-update-banner {
 .env-worktree-repo { font-weight: 600; color: var(--text-primary); }
 .env-worktree-branch { color: var(--text-secondary); display: flex; align-items: center; gap: 3px; }
 .env-worktree-path { color: var(--text-muted); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.env-worktree-path-actions { display: inline-flex; gap: 2px; margin-left: 4px; opacity: 0; transition: opacity 0.15s; }
+.env-worktree-item:hover .env-worktree-path-actions { opacity: 1; }
+.env-worktree-path-btn { background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 1px 3px; border-radius: 3px; display: flex; align-items: center; }
+.env-worktree-path-btn:hover { color: var(--accent); background: var(--hover); }
 .env-worktree-mounted { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(59,130,246,0.15); color: var(--accent); font-weight: 600; }
 .env-worktree-unmounted { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(245,158,11,0.1); color: var(--text-muted); }
 .env-worktree-age { color: var(--text-muted); }

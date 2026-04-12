@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   Server, Play, Square, Trash2, RefreshCw, FileText, Copy,
   Plus, ExternalLink, ChevronDown, ChevronRight,
-  Circle, AlertTriangle, Clock, X, FolderOpen, Terminal, Loader, CheckCircle, SkipForward, Upload, Download, MessageSquare, Wrench, Stethoscope,
+  Circle, AlertTriangle, Clock, X, FolderOpen, Terminal, Loader, CheckCircle, Check, SkipForward, Upload, Download, MessageSquare, Wrench, Stethoscope,
   GitBranch, Unlink, Link
 } from 'lucide-react'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
@@ -73,6 +73,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
   const [createDialogTemplate, setCreateDialogTemplate] = useState<EnvironmentTemplate | null>(null)
   const [editingTemplateJson, setEditingTemplateJson] = useState<{ id: string; content: string; dirty: boolean } | null>(null)
   const [mountingWorktreeId, setMountingWorktreeId] = useState<string | null>(null)
+  const [copiedWorktreeId, setCopiedWorktreeId] = useState<string | null>(null)
   const [actionInProgress, setActionInProgress] = useState<Set<string>>(new Set())
   const [confirmTeardown, setConfirmTeardown] = useState<string | null>(null)
   const [cloneDialog, setCloneDialog] = useState<{ envId: string; envName: string } | null>(null)
@@ -1225,6 +1226,26 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                 <span className="env-worktree-repo">{w.repo.owner}/{w.repo.name}</span>
                 <span className="env-worktree-branch"><GitBranch size={10} /> {w.branch}</span>
                 <span className="env-worktree-path" title={w.path}>{w.path.split('/').slice(-2).join('/')}</span>
+                <div className="env-worktree-path-actions">
+                  <button
+                    className="env-worktree-path-btn"
+                    title="Reveal in Finder"
+                    onClick={() => window.api.shell.openExternal(`file://${w.path}`)}
+                  >
+                    <FolderOpen size={10} />
+                  </button>
+                  <button
+                    className="env-worktree-path-btn"
+                    title="Copy full path"
+                    onClick={() => {
+                      navigator.clipboard.writeText(w.path)
+                      setCopiedWorktreeId(w.id)
+                      setTimeout(() => setCopiedWorktreeId(null), 1500)
+                    }}
+                  >
+                    {copiedWorktreeId === w.id ? <Check size={10} /> : <Copy size={10} />}
+                  </button>
+                </div>
                 {w.mountedEnvId
                   ? <span className="env-worktree-mounted">Mounted: {environments.find(e => e.id === w.mountedEnvId)?.name || w.mountedEnvId}</span>
                   : <span className="env-worktree-unmounted">Unmounted</span>
