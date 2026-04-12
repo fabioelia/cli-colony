@@ -111,9 +111,10 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
   const [mcpServersList, setMcpServersList] = useState<McpServer[]>([])
   const [selectedMcpServers, setSelectedMcpServers] = useState<Set<string>>(new Set())
   const [planFirst, setPlanFirst] = useState(false)
-  // Show prompt field when cloning (so user can add a fresh prompt) or when
-  // the caller passed a seed (starter cards).
-  const showPromptField = !!cloneSource || initialPrompt !== undefined
+  // Prompt field is always available. It starts expanded when seeded (clone or
+  // starter card) and collapsed behind a toggle in the default "New Session" path.
+  const promptSeeded = !!cloneSource || initialPrompt !== undefined
+  const [promptExpanded, setPromptExpanded] = useState(promptSeeded)
   const [firstPrompt, setFirstPrompt] = useState(initialPrompt || '')
   const promptRef = useRef<HTMLTextAreaElement | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -123,16 +124,17 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
   const [agents, setAgents] = useState<AgentDef[]>([])
   const [selectedAgent, setSelectedAgent] = useState<string>('')  // filePath or empty
 
-  // When the starter-card path opens the dialog, focus the prompt textarea
-  // and place the cursor at the end so the user can just press Enter.
+  // When the starter-card / clone path opens the dialog, focus the prompt
+  // textarea and place the cursor at the end so the user can just press Enter.
+  // Don't auto-focus when the user manually expands the toggle.
   useEffect(() => {
-    if (!showPromptField) return
+    if (!promptSeeded) return
     const ta = promptRef.current
     if (!ta) return
     ta.focus()
     const len = ta.value.length
     ta.setSelectionRange(len, len)
-  }, [showPromptField])
+  }, [promptSeeded])
 
   useEffect(() => {
     if (!cloneSource) {
@@ -255,62 +257,69 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
             placeholder="My Project"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            autoFocus={!showPromptField}
+            autoFocus={!promptSeeded}
           />
         </div>
 
-        {showPromptField && (
-          <div className="dialog-field">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <label style={{ margin: 0 }}>First prompt</label>
-              {getHistory().length > 0 && (
-                <div style={{ position: 'relative' }} ref={historyRef}>
-                  <button
-                    type="button"
-                    className="panel-header-btn"
-                    style={{ padding: '1px 4px', fontSize: 11 }}
-                    onClick={() => setHistoryOpen(!historyOpen)}
-                    title="Prompt history"
-                  >
-                    History
-                  </button>
-                  {historyOpen && (
-                    <div className="prompt-history-dropdown">
-                      {getHistory().map((entry, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          className="prompt-history-item"
-                          onClick={() => {
-                            setFirstPrompt(entry.prompt)
-                            setHistoryOpen(false)
-                            promptRef.current?.focus()
-                          }}
-                        >
-                          <span className="prompt-history-text">
-                            {entry.prompt.length > 80 ? entry.prompt.slice(0, 80) + '...' : entry.prompt}
-                          </span>
-                          <span className="prompt-history-time">{relativeTime(entry.timestamp)}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            <textarea
-              ref={promptRef}
-              className="dialog-first-prompt"
-              placeholder="What should Claude work on first?"
-              value={firstPrompt}
-              onChange={(e) => setFirstPrompt(e.target.value)}
-              rows={4}
-            />
-            <div className="dialog-field-hint">
-              Runs automatically as soon as the session is ready. Leave blank to start idle.
-            </div>
-          </div>
-        )}
+        <div className="dialog-field">
+          <label
+            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, margin: 0 }}
+            onClick={() => setPromptExpanded(!promptExpanded)}
+          >
+            {promptExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            First prompt
+            {!promptSeeded && <span style={{ opacity: 0.5, fontWeight: 'normal' }}>(optional)</span>}
+            {promptExpanded && getHistory().length > 0 && (
+              <div style={{ position: 'relative', marginLeft: 4 }} ref={historyRef} onClick={e => e.stopPropagation()}>
+                <button
+                  type="button"
+                  className="panel-header-btn"
+                  style={{ padding: '1px 4px', fontSize: 11 }}
+                  onClick={() => setHistoryOpen(!historyOpen)}
+                  title="Prompt history"
+                >
+                  History
+                </button>
+                {historyOpen && (
+                  <div className="prompt-history-dropdown">
+                    {getHistory().map((entry, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        className="prompt-history-item"
+                        onClick={() => {
+                          setFirstPrompt(entry.prompt)
+                          setHistoryOpen(false)
+                          promptRef.current?.focus()
+                        }}
+                      >
+                        <span className="prompt-history-text">
+                          {entry.prompt.length > 80 ? entry.prompt.slice(0, 80) + '...' : entry.prompt}
+                        </span>
+                        <span className="prompt-history-time">{relativeTime(entry.timestamp)}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </label>
+          {promptExpanded && (
+            <>
+              <textarea
+                ref={promptRef}
+                className="dialog-first-prompt"
+                placeholder="What should Claude work on first?"
+                value={firstPrompt}
+                onChange={(e) => setFirstPrompt(e.target.value)}
+                rows={4}
+              />
+              <div className="dialog-field-hint">
+                Runs automatically as soon as the session is ready. Leave blank to start idle.
+              </div>
+            </>
+          )}
+        </div>
 
         <div className="dialog-field">
           <label>Working Directory</label>
@@ -478,7 +487,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
           </div>
         </div>
 
-        {showPromptField && firstPrompt.trim() && (
+        {promptExpanded && firstPrompt.trim() && (
           <label className="dialog-mcp-checkbox" style={{ padding: '0 4px' }}>
             <input
               type="checkbox"

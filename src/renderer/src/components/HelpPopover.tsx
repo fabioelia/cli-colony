@@ -22,7 +22,7 @@ const iconMap: Record<string, LucideIcon> = {
   Plus, RotateCcw, Pin, Columns2, Settings, RefreshCw, Play, Pencil,
   Download, Upload, ArrowLeft, Brain, FileText, MessageSquare, Search,
   Filter, Zap, Square, Terminal, FolderOpen, Stethoscope, Trash2,
-  GitBranch, GitMerge, Info, GitFork, HelpCircle, ChevronDown, User, Bell, BellRing, Eye, FileDown,
+  GitBranch, GitMerge, Info, GitFork, HelpCircle, ChevronDown, ChevronRight, User, Bell, BellRing, Eye, FileDown,
   StickyNote, Clock, Network, ArrowUpDown, AlertCircle, AlertTriangle, LayoutList, ShieldCheck, Shield, UserPlus,
   ClipboardList, GitCommit, Trophy, BarChart3, BarChart2, Globe, Navigation, ArrowRight, BookTemplate, Wand2, Hourglass, Undo2, EyeOff,
   Sparkles, DownloadCloud, TrendingUp, TerminalSquare, Wrench, Bug,
