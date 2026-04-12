@@ -11,6 +11,7 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync } from 'fs'
 import { spawn } from 'child_process'
+import { resolveCommand } from './resolve-command'
 import { join, dirname, basename } from 'path'
 import { colonyPaths } from '../shared/colony-paths'
 import type { PersonaMemory, PersonaMemorySituation, PersonaMemoryLearning, PersonaMemoryLogEntry } from '../shared/types'
@@ -242,7 +243,7 @@ export function extractMemoryInBackground(personaName: string, output: string, d
     `Only include facts useful to other agents. Output a bare list, nothing else.\n\n---\n${output}`
 
   try {
-    const proc = spawn('claude', ['-p', prompt, '--model', 'claude-haiku-4-5-20251001'], {
+    const proc = spawn(resolveCommand('claude'), ['-p', prompt, '--model', 'claude-haiku-4-5-20251001'], {
       stdio: ['ignore', 'pipe', 'ignore'],
       detached: false,
     })

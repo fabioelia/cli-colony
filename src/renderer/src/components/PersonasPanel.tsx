@@ -681,12 +681,9 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
                 <X size={16} />
               </button>
             </div>
-            <div
-              className="persona-modal-content"
-              dangerouslySetInnerHTML={{
-                __html: marked(viewingPersona.content.replace(/^---\n[\s\S]*?\n---\n?/, '')) as string
-              }}
-            />
+            <div className="persona-modal-content">
+              <MarkdownViewer content={viewingPersona.content.replace(/^---\n[\s\S]*?\n---\n?/, '')} />
+            </div>
           </div>
         </div>
       )}

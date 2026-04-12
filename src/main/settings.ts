@@ -1,5 +1,6 @@
 import { promises as fsp } from 'fs'
 import { execFile } from 'child_process'
+import { resolveCommand } from './resolve-command'
 import { join } from 'path'
 import type { CliBackend } from '../shared/types'
 
@@ -98,7 +99,7 @@ export async function gitRemoteUrl(owner: string, name: string): Promise<string>
 export async function detectGitProtocol(): Promise<'ssh' | 'https' | null> {
   try {
     const result = await new Promise<string>((resolve, reject) => {
-      execFile('ssh', ['-T', 'git@github.com'], { encoding: 'utf-8', timeout: 10000 }, (err, stdout, stderr) => {
+      execFile(resolveCommand('ssh'), ['-T', 'git@github.com'], { encoding: 'utf-8', timeout: 10000 }, (err, stdout, stderr) => {
         // GitHub SSH returns exit code 1 with "Hi username!" on success
         resolve((stdout || '') + (stderr || ''))
       })

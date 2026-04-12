@@ -9,6 +9,7 @@ import { promises as fsp } from 'fs'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { dirname } from 'path'
+import { resolveCommand } from './resolve-command'
 import { colonyPaths } from '../shared/colony-paths'
 import type { SessionArtifact, SessionArtifactCommit, GitDiffEntry } from '../shared/types'
 import { getDaemonClient } from './daemon-client'
@@ -43,8 +44,8 @@ async function writeArtifacts(artifacts: SessionArtifact[]): Promise<void> {
 async function getGitChanges(cwd: string): Promise<GitDiffEntry[]> {
   try {
     const [numStat, nameStat] = await Promise.all([
-      execFileAsync('git', ['diff', '--numstat', 'HEAD'], { encoding: 'utf-8', timeout: 5000, cwd }),
-      execFileAsync('git', ['diff', '--name-status', 'HEAD'], { encoding: 'utf-8', timeout: 5000, cwd }),
+      execFileAsync(resolveCommand('git'), ['diff', '--numstat', 'HEAD'], { encoding: 'utf-8', timeout: 5000, cwd }),
+      execFileAsync(resolveCommand('git'), ['diff', '--name-status', 'HEAD'], { encoding: 'utf-8', timeout: 5000, cwd }),
     ])
 
     const statusMap = new Map<string, string>()
@@ -99,7 +100,7 @@ async function getRecentCommits(cwd: string, afterIso: string): Promise<SessionA
 
 async function getGitBranch(cwd: string): Promise<string | null> {
   try {
-    const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd, encoding: 'utf-8', timeout: 3000 })
+    const { stdout } = await execFileAsync(resolveCommand('git'), ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd, encoding: 'utf-8', timeout: 3000 })
     return stdout.trim() || null
   } catch {
     return null
@@ -108,7 +109,7 @@ async function getGitBranch(cwd: string): Promise<string | null> {
 
 async function getGitRemote(cwd: string): Promise<string | null> {
   try {
-    const { stdout } = await execFileAsync('git', ['remote', 'get-url', 'origin'], { cwd, encoding: 'utf-8', timeout: 3000 })
+    const { stdout } = await execFileAsync(resolveCommand('git'), ['remote', 'get-url', 'origin'], { cwd, encoding: 'utf-8', timeout: 3000 })
     return stdout.trim() || null
   } catch {
     return null
@@ -117,7 +118,7 @@ async function getGitRemote(cwd: string): Promise<string | null> {
 
 async function isGitRepo(cwd: string): Promise<boolean> {
   try {
-    await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd, timeout: 3000 })
+    await execFileAsync(resolveCommand('git'), ['rev-parse', '--git-dir'], { cwd, timeout: 3000 })
     return true
   } catch {
     return false

@@ -9,6 +9,7 @@ import { promises as fsp } from 'fs'
 import * as path from 'path'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
+import { resolveCommand } from './resolve-command'
 const execFileAsync = promisify(execFile)
 
 async function pathExists(p: string): Promise<boolean> {
@@ -295,7 +296,7 @@ export async function refreshRepoConfigs(): Promise<void> {
       // Fetch latest for bare repos so .colony/ discovery reads current remote state
       if (localPath.endsWith('.git')) {
         try {
-          await execFileAsync('git', ['fetch', 'origin', '--prune'], { cwd: localPath, timeout: 15000 })
+          await execFileAsync(resolveCommand('git'), ['fetch', 'origin', '--prune'], { cwd: localPath, timeout: 15000 })
         } catch { /* non-fatal */ }
       }
       const config = await getRepoConfig(localPath, `${repo.owner}/${repo.name}`)

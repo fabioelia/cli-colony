@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { execFile } from 'child_process'
+import { resolveCommand } from '../resolve-command'
 import { promises as fsp } from 'fs'
 import { join } from 'path'
 import { colonyPaths } from '../../shared/colony-paths'
@@ -89,7 +90,7 @@ Configuration to audit:
 ${contextText || '(empty — no items configured)'}`
 
   return new Promise((resolve) => {
-    execFile('claude', ['-p', prompt, '--model', AUDIT_MODEL], {
+    execFile(resolveCommand('claude'), ['-p', prompt, '--model', AUDIT_MODEL], {
       encoding: 'utf-8',
       timeout: 30000,
       env: { ...process.env },

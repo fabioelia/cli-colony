@@ -1,5 +1,6 @@
 import { execFile } from 'child_process'
 import { promisify } from 'util'
+import { resolveCommand } from './resolve-command'
 import type { GitDiffEntry } from '../shared/types'
 
 const execFileAsync = promisify(execFile)
@@ -7,8 +8,8 @@ const execFileAsync = promisify(execFile)
 export async function getLiveChanges(dir: string): Promise<GitDiffEntry[]> {
   try {
     const [numStat, nameStat] = await Promise.all([
-      execFileAsync('git', ['diff', '--numstat', 'HEAD'], { encoding: 'utf-8', timeout: 5000, cwd: dir }),
-      execFileAsync('git', ['diff', '--name-status', 'HEAD'], { encoding: 'utf-8', timeout: 5000, cwd: dir }),
+      execFileAsync(resolveCommand('git'), ['diff', '--numstat', 'HEAD'], { encoding: 'utf-8', timeout: 5000, cwd: dir }),
+      execFileAsync(resolveCommand('git'), ['diff', '--name-status', 'HEAD'], { encoding: 'utf-8', timeout: 5000, cwd: dir }),
     ])
     const statusMap = new Map<string, string>()
     for (const line of nameStat.stdout.split('\n')) {

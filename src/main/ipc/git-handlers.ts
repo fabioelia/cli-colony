@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
+import { resolveCommand } from '../resolve-command'
 
 const execFileAsync = promisify(execFile)
 
@@ -19,7 +20,7 @@ export interface UnpushedCommit {
 
 /** Validate that cwd is a real git repo before running any commands. */
 async function assertGitRepo(cwd: string): Promise<void> {
-  await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd, timeout: 5000 })
+  await execFileAsync(resolveCommand('git'), ['rev-parse', '--git-dir'], { cwd, timeout: 5000 })
 }
 
 export function registerGitHandlers(): void {
@@ -29,13 +30,13 @@ export function registerGitHandlers(): void {
     const batchSize = 50
     for (let i = 0; i < files.length; i += batchSize) {
       const batch = files.slice(i, i + batchSize)
-      await execFileAsync('git', ['add', '--', ...batch], { cwd, timeout: 15000 })
+      await execFileAsync(resolveCommand('git'), ['add', '--', ...batch], { cwd, timeout: 15000 })
     }
   })
 
   ipcMain.handle('git:commit', async (_e, cwd: string, message: string): Promise<string> => {
     await assertGitRepo(cwd)
-    const { stdout } = await execFileAsync('git', ['commit', '-m', message], {
+    const { stdout } = await execFileAsync(resolveCommand('git'), ['commit', '-m', message], {
       cwd,
       timeout: 30000,
       encoding: 'utf-8',
@@ -47,7 +48,7 @@ export function registerGitHandlers(): void {
 
   ipcMain.handle('git:push', async (_e, cwd: string): Promise<void> => {
     await assertGitRepo(cwd)
-    await execFileAsync('git', ['push'], { cwd, timeout: 60000 })
+    await execFileAsync(resolveCommand('git'), ['push'], { cwd, timeout: 60000 })
   })
 
   ipcMain.handle('git:branchInfo', async (_e, cwd: string): Promise<BranchInfo> => {
@@ -55,7 +56,7 @@ export function registerGitHandlers(): void {
 
     let branch = 'HEAD'
     try {
-      const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+      const { stdout } = await execFileAsync(resolveCommand('git'), ['rev-parse', '--abbrev-ref', 'HEAD'], {
         cwd, timeout: 5000, encoding: 'utf-8',
       })
       branch = stdout.trim()
@@ -63,7 +64,7 @@ export function registerGitHandlers(): void {
 
     let remote: string | null = null
     try {
-      const { stdout } = await execFileAsync('git', ['remote', 'get-url', 'origin'], {
+      const { stdout } = await execFileAsync(resolveCommand('git'), ['remote', 'get-url', 'origin'], {
         cwd, timeout: 5000, encoding: 'utf-8',
       })
       remote = stdout.trim() || null
@@ -71,7 +72,7 @@ export function registerGitHandlers(): void {
 
     let ahead = 0
     try {
-      const { stdout } = await execFileAsync('git', ['rev-list', '--count', '@{u}..HEAD'], {
+      const { stdout } = await execFileAsync(resolveCommand('git'), ['rev-list', '--count', '@{u}..HEAD'], {
         cwd, timeout: 5000, encoding: 'utf-8',
       })
       ahead = parseInt(stdout.trim(), 10) || 0
@@ -83,7 +84,7 @@ export function registerGitHandlers(): void {
   ipcMain.handle('git:unpushedCommits', async (_e, cwd: string): Promise<UnpushedCommit[]> => {
     await assertGitRepo(cwd)
     try {
-      const { stdout } = await execFileAsync('git', [
+      const { stdout } = await execFileAsync(resolveCommand('git'), [
         'log', '@{u}..HEAD', '--format=%H|%s|%an|%ar',
       ], { cwd, timeout: 10000, encoding: 'utf-8' })
       if (!stdout.trim()) return []
@@ -102,14 +103,14 @@ export function registerGitHandlers(): void {
     if (!/^[a-zA-Z0-9][a-zA-Z0-9._/-]*$/.test(name)) {
       throw new Error('Invalid branch name. Use letters, numbers, hyphens, dots, or slashes.')
     }
-    await execFileAsync('git', ['checkout', '-b', name], { cwd, timeout: 10000 })
+    await execFileAsync(resolveCommand('git'), ['checkout', '-b', name], { cwd, timeout: 10000 })
     return name
   })
 
   ipcMain.handle('git:fetch', async (_e, cwd: string): Promise<{ success: boolean; error?: string }> => {
     await assertGitRepo(cwd)
     try {
-      await execFileAsync('git', ['fetch'], { cwd, timeout: 30000 })
+      await execFileAsync(resolveCommand('git'), ['fetch'], { cwd, timeout: 30000 })
       return { success: true }
     } catch (err: any) {
       return { success: false, error: err.stderr || err.message }
@@ -119,7 +120,7 @@ export function registerGitHandlers(): void {
   ipcMain.handle('git:pull', async (_e, cwd: string): Promise<{ success: boolean; error?: string }> => {
     await assertGitRepo(cwd)
     try {
-      await execFileAsync('git', ['pull', '--ff-only'], { cwd, timeout: 60000 })
+      await execFileAsync(resolveCommand('git'), ['pull', '--ff-only'], { cwd, timeout: 60000 })
       return { success: true }
     } catch (err: any) {
       const msg = err.stderr || err.message || ''
@@ -130,7 +131,7 @@ export function registerGitHandlers(): void {
   ipcMain.handle('git:behindCount', async (_e, cwd: string): Promise<number> => {
     await assertGitRepo(cwd)
     try {
-      const { stdout } = await execFileAsync('git', ['rev-list', '--count', 'HEAD..@{u}'], {
+      const { stdout } = await execFileAsync(resolveCommand('git'), ['rev-list', '--count', 'HEAD..@{u}'], {
         cwd, timeout: 5000, encoding: 'utf-8',
       })
       return parseInt(stdout.trim(), 10) || 0
@@ -141,7 +142,7 @@ export function registerGitHandlers(): void {
 
   ipcMain.handle('git:listBranches', async (_e, cwd: string): Promise<Array<{ name: string; current: boolean }>> => {
     await assertGitRepo(cwd)
-    const { stdout } = await execFileAsync('git', ['branch', '--format=%(refname:short)|%(HEAD)'], {
+    const { stdout } = await execFileAsync(resolveCommand('git'), ['branch', '--format=%(refname:short)|%(HEAD)'], {
       cwd, timeout: 5000, encoding: 'utf-8',
     })
     if (!stdout.trim()) return []
@@ -157,7 +158,7 @@ export function registerGitHandlers(): void {
       return { success: false, error: 'Invalid branch name' }
     }
     try {
-      await execFileAsync('git', ['checkout', branch], { cwd, timeout: 15000 })
+      await execFileAsync(resolveCommand('git'), ['checkout', branch], { cwd, timeout: 15000 })
       return { success: true }
     } catch (err: any) {
       return { success: false, error: err.stderr || err.message }
@@ -168,7 +169,7 @@ export function registerGitHandlers(): void {
     await assertGitRepo(cwd)
     // Validate hash is hex-only to prevent injection
     if (!/^[0-9a-f]{7,40}$/i.test(hash)) throw new Error('Invalid commit hash')
-    const { stdout } = await execFileAsync('git', [
+    const { stdout } = await execFileAsync(resolveCommand('git'), [
       'diff-tree', '-p', '--no-commit-id', hash,
     ], { cwd, timeout: 15000, encoding: 'utf-8', maxBuffer: 5 * 1024 * 1024 })
     return stdout

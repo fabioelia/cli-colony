@@ -572,7 +572,7 @@ async function runHooks(manifest: InstanceManifest, hookName: string): Promise<v
         exec(hook.command, {
           cwd: hook.cwd || manifest.paths?.root,
           timeout: 15000,
-          env: process.env,
+          env: shellEnv,
         }, (err) => {
           if (err) {
             log(`[${manifest.name}] ${hookName} hook "${hook.name}" failed: ${err.message}`)

@@ -14,6 +14,7 @@ import type { BrowserWindow } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
+import { resolveCommand } from './resolve-command'
 import { broadcast } from './broadcast'
 import { getSetting, setSetting } from './settings'
 import type { UpdateStatus, UpdateInfo } from '../shared/types'
@@ -137,7 +138,7 @@ let devMode = false
 let devRepoDir: string | null = null
 
 async function git(...args: string[]): Promise<string> {
-  const { stdout } = await execFileAsync('git', args, { cwd: devRepoDir! })
+  const { stdout } = await execFileAsync(resolveCommand('git'), args, { cwd: devRepoDir! })
   return stdout.trim()
 }
 
@@ -182,7 +183,7 @@ async function devDownload(): Promise<void> {
     await git('pull', 'origin', 'main', '--ff-only')
     // Install dependencies
     mergeStatus({ downloadPercent: 60 })
-    await execFileAsync('yarn', ['install'], { cwd: devRepoDir })
+    await execFileAsync(resolveCommand('yarn'), ['install'], { cwd: devRepoDir })
     mergeStatus({ downloadPercent: 100 })
 
     const info: UpdateInfo = {
@@ -209,7 +210,7 @@ function initDevUpdater(mainWindow: BrowserWindow | null): void {
   devRepoDir = app.getAppPath()
 
   // Derive version from latest git tag instead of package.json
-  execFileAsync('git', ['describe', '--tags', '--abbrev=0'], { cwd: devRepoDir })
+  execFileAsync(resolveCommand('git'), ['describe', '--tags', '--abbrev=0'], { cwd: devRepoDir })
     .then(({ stdout }) => {
       const tag = stdout.trim().replace(/^v/, '')
       if (tag) mergeStatus({ currentVersion: `${tag}-dev` })

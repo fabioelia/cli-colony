@@ -4,6 +4,7 @@
  */
 
 import { execFile } from 'child_process'
+import { resolveCommand } from './resolve-command'
 import { promises as fsp } from 'fs'
 import { JsonFile } from '../shared/json-file'
 import { join } from 'path'
@@ -77,7 +78,7 @@ function saveConfig(config: GitHubConfig): void {
 
 export function gh(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile('gh', args, { timeout: 15000, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
+    execFile(resolveCommand('gh'), args, { timeout: 15000, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) {
         reject(new Error(stderr || err.message))
       } else {
@@ -239,7 +240,7 @@ async function refreshBareRepoConfig(owner: string, name: string): Promise<void>
   if (!await pathExists(bareDir)) return
   try {
     await new Promise<void>((resolve) => {
-      execFile('git', ['fetch', 'origin', '--prune'], { cwd: bareDir, timeout: 15000 }, () => resolve())
+      execFile(resolveCommand('git'), ['fetch', 'origin', '--prune'], { cwd: bareDir, timeout: 15000 }, () => resolve())
     })
   } catch { /* non-fatal */ }
   const config = await getRepoConfig(bareDir, `${owner}/${name}`)

@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { promises as fsp } from 'fs'
 import { promisify } from 'util'
 import { execFile } from 'child_process'
+import { resolveCommand } from '../resolve-command'
 import { join } from 'path'
 import { readArenaStats, writeArenaStats, readMatchHistory, appendMatchRecord, clearMatchHistory } from '../arena-stats'
 import type { ArenaMatchRecord } from '../../shared/types'
@@ -211,7 +212,7 @@ export function registerArenaHandlers(): void {
       const cwd = inst?.workingDirectory || '.'
       if (i === 0) firstDir = cwd
       try {
-        const { stdout } = await execFileAsync('git', ['diff', 'HEAD'], {
+        const { stdout } = await execFileAsync(resolveCommand('git'), ['diff', 'HEAD'], {
           cwd, timeout: 10_000, maxBuffer: 2 * 1024 * 1024,
         })
         const trimmed = stdout.length > MAX_DIFF_BYTES

@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import path from 'path'
 import { execFile, spawn } from 'child_process'
+import { resolveCommand } from '../resolve-command'
 import { promisify } from 'util'
 import { DEFAULT_SCORING_PROMPT } from '../scoring-config'
 import type { ScoreCard } from '../../shared/types'
@@ -182,7 +183,7 @@ export function registerInstanceHandlers(): void {
 
   ipcMain.handle('instance:gitLog', async (_e, cwd: string): Promise<string> => {
     try {
-      const { stdout } = await execFileAsync('git', ['log', '--oneline', '-10'], { encoding: 'utf-8', timeout: 5000, cwd })
+      const { stdout } = await execFileAsync(resolveCommand('git'), ['log', '--oneline', '-10'], { encoding: 'utf-8', timeout: 5000, cwd })
       return stdout
     } catch {
       return ''
@@ -191,7 +192,7 @@ export function registerInstanceHandlers(): void {
 
   ipcMain.handle('instance:gitDiff', async (_e, cwd: string): Promise<string> => {
     try {
-      const { stdout } = await execFileAsync('git', ['diff', '--stat', 'HEAD'], { encoding: 'utf-8', timeout: 5000, cwd })
+      const { stdout } = await execFileAsync(resolveCommand('git'), ['diff', '--stat', 'HEAD'], { encoding: 'utf-8', timeout: 5000, cwd })
       return stdout
     } catch {
       return ''
@@ -201,9 +202,9 @@ export function registerInstanceHandlers(): void {
   ipcMain.handle('session:gitChanges', async (_e, dir: string): Promise<GitDiffEntry[]> => {
     try {
       // --numstat gives: <insertions>\t<deletions>\t<file>
-      const { stdout: numStat } = await execFileAsync('git', ['diff', '--numstat', 'HEAD'], { encoding: 'utf-8', timeout: 5000, cwd: dir })
+      const { stdout: numStat } = await execFileAsync(resolveCommand('git'), ['diff', '--numstat', 'HEAD'], { encoding: 'utf-8', timeout: 5000, cwd: dir })
       // --name-status gives: <status>\t<file>
-      const { stdout: nameStat } = await execFileAsync('git', ['diff', '--name-status', 'HEAD'], { encoding: 'utf-8', timeout: 5000, cwd: dir })
+      const { stdout: nameStat } = await execFileAsync(resolveCommand('git'), ['diff', '--name-status', 'HEAD'], { encoding: 'utf-8', timeout: 5000, cwd: dir })
 
       const statusMap = new Map<string, string>()
       for (const line of nameStat.split('\n')) {
@@ -237,13 +238,13 @@ export function registerInstanceHandlers(): void {
     try {
       if (fileStatus === '?') {
         // Untracked file — show all content as additions
-        const { stdout } = await execFileAsync('cat', [filePath], { encoding: 'utf-8', timeout: 5000, cwd: dir })
+        const { stdout } = await execFileAsync(resolveCommand('cat'), [filePath], { encoding: 'utf-8', timeout: 5000, cwd: dir })
         return stdout.split('\n').map(l => '+' + l).join('\n')
       }
       // Try staged diff first, fall back to unstaged
-      const { stdout: staged } = await execFileAsync('git', ['diff', '--cached', '--', filePath], { encoding: 'utf-8', timeout: 5000, cwd: dir })
+      const { stdout: staged } = await execFileAsync(resolveCommand('git'), ['diff', '--cached', '--', filePath], { encoding: 'utf-8', timeout: 5000, cwd: dir })
       if (staged.trim()) return staged
-      const { stdout } = await execFileAsync('git', ['diff', 'HEAD', '--', filePath], { encoding: 'utf-8', timeout: 5000, cwd: dir })
+      const { stdout } = await execFileAsync(resolveCommand('git'), ['diff', 'HEAD', '--', filePath], { encoding: 'utf-8', timeout: 5000, cwd: dir })
       return stdout
     } catch {
       return ''
@@ -254,7 +255,7 @@ export function registerInstanceHandlers(): void {
     const resolved = path.resolve(dir, file)
     if (!resolved.startsWith(path.resolve(dir) + path.sep) && resolved !== path.resolve(dir)) return false
     try {
-      await execFileAsync('git', ['checkout', 'HEAD', '--', file], { encoding: 'utf-8', timeout: 10000, cwd: dir })
+      await execFileAsync(resolveCommand('git'), ['checkout', 'HEAD', '--', file], { encoding: 'utf-8', timeout: 10000, cwd: dir })
       return true
     } catch {
       return false
@@ -266,7 +267,7 @@ export function registerInstanceHandlers(): void {
     // Get the git diff (truncated at 8KB)
     let diff = ''
     try {
-      const { stdout } = await execFileAsync('git', ['diff', 'HEAD'], { encoding: 'utf-8', timeout: 10000, cwd: dir })
+      const { stdout } = await execFileAsync(resolveCommand('git'), ['diff', 'HEAD'], { encoding: 'utf-8', timeout: 10000, cwd: dir })
       diff = stdout
     } catch {
       return { confidence: 0, scopeCreep: false, testCoverage: 'none', summary: 'Could not read git diff.', raw: '' }
@@ -287,7 +288,7 @@ export function registerInstanceHandlers(): void {
     const fullPrompt = DEFAULT_SCORING_PROMPT + diff
 
     return new Promise((resolve) => {
-      const proc = spawn('claude', ['-p', fullPrompt, '--model', 'claude-haiku-4-5-20251001'], {
+      const proc = spawn(resolveCommand('claude'), ['-p', fullPrompt, '--model', 'claude-haiku-4-5-20251001'], {
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: false,
       })
@@ -335,7 +336,7 @@ export function registerInstanceHandlers(): void {
       `What's the key context for whoever picks this up next?\n\n---\n${contextText.slice(0, 8000)}`
 
     return new Promise((resolve, reject) => {
-      const proc = spawn('claude', ['-p', prompt, '--model', 'claude-haiku-4-5-20251001'], {
+      const proc = spawn(resolveCommand('claude'), ['-p', prompt, '--model', 'claude-haiku-4-5-20251001'], {
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: false,
       })

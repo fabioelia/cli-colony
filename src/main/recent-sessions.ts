@@ -1,5 +1,6 @@
 import { promises as fsp, readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { execFile } from 'child_process'
+import { resolveCommand } from './resolve-command'
 import { join } from 'path'
 import { app } from 'electron'
 import type { CliBackend } from '../shared/types'
@@ -63,7 +64,7 @@ export async function discoverSessionId(pid: number | null, workingDirectory: st
   if (pid) {
     try {
       const lsofOutput = await new Promise<string>((resolve, reject) => {
-        execFile('lsof', ['-p', String(pid)], { encoding: 'utf-8', timeout: 3000 }, (err, stdout) => {
+        execFile(resolveCommand('lsof'), ['-p', String(pid)], { encoding: 'utf-8', timeout: 3000 }, (err, stdout) => {
           if (err) reject(err); else resolve(stdout)
         })
       })

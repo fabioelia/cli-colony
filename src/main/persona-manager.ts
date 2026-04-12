@@ -8,6 +8,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlink
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { basename, join } from 'path'
+import { resolveCommand } from './resolve-command'
 
 const execFileAsync = promisify(execFile)
 import { getPendingTriggers } from './persona-triggers'
@@ -774,12 +775,12 @@ export async function onSessionExit(instanceId: string): Promise<void> {
       let filesChanged = 0
       if (workingDir && startedAt && existsSync(workingDir)) {
         try {
-          const { stdout: logOut } = await execFileAsync('git', ['log', '--oneline', `--after=${startedAt}`], { encoding: 'utf-8', timeout: 5000, cwd: workingDir })
+          const { stdout: logOut } = await execFileAsync(resolveCommand('git'), ['log', '--oneline', `--after=${startedAt}`], { encoding: 'utf-8', timeout: 5000, cwd: workingDir })
           commitsCount = logOut.trim() ? logOut.trim().split('\n').length : 0
         } catch { /* not a git repo or no commits */ }
         if (commitsCount > 0) {
           try {
-            const { stdout: filesOut } = await execFileAsync('git', ['log', '--name-only', '--format=', `--after=${startedAt}`], { encoding: 'utf-8', timeout: 5000, cwd: workingDir })
+            const { stdout: filesOut } = await execFileAsync(resolveCommand('git'), ['log', '--name-only', '--format=', `--after=${startedAt}`], { encoding: 'utf-8', timeout: 5000, cwd: workingDir })
             filesChanged = filesOut.trim() ? new Set(filesOut.trim().split('\n').filter(l => l.trim())).size : 0
           } catch { /* non-fatal */ }
         }

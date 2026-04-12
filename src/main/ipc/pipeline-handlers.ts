@@ -2,6 +2,7 @@ import { ipcMain, app, dialog } from 'electron'
 import { promises as fsp, createWriteStream, createReadStream } from 'fs'
 import { join, basename } from 'path'
 import { spawn } from 'child_process'
+import { resolveCommand } from '../resolve-command'
 import archiver from 'archiver'
 import * as unzipper from 'unzipper'
 import { colonyPaths } from '../../shared/colony-paths'
@@ -281,7 +282,7 @@ export function registerPipelineHandlers(): void {
     }
     const fullPrompt = PIPELINE_SCHEMA_PROMPT + description.trim()
     return new Promise((resolve) => {
-      const proc = spawn('claude', ['-p', fullPrompt, '--model', 'claude-haiku-4-5-20251001'], {
+      const proc = spawn(resolveCommand('claude'), ['-p', fullPrompt, '--model', 'claude-haiku-4-5-20251001'], {
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: false,
       })

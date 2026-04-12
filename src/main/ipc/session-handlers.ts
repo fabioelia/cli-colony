@@ -1,5 +1,6 @@
 import { ipcMain, dialog } from 'electron'
 import { execFile } from 'child_process'
+import { resolveCommand } from '../resolve-command'
 import { promisify } from 'util'
 import { promises as fsp } from 'fs'
 import {
@@ -107,12 +108,12 @@ export function registerSessionHandlers(): void {
 async function getFileDiff(dir: string, filePath: string, fileStatus: string): Promise<string> {
   try {
     if (fileStatus === 'A' || fileStatus === '?') {
-      const { stdout } = await execFileAsync('cat', [filePath], { encoding: 'utf-8', timeout: 5000, cwd: dir })
+      const { stdout } = await execFileAsync(resolveCommand('cat'), [filePath], { encoding: 'utf-8', timeout: 5000, cwd: dir })
       return stdout.split('\n').map(l => '+' + l).join('\n')
     }
-    const { stdout: staged } = await execFileAsync('git', ['diff', '--cached', '--', filePath], { encoding: 'utf-8', timeout: 5000, cwd: dir })
+    const { stdout: staged } = await execFileAsync(resolveCommand('git'), ['diff', '--cached', '--', filePath], { encoding: 'utf-8', timeout: 5000, cwd: dir })
     if (staged.trim()) return staged
-    const { stdout } = await execFileAsync('git', ['diff', 'HEAD', '--', filePath], { encoding: 'utf-8', timeout: 5000, cwd: dir })
+    const { stdout } = await execFileAsync(resolveCommand('git'), ['diff', 'HEAD', '--', filePath], { encoding: 'utf-8', timeout: 5000, cwd: dir })
     return stdout
   } catch {
     return ''
@@ -121,7 +122,7 @@ async function getFileDiff(dir: string, filePath: string, fileStatus: string): P
 
 async function getLiveCommits(dir: string, afterIso: string): Promise<Array<{ hash: string; shortMsg: string }>> {
   try {
-    const { stdout } = await execFileAsync('git', ['log', '--format=%H|%s', `--after=${afterIso}`], { cwd: dir, encoding: 'utf-8', timeout: 5000 })
+    const { stdout } = await execFileAsync(resolveCommand('git'), ['log', '--format=%H|%s', `--after=${afterIso}`], { cwd: dir, encoding: 'utf-8', timeout: 5000 })
     if (!stdout.trim()) return []
     return stdout.trim().split('\n').map(line => {
       const idx = line.indexOf('|')
@@ -134,7 +135,7 @@ async function getLiveCommits(dir: string, afterIso: string): Promise<Array<{ ha
 
 async function getLiveBranch(dir: string): Promise<string | null> {
   try {
-    const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: dir, encoding: 'utf-8', timeout: 3000 })
+    const { stdout } = await execFileAsync(resolveCommand('git'), ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: dir, encoding: 'utf-8', timeout: 3000 })
     return stdout.trim() || null
   } catch {
     return null

@@ -3,6 +3,7 @@ import * as fs from 'fs'
 import { join } from 'path'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
+import { resolveCommand } from './resolve-command'
 import type { CommitAttribution } from '../shared/types'
 
 const execFileAsync = promisify(execFile)
@@ -44,7 +45,7 @@ export async function scanNewCommits(
 
   try {
     // Verify it's a git repo — bail silently if not
-    await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: dir, timeout: 3000 })
+    await execFileAsync(resolveCommand('git'), ['rev-parse', '--git-dir'], { cwd: dir, timeout: 3000 })
   } catch {
     return
   }

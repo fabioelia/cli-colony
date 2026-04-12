@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { execFile } from 'child_process'
+import { resolveCommand } from '../resolve-command'
 import { getAllInstances } from '../instance-manager'
 
 export function registerResourceHandlers(): void {
@@ -18,7 +19,7 @@ export function registerResourceHandlers(): void {
       total: { cpu: number; memory: number }
     }>((resolve) => {
       const pidList = pids.map((p) => p.pid).join(',')
-      execFile('ps', ['-o', 'pid,ppid,%cpu,rss', '-p', pidList], { timeout: 5000 }, (err, stdout) => {
+      execFile(resolveCommand('ps'), ['-o', 'pid,ppid,%cpu,rss', '-p', pidList], { timeout: 5000 }, (err, stdout) => {
         const perInstance: Record<string, { cpu: number; memory: number }> = {}
         let totalCpu = 0
         let totalMem = 0
@@ -42,7 +43,7 @@ export function registerResourceHandlers(): void {
           }
         }
 
-        execFile('ps', ['-eo', 'pid,ppid,%cpu,rss'], { timeout: 5000 }, (err2, stdout2) => {
+        execFile(resolveCommand('ps'), ['-eo', 'pid,ppid,%cpu,rss'], { timeout: 5000 }, (err2, stdout2) => {
           if (!err2 && stdout2) {
             const pidSet = new Set(pids.map((p) => p.pid))
             const pidToInstance = new Map<number, string>()

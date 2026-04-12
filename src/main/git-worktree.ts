@@ -5,6 +5,7 @@
 
 import { execFile } from 'child_process'
 import { promisify } from 'util'
+import { resolveCommand } from './resolve-command'
 
 const execFileAsync = promisify(execFile)
 
@@ -13,7 +14,7 @@ const execFileAsync = promisify(execFile)
  * Returns the absolute path to the repo root, or throws if not in a repo.
  */
 export async function getGitRoot(cwd: string): Promise<string> {
-  const { stdout } = await execFileAsync('git', ['rev-parse', '--show-toplevel'], { cwd })
+  const { stdout } = await execFileAsync(resolveCommand('git'), ['rev-parse', '--show-toplevel'], { cwd })
   return stdout.trim()
 }
 

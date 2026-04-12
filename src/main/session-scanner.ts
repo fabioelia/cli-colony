@@ -1,6 +1,7 @@
 import { promises as fsp } from 'fs'
 import { join } from 'path'
 import { execFile } from 'child_process'
+import { resolveCommand } from './resolve-command'
 import { createReadStream } from 'fs'
 import { createInterface } from 'readline'
 import { app } from 'electron'
@@ -11,7 +12,7 @@ import type { CliSession } from '../shared/types'
 /** Run a command and return stdout, or null on error. */
 function run(cmd: string, args: string[], timeout = 5000): Promise<string | null> {
   return new Promise((resolve) => {
-    execFile(cmd, args, { encoding: 'utf-8', timeout }, (err, stdout) => {
+    execFile(resolveCommand(cmd), args, { encoding: 'utf-8', timeout }, (err, stdout) => {
       if (err) resolve(null)
       else resolve(stdout)
     })

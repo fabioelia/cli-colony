@@ -5,6 +5,7 @@
 
 import { promises as fsp } from 'fs'
 import { execFile as execFileCb } from 'child_process'
+import { resolveCommand } from './resolve-command'
 import { promisify } from 'util'
 import { join } from 'path'
 import { app } from 'electron'
@@ -253,7 +254,7 @@ export async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipe
 
   // Validate diff_base ref
   try {
-    await execFileAsync('git', ['rev-parse', '--verify', diffBase], { cwd, timeout: 10_000 })
+    await execFileAsync(resolveCommand('git'), ['rev-parse', '--verify', diffBase], { cwd, timeout: 10_000 })
   } catch (err: any) {
     throw new Error(`diff-review: invalid diff_base ref "${diffBase}": ${err?.stderr?.trim() || 'not found'}`)
   }
@@ -273,7 +274,7 @@ export async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipe
     // Get diff
     let diff = ''
     try {
-      const diffResult = await execFileAsync('git', ['diff', diffBase], { cwd, timeout: 30_000, maxBuffer: 10 * 1024 * 1024 })
+      const diffResult = await execFileAsync(resolveCommand('git'), ['diff', diffBase], { cwd, timeout: 30_000, maxBuffer: 10 * 1024 * 1024 })
       diff = diffResult.stdout || ''
     } catch { /* empty diff */ }
     if (Buffer.byteLength(diff, 'utf-8') > MAX_DIFF_BYTES) {

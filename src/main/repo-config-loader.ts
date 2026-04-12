@@ -11,6 +11,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as crypto from 'crypto'
 import { execFile } from 'child_process'
+import { resolveCommand } from './resolve-command'
 import { parseYaml } from '../shared/yaml-parser'
 import type {
   RepoColonyConfig,
@@ -31,7 +32,7 @@ function sha256(content: string): string {
 /** Run a git command asynchronously. Returns stdout or null on error. */
 function git(args: string[], cwd: string, timeout = 5000): Promise<string | null> {
   return new Promise((resolve) => {
-    execFile('git', args, { cwd, encoding: 'utf-8', timeout }, (err, stdout) => {
+    execFile(resolveCommand('git'), args, { cwd, encoding: 'utf-8', timeout }, (err, stdout) => {
       if (err) resolve(null)
       else resolve(stdout)
     })

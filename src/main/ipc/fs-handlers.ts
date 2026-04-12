@@ -2,6 +2,7 @@ import { ipcMain, clipboard } from 'electron'
 import { promises as fsp } from 'fs'
 import * as path from 'path'
 import { execFile } from 'child_process'
+import { resolveCommand } from '../resolve-command'
 import { join } from 'path'
 import { colonyPaths } from '../../shared/colony-paths'
 
@@ -96,7 +97,7 @@ export function registerFsHandlers(): void {
     const args = ['-rni', '-m', '5', ...defaultExclude, ...customExclude, ...includes, '--', query, dirPath]
 
     return new Promise<SearchResult[]>((resolve) => {
-      execFile('grep', args, { timeout: 10000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+      execFile(resolveCommand('grep'), args, { timeout: 10000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
         if (!stdout) {
           resolve([])
           return

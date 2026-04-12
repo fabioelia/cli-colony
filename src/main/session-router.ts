@@ -9,6 +9,7 @@
 import { join } from 'path'
 import { readdirSync, statSync } from 'fs'
 import { execFileSync } from 'child_process'
+import { resolveCommand } from './resolve-command'
 import { getRepos } from './github'
 import { scanSessions } from './session-scanner'
 import { getAllInstances } from './instance-manager'
@@ -42,7 +43,7 @@ export interface RouteMatch {
 /** Check the live git branch for a directory (not the stale metadata). */
 export function getLiveBranch(dir: string): string | null {
   try {
-    return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+    return execFileSync(resolveCommand('git'), ['rev-parse', '--abbrev-ref', 'HEAD'], {
       cwd: dir, timeout: 3000, encoding: 'utf-8',
     }).trim() || null
   } catch { return null }
