@@ -166,6 +166,8 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
     setTimeout(() => setActionedIds(prev => { const next = new Set(prev); next.delete(id); return next }), 3000)
   }
 
+  const [showHealthBreakdown, setShowHealthBreakdown] = useState(false)
+
   const [activitySourceFilter, setActivitySourceFilter] = useState<'all' | 'persona' | 'pipeline' | 'env'>('all')
   const [activityLevelFilter, setActivityLevelFilter] = useState<'all' | 'info' | 'warn' | 'error'>('all')
   const [activityExpanded, setActivityExpanded] = useState(false)
@@ -258,11 +260,8 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
             <div className="overview-stat-label">Environments</div>
           </div>
           <div
-            className="overview-stat-card"
-            onClick={() => {
-              const el = document.querySelector('.overview-section .overview-attention-list')
-              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-            }}
+            className={`overview-stat-card${showHealthBreakdown ? ' active' : ''}`}
+            onClick={() => setShowHealthBreakdown(prev => !prev)}
             title={`Personas: ${healthScore.personaPct}% | Pipelines: ${healthScore.pipelinePct}% | Sessions: ${healthScore.sessionPct}% | Environments: ${healthScore.envPct}%`}
           >
             <div className="overview-stat-value">
@@ -275,6 +274,27 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
             <div className="overview-stat-label">Session Cost</div>
           </div>
         </div>
+
+        {/* Health score breakdown */}
+        {showHealthBreakdown && (
+          <div className="overview-health-breakdown">
+            {[
+              { label: 'Personas', pct: healthScore.personaPct, nav: 'personas' },
+              { label: 'Pipelines', pct: healthScore.pipelinePct, nav: 'pipelines' },
+              { label: 'Sessions', pct: healthScore.sessionPct, nav: 'instances' },
+              { label: 'Environments', pct: healthScore.envPct, nav: 'environments' },
+            ].map(row => (
+              <div key={row.label} className="health-breakdown-row" onClick={() => onNavigate(row.nav)}>
+                <span className={`health-dot health-${row.pct >= 80 ? 'green' : row.pct >= 50 ? 'amber' : 'red'}`} />
+                <span className="health-breakdown-label">{row.label}</span>
+                <div className="health-breakdown-bar">
+                  <div className="health-breakdown-fill" style={{ width: `${row.pct}%`, background: row.pct >= 80 ? 'var(--success)' : row.pct >= 50 ? 'var(--warning)' : 'var(--danger)' }} />
+                </div>
+                <span className="health-breakdown-pct">{row.pct}%</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Daily cost trend chart */}
         {costTrend.some(d => d.cost > 0) && (() => {

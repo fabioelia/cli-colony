@@ -19910,6 +19910,71 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--danger);
 }
 
+.overview-stat-card.active {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+
+/* Health breakdown panel */
+.overview-health-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+.health-breakdown-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.health-breakdown-row:hover {
+  background: var(--bg-hover);
+}
+.health-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.health-dot.health-green { background: var(--success); }
+.health-dot.health-amber { background: var(--warning); }
+.health-dot.health-red { background: var(--danger); }
+.health-breakdown-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  width: 90px;
+  flex-shrink: 0;
+}
+.health-breakdown-bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-tertiary);
+  overflow: hidden;
+}
+.health-breakdown-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+.health-breakdown-pct {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
 .overview-stat-value.env-warn {
   color: var(--warning);
 }

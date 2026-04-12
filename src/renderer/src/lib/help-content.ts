@@ -118,7 +118,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Active Personas', detail: 'Personas currently executing a scheduled or manual run.' },
           { label: 'Pipelines Enabled', detail: 'Number of pipelines with automation turned on.' },
           { label: 'Environments', detail: 'Running vs. total environment count. Amber when any environment is in partial/creating state, red when any is in error state. Click to navigate to the Environments panel.', icon: 'FolderOpen' },
-          { label: 'Colony Health', detail: 'Composite health score (0–100%). Weighted: persona last-run success (35%), pipeline error-free (25%), session health (25%), environment health (15%). Green ≥80%, amber 50–79%, red <50%. Click to scroll to Needs Attention. Hover for per-component breakdown.' },
+          { label: 'Colony Health', detail: 'Composite health score (0–100%). Weighted: persona last-run success (35%), pipeline error-free (25%), session health (25%), environment health (15%). Green ≥80%, amber 50–79%, red <50%. Click to expand an inline breakdown showing each category with a progress bar and status dot. Click any row to navigate to that panel. Click the card again to collapse.' },
           { label: 'Session Cost', detail: 'Total cost across all current sessions.' },
           { label: 'Daily Cost (7d)', detail: 'A 7-day bar chart showing total cost across all persona runs per day. Hover a bar to see the exact date and amount. When a daily cost budget is set, a dashed line shows the threshold and any day exceeding 75% turns amber, exceeding 100% turns red.', icon: 'Activity' },
           { label: 'Top Spenders (7d)', detail: 'Ranked list of personas by 7-day cost. Shows persona name, percentage of total, a proportional bar, and dollar amount. Top 10 shown. Click any row to navigate to the Personas panel. Hidden when no persona has cost data.', icon: 'BarChart3' },
@@ -1249,7 +1249,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Active count', detail: 'Badge showing the number of tasks not yet Done.' },
           { label: 'Refresh', detail: 'Re-read the task board from disk.', icon: 'RefreshCw' },
-          { label: 'New task', detail: 'Open the new-task form. Fill in title, status, priority, assignee, and optional tags/description.', icon: 'Plus' },
+          { label: 'New task', detail: 'Open the new-task form. Fill in title, status, priority, assignee (dropdown of personas + custom option), and optional tags/description.', icon: 'Plus' },
         ],
       },
       {
