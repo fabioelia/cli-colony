@@ -100,6 +100,10 @@ export default function App() {
   const [arenaJudgeOpen, setArenaJudgeOpen] = useState(false)
   const [arenaJudging, setArenaJudging] = useState(false)
   const [fontSize, setFontSize] = useState(13)
+  const [fontFamily, setFontFamily] = useState('Menlo, Monaco, "Courier New", monospace')
+  const [cursorStyle, setCursorStyle] = useState<'block' | 'bar' | 'underline'>('underline')
+  const [cursorBlink, setCursorBlink] = useState(false)
+  const [scrollback, setScrollback] = useState(10000)
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false)
   const [cmdPaletteSessions, setCmdPaletteSessions] = useState<import('./types').CliSession[]>([])
   const [quickPromptOpen, setQuickPromptOpen] = useState(false)
@@ -141,6 +145,10 @@ export default function App() {
       if (s.fontSize) {
         setFontSize(parseInt(s.fontSize, 10) || 13)
       }
+      if (s.terminalFontFamily) setFontFamily(s.terminalFontFamily)
+      if (s.terminalCursorStyle) setCursorStyle(s.terminalCursorStyle as 'block' | 'bar' | 'underline')
+      if (s.terminalCursorBlink) setCursorBlink(s.terminalCursorBlink === 'true')
+      if (s.terminalScrollback) setScrollback(parseInt(s.terminalScrollback, 10) || 10000)
       if (s.quickPromptHistory) {
         try { setQuickPromptHistory(JSON.parse(s.quickPromptHistory)) } catch { /* ignore */ }
       }
@@ -333,8 +341,23 @@ export default function App() {
       }),
     ]
     const onFontSizeChanged = (e: Event) => setFontSize((e as CustomEvent).detail)
+    const onFontFamilyChanged = (e: Event) => setFontFamily((e as CustomEvent).detail)
+    const onCursorStyleChanged = (e: Event) => setCursorStyle((e as CustomEvent).detail)
+    const onCursorBlinkChanged = (e: Event) => setCursorBlink((e as CustomEvent).detail)
+    const onScrollbackChanged = (e: Event) => setScrollback((e as CustomEvent).detail)
     window.addEventListener('fontSize-changed', onFontSizeChanged)
-    return () => { unsubs.forEach((u) => u()); window.removeEventListener('fontSize-changed', onFontSizeChanged) }
+    window.addEventListener('terminalFontFamily-changed', onFontFamilyChanged)
+    window.addEventListener('terminalCursorStyle-changed', onCursorStyleChanged)
+    window.addEventListener('terminalCursorBlink-changed', onCursorBlinkChanged)
+    window.addEventListener('terminalScrollback-changed', onScrollbackChanged)
+    return () => {
+      unsubs.forEach((u) => u())
+      window.removeEventListener('fontSize-changed', onFontSizeChanged)
+      window.removeEventListener('terminalFontFamily-changed', onFontFamilyChanged)
+      window.removeEventListener('terminalCursorStyle-changed', onCursorStyleChanged)
+      window.removeEventListener('terminalCursorBlink-changed', onCursorBlinkChanged)
+      window.removeEventListener('terminalScrollback-changed', onScrollbackChanged)
+    }
   }, []) // empty deps — runs once, uses refs for fresh values
 
   // Toggle body class for fullscreen — lets CSS reduce traffic-light padding
@@ -1350,6 +1373,10 @@ export default function App() {
                 onSearchClose={handleSearchClose}
                 onSearchToggle={() => setSearchOpen(prev => !prev)}
                 fontSize={fontSize}
+                fontFamily={fontFamily}
+                cursorStyle={cursorStyle}
+                cursorBlink={cursorBlink}
+                scrollback={scrollback}
                 focused={isFocused}
                 onFocusPane={showGrid ? () => handleGridPaneFocus(gridIdx) : isLeft ? instanceCallbacksRef.current.get(inst.id)!.onFocusLeft : instanceCallbacksRef.current.get(inst.id)!.onFocusRight}
                 outputBytes={outputBytes.get(inst.id) || 0}

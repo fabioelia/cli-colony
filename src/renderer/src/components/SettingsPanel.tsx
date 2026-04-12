@@ -67,6 +67,10 @@ export default function SettingsPanel({ onBack }: Props) {
   const [showApiToken, setShowApiToken] = useState(false)
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [fontSize, setFontSize] = useState(13)
+  const [fontFamily, setFontFamily] = useState('Menlo, Monaco, "Courier New", monospace')
+  const [cursorStyle, setCursorStyle] = useState<'block' | 'bar' | 'underline'>('underline')
+  const [cursorBlink, setCursorBlink] = useState(false)
+  const [scrollback, setScrollback] = useState(10000)
 
   const [sessionTemplates, setSessionTemplates] = useState<SessionTemplate[]>([])
   const [showTemplatesSection, setShowTemplatesSection] = useState(false)
@@ -90,7 +94,7 @@ export default function SettingsPanel({ onBack }: Props) {
 
   const SECTION_KEYWORDS: Record<string, string> = {
     cli: 'cli arguments args default backend claude cursor slash commands sync',
-    appearance: 'appearance theme dark light font size',
+    appearance: 'appearance theme dark light font size family cursor style blink scrollback lines terminal monospace',
     general: 'general tray keep running close quit',
     notifications: 'notifications sound desktop alert pipeline persona approval session budget system',
     sessions: 'sessions cleanup auto-cleanup idle cost daily budget hotkey global shortcut',
@@ -151,6 +155,10 @@ export default function SettingsPanel({ onBack }: Props) {
       setApiToken(s.apiToken || '')
       setTheme((s.theme === 'light' ? 'light' : 'dark') as 'dark' | 'light')
       if (s.fontSize) setFontSize(parseInt(s.fontSize, 10) || 13)
+      if (s.terminalFontFamily) setFontFamily(s.terminalFontFamily)
+      if (s.terminalCursorStyle) setCursorStyle(s.terminalCursorStyle as 'block' | 'bar' | 'underline')
+      if (s.terminalCursorBlink) setCursorBlink(s.terminalCursorBlink === 'true')
+      if (s.terminalScrollback) setScrollback(parseInt(s.terminalScrollback, 10) || 10000)
     })
     window.api.settings.getShells().then(setAvailableShells)
     window.api.daemon.getVersion().then(setDaemonVersion).catch(() => {})
@@ -300,6 +308,10 @@ export default function SettingsPanel({ onBack }: Props) {
         setApiToken(s.apiToken || '')
         setTheme((s.theme === 'light' ? 'light' : 'dark') as 'dark' | 'light')
         if (s.fontSize) setFontSize(parseInt(s.fontSize, 10) || 13)
+        if (s.terminalFontFamily) setFontFamily(s.terminalFontFamily)
+        if (s.terminalCursorStyle) setCursorStyle(s.terminalCursorStyle as 'block' | 'bar' | 'underline')
+        if (s.terminalCursorBlink) setCursorBlink(s.terminalCursorBlink === 'true')
+        if (s.terminalScrollback) setScrollback(parseInt(s.terminalScrollback, 10) || 10000)
       })
       window.api.mcp.list().then(setMcpServers).catch(() => {})
       window.api.sessionTemplates.list().then(setSessionTemplates).catch(() => {})
@@ -495,6 +507,84 @@ export default function SettingsPanel({ onBack }: Props) {
             {fontSize !== 13 && <button className="settings-font-size-reset" onClick={handleFontSizeReset}>Reset</button>}
           </div>
           <p className="settings-help settings-help-bottom">Also adjustable with ⌘+/⌘− (range 8–28)</p>
+        </div>
+        <div className="settings-field">
+          <label>Font family</label>
+          <select
+            className="settings-select"
+            value={fontFamily}
+            onChange={(e) => {
+              setFontFamily(e.target.value)
+              window.api.settings.set('terminalFontFamily', e.target.value)
+              window.dispatchEvent(new CustomEvent('terminalFontFamily-changed', { detail: e.target.value }))
+            }}
+          >
+            <option value='Menlo, Monaco, "Courier New", monospace'>Menlo (default)</option>
+            <option value='"JetBrains Mono", Menlo, monospace'>JetBrains Mono</option>
+            <option value='"Fira Code", Menlo, monospace'>Fira Code</option>
+            <option value='"SF Mono", Menlo, monospace'>SF Mono</option>
+            <option value='"Source Code Pro", Menlo, monospace'>Source Code Pro</option>
+            <option value='"Cascadia Code", Menlo, monospace'>Cascadia Code</option>
+            <option value='monospace'>System Monospace</option>
+          </select>
+        </div>
+        <div className="settings-field">
+          <label>Cursor style</label>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {(['block', 'bar', 'underline'] as const).map(style => (
+              <button
+                key={style}
+                className={`settings-theme-btn ${cursorStyle === style ? 'active' : ''}`}
+                onClick={() => {
+                  setCursorStyle(style)
+                  window.api.settings.set('terminalCursorStyle', style)
+                  window.dispatchEvent(new CustomEvent('terminalCursorStyle-changed', { detail: style }))
+                }}
+              >
+                {style.charAt(0).toUpperCase() + style.slice(1)}
+              </button>
+            ))}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+              <input
+                type="checkbox"
+                checked={cursorBlink}
+                onChange={(e) => {
+                  setCursorBlink(e.target.checked)
+                  window.api.settings.set('terminalCursorBlink', String(e.target.checked))
+                  window.dispatchEvent(new CustomEvent('terminalCursorBlink-changed', { detail: e.target.checked }))
+                }}
+              />
+              Blink
+            </label>
+          </div>
+        </div>
+        <div className="settings-field">
+          <label>Scrollback lines</label>
+          <div className="settings-font-size">
+            <input
+              type="number"
+              className="settings-input"
+              value={scrollback}
+              min={1000}
+              max={100000}
+              step={1000}
+              style={{ width: '80px' }}
+              onChange={(e) => {
+                const val = Math.min(Math.max(parseInt(e.target.value, 10) || 10000, 1000), 100000)
+                setScrollback(val)
+                window.api.settings.set('terminalScrollback', String(val))
+                window.dispatchEvent(new CustomEvent('terminalScrollback-changed', { detail: val }))
+              }}
+            />
+            {scrollback !== 10000 && (
+              <button className="settings-font-size-reset" onClick={() => {
+                setScrollback(10000)
+                window.api.settings.set('terminalScrollback', '10000')
+                window.dispatchEvent(new CustomEvent('terminalScrollback-changed', { detail: 10000 }))
+              }}>Reset</button>
+            )}
+          </div>
+          <p className="settings-help settings-help-bottom">Range 1,000–100,000. Higher values use more memory.</p>
         </div>
       </div>
 

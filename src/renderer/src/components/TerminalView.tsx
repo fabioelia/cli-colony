@@ -62,6 +62,10 @@ interface Props {
   onSearchClose?: () => void
   onSearchToggle?: () => void
   fontSize?: number
+  fontFamily?: string
+  cursorStyle?: 'block' | 'bar' | 'underline'
+  cursorBlink?: boolean
+  scrollback?: number
   focused?: boolean
   onFocusPane?: () => void
   outputBytes?: number
@@ -82,7 +86,7 @@ function formatUptime(seconds: number): string {
 
 type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'changes' | 'artifacts' | 'team' | 'metrics' | 'browser'
 
-export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, onSearchToggle, fontSize = 13, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid, onNavigateToSession, errorSummary }: Props) {
+export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, onSearchToggle, fontSize = 13, fontFamily = 'Menlo, Monaco, "Courier New", monospace', cursorStyle = 'underline', cursorBlink = false, scrollback = 10000, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid, onNavigateToSession, errorSummary }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const initializedRef = useRef(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -155,7 +159,10 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
 
     const term = new Terminal({
       fontSize,
+      fontFamily,
+      scrollback,
       cursorBlink: true,
+      cursorStyle,
       theme: getXtermTheme('shell'),
       allowProposedApi: true,
     })
@@ -351,14 +358,14 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     if (!existing) {
       const term = new Terminal({
         theme: getXtermTheme('session'),
-        fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-        fontSize: 13,
+        fontFamily,
+        fontSize,
         lineHeight: 1.2,
-        cursorBlink: false,
-        cursorStyle: 'underline',
+        cursorBlink,
+        cursorStyle,
         cursorWidth: 1,
         cursorInactiveStyle: 'none',
-        scrollback: 10000,
+        scrollback,
         allowProposedApi: true,
         altClickMovesCursor: false,
       })
@@ -468,6 +475,27 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
       }
     }
   }, [fontSize, instance.id, terminalsRef])
+
+  // Update font family when prop changes
+  useEffect(() => {
+    const entry = terminalsRef.current.get(instance.id)
+    if (!entry) return
+    if (entry.term.options.fontFamily !== fontFamily) {
+      entry.term.options.fontFamily = fontFamily
+      entry.fitAddon.fit()
+    }
+  }, [fontFamily, instance.id, terminalsRef])
+
+  // Update cursor style/blink when props change
+  useEffect(() => {
+    const entry = terminalsRef.current.get(instance.id)
+    if (!entry) return
+    entry.term.options.cursorStyle = cursorStyle
+    entry.term.options.cursorBlink = cursorBlink
+  }, [cursorStyle, cursorBlink, instance.id, terminalsRef])
+
+  // Note: scrollback can only be set at construction time in xterm.js —
+  // new value takes effect on next session start.
 
   // Drag & drop — paste file path into terminal
   const handleDragOver = useCallback((e: React.DragEvent) => {

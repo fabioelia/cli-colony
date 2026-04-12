@@ -756,6 +756,9 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Theme', detail: 'Switch between Dark and Light mode. Changes apply instantly — terminal colors, syntax highlighting, and all UI elements update automatically. Persists across restarts.', icon: 'Palette' },
           { label: 'Font size', detail: 'Adjust terminal and UI font size (range 8–28, default 13). Changes apply instantly. Also adjustable with ⌘+/⌘− keyboard shortcuts; ⌘0 resets to default.' },
+          { label: 'Font family', detail: 'Choose a monospace font for terminals: Menlo (default), JetBrains Mono, Fira Code, SF Mono, Source Code Pro, Cascadia Code, or system monospace. The font must be installed on your system.' },
+          { label: 'Cursor style', detail: 'Choose block, bar, or underline cursor shape. Enable blink for an animated cursor. Applies to all session and shell terminals.' },
+          { label: 'Scrollback lines', detail: 'Number of lines kept in the terminal scroll buffer (1,000–100,000, default 10,000). Higher values use more memory. Changes apply to new terminals only.' },
         ],
       },
       {
