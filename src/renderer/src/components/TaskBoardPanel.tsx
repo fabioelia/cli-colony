@@ -140,6 +140,13 @@ export default function TaskBoardPanel() {
   const [showNew, setShowNew] = useState(false)
   const [draft, setDraft] = useState<TaskDraft>(EMPTY_DRAFT)
   const [saving, setSaving] = useState(false)
+  const [useCustomAssignee, setUseCustomAssignee] = useState(false)
+
+  // Persona IDs for assignee dropdown
+  const [personaIds, setPersonaIds] = useState<string[]>([])
+  useEffect(() => {
+    window.api.persona.list().then(list => setPersonaIds(list.map((p: any) => p.id)))
+  }, [])
 
   // Quick-add per column
   const [quickAddCol, setQuickAddCol] = useState<TaskStatus | null>(null)
@@ -176,6 +183,7 @@ export default function TaskBoardPanel() {
   // Detail panel
   const [detailItem, setDetailItem] = useState<TaskBoardItem | null>(null)
   const [editDraft, setEditDraft] = useState<TaskDraft | null>(null)
+  const [editUseCustomAssignee, setEditUseCustomAssignee] = useState(false)
 
   const loadBoard = useCallback(async () => {
     setLoading(true)
@@ -206,6 +214,11 @@ export default function TaskBoardPanel() {
     items.forEach(i => { if (i.assignee) set.add(i.assignee) })
     return Array.from(set).sort()
   }, [items])
+
+  // Merged assignee options: persona IDs + existing task assignees (deduplicated, sorted)
+  const assigneeOptions = useMemo(() =>
+    [...new Set([...personaIds, ...assignees])].sort(),
+  [personaIds, assignees])
 
   // Unique sources for filter dropdown
   const sources = useMemo(() => {
@@ -338,7 +351,7 @@ export default function TaskBoardPanel() {
           </button>
           <button
             className={`panel-header-btn${showNew ? '' : ' primary'}`}
-            onClick={() => { setShowNew(v => !v); setDraft(EMPTY_DRAFT) }}
+            onClick={() => { setShowNew(v => !v); setDraft(EMPTY_DRAFT); setUseCustomAssignee(false) }}
           >
             <Plus size={14} /> New
           </button>
@@ -444,13 +457,33 @@ export default function TaskBoardPanel() {
             >
               {PRIORITY_ORDER.map(p => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}
             </select>
+            <select
+              className="tasks-board-select"
+              value={useCustomAssignee ? '__custom__' : (draft.assignee && assigneeOptions.includes(draft.assignee) ? draft.assignee : draft.assignee ? '__custom__' : '')}
+              onChange={e => {
+                if (e.target.value === '__custom__') {
+                  setUseCustomAssignee(true)
+                  setDraft(d => ({ ...d, assignee: '' }))
+                } else {
+                  setUseCustomAssignee(false)
+                  setDraft(d => ({ ...d, assignee: e.target.value }))
+                }
+              }}
+            >
+              <option value="">Unassigned</option>
+              {assigneeOptions.map(a => <option key={a} value={a}>{a}</option>)}
+              <option value="__custom__">Custom...</option>
+            </select>
+          </div>
+          {useCustomAssignee && (
             <input
               className="tasks-board-input tasks-board-input-sm"
-              placeholder="Assignee"
+              placeholder="Custom assignee"
               value={draft.assignee}
               onChange={e => setDraft(d => ({ ...d, assignee: e.target.value }))}
+              autoFocus
             />
-          </div>
+          )}
           <input
             className="tasks-board-input"
             placeholder="Tags (comma-separated)"
@@ -584,7 +617,11 @@ export default function TaskBoardPanel() {
                     <button
                       className="tasks-board-detail-btn"
                       title="Edit"
-                      onClick={() => setEditDraft(draftFromItem(detailItem))}
+                      onClick={() => {
+                        const d = draftFromItem(detailItem)
+                        setEditDraft(d)
+                        setEditUseCustomAssignee(d.assignee !== '' && !assigneeOptions.includes(d.assignee))
+                      }}
                     >
                       <Pencil size={12} />
                     </button>
@@ -640,12 +677,31 @@ export default function TaskBoardPanel() {
                   </div>
 
                   <label className="tasks-board-detail-label">Assignee</label>
-                  <input
-                    className="tasks-board-input"
-                    placeholder="Assignee"
-                    value={editDraft.assignee}
-                    onChange={e => setEditDraft(d => d && ({ ...d, assignee: e.target.value }))}
-                  />
+                  <select
+                    className="tasks-board-select"
+                    value={editUseCustomAssignee ? '__custom__' : (editDraft.assignee && assigneeOptions.includes(editDraft.assignee) ? editDraft.assignee : editDraft.assignee ? '__custom__' : '')}
+                    onChange={e => {
+                      if (e.target.value === '__custom__') {
+                        setEditUseCustomAssignee(true)
+                        setEditDraft(d => d && ({ ...d, assignee: '' }))
+                      } else {
+                        setEditUseCustomAssignee(false)
+                        setEditDraft(d => d && ({ ...d, assignee: e.target.value }))
+                      }
+                    }}
+                  >
+                    <option value="">Unassigned</option>
+                    {assigneeOptions.map(a => <option key={a} value={a}>{a}</option>)}
+                    <option value="__custom__">Custom...</option>
+                  </select>
+                  {editUseCustomAssignee && (
+                    <input
+                      className="tasks-board-input tasks-board-input-sm"
+                      placeholder="Custom assignee"
+                      value={editDraft.assignee}
+                      onChange={e => setEditDraft(d => d && ({ ...d, assignee: e.target.value }))}
+                    />
+                  )}
 
                   <label className="tasks-board-detail-label">Tags</label>
                   <input
