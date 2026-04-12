@@ -3,7 +3,7 @@ import { join } from 'path'
 import { Notification } from 'electron'
 import { colonyPaths } from '../shared/colony-paths'
 import { getSettingSync } from './settings'
-import { isRateLimited, getRateLimitState } from './rate-limit-state'
+import { getRateLimitState, onRateLimitStateChange } from './rate-limit-state'
 import { broadcast } from './broadcast'
 import type { PersonaRunEntry, PersonaAnalytics } from '../shared/types'
 
@@ -180,6 +180,8 @@ let usageMonitorInterval: ReturnType<typeof setInterval> | null = null
 /** Start hourly usage broadcast so the renderer stays current. */
 export function startUsageMonitor(): void {
   if (usageMonitorInterval) return
+  // Re-broadcast usage summary when rate limit changes so sidebar meter stays current
+  onRateLimitStateChange(() => broadcast('colony:usageUpdate', getUsageSummary()))
   // Broadcast immediately on start
   broadcast('colony:usageUpdate', getUsageSummary())
   // Then every hour

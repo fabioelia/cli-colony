@@ -22,9 +22,16 @@ let _state: RateLimitState = {
   detectedAt: null,
 }
 let _clearTimer: ReturnType<typeof setTimeout> | null = null
+let _onChangeCallback: (() => void) | null = null
+
+/** Register a callback invoked whenever rate limit state changes (set or cleared). */
+export function onRateLimitStateChange(cb: () => void): void {
+  _onChangeCallback = cb
+}
 
 function broadcastState(): void {
   broadcast('colony:rateLimitChange', _state)
+  _onChangeCallback?.()
 }
 
 export function getRateLimitState(): RateLimitState {
