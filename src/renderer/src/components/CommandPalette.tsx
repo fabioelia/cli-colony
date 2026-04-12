@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import {
   Plus, Settings, GitPullRequest, Users, Square, Play, Columns2,
   MonitorPlay, History, Search, ArrowRight, Terminal, Server, User, Bot, Zap, ListChecks, RotateCcw, Keyboard,
-  Home, Bell, TerminalSquare, FolderOpen, GitCompare, Archive,
+  Home, Bell, TerminalSquare, FolderOpen, GitCompare, Archive, Swords,
 } from 'lucide-react'
 import type { ClaudeInstance, CliSession, AgentDef } from '../types'
 import type { PersonaInfo, SessionTemplate } from '../../../shared/types'
@@ -42,12 +42,13 @@ interface Props {
   onRunPersona: (id: string) => void
   onLaunchAgent: (agent: AgentDef) => void
   onOpenQuickPrompt: () => void
+  onQuickCompare: () => void
 }
 
 export default function CommandPalette({
   open, onClose, instances, activeId, onSelect, onNew,
   onKill, onRestart, onViewChange, onToggleSplit, onResumeSession, sessions,
-  onRunPersona, onLaunchAgent, onOpenQuickPrompt,
+  onRunPersona, onLaunchAgent, onOpenQuickPrompt, onQuickCompare,
 }: Props) {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -84,6 +85,7 @@ export default function CommandPalette({
     'quick-prompt': '⌘⇧↵',
     'keyboard-shortcuts': '⌘/',
     'search-sessions': '⌘⇧F',
+    'quick-compare': '⌘⇧C',
   }
 
   // Build all available actions
@@ -123,6 +125,16 @@ export default function CommandPalette({
       keywords: 'quick prompt pre-fill ask task run',
       shortcut: PALETTE_SHORTCUTS['quick-prompt'],
       onExecute: onOpenQuickPrompt,
+    })
+    items.push({
+      id: 'quick-compare',
+      label: 'Quick Compare',
+      detail: 'Compare models side-by-side on the same task',
+      icon: <Swords size={14} />,
+      section: 'Actions',
+      keywords: 'arena compare models best-of-n benchmark',
+      shortcut: PALETTE_SHORTCUTS['quick-compare'],
+      onExecute: onQuickCompare,
     })
     items.push({
       id: 'keyboard-shortcuts',
@@ -368,7 +380,7 @@ export default function CommandPalette({
     }
 
     return items
-  }, [instances, activeId, sessions, personas, agents, templates, onSelect, onNew, onKill, onRestart, onViewChange, onToggleSplit, onResumeSession, onRunPersona, onLaunchAgent, onOpenQuickPrompt])
+  }, [instances, activeId, sessions, personas, agents, templates, onSelect, onNew, onKill, onRestart, onViewChange, onToggleSplit, onResumeSession, onRunPersona, onLaunchAgent, onOpenQuickPrompt, onQuickCompare])
 
   // Search terminal output buffers when query is 3+ chars
   useEffect(() => {

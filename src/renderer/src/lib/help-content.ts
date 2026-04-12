@@ -824,6 +824,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Restart daemon', detail: 'Kills all running sessions and starts a fresh daemon. Required after shell changes.', icon: 'RotateCcw' },
           { label: 'Connection failed banner', detail: 'A red banner appears if the daemon fails to connect after 3 retry attempts. Click Retry to re-attempt the connection, or Dismiss to hide the banner. Sessions and environments are unavailable until the daemon connects.' },
           { label: 'Liveness heartbeat', detail: 'The app pings the daemon every 30 seconds. If 2 consecutive pings fail (~50s), the daemon is force-killed and auto-restarted. An amber banner appears during recovery.' },
+          { label: 'Rate limit banner', detail: 'A red banner appears when the daemon detects API rate limit errors (429, "too many requests", "overloaded") in PTY output. Colony automatically pauses all cron pipelines and persona schedules until the reset time passes. The banner shows a live countdown. Dismiss hides the banner but keeps crons paused; Resume Crons explicitly clears the pause.' },
         ],
       },
       {
@@ -1654,6 +1655,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Pane Count', detail: 'Run 2\u20134 sessions in parallel. Each gets an isolated worktree from the same branch.' },
           { label: 'Model Override', detail: 'Optionally set a different model per pane to compare model performance head-to-head.' },
           { label: 'Shared Prompt', detail: 'The prompt sent to all panes simultaneously. All sessions start from the same state.' },
+          { label: 'Quick Compare', detail: 'Open from the command palette (Cmd+Shift+C) or the Actions menu. Simplified dialog: enter a prompt, check 2-3 models, and launch. Repo and branch are inferred from the active session. Falls back to manual entry if no session is active.', icon: 'Swords' },
         ],
       },
       {

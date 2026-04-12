@@ -372,6 +372,11 @@ function buildAppMenu(): void {
           click: () => broadcast('shortcut:quick-prompt'),
         },
         {
+          label: 'Quick Compare',
+          accelerator: 'CmdOrCtrl+Shift+C',
+          click: () => broadcast('shortcut:quick-compare'),
+        },
+        {
           label: 'Find in Terminal',
           accelerator: 'CmdOrCtrl+F',
           click: () => broadcast('shortcut:search'),
