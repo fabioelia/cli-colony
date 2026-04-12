@@ -381,6 +381,7 @@ interface Props {
   onLoadPreset?: (preset: WorkspacePreset) => void
   onCloneSession?: (inst: ClaudeInstance) => void
   errorSummaries?: Map<string, ErrorSummary>
+  onNewWithHandoff?: (handoffContent: string, workingDirectory: string) => void
 }
 
 function SessionTile({ s, onResumeSession, hoveredSessionId, setHoveredSessionId, popoverPos, setPopoverPos, formatTime }: {
@@ -438,7 +439,7 @@ function SessionTile({ s, onResumeSession, hoveredSessionId, setHoveredSessionId
   )
 }
 
-function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onSetNote, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onShowRestoreDialog, restorableCount, unreadIds, outputBytes, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop, forkGroups = [], onForkSession, gridPanes, currentLayout = 'single', onLoadPreset, onCloneSession, errorSummaries }: Props) {
+function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onSetNote, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onShowRestoreDialog, restorableCount, unreadIds, outputBytes, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop, forkGroups = [], onForkSession, gridPanes, currentLayout = 'single', onLoadPreset, onCloneSession, errorSummaries, onNewWithHandoff }: Props) {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
@@ -1823,7 +1824,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                 <div className="handoff-modal-loading">Generating...</div>
               ) : handoffSummary ? (
                 <>
-                  <textarea className="handoff-doc-textarea" value={handoffSummary} readOnly />
+                  <textarea className="handoff-doc-textarea" value={handoffSummary} onChange={e => setHandoffSummary(e.target.value)} />
                   <button
                     className="handoff-summary-reset"
                     onClick={() => setHandoffSummary(null)}
@@ -1831,7 +1832,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                 </>
               ) : (
                 <>
-                  <textarea className="handoff-doc-textarea" value={handoffDoc} readOnly />
+                  <textarea className="handoff-doc-textarea" value={handoffDoc} onChange={e => setHandoffDoc(e.target.value)} />
                   {handoffSumError && (
                     <div className="handoff-sum-error">{handoffSumError}</div>
                   )}
@@ -1870,6 +1871,19 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
               >
                 {handoffCopied ? 'Copied!' : 'Copy to Clipboard'}
               </button>
+              {onNewWithHandoff && (
+                <button
+                  className="handoff-launch-btn"
+                  disabled={handoffLoading}
+                  onClick={() => {
+                    const text = handoffSummary ?? handoffDoc
+                    onNewWithHandoff(text, handoffInst.workingDirectory)
+                    setHandoffInst(null)
+                  }}
+                >
+                  Launch New Session
+                </button>
+              )}
             </div>
           </div>
         </div>

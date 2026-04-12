@@ -570,6 +570,11 @@ export default function App() {
 
   const handleNewSession = useCallback(() => { agentToLaunchRef.current = null; setShowNewDialog(true) }, [])
 
+  const handleNewWithHandoff = useCallback((handoffContent: string, workingDirectory: string) => {
+    setNewDialogSeed({ initialPrompt: handoffContent, workingDirectory })
+    setShowNewDialog(true)
+  }, [])
+
   const handleCloneSession = useCallback((inst: ClaudeInstance) => {
     agentToLaunchRef.current = null
     setCloneSource({
@@ -1326,6 +1331,7 @@ export default function App() {
         onLoadPreset={handleLoadPreset}
         onCloneSession={handleCloneSession}
         errorSummaries={errorSummaries}
+        onNewWithHandoff={handleNewWithHandoff}
       />
       <div className={`main ${showGrid ? 'grid-4' : isSplit ? 'split' : ''}`}>
         {/* All terminals stay mounted (xterm doesn't support re-open); expensive effects gated on focused prop */}
