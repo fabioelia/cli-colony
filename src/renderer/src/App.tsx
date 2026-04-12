@@ -1405,7 +1405,7 @@ export default function App() {
       {rateLimitState.paused && !rateLimitDismissed && createPortal(
         <div className="daemon-update-banner rate-limit-banner">
           <span>API rate limit reached — Colony paused. {rateLimitCountdown && rateLimitCountdown !== 'now' ? `Resumes in ${rateLimitCountdown}` : 'Resuming...'}</span>
-          <button onClick={() => { window.api.colony.resumeCrons(); setRateLimitDismissed(true) }}>Resume Crons</button>
+          <button onClick={() => { window.api.colony.resumeCrons(); setRateLimitDismissed(true) }}>Resume Now</button>
           <button className="daemon-update-dismiss" onClick={() => setRateLimitDismissed(true)}>Dismiss</button>
         </div>,
         document.body
