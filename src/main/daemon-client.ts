@@ -8,11 +8,38 @@ import type { ColonyComment } from '../shared/types'
 import { colonyPaths } from '../shared/colony-paths'
 import { BaseDaemonClient } from './base-daemon-client'
 
+export interface DaemonClientOpts {
+  socketPath?: string
+  pidPath?: string
+  daemonId?: string
+}
+
 export class DaemonClient extends BaseDaemonClient {
-  protected socketPath = colonyPaths.daemonSock
-  protected pidPath = colonyPaths.daemonPid
+  protected socketPath: string
+  protected pidPath: string
   protected daemonScriptName = 'pty-daemon.js'
-  protected label = 'daemon-client'
+  protected label: string
+  private _daemonId: string
+  private _extraEnv: Record<string, string>
+
+  constructor(opts?: DaemonClientOpts) {
+    super()
+    this._daemonId = opts?.daemonId ?? 'primary'
+    this.socketPath = opts?.socketPath ?? colonyPaths.daemonSock
+    this.pidPath = opts?.pidPath ?? colonyPaths.daemonPid
+    this.label = `daemon-client:${this._daemonId}`
+    this._extraEnv = {
+      COLONY_DAEMON_SOCK: this.socketPath,
+      COLONY_DAEMON_PID: this.pidPath,
+      COLONY_DAEMON_ID: this._daemonId,
+    }
+  }
+
+  get daemonId(): string { return this._daemonId }
+
+  protected daemonSpawnEnv(): Record<string, string> {
+    return this._extraEnv
+  }
 
   protected handleEvent(msg: any): void {
     switch (msg.type) {
@@ -115,6 +142,10 @@ export class DaemonClient extends BaseDaemonClient {
 
   async clearToolDeferred(id: string): Promise<boolean> {
     return await this.request({ type: 'clear-tool-deferred', reqId: this.nextReqId(), instanceId: id }) as boolean
+  }
+
+  async drainDaemon(): Promise<{ draining: boolean; remaining: number }> {
+    return await this.request({ type: 'drain', reqId: this.nextReqId() }) as { draining: boolean; remaining: number }
   }
 
   async shutdownDaemon(): Promise<void> {

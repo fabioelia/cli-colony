@@ -36,6 +36,11 @@ export abstract class BaseDaemonClient extends EventEmitter {
   /** Subclass handles event dispatch for daemon-specific message types */
   protected abstract handleEvent(msg: any): void
 
+  /** Extra env vars to pass when spawning the daemon process. Override in subclass. */
+  protected daemonSpawnEnv(): Record<string, string> {
+    return {}
+  }
+
   get connected(): boolean {
     return this._connected
   }
@@ -278,6 +283,7 @@ export abstract class BaseDaemonClient extends EventEmitter {
       env: {
         ...process.env,
         ELECTRON_RUN_AS_NODE: '1',
+        ...this.daemonSpawnEnv(),
       },
     })
     child.unref()

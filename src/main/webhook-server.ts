@@ -13,7 +13,7 @@ import { createServer, IncomingMessage, ServerResponse, Server } from 'http'
 import { createHmac, timingSafeEqual } from 'crypto'
 import { fireWebhookPipeline, getWebhookTriggers, getPipelineList, triggerPollNow } from './pipeline-engine'
 import { getAllInstances } from './instance-manager'
-import { getDaemonClient } from './daemon-client'
+import { getDaemonRouter } from './daemon-router'
 import { getSetting } from './settings'
 import { addBroadcastListener } from './broadcast'
 
@@ -187,7 +187,7 @@ async function handleApiRequest(req: IncomingMessage, res: ServerResponse): Prom
       sendJson(res, 404, { error: 'Session not found' })
       return
     }
-    const ok = await getDaemonClient().steerInstance(inst.id, prompt)
+    const ok = await getDaemonRouter().steerInstance(inst.id, prompt)
     sendJson(res, ok ? 200 : 500, { ok })
     return
   }

@@ -105,15 +105,20 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const shellCreatedRef = useRef(false)
   const [shellResetKey, setShellResetKey] = useState(0)
 
-  // Environment detection: if workingDirectory is under ~/.claude-colony/environments/<name>/
+  // Environment detection: match by colony path OR by environment paths.root
   const envName = (() => {
     const marker = '/.claude-colony/environments/'
     const idx = instance.workingDirectory.indexOf(marker)
-    if (idx < 0) return null
-    const rest = instance.workingDirectory.slice(idx + marker.length)
-    return rest.split('/')[0] || null
+    if (idx >= 0) {
+      const rest = instance.workingDirectory.slice(idx + marker.length)
+      return rest.split('/')[0] || null
+    }
+    return null
   })()
   const [envStatus, setEnvStatus] = useState<EnvStatus | null>(null)
+  // Track whether we matched by paths.root (for non-colony-dir sessions)
+  const [pathMatchedEnv, setPathMatchedEnv] = useState<string | null>(null)
+  const effectiveEnvName = envName || pathMatchedEnv
   // Tab badge counts (pushed from child components)
   const [teamWorkerCount, setTeamWorkerCount] = useState(0)
   const [changeCount, setChangeCount] = useState(0)
@@ -132,19 +137,35 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const [contextUsage, setContextUsage] = useState<ContextUsage | null>(null)
 
   useEffect(() => {
-    if (!envName) return
+    const findMatch = (envs: EnvStatus[]) => {
+      // First try exact name/id match (colony-dir sessions)
+      if (envName) {
+        return envs.find((e) => e.name === envName || e.id === envName) || null
+      }
+      // Fall back to matching by environment paths — session workingDirectory
+      // starts with (or equals) one of the environment's registered paths
+      const wd = instance.workingDirectory
+      return envs.find((e) =>
+        e.paths && Object.values(e.paths).some((p) => typeof p === 'string' && wd.startsWith(p))
+      ) || null
+    }
+
     // Initial fetch
     window.api.env.list().then((envs) => {
-      const match = envs.find((e) => e.name === envName || e.id === envName)
-      if (match) setEnvStatus(match)
+      const match = findMatch(envs)
+      if (match) {
+        setEnvStatus(match)
+        if (!envName) setPathMatchedEnv(match.name)
+      }
     })
     // Subscribe to updates
     const unsub = window.api.env.onStatusUpdate((envs) => {
-      const match = envs.find((e) => e.name === envName || e.id === envName)
+      const match = findMatch(envs)
       setEnvStatus(match || null)
+      if (!envName) setPathMatchedEnv(match?.name || null)
     })
     return unsub
-  }, [envName])
+  }, [envName, instance.workingDirectory])
 
   // Shell terminal — lazy init when tab is first opened, re-init on shellResetKey
   useEffect(() => {
@@ -548,15 +569,15 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   }, [instance.id, viewTab, focused])
 
   // Session tab keyboard navigation — Cmd+Shift+{ (prev) / Cmd+Shift+} (next)
-  const hasEnvUrls = envName && envStatus && Object.keys(envStatus.urls).length > 0
+  const hasEnvUrls = effectiveEnvName && envStatus && Object.keys(envStatus.urls).length > 0
   const visibleViewTabs = useMemo<ViewTab[]>(() => [
     'session', 'shell', 'files',
-    ...(envName ? (['services', 'logs'] as ViewTab[]) : []),
+    ...(effectiveEnvName ? (['services', 'logs'] as ViewTab[]) : []),
     ...(hasEnvUrls ? (['browser'] as ViewTab[]) : []),
     ...(instance.workingDirectory ? (['changes'] as ViewTab[]) : []),
     'artifacts',
     ...(instance.roleTag === 'Coordinator' ? (['team', 'metrics'] as ViewTab[]) : []),
-  ], [envName, instance.workingDirectory, instance.roleTag, hasEnvUrls])
+  ], [effectiveEnvName, instance.workingDirectory, instance.roleTag, hasEnvUrls])
   usePanelTabKeys(visibleViewTabs, viewTab, setViewTab, focused)
 
   return (
@@ -589,7 +610,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
             >
               <FolderTree size={12} /> Files
             </button>
-            {envName && (
+            {effectiveEnvName && (
               <button
                 className={`terminal-tab ${viewTab === 'services' ? 'active' : ''}`}
                 onClick={(e) => { e.stopPropagation(); setViewTab('services') }}
@@ -606,7 +627,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 })()}
               </button>
             )}
-            {envName && (
+            {effectiveEnvName && (
               <button
                 className={`terminal-tab ${viewTab === 'logs' ? 'active' : ''}`}
                 onClick={(e) => { e.stopPropagation(); setViewTab('logs') }}

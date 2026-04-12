@@ -24,6 +24,8 @@ export const colonyPaths = {
   // Daemon sockets / PIDs
   daemonSock: path.join(ROOT, 'daemon.sock'),
   daemonPid: path.join(ROOT, 'daemon.pid'),
+  daemonNextSock: path.join(ROOT, 'daemon-next.sock'),
+  daemonNextPid: path.join(ROOT, 'daemon-next.pid'),
   envdSock: path.join(ROOT, 'envd.sock'),
   envdPid: path.join(ROOT, 'envd.pid'),
   envIndex: path.join(ROOT, 'environments.json'),

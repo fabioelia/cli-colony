@@ -35,6 +35,7 @@ export interface ClaudeInstance {
   permissionMode?: 'autonomous' | 'supervised'
   note?: string
   budgetExceeded?: boolean
+  daemonId?: string
 }
 
 export interface AgentDef {

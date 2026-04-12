@@ -11,7 +11,7 @@ import { getRestorableSessions, clearRestorable, getRecentSessions } from '../re
 import { getAllInstances, getIdleInfo } from '../instance-manager'
 import { getContextUsage, tokenizeApproximate } from '../context-counter'
 import { getArtifact } from '../session-artifacts'
-import { getDaemonClient } from '../daemon-client'
+import { getDaemonRouter } from '../daemon-router'
 import { stripAnsi } from '../../shared/utils'
 import type { CoordinatorTeam, ContextUsage, GitDiffEntry } from '../../shared/types'
 import { getLiveChanges } from '../git-utils'
@@ -145,7 +145,7 @@ async function getLiveBranch(dir: string): Promise<string | null> {
 const MAX_DIFF_LINES = 200
 
 async function buildExportMarkdown(instanceId: string): Promise<string> {
-  const client = getDaemonClient()
+  const client = getDaemonRouter()
   const inst = await client.getInstance(instanceId).catch(() => null)
   const artifact = await getArtifact(instanceId)
 
@@ -271,7 +271,7 @@ const MAX_TOTAL_MATCHES = 100
 async function searchSessionOutput(query: string): Promise<SearchOutputResult[]> {
   if (!query || query.length < 2) return []
 
-  const client = getDaemonClient()
+  const client = getDaemonRouter()
   const instances = await client.getAllInstances()
   const q = query.toLowerCase()
   const results: SearchOutputResult[] = []

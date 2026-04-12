@@ -13,7 +13,7 @@
  *   5. Safety abandon if nothing happens within abandonTimeout
  */
 
-import { getDaemonClient } from './daemon-client'
+import { getDaemonRouter } from './daemon-router'
 import { markChecklistItem } from './onboarding-state'
 
 /** Planning prefix prepended to prompts when planFirst is enabled */
@@ -53,7 +53,7 @@ export type SendPromptResult = 'sent' | 'abandoned'
  * updates (e.g. recordFired, runCount) on 'abandoned'.
  */
 export async function sendPromptWhenReady(instanceId: string, opts: SendPromptOpts): Promise<SendPromptResult> {
-  const client = getDaemonClient()
+  const client = getDaemonRouter()
   const promptText = opts.planFirst ? PLAN_FIRST_PREFIX + opts.prompt : opts.prompt
   const forceTimeout = opts.forceTimeout ?? 3000
   const abandonTimeout = opts.abandonTimeout ?? 15000

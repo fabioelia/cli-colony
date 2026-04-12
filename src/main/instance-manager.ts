@@ -9,7 +9,8 @@ import { app, BrowserWindow, shell } from 'electron'
 import { exec } from 'child_process'
 import { join } from 'path'
 import { existsSync, statSync } from 'fs'
-import { getDaemonClient, DaemonClient } from './daemon-client'
+import { getDaemonRouter } from './daemon-router'
+import type { UpgradeState } from './daemon-router'
 import { getDefaultArgs, getSetting, getDefaultCliBackend } from './settings'
 import { notify } from './notifications'
 import { DAEMON_VERSION } from '../daemon/protocol'
@@ -86,10 +87,11 @@ export function wireDaemonEvents(): void {
   if (_wired) return
   _wired = true
 
-  const client = getDaemonClient()
+  const router = getDaemonRouter()
+  router.wireEvents(router.primaryClient)
 
   // Forward output to renderer + track idle time + check persona cost cap
-  client.on('output', (instanceId: string, data: string) => {
+  router.on('output', (instanceId: string, data: string) => {
     broadcast('instance:output', { id: instanceId, data })
     _lastOutputAt.set(instanceId, Date.now())
 
@@ -101,13 +103,13 @@ export function wireDaemonEvents(): void {
         _lastCostCheckAt.set(instanceId, now)
         const cap = _costCapResolver?.(instanceId)
         if (cap != null) {
-          client.getInstance(instanceId).then(inst => {
+          router.getInstance(instanceId).then(inst => {
             if (!inst || _budgetStopped.has(instanceId)) return
             const cost = inst.tokenUsage?.cost ?? 0
             if (cost >= cap) {
               _budgetStopped.add(instanceId)
               console.log(`[instance-manager] budget exceeded for ${inst.name}: $${cost.toFixed(2)} >= $${cap.toFixed(2)} — stopping`)
-              client.stopInstance(instanceId).catch(() => {})
+              router.killInstance(instanceId).catch(() => {})
               broadcast('instance:budgetExceeded', { id: instanceId, cost, cap })
               notify(
                 `Colony: ${inst.name} stopped`,
@@ -129,7 +131,7 @@ export function wireDaemonEvents(): void {
   })
 
   // Forward activity changes + notify when Claude finishes processing
-  client.on('activity', async (instanceId: string, activity: string) => {
+  router.on('activity', async (instanceId: string, activity: string) => {
     broadcast('instance:activity', { id: instanceId, activity })
 
     // When an instance transitions to 'waiting', Claude finished its task
@@ -155,9 +157,9 @@ export function wireDaemonEvents(): void {
   })
 
   // Forward tool-deferred events + desktop notification
-  client.on('tool-deferred', async (instanceId: string, sessionId: string, toolName?: string) => {
+  router.on('tool-deferred', async (instanceId: string, sessionId: string, toolName?: string) => {
     broadcast('instance:tool-deferred', { id: instanceId, sessionId, toolName })
-    const inst = await client.getInstance(instanceId).catch(() => null)
+    const inst = await router.getInstance(instanceId).catch(() => null)
     const name = inst?.name || 'Session'
     notify(
       'Tool Deferred',
@@ -167,7 +169,7 @@ export function wireDaemonEvents(): void {
   })
 
   // Forward exit events + handle auto-cleanup + track session closure
-  client.on('exited', async (instanceId: string, exitCode: number) => {
+  router.on('exited', async (instanceId: string, exitCode: number) => {
     broadcast('instance:exited', { id: instanceId, exitCode })
     trackClosed(instanceId, 'exited')
     _lastOutputAt.delete(instanceId)
@@ -177,7 +179,7 @@ export function wireDaemonEvents(): void {
 
     // Parse error summary from PTY buffer on non-zero exit
     if (exitCode !== 0) {
-      client.getInstanceBuffer(instanceId).then(buffer => {
+      router.getInstanceBuffer(instanceId).then(buffer => {
         if (!buffer) return
         const errorSummary = parseErrorSummary(buffer)
         if (errorSummary) {
@@ -187,7 +189,7 @@ export function wireDaemonEvents(): void {
     }
 
     // Single getInstance call — shared by activity log + commit attribution
-    client.getInstance(instanceId).then(inst => {
+    router.getInstance(instanceId).then(inst => {
       if (!inst) return
 
       appendActivity({
@@ -225,9 +227,9 @@ export function wireDaemonEvents(): void {
     if (cleanupMins > 0) {
       setTimeout(async () => {
         try {
-          const inst = await client.getInstance(instanceId)
+          const inst = await router.getInstance(instanceId)
           if (inst && inst.status === 'exited' && !inst.name.startsWith('Persona: ')) {
-            await client.removeInstance(instanceId)
+            await router.removeInstance(instanceId)
           }
         } catch { /* daemon may be gone */ }
       }, cleanupMins * 60 * 1000)
@@ -235,37 +237,54 @@ export function wireDaemonEvents(): void {
   })
 
   // Forward list changes
-  client.on('list-changed', (instances: ClaudeInstance[]) => {
+  router.on('list-changed', (instances: ClaudeInstance[]) => {
     broadcast('instance:list', instances)
     onInstanceListChanged?.()
   })
 
   // Forward comments push
-  client.on('comments', (instanceId: string, comments: ColonyComment[]) => {
+  router.on('comments', (instanceId: string, comments: ColonyComment[]) => {
     broadcast('session:comments', { instanceId, comments })
   })
 
-  client.on('disconnected', () => {
+  router.on('disconnected', () => {
     console.log('[instance-manager] daemon disconnected')
   })
 
-  client.on('connection-failed', () => {
+  router.on('connection-failed', () => {
     console.error('[instance-manager] daemon reconnect exhausted — notifying renderer')
     broadcast('daemon:connection-failed', { error: 'Daemon reconnect failed after multiple attempts' })
   })
 
-  client.on('connected', () => {
+  router.on('connected', () => {
     console.log('[instance-manager] daemon connected')
   })
 
-  client.on('version-mismatch', (info: { running: number; expected: number }) => {
+  router.on('version-mismatch', (info: { running: number; expected: number }) => {
     console.warn(`[instance-manager] daemon version mismatch: running=${info.running} expected=${info.expected}`)
     broadcast('daemon:version-mismatch', info)
   })
 
-  client.on('daemon-unresponsive', () => {
+  router.on('daemon-unresponsive', () => {
     console.error('[instance-manager] daemon unresponsive — force-killed, auto-reconnecting')
     broadcast('daemon:unresponsive', {})
+  })
+
+  // Rolling upgrade events
+  router.on('upgrade-started', () => {
+    broadcast('daemon:upgrade-started', {})
+  })
+
+  router.on('upgrade-draining', (info: { remaining: number }) => {
+    broadcast('daemon:upgrade-draining', info)
+  })
+
+  router.on('upgrade-complete', () => {
+    broadcast('daemon:upgrade-complete', {})
+  })
+
+  router.on('instance-migrated', (info: { oldId: string; newId: string }) => {
+    broadcast('daemon:instance-migrated', info)
   })
 }
 
@@ -303,7 +322,7 @@ export async function createInstance(opts: {
     }
   }
 
-  const inst = await getDaemonClient().createInstance({
+  const inst = await getDaemonRouter().createInstance({
     ...opts,
     args: finalArgs,
     workingDirectory: cwd,
@@ -345,19 +364,19 @@ export async function createInstance(opts: {
 }
 
 export async function killInstance(id: string): Promise<boolean> {
-  const result = await getDaemonClient().killInstance(id)
+  const result = await getDaemonRouter().killInstance(id)
   trackClosed(id, 'killed')
   return result
 }
 
 export async function restartInstance(id: string): Promise<ClaudeInstance | null> {
   const defaultArgs = await getDefaultArgs()
-  return getDaemonClient().restartInstance(id, defaultArgs)
+  return getDaemonRouter().restartInstance(id, defaultArgs)
 }
 
 export async function getAllInstances(): Promise<ClaudeInstance[]> {
   try {
-    return await getDaemonClient().getAllInstances()
+    return await getDaemonRouter().getAllInstances()
   } catch {
     return []
   }
@@ -368,7 +387,7 @@ export async function getAllInstances(): Promise<ClaudeInstance[]> {
  * Only disconnects the client.
  */
 export function disconnectDaemon(): void {
-  getDaemonClient().disconnect()
+  getDaemonRouter().disconnect()
 }
 
 /**
@@ -376,32 +395,51 @@ export function disconnectDaemon(): void {
  * Use only when the user explicitly quits.
  */
 export async function shutdownDaemon(): Promise<void> {
-  await getDaemonClient().shutdownDaemon()
+  await getDaemonRouter().shutdownDaemon()
 }
 
-/**
- * Restart the daemon — kills all instances, shuts down, then reconnects.
- * The new daemon picks up fresh settings (shell profile, etc).
- */
 export async function getDaemonVersion(): Promise<{ running: number; expected: number }> {
   try {
-    const res = await getDaemonClient().request({ type: 'version', reqId: `v-${Date.now()}` }) as { version?: number } | undefined
+    const res = await getDaemonRouter().request({ type: 'version', reqId: `v-${Date.now()}` }) as { version?: number } | undefined
     return { running: res?.version ?? 0, expected: DAEMON_VERSION }
   } catch {
     return { running: 0, expected: DAEMON_VERSION }
   }
 }
 
+/**
+ * Restart the daemon — kills all instances, shuts down, then reconnects.
+ * For backward compat; prefer startDaemonUpgrade() for zero-downtime upgrades.
+ */
 export async function restartDaemon(): Promise<void> {
   console.log('[instance-manager] restarting daemon...')
   try {
-    await getDaemonClient().shutdownDaemon()
+    await getDaemonRouter().shutdownDaemon()
   } catch { /* daemon may already be gone */ }
-  getDaemonClient().disconnect()
-  // Wait for socket cleanup
+  getDaemonRouter().disconnect()
   await new Promise((r) => setTimeout(r, 500))
-  await getDaemonClient().connect()
+  await getDaemonRouter().connect()
   console.log('[instance-manager] daemon restarted')
+}
+
+/** Start a rolling upgrade — spawn new daemon, drain old, promote when empty. */
+export async function startDaemonUpgrade(): Promise<void> {
+  return getDaemonRouter().startUpgrade()
+}
+
+/** Migrate a specific instance from old daemon to new during an upgrade. */
+export async function migrateInstance(instanceId: string): Promise<ClaudeInstance | null> {
+  return getDaemonRouter().migrateInstance(instanceId)
+}
+
+/** Migrate all running instances from old daemon to new. */
+export async function migrateAllInstances(): Promise<void> {
+  return getDaemonRouter().migrateAll()
+}
+
+/** Get the current upgrade state. */
+export function getUpgradeState(): { state: UpgradeState; remaining: number } {
+  return getDaemonRouter().getUpgradeStatus()
 }
 
 /**
@@ -411,15 +449,15 @@ export async function restartDaemon(): Promise<void> {
  */
 export async function initDaemon(): Promise<void> {
   wireDaemonEvents()
-  const client = getDaemonClient()
+  const router = getDaemonRouter()
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      await client.connect()
+      await router.connect()
       return
     } catch (err) {
       console.error(`[instance-manager] daemon connect attempt ${attempt}/3 failed:`, err)
       if (attempt < 3) {
-        client.killDaemonProcess()
+        router.killDaemonProcess()
         await new Promise((r) => setTimeout(r, 2000))
       }
     }

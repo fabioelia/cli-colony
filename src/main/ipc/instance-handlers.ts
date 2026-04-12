@@ -17,8 +17,12 @@ import {
   getAllInstances,
   restartDaemon,
   getDaemonVersion,
+  startDaemonUpgrade,
+  migrateInstance,
+  migrateAllInstances,
+  getUpgradeState,
 } from '../instance-manager'
-import { getDaemonClient } from '../daemon-client'
+import { getDaemonRouter } from '../daemon-router'
 import { sendPromptWhenReady } from '../send-prompt-when-ready'
 import { stripAnsi } from '../../shared/utils'
 
@@ -34,38 +38,38 @@ export function registerInstanceHandlers(): void {
   ipcMain.handle('instance:create', async (_e, opts) => {
     return createInstance(opts || {})
   })
-  const client = getDaemonClient()
+  const router = getDaemonRouter()
   ipcMain.on('instance:write', async (_e, id: string, data: string) => {
     // Fire-and-forget — don't wait for reply. Keystroke echo doesn't need confirmation.
-    client.writeToInstance(id, data).catch(() => {})
+    router.writeToInstance(id, data).catch(() => {})
   })
   ipcMain.handle('instance:resize', async (_e, id: string, cols: number, rows: number) => {
-    try { return await client.resizeInstance(id, cols, rows) } catch { return false }
+    try { return await router.resizeInstance(id, cols, rows) } catch { return false }
   })
   ipcMain.handle('instance:kill', async (_e, id: string) => {
     try { return await killInstance(id) } catch { return false }
   })
   ipcMain.handle('instance:remove', async (_e, id: string) => {
-    try { return await client.removeInstance(id) } catch { return false }
+    try { return await router.removeInstance(id) } catch { return false }
   })
   ipcMain.handle('instance:rename', async (_e, id: string, name: string) => {
-    try { return await client.renameInstance(id, name) } catch { return false }
+    try { return await router.renameInstance(id, name) } catch { return false }
   })
   ipcMain.handle('instance:recolor', async (_e, id: string, color: string) => {
-    try { return await client.recolorInstance(id, color) } catch { return false }
+    try { return await router.recolorInstance(id, color) } catch { return false }
   })
   ipcMain.handle('instance:restart', (_e, id: string) => restartInstance(id))
   ipcMain.handle('instance:pin', async (_e, id: string) => {
-    try { return await client.pinInstance(id) } catch { return false }
+    try { return await router.pinInstance(id) } catch { return false }
   })
   ipcMain.handle('instance:unpin', async (_e, id: string) => {
-    try { return await client.unpinInstance(id) } catch { return false }
+    try { return await router.unpinInstance(id) } catch { return false }
   })
   ipcMain.handle('instance:set-note', async (_e, id: string, note: string) => {
-    try { return await client.setNote(id, note) } catch { return false }
+    try { return await router.setNote(id, note) } catch { return false }
   })
   ipcMain.handle('instance:setRole', async (_e, id: string, role: string | null) => {
-    try { return await client.setInstanceRole(id, role) } catch { return false }
+    try { return await router.setInstanceRole(id, role) } catch { return false }
   })
   ipcMain.handle('instance:list', () => getAllInstances())
 
@@ -113,13 +117,17 @@ export function registerInstanceHandlers(): void {
   })
 
   ipcMain.handle('instance:get', async (_e, id: string) => {
-    try { return await client.getInstance(id) } catch { return null }
+    try { return await router.getInstance(id) } catch { return null }
   })
   ipcMain.handle('instance:buffer', async (_e, id: string) => {
-    try { return await client.getInstanceBuffer(id) } catch { return '' }
+    try { return await router.getInstanceBuffer(id) } catch { return '' }
   })
   ipcMain.handle('daemon:restart', () => restartDaemon())
   ipcMain.handle('daemon:version', () => getDaemonVersion())
+  ipcMain.handle('daemon:startUpgrade', () => startDaemonUpgrade())
+  ipcMain.handle('daemon:migrateInstance', (_e, id: string) => migrateInstance(id))
+  ipcMain.handle('daemon:migrateAll', () => migrateAllInstances())
+  ipcMain.handle('daemon:upgradeState', () => getUpgradeState())
 
   ipcMain.handle('instance:killProcess', async (_e, pid: number): Promise<boolean> => {
     try {
@@ -133,7 +141,7 @@ export function registerInstanceHandlers(): void {
   // Find non-Claude child processes running under an instance's working directory
   ipcMain.handle('instance:processes', async (_e, id: string): Promise<ChildProcess[]> => {
     let inst
-    try { inst = await getDaemonClient().getInstance(id) } catch { return [] }
+    try { inst = await getDaemonRouter().getInstance(id) } catch { return [] }
     if (!inst?.workingDirectory) return []
     const dir = inst.workingDirectory
 
@@ -365,18 +373,18 @@ export function registerInstanceHandlers(): void {
 
   // Inline code annotations emitted by a session via COLONY_COMMENT sentinels
   ipcMain.handle('session:getComments', async (_e, instanceId: string) => {
-    return getDaemonClient().getInstanceComments(instanceId)
+    return getDaemonRouter().getInstanceComments(instanceId)
   })
 
   // Clear tool-deferred info — dismiss the deferred banner without restarting.
   ipcMain.handle('instance:clearToolDeferred', async (_e, instanceId: string): Promise<boolean> => {
-    return getDaemonClient().clearToolDeferred(instanceId)
+    return getDaemonRouter().clearToolDeferred(instanceId)
   })
 
   // Session steering — queue or immediately deliver a redirect message to a session.
   // If the session is waiting: delivers immediately. If busy: queues for next waiting transition.
   ipcMain.handle('session:steer', async (_e, instanceId: string, message: string): Promise<boolean> => {
-    return getDaemonClient().steerInstance(instanceId, message)
+    return getDaemonRouter().steerInstance(instanceId, message)
   })
 
   // Inter-session message bus — send text to a running session by display name.

@@ -117,6 +117,8 @@ export default function App() {
   const [daemonStale, setDaemonStale] = useState(false)
   const [daemonFailed, setDaemonFailed] = useState(false)
   const [daemonUnresponsive, setDaemonUnresponsive] = useState(false)
+  const [upgradeState, setUpgradeState] = useState<'idle' | 'upgrading' | 'draining' | 'complete'>('idle')
+  const [drainRemaining, setDrainRemaining] = useState(0)
   const [envPromptRequest, setEnvPromptRequest] = useState<{ requestId: string; envId: string; hookName: string; prompt: string; promptType: string; defaultPath?: string; defaultPathValid?: boolean; options?: string[] } | null>(null)
   const [showWelcome, setShowWelcome] = useState(false)
   const [forkModalInst, setForkModalInst] = useState<ClaudeInstance | null>(null)
@@ -178,7 +180,19 @@ export default function App() {
     const unsubUnresponsive = window.api.daemon.onDaemonUnresponsive(() => {
       setDaemonUnresponsive(true)
     })
-    return () => { unsubVersion(); unsubFailed(); unsubUnresponsive() }
+    const unsubUpgradeStarted = window.api.daemon.onUpgradeStarted(() => {
+      setUpgradeState('upgrading')
+      setDaemonStale(false)
+    })
+    const unsubUpgradeDraining = window.api.daemon.onUpgradeDraining(({ remaining }) => {
+      setUpgradeState('draining')
+      setDrainRemaining(remaining)
+    })
+    const unsubUpgradeComplete = window.api.daemon.onUpgradeComplete(() => {
+      setUpgradeState('complete')
+      setTimeout(() => setUpgradeState('idle'), 3000)
+    })
+    return () => { unsubVersion(); unsubFailed(); unsubUnresponsive(); unsubUpgradeStarted(); unsubUpgradeDraining(); unsubUpgradeComplete() }
   }, [])
 
   // Listen for environment prompt requests (file picker etc.) — must be at app level
@@ -1268,16 +1282,40 @@ export default function App() {
         />,
         document.body
       )}
-      {daemonStale && createPortal(
+      {daemonStale && upgradeState === 'idle' && createPortal(
         <div className="daemon-update-banner">
-          <span>Daemon is outdated — restart to apply updates. Running sessions will be terminated; use resume to restore them.</span>
+          <span>Daemon is outdated — upgrade seamlessly or restart to apply updates.</span>
+          <button onClick={async () => {
+            setDaemonStale(false)
+            await window.api.daemon.startUpgrade()
+          }}>Upgrade</button>
           <button onClick={async () => {
             setDaemonStale(false)
             await window.api.daemon.restart()
             const list = await window.api.instance.list()
             setInstances(prev => instancesEqual(prev, list) ? prev : list)
-          }}>Restart Daemon</button>
+          }}>Restart (kills sessions)</button>
           <button className="daemon-update-dismiss" onClick={() => setDaemonStale(false)}>Dismiss</button>
+        </div>,
+        document.body
+      )}
+      {upgradeState === 'upgrading' && createPortal(
+        <div className="daemon-update-banner daemon-upgrading-banner">
+          <span>Starting daemon upgrade...</span>
+        </div>,
+        document.body
+      )}
+      {upgradeState === 'draining' && createPortal(
+        <div className="daemon-update-banner daemon-upgrading-banner">
+          <span>Upgrading daemon... {drainRemaining} session{drainRemaining !== 1 ? 's' : ''} on old daemon.</span>
+          <button onClick={() => window.api.daemon.migrateAll()}>Migrate All Now</button>
+          <button className="daemon-update-dismiss" onClick={() => setUpgradeState('idle')}>Dismiss</button>
+        </div>,
+        document.body
+      )}
+      {upgradeState === 'complete' && createPortal(
+        <div className="daemon-update-banner daemon-upgrade-complete-banner">
+          <span>Daemon upgrade complete.</span>
         </div>,
         document.body
       )}

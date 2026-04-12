@@ -10,7 +10,7 @@ import { promisify } from 'util'
 import { join } from 'path'
 import { app } from 'electron'
 import { createInstance, getAllInstances, killInstance } from './instance-manager'
-import { getDaemonClient } from './daemon-client'
+import { getDaemonRouter } from './daemon-router'
 import { sendPromptWhenReady } from './send-prompt-when-ready'
 import { appendActivity } from './activity-manager'
 import { broadcast } from './broadcast'
@@ -172,7 +172,7 @@ export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pi
       return { cost: accumulatedCost, sessionId: lastMakerSessionId }
     }
 
-    const makerFinalState = await getDaemonClient().getInstance(makerInst.id)
+    const makerFinalState = await getDaemonRouter().getInstance(makerInst.id)
     accumulatedCost += makerFinalState?.tokenUsage.cost ?? 0
     tagArtifactPipeline(makerInst.id, runId).catch(() => {})
 
@@ -210,7 +210,7 @@ export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pi
       return { cost: accumulatedCost, sessionId: lastMakerSessionId }
     }
 
-    const checkerFinalState = await getDaemonClient().getInstance(checkerInst.id)
+    const checkerFinalState = await getDaemonRouter().getInstance(checkerInst.id)
     accumulatedCost += checkerFinalState?.tokenUsage.cost ?? 0
     tagArtifactPipeline(checkerInst.id, runId).catch(() => {})
 
@@ -323,7 +323,7 @@ export async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipe
       return { cost: accumulatedCost, sessionId: firstReviewerSessionId }
     }
 
-    const reviewerState = await getDaemonClient().getInstance(reviewerInst.id)
+    const reviewerState = await getDaemonRouter().getInstance(reviewerInst.id)
     accumulatedCost += reviewerState?.tokenUsage.cost ?? 0
     tagArtifactPipeline(reviewerInst.id, runId).catch(() => {})
 
@@ -360,7 +360,7 @@ export async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipe
         plog(pipelineName, `diff-review: fixer timed out on iteration ${iteration + 1}`)
         break
       }
-      const fixerState = await getDaemonClient().getInstance(fixerInst.id)
+      const fixerState = await getDaemonRouter().getInstance(fixerInst.id)
       accumulatedCost += fixerState?.tokenUsage.cost ?? 0
       continue
     }
@@ -437,7 +437,7 @@ export async function runPlanStage(action: ActionDef, ctx: TriggerContext, pipel
   await sendPromptWhenReady(plannerInst.id, { prompt: 'Execute the instructions in your system prompt. Begin now.' })
   const plannerDone = await completionPromise
 
-  const plannerFinalState = await getDaemonClient().getInstance(plannerInst.id)
+  const plannerFinalState = await getDaemonRouter().getInstance(plannerInst.id)
   const cost = plannerFinalState?.tokenUsage.cost ?? 0
   tagArtifactPipeline(plannerInst.id, runId).catch(() => {})
 

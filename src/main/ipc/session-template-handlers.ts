@@ -4,7 +4,7 @@ import * as os from 'os'
 import { colonyPaths } from '../../shared/colony-paths'
 import type { SessionTemplate } from '../../shared/types'
 import { createInstance } from '../instance-manager'
-import { getDaemonClient } from '../daemon-client'
+import { getDaemonRouter } from '../daemon-router'
 import { sendPromptWhenReady } from '../send-prompt-when-ready'
 
 async function readTemplates(): Promise<SessionTemplate[]> {
@@ -74,7 +74,7 @@ export function registerSessionTemplateHandlers(): void {
 
     // Set role if present
     if (template.role && inst) {
-      getDaemonClient().setInstanceRole(inst.id, template.role!).catch(() => {})
+      getDaemonRouter().setInstanceRole(inst.id, template.role!).catch(() => {})
     }
 
     // Send initial prompt if present

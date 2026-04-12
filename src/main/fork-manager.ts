@@ -14,7 +14,7 @@ import type { ForkGroup, ForkEntry } from '../shared/types'
 import { getGitRoot, addWorktree, removeWorktree } from './git-worktree'
 import { createInstance } from './instance-manager'
 import { sendPromptWhenReady } from './send-prompt-when-ready'
-import { getDaemonClient } from './daemon-client'
+import { getDaemonRouter } from './daemon-router'
 import { broadcast } from './broadcast'
 
 // ---- Persistence helpers ----
@@ -70,7 +70,7 @@ export async function createForkGroup(parentId: string, opts: ForkOpts): Promise
   }
 
   // Get parent instance info
-  const client = getDaemonClient()
+  const client = getDaemonRouter()
   const parent = await client.getInstance(parentId)
   if (!parent) throw new Error(`Parent session ${parentId} not found`)
 
@@ -150,7 +150,7 @@ export async function createForkGroup(parentId: string, opts: ForkOpts): Promise
   try {
     const forkLabels = opts.forks.map((f, i) => `Fork ${i + 1}: ${f.label}`).join(', ')
     const whisper = `\r\n[Colony] Forks launched: ${forkLabels}. Please wait for winner selection before continuing.\r\n`
-    await getDaemonClient().writeToInstance(parentId, whisper + '\r')
+    await getDaemonRouter().writeToInstance(parentId, whisper + '\r')
   } catch {/* best-effort */}
 
   const group: ForkGroup = {
@@ -215,7 +215,7 @@ export async function pickWinner(groupId: string, winnerId: string): Promise<voi
   // Whisper to parent session
   try {
     const whisper = `\r\n[Colony] Fork winner selected: ${winnerEntry.label}. The winning branch is ${winnerEntry.branch}. You may now continue.\r\n`
-    await getDaemonClient().writeToInstance(group.parentId, whisper + '\r')
+    await getDaemonRouter().writeToInstance(group.parentId, whisper + '\r')
   } catch {/* best-effort */}
 
   writeGroups(groups)

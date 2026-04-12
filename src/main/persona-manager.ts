@@ -14,7 +14,7 @@ const execFileAsync = promisify(execFile)
 import { getPendingTriggers } from './persona-triggers'
 import { colonyPaths } from '../shared/colony-paths'
 import { createInstance, getAllInstances, killInstance, wasBudgetStopped, setCostCapResolver } from './instance-manager'
-import { getDaemonClient } from './daemon-client'
+import { getDaemonRouter } from './daemon-router'
 import { sendPromptWhenReady } from './send-prompt-when-ready'
 import { broadcast } from './broadcast'
 import { notify } from './notifications'
@@ -415,7 +415,7 @@ function sendTriggerWhenReady(instanceId: string, message: string, timeoutMinute
       console.log(`[persona] sent trigger to ${instanceId}`)
       if (onStateCommit) onStateCommit()
 
-      const client = getDaemonClient()
+      const client = getDaemonRouter()
       let resolved = false
       let absoluteTimeout: ReturnType<typeof setTimeout> | null = null
 
@@ -753,7 +753,7 @@ export async function onSessionExit(instanceId: string): Promise<void> {
       // Capture the session's output buffer before clearing
       let sessionCost = 0
       try {
-        const buffer = await getDaemonClient().getInstanceBuffer(instanceId)
+        const buffer = await getDaemonRouter().getInstanceBuffer(instanceId)
         if (buffer) {
           // Strip ANSI codes and keep last ~5000 chars
           const clean = stripAnsi(buffer)

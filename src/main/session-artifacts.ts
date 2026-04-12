@@ -12,7 +12,7 @@ import { dirname } from 'path'
 import { resolveCommand } from './resolve-command'
 import { colonyPaths } from '../shared/colony-paths'
 import type { SessionArtifact, SessionArtifactCommit, GitDiffEntry } from '../shared/types'
-import { getDaemonClient } from './daemon-client'
+import { getDaemonRouter } from './daemon-router'
 
 const execFileAsync = promisify(execFile)
 const MAX_ARTIFACTS = 200
@@ -156,7 +156,7 @@ function generateSessionName(artifact: SessionArtifact): string | null {
  * Fire-and-forget — silently returns on any error.
  */
 export async function collectSessionArtifact(instanceId: string): Promise<SessionArtifact | null> {
-  const client = getDaemonClient()
+  const client = getDaemonRouter()
   const inst = await client.getInstance(instanceId).catch(() => null)
   if (!inst?.workingDirectory) return null
 

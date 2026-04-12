@@ -31,8 +31,9 @@ import { genId } from '../shared/utils'
 
 const HOME = process.env.HOME || '/'
 const COLONY_DIR = colonyPaths.root
-const SOCKET_PATH = colonyPaths.daemonSock
-const PID_PATH = colonyPaths.daemonPid
+const SOCKET_PATH = process.env.COLONY_DAEMON_SOCK || colonyPaths.daemonSock
+const PID_PATH = process.env.COLONY_DAEMON_PID || colonyPaths.daemonPid
+const DAEMON_ID = process.env.COLONY_DAEMON_ID || 'primary'
 
 // ---- Shell environment ----
 
@@ -87,6 +88,7 @@ interface InternalInstance extends ClaudeInstance {
 }
 
 const instances = new Map<string, InternalInstance>()
+let _draining = false
 
 // MCP server detection patterns
 const MCP_PATTERNS = [
@@ -238,6 +240,7 @@ function toSerializable(inst: InternalInstance): ClaudeInstance {
     toolDeferredInfo: inst.toolDeferredInfo,
     note: inst.note,
     permissionMode: inst.permissionMode,
+    daemonId: DAEMON_ID,
   }
 }
 
@@ -578,6 +581,15 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
 
     broadcastEvent({ type: 'exited', instanceId: id, exitCode })
     notifyListChanged()
+
+    // Auto-shutdown in drain mode when no running instances remain
+    if (_draining) {
+      const hasRunning = Array.from(instances.values()).some(i => i.status === 'running')
+      if (!hasRunning) {
+        log('drain complete — all instances exited, shutting down')
+        setTimeout(() => shutdown(), 500)
+      }
+    }
   })
 
   // Discover Claude session ID via lsof ~5s after startup (used for --resume on restart)
@@ -645,6 +657,16 @@ function removeInstance(id: string): boolean {
   if (inst.cleanupTimer) clearTimeout(inst.cleanupTimer)
   instances.delete(id)
   notifyListChanged()
+
+  // Auto-shutdown in drain mode when no running instances remain
+  if (_draining) {
+    const hasRunning = Array.from(instances.values()).some(i => i.status === 'running')
+    if (!hasRunning && instances.size === 0) {
+      log('drain complete — all instances removed, shutting down')
+      setTimeout(() => shutdown(), 500)
+    }
+  }
+
   return true
 }
 
@@ -790,6 +812,10 @@ function handleRequest(req: DaemonRequest, socket: net.Socket): void {
   try {
     switch (req.type) {
       case 'create': {
+        if (_draining) {
+          send({ type: 'error', reqId: req.reqId, message: 'daemon is draining — cannot create new instances' })
+          break
+        }
         const inst = createInstance(req.opts)
         send({ type: 'ok', reqId: req.reqId, data: inst })
         break
@@ -894,7 +920,18 @@ function handleRequest(req: DaemonRequest, socket: net.Socket): void {
         break
       }
       case 'version': {
-        send({ type: 'ok', reqId: req.reqId, data: { version: DAEMON_VERSION } })
+        send({ type: 'ok', reqId: req.reqId, data: { version: DAEMON_VERSION, daemonId: DAEMON_ID } })
+        break
+      }
+      case 'drain': {
+        _draining = true
+        log('drain mode activated — no new creates accepted')
+        const remaining = Array.from(instances.values()).filter(i => i.status === 'running').length
+        send({ type: 'ok', reqId: req.reqId, data: { draining: true, remaining } })
+        if (remaining === 0) {
+          log('drain mode: zero running instances, shutting down')
+          setTimeout(() => shutdown(), 500)
+        }
         break
       }
       case 'shutdown': {
@@ -991,7 +1028,7 @@ const LOG_PATH = path.join(COLONY_DIR, 'daemon.log')
 
 function log(msg: string): void {
   const ts = new Date().toISOString().substring(11, 23)
-  const line = `[daemon ${ts}] ${msg}\n`
+  const line = `[daemon:${DAEMON_ID} ${ts}] ${msg}\n`
   try { fs.appendFileSync(LOG_PATH, line) } catch { /* */ }
 }
 

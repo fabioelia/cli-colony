@@ -12,7 +12,7 @@ import { createHash } from 'crypto'
 import { app } from 'electron'
 import { createInstance, getAllInstances, killInstance } from './instance-manager'
 import { markChecklistItem } from './onboarding-state'
-import { getDaemonClient } from './daemon-client'
+import { getDaemonRouter } from './daemon-router'
 import { sendPromptWhenReady } from './send-prompt-when-ready'
 import { getRepos, fetchPRs, fetchChecks, gh } from './github'
 import { findBestRoute } from './session-router'
@@ -521,7 +521,7 @@ function buildFilePromptTrigger(filePath: string): string {
 // ---- Send Prompt to Existing Session (no trust prompt handling) ----
 
 async function sendPromptToExistingSession(instanceId: string, prompt: string): Promise<boolean> {
-  const client = getDaemonClient()
+  const client = getDaemonRouter()
   const inst = await client.getInstance(instanceId)
   const filePath = await writePromptFile(prompt)
   const trigger = buildFilePromptTrigger(filePath)
@@ -795,7 +795,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
 
       if (existing.activity === 'waiting') {
         const filePath = await writePromptFile(prompt)
-        getDaemonClient().writeToInstance(existing.id, buildFilePromptTrigger(filePath) + '\r')
+        getDaemonRouter().writeToInstance(existing.id, buildFilePromptTrigger(filePath) + '\r')
         broadcast('pipeline:fired', { pipeline: name, instanceId: existing.id, routed: true })
         return { cost: 0, sessionId: existing.id }
       }
@@ -874,7 +874,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
 
   // Auto-close: kill session if still running after timeout (default 10 min)
   const autoCloseMinutes = action.timeout_minutes || 10
-  const client = getDaemonClient()
+  const client = getDaemonRouter()
   let autoCloseResolved = false
 
   const onFinished = (id: string, activity: string) => {

@@ -9,7 +9,7 @@ import type { ArenaMatchRecord } from '../../shared/types'
 import { createWorktree, removeWorktree } from '../worktree-manager'
 import { createInstance } from '../instance-manager'
 import { sendPromptWhenReady } from '../send-prompt-when-ready'
-import { getDaemonClient } from '../daemon-client'
+import { getDaemonRouter } from '../daemon-router'
 import { waitForSessionCompletion } from '../session-completion'
 import { colonyPaths } from '../../shared/colony-paths'
 
@@ -141,7 +141,7 @@ export function registerArenaHandlers(): void {
     if (judgeConfig.type === 'command') {
       const results: Array<{ instanceId: string; exitCode: number; stdout: string }> = []
       for (const instId of instanceIds) {
-        const inst = await getDaemonClient().getInstance(instId)
+        const inst = await getDaemonRouter().getInstance(instId)
         const cwd = inst?.workingDirectory || '.'
         try {
           const { stdout } = await execFileAsync('sh', ['-c', judgeConfig.cmd], {
@@ -169,7 +169,7 @@ export function registerArenaHandlers(): void {
       if (winnerId) {
         try {
           const stats = await readArenaStats()
-          const winner = await getDaemonClient().getInstance(winnerId)
+          const winner = await getDaemonRouter().getInstance(winnerId)
           if (winner?.name) {
             const winnerKey = winner.name
             if (!stats[winnerKey]) stats[winnerKey] = { wins: 0, losses: 0, totalRuns: 0 }
@@ -178,7 +178,7 @@ export function registerArenaHandlers(): void {
             const allParticipants: Array<{ name: string; instanceId: string }> = [{ name: winnerKey, instanceId: winnerId }]
             for (const r of results) {
               if (r.instanceId === winnerId) continue
-              const loser = await getDaemonClient().getInstance(r.instanceId)
+              const loser = await getDaemonRouter().getInstance(r.instanceId)
               if (!loser?.name) continue
               const loserKey = loser.name
               if (!stats[loserKey]) stats[loserKey] = { wins: 0, losses: 0, totalRuns: 0 }
@@ -208,7 +208,7 @@ export function registerArenaHandlers(): void {
     const diffs: string[] = []
     let firstDir = '.'
     for (let i = 0; i < instanceIds.length; i++) {
-      const inst = await getDaemonClient().getInstance(instanceIds[i])
+      const inst = await getDaemonRouter().getInstance(instanceIds[i])
       const cwd = inst?.workingDirectory || '.'
       if (i === 0) firstDir = cwd
       try {
@@ -268,7 +268,7 @@ After evaluating, write your verdict to a file at ${verdictPath} containing WINN
     if (winnerId) {
       try {
         const stats = await readArenaStats()
-        const winner = await getDaemonClient().getInstance(winnerId)
+        const winner = await getDaemonRouter().getInstance(winnerId)
         const winnerKey = winner?.name || winnerId
         if (!stats[winnerKey]) stats[winnerKey] = { wins: 0, losses: 0, totalRuns: 0 }
         stats[winnerKey].wins++
@@ -276,7 +276,7 @@ After evaluating, write your verdict to a file at ${verdictPath} containing WINN
         const allParticipants: Array<{ name: string; instanceId: string }> = [{ name: winnerKey, instanceId: winnerId }]
         for (const instId of instanceIds) {
           if (instId === winnerId) continue
-          const loser = await getDaemonClient().getInstance(instId)
+          const loser = await getDaemonRouter().getInstance(instId)
           const loserKey = loser?.name || instId
           if (!stats[loserKey]) stats[loserKey] = { wins: 0, losses: 0, totalRuns: 0 }
           stats[loserKey].losses++
