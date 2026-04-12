@@ -3,7 +3,7 @@ import {
   Server, Play, Square, Trash2, RefreshCw, FileText, Copy,
   Plus, ExternalLink, ChevronDown, ChevronRight,
   Circle, AlertTriangle, Clock, X, FolderOpen, Terminal, Loader, CheckCircle, Check, SkipForward, Upload, Download, MessageSquare, Wrench, Stethoscope,
-  GitBranch, Unlink, Link, Search
+  GitBranch, Unlink, Link, Search, ArrowLeftRight
 } from 'lucide-react'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import { buildTemplateEditPrompt, buildDiagnosePrompt } from '../../../shared/env-prompts'
@@ -93,6 +93,8 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
   const [wtRepoIdx, setWtRepoIdx] = useState(0)
   const [wtRepos, setWtRepos] = useState<Array<{ owner: string; name: string }>>([])
   const [wtCreating, setWtCreating] = useState(false)
+  const [swappingEnvId, setSwappingEnvId] = useState<string | null>(null)
+  const [swapDropdownEnvId, setSwapDropdownEnvId] = useState<string | null>(null)
 
   const loadEnvironments = useCallback(async () => {
     try {
@@ -231,6 +233,20 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
     }
   }
 
+  const handleSwapWorktree = async (envId: string, worktreeId: string) => {
+    setSwappingEnvId(envId)
+    setSwapDropdownEnvId(null)
+    try {
+      await window.api.worktree.swap(envId, worktreeId)
+      loadEnvironments()
+    } catch (err) {
+      console.error('Worktree swap failed:', err)
+    } finally {
+      setSwappingEnvId(null)
+      setTimeout(loadEnvironments, 3000)
+    }
+  }
+
   const handleTeardown = async (envId: string) => {
     setConfirmTeardown(envId)
   }
@@ -287,6 +303,14 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
     document.addEventListener('click', close)
     return () => document.removeEventListener('click', close)
   }, [fixMenuOpen])
+
+  // Close swap dropdown when clicking outside
+  useEffect(() => {
+    if (!swapDropdownEnvId) return
+    const close = () => setSwapDropdownEnvId(null)
+    document.addEventListener('click', close)
+    return () => document.removeEventListener('click', close)
+  }, [swapDropdownEnvId])
 
   useEffect(() => {
     const creating = environments.filter(e => e.status === 'creating' || e.status === 'error')
@@ -882,6 +906,107 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
               {/* Expanded details */}
               {isExpanded && (
                 <div className="env-card-details">
+                  {/* Active Worktree */}
+                  {(() => {
+                    const activeWt = worktrees.find(wt => wt.mountedEnvId === env.id)
+                    const unmountedWts = worktrees.filter(wt => !wt.mountedEnvId)
+                    const isSwapping = swappingEnvId === env.id
+
+                    if (!activeWt && unmountedWts.length === 0) return null
+
+                    return (
+                      <div className="env-detail-section env-active-worktree">
+                        <div className="env-detail-label">
+                          <GitBranch size={11} /> Active Worktree
+                        </div>
+                        {activeWt ? (
+                          <div className="env-wt-active">
+                            <div className="env-wt-active-info">
+                              <span className="env-wt-active-name">{activeWt.displayName || activeWt.branch}</span>
+                              <span className="env-wt-active-branch"><GitBranch size={10} /> {activeWt.branch}</span>
+                              {activeWt.repos.length > 0 && (
+                                <span className="env-wt-active-repo">{activeWt.repos[0].owner}/{activeWt.repos[0].name}</span>
+                              )}
+                            </div>
+                            <div className="env-wt-active-actions" onClick={e => e.stopPropagation()}>
+                              {isSwapping ? (
+                                <span className="env-wt-swap-loading"><Loader size={12} className="spinning" /> Swapping…</span>
+                              ) : (
+                                <div className="env-wt-swap-wrap">
+                                  <button
+                                    className="env-btn env-btn-secondary env-btn-sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setSwapDropdownEnvId(swapDropdownEnvId === env.id ? null : env.id)
+                                    }}
+                                    disabled={unmountedWts.length === 0}
+                                    title={unmountedWts.length === 0 ? 'No unmounted worktrees available' : 'Swap to a different worktree'}
+                                  >
+                                    <ArrowLeftRight size={11} /> Swap
+                                  </button>
+                                  {swapDropdownEnvId === env.id && (
+                                    <div className="env-wt-swap-dropdown" onClick={e => e.stopPropagation()}>
+                                      {unmountedWts.map(wt => (
+                                        <button
+                                          key={wt.id}
+                                          className="env-wt-swap-option"
+                                          onClick={() => handleSwapWorktree(env.id, wt.id)}
+                                        >
+                                          <span className="env-wt-swap-option-name">{wt.displayName || wt.branch}</span>
+                                          <span className="env-wt-swap-option-meta">{wt.branch} · {wt.repos[0]?.name || wt.repo?.name || ''}</span>
+                                        </button>
+                                      ))}
+                                      <button
+                                        className="env-wt-swap-option env-wt-swap-option-create"
+                                        onClick={() => { setSwapDropdownEnvId(null); setActiveTab('worktrees'); setShowCreateWorktree(true) }}
+                                      >
+                                        <Plus size={10} /> Create new worktree…
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="env-wt-none">
+                            <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '11px' }}>No worktree mounted</span>
+                            {unmountedWts.length > 0 && (
+                              <div className="env-wt-swap-wrap">
+                                <button
+                                  className="env-btn env-btn-secondary env-btn-sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setSwapDropdownEnvId(swapDropdownEnvId === env.id ? null : env.id)
+                                  }}
+                                >
+                                  <Link size={11} /> Mount
+                                </button>
+                                {swapDropdownEnvId === env.id && (
+                                  <div className="env-wt-swap-dropdown" onClick={e => e.stopPropagation()}>
+                                    {unmountedWts.map(wt => (
+                                      <button
+                                        key={wt.id}
+                                        className="env-wt-swap-option"
+                                        onClick={async () => {
+                                          setSwapDropdownEnvId(null)
+                                          await window.api.worktree.mount(wt.id, env.id)
+                                        }}
+                                      >
+                                        <span className="env-wt-swap-option-name">{wt.displayName || wt.branch}</span>
+                                        <span className="env-wt-swap-option-meta">{wt.branch} · {wt.repos[0]?.name || wt.repo?.name || ''}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
+
                   {/* URLs */}
                   {Object.keys(env.urls).length > 0 && (
                     <div className="env-detail-section">
@@ -1005,22 +1130,42 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                     </div>
                   </div>
 
-                  {/* Worktrees */}
-                  <div className="env-detail-section">
-                    <div className="env-detail-label">Worktrees</div>
-                    {worktrees.filter(wt => wt.mountedEnvId === env.id).length > 0 ? (
-                      worktrees.filter(wt => wt.mountedEnvId === env.id).map(wt => (
-                        <div key={wt.id} className="env-detail-row">
-                          <span className="env-detail-key">{wt.branch}</span>
-                          <span className="env-detail-value">{wt.path}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="env-detail-row">
-                        <span className="env-detail-value" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>No worktrees mounted</span>
+                  {/* Recent Worktrees (unmounted, available for swap) */}
+                  {worktrees.filter(wt => !wt.mountedEnvId).length > 0 && (
+                    <div className="env-detail-section">
+                      <div className="env-detail-label">Recent Worktrees</div>
+                      <div className="env-wt-recent-list">
+                        {worktrees
+                          .filter(wt => !wt.mountedEnvId)
+                          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                          .slice(0, 5)
+                          .map(wt => (
+                          <div key={wt.id} className="env-wt-recent-item">
+                            <span className="env-wt-recent-name">{wt.displayName || wt.branch}</span>
+                            <span className="env-wt-recent-branch">{wt.branch}</span>
+                            <span className="env-wt-recent-age">{formatAge(wt.createdAt)}</span>
+                            <div className="env-wt-recent-actions" onClick={e => e.stopPropagation()}>
+                              <button
+                                className="env-service-btn"
+                                title="Swap to this worktree"
+                                onClick={() => handleSwapWorktree(env.id, wt.id)}
+                                disabled={swappingEnvId === env.id}
+                              >
+                                <ArrowLeftRight size={10} />
+                              </button>
+                              <button
+                                className="env-service-btn"
+                                title="Delete worktree"
+                                onClick={() => { if (confirm(`Remove worktree "${wt.displayName || wt.branch}"?`)) window.api.worktree.remove(wt.id) }}
+                              >
+                                <Trash2 size={10} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
                 </div>
               )}

@@ -14491,6 +14491,34 @@ body:has(.daemon-update-banner) .app-update-banner {
 .env-worktree-create-form input { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 3px; color: var(--text-primary); padding: 4px 8px; font-size: 11px; }
 .env-worktree-create-actions { display: flex; gap: 6px; justify-content: flex-end; }
 
+/* Active Worktree section in expanded env card */
+.env-active-worktree { border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+.env-active-worktree .env-detail-label { display: flex; align-items: center; gap: 4px; }
+.env-wt-active { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.env-wt-active-info { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.env-wt-active-name { font-weight: 600; color: var(--text-primary); font-size: 12px; }
+.env-wt-active-branch { display: flex; align-items: center; gap: 3px; color: var(--text-secondary); font-size: 11px; }
+.env-wt-active-repo { color: var(--text-muted); font-size: 10px; }
+.env-wt-active-actions { flex-shrink: 0; }
+.env-wt-swap-wrap { position: relative; display: inline-block; }
+.env-wt-swap-loading { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--accent); }
+.env-wt-swap-dropdown { position: absolute; top: calc(100% + 4px); right: 0; min-width: 220px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 100; padding: 4px; display: flex; flex-direction: column; gap: 1px; }
+.env-wt-swap-option { display: flex; flex-direction: column; gap: 1px; padding: 6px 10px; background: none; border: none; text-align: left; color: var(--text-primary); font-size: 11px; border-radius: 4px; cursor: pointer; }
+.env-wt-swap-option:hover { background: var(--bg-hover); }
+.env-wt-swap-option-name { font-weight: 600; }
+.env-wt-swap-option-meta { font-size: 10px; color: var(--text-muted); }
+.env-wt-swap-option-create { color: var(--accent); display: flex; flex-direction: row; align-items: center; gap: 4px; border-top: 1px solid var(--border); margin-top: 2px; padding-top: 6px; }
+.env-wt-none { display: flex; align-items: center; gap: 8px; }
+
+/* Recent Worktrees list in expanded env card */
+.env-wt-recent-list { display: flex; flex-direction: column; }
+.env-wt-recent-item { display: flex; align-items: center; gap: 8px; font-size: 11px; padding: 3px 0; }
+.env-wt-recent-item:hover .env-wt-recent-actions { opacity: 1; }
+.env-wt-recent-name { font-weight: 500; color: var(--text-secondary); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; }
+.env-wt-recent-branch { color: var(--text-muted); font-size: 10px; }
+.env-wt-recent-age { color: var(--text-muted); font-size: 10px; margin-left: auto; }
+.env-wt-recent-actions { display: flex; gap: 2px; opacity: 0; transition: opacity 0.15s; flex-shrink: 0; }
+
 .env-btn-secondary.active {
   background: var(--bg-active);
   color: var(--text-primary);
