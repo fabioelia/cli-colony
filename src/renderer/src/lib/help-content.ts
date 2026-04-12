@@ -684,10 +684,11 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Worktrees',
         position: 'Main area — Worktrees tab',
         items: [
-          { label: 'Worktrees tab', detail: 'View and manage git worktrees created by arena runs and forked sessions. Remove unmounted worktrees to free disk space, or unmount active ones first. Auto-refreshes when changes are detected.' },
+          { label: 'Worktrees tab', detail: 'View and manage git worktrees created by arena runs, forked sessions, and PR reviews. Each card shows display name, repo, branch, mount status, and age. Orphaned and stale worktrees are highlighted for cleanup.' },
+          { label: 'Lifecycle status', detail: 'Worktrees have four states: Mounted (attached to an env, blue badge), Unmounted (detached, amber badge), Orphaned (env was deleted — red highlight, auto-unmounted on restart), Stale (unmounted >30 days — amber highlight).' },
           { label: 'Mount', detail: 'Attach an unmounted worktree to an environment. Pick from the environment dropdown to link them.', icon: 'Link' },
           { label: 'Unmount', detail: 'Detach a worktree from its environment without deleting it. The worktree becomes removable.', icon: 'Unlink' },
-          { label: 'Remove', detail: 'Delete an unmounted worktree from disk.', icon: 'Trash2' },
+          { label: 'Remove', detail: 'Delete an unmounted worktree from disk. Only available for unmounted worktrees.', icon: 'Trash2' },
           { label: 'Remove All Unmounted', detail: 'Bulk-remove all worktrees not attached to any environment. Asks for confirmation first.', icon: 'Trash2' },
           { label: 'Reveal in Finder', detail: 'Open the worktree directory in Finder. Appears on hover next to the path.', icon: 'FolderOpen' },
           { label: 'Copy path', detail: 'Copy the full worktree path to your clipboard. Shows a checkmark briefly to confirm.', icon: 'Copy' },

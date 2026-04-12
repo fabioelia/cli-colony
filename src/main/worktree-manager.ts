@@ -206,6 +206,51 @@ export async function unmountAllForEnv(envId: string): Promise<void> {
   }
 }
 
+/** Stale threshold: worktrees unmounted for >30 days. */
+const STALE_DAYS = 30
+
+export type WorktreeStatus = 'mounted' | 'unmounted' | 'orphaned' | 'stale'
+
+/**
+ * Get the lifecycle status of a worktree.
+ * - mounted: currently attached to an environment
+ * - unmounted: detached, recently created
+ * - orphaned: references an environment that no longer exists
+ * - stale: unmounted for >30 days
+ */
+export function getWorktreeStatus(wt: WorktreeInfo, envIds: Set<string>): WorktreeStatus {
+  if (wt.mountedEnvId) {
+    return envIds.has(wt.mountedEnvId) ? 'mounted' : 'orphaned'
+  }
+  const ageDays = (Date.now() - new Date(wt.createdAt).getTime()) / (1000 * 60 * 60 * 24)
+  return ageDays > STALE_DAYS ? 'stale' : 'unmounted'
+}
+
+/**
+ * Auto-unmount worktrees whose environment no longer exists.
+ * Only unmounts — never deletes. Runs on startup after syncEnvironmentsFromDisk().
+ */
+export async function cleanupOrphans(existingEnvIds: string[]): Promise<number> {
+  const all = await listWorktrees()
+  const envSet = new Set(existingEnvIds)
+  let cleaned = 0
+
+  for (const wt of all) {
+    if (wt.mountedEnvId && !envSet.has(wt.mountedEnvId)) {
+      console.log(`[worktree-manager] orphan cleanup: unmounting ${wt.id} (env ${wt.mountedEnvId} gone)`)
+      wt.mountedEnvId = null
+      await saveWorktreeManifest(wt)
+      cleaned++
+    }
+  }
+
+  if (cleaned > 0) {
+    broadcast('worktree:changed', null)
+    console.log(`[worktree-manager] cleaned ${cleaned} orphaned worktree${cleaned !== 1 ? 's' : ''}`)
+  }
+  return cleaned
+}
+
 // ---- Internal ----
 
 /** Backfill displayName + repos[] for worktrees created before multi-repo support. */

@@ -1396,9 +1396,16 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
               <p>No worktrees</p>
               <p className="env-empty-detail">Arena runs and forked sessions create worktrees here.</p>
             </div>
-          ) : worktrees.map(w => (
-            <div key={w.id} className="env-worktree-item">
+          ) : worktrees.map(w => {
+            const envIds = new Set(environments.map(e => e.id))
+            const isOrphaned = !!w.mountedEnvId && !envIds.has(w.mountedEnvId)
+            const ageDays = (Date.now() - new Date(w.createdAt).getTime()) / (1000 * 60 * 60 * 24)
+            const isStale = !w.mountedEnvId && ageDays > 30
+            const statusClass = isOrphaned ? 'orphaned' : isStale ? 'stale' : ''
+            return (
+            <div key={w.id} className={`env-worktree-item ${statusClass}`}>
               <div className="env-worktree-info">
+                <span className="env-worktree-name">{w.displayName || w.branch}</span>
                 <span className="env-worktree-repo">{w.repo.owner}/{w.repo.name}</span>
                 <span className="env-worktree-branch"><GitBranch size={10} /> {w.branch}</span>
                 <span className="env-worktree-path" title={w.path}>{w.path.split('/').slice(-2).join('/')}</span>
@@ -1422,9 +1429,11 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                     {copiedWorktreeId === w.id ? <Check size={10} /> : <Copy size={10} />}
                   </button>
                 </div>
-                {w.mountedEnvId
-                  ? <span className="env-worktree-mounted">Mounted: {environments.find(e => e.id === w.mountedEnvId)?.name || w.mountedEnvId}</span>
-                  : <span className="env-worktree-unmounted">Unmounted</span>
+                {isOrphaned
+                  ? <span className="env-worktree-orphaned">Orphaned (env removed)</span>
+                  : w.mountedEnvId
+                    ? <span className="env-worktree-mounted">Mounted: {environments.find(e => e.id === w.mountedEnvId)?.name || w.mountedEnvId}</span>
+                    : <span className="env-worktree-unmounted">{isStale ? 'Stale — unmounted >30d' : 'Unmounted'}</span>
                 }
                 <span className="env-worktree-age">{formatAge(w.createdAt)}</span>
               </div>
@@ -1466,7 +1475,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                 )}
               </div>
             </div>
-          ))}
+          )})}
         </div>
       )}
 

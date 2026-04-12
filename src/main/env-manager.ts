@@ -18,7 +18,7 @@ async function pathExists(p: string): Promise<boolean> {
 import { getEnvDaemonClient, EnvDaemonClient } from './env-daemon-client'
 import { allocatePorts, commitAllocations, isPortInUse } from './port-allocator'
 import { removeWorktree, isWorktree, getBareRepoForWorktree, pruneAllBareRepos, migrateReposToBare } from '../shared/git-worktree'
-import { unmountAllForEnv } from './worktree-manager'
+import { unmountAllForEnv, cleanupOrphans } from './worktree-manager'
 import { buildContext, resolveTemplate as resolveTemplateVars, findUnresolved } from '../shared/template-resolver'
 import { readAndReconcileState, emptyState, writeState } from '../shared/env-state'
 import { addToIndex, removeFromIndex, allEnvDirs } from '../shared/env-index'
@@ -122,6 +122,10 @@ export async function initEnvDaemon(): Promise<void> {
 
     // Register existing environments from disk
     await syncEnvironmentsFromDisk()
+
+    // Clean up worktrees whose environment no longer exists (fire-and-forget)
+    const envIds = allEnvDirs().map(e => e.id)
+    cleanupOrphans(envIds).catch(err => console.warn('[env-manager] worktree orphan cleanup failed:', err))
 
     // Load .colony/ configs from all known repos (fire-and-forget — non-blocking)
     void refreshRepoConfigs()

@@ -14496,7 +14496,11 @@ body:has(.daemon-update-banner) .app-update-banner {
 .env-worktree-path-btn:hover { color: var(--accent); background: var(--bg-hover); }
 .env-worktree-mounted { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(59,130,246,0.15); color: var(--accent); font-weight: 600; }
 .env-worktree-unmounted { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(245,158,11,0.1); color: var(--text-muted); }
+.env-worktree-name { font-weight: 600; color: var(--text-primary); font-size: 12px; }
 .env-worktree-age { color: var(--text-muted); }
+.env-worktree-item.stale { border-left: 2px solid var(--warning, #f59e0b); background: rgba(245, 158, 11, 0.04); }
+.env-worktree-item.orphaned { border-left: 2px solid var(--danger); background: rgba(239, 68, 68, 0.04); }
+.env-worktree-orphaned { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(239, 68, 68, 0.15); color: var(--danger); font-weight: 600; }
 .env-worktree-actions { flex-shrink: 0; }
 .env-worktree-mount-dropdown { display: flex; flex-direction: column; gap: 2px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 4px; padding: 4px; min-width: 120px; }
 .env-worktree-mount-option { background: none; border: none; color: var(--text-primary); padding: 4px 8px; font-size: 11px; text-align: left; border-radius: 3px; cursor: pointer; }
