@@ -1451,6 +1451,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Changes tab', detail: 'Uncommitted working-tree changes across all sessions. Shows per-session file diffs.', icon: 'GitCompare' },
           { label: 'Commits tab', detail: 'Committed-but-unpushed changes (origin/main..HEAD). Badge shows count. Click to see per-commit diffs.', icon: 'GitCommit' },
+          { label: 'File search', detail: 'Type to filter the file list by path substring (case-insensitive). Sessions with no matching files are hidden. Shows filtered/total count on each card. Esc clears the search.', icon: 'Search' },
           { label: 'Filter toggle', detail: 'Switch between "Changed" (only sessions with uncommitted changes) and "All" (every session with a working directory). Only visible on the Changes tab.', icon: 'Filter' },
           { label: 'Fetch', detail: 'Fetch latest changes from the remote without merging. Updates the behind-count indicator.', icon: 'Download' },
           { label: 'Pull', detail: 'Pull upstream changes (fast-forward only). Only visible when behind the remote. Warns if there are uncommitted changes.', icon: 'ArrowDown' },

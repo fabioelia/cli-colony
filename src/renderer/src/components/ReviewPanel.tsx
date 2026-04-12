@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { GitCompare, RefreshCw, ChevronDown, ChevronRight, Terminal, GitBranch, Copy, Filter, RotateCw, Clock, GitCommit, Upload, AlertTriangle, Undo2, Download, ArrowDown, ExternalLink, FolderOpen } from 'lucide-react'
+import { GitCompare, RefreshCw, ChevronDown, ChevronRight, Terminal, GitBranch, Copy, Filter, RotateCw, Clock, GitCommit, Upload, AlertTriangle, Undo2, Download, ArrowDown, ExternalLink, FolderOpen, Search, X } from 'lucide-react'
 import type { ClaudeInstance } from '../types'
 import type { GitDiffEntry } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
@@ -43,6 +43,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
   const [reviewDiffContent, setReviewDiffContent] = useState<string | null>(null)
   const [reviewDiffLoading, setReviewDiffLoading] = useState(false)
   const reviewDiffCache = useRef<Record<string, string>>({})
+  const [fileSearch, setFileSearch] = useState('')
   const [refreshing, setRefreshing] = useState(false)
   const [copiedBranch, setCopiedBranch] = useState<string | null>(null)
   const [revertingFile, setRevertingFile] = useState<string | null>(null)
@@ -338,8 +339,13 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
     ? sessionChanges.filter(s => s.entries.length > 0 || s.loading)
     : sessionChanges
 
+  // Filter sessions by file search
+  const searchFiltered = fileSearch
+    ? displayed.filter(s => s.entries.some(e => e.file.toLowerCase().includes(fileSearch.toLowerCase())))
+    : displayed
+
   // Sort: sessions with changes first, then by creation date desc
-  const sorted = [...displayed].sort((a, b) => {
+  const sorted = [...searchFiltered].sort((a, b) => {
     if (a.entries.length > 0 && b.entries.length === 0) return -1
     if (a.entries.length === 0 && b.entries.length > 0) return 1
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -395,6 +401,24 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
         <div className="panel-header-spacer" />
         <HelpPopover topic="review" align="right" />
         <div className="panel-header-actions">
+          {activeTab === 'changes' && (
+            <div className="review-search-wrapper">
+              <Search size={12} className="review-search-icon" />
+              <input
+                type="text"
+                className="review-search-input"
+                placeholder="Filter files..."
+                value={fileSearch}
+                onChange={(e) => setFileSearch(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Escape') { setFileSearch(''); (e.target as HTMLInputElement).blur() } }}
+              />
+              {fileSearch && (
+                <button className="review-search-clear" onClick={() => setFileSearch('')}>
+                  <X size={10} />
+                </button>
+              )}
+            </div>
+          )}
           {activeTab === 'changes' && (
             <button
               className={`panel-header-btn${filter === 'changes' ? ' primary' : ''}`}
@@ -493,8 +517,11 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
 
             {sorted.map(session => {
           const expanded = expandedIds.has(session.instanceId)
-          const insertions = session.entries.reduce((a, e) => a + e.insertions, 0)
-          const deletions = session.entries.reduce((a, e) => a + e.deletions, 0)
+          const filteredEntries = fileSearch
+            ? session.entries.filter(e => e.file.toLowerCase().includes(fileSearch.toLowerCase()))
+            : session.entries
+          const insertions = filteredEntries.reduce((a, e) => a + e.insertions, 0)
+          const deletions = filteredEntries.reduce((a, e) => a + e.deletions, 0)
 
           return (
             <div key={session.instanceId} className="review-card">
@@ -526,7 +553,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
                   <span className="review-card-stats" style={{ opacity: 0.5 }}>loading...</span>
                 ) : session.entries.length > 0 ? (
                   <span className="review-card-stats">
-                    {session.entries.length} file{session.entries.length !== 1 ? 's' : ''}
+                    {fileSearch ? `${filteredEntries.length}/${session.entries.length}` : session.entries.length} file{(fileSearch ? filteredEntries.length : session.entries.length) !== 1 ? 's' : ''}
                     {insertions > 0 && <span style={{ color: 'var(--success)', marginLeft: '6px' }}>+{insertions}</span>}
                     {deletions > 0 && <span style={{ color: 'var(--danger)', marginLeft: '4px' }}>-{deletions}</span>}
                   </span>
@@ -593,7 +620,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
               {/* Expanded file list */}
               {expanded && (
                 <div className="review-card-files">
-                  {session.entries.map(entry => {
+                  {filteredEntries.map(entry => {
                     const diffKey = `${session.dir}:${entry.file}`
                     const isExpanded = expandedDiffKey === diffKey
                     return (
