@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock, RotateCcw } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate, ErrorSummary } from '../../../shared/types'
@@ -509,13 +509,39 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     setBulkPromptText('')
   }, [])
 
+  // Drag-to-reorder state
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [dropTargetIdx, setDropTargetIdx] = useState<number | null>(null)
+  const [customOrder, setCustomOrder] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('colony:sessionOrder') || '[]') } catch { return [] }
+  })
+  useEffect(() => {
+    if (customOrder.length > 0) {
+      localStorage.setItem('colony:sessionOrder', JSON.stringify(customOrder))
+    } else {
+      localStorage.removeItem('colony:sessionOrder')
+    }
+  }, [customOrder])
+
   // Instance ordering + grouping — must be declared before callbacks/effects that reference them
   const { pinned, running, exited, orderedInstances } = useMemo(() => {
     const p = instances.filter((i) => i.pinned)
     const r = instances.filter((i) => i.status === 'running' && !i.pinned)
     const e = instances.filter((i) => i.status !== 'running' && !i.pinned)
-    return { pinned: p, running: r, exited: e, orderedInstances: [...p, ...r, ...e] }
-  }, [instances])
+    let ordered = [...p, ...r, ...e]
+    if (customOrder.length > 0 && groupBy === 'none') {
+      const orderMap = new Map(customOrder.map((id, idx) => [id, idx]))
+      ordered.sort((a, b) => {
+        const aIdx = orderMap.get(a.id)
+        const bIdx = orderMap.get(b.id)
+        if (aIdx !== undefined && bIdx !== undefined) return aIdx - bIdx
+        if (aIdx !== undefined) return -1
+        if (bIdx !== undefined) return 1
+        return 0
+      })
+    }
+    return { pinned: p, running: r, exited: e, orderedInstances: ordered }
+  }, [instances, customOrder, groupBy])
 
   const groupedSections = useMemo(() => {
     if (groupBy === 'none') return null
@@ -981,7 +1007,49 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     onHandoff: (inst: ClaudeInstance) => { setHandoffInst(inst); setHandoffCopied(false) },
   } satisfies InstanceItemCallbacks)
 
-  const renderItem = (inst: ClaudeInstance) => {
+  // Drag-to-reorder handlers
+  const handleDragStart = useCallback((e: React.DragEvent, id: string) => {
+    if (groupBy !== 'none') return
+    setDragId(id)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', id)
+    if (e.currentTarget instanceof HTMLElement) e.currentTarget.style.opacity = '0.4'
+  }, [groupBy])
+
+  const handleDragEnd = useCallback((e: React.DragEvent) => {
+    setDragId(null)
+    setDropTargetIdx(null)
+    if (e.currentTarget instanceof HTMLElement) e.currentTarget.style.opacity = ''
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent, idx: number) => {
+    if (!dragId) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDropTargetIdx(idx)
+  }, [dragId])
+
+  const handleDrop = useCallback((e: React.DragEvent, targetIdx: number) => {
+    e.preventDefault()
+    if (!dragId) return
+    const currentIds = orderedInstances.map(i => i.id)
+    const fromIdx = currentIds.indexOf(dragId)
+    if (fromIdx === -1 || fromIdx === targetIdx) {
+      setDragId(null)
+      setDropTargetIdx(null)
+      return
+    }
+    const newOrder = [...currentIds]
+    newOrder.splice(fromIdx, 1)
+    newOrder.splice(targetIdx, 0, dragId)
+    setCustomOrder(newOrder)
+    setDragId(null)
+    setDropTargetIdx(null)
+  }, [dragId, orderedInstances])
+
+  const handleResetOrder = useCallback(() => setCustomOrder([]), [])
+
+  const renderItem = (inst: ClaudeInstance, idx?: number) => {
     const gridIdx = gridPanes ? gridPanes.indexOf(inst.id) : -1
     const isInGrid = gridIdx >= 0
     const splitBadge: 'left' | 'right' | 'indicator' | null =
@@ -989,7 +1057,8 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
       splitId && inst.id === activeId ? 'left' :
       splitId && inst.id === splitId ? 'right' :
       inst.id !== activeId && inst.id !== splitId && splitPairs.has(inst.id) ? 'indicator' : null
-    return (
+    const isDraggable = groupBy === 'none' && idx !== undefined
+    const item = (
       <InstanceItem
         key={inst.id}
         inst={inst}
@@ -1016,6 +1085,20 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
         errorMessage={errorSummaries?.get(inst.id) ? `${errorSummaries.get(inst.id)!.errorType}: ${errorSummaries.get(inst.id)!.message}` : null}
         idleMs={idleMap.get(inst.id) ?? null}
       />
+    )
+    if (!isDraggable) return item
+    return (
+      <div
+        key={inst.id}
+        draggable
+        onDragStart={(e) => handleDragStart(e, inst.id)}
+        onDragEnd={handleDragEnd}
+        onDragOver={(e) => handleDragOver(e, idx)}
+        onDrop={(e) => handleDrop(e, idx)}
+        className={dropTargetIdx === idx && dragId ? 'drop-indicator-above' : ''}
+      >
+        {item}
+      </div>
     )
   }
 
@@ -1200,6 +1283,13 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             <option value="project">By Project</option>
             <option value="status">By Status</option>
           </select>
+          {customOrder.length > 0 && groupBy === 'none' && (
+            <Tooltip text="Reset to default session order" position="bottom">
+              <button className="sidebar-select-toggle" onClick={handleResetOrder}>
+                <RotateCcw size={12} />
+              </button>
+            </Tooltip>
+          )}
           <Tooltip text={selectMode ? 'Exit multi-select' : 'Multi-select'} detail="Select multiple sessions for bulk actions (stop, restart, remove)" position="bottom">
             <button
               className={`sidebar-select-toggle ${selectMode ? 'active' : ''}`}
@@ -1324,19 +1414,22 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
               {!collapsedGroups.has(label) && items.map(renderItem)}
             </React.Fragment>
           ))
+        ) : customOrder.length > 0 ? (
+          /* Custom-ordered flat view */
+          orderedInstances.map((inst, idx) => renderItem(inst, idx))
         ) : (
           /* Default flat view */
           <>
             {pinned.length > 0 && (
               <>
                 <div className="instance-list-divider">Pinned</div>
-                {pinned.map(renderItem)}
+                {pinned.map((inst, idx) => renderItem(inst, idx))}
               </>
             )}
             {running.length > 0 && (
               <>
                 {pinned.length > 0 && <div className="instance-list-divider">Active</div>}
-                {running.map(renderItem)}
+                {running.map((inst, idx) => renderItem(inst, pinned.length + idx))}
               </>
             )}
             {exited.length > 0 && (running.length > 0 || pinned.length > 0) && (
@@ -1349,7 +1442,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                 )}
               </div>
             )}
-            {exited.map(renderItem)}
+            {exited.map((inst, idx) => renderItem(inst, pinned.length + running.length + idx))}
           </>
         )}
         {instances.length === 0 && (
