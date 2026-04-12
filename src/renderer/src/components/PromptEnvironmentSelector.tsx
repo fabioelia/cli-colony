@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { AlertCircle, Zap, Clock, GitBranch } from 'lucide-react'
+import { AlertCircle, Timer, Clock, GitBranch } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import type { EnvStatus } from '../types'
 
@@ -122,7 +122,7 @@ export default function PromptEnvironmentSelector({
             <div className="env-selector-option-body">
               <div className="env-selector-option-title">
                 <GitBranch size={13} /> Swap worktree in running env
-                <span className="env-selector-time"><Zap size={11} /> ~5s</span>
+                <span className="env-selector-time"><Timer size={11} /> ~5s</span>
               </div>
               <div className="env-selector-option-desc">
                 {hasRunningEnvs
@@ -169,7 +169,7 @@ export default function PromptEnvironmentSelector({
             <div className="env-selector-option-body">
               <div className="env-selector-option-title">
                 Continue in existing session
-                <span className="env-selector-time"><Zap size={11} /> instant</span>
+                <span className="env-selector-time"><Timer size={11} /> instant</span>
               </div>
               <div className="env-selector-option-desc">
                 {hasRunningInstances
