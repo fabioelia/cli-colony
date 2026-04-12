@@ -571,8 +571,9 @@ export default function SettingsPanel({ onBack }: Props) {
               max={100000}
               step={1000}
               style={{ width: '80px' }}
-              onChange={(e) => {
-                const val = Math.min(Math.max(parseInt(e.target.value, 10) || 10000, 1000), 100000)
+              onChange={(e) => setScrollback(parseInt(e.target.value, 10) || scrollback)}
+              onBlur={() => {
+                const val = Math.min(Math.max(scrollback, 1000), 100000)
                 setScrollback(val)
                 window.api.settings.set('terminalScrollback', String(val))
                 window.dispatchEvent(new CustomEvent('terminalScrollback-changed', { detail: val }))

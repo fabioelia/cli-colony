@@ -7409,7 +7409,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .review-file-open-btn:hover:not(:disabled) {
   color: var(--accent);
-  background: var(--hover);
+  background: var(--bg-hover);
 }
 .review-file-open-btn:disabled {
   opacity: 0.3;
@@ -7450,7 +7450,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   pointer-events: none;
 }
 .review-search-input {
-  background: var(--input-bg, var(--bg-secondary));
+  background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 4px;
   color: var(--text-primary);
@@ -14339,7 +14339,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .env-worktree-path-actions { display: inline-flex; gap: 2px; margin-left: 4px; opacity: 0; transition: opacity 0.15s; }
 .env-worktree-item:hover .env-worktree-path-actions { opacity: 1; }
 .env-worktree-path-btn { background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 1px 3px; border-radius: 3px; display: flex; align-items: center; }
-.env-worktree-path-btn:hover { color: var(--accent); background: var(--hover); }
+.env-worktree-path-btn:hover { color: var(--accent); background: var(--bg-hover); }
 .env-worktree-mounted { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(59,130,246,0.15); color: var(--accent); font-weight: 600; }
 .env-worktree-unmounted { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(245,158,11,0.1); color: var(--text-muted); }
 .env-worktree-age { color: var(--text-muted); }
@@ -17703,6 +17703,17 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .handoff-copy-btn:hover { opacity: 0.9; }
 .handoff-copy-btn:disabled { opacity: 0.5; cursor: default; }
+.handoff-launch-btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.handoff-launch-btn:hover { filter: brightness(1.1); }
+.handoff-launch-btn:disabled { opacity: 0.5; cursor: default; }
 .handoff-summary-btn {
   margin-top: 8px;
   background: none;
