@@ -162,6 +162,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     (localStorage.getItem('pipelines-sort') as 'name' | 'lastFired' | 'fireCount' | 'enabled') || 'name'
   )
   const [healthView, setHealthView] = useState(() => localStorage.getItem('pipelines-health-view') === '1')
+  const [pipelineSearch, setPipelineSearch] = useState('')
   const [successRates, setSuccessRates] = useState<Map<string, number | null>>(new Map())
 
   // 60s tick for next-run countdown refresh
@@ -640,6 +641,14 @@ action:
             </select>
           </div>
         )}
+        <div className="panel-search">
+          <Search size={13} />
+          <input
+            placeholder="Search pipelines..."
+            value={pipelineSearch}
+            onChange={e => setPipelineSearch(e.target.value)}
+          />
+        </div>
         <HelpPopover topic="pipelines" align="right" />
         <div className="panel-header-actions">
           <button className="panel-header-btn" onClick={handleExport} title="Export all pipelines as zip">
@@ -785,7 +794,7 @@ action:
               </tr>
             </thead>
             <tbody>
-              {healthPipelines.map(p => {
+              {healthPipelines.filter(p => !pipelineSearch || p.name.toLowerCase().includes(pipelineSearch.toLowerCase())).map(p => {
                 const failures = p.consecutiveFailures ?? 0
                 const rate = successRates.get(p.name)
                 const lastFiredAgo = p.lastFiredAt ? (() => {
@@ -820,7 +829,10 @@ action:
       )}
 
       {!healthView && <div className={`pipelines-list${listMode ? ' list-mode' : ''}`}>
-        {sortedPipelines.map((p) => (
+        {pipelineSearch && sortedPipelines.length > 0 && sortedPipelines.filter(p => p.name.toLowerCase().includes(pipelineSearch.toLowerCase())).length === 0 && (
+          <div className="pipelines-empty-search">No pipelines matching &ldquo;{pipelineSearch}&rdquo;</div>
+        )}
+        {sortedPipelines.filter(p => !pipelineSearch || p.name.toLowerCase().includes(pipelineSearch.toLowerCase())).map((p) => (
           <div key={p.name} className={`pipeline-card ${p.enabled ? '' : 'disabled'}${expandedPipeline === p.name ? ' expanded' : ''}`}>
             <div className="pipeline-card-header" onClick={() => handleExpand(p)} onContextMenu={(e) => {
               e.preventDefault()

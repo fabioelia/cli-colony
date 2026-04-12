@@ -3670,6 +3670,37 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .agents-search input::placeholder { color: var(--text-muted); }
 
+/* Reusable panel search — inline search field for panel headers and summaries */
+.panel-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  max-width: 180px;
+}
+.panel-search svg { color: var(--text-muted); flex-shrink: 0; }
+.panel-search input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 12px;
+  min-width: 0;
+}
+.panel-search input::placeholder { color: var(--text-muted); }
+.panel-search-inline { max-width: 120px; padding: 2px 6px; }
+
+.pipelines-empty-search {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 24px 16px;
+  text-align: center;
+}
+
 .agents-panel-toolbar {
   display: flex;
   align-items: center;

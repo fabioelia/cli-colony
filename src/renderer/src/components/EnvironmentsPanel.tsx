@@ -3,7 +3,7 @@ import {
   Server, Play, Square, Trash2, RefreshCw, FileText, Copy,
   Plus, ExternalLink, ChevronDown, ChevronRight,
   Circle, AlertTriangle, Clock, X, FolderOpen, Terminal, Loader, CheckCircle, Check, SkipForward, Upload, Download, MessageSquare, Wrench, Stethoscope,
-  GitBranch, Unlink, Link
+  GitBranch, Unlink, Link, Search
 } from 'lucide-react'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import { buildTemplateEditPrompt, buildDiagnosePrompt } from '../../../shared/env-prompts'
@@ -86,6 +86,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
   const [restartPolicies, setRestartPolicies] = useState<Record<string, 'manual' | 'on-crash'>>({})
   const [purposeTags, setPurposeTags] = useState<Record<string, 'interactive' | 'background' | 'nightly' | null>>({})
   const [tagFilter, setTagFilter] = useState<'interactive' | 'background' | 'nightly' | null>(null)
+  const [envSearch, setEnvSearch] = useState('')
   const [showCreateWorktree, setShowCreateWorktree] = useState(false)
   const [wtBranch, setWtBranch] = useState('')
   const [wtName, setWtName] = useState('')
@@ -436,21 +437,21 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
         <div className="panel-header-tabs">
           <button
             className={`panel-header-tab ${activeTab === 'instances' ? 'active' : ''}`}
-            onClick={() => setActiveTab('instances')}
+            onClick={() => { setActiveTab('instances'); setEnvSearch('') }}
             title="Running and stopped environments (Cmd+Shift+{ / Cmd+Shift+})"
           >
             Environments {environments.length > 0 && <span className="panel-header-count">{environments.length}</span>}
           </button>
           <button
             className={`panel-header-tab ${activeTab === 'templates' ? 'active' : ''}`}
-            onClick={() => setActiveTab('templates')}
+            onClick={() => { setActiveTab('templates'); setEnvSearch('') }}
             title="Environment templates (Cmd+Shift+{ / Cmd+Shift+})"
           >
             Templates {templates.length > 0 && <span className="panel-header-count">{templates.length}</span>}
           </button>
           <button
             className={`panel-header-tab ${activeTab === 'worktrees' ? 'active' : ''}`}
-            onClick={() => setActiveTab('worktrees')}
+            onClick={() => { setActiveTab('worktrees'); setEnvSearch('') }}
             title="Git worktrees (Cmd+Shift+{ / Cmd+Shift+})"
           >
             Worktrees {worktrees.length > 0 && <span className="panel-header-count">{worktrees.length}</span>}
@@ -528,10 +529,18 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                   {t}
                 </button>
               ))}
+              <div className="panel-search panel-search-inline">
+                <Search size={12} />
+                <input
+                  placeholder="Filter..."
+                  value={envSearch}
+                  onChange={e => setEnvSearch(e.target.value)}
+                />
+              </div>
             </div>
             {/* Compact environment grid */}
             <div className="env-health-grid">
-              {environments.map(env => (
+              {environments.filter(env => !envSearch || (env.displayName || env.name).toLowerCase().includes(envSearch.toLowerCase()) || (env.branch ?? '').toLowerCase().includes(envSearch.toLowerCase())).map(env => (
                 <button
                   key={env.id}
                   className={`env-health-tile${expandedId === env.id ? ' active' : ''}`}
@@ -560,7 +569,16 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
           />
         )}
 
-        {environments.filter(env => !tagFilter || purposeTags[env.id] === tagFilter).map(env => {
+        {environments.filter(env => {
+          if (tagFilter && purposeTags[env.id] !== tagFilter) return false
+          if (envSearch) {
+            const q = envSearch.toLowerCase()
+            const name = (env.displayName || env.name).toLowerCase()
+            const branch = (env.branch ?? '').toLowerCase()
+            if (!name.includes(q) && !branch.includes(q)) return false
+          }
+          return true
+        }).map(env => {
           const isExpanded = expandedId === env.id
           const isLoading = actionInProgress.has(env.id)
 
@@ -1283,7 +1301,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                         <Link size={12} /> Mount
                       </button>
                     )}
-                    <button className="panel-header-btn danger" onClick={() => window.api.worktree.remove(w.id)} title="Delete this worktree">
+                    <button className="panel-header-btn danger" onClick={() => { if (!confirm(`Remove worktree "${w.branch || w.id}"? This deletes the working tree from disk.`)) return; window.api.worktree.remove(w.id) }} title="Delete this worktree">
                       <Trash2 size={12} /> Remove
                     </button>
                   </>

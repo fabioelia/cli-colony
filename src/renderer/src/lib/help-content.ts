@@ -533,6 +533,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'AI Generate', detail: 'Describe what you want the pipeline to do in plain English (e.g. "Run every night: check npm outdated and write a summary"). Claude Haiku generates a complete pipeline YAML with trigger, condition, and action stages pre-configured. Review and edit before saving.', icon: 'Sparkles' },
           { label: 'Health view', detail: 'Toggle a compact health dashboard showing all pipelines in one table — name, enabled status, last fired, fire count, consecutive failures, success rate (last 10 runs), and last error. Sorted by failures first. Click a row to jump to that pipeline. Problems (consecutive failures > 0) appear at the top in red.', icon: 'Activity' },
           { label: 'List/card toggle', detail: 'Switch between compact list rows and card view. Hidden when health view is active. Preference is saved per device.', icon: 'LayoutList' },
+          { label: 'Search', detail: 'Filter pipelines by name. Applies to both list/card view and health table. Clear the field to show all.', icon: 'Search' },
           { label: 'Sort', detail: 'Reorder pipelines by name, last fired time, fire count, or enabled status. Hidden when health view is active. Your choice is saved.', icon: 'ArrowUpDown' },
           { label: 'Export', detail: 'Download all pipeline YAML files (and companion memory/readme files) as a zip archive.', icon: 'Download' },
           { label: 'Import', detail: 'Import pipeline YAML files from a zip archive. Runtime state files are excluded.', icon: 'Upload' },
@@ -633,6 +634,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Port conflict warning', detail: 'Amber badge when two environments claim the same port. Hover to see which environments and services conflict.', icon: 'AlertTriangle' },
           { label: 'Compact grid', detail: 'Each tile is one environment — status dot, name, and service health dots. Click to expand that environment. Active tile highlighted in blue.' },
           { label: 'Purpose filters', detail: 'Filter environments by tag: interactive, background, or nightly. Click again to clear.' },
+          { label: 'Search', detail: 'Filter environments by name or branch. The compact grid and card list both update. Cleared when switching tabs.', icon: 'Search' },
         ],
       },
       {
