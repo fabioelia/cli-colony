@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { GitCompare, RefreshCw, ChevronDown, ChevronRight, Terminal, GitBranch, Copy, Filter, RotateCw, Clock, GitCommit, Upload, AlertTriangle, Undo2, Download, ArrowDown } from 'lucide-react'
+import { GitCompare, RefreshCw, ChevronDown, ChevronRight, Terminal, GitBranch, Copy, Filter, RotateCw, Clock, GitCommit, Upload, AlertTriangle, Undo2, Download, ArrowDown, ExternalLink, FolderOpen } from 'lucide-react'
 import type { ClaudeInstance } from '../types'
 import type { GitDiffEntry } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
@@ -580,6 +580,13 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
                       <Copy size={11} />
                     </button>
                   )}
+                  <button
+                    className="changes-refresh-btn"
+                    title="Open folder in Finder"
+                    onClick={() => window.api.shell.openExternal(`file://${session.dir}`)}
+                  >
+                    <FolderOpen size={12} />
+                  </button>
                 </span>
               </div>
 
@@ -613,6 +620,14 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
                             {entry.insertions > 0 && entry.deletions > 0 && ' '}
                             {entry.deletions > 0 && <span style={{ color: 'var(--danger)' }}>-{entry.deletions}</span>}
                           </span>
+                          <button
+                            className="review-file-open-btn"
+                            title={entry.status === 'D' ? 'File was deleted' : `Open ${entry.file}`}
+                            onClick={(e) => { e.stopPropagation(); window.api.shell.openExternal(`file://${session.dir}/${entry.file}`) }}
+                            disabled={entry.status === 'D'}
+                          >
+                            <ExternalLink size={10} />
+                          </button>
                           <button
                             className="review-file-revert-btn"
                             title={entry.status === '?' ? 'Cannot revert untracked files' : `Revert ${entry.file}`}

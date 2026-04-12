@@ -7371,6 +7371,29 @@ body:has(.daemon-update-banner) .app-update-banner {
   gap: 3px;
 }
 
+.review-file-open-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.review-file-row:hover .review-file-open-btn {
+  opacity: 1;
+}
+.review-file-open-btn:hover:not(:disabled) {
+  color: var(--accent);
+  background: var(--hover);
+}
+.review-file-open-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
 .review-file-revert-btn {
   background: none;
   border: none;
@@ -7378,7 +7401,6 @@ body:has(.daemon-update-banner) .app-update-banner {
   cursor: pointer;
   padding: 2px 4px;
   border-radius: 3px;
-  margin-left: auto;
   flex-shrink: 0;
   opacity: 0;
   transition: opacity 0.15s;
