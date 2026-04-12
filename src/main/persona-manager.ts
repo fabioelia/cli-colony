@@ -535,6 +535,7 @@ export async function runPersona(fileName: string, trigger: TriggerSource = { ty
     name: `Persona: ${fm.name}`,
     workingDirectory: cwd,
     color: fm.color,
+    model: fm.model,
     args: ['--append-system-prompt-file', promptFile],
   })
 
