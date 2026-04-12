@@ -10,6 +10,7 @@ import { getLogs, clearLogs } from './logger'
 import { readCatalog, writeCatalog } from './mcp-catalog'
 import { loadApprovalRules, saveApprovalRules } from './approval-rules'
 import { updateColonyContext, getColonyContextPath, getColonyContextInstruction } from './colony-context'
+import { getRateLimitState, resumeCrons } from './rate-limit-state'
 
 // Handler modules
 import { registerInstanceHandlers } from './ipc/instance-handlers'
@@ -226,11 +227,9 @@ export function registerIpcHandlers(): void {
 
   // ---- Rate Limit ----
   ipcMain.handle('colony:rateLimitStatus', () => {
-    const { getRateLimitState } = require('./rate-limit-state')
     return getRateLimitState()
   })
   ipcMain.handle('colony:resumeCrons', () => {
-    const { resumeCrons } = require('./rate-limit-state')
     resumeCrons()
   })
 
