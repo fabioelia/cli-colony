@@ -13573,6 +13573,9 @@ body:has(.daemon-update-banner) .app-update-banner {
 .trigger-map {
   padding: 8px 0;
   position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 .trigger-map-cycle-warning {
@@ -13645,10 +13648,16 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 13px;
 }
 
+/* Inside trigger-map, the parent handles scrolling */
+.trigger-map .pipeline-flow-diagram {
+  overflow: visible;
+}
+
 .trigger-map-zoom-controls {
-  position: absolute;
+  position: sticky;
   top: 8px;
-  right: 8px;
+  float: right;
+  margin-right: 8px;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -20587,6 +20596,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-muted);
   font-size: 11px;
   border-bottom: 1px solid var(--border);
+  -webkit-app-region: no-drag;
 }
 .sidebar-group-select {
   background: transparent;

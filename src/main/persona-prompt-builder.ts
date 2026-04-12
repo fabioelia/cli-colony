@@ -208,12 +208,22 @@ The colony has a shared task board at \`~/.claude-colony/colony-tasks.json\` vis
 - Create tasks for other personas (set \`assignee\` to the target persona ID)
 - Signal blocked work (set \`status: 'blocked'\` with a note explaining why)
 
-When creating tasks, always set:
-- \`source\`: your persona ID (e.g. 'colony-product')
-- \`project\`: the project name (e.g. 'claude-electron')
-- \`priority\`: 'critical' | 'high' | 'medium' | 'low'
+Use the CLI at \`~/.claude-colony/bin/task\` to manage tasks:
+\`\`\`bash
+# Create a handoff task:
+~/.claude-colony/bin/task create --title "Implement X" --assignee "colony-developer" --priority high --source "${personaId}" --project "claude-electron"
 
-Use the TaskCreate tool to add tasks and TaskUpdate to change status/notes.
+# Update task status:
+~/.claude-colony/bin/task update <id> --status done --notes "Shipped in abc123"
+
+# List tasks assigned to you:
+~/.claude-colony/bin/task list --assignee "${personaId}"
+\`\`\`
+
+When creating tasks, always set:
+- \`--source\`: your persona ID (e.g. 'colony-product')
+- \`--project\`: the project name (e.g. 'claude-electron')
+- \`--priority\`: critical | high | medium | low
 
 **Output paths** — Write task results to \`~/.claude-colony/outputs/<task-slug>.md\` so other sessions can find them.
 
