@@ -98,12 +98,17 @@ export function registerGitHandlers(): void {
     }
   })
 
-  ipcMain.handle('git:createBranch', async (_e, cwd: string, name: string): Promise<string> => {
+  ipcMain.handle('git:createBranch', async (_e, cwd: string, name: string, startPoint?: string): Promise<string> => {
     await assertGitRepo(cwd)
     if (!/^[a-zA-Z0-9][a-zA-Z0-9._/-]*$/.test(name)) {
       throw new Error('Invalid branch name. Use letters, numbers, hyphens, dots, or slashes.')
     }
-    await execFileAsync(resolveCommand('git'), ['checkout', '-b', name], { cwd, timeout: 10000 })
+    const args = ['checkout', '-b', name]
+    if (startPoint) {
+      if (!/^[a-zA-Z0-9_./:Z-]+$/.test(startPoint)) throw new Error('Invalid start point ref')
+      args.push(startPoint)
+    }
+    await execFileAsync(resolveCommand('git'), args, { cwd, timeout: 10000 })
     return name
   })
 

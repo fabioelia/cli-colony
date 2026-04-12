@@ -72,9 +72,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     if (!window.confirm(`Create branch "${branchName}" from checkpoint ${cp.hash}? This is non-destructive — your current branch stays intact.`)) return
     setRestoringCheckpoint(cp.tag)
     try {
-      await window.api.git.createBranch(instance.workingDirectory, branchName)
-      // Switch back to the checkpoint commit
-      await window.api.git.switchBranch(instance.workingDirectory, branchName)
+      await window.api.git.createBranch(instance.workingDirectory, branchName, cp.tag)
     } catch (err: any) {
       console.error('Restore failed:', err)
     } finally {
@@ -371,7 +369,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                 )}
                 {checkpoints.map((cp) => {
                   const d = new Date(cp.date)
-                  const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
                   const isExpanded = expandedCheckpoint === cp.tag
                   return (
                     <div key={cp.tag}>
@@ -382,7 +380,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                         <ChevronRight size={10} style={{ flexShrink: 0, transition: 'transform 0.15s', transform: isExpanded ? 'rotate(90deg)' : 'none', opacity: 0.4 }} />
                         <span className="checkpoint-row-time">{timeStr}</span>
                         <span className="checkpoint-row-hash">{cp.hash}</span>
-                        <span className="checkpoint-row-stat">{cp.tag.split('/').pop()}</span>
+                        <span style={{ flex: 1 }} />
                         <div className="checkpoint-row-actions">
                           <button
                             className="checkpoint-restore-btn"

@@ -7032,14 +7032,6 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 10px;
   min-width: 56px;
 }
-.checkpoint-row-stat {
-  color: var(--text-secondary);
-  font-size: 10px;
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .checkpoint-row-actions {
   display: flex;
   gap: 4px;

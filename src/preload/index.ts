@@ -422,7 +422,7 @@ export interface ClaudeManagerAPI {
     branchInfo: (cwd: string) => Promise<{ branch: string; remote: string | null; ahead: number }>
     unpushedCommits: (cwd: string) => Promise<Array<{ hash: string; subject: string; author: string; date: string }>>
     commitDiff: (cwd: string, hash: string) => Promise<string>
-    createBranch: (cwd: string, name: string) => Promise<string>
+    createBranch: (cwd: string, name: string, startPoint?: string) => Promise<string>
     fetch: (cwd: string) => Promise<{ success: boolean; error?: string }>
     pull: (cwd: string) => Promise<{ success: boolean; error?: string }>
     behindCount: (cwd: string) => Promise<number>
@@ -1015,7 +1015,7 @@ const api: ClaudeManagerAPI = {
     branchInfo: (cwd) => ipcRenderer.invoke('git:branchInfo', cwd),
     unpushedCommits: (cwd) => ipcRenderer.invoke('git:unpushedCommits', cwd),
     commitDiff: (cwd, hash) => ipcRenderer.invoke('git:commitDiff', cwd, hash),
-    createBranch: (cwd, name) => ipcRenderer.invoke('git:createBranch', cwd, name),
+    createBranch: (cwd, name, startPoint) => ipcRenderer.invoke('git:createBranch', cwd, name, startPoint),
     fetch: (cwd) => ipcRenderer.invoke('git:fetch', cwd),
     pull: (cwd) => ipcRenderer.invoke('git:pull', cwd),
     behindCount: (cwd) => ipcRenderer.invoke('git:behindCount', cwd),
