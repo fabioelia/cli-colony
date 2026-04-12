@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { FolderOpen, FileText, Clock, RefreshCw, Search, FileOutput, Copy, Trash2, Send, ClipboardCopy, ChevronDown, GitCompare } from 'lucide-react'
+import { FolderOpen, FileText, Clock, RefreshCw, Search, FileOutput, Copy, Trash2, Send, ClipboardCopy, ChevronDown, GitCompare, ExternalLink } from 'lucide-react'
 import MarkdownViewer from './MarkdownViewer'
 import HelpPopover from './HelpPopover'
 import EmptyStateHook from './EmptyStateHook'
@@ -475,6 +475,13 @@ export default function OutputsPanel() {
                     title="Show in Finder"
                   >
                     <FolderOpen size={13} /> Reveal
+                  </button>
+                  <button
+                    className="outputs-viewer-btn"
+                    onClick={() => window.api.shell.openExternal(`file://${selected.path}`)}
+                    title="Open in default application"
+                  >
+                    <ExternalLink size={13} /> Open
                   </button>
                   <button
                     className="outputs-viewer-btn danger"
