@@ -121,9 +121,17 @@ export interface ClaudeManagerAPI {
   daemon: {
     restart: () => Promise<void>
     getVersion: () => Promise<{ running: number; expected: number }>
+    startUpgrade: () => Promise<void>
+    migrateInstance: (id: string) => Promise<unknown>
+    migrateAll: () => Promise<void>
+    getUpgradeState: () => Promise<{ state: string; remaining: number }>
     onVersionMismatch: (cb: (info: { running: number; expected: number }) => void) => () => void
     onConnectionFailed: (cb: (info: { error: string }) => void) => () => void
     onDaemonUnresponsive: (cb: () => void) => () => void
+    onUpgradeStarted: (cb: () => void) => () => void
+    onUpgradeDraining: (cb: (info: { remaining: number }) => void) => () => void
+    onUpgradeComplete: (cb: () => void) => () => void
+    onInstanceMigrated: (cb: (info: { oldId: string; newId: string }) => void) => () => void
   }
   settings: {
     getAll: () => Promise<Record<string, string>>
@@ -420,6 +428,11 @@ export interface ClaudeManagerAPI {
     behindCount: (cwd: string) => Promise<number>
     listBranches: (cwd: string) => Promise<Array<{ name: string; current: boolean }>>
     switchBranch: (cwd: string, branch: string) => Promise<{ success: boolean; error?: string }>
+    createTag: (cwd: string, tagName: string) => Promise<void>
+    listTags: (cwd: string, prefix: string) => Promise<Array<{ tag: string; date: string; hash: string }>>
+    deleteTag: (cwd: string, tagName: string) => Promise<void>
+    deleteTags: (cwd: string, prefix: string) => Promise<number>
+    diffRange: (cwd: string, from: string, to?: string) => Promise<{ stat: string; diff: string }>
   }
   audit: {
     runPanel: (panel: string, context: object) => Promise<AuditResult[]>
@@ -659,6 +672,30 @@ const api: ClaudeManagerAPI = {
       const handler = () => cb()
       ipcRenderer.on('daemon:unresponsive', handler)
       return () => ipcRenderer.removeListener('daemon:unresponsive', handler)
+    },
+    startUpgrade: () => ipcRenderer.invoke('daemon:startUpgrade'),
+    migrateInstance: (id: string) => ipcRenderer.invoke('daemon:migrateInstance', id),
+    migrateAll: () => ipcRenderer.invoke('daemon:migrateAll'),
+    getUpgradeState: () => ipcRenderer.invoke('daemon:upgradeState'),
+    onUpgradeStarted: (cb) => {
+      const handler = () => cb()
+      ipcRenderer.on('daemon:upgrade-started', handler)
+      return () => ipcRenderer.removeListener('daemon:upgrade-started', handler)
+    },
+    onUpgradeDraining: (cb) => {
+      const handler = (_e: any, info: { remaining: number }) => cb(info)
+      ipcRenderer.on('daemon:upgrade-draining', handler)
+      return () => ipcRenderer.removeListener('daemon:upgrade-draining', handler)
+    },
+    onUpgradeComplete: (cb) => {
+      const handler = () => cb()
+      ipcRenderer.on('daemon:upgrade-complete', handler)
+      return () => ipcRenderer.removeListener('daemon:upgrade-complete', handler)
+    },
+    onInstanceMigrated: (cb) => {
+      const handler = (_e: any, info: { oldId: string; newId: string }) => cb(info)
+      ipcRenderer.on('daemon:instance-migrated', handler)
+      return () => ipcRenderer.removeListener('daemon:instance-migrated', handler)
     },
   },
   settings: {
@@ -984,6 +1021,11 @@ const api: ClaudeManagerAPI = {
     behindCount: (cwd) => ipcRenderer.invoke('git:behindCount', cwd),
     listBranches: (cwd) => ipcRenderer.invoke('git:listBranches', cwd),
     switchBranch: (cwd, branch) => ipcRenderer.invoke('git:switchBranch', cwd, branch),
+    createTag: (cwd, tagName) => ipcRenderer.invoke('git:createTag', cwd, tagName),
+    listTags: (cwd, prefix) => ipcRenderer.invoke('git:listTags', cwd, prefix),
+    deleteTag: (cwd, tagName) => ipcRenderer.invoke('git:deleteTag', cwd, tagName),
+    deleteTags: (cwd, prefix) => ipcRenderer.invoke('git:deleteTags', cwd, prefix),
+    diffRange: (cwd, from, to) => ipcRenderer.invoke('git:diffRange', cwd, from, to),
   },
   arena: {
     recordWinner: (winnerKey, loserKey, matchCtx) => ipcRenderer.invoke('arena:recordWinner', winnerKey, loserKey, matchCtx),

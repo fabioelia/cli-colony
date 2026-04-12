@@ -1345,6 +1345,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Refresh', detail: 'Reload the change list from git.', icon: 'RefreshCw' },
           { label: 'Stage & Commit', detail: 'Open a commit dialog to stage selected files and commit (or commit & push) directly from the UI. Shows branch info, file checklist with select/deselect, insertion/deletion stats. When on main/master, an amber banner warns and offers inline branch creation. Ctrl+Enter (Cmd+Enter on Mac) submits. Push button only appears when a remote is configured.', icon: 'GitCommit' },
           { label: 'Score Output', detail: 'Run an LLM-as-Judge assessment on the current diff. Returns a 1–5 confidence score, scope creep warning, test coverage indicator, and 2-3 sentence summary. Powered by claude-haiku.', icon: 'Sparkles' },
+          { label: 'Save Checkpoint', detail: 'Create a lightweight git tag at the current HEAD, saving a named restore point for this session. Tags are namespaced per-session (colony-cp/<session-id>/<timestamp>) so they don\'t collide across sessions. Appears in the checkpoint timeline below.', icon: 'Bookmark' },
           { label: 'Revert All', detail: 'Revert every changed file to HEAD. A confirmation dialog appears first — this cannot be undone.', icon: 'Undo2' },
           { label: 'Auto-refresh', detail: 'The change list refreshes automatically every 10 seconds while this tab is open.' },
         ],
@@ -1359,6 +1360,16 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Inline diff', detail: 'Click any file row to expand a color-coded diff below it with syntax highlighting (language auto-detected from file extension). Toggle between Unified (interleaved) and Split (side-by-side) view using the button in the top-right. Split view aligns old code on the left and new code on the right, with empty padding rows for unmatched lines. Mode preference persists in localStorage. Large diffs (500+ lines) are truncated with a "Show full diff" button. Binary files show a placeholder.' },
           { label: 'Revert button', detail: 'Reverts that single file to HEAD via `git checkout HEAD -- <file>`. Confirmation required.', icon: 'Undo2' },
           { label: 'Empty state', detail: 'Shows "No uncommitted changes" when the working tree is clean.' },
+        ],
+      },
+      {
+        name: 'Checkpoints',
+        position: 'Below file list (collapsible)',
+        items: [
+          { label: 'Checkpoint timeline', detail: 'Collapsible section showing all checkpoint tags for this session, sorted newest-first. Each row shows timestamp, short commit hash, and the ISO tag name. Click a row to preview the diff from that checkpoint to HEAD.' },
+          { label: 'Diff preview', detail: 'Expanding a checkpoint row shows the full diff between the checkpoint and the current HEAD, using the same color-coded diff viewer as the file list.' },
+          { label: 'Restore', detail: 'Creates a new branch from the checkpoint commit (non-destructive). Your current branch stays intact — no data is lost. A confirmation dialog shows the branch name before proceeding.', icon: 'GitBranch' },
+          { label: 'Delete checkpoint', detail: 'Removes the git tag for this checkpoint. Does not affect the underlying commit or code.', icon: 'Trash2' },
         ],
       },
       {

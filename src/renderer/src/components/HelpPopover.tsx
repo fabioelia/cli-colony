@@ -12,7 +12,7 @@ import {
   Key, Github, LayoutGrid, Package, Rocket, Copy, GitCompare, CalendarClock, ChevronLeft,
   Circle, Users, Layers, CheckSquare, ListChecks, Gavel, ExternalLink, Palette, FileDiff, Send,
   Archive, DollarSign, Swords, Bot, Timer, Unlink, Link, ChevronsUp, ClipboardCopy, Activity,
-  Home, Server, GitPullRequest, MoreHorizontal, ArrowLeftRight, ArrowDown,
+  Home, Server, GitPullRequest, MoreHorizontal, ArrowLeftRight, ArrowDown, Bookmark,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { helpContent, type HelpEntry, type HelpZone } from '../lib/help-content'
@@ -29,7 +29,7 @@ const iconMap: Record<string, LucideIcon> = {
   Key, Github, LayoutGrid, Package, Rocket, Copy, GitCompare, CalendarClock, ChevronLeft,
   Circle, Users, Layers, CheckSquare, ListChecks, Gavel, ExternalLink, Palette, FileDiff, Send,
   Archive, DollarSign, Swords, Bot, Timer, Unlink, Link, ChevronsUp, ClipboardCopy, Activity,
-  Home, Server, GitPullRequest, MoreHorizontal, ArrowLeftRight, ArrowDown,
+  Home, Server, GitPullRequest, MoreHorizontal, ArrowLeftRight, ArrowDown, Bookmark,
 }
 
 function HelpIcon({ name }: { name?: string }) {

@@ -174,4 +174,80 @@ export function registerGitHandlers(): void {
     ], { cwd, timeout: 15000, encoding: 'utf-8', maxBuffer: 5 * 1024 * 1024 })
     return stdout
   })
+
+  // --- Checkpoint tag operations ---
+
+  ipcMain.handle('git:createTag', async (_e, cwd: string, tagName: string): Promise<void> => {
+    await assertGitRepo(cwd)
+    if (!/^colony-cp\/[a-zA-Z0-9_-]+\/[0-9T:.Z-]+$/.test(tagName)) {
+      throw new Error('Invalid checkpoint tag name. Must match colony-cp/<session-id>/<timestamp>')
+    }
+    await execFileAsync(resolveCommand('git'), ['tag', tagName], { cwd, timeout: 5000 })
+  })
+
+  ipcMain.handle('git:listTags', async (_e, cwd: string, prefix: string): Promise<Array<{ tag: string; date: string; hash: string }>> => {
+    await assertGitRepo(cwd)
+    if (!/^colony-cp\//.test(prefix)) {
+      throw new Error('Tag prefix must start with colony-cp/')
+    }
+    try {
+      const { stdout } = await execFileAsync(resolveCommand('git'), [
+        'tag', '-l', `${prefix}*`, '--sort=-creatordate',
+        '--format=%(refname:short)|%(creatordate:iso)|%(objectname:short)',
+      ], { cwd, timeout: 5000, encoding: 'utf-8' })
+      if (!stdout.trim()) return []
+      return stdout.trim().split('\n').map(line => {
+        const [tag, date, hash] = line.split('|')
+        return { tag, date, hash }
+      })
+    } catch {
+      return []
+    }
+  })
+
+  ipcMain.handle('git:deleteTag', async (_e, cwd: string, tagName: string): Promise<void> => {
+    await assertGitRepo(cwd)
+    if (!tagName.startsWith('colony-cp/')) {
+      throw new Error('Can only delete colony checkpoint tags (colony-cp/ prefix)')
+    }
+    await execFileAsync(resolveCommand('git'), ['tag', '-d', tagName], { cwd, timeout: 5000 })
+  })
+
+  ipcMain.handle('git:deleteTags', async (_e, cwd: string, prefix: string): Promise<number> => {
+    await assertGitRepo(cwd)
+    if (!prefix.startsWith('colony-cp/')) {
+      throw new Error('Can only delete colony checkpoint tags (colony-cp/ prefix)')
+    }
+    try {
+      const { stdout } = await execFileAsync(resolveCommand('git'), [
+        'tag', '-l', `${prefix}*`,
+      ], { cwd, timeout: 5000, encoding: 'utf-8' })
+      if (!stdout.trim()) return 0
+      const tags = stdout.trim().split('\n')
+      for (const tag of tags) {
+        await execFileAsync(resolveCommand('git'), ['tag', '-d', tag], { cwd, timeout: 5000 })
+      }
+      return tags.length
+    } catch {
+      return 0
+    }
+  })
+
+  ipcMain.handle('git:diffRange', async (_e, cwd: string, from: string, to?: string): Promise<{ stat: string; diff: string }> => {
+    await assertGitRepo(cwd)
+    // Validate refs — allow tag-like paths and hex hashes
+    const refPattern = /^[a-zA-Z0-9_./:Z-]+$/
+    if (!refPattern.test(from)) throw new Error('Invalid "from" ref')
+    if (to && !refPattern.test(to)) throw new Error('Invalid "to" ref')
+    const range = to ? `${from}..${to}` : `${from}..HEAD`
+    const [statResult, diffResult] = await Promise.all([
+      execFileAsync(resolveCommand('git'), ['diff', range, '--stat'], {
+        cwd, timeout: 15000, encoding: 'utf-8', maxBuffer: 5 * 1024 * 1024,
+      }),
+      execFileAsync(resolveCommand('git'), ['diff', range], {
+        cwd, timeout: 15000, encoding: 'utf-8', maxBuffer: 5 * 1024 * 1024,
+      }),
+    ])
+    return { stat: statResult.stdout, diff: diffResult.stdout }
+  })
 }

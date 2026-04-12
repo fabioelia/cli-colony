@@ -1,9 +1,15 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { ChevronRight, RefreshCw, RotateCw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit } from 'lucide-react'
+import { ChevronRight, RefreshCw, RotateCw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch } from 'lucide-react'
 import type { GitDiffEntry, ColonyComment, ScoreCard } from '../../../shared/types'
 import type { ClaudeInstance } from '../types'
 import DiffViewer from './DiffViewer'
 import CommitDialog from './CommitDialog'
+
+interface CheckpointTag {
+  tag: string
+  date: string
+  hash: string
+}
 
 interface ChangesTabProps {
   instance: ClaudeInstance
@@ -23,6 +29,94 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const diffCacheRef = useRef<Record<string, string>>({})
   const [diffContent, setDiffContent] = useState<string | null>(null)
   const [diffLoading, setDiffLoading] = useState(false)
+
+  // Checkpoint state
+  const [checkpoints, setCheckpoints] = useState<CheckpointTag[]>([])
+  const [checkpointsOpen, setCheckpointsOpen] = useState(true)
+  const [savingCheckpoint, setSavingCheckpoint] = useState(false)
+  const [expandedCheckpoint, setExpandedCheckpoint] = useState<string | null>(null)
+  const [checkpointDiff, setCheckpointDiff] = useState<string | null>(null)
+  const [checkpointDiffLoading, setCheckpointDiffLoading] = useState(false)
+  const [restoringCheckpoint, setRestoringCheckpoint] = useState<string | null>(null)
+
+  const tagPrefix = `colony-cp/${instance.id}/`
+
+  const loadCheckpoints = useCallback(async () => {
+    if (!instance.workingDirectory) return
+    try {
+      const tags = await window.api.git.listTags(instance.workingDirectory, tagPrefix)
+      setCheckpoints(tags)
+    } catch {
+      setCheckpoints([])
+    }
+  }, [instance.workingDirectory, tagPrefix])
+
+  const handleSaveCheckpoint = useCallback(async () => {
+    if (!instance.workingDirectory) return
+    setSavingCheckpoint(true)
+    try {
+      const ts = new Date().toISOString().replace(/[^0-9T:.Z-]/g, '')
+      const tagName = `${tagPrefix}${ts}`
+      await window.api.git.createTag(instance.workingDirectory, tagName)
+      await loadCheckpoints()
+    } catch (err: any) {
+      console.error('Failed to create checkpoint:', err)
+    } finally {
+      setSavingCheckpoint(false)
+    }
+  }, [instance.workingDirectory, tagPrefix, loadCheckpoints])
+
+  const handleRestoreCheckpoint = useCallback(async (cp: CheckpointTag) => {
+    if (!instance.workingDirectory) return
+    const branchName = `restore-${cp.hash}-${Date.now()}`
+    if (!window.confirm(`Create branch "${branchName}" from checkpoint ${cp.hash}? This is non-destructive — your current branch stays intact.`)) return
+    setRestoringCheckpoint(cp.tag)
+    try {
+      await window.api.git.createBranch(instance.workingDirectory, branchName)
+      // Switch back to the checkpoint commit
+      await window.api.git.switchBranch(instance.workingDirectory, branchName)
+    } catch (err: any) {
+      console.error('Restore failed:', err)
+    } finally {
+      setRestoringCheckpoint(null)
+    }
+  }, [instance.workingDirectory])
+
+  const handleDeleteCheckpoint = useCallback(async (cp: CheckpointTag) => {
+    if (!instance.workingDirectory) return
+    try {
+      await window.api.git.deleteTag(instance.workingDirectory, cp.tag)
+      await loadCheckpoints()
+      if (expandedCheckpoint === cp.tag) {
+        setExpandedCheckpoint(null)
+        setCheckpointDiff(null)
+      }
+    } catch { /* ignore */ }
+  }, [instance.workingDirectory, loadCheckpoints, expandedCheckpoint])
+
+  const toggleCheckpointDiff = useCallback(async (cp: CheckpointTag) => {
+    if (expandedCheckpoint === cp.tag) {
+      setExpandedCheckpoint(null)
+      setCheckpointDiff(null)
+      return
+    }
+    setExpandedCheckpoint(cp.tag)
+    setCheckpointDiffLoading(true)
+    setCheckpointDiff(null)
+    try {
+      const result = await window.api.git.diffRange(instance.workingDirectory!, cp.tag)
+      setCheckpointDiff(result.diff)
+    } catch {
+      setCheckpointDiff('')
+    } finally {
+      setCheckpointDiffLoading(false)
+    }
+  }, [expandedCheckpoint, instance.workingDirectory])
+
+  // Load checkpoints on mount and when changes are refreshed
+  useEffect(() => {
+    loadCheckpoints()
+  }, [loadCheckpoints])
 
   const loadGitChanges = useCallback(() => {
     if (!instance.workingDirectory) return
@@ -131,6 +225,15 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
               onClick={loadGitChanges}
             >
               <RefreshCw size={12} />
+            </button>
+            <button
+              className="changes-refresh-btn"
+              title="Save checkpoint"
+              disabled={savingCheckpoint}
+              onClick={handleSaveCheckpoint}
+              style={{ color: 'var(--accent)' }}
+            >
+              {savingCheckpoint ? <RotateCw size={12} className="spinning" /> : <Bookmark size={12} />}
             </button>
             {gitChanges.length > 0 && (
               <>
@@ -251,6 +354,73 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
               </div>
             )
           })}
+          {/* Checkpoint Timeline */}
+          <div className="checkpoint-section">
+            <div className="checkpoint-section-header" onClick={() => setCheckpointsOpen(!checkpointsOpen)}>
+              <ChevronRight size={11} style={{ transition: 'transform 0.15s', transform: checkpointsOpen ? 'rotate(90deg)' : 'none', opacity: 0.5 }} />
+              <Bookmark size={12} />
+              Checkpoints
+              {checkpoints.length > 0 && (
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 400 }}>({checkpoints.length})</span>
+              )}
+            </div>
+            {checkpointsOpen && (
+              <>
+                {checkpoints.length === 0 && (
+                  <div className="checkpoint-empty">No checkpoints saved yet. Click the bookmark icon to save one.</div>
+                )}
+                {checkpoints.map((cp) => {
+                  const d = new Date(cp.date)
+                  const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  const isExpanded = expandedCheckpoint === cp.tag
+                  return (
+                    <div key={cp.tag}>
+                      <div
+                        className={`checkpoint-row${isExpanded ? ' expanded' : ''}`}
+                        onClick={() => toggleCheckpointDiff(cp)}
+                      >
+                        <ChevronRight size={10} style={{ flexShrink: 0, transition: 'transform 0.15s', transform: isExpanded ? 'rotate(90deg)' : 'none', opacity: 0.4 }} />
+                        <span className="checkpoint-row-time">{timeStr}</span>
+                        <span className="checkpoint-row-hash">{cp.hash}</span>
+                        <span className="checkpoint-row-stat">{cp.tag.split('/').pop()}</span>
+                        <div className="checkpoint-row-actions">
+                          <button
+                            className="checkpoint-restore-btn"
+                            title="Create branch from this checkpoint"
+                            disabled={restoringCheckpoint === cp.tag}
+                            onClick={(e) => { e.stopPropagation(); handleRestoreCheckpoint(cp) }}
+                          >
+                            {restoringCheckpoint === cp.tag ? <RotateCw size={9} className="spinning" /> : <><GitBranch size={9} /> Restore</>}
+                          </button>
+                          <button
+                            className="changes-refresh-btn"
+                            title="Delete checkpoint"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteCheckpoint(cp) }}
+                            style={{ color: 'var(--danger)' }}
+                          >
+                            <Trash2 size={10} />
+                          </button>
+                        </div>
+                      </div>
+                      {isExpanded && (
+                        <div className="checkpoint-diff-container">
+                          {checkpointDiffLoading ? (
+                            <div className="diff-viewer-empty">Loading diff...</div>
+                          ) : checkpointDiff !== null ? (
+                            checkpointDiff ? (
+                              <DiffViewer diff={checkpointDiff} filename="checkpoint" />
+                            ) : (
+                              <div className="diff-viewer-empty">No changes since this checkpoint.</div>
+                            )
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </>
+            )}
+          </div>
           {scoreCard && (
             <div style={{
               margin: '8px 8px 4px',
