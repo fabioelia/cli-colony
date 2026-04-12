@@ -168,6 +168,16 @@ input, select {
   background: linear-gradient(135deg, #d4a017 0%, #b8860b 100%) !important;
 }
 
+/* Daemon upgrading banner — blue variant for rolling upgrades */
+.daemon-upgrading-banner {
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%) !important;
+}
+
+/* Daemon upgrade complete banner — green variant */
+.daemon-upgrade-complete-banner {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+}
+
 /* App update banner — same pattern as daemon banner, stacked below it */
 .app-update-banner {
   position: fixed;
@@ -3694,7 +3704,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .panel-search input::placeholder { color: var(--text-muted); }
 .panel-search-inline { max-width: 120px; padding: 2px 6px; }
 
-.pipelines-empty-search {
+.panel-search-empty {
   color: var(--text-muted);
   font-size: 13px;
   padding: 24px 16px;
@@ -6966,6 +6976,102 @@ body:has(.daemon-update-banner) .app-update-banner {
   gap: 3px;
   font-size: 10px;
   color: var(--text-muted);
+}
+
+/* ===== Checkpoint Timeline ===== */
+.checkpoint-section {
+  border-top: 1px solid var(--border);
+  padding: 0;
+}
+.checkpoint-section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+.checkpoint-section-header:hover {
+  background: var(--bg-hover);
+}
+.checkpoint-empty {
+  padding: 8px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.checkpoint-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 5px 18px;
+  font-size: 11px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: background 0.1s;
+}
+.checkpoint-row:hover {
+  background: var(--bg-hover);
+}
+.checkpoint-row.expanded {
+  background: var(--bg-hover);
+  border-left-color: var(--accent);
+}
+.checkpoint-row-time {
+  color: var(--text-muted);
+  font-size: 10px;
+  min-width: 56px;
+  font-family: monospace;
+}
+.checkpoint-row-hash {
+  color: var(--accent);
+  font-family: monospace;
+  font-size: 10px;
+  min-width: 56px;
+}
+.checkpoint-row-stat {
+  color: var(--text-secondary);
+  font-size: 10px;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.checkpoint-row-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.checkpoint-row:hover .checkpoint-row-actions {
+  opacity: 1;
+}
+.checkpoint-restore-btn {
+  background: none;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.checkpoint-restore-btn:hover {
+  background: var(--accent);
+  color: var(--bg-primary);
+}
+.checkpoint-diff-container {
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+  max-height: 300px;
+  overflow: auto;
+  margin: 0 0 0 18px;
 }
 
 /* ===== Inline Diff Viewer ===== */

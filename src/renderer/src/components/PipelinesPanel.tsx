@@ -830,7 +830,7 @@ action:
 
       {!healthView && <div className={`pipelines-list${listMode ? ' list-mode' : ''}`}>
         {pipelineSearch && sortedPipelines.length > 0 && sortedPipelines.filter(p => p.name.toLowerCase().includes(pipelineSearch.toLowerCase())).length === 0 && (
-          <div className="pipelines-empty-search">No pipelines matching &ldquo;{pipelineSearch}&rdquo;</div>
+          <div className="panel-search-empty">No pipelines matching &ldquo;{pipelineSearch}&rdquo;</div>
         )}
         {sortedPipelines.filter(p => !pipelineSearch || p.name.toLowerCase().includes(pipelineSearch.toLowerCase())).map((p) => (
           <div key={p.name} className={`pipeline-card ${p.enabled ? '' : 'disabled'}${expandedPipeline === p.name ? ' expanded' : ''}`}>

@@ -569,6 +569,14 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
           />
         )}
 
+        {envSearch && environments.length > 0 && environments.filter(env => {
+          const q = envSearch.toLowerCase()
+          const name = (env.displayName || env.name).toLowerCase()
+          const branch = (env.branch ?? '').toLowerCase()
+          return name.includes(q) || branch.includes(q)
+        }).length === 0 && (
+          <div className="panel-search-empty">No environments matching &ldquo;{envSearch}&rdquo;</div>
+        )}
         {environments.filter(env => {
           if (tagFilter && purposeTags[env.id] !== tagFilter) return false
           if (envSearch) {
