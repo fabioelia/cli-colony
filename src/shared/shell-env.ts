@@ -6,6 +6,7 @@
  */
 
 import { execSync } from 'child_process'
+import * as os from 'os'
 import * as fs from 'fs'
 import { colonyPaths } from './colony-paths'
 
@@ -64,8 +65,11 @@ export function loadShellEnv(): Record<string, string> {
   const shells = getShellCandidates()
 
   for (const shell of shells) {
-    // Try full env dump
-    const envOutput = safeExecSync(`${shell} -lc "env"`)
+    // Try interactive login shell first (-lic) to source .zshrc/.bashrc,
+    // then fall back to login-only (-lc) which skips rc files.
+    // Many tools (e.g. claude, nvm, pyenv) add to PATH in .zshrc, not .zprofile.
+    const envOutput = safeExecSync(`${shell} -lic "env" 2>/dev/null`)
+      || safeExecSync(`${shell} -lc "env"`)
     if (envOutput) {
       const env: Record<string, string> = { ...process.env } as Record<string, string>
       for (const line of envOutput.split('\n')) {
@@ -75,17 +79,35 @@ export function loadShellEnv(): Record<string, string> {
         }
       }
       _cachedEnv = env
+      ensureCriticalVars(_cachedEnv)
       return env
     }
 
     // Try PATH-only fallback
-    const shellPath = safeExecSync(`${shell} -lc "echo $PATH"`)
+    const shellPath = safeExecSync(`${shell} -lic "echo $PATH" 2>/dev/null`)
+      || safeExecSync(`${shell} -lc "echo $PATH"`)
     if (shellPath?.trim()) {
       _cachedEnv = { ...process.env, PATH: shellPath.trim() } as Record<string, string>
+      ensureCriticalVars(_cachedEnv)
       return _cachedEnv
     }
   }
 
   _cachedEnv = { ...process.env } as Record<string, string>
+  ensureCriticalVars(_cachedEnv)
   return _cachedEnv
+}
+
+/**
+ * Ensure env vars that macOS tools depend on are always present.
+ * USER is required for Keychain access (Claude CLI auth).
+ * When Electron launches from Dock/Spotlight these may be absent from process.env.
+ */
+function ensureCriticalVars(env: Record<string, string>): void {
+  if (!env.USER) {
+    try { env.USER = os.userInfo().username } catch { /* */ }
+  }
+  if (!env.HOME) {
+    env.HOME = os.homedir()
+  }
 }

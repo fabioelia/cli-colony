@@ -632,7 +632,8 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
   ptyProcess.onExit(({ exitCode }) => {
     if (instance._activityInterval) clearInterval(instance._activityInterval)
     if (instance._sessionIdTimer) clearTimeout(instance._sessionIdTimer)
-    log(`instance ${id} (${name}) exited with code ${exitCode}`)
+    const lastOutput = instance.outputBuffer.slice(-20).join('').slice(-500)
+    log(`instance ${id} (${name}) exited with code ${exitCode} output=${JSON.stringify(lastOutput)}`)
     instance.status = 'exited'
     instance.activity = 'waiting'
     instance.exitCode = exitCode

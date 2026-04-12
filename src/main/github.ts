@@ -535,7 +535,7 @@ export async function ensureRepoClones(): Promise<void> {
   }
 }
 
-export function addRepo(repo: GitHubRepo): GitHubRepo[] {
+export async function addRepo(repo: GitHubRepo): Promise<GitHubRepo[]> {
   const config = loadConfig()
   const exists = config.repos.some((r) => r.owner === repo.owner && r.name === repo.name)
   if (!exists) {
@@ -544,13 +544,16 @@ export function addRepo(repo: GitHubRepo): GitHubRepo[] {
     config.repos.push(repo)
     saveConfig(config)
 
-    // Create bare repo in background (don't block)
-    const remoteUrl = `git@github.com:${repo.owner}/${repo.name}.git`
-    ensureBareRepoWorktree(repo.owner, repo.name, remoteUrl).catch(err => {
+    // Clone bare repo — await so errors propagate to the caller
+    const remoteUrl = await gitRemoteUrl(repo.owner, repo.name)
+    try {
+      await ensureBareRepoWorktree(repo.owner, repo.name, remoteUrl)
+    } catch (err: any) {
       console.error(`[github] bare clone failed for ${repo.owner}/${repo.name}:`, err)
-    })
+      throw new Error(`Failed to clone ${repo.owner}/${repo.name}: ${err.message || err}`)
+    }
   }
-  return config.repos
+  return loadConfig().repos
 }
 
 /**

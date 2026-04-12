@@ -385,9 +385,14 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
 
     // Try parsing as a GitHub URL (https://github.com/owner/name/...)
     const urlMatch = raw.match(/(?:https?:\/\/)?github\.com\/([^/]+)\/([^/]+?)(?:\.git)?(?:\/.*)?$/)
+    // Try SSH URL (git@github.com:owner/name.git)
+    const sshMatch = raw.match(/^git@github\.com:([^/]+)\/([^/]+?)(?:\.git)?$/)
     if (urlMatch) {
       owner = urlMatch[1]
       name = urlMatch[2]
+    } else if (sshMatch) {
+      owner = sshMatch[1]
+      name = sshMatch[2]
     } else {
       // Try owner/name format
       const parts = raw.split('/')
@@ -398,17 +403,21 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     }
 
     if (!owner || !name) {
-      setError('Enter a repo as owner/name or paste a GitHub URL')
+      setError('Enter a repo as owner/name, GitHub URL, or SSH URL (git@github.com:owner/name)')
       return
     }
-    const updated = await window.api.github.addRepo({ owner, name })
-    setRepos(updated)
-    setRepoInput('')
-    setShowAddRepo(false)
-    // Auto-fetch PRs for new repo
-    const slug = `${owner}/${name}`
-    setExpandedRepo(slug)
-    fetchPRsForRepo({ owner, name })
+    try {
+      const updated = await window.api.github.addRepo({ owner, name })
+      setRepos(updated)
+      setRepoInput('')
+      setShowAddRepo(false)
+      // Auto-fetch PRs for new repo
+      const slug = `${owner}/${name}`
+      setExpandedRepo(slug)
+      fetchPRsForRepo({ owner, name })
+    } catch (err: any) {
+      setError(err.message || `Failed to add ${owner}/${name}`)
+    }
   }
 
   const handleRemoveRepo = async (repo: GitHubRepo) => {
