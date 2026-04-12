@@ -12884,6 +12884,13 @@ body:has(.daemon-update-banner) .app-update-banner {
   margin: 0;
   line-height: 1.4;
 }
+.pipeline-memory-hint code {
+  background: var(--bg-hover);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: Menlo, Monaco, monospace;
+  font-size: 10px;
+}
 
 .pipeline-debug-tab {
   flex: 1;
@@ -19927,6 +19934,18 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: var(--accent); border-color: var(--accent); color: #fff;
 }
 .arena-launch-count-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.arena-model-checkboxes {
+  display: flex; gap: 12px; flex-wrap: wrap;
+}
+.arena-model-checkbox {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--text-primary); cursor: pointer;
+  user-select: none;
+}
+.arena-model-checkbox input[type="checkbox"] {
+  accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer;
+}
 
 /* ---- Arena Leaderboard ---- */
 .arena-leaderboard-overlay {
