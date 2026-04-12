@@ -3,6 +3,8 @@ import { join } from 'path'
 import { Notification } from 'electron'
 import { colonyPaths } from '../shared/colony-paths'
 import { getSettingSync } from './settings'
+import { isRateLimited, getRateLimitState } from './rate-limit-state'
+import { broadcast } from './broadcast'
 import type { PersonaRunEntry, PersonaAnalytics } from '../shared/types'
 
 export interface DailyCostEntry {
@@ -145,4 +147,43 @@ export function checkDailyCostBudget(): void {
     title: 'Colony Daily Cost Budget Exceeded',
     body: `Today's persona run cost ($${todayCost.toFixed(2)}) exceeds your daily budget ($${budget.toFixed(2)}).`,
   }).show()
+}
+
+export interface UsageSummary {
+  todayCost: number
+  budget: number | null
+  rateLimited: boolean
+  resetAt: number | null
+}
+
+/** Return today's cost, budget, and rate limit status for the sidebar meter. */
+export function getUsageSummary(): UsageSummary {
+  const trend = getColonyCostTrend()
+  const today = new Date().toISOString().slice(0, 10)
+  const todayCost = trend.find(d => d.date === today)?.cost || 0
+
+  const budgetStr = getSettingSync('dailyCostBudgetUsd')
+  const budget = parseFloat(budgetStr)
+
+  const rlState = getRateLimitState()
+
+  return {
+    todayCost,
+    budget: budget > 0 ? budget : null,
+    rateLimited: rlState.paused,
+    resetAt: rlState.resetAt,
+  }
+}
+
+let usageMonitorInterval: ReturnType<typeof setInterval> | null = null
+
+/** Start hourly usage broadcast so the renderer stays current. */
+export function startUsageMonitor(): void {
+  if (usageMonitorInterval) return
+  // Broadcast immediately on start
+  broadcast('colony:usageUpdate', getUsageSummary())
+  // Then every hour
+  usageMonitorInterval = setInterval(() => {
+    broadcast('colony:usageUpdate', getUsageSummary())
+  }, 3600_000)
 }

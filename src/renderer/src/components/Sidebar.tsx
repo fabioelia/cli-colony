@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock, RotateCcw } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock, RotateCcw, DollarSign } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate, ErrorSummary } from '../../../shared/types'
@@ -455,6 +455,13 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const [bulkPromptOpen, setBulkPromptOpen] = useState(false)
   const [bulkPromptText, setBulkPromptText] = useState('')
   const [bulkPromptSent, setBulkPromptSent] = useState<number | null>(null)
+
+  // Usage meter — fetch on mount + listen for hourly broadcasts
+  const [usage, setUsage] = useState<{ todayCost: number; budget: number | null; rateLimited: boolean; resetAt: number | null } | null>(null)
+  useEffect(() => {
+    window.api.colony.getUsageSummary().then(setUsage).catch(() => {})
+    return window.api.colony.onUsageUpdate(setUsage)
+  }, [])
 
   // Concurrent file conflict detection — poll every 30s
   const [fileOverlaps, setFileOverlaps] = useState<Record<string, { file: string; otherSessions: { id: string; name: string }[] }[]>>({})
@@ -2176,6 +2183,32 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             currentLayout={currentLayout}
             onLoadPreset={onLoadPreset}
           />
+        )}
+        {usage && (
+          <Tooltip
+            text={usage.rateLimited
+              ? `Rate limited${usage.resetAt ? ` · ${Math.ceil((usage.resetAt - Date.now()) / 60000)}m left` : ''}`
+              : usage.budget
+                ? `$${usage.todayCost.toFixed(2)} / $${usage.budget.toFixed(0)} today`
+                : `$${usage.todayCost.toFixed(2)} today`
+            }
+            position="top"
+          >
+            <button className={`usage-meter${usage.rateLimited ? ' rate-limited' : usage.budget && usage.todayCost >= usage.budget ? ' over' : usage.budget && usage.todayCost >= usage.budget * 0.75 ? ' warn' : ''}`} onClick={() => onViewChange('overview')}>
+              <DollarSign size={10} />
+              <span className="usage-meter-text">
+                {usage.rateLimited
+                  ? 'Limited'
+                  : `${usage.todayCost.toFixed(2)}${usage.budget ? ` / ${usage.budget.toFixed(0)}` : ''}`
+                }
+              </span>
+              {usage.budget && !usage.rateLimited && (
+                <span className="usage-meter-bar">
+                  <span className="usage-meter-fill" style={{ width: `${Math.min(100, (usage.todayCost / usage.budget) * 100)}%` }} />
+                </span>
+              )}
+            </button>
+          </Tooltip>
         )}
         <Tooltip text="Settings" position="top">
           <button className={`sidebar-footer-btn ${view === 'settings' ? 'active' : ''}`} onClick={() => onViewChange(view === 'settings' ? 'instances' : 'settings')}>

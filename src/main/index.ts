@@ -85,6 +85,7 @@ import { initAppUpdater, shutdownAppUpdater } from './app-updater'
 import { stopBatchScheduler } from './batch-runner'
 import { colonyPaths } from '../shared/colony-paths'
 import { registerGlobalHotkey } from './global-hotkey'
+import { startUsageMonitor } from './persona-run-history'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -550,6 +551,7 @@ app.whenReady().then(async () => {
     ensureRepoClones().catch(() => { /* ignore */ })
     refreshRepoConfigs().catch(() => { /* ignore */ })
     // Start pipeline polling
+    startUsageMonitor()
     startPipelines().then(async () => {
       console.log('[app] pipelines started')
       // Broadcast the loaded list so any renderer that subscribed before startup completes gets it

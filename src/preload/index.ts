@@ -226,6 +226,8 @@ export interface ClaudeManagerAPI {
     listSpecs: () => Promise<Array<{ name: string; title: string; status: string; updatedAt: string }>>
     readSpec: (name: string) => Promise<string | null>
     archiveSpec: (name: string) => Promise<boolean>
+    getUsageSummary: () => Promise<{ todayCost: number; budget: number | null; rateLimited: boolean; resetAt: number | null }>
+    onUsageUpdate: (cb: (summary: { todayCost: number; budget: number | null; rateLimited: boolean; resetAt: number | null }) => void) => () => void
   }
   pipeline: {
     list: () => Promise<Array<{
@@ -803,6 +805,12 @@ const api: ClaudeManagerAPI = {
     listSpecs: () => ipcRenderer.invoke('colony:listSpecs'),
     readSpec: (name) => ipcRenderer.invoke('colony:readSpec', name),
     archiveSpec: (name) => ipcRenderer.invoke('colony:archiveSpec', name),
+    getUsageSummary: () => ipcRenderer.invoke('colony:getUsageSummary'),
+    onUsageUpdate: (cb) => {
+      const listener = (_e: any, summary: any) => cb(summary)
+      ipcRenderer.on('colony:usageUpdate', listener)
+      return () => ipcRenderer.removeListener('colony:usageUpdate', listener)
+    },
   },
   tasksBoard: {
     list: () => ipcRenderer.invoke('tasks:board:list'),

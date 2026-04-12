@@ -1129,6 +1129,56 @@ body:has(.daemon-update-banner) .app-update-banner {
   opacity: 0.6;
 }
 
+.usage-meter {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: none;
+  border: none;
+  color: var(--success);
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  padding: 3px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.usage-meter:hover {
+  background: var(--bg-hover);
+}
+.usage-meter.warn {
+  color: var(--warning);
+}
+.usage-meter.over {
+  color: var(--danger);
+}
+.usage-meter.rate-limited {
+  color: var(--danger);
+  animation: usage-pulse 2s ease-in-out infinite;
+}
+@keyframes usage-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.usage-meter-text {
+  line-height: 1;
+}
+.usage-meter-bar {
+  display: inline-block;
+  width: 28px;
+  height: 3px;
+  background: var(--bg-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.usage-meter-fill {
+  display: block;
+  height: 100%;
+  background: currentColor;
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
 /* ===== Activity Feed ===== */
 .sidebar-activity-badge {
   position: absolute;

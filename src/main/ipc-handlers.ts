@@ -11,6 +11,7 @@ import { readCatalog, writeCatalog } from './mcp-catalog'
 import { loadApprovalRules, saveApprovalRules } from './approval-rules'
 import { updateColonyContext, getColonyContextPath, getColonyContextInstruction } from './colony-context'
 import { getRateLimitState, resumeCrons } from './rate-limit-state'
+import { getUsageSummary } from './persona-run-history'
 
 // Handler modules
 import { registerInstanceHandlers } from './ipc/instance-handlers'
@@ -227,7 +228,8 @@ export function registerIpcHandlers(): void {
     return filePath
   })
 
-  // ---- Rate Limit ----
+  // ---- Usage & Rate Limit ----
+  ipcMain.handle('colony:getUsageSummary', () => getUsageSummary())
   ipcMain.handle('colony:rateLimitStatus', () => {
     return getRateLimitState()
   })
