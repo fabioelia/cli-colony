@@ -98,6 +98,76 @@ export async function loadHandoffPreamble(inputs: string[]): Promise<string> {
   return sections.length > 0 ? sections.join('\n\n') + '\n\n' : ''
 }
 
+/**
+ * Read a living spec file and wrap it with framing for pipeline injection.
+ * Spec files live in ~/.claude-colony/specs/<name>.md with YAML frontmatter.
+ */
+export async function loadSpecPreamble(specName: string): Promise<string> {
+  const specPath = join(colonyPaths.specs, `${specName}.md`)
+  if (!await pathExists(specPath)) {
+    log(`[spec] spec "${specName}" not found at ${specPath} — skipping`)
+    return ''
+  }
+  const content = (await fsp.readFile(specPath, 'utf-8')).trim()
+
+  // Extract title from frontmatter
+  let title = specName
+  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
+  if (fmMatch) {
+    const titleMatch = fmMatch[1].match(/^title:\s*(.+)$/m)
+    if (titleMatch) title = titleMatch[1].trim().replace(/^["']|["']$/g, '')
+  }
+
+  return (
+    `--- Living Spec: ${title} ---\n` +
+    `This is the living spec for "${title}". Respect all decisions already made. ` +
+    `Append new decisions using the format: \`- [ISO timestamp] Decision text (Stage: <your-stage>)\`\n\n` +
+    `${content}\n\n` +
+    `--- End of Living Spec ---\n\n`
+  )
+}
+
+/**
+ * Append a timestamped entry to a spec's ## Decisions Made section.
+ * Creates the section if it doesn't exist. Atomic read-append-write.
+ */
+export async function appendToSpec(specName: string, content: string, stageName: string): Promise<void> {
+  const specPath = join(colonyPaths.specs, `${specName}.md`)
+  if (!await pathExists(specPath)) {
+    log(`[spec] cannot append to "${specName}" — spec not found at ${specPath}`)
+    return
+  }
+  const existing = await fsp.readFile(specPath, 'utf-8')
+  const timestamp = new Date().toISOString()
+  const entry = `- [${timestamp}] ${content.trim()} (Stage: ${stageName})`
+
+  let updated: string
+  if (existing.includes('## Decisions Made')) {
+    // Insert after the ## Decisions Made heading (before the next ## or end of file)
+    const idx = existing.indexOf('## Decisions Made')
+    const afterHeading = existing.indexOf('\n', idx) + 1
+    // Find the next section heading or end of file
+    const rest = existing.slice(afterHeading)
+    const nextSection = rest.search(/\n## /)
+    if (nextSection >= 0) {
+      updated = existing.slice(0, afterHeading + nextSection) + '\n' + entry + '\n' + existing.slice(afterHeading + nextSection)
+    } else {
+      updated = existing.trimEnd() + '\n' + entry + '\n'
+    }
+  } else {
+    // Append a new Decisions Made section before any ## Open Questions or at end
+    const insertBefore = existing.search(/\n## Open Questions/)
+    if (insertBefore >= 0) {
+      updated = existing.slice(0, insertBefore) + '\n\n## Decisions Made\n' + entry + '\n' + existing.slice(insertBefore)
+    } else {
+      updated = existing.trimEnd() + '\n\n## Decisions Made\n' + entry + '\n'
+    }
+  }
+
+  await fsp.writeFile(specPath, updated, 'utf-8')
+  log(`[spec] appended decision to "${specName}" from stage "${stageName}"`)
+}
+
 /** Check if a reviewer response signals approval (APPROVED or LGTM, case-insensitive). */
 export function isApproved(text: string): boolean {
   const lower = text.toLowerCase()

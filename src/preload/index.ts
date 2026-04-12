@@ -223,6 +223,9 @@ export interface ClaudeManagerAPI {
     rateLimitStatus: () => Promise<{ paused: boolean; resetAt: number | null; lastError: string; detectedAt: number | null }>
     resumeCrons: () => Promise<void>
     onRateLimitChange: (cb: (state: { paused: boolean; resetAt: number | null; lastError: string; detectedAt: number | null }) => void) => () => void
+    listSpecs: () => Promise<Array<{ name: string; title: string; status: string; updatedAt: string }>>
+    readSpec: (name: string) => Promise<string | null>
+    archiveSpec: (name: string) => Promise<boolean>
   }
   pipeline: {
     list: () => Promise<Array<{
@@ -797,6 +800,9 @@ const api: ClaudeManagerAPI = {
       ipcRenderer.on('colony:rateLimitChange', listener)
       return () => ipcRenderer.removeListener('colony:rateLimitChange', listener)
     },
+    listSpecs: () => ipcRenderer.invoke('colony:listSpecs'),
+    readSpec: (name) => ipcRenderer.invoke('colony:readSpec', name),
+    archiveSpec: (name) => ipcRenderer.invoke('colony:archiveSpec', name),
   },
   tasksBoard: {
     list: () => ipcRenderer.invoke('tasks:board:list'),

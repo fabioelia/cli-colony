@@ -72,6 +72,8 @@ export interface ActionDef {
   artifactOutputs?: Array<{ name: string; cmd: string }> // capture commands run at fire time; saved to <COLONY_DIR>/artifacts/<name>.txt
   artifactInputs?: string[] // artifact names to inject into prompt preamble (from prior captures)
   handoffInputs?: string[] // artifact names to inject with narrative framing (decisions/context from prior stage)
+  specInput?: string // living spec name to inject into prompt preamble (reads from specs/ dir)
+  specAppend?: string // living spec name to append decisions to after stage completes
   // maker-checker specific fields
   makerPrompt?: string
   checkerPrompt?: string
@@ -241,7 +243,7 @@ export function plog(name: string, msg: string): void {
 }
 
 import { broadcast } from './broadcast'
-import { runMakerChecker, runDiffReview, runPlanStage, runParallel, runWaitForSession, runBestOfN, captureArtifacts, loadArtifactPreamble, loadHandoffPreamble } from './pipeline-stages'
+import { runMakerChecker, runDiffReview, runPlanStage, runParallel, runWaitForSession, runBestOfN, captureArtifacts, loadArtifactPreamble, loadHandoffPreamble, loadSpecPreamble, appendToSpec } from './pipeline-stages'
 import { parseYaml as parseYamlShared, parseYamlArray } from '../shared/yaml-parser'
 
 // ---- Pipeline YAML Parsing (uses shared parser + pipeline-specific post-processing) ----
@@ -752,6 +754,12 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
     if (handoff) prompt = handoff + prompt
   }
 
+  // Inject living spec preamble — spec precedes handoff so it's the first thing the session sees
+  if (action.specInput) {
+    const spec = await loadSpecPreamble(action.specInput)
+    if (spec) prompt = spec + prompt
+  }
+
   // Inject timestamped output directory when action.outputs is configured
   if (action.outputs) {
     const resolvedBase = resolveTemplate(action.outputs, ctx).replace(/^~/, app.getPath('home'))
@@ -773,6 +781,14 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
       }
     }
     prompt += `\n\nWhen you finish, if you learned anything new about tools, approaches, or useful patterns that would help future runs, append it to ${memPath}`
+  }
+
+  // Inject spec-append instructions — tell the session to write decisions to a known artifact file
+  let specDecisionsFile: string | undefined
+  if (action.specAppend) {
+    const artifactsDir = join(COLONY_DIR, 'artifacts')
+    specDecisionsFile = join(artifactsDir, `${action.specAppend}-decisions.txt`)
+    prompt += `\n\n--- Spec Decisions ---\nWhen you make key decisions during this task, write a brief summary of each decision to: ${specDecisionsFile}\nOne decision per line. These will be appended to the living spec automatically.`
   }
 
   // ---- Route to existing session ----
@@ -887,6 +903,21 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
     clearTimeout(autoCloseTimeout)
     log(`pipeline session ${inst.id} finished, killing in 5s`)
     tagArtifactPipeline(inst.id, runId).catch(() => {})
+    // Append captured decisions to living spec if specAppend is configured
+    if (action.specAppend && specDecisionsFile) {
+      (async () => {
+        try {
+          if (await pathExists(specDecisionsFile)) {
+            const decisions = (await fsp.readFile(specDecisionsFile, 'utf-8')).trim()
+            if (decisions) {
+              await appendToSpec(action.specAppend!, decisions, action.name || pipelineName)
+            }
+          }
+        } catch (err: any) {
+          log(`[spec] failed to append decisions for "${action.specAppend}": ${err?.message}`)
+        }
+      })()
+    }
     setTimeout(async () => {
       try { await killInstance(inst.id) } catch { /* already gone */ }
     }, 5000)

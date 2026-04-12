@@ -192,6 +192,40 @@ export async function updateColonyContext(): Promise<string> {
     }
   } catch { /* */ }
 
+  // Active Specs
+  try {
+    const specsDir = colonyPaths.specs
+    if (await pathExists(specsDir)) {
+      const allFiles = await fsp.readdir(specsDir)
+      const specFiles = allFiles.filter(f => f.endsWith('.md'))
+      if (specFiles.length > 0) {
+        const activeSpecs: Array<{ name: string; title: string; updatedAt: string }> = []
+        for (const f of specFiles) {
+          const filePath = join(specsDir, f)
+          const content = await fsp.readFile(filePath, 'utf-8')
+          // Parse frontmatter for status
+          const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
+          if (fmMatch) {
+            const statusMatch = fmMatch[1].match(/^status:\s*(.+)$/m)
+            const status = statusMatch ? statusMatch[1].trim() : 'active'
+            if (status !== 'active') continue
+            const titleMatch = fmMatch[1].match(/^title:\s*(.+)$/m)
+            const title = titleMatch ? titleMatch[1].trim().replace(/^["']|["']$/g, '') : f.replace(/\.md$/, '')
+            const stat = await fsp.stat(filePath)
+            activeSpecs.push({ name: f.replace(/\.md$/, ''), title, updatedAt: stat.mtime.toISOString().slice(0, 16) })
+          }
+        }
+        if (activeSpecs.length > 0) {
+          lines.push('## Active Specs', '')
+          for (const s of activeSpecs) {
+            lines.push(`- **${s.title}** (${s.name}) — last updated: ${s.updatedAt}`)
+          }
+          lines.push('')
+        }
+      }
+    }
+  } catch { /* */ }
+
   // Handoffs
   try {
     const handoffDir = join(COLONY_DIR, 'handoffs')
