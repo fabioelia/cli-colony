@@ -6,6 +6,7 @@ import { useOutputTracking } from './hooks/useOutputTracking'
 import { useFocusHistory } from './hooks/useFocusHistory'
 import { createPortal } from 'react-dom'
 import type { ClaudeInstance, AgentDef, CliSession, RecentSession, CliBackend, ArenaStats } from './types'
+import type { ArenaMatchRecord } from '../../shared/types'
 import Sidebar, { SidebarView } from './components/Sidebar'
 import TerminalView from './components/TerminalView'
 import NewInstanceDialog, { type CloneSource } from './components/NewInstanceDialog'
@@ -97,6 +98,9 @@ export default function App() {
   const [arenaLaunchOpen, setArenaLaunchOpen] = useState(false)
   const [arenaWorktreeIds, setArenaWorktreeIds] = useState<string[]>([])
   const [arenaLeaderboardOpen, setArenaLeaderboardOpen] = useState(false)
+  const [arenaReplayPrefill, setArenaReplayPrefill] = useState<{
+    count: number; models: (string | null)[]; prompt: string
+  } | null>(null)
   const [arenaJudgeOpen, setArenaJudgeOpen] = useState(false)
   const [arenaJudging, setArenaJudging] = useState(false)
   const [fontSize, setFontSize] = useState(13)
@@ -847,6 +851,16 @@ export default function App() {
     setArenaWorktreeIds(wtIds)
     setSplitPairs(new Map())
     setView('instances')
+  }, [])
+
+  const handleArenaReplay = useCallback((match: ArenaMatchRecord) => {
+    setArenaReplayPrefill({
+      count: match.participants.length,
+      models: match.participants.map(p => p.model ?? null),
+      prompt: match.prompt ?? '',
+    })
+    setArenaLeaderboardOpen(false)
+    setArenaLaunchOpen(true)
   }, [])
 
   const handleArenaCleanup = useCallback(async () => {
@@ -2052,8 +2066,9 @@ export default function App() {
       )}
       {arenaLaunchOpen && (
         <ArenaLaunchDialog
-          onClose={() => setArenaLaunchOpen(false)}
+          onClose={() => { setArenaLaunchOpen(false); setArenaReplayPrefill(null) }}
           onLaunch={handleArenaLaunch}
+          prefill={arenaReplayPrefill ?? undefined}
         />
       )}
       {arenaJudgeOpen && (
@@ -2066,6 +2081,7 @@ export default function App() {
       <ArenaLeaderboard
         open={arenaLeaderboardOpen}
         onClose={() => setArenaLeaderboardOpen(false)}
+        onReplay={handleArenaReplay}
       />
       <GlobalSearch
         open={globalSearchOpen}

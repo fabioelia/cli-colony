@@ -3,18 +3,27 @@ import { Swords, X, Loader2 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import type { GitHubRepo } from '../types'
 
+interface ArenaPrefill {
+  count: number
+  models: (string | null)[]
+  prompt: string
+}
+
 interface Props {
   onClose: () => void
   onLaunch: (result: { instances: string[]; worktrees: string[] }) => void
+  prefill?: ArenaPrefill
 }
 
-export default function ArenaLaunchDialog({ onClose, onLaunch }: Props) {
+export default function ArenaLaunchDialog({ onClose, onLaunch, prefill }: Props) {
   const [repos, setRepos] = useState<GitHubRepo[]>([])
   const [selectedRepo, setSelectedRepo] = useState<string>('')
   const [branch, setBranch] = useState('main')
-  const [count, setCount] = useState(2)
-  const [prompt, setPrompt] = useState('')
-  const [models, setModels] = useState<(string)[]>(['', ''])
+  const [count, setCount] = useState(prefill?.count ?? 2)
+  const [prompt, setPrompt] = useState(prefill?.prompt ?? '')
+  const [models, setModels] = useState<string[]>(
+    prefill?.models?.map(m => m ?? '') ?? ['', '']
+  )
   const [launching, setLaunching] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

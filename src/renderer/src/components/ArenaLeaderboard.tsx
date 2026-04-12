@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Trophy, X, Trash2, Gavel, Brain, Hand, ChevronDown, ChevronRight } from 'lucide-react'
+import { Trophy, X, Trash2, Gavel, Brain, Hand, ChevronDown, ChevronRight, RotateCcw } from 'lucide-react'
 import type { ArenaStats, ArenaMatchRecord } from '../../../shared/types'
 
 const LS_KEY = 'arena-leaderboard'
@@ -7,6 +7,7 @@ const LS_KEY = 'arena-leaderboard'
 interface Props {
   open: boolean
   onClose: () => void
+  onReplay?: (match: ArenaMatchRecord) => void
 }
 
 interface LeaderboardEntry {
@@ -36,7 +37,7 @@ function judgeIcon(type: ArenaMatchRecord['judgeType']): React.ReactNode {
   }
 }
 
-export default function ArenaLeaderboard({ open, onClose }: Props) {
+export default function ArenaLeaderboard({ open, onClose, onReplay }: Props) {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([])
   const [matchHistory, setMatchHistory] = useState<ArenaMatchRecord[]>([])
   const [expandedName, setExpandedName] = useState<string | null>(null)
@@ -248,6 +249,15 @@ export default function ArenaLeaderboard({ open, onClose }: Props) {
                   <span className="arena-match-detail-label">Verdict</span>
                   <span className="arena-match-detail-verdict">{detailMatch.verdictText}</span>
                 </div>
+              )}
+              {onReplay && detailMatch.prompt && (
+                <button
+                  className="panel-header-btn primary"
+                  style={{ marginTop: 8, alignSelf: 'flex-start' }}
+                  onClick={() => onReplay(detailMatch)}
+                >
+                  <RotateCcw size={12} /> Replay
+                </button>
               )}
             </div>
           </div>
