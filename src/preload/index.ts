@@ -167,6 +167,7 @@ export interface ClaudeManagerAPI {
     onCycleInstance: (cb: (direction: number) => void) => () => void
     onCommandPalette: (cb: () => void) => () => void
     onQuickPrompt: (cb: () => void) => () => void
+    onQuickCompare: (cb: () => void) => () => void
     onNavigate: (cb: (route: string | Record<string, unknown>) => void) => () => void
   }
   fs: {
@@ -219,6 +220,9 @@ export interface ClaudeManagerAPI {
     getContextPath: () => Promise<string>
     getContextInstruction: () => Promise<string>
     writePromptFile: (content: string) => Promise<string>
+    rateLimitStatus: () => Promise<{ paused: boolean; resetAt: number | null; lastError: string; detectedAt: number | null }>
+    resumeCrons: () => Promise<void>
+    onRateLimitChange: (cb: (state: { paused: boolean; resetAt: number | null; lastError: string; detectedAt: number | null }) => void) => () => void
   }
   pipeline: {
     list: () => Promise<Array<{
@@ -733,6 +737,7 @@ const api: ClaudeManagerAPI = {
     onCycleInstance: (cb) => { const l = (_e: any, dir: number) => cb(dir); ipcRenderer.on('shortcut:cycle-instance', l); return () => ipcRenderer.removeListener('shortcut:cycle-instance', l) },
     onCommandPalette: (cb) => { const l = () => cb(); ipcRenderer.on('shortcut:command-palette', l); return () => ipcRenderer.removeListener('shortcut:command-palette', l) },
     onQuickPrompt: (cb) => { const l = () => cb(); ipcRenderer.on('shortcut:quick-prompt', l); return () => ipcRenderer.removeListener('shortcut:quick-prompt', l) },
+    onQuickCompare: (cb) => { const l = () => cb(); ipcRenderer.on('shortcut:quick-compare', l); return () => ipcRenderer.removeListener('shortcut:quick-compare', l) },
     onNavigate: (cb) => { const l = (_e: any, route: string | Record<string, unknown>) => cb(route); ipcRenderer.on('app:navigate', l); return () => ipcRenderer.removeListener('app:navigate', l) },
   },
   fs: {
@@ -785,6 +790,13 @@ const api: ClaudeManagerAPI = {
     getContextPath: () => ipcRenderer.invoke('colony:getContextPath'),
     getContextInstruction: () => ipcRenderer.invoke('colony:getContextInstruction'),
     writePromptFile: (content) => ipcRenderer.invoke('colony:writePromptFile', content),
+    rateLimitStatus: () => ipcRenderer.invoke('colony:rateLimitStatus'),
+    resumeCrons: () => ipcRenderer.invoke('colony:resumeCrons'),
+    onRateLimitChange: (cb) => {
+      const listener = (_e: any, state: any) => cb(state)
+      ipcRenderer.on('colony:rateLimitChange', listener)
+      return () => ipcRenderer.removeListener('colony:rateLimitChange', listener)
+    },
   },
   tasksBoard: {
     list: () => ipcRenderer.invoke('tasks:board:list'),

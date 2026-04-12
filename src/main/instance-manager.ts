@@ -18,6 +18,7 @@ import type { CliBackend, ColonyComment } from '../shared/types'
 import { trackOpened, trackClosed } from './recent-sessions'
 import { broadcast } from './broadcast'
 import { buildMcpConfig, cleanMcpConfigFile } from './mcp-catalog'
+import { setRateLimited } from './rate-limit-state'
 import { scanNewCommits } from './commit-attributor'
 import { markChecklistItem } from './onboarding-state'
 import { appendActivity } from './activity-manager'
@@ -166,6 +167,12 @@ export function wireDaemonEvents(): void {
       `${name}: ${toolName || 'A tool'} needs approval`,
       { type: 'session', id: instanceId }, 'session'
     )
+  })
+
+  // Rate limit detection — pause Colony crons
+  router.on('rateLimitDetected', (_instanceId: string, retryAfterSecs: number | null, rawMessage: string) => {
+    console.warn(`[instance-manager] rate limit detected: ${rawMessage.slice(0, 100)}`)
+    setRateLimited(retryAfterSecs, rawMessage)
   })
 
   // Forward exit events + handle auto-cleanup + track session closure

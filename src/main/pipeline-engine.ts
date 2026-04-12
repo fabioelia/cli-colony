@@ -25,6 +25,7 @@ import { notify } from './notifications'
 import { matchRules, estimateActionCost } from './approval-rules'
 import { waitForSessionCompletion } from './session-completion'
 import { tagArtifactPipeline } from './session-artifacts'
+import { isRateLimited, getRateLimitState } from './rate-limit-state'
 
 export async function pathExists(p: string): Promise<boolean> {
   try { await fsp.access(p); return true } catch { return false }
@@ -1435,6 +1436,11 @@ async function schedulePipeline(name: string, def: PipelineDef): Promise<void> {
 
       if (cronMatches(cronExpr, now) && cronKey !== lastCronKey) {
         lastCronKey = cronKey
+        if (isRateLimited()) {
+          const rl = getRateLimitState()
+          log(`Skipped ${name} — rate limit pause active until ${rl.resetAt ? new Date(rl.resetAt).toLocaleTimeString() : 'unknown'}`)
+          return
+        }
         log(`Cron matched for ${name} at ${now.toLocaleTimeString()}`)
         runPoll(name)
       }
@@ -1446,8 +1452,12 @@ async function schedulePipeline(name: string, def: PipelineDef): Promise<void> {
     const startupTimer = setTimeout(() => {
       startupTimers.delete(startupTimer)
       if (cronMatches(cronExpr)) {
-        log(`Cron matches on startup for ${name}`)
-        runPoll(name)
+        if (isRateLimited()) {
+          log(`Skipped startup fire for ${name} — rate limit pause active`)
+        } else {
+          log(`Cron matches on startup for ${name}`)
+          runPoll(name)
+        }
       }
     }, 10000)
     startupTimers.add(startupTimer)

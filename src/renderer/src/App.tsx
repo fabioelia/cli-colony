@@ -96,6 +96,8 @@ export default function App() {
   const [arenaStatsOpen, setArenaStatsOpen] = useState(false)
   const [arenaStats, setArenaStats] = useState<ArenaStats>({})
   const [arenaLaunchOpen, setArenaLaunchOpen] = useState(false)
+  const [arenaLaunchMode, setArenaLaunchMode] = useState<'quick' | 'full'>('full')
+  const [arenaQuickContext, setArenaQuickContext] = useState<{ repo: string; branch: string } | undefined>()
   const [arenaWorktreeIds, setArenaWorktreeIds] = useState<string[]>([])
   const [arenaLeaderboardOpen, setArenaLeaderboardOpen] = useState(false)
   const [arenaReplayPrefill, setArenaReplayPrefill] = useState<{
@@ -119,6 +121,9 @@ export default function App() {
   const [daemonUnresponsive, setDaemonUnresponsive] = useState(false)
   const [upgradeState, setUpgradeState] = useState<'idle' | 'upgrading' | 'draining' | 'complete'>('idle')
   const [drainRemaining, setDrainRemaining] = useState(0)
+  const [rateLimitState, setRateLimitState] = useState<{ paused: boolean; resetAt: number | null; lastError: string; detectedAt: number | null }>({ paused: false, resetAt: null, lastError: '', detectedAt: null })
+  const [rateLimitDismissed, setRateLimitDismissed] = useState(false)
+  const [rateLimitCountdown, setRateLimitCountdown] = useState('')
   const [envPromptRequest, setEnvPromptRequest] = useState<{ requestId: string; envId: string; hookName: string; prompt: string; promptType: string; defaultPath?: string; defaultPathValid?: boolean; options?: string[] } | null>(null)
   const [showWelcome, setShowWelcome] = useState(false)
   const [forkModalInst, setForkModalInst] = useState<ClaudeInstance | null>(null)
@@ -192,8 +197,38 @@ export default function App() {
       setUpgradeState('complete')
       setTimeout(() => setUpgradeState('idle'), 3000)
     })
-    return () => { unsubVersion(); unsubFailed(); unsubUnresponsive(); unsubUpgradeStarted(); unsubUpgradeDraining(); unsubUpgradeComplete() }
+    // Rate limit monitoring
+    window.api.colony.rateLimitStatus().then((s) => {
+      setRateLimitState(s)
+      if (!s.paused) setRateLimitDismissed(false)
+    }).catch(() => {})
+    const unsubRateLimit = window.api.colony.onRateLimitChange((s) => {
+      setRateLimitState(s)
+      if (!s.paused) setRateLimitDismissed(false)
+    })
+    return () => { unsubVersion(); unsubFailed(); unsubUnresponsive(); unsubUpgradeStarted(); unsubUpgradeDraining(); unsubUpgradeComplete(); unsubRateLimit() }
   }, [])
+
+  // Rate limit countdown timer
+  useEffect(() => {
+    if (!rateLimitState.paused || !rateLimitState.resetAt) {
+      setRateLimitCountdown('')
+      return
+    }
+    const tick = () => {
+      const remaining = Math.max(0, rateLimitState.resetAt! - Date.now())
+      if (remaining <= 0) {
+        setRateLimitCountdown('now')
+        return
+      }
+      const mins = Math.floor(remaining / 60000)
+      const secs = Math.floor((remaining % 60000) / 1000)
+      setRateLimitCountdown(mins > 0 ? `${mins}m ${secs}s` : `${secs}s`)
+    }
+    tick()
+    const interval = setInterval(tick, 1000)
+    return () => clearInterval(interval)
+  }, [rateLimitState.paused, rateLimitState.resetAt])
 
   // Listen for environment prompt requests (file picker etc.) — must be at app level
   // so it works regardless of which panel is active
@@ -348,6 +383,9 @@ export default function App() {
       }),
       window.api.shortcuts.onQuickPrompt(() => {
         setQuickPromptOpen(true)
+      }),
+      window.api.shortcuts.onQuickCompare(() => {
+        handleQuickCompare()
       }),
       window.api.shortcuts.onNavigate((route) => {
         if (typeof route === 'string') {
@@ -874,8 +912,23 @@ export default function App() {
       prompt: match.prompt ?? '',
     })
     setArenaLeaderboardOpen(false)
+    setArenaLaunchMode('full')
     setArenaLaunchOpen(true)
   }, [])
+
+  const handleQuickCompare = useCallback(() => {
+    setCmdPaletteOpen(false)
+    // Infer repo/branch from the active session
+    const active = regularInstances.find(i => i.id === activeId)
+    if (active?.gitRepo && active?.gitBranch) {
+      setArenaQuickContext({ repo: active.gitRepo, branch: active.gitBranch })
+    } else {
+      setArenaQuickContext(undefined)
+    }
+    setArenaLaunchMode('quick')
+    setArenaReplayPrefill(null)
+    setArenaLaunchOpen(true)
+  }, [activeId, regularInstances])
 
   const handleArenaCleanup = useCallback(async () => {
     if (arenaWorktreeIds.length === 0) return
@@ -1349,6 +1402,14 @@ export default function App() {
         </div>,
         document.body
       )}
+      {rateLimitState.paused && !rateLimitDismissed && createPortal(
+        <div className="daemon-update-banner rate-limit-banner">
+          <span>API rate limit reached — Colony paused. {rateLimitCountdown && rateLimitCountdown !== 'now' ? `Resumes in ${rateLimitCountdown}` : 'Resuming...'}</span>
+          <button onClick={() => { window.api.colony.resumeCrons(); setRateLimitDismissed(true) }}>Resume Crons</button>
+          <button className="daemon-update-dismiss" onClick={() => setRateLimitDismissed(true)}>Dismiss</button>
+        </div>,
+        document.body
+      )}
       <Sidebar
         instances={instances}
         activeId={activeId}
@@ -1532,7 +1593,7 @@ export default function App() {
             <div style={{ flex: 1 }} />
             <button
               className="grid-arena-toggle"
-              onClick={() => setArenaLaunchOpen(true)}
+              onClick={() => { setArenaLaunchMode('full'); setArenaLaunchOpen(true) }}
               title="Launch Arena — create worktrees and spawn parallel sessions"
               aria-label="Launch Arena"
             >
@@ -2007,6 +2068,7 @@ export default function App() {
         onRunPersona={(id) => { window.api.persona.run(id); setView('personas') }}
         onLaunchAgent={handleLaunchAgent}
         onOpenQuickPrompt={() => { setCmdPaletteOpen(false); setQuickPromptOpen(true) }}
+        onQuickCompare={handleQuickCompare}
       />
 
       {showShortcuts && <ShortcutOverlay onClose={() => setShowShortcuts(false)} />}
@@ -2104,9 +2166,11 @@ export default function App() {
       )}
       {arenaLaunchOpen && (
         <ArenaLaunchDialog
-          onClose={() => { setArenaLaunchOpen(false); setArenaReplayPrefill(null) }}
+          onClose={() => { setArenaLaunchOpen(false); setArenaReplayPrefill(null); setArenaQuickContext(undefined) }}
           onLaunch={handleArenaLaunch}
           prefill={arenaReplayPrefill ?? undefined}
+          mode={arenaLaunchMode}
+          quickContext={arenaQuickContext}
         />
       )}
       {arenaJudgeOpen && (

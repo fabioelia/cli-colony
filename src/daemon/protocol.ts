@@ -63,6 +63,7 @@ export type DaemonEvent =
   | { type: 'list-changed'; instances: ClaudeInstance[] }
   | { type: 'comments'; instanceId: string; comments: unknown[] }
   | { type: 'tool-deferred'; instanceId: string; sessionId: string; toolName?: string }
+  | { type: 'rateLimitDetected'; instanceId: string; retryAfterSecs: number | null; rawMessage: string }
   | { type: 'pong' }
 
 export type DaemonMessage = DaemonResponse | DaemonEvent
@@ -74,7 +75,7 @@ export type DaemonMessage = DaemonResponse | DaemonEvent
  * requires a daemon restart to pick up. The client checks this on connect
  * and shows a banner if stale.
  */
-export const DAEMON_VERSION = 33
+export const DAEMON_VERSION = 34
 
 export const SOCKET_PATH_SUFFIX = '.claude-colony/daemon.sock'
 export const PID_PATH_SUFFIX = '.claude-colony/daemon.pid'

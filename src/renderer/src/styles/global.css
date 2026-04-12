@@ -178,6 +178,11 @@ input, select {
   background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
 }
 
+/* Rate limit banner — red variant for API rate limit pauses */
+.rate-limit-banner {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+}
+
 /* App update banner — same pattern as daemon banner, stacked below it */
 .app-update-banner {
   position: fixed;

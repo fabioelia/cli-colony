@@ -92,6 +92,7 @@ export class DaemonRouter extends EventEmitter {
     })
     client.on('comments', (id: string, comments: ColonyComment[]) => this.emit('comments', id, comments))
     client.on('tool-deferred', (id: string, sid: string, tool?: string) => this.emit('tool-deferred', id, sid, tool))
+    client.on('rateLimitDetected', (id: string, retryAfterSecs: number | null, rawMessage: string) => this.emit('rateLimitDetected', id, retryAfterSecs, rawMessage))
     client.on('version-mismatch', (info: { running: number; expected: number }) => {
       // Only emit mismatch from primary — the next daemon is always the right version
       if (client === this.primary) this.emit('version-mismatch', info)

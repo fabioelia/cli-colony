@@ -224,6 +224,16 @@ export function registerIpcHandlers(): void {
     return filePath
   })
 
+  // ---- Rate Limit ----
+  ipcMain.handle('colony:rateLimitStatus', () => {
+    const { getRateLimitState } = require('./rate-limit-state')
+    return getRateLimitState()
+  })
+  ipcMain.handle('colony:resumeCrons', () => {
+    const { resumeCrons } = require('./rate-limit-state')
+    resumeCrons()
+  })
+
   // ---- Window Management ----
   ipcMain.handle('window:toggleFullScreen', (_e) => {
     const { BrowserWindow } = require('electron')

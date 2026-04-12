@@ -61,6 +61,9 @@ export class DaemonClient extends BaseDaemonClient {
       case 'tool-deferred':
         this.emit('tool-deferred', msg.instanceId, msg.sessionId, msg.toolName)
         break
+      case 'rateLimitDetected':
+        this.emit('rateLimitDetected', msg.instanceId, msg.retryAfterSecs, msg.rawMessage)
+        break
       case 'pong':
         break
     }
