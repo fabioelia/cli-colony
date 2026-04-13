@@ -240,6 +240,8 @@ function toSerializable(inst: InternalInstance): ClaudeInstance {
     toolDeferredInfo: inst.toolDeferredInfo,
     note: inst.note,
     permissionMode: inst.permissionMode,
+    pipelineName: inst.pipelineName,
+    pipelineRunId: inst.pipelineRunId,
     daemonId: DAEMON_ID,
   }
 }
@@ -370,6 +372,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
       tokenUsage: { input: 0, output: 0 },
       pinned: false, mcpServers: [], roleTag: null,
       permissionMode: opts.permissionMode,
+      pipelineName: opts.pipelineName, pipelineRunId: opts.pipelineRunId,
       parentId: opts.parentId || null, childIds: [],
       pty: null, outputBuffer: [`Failed to spawn ${spawnCmd}: ${spawnErr}\r\n`], _joinedCache: null,
       cleanupTimer: null, _lastSnapshot: '', _lastBufferLen: 0, _activityInterval: null, _handoffRequested: false, _handoffPollInterval: null, _userInputReceived: false,
@@ -388,6 +391,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
     tokenUsage: { input: 0, output: 0 },
     pinned: false, mcpServers: [], roleTag: null,
     permissionMode: opts.permissionMode,
+    pipelineName: opts.pipelineName, pipelineRunId: opts.pipelineRunId,
     parentId: opts.parentId || null, childIds: [],
     pty: ptyProcess, outputBuffer: [], _joinedCache: null,
     cleanupTimer: null, _lastSnapshot: '', _lastBufferLen: 0, _activityInterval: null, _handoffRequested: false, _handoffPollInterval: null, _userInputReceived: false,

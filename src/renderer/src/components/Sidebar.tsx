@@ -492,7 +492,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     return () => clearInterval(id)
   }, [])
 
-  type GroupBy = 'none' | 'persona' | 'project' | 'status'
+  type GroupBy = 'none' | 'persona' | 'project' | 'status' | 'pipeline'
   const [groupBy, setGroupBy] = useState<GroupBy>(() => (localStorage.getItem('sidebar-group-by') as GroupBy) || 'none')
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(localStorage.getItem('sidebar-collapsed-groups') || '[]')) } catch { return new Set() }
@@ -559,6 +559,11 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
         return 'Manual'
       }
       if (groupBy === 'project') return dirName(inst.workingDirectory)
+      if (groupBy === 'pipeline') {
+        return inst.pipelineRunId
+          ? `${inst.pipelineName || 'Pipeline'} · ${new Date(parseInt(inst.pipelineRunId.split('-')[0])).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+          : 'Manual Sessions'
+      }
       // status
       return inst.status === 'running' ? (inst.activity === 'busy' ? 'Busy' : 'Idle') : 'Stopped'
     }
@@ -1290,6 +1295,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             <option value="persona">By Persona</option>
             <option value="project">By Project</option>
             <option value="status">By Status</option>
+            <option value="pipeline">By Pipeline</option>
           </select>
           {customOrder.length > 0 && groupBy === 'none' && (
             <Tooltip text="Reset to default session order" position="bottom">
@@ -1416,6 +1422,12 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                 onClick={() => toggleGroupCollapse(label)}
               >
                 {collapsedGroups.has(label) ? <ChevronRight size={11} /> : <ChevronDown size={11} />}
+                {groupBy === 'pipeline' && label !== 'Manual Sessions' && (() => {
+                  const hasRunning = items.some(i => i.status === 'running')
+                  const hasFailed = items.some(i => i.status === 'exited' && i.exitCode !== 0)
+                  const color = hasFailed ? 'var(--danger)' : hasRunning ? 'var(--accent)' : 'var(--success)'
+                  return <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: color, marginRight: 4, flexShrink: 0 }} />
+                })()}
                 {label}
                 <span className="session-group-count">{items.length}</span>
               </div>

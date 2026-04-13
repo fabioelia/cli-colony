@@ -308,6 +308,8 @@ export async function createInstance(opts: {
   model?: string
   permissionMode?: 'autonomous' | 'supervised'
   env?: Record<string, string>
+  pipelineName?: string
+  pipelineRunId?: string
 }): Promise<ClaudeInstance> {
   const defaultArgs = await getDefaultArgs()
   const home = app.getPath('home')

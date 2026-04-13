@@ -224,7 +224,7 @@ async function appendReviewRules(memPath: string, observations: string): Promise
  * Iterates up to maxIterations times. Completes when checker says APPROVED
  * or iterations are exhausted.
  */
-export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<{ cost: number; sessionId?: string }> {
+export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pipelineName: string, pipelineMeta?: { pipelineName: string; pipelineRunId: string }): Promise<{ cost: number; sessionId?: string }> {
   const { makerPrompt, checkerPrompt, approvedKeyword = 'APPROVED', maxIterations = 3 } = action
   if (!makerPrompt || !checkerPrompt) {
     log(`maker-checker: missing makerPrompt or checkerPrompt for "${pipelineName}"`)
@@ -276,6 +276,7 @@ export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pi
       color: action.color,
       args: ['--append-system-prompt-file', makerPromptFile],
       model: action.model,
+      ...pipelineMeta,
     })
     lastMakerSessionId = makerInst.id
 
@@ -324,6 +325,7 @@ export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pi
       color: action.color,
       args: ['--append-system-prompt-file', checkerPromptFile],
       model: action.model,
+      ...pipelineMeta,
     })
 
     const checkerCompletionPromise = waitForSessionCompletion(checkerInst.id)
@@ -375,7 +377,7 @@ export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pi
  * APPROVED/LGTM. If not approved and auto_fix is set, launch a fixer session and retry.
  * On final failure, creates an approval gate with the review text.
  */
-export async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<{ cost: number; responseSnippet?: string; sessionId?: string }> {
+export async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipelineName: string, pipelineMeta?: { pipelineName: string; pipelineRunId: string }): Promise<{ cost: number; responseSnippet?: string; sessionId?: string }> {
   const {
     diffBase = 'HEAD~1',
     prompt = 'Review this diff for issues. Reply APPROVED if clean, or list issues.',
@@ -446,6 +448,7 @@ export async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipe
       color: action.color,
       args: ['--append-system-prompt-file', promptFile],
       model: action.model,
+      ...pipelineMeta,
     })
     if (!firstReviewerSessionId) firstReviewerSessionId = reviewerInst.id
 
@@ -488,6 +491,7 @@ export async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipe
         color: action.color,
         args: ['--append-system-prompt-file', fixerPromptFile],
         model: action.model,
+        ...pipelineMeta,
       })
       const fixerCompletion = waitForSessionCompletion(fixerInst.id)
       await sendPromptWhenReady(fixerInst.id, { prompt: 'Execute the instructions in your system prompt. Begin now.' })
@@ -530,7 +534,7 @@ export async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipe
  * then gate on human approval (by default) before the pipeline continues.
  * Writes the plan to an artifact file so subsequent stages can consume it via handoffInputs.
  */
-export async function runPlanStage(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<{ cost: number; responseSnippet?: string; sessionId?: string }> {
+export async function runPlanStage(action: ActionDef, ctx: TriggerContext, pipelineName: string, pipelineMeta?: { pipelineName: string; pipelineRunId: string }): Promise<{ cost: number; responseSnippet?: string; sessionId?: string }> {
   const planKeyword = action.plan_keyword ?? 'PLAN_READY'
   const requireApproval = action.require_approval !== false // default true
   const rawPrompt = resolveTemplate(action.prompt || '', ctx)
@@ -567,6 +571,7 @@ export async function runPlanStage(action: ActionDef, ctx: TriggerContext, pipel
     args: ['--append-system-prompt-file', promptFile],
     mcpServers: action.mcpServers,
     model: action.model,
+    ...pipelineMeta,
   })
 
   const completionPromise = waitForSessionCompletion(plannerInst.id, 5 * 60 * 1000)
@@ -645,6 +650,7 @@ export async function runParallel(
   ctx: TriggerContext,
   pipelineName: string,
   fireAction: (action: ActionDef, ctx: TriggerContext, pipelineName: string) => Promise<{ cost: number; sessionId?: string }>,
+  _pipelineMeta?: { pipelineName: string; pipelineRunId: string },
 ): Promise<{ cost: number; subStages: PipelineStageTrace[] }> {
   const { stages = [], fail_fast = true } = action
   const baseName = resolveTemplate(action.name || pipelineName, ctx)
@@ -778,6 +784,7 @@ export async function runBestOfN(
   action: ActionDef,
   ctx: TriggerContext,
   pipelineName: string,
+  pipelineMeta?: { pipelineName: string; pipelineRunId: string },
 ): Promise<{ cost: number; subStages: PipelineStageTrace[] }> {
   const n = Math.max(2, Math.min(8, action.n ?? 3))
   const repo = action.repo
@@ -802,6 +809,7 @@ export async function runBestOfN(
       name: `${baseName} [${i + 1}/${n}]`,
       workingDirectory: wt.path,
       ...(model ? { args: ['--model', model] } : {}),
+      ...pipelineMeta,
     })
     contestants.push({ worktreeId: wt.id, worktreePath: wt.path, instanceId: inst.id })
   }
@@ -877,6 +885,7 @@ export async function runBestOfN(
     const judgeInst = await createInstance({
       name: `${baseName} [Judge]`,
       workingDirectory: contestants[0].worktreePath,
+      ...pipelineMeta,
     })
 
     const judgeReady = waitForSessionCompletion(judgeInst.id, 600_000)

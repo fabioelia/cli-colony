@@ -715,26 +715,28 @@ async function fireActionWithRetry(
   throw lastError
 }
 
-async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: string): Promise<{ cost: number; responseSnippet?: string; subStages?: PipelineStageTrace[]; sessionId?: string }> {
+async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: string, runId?: string): Promise<{ cost: number; responseSnippet?: string; subStages?: PipelineStageTrace[]; sessionId?: string }> {
   markChecklistItem('ranPipeline')
+  const effectiveRunId = runId || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const pipelineMeta = { pipelineName, pipelineRunId: effectiveRunId }
   if (action.type === 'maker-checker') {
-    const mc = await runMakerChecker(action, ctx, pipelineName)
+    const mc = await runMakerChecker(action, ctx, pipelineName, pipelineMeta)
     return { cost: mc.cost, sessionId: mc.sessionId }
   }
   if (action.type === 'diff_review') {
-    return runDiffReview(action, ctx, pipelineName)
+    return runDiffReview(action, ctx, pipelineName, pipelineMeta)
   }
   if (action.type === 'parallel') {
-    return runParallel(action, ctx, pipelineName, fireAction)
+    return runParallel(action, ctx, pipelineName, (a, c, n) => fireAction(a, c, n, effectiveRunId), pipelineMeta)
   }
   if (action.type === 'plan') {
-    return runPlanStage(action, ctx, pipelineName)
+    return runPlanStage(action, ctx, pipelineName, pipelineMeta)
   }
   if (action.type === 'wait_for_session') {
     return runWaitForSession(action, pipelineName)
   }
   if (action.type === 'best-of-n') {
-    return runBestOfN(action, ctx, pipelineName)
+    return runBestOfN(action, ctx, pipelineName, pipelineMeta)
   }
 
   const rawName = resolveTemplate(action.name || 'Pipeline Session', ctx)
@@ -840,6 +842,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
         args: ['--resume', route.sessionId, '--append-system-prompt-file', promptFile],
         mcpServers: action.mcpServers,
         model: action.model,
+        ...pipelineMeta,
       })
       await sendPromptWhenReady(inst.id, { prompt: 'Execute the instructions in your system prompt. Begin now.' })
       broadcast('pipeline:fired', { pipeline: name, instanceId: inst.id, routed: true, resumed: true })
@@ -851,7 +854,6 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
 
   // ---- Launch new session (fallback when reuse finds nothing) ----
   if (action.type !== 'launch-session') return { cost: 0 }
-  const runId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
   // If no working directory resolved, try to infer from running sessions in same repo
   let resolvedCwd = cwd
@@ -886,6 +888,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
     args: ['--append-system-prompt-file', promptFile],
     mcpServers: action.mcpServers,
     model: action.model,
+    ...pipelineMeta,
   })
 
   // Full prompt is in the system prompt file — just send a trigger
@@ -903,7 +906,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
     client.removeListener('activity', onFinished)
     clearTimeout(autoCloseTimeout)
     log(`pipeline session ${inst.id} finished, killing in 5s`)
-    tagArtifactPipeline(inst.id, runId).catch(() => {})
+    tagArtifactPipeline(inst.id, effectiveRunId).catch(() => {})
     // Append captured decisions to living spec if specAppend is configured
     if (action.specAppend && specDecisionsFile) {
       (async () => {
@@ -930,7 +933,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
     autoCloseResolved = true
     client.removeListener('activity', onFinished)
     log(`pipeline session ${inst.id} still running after ${autoCloseMinutes}min, force-killing`)
-    tagArtifactPipeline(inst.id, runId).catch(() => {})
+    tagArtifactPipeline(inst.id, effectiveRunId).catch(() => {})
     try { await killInstance(inst.id) } catch { /* already gone */ }
   }, autoCloseMinutes * 60_000)
 

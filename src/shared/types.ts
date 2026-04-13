@@ -36,6 +36,8 @@ export interface ClaudeInstance {
   note?: string
   budgetExceeded?: boolean
   daemonId?: string
+  pipelineName?: string
+  pipelineRunId?: string
 }
 
 export interface AgentDef {
