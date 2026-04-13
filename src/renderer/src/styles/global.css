@@ -2331,11 +2331,16 @@ body:has(.daemon-update-banner) .app-update-banner {
   padding: var(--titlebar-pad) 16px 8px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   background: var(--bg-primary);
   border-bottom: 2px solid var(--border);
-  -webkit-app-region: drag;
+  -webkit-app-region: no-drag;
   position: relative;
+}
+.terminal-header-spacer {
+  flex: 1;
+  min-width: 8px;
+  align-self: stretch;
+  -webkit-app-region: drag;
 }
 
 .terminal-header-accent {
@@ -2350,7 +2355,6 @@ body:has(.daemon-update-banner) .app-update-banner {
   display: flex;
   align-items: center;
   gap: 10px;
-  -webkit-app-region: no-drag;
 }
 
 .terminal-header-name {
@@ -2370,7 +2374,9 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-radius: 6px;
   padding: 3px;
   border: 1px solid var(--border);
-  -webkit-app-region: no-drag;
+  overflow-x: auto;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .terminal-tab {
@@ -2385,6 +2391,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   transition: all 0.15s;
   cursor: pointer;
   position: relative;
+  flex-shrink: 0;
 }
 
 .terminal-tab.active {
@@ -2443,7 +2450,6 @@ body:has(.daemon-update-banner) .app-update-banner {
 .terminal-header-actions {
   display: flex;
   gap: 6px;
-  -webkit-app-region: no-drag;
 }
 
 .terminal-header-actions button {
@@ -15272,14 +15278,6 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: rgba(245, 158, 11, 0.15);
 }
 
-.env-purpose-debug {
-  background: rgba(245, 158, 11, 0.15);
-  color: var(--warning);
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-}
-
 .env-service-debug-port {
   color: var(--warning);
   font-style: italic;
@@ -15468,6 +15466,13 @@ body:has(.daemon-update-banner) .app-update-banner {
 .env-purpose-nightly {
   background: rgba(148, 163, 184, 0.15);
   color: #94a3b8;
+}
+.env-purpose-debug {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warning);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 
 .env-purpose-filter-btn {
