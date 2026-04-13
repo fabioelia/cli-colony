@@ -582,7 +582,7 @@ export default function ArtifactsPanel() {
                 <div style={{ padding: '0 10px 10px 30px', fontSize: 12 }}>
                   {/* Summary line */}
                   {artifact.summary && (
-                    <div style={{ marginBottom: 8, fontSize: 12, opacity: 0.85, fontStyle: 'italic' }}>
+                    <div style={{ marginBottom: 8, fontSize: 12, color: 'var(--text-secondary)' }}>
                       {artifact.summary}
                     </div>
                   )}

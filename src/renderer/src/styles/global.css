@@ -2263,7 +2263,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
-  opacity: 0.75;
+  margin-top: 2px;
 }
 
 /* Show actions on hover, hide status */
