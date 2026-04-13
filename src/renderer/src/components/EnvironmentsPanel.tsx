@@ -1380,9 +1380,11 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                     try {
                       await window.api.worktree.create(
                         repo.owner,
-                        wtName.trim() || wtBranch.trim(),
+                        repo.name,
                         wtBranch.trim(),
-                        `${repo.owner}/${repo.name}`
+                        `${repo.owner}/${repo.name}`,
+                        undefined,
+                        wtName.trim() || undefined
                       )
                       setShowCreateWorktree(false)
                       setWtBranch('')
