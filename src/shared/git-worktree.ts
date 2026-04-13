@@ -20,7 +20,7 @@ import { colonyPaths } from './colony-paths'
 import { loadShellEnv } from './shell-env'
 
 function getEnv(): Record<string, string> {
-  return loadShellEnv()
+  return { ...loadShellEnv(), GIT_TERMINAL_PROMPT: '0' }
 }
 
 function gitExec(cmd: string, opts?: { cwd?: string; timeout?: number }): string {
@@ -64,6 +64,11 @@ export async function ensureBareRepo(
   name: string,
   remoteUrl: string,
 ): Promise<string> {
+  // GitHub normalizes repo names: spaces → hyphens, and they're case-insensitive.
+  // Sanitize to avoid invalid URLs and filesystem paths.
+  name = name.replace(/\s+/g, '-')
+  owner = owner.replace(/\s+/g, '-')
+  remoteUrl = remoteUrl.replace(/\s+/g, '-')
   const bareDir = colonyPaths.bareRepoDir(owner, name)
 
   if (fs.existsSync(bareDir)) {
@@ -103,25 +108,19 @@ export async function ensureBareRepo(
     fs.mkdirSync(parentDir, { recursive: true })
   }
 
-  // Clone bare — try the provided URL first, fall back to the other protocol
+  // Clone bare — use the provided URL (respects user's git protocol setting)
   try {
     await gitExecAsync(`git clone --bare "${remoteUrl}" "${bareDir}"`, { timeout: 300000 })
-  } catch (primaryErr: any) {
-    // Try fallback protocol
-    const isHttps = remoteUrl.startsWith('https://')
-    const fallbackUrl = isHttps
-      ? `git@github.com:${owner}/${name}.git`
-      : `https://github.com/${owner}/${name}.git`
-    try {
-      await gitExecAsync(`git clone --bare "${fallbackUrl}" "${bareDir}"`, { timeout: 300000 })
-    } catch (fallbackErr: any) {
-      throw new Error(
-        `Failed to create bare repo for ${owner}/${name}.\n` +
-        `Primary error: ${primaryErr.message}\n` +
-        `Fallback error: ${fallbackErr.message}\n` +
-        `Check your network connection and git credentials.`
-      )
-    }
+  } catch (err: any) {
+    // Clean up partial clone directory
+    try { fs.rmSync(bareDir, { recursive: true, force: true }) } catch { /* */ }
+    const protocol = remoteUrl.startsWith('https://') ? 'HTTPS' : 'SSH'
+    throw new Error(
+      `Failed to clone bare repo for ${owner}/${name} via ${protocol}.\n` +
+      `URL: ${remoteUrl}\n` +
+      `Error: ${err.message}\n` +
+      `Check your network connection and git credentials (Settings → Git Protocol).`
+    )
   }
 
   // Configure the bare repo to fetch all branches (bare clones sometimes have

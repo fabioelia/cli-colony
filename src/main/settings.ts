@@ -84,6 +84,9 @@ export async function setSetting(key: string, value: string): Promise<void> {
  * Setting: gitProtocol = 'ssh' (default) | 'https'
  */
 export async function gitRemoteUrl(owner: string, name: string): Promise<string> {
+  // GitHub normalizes spaces → hyphens in repo/owner names
+  owner = owner.replace(/\s+/g, '-')
+  name = name.replace(/\s+/g, '-')
   const protocol = await getSetting('gitProtocol') || 'ssh'
   if (protocol === 'https') {
     return `https://github.com/${owner}/${name}.git`
