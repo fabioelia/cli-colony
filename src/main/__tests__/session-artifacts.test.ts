@@ -46,8 +46,8 @@ function setupMocks(existingArtifacts?: string) {
       sessionArtifacts: MOCK_ARTIFACTS_PATH,
     },
   }))
-  vi.doMock('../daemon-client', () => ({
-    getDaemonClient: () => ({
+  vi.doMock('../daemon-router', () => ({
+    getDaemonRouter: () => ({
       getInstance: mockGetInstance,
     }),
   }))

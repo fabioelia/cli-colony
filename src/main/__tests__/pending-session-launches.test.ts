@@ -21,6 +21,7 @@ function setupMocks(): void {
   }))
   vi.doMock('../env-manager', () => ({
     getEnvironmentLogs: mockGetEnvironmentLogs,
+    getDebugMcpArgs: vi.fn().mockResolvedValue([]),
   }))
   vi.doMock('../send-prompt-when-ready', () => ({
     sendPromptWhenReady: mockSendPromptWhenReady,

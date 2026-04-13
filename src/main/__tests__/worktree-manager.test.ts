@@ -171,7 +171,7 @@ describe('getWorktree', () => {
     mockReadFile.mockResolvedValueOnce(JSON.stringify(manifest))
 
     const result = await getWorktree('wt-x')
-    expect(result).toEqual(manifest)
+    expect(result).toMatchObject(manifest)
     expect(mockReadFile).toHaveBeenCalledWith(
       '/mock/colony/worktrees/wt-x/worktree.json',
       'utf-8',

@@ -37,8 +37,8 @@ vi.mock('../../shared/colony-paths', () => ({
 
 vi.mock('../broadcast', () => ({ broadcast: mockBroadcast }))
 
-vi.mock('../daemon-client', () => ({
-  getDaemonClient: () => ({
+vi.mock('../daemon-router', () => ({
+  getDaemonRouter: () => ({
     getInstance: mockGetInstance,
     writeToInstance: mockWriteToInstance,
   }),

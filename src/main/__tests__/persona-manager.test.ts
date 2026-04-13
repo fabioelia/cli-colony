@@ -163,6 +163,7 @@ function setupMocks(fsMock: ReturnType<typeof buildFsMock>) {
     setCostCapResolver: vi.fn(),
   }))
   vi.doMock('../daemon-client', () => ({ getDaemonClient: mockGetDaemonClient }))
+  vi.doMock('../daemon-router', () => ({ getDaemonRouter: () => mockGetDaemonClient() }))
   vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: mockSendPromptWhenReady }))
   vi.doMock('../colony-context', () => ({ updateColonyContext: mockUpdateColonyContext }))
   vi.doMock('../../shared/cron', () => ({ cronMatches: mockCronMatches }))

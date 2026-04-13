@@ -45,7 +45,6 @@ function makeMockClient(bufferContent = '') {
 type MockClient = ReturnType<typeof makeMockClient>
 
 let mockClient: MockClient
-const mockGetDaemonClient = vi.hoisted(() => vi.fn())
 
 // ---- Setup / teardown ----
 
@@ -53,8 +52,7 @@ beforeEach(() => {
   vi.resetModules()
   vi.useFakeTimers()
   mockClient = makeMockClient()
-  mockGetDaemonClient.mockReturnValue(mockClient)
-  vi.doMock('../daemon-client', () => ({ getDaemonClient: mockGetDaemonClient }))
+  vi.doMock('../daemon-router', () => ({ getDaemonRouter: () => mockClient }))
 })
 
 afterEach(() => {

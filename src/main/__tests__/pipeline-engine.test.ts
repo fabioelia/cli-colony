@@ -122,6 +122,7 @@ function setupMocks(fsMock: ReturnType<typeof buildFsMock>) {
     getAllInstances: vi.fn().mockResolvedValue([]),
   }))
   vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
+  vi.doMock('../daemon-router', () => ({ getDaemonRouter: vi.fn() }))
   vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
   vi.doMock('../notifications', () => ({ notify: vi.fn() }))
   vi.doMock('../github', () => ({
@@ -779,13 +780,17 @@ describe('pipeline-engine: auto-pause on consecutive failures', () => {
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
     }))
+    const mockDaemonClientObjAuto = {
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
+      writeToInstance: vi.fn(),
+    }
     vi.doMock('../daemon-client', () => ({
-      getDaemonClient: vi.fn().mockReturnValue({
-        on: vi.fn(),
-        removeListener: vi.fn(),
-        getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
-        writeToInstance: vi.fn(),
-      }),
+      getDaemonClient: vi.fn().mockReturnValue(mockDaemonClientObjAuto),
+    }))
+    vi.doMock('../daemon-router', () => ({
+      getDaemonRouter: () => mockDaemonClientObjAuto,
     }))
     vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
     vi.doMock('../github', () => ({
@@ -1018,13 +1023,17 @@ describe('pipeline-engine: approval gates', () => {
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
     }))
+    const mockDaemonClientObjApproval = {
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
+      writeToInstance: vi.fn(),
+    }
     vi.doMock('../daemon-client', () => ({
-      getDaemonClient: vi.fn().mockReturnValue({
-        on: vi.fn(),
-        removeListener: vi.fn(),
-        getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
-        writeToInstance: vi.fn(),
-      }),
+      getDaemonClient: vi.fn().mockReturnValue(mockDaemonClientObjApproval),
+    }))
+    vi.doMock('../daemon-router', () => ({
+      getDaemonRouter: () => mockDaemonClientObjApproval,
     }))
     vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
     vi.doMock('../github', () => ({
@@ -1259,13 +1268,17 @@ describe('pipeline-engine: approval expiry (sweepExpiredApprovals)', () => {
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
     }))
+    const mockDaemonClientObjTtl = {
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
+      writeToInstance: vi.fn(),
+    }
     vi.doMock('../daemon-client', () => ({
-      getDaemonClient: vi.fn().mockReturnValue({
-        on: vi.fn(),
-        removeListener: vi.fn(),
-        getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
-        writeToInstance: vi.fn(),
-      }),
+      getDaemonClient: vi.fn().mockReturnValue(mockDaemonClientObjTtl),
+    }))
+    vi.doMock('../daemon-router', () => ({
+      getDaemonRouter: () => mockDaemonClientObjTtl,
     }))
     vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
     vi.doMock('../github', () => ({
@@ -1540,13 +1553,17 @@ describe('pipeline-engine: file-poll trigger', () => {
       createInstance: fpCreateInstance,
       getAllInstances: fpGetAllInstances,
     }))
+    const mockDaemonClientObjFp = {
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
+      writeToInstance: vi.fn(),
+    }
     vi.doMock('../daemon-client', () => ({
-      getDaemonClient: vi.fn().mockReturnValue({
-        on: vi.fn(),
-        removeListener: vi.fn(),
-        getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
-        writeToInstance: vi.fn(),
-      }),
+      getDaemonClient: vi.fn().mockReturnValue(mockDaemonClientObjFp),
+    }))
+    vi.doMock('../daemon-router', () => ({
+      getDaemonRouter: () => mockDaemonClientObjFp,
     }))
     vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
     vi.doMock('../notifications', () => ({ notify: vi.fn() }))
@@ -1719,13 +1736,17 @@ dedup:
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
     }))
+    const mockDaemonClientObjArt = {
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
+      writeToInstance: vi.fn(),
+    }
     vi.doMock('../daemon-client', () => ({
-      getDaemonClient: vi.fn().mockReturnValue({
-        on: vi.fn(),
-        removeListener: vi.fn(),
-        getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
-        writeToInstance: vi.fn(),
-      }),
+      getDaemonClient: vi.fn().mockReturnValue(mockDaemonClientObjArt),
+    }))
+    vi.doMock('../daemon-router', () => ({
+      getDaemonRouter: () => mockDaemonClientObjArt,
     }))
     vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: mockSendPromptWhenReady }))
     vi.doMock('../notifications', () => ({ notify: vi.fn() }))
@@ -1923,13 +1944,17 @@ dedup:
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
     }))
+    const mockDaemonClientObjHandoff = {
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
+      writeToInstance: vi.fn(),
+    }
     vi.doMock('../daemon-client', () => ({
-      getDaemonClient: vi.fn().mockReturnValue({
-        on: vi.fn(),
-        removeListener: vi.fn(),
-        getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
-        writeToInstance: vi.fn(),
-      }),
+      getDaemonClient: vi.fn().mockReturnValue(mockDaemonClientObjHandoff),
+    }))
+    vi.doMock('../daemon-router', () => ({
+      getDaemonRouter: () => mockDaemonClientObjHandoff,
     }))
     vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: mockSendPromptWhenReady }))
     vi.doMock('../notifications', () => ({ notify: vi.fn() }))
@@ -2097,13 +2122,17 @@ describe('pipeline-engine: run history', () => {
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
     }))
+    const mockDaemonClientObjHistory = {
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
+      writeToInstance: vi.fn(),
+    }
     vi.doMock('../daemon-client', () => ({
-      getDaemonClient: vi.fn().mockReturnValue({
-        on: vi.fn(),
-        removeListener: vi.fn(),
-        getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
-        writeToInstance: vi.fn(),
-      }),
+      getDaemonClient: vi.fn().mockReturnValue(mockDaemonClientObjHistory),
+    }))
+    vi.doMock('../daemon-router', () => ({
+      getDaemonRouter: () => mockDaemonClientObjHistory,
     }))
     vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
     vi.doMock('../github', () => ({
@@ -2354,6 +2383,7 @@ dedup:
       getAllInstances: vi.fn().mockResolvedValue([]),
     }))
     vi.doMock('../daemon-client', () => ({ getDaemonClient: mockGetDaemon }))
+    vi.doMock('../daemon-router', () => ({ getDaemonRouter: mockGetDaemon }))
     vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: mockSendPromptWhenReady2 }))
     vi.doMock('../notifications', () => ({ notify: vi.fn() }))
     vi.doMock('../github', () => ({
@@ -2637,15 +2667,19 @@ describe('pipeline-engine: plan stage approval gate behavior', () => {
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
     }))
-    vi.doMock('../daemon-client', () => ({
-      getDaemonClient: vi.fn().mockReturnValue({
-        on: vi.fn().mockImplementation((event: string, handler: (id: string, act: string) => void) => {
-          if (event === 'activity') activityHandlers.push(handler)
-        }),
-        removeListener: vi.fn(),
-        getInstance: mockGetInstance,
-        writeToInstance: vi.fn(),
+    const mockDaemonClientObjPlan = {
+      on: vi.fn().mockImplementation((event: string, handler: (id: string, act: string) => void) => {
+        if (event === 'activity') activityHandlers.push(handler)
       }),
+      removeListener: vi.fn(),
+      getInstance: mockGetInstance,
+      writeToInstance: vi.fn(),
+    }
+    vi.doMock('../daemon-client', () => ({
+      getDaemonClient: vi.fn().mockReturnValue(mockDaemonClientObjPlan),
+    }))
+    vi.doMock('../daemon-router', () => ({
+      getDaemonRouter: () => mockDaemonClientObjPlan,
     }))
     vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: mockSendPromptWhenReady }))
     vi.doMock('../github', () => ({
@@ -2856,13 +2890,17 @@ describe('pipeline-engine: wait_for_session behavior', () => {
       createInstance: mockCreateInstance,
       getAllInstances,
     }))
+    const mockDaemonClientObjWait = {
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
+      writeToInstance: vi.fn(),
+    }
     vi.doMock('../daemon-client', () => ({
-      getDaemonClient: vi.fn().mockReturnValue({
-        on: vi.fn(),
-        removeListener: vi.fn(),
-        getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
-        writeToInstance: vi.fn(),
-      }),
+      getDaemonClient: vi.fn().mockReturnValue(mockDaemonClientObjWait),
+    }))
+    vi.doMock('../daemon-router', () => ({
+      getDaemonRouter: () => mockDaemonClientObjWait,
     }))
     vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
     vi.doMock('../notifications', () => ({ notify: vi.fn() }))
@@ -3107,15 +3145,19 @@ budget:
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
     }))
-    vi.doMock('../daemon-client', () => ({
-      getDaemonClient: vi.fn().mockReturnValue({
-        on: vi.fn().mockImplementation((event: string, handler: (id: string, act: string) => void) => {
-          if (event === 'activity') activityHandlers.push(handler)
-        }),
-        removeListener: vi.fn(),
-        getInstance: mockGetInstance,
-        writeToInstance: vi.fn(),
+    const mockDaemonClientObjBudget = {
+      on: vi.fn().mockImplementation((event: string, handler: (id: string, act: string) => void) => {
+        if (event === 'activity') activityHandlers.push(handler)
       }),
+      removeListener: vi.fn(),
+      getInstance: mockGetInstance,
+      writeToInstance: vi.fn(),
+    }
+    vi.doMock('../daemon-client', () => ({
+      getDaemonClient: vi.fn().mockReturnValue(mockDaemonClientObjBudget),
+    }))
+    vi.doMock('../daemon-router', () => ({
+      getDaemonRouter: () => mockDaemonClientObjBudget,
     }))
     vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: mockSendPromptWhenReady }))
     vi.doMock('../github', () => ({
@@ -3286,13 +3328,17 @@ describe('pipeline-engine: per-stage model selection', () => {
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
     }))
+    const mockDaemonClientObjModel = {
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
+      writeToInstance: vi.fn(),
+    }
     vi.doMock('../daemon-client', () => ({
-      getDaemonClient: vi.fn().mockReturnValue({
-        on: vi.fn(),
-        removeListener: vi.fn(),
-        getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
-        writeToInstance: vi.fn(),
-      }),
+      getDaemonClient: vi.fn().mockReturnValue(mockDaemonClientObjModel),
+    }))
+    vi.doMock('../daemon-router', () => ({
+      getDaemonRouter: () => mockDaemonClientObjModel,
     }))
     vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
     vi.doMock('../github', () => ({
@@ -3419,6 +3465,9 @@ describe('pipeline-engine: launch-session auto-close', () => {
     }))
     vi.doMock('../daemon-client', () => ({
       getDaemonClient: vi.fn().mockReturnValue(mockDaemonClient),
+    }))
+    vi.doMock('../daemon-router', () => ({
+      getDaemonRouter: () => mockDaemonClient,
     }))
     vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
     vi.doMock('../github', () => ({

@@ -11,7 +11,14 @@ vi.mock('../daemon-client', () => ({
     killDaemonProcess: mockKillDaemonProcess,
     on: mockOn,
   }),
-  DaemonClient: class {},
+  DaemonClient: vi.fn().mockImplementation(() => ({
+    connect: mockConnect,
+    killDaemonProcess: mockKillDaemonProcess,
+    on: mockOn,
+    removeListener: vi.fn(),
+    emit: vi.fn(),
+    get daemonId() { return 'primary' },
+  })),
 }))
 vi.mock('../settings', () => ({
   getDefaultArgs: vi.fn(() => []),
@@ -37,7 +44,14 @@ async function loadModule() {
       killDaemonProcess: mockKillDaemonProcess,
       on: mockOn,
     }),
-    DaemonClient: class {},
+    DaemonClient: vi.fn().mockImplementation(() => ({
+      connect: mockConnect,
+      killDaemonProcess: mockKillDaemonProcess,
+      on: mockOn,
+      removeListener: vi.fn(),
+      emit: vi.fn(),
+      get daemonId() { return 'primary' },
+    })),
   }))
   vi.doMock('../settings', () => ({
     getDefaultArgs: vi.fn(() => []),
