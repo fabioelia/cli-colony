@@ -91,6 +91,11 @@ interface InternalInstance extends ClaudeInstance {
 const instances = new Map<string, InternalInstance>()
 let _draining = false
 
+// Rate limit debounce — require 3 hits within 60s before broadcasting
+const rateLimitHits = new Map<string, { count: number; firstSeen: number }>()
+const RATE_LIMIT_THRESHOLD = 3
+const RATE_LIMIT_WINDOW_MS = 60_000
+
 // MCP server detection patterns
 const MCP_PATTERNS = [
   /Connected to MCP server:\s*(.+)/i,
@@ -495,21 +500,31 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
       const outputMatch = clean.match(/([\d,]+)\s*output\s*tokens?/i)
       if (outputMatch) instance.tokenUsage.output = parseInt(outputMatch[1].replace(/,/g, ''), 10)
 
-      // Parse rate limit errors — match API-level error messages only (not generated content)
-      // Removed: 'overloaded' (Claude capacity msg ≠ rate limit), bare '429' (matches code/port numbers)
+      // Parse rate limit errors — require 3 hits within 60s before broadcasting to filter transient 429s
       if (/(?:rate[_ ]?limit(?:ed)?|too\s+many\s+requests|resource[_ ]?exhausted)/i.test(clean)) {
-        // Extract retry-after seconds if present
-        let retryAfterSecs: number | null = null
-        const retryMatch = clean.match(/retry[- _]?after[:\s]*(\d+)\s*(?:s|sec|second)/i)
-          || clean.match(/(\d+)\s*(?:s|sec|second)s?\s*(?:until|before|wait)/i)
-          || clean.match(/wait\s+(\d+)\s*(?:s|sec|second)/i)
-          || clean.match(/retry[- _]?after[:\s]*(\d+)/i)
-        if (retryMatch) retryAfterSecs = parseInt(retryMatch[1], 10)
-        // Minute-based retry — require retry/wait context to avoid matching timestamps
-        const minuteMatch = clean.match(/(?:retry[- _]?after|wait)\s+(\d+)\s*(?:m|min|minute)/i)
-          || clean.match(/(\d+)\s*(?:min|minute)s?\s*(?:until|before|wait)/i)
-        if (!retryAfterSecs && minuteMatch) retryAfterSecs = parseInt(minuteMatch[1], 10) * 60
-        broadcastEvent({ type: 'rateLimitDetected', instanceId: id, retryAfterSecs, rawMessage: clean.slice(0, 200) })
+        const now = Date.now()
+        let hits = rateLimitHits.get(id)
+        if (!hits || now - hits.firstSeen > RATE_LIMIT_WINDOW_MS) {
+          hits = { count: 0, firstSeen: now }
+        }
+        hits.count++
+        rateLimitHits.set(id, hits)
+
+        if (hits.count >= RATE_LIMIT_THRESHOLD) {
+          // Extract retry-after seconds if present
+          let retryAfterSecs: number | null = null
+          const retryMatch = clean.match(/retry[- _]?after[:\s]*(\d+)\s*(?:s|sec|second)/i)
+            || clean.match(/(\d+)\s*(?:s|sec|second)s?\s*(?:until|before|wait)/i)
+            || clean.match(/wait\s+(\d+)\s*(?:s|sec|second)/i)
+            || clean.match(/retry[- _]?after[:\s]*(\d+)/i)
+          if (retryMatch) retryAfterSecs = parseInt(retryMatch[1], 10)
+          // Minute-based retry — require retry/wait context to avoid matching timestamps
+          const minuteMatch = clean.match(/(?:retry[- _]?after|wait)\s+(\d+)\s*(?:m|min|minute)/i)
+            || clean.match(/(\d+)\s*(?:min|minute)s?\s*(?:until|before|wait)/i)
+          if (!retryAfterSecs && minuteMatch) retryAfterSecs = parseInt(minuteMatch[1], 10) * 60
+          broadcastEvent({ type: 'rateLimitDetected', instanceId: id, retryAfterSecs, rawMessage: clean.slice(0, 200) })
+          rateLimitHits.delete(id) // Reset counter after broadcasting
+        }
       }
 
       // Parse MCP servers
@@ -716,6 +731,7 @@ function removeInstance(id: string): boolean {
   if (inst._handoffPollInterval) clearInterval(inst._handoffPollInterval)
   if (inst.cleanupTimer) clearTimeout(inst.cleanupTimer)
   instances.delete(id)
+  rateLimitHits.delete(id)
   notifyListChanged()
 
   // Auto-shutdown in drain mode when no running instances remain

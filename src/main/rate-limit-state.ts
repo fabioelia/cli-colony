@@ -13,7 +13,7 @@ export interface RateLimitState {
   detectedAt: number | null  // epoch ms
 }
 
-const DEFAULT_PAUSE_SECS = 60 * 60 // 1 hour fallback when no retry-after found
+const DEFAULT_PAUSE_SECS = 5 * 60 // 5 min fallback when no retry-after found (was 1 hour)
 
 let _state: RateLimitState = {
   paused: false,

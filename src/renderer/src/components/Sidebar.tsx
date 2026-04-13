@@ -2227,7 +2227,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             onLoadPreset={onLoadPreset}
           />
         )}
-        {usage && (
+        {usage && (usage.rateLimited || usage.todayCost > 0 || usage.budget) && (
           <Tooltip
             text={usage.rateLimited
               ? `Rate limited${usage.resetAt ? ` · ${Math.ceil((usage.resetAt - Date.now()) / 60000)}m left` : ''}`
