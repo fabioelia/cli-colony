@@ -89,11 +89,12 @@ export function computeDirectTabAction<T extends string>(
 ): T | null {
   if (!e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return null
   if (!e.code?.startsWith('Digit')) return null
-  // Guard text inputs only — Alt+N should work even from inside xterm
+  // Guard real text inputs — allow xterm's helper textarea through
   const el = e.target as HTMLElement | null
   if (el) {
     const tag = el.tagName?.toLowerCase()
-    if (tag === 'input' || tag === 'textarea' || el.isContentEditable) return null
+    if (tag === 'input' || el.isContentEditable) return null
+    if (tag === 'textarea' && !el.closest('.xterm')) return null
   }
   const idx = parseInt(e.code.slice(5)) - 1
   if (idx < 0 || idx >= tabs.length) return null
