@@ -7,7 +7,7 @@ import {
   MessageSquare, Send, Plus, Search, Pencil, Eye, X, LayoutList, LayoutGrid,
   ShieldCheck, List, Globe, Wand2, ArrowRight, ArrowLeft, Hourglass, ArrowUpDown,
   GitPullRequest, GitMerge, GitBranch, Sparkles, RotateCw, Copy, Timer, Activity,
-  Download, Upload,
+  Download, Upload, PauseCircle, PlayCircle,
 } from 'lucide-react'
 import type { AuditResult, GitHubRepo } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
@@ -164,10 +164,15 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [healthView, setHealthView] = useState(() => localStorage.getItem('pipelines-health-view') === '1')
   const [pipelineSearch, setPipelineSearch] = useState('')
   const [successRates, setSuccessRates] = useState<Map<string, number | null>>(new Map())
+  const [cronsPaused, setCronsPaused] = useState(false)
 
   // 60s tick for next-run countdown refresh
   const [, setTick] = useState(0)
   useEffect(() => { const id = setInterval(() => setTick(t => t + 1), 60000); return () => clearInterval(id) }, [])
+  useEffect(() => {
+    window.api.colony.getCronsPaused().then(setCronsPaused).catch(() => {})
+    return window.api.colony.onCronsPauseChange(setCronsPaused)
+  }, [])
 
   useEffect(() => {
     if (!pipelineCtx) return
@@ -651,6 +656,14 @@ action:
         </div>
         <HelpPopover topic="pipelines" align="right" />
         <div className="panel-header-actions">
+          <button
+            className={`panel-header-btn${cronsPaused ? ' active' : ''}`}
+            onClick={() => window.api.colony.setCronsPaused(!cronsPaused)}
+            title={cronsPaused ? 'Resume all cron jobs' : 'Pause all cron jobs'}
+          >
+            {cronsPaused ? <PlayCircle size={12} /> : <PauseCircle size={12} />}
+            {cronsPaused ? 'Resume All' : 'Pause All'}
+          </button>
           <button className="panel-header-btn" onClick={handleExport} title="Export all pipelines as zip">
             <Download size={12} />
           </button>
@@ -869,6 +882,7 @@ action:
                 )}
                 {p.cron && (() => {
                   if (!p.enabled) return <span className="pipeline-next-run paused">Paused</span>
+                  if (cronsPaused) return <span className="pipeline-next-run paused">Paused (manual)</span>
                   const fires = nextRuns(p.cron, 1)
                   if (!fires.length) return null
                   const diffMs = fires[0].getTime() - Date.now()

@@ -26,6 +26,7 @@ import { matchRules, estimateActionCost } from './approval-rules'
 import { waitForSessionCompletion } from './session-completion'
 import { tagArtifactPipeline } from './session-artifacts'
 import { isRateLimited, getRateLimitState } from './rate-limit-state'
+import { isCronsPausedSync } from './cron-pause'
 
 export async function pathExists(p: string): Promise<boolean> {
   try { await fsp.access(p); return true } catch { return false }
@@ -1472,6 +1473,10 @@ async function schedulePipeline(name: string, def: PipelineDef): Promise<void> {
           log(`Skipped ${name} — rate limit pause active until ${rl.resetAt ? new Date(rl.resetAt).toLocaleTimeString() : 'unknown'}`)
           return
         }
+        if (isCronsPausedSync()) {
+          log(`Skipped ${name} — manual cron pause active`)
+          return
+        }
         log(`Cron matched for ${name} at ${now.toLocaleTimeString()}`)
         runPoll(name)
       }
@@ -1485,6 +1490,8 @@ async function schedulePipeline(name: string, def: PipelineDef): Promise<void> {
       if (cronMatches(cronExpr)) {
         if (isRateLimited()) {
           log(`Skipped startup fire for ${name} — rate limit pause active`)
+        } else if (isCronsPausedSync()) {
+          log(`Skipped startup fire for ${name} — manual cron pause active`)
         } else {
           log(`Cron matches on startup for ${name}`)
           runPoll(name)

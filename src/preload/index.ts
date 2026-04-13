@@ -228,6 +228,9 @@ export interface ClaudeManagerAPI {
     archiveSpec: (name: string) => Promise<boolean>
     getUsageSummary: () => Promise<{ todayCost: number; budget: number | null; rateLimited: boolean; resetAt: number | null }>
     onUsageUpdate: (cb: (summary: { todayCost: number; budget: number | null; rateLimited: boolean; resetAt: number | null }) => void) => () => void
+    setCronsPaused: (paused: boolean) => Promise<void>
+    getCronsPaused: () => Promise<boolean>
+    onCronsPauseChange: (cb: (paused: boolean) => void) => () => void
   }
   pipeline: {
     list: () => Promise<Array<{
@@ -810,6 +813,13 @@ const api: ClaudeManagerAPI = {
       const listener = (_e: any, summary: any) => cb(summary)
       ipcRenderer.on('colony:usageUpdate', listener)
       return () => ipcRenderer.removeListener('colony:usageUpdate', listener)
+    },
+    setCronsPaused: (paused) => ipcRenderer.invoke('colony:setCronsPaused', paused),
+    getCronsPaused: () => ipcRenderer.invoke('colony:getCronsPaused'),
+    onCronsPauseChange: (cb) => {
+      const listener = (_e: any, paused: boolean) => cb(paused)
+      ipcRenderer.on('colony:cronsPauseChange', listener)
+      return () => ipcRenderer.removeListener('colony:cronsPauseChange', listener)
     },
   },
   tasksBoard: {

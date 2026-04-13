@@ -171,6 +171,9 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
   const [sortBy, setSortBy] = useState<'name' | 'lastRun' | 'runs' | 'cost' | 'successRate'>('name')
   const [panelView, setPanelView] = useState<'list' | 'schedule' | 'triggers'>('list')
 
+  // Cron pause
+  const [cronsPaused, setCronsPaused] = useState(false)
+
   // Batch selection
   const [selectedPersonas, setSelectedPersonas] = useState<Set<string>>(new Set())
 
@@ -185,6 +188,10 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 60000)
     return () => clearInterval(id)
+  }, [])
+  useEffect(() => {
+    window.api.colony.getCronsPaused().then(setCronsPaused).catch(() => {})
+    return window.api.colony.onCronsPauseChange(setCronsPaused)
   }, [])
 
   // Analytics cache — keyed by persona ID
@@ -1123,6 +1130,7 @@ function PersonaCard({
           )}
           {persona.schedule && (() => {
             if (!persona.enabled) return <span className="persona-list-next-run paused">Paused</span>
+            if (cronsPaused) return <span className="persona-list-next-run paused">Paused (manual)</span>
             const fires = nextRuns(persona.schedule, 1)
             if (fires.length === 0) return <span className="persona-list-next-run">—</span>
             const diffMs = fires[0].getTime() - Date.now()

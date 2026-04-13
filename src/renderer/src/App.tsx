@@ -124,6 +124,7 @@ export default function App() {
   const [rateLimitState, setRateLimitState] = useState<{ paused: boolean; resetAt: number | null; lastError: string; detectedAt: number | null }>({ paused: false, resetAt: null, lastError: '', detectedAt: null })
   const [rateLimitDismissed, setRateLimitDismissed] = useState(false)
   const [rateLimitCountdown, setRateLimitCountdown] = useState('')
+  const [cronsPaused, setCronsPaused] = useState(false)
   const [envPromptRequest, setEnvPromptRequest] = useState<{ requestId: string; envId: string; hookName: string; prompt: string; promptType: string; defaultPath?: string; defaultPathValid?: boolean; options?: string[] } | null>(null)
   const [showWelcome, setShowWelcome] = useState(false)
   const [forkModalInst, setForkModalInst] = useState<ClaudeInstance | null>(null)
@@ -206,7 +207,10 @@ export default function App() {
       setRateLimitState(s)
       if (!s.paused) setRateLimitDismissed(false)
     })
-    return () => { unsubVersion(); unsubFailed(); unsubUnresponsive(); unsubUpgradeStarted(); unsubUpgradeDraining(); unsubUpgradeComplete(); unsubRateLimit() }
+    // Cron pause monitoring
+    window.api.colony.getCronsPaused().then(setCronsPaused).catch(() => {})
+    const unsubCronsPause = window.api.colony.onCronsPauseChange(setCronsPaused)
+    return () => { unsubVersion(); unsubFailed(); unsubUnresponsive(); unsubUpgradeStarted(); unsubUpgradeDraining(); unsubUpgradeComplete(); unsubRateLimit(); unsubCronsPause() }
   }, [])
 
   // Rate limit countdown timer
@@ -1407,6 +1411,13 @@ export default function App() {
           <span>API rate limit reached — Colony paused. {rateLimitCountdown && rateLimitCountdown !== 'now' ? `Resumes in ${rateLimitCountdown}` : 'Resuming...'}</span>
           <button onClick={() => { window.api.colony.resumeCrons(); setRateLimitDismissed(true) }}>Resume Now</button>
           <button className="daemon-update-dismiss" onClick={() => setRateLimitDismissed(true)}>Dismiss</button>
+        </div>,
+        document.body
+      )}
+      {cronsPaused && !(rateLimitState.paused && !rateLimitDismissed) && createPortal(
+        <div className="daemon-update-banner cron-pause-banner">
+          <span>All cron jobs paused</span>
+          <button onClick={() => window.api.colony.setCronsPaused(false)}>Resume</button>
         </div>,
         document.body
       )}

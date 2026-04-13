@@ -12,6 +12,7 @@ import { loadApprovalRules, saveApprovalRules } from './approval-rules'
 import { updateColonyContext, getColonyContextPath, getColonyContextInstruction } from './colony-context'
 import { getRateLimitState, resumeCrons } from './rate-limit-state'
 import { getUsageSummary } from './persona-run-history'
+import { isCronsPaused, setCronsPaused } from './cron-pause'
 
 // Handler modules
 import { registerInstanceHandlers } from './ipc/instance-handlers'
@@ -236,6 +237,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('colony:resumeCrons', () => {
     resumeCrons()
   })
+  ipcMain.handle('colony:setCronsPaused', (_e, paused: boolean) => setCronsPaused(paused))
+  ipcMain.handle('colony:getCronsPaused', () => isCronsPaused())
 
   // ---- Window Management ----
   ipcMain.handle('window:toggleFullScreen', (_e) => {

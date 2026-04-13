@@ -541,6 +541,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Import', detail: 'Import pipeline YAML files from a zip archive. Runtime state files are excluded.', icon: 'Upload' },
           { label: 'Reload button', detail: 'Re-read all pipeline YAML files from disk.', icon: 'RefreshCw' },
           { label: 'Audit button', detail: 'Run an AI audit of all pipelines. Claude reviews each pipeline\'s YAML, error history, and configuration and returns a list of HIGH/MEDIUM/LOW findings. Each finding with a clear fix has a Fix button that opens the editor or applies the fix directly. Badge shows issue count from the last audit.', icon: 'ShieldCheck' },
+          { label: 'Pause All / Resume All', detail: 'Globally pause or resume all cron-triggered pipelines and persona schedules. When paused, an amber banner appears at the top of the app and all cron next-run countdowns show "Paused (manual)". Git-poll and file-poll pipelines are not affected. Independent from the automatic rate-limit pause.', icon: 'PauseCircle' },
         ],
       },
       {
@@ -826,6 +827,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Connection failed banner', detail: 'A red banner appears if the daemon fails to connect after 3 retry attempts. Click Retry to re-attempt the connection, or Dismiss to hide the banner. Sessions and environments are unavailable until the daemon connects.' },
           { label: 'Liveness heartbeat', detail: 'The app pings the daemon every 30 seconds. If 2 consecutive pings fail (~50s), the daemon is force-killed and auto-restarted. An amber banner appears during recovery.' },
           { label: 'Rate limit banner', detail: 'A red banner appears when the daemon detects API rate limit errors (429, "too many requests", "overloaded") in PTY output. Colony automatically pauses all cron pipelines and persona schedules until the reset time passes. The banner shows a live countdown. Dismiss hides the banner but keeps crons paused; Resume Now explicitly clears the pause and restarts pipelines.' },
+          { label: 'Cron pause banner', detail: 'An amber banner appears when you manually pause all cron jobs via the Pause All button in the Pipelines panel. All cron-triggered pipelines and persona schedules are suspended. Git-poll and file-poll pipelines continue running. Click Resume to unpause. Independent from the rate-limit pause.', icon: 'PauseCircle' },
         ],
       },
       {

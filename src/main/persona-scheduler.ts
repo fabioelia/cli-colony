@@ -10,6 +10,7 @@ import { getAllInstances, killInstance } from './instance-manager'
 import { broadcast } from './broadcast'
 import { getPersonaList, getState, saveState, runPersona } from './persona-manager'
 import { isRateLimited, getRateLimitState } from './rate-limit-state'
+import { isCronsPausedSync } from './cron-pause'
 
 function schedulerLog(msg: string): void {
   const line = `[${new Date().toISOString()}] ${msg}\n`
@@ -90,6 +91,10 @@ export function startScheduler(): void {
         if (isRateLimited()) {
           const rl = getRateLimitState()
           schedulerLog(`skip "${persona.name}" — rate limit pause active until ${rl.resetAt ? new Date(rl.resetAt).toLocaleTimeString() : 'unknown'}`)
+          continue
+        }
+        if (isCronsPausedSync()) {
+          schedulerLog(`skip "${persona.name}" — manual cron pause active`)
           continue
         }
         schedulerLog(`cron matched "${persona.name}" (${persona.schedule}) — launching`)
