@@ -490,6 +490,34 @@ body:has(.daemon-update-banner) .app-update-banner {
   overflow: visible;
 }
 
+/* Enhance existing sidebar shortcut hint when modifier held */
+.modifier-held .sidebar-shortcut-hint {
+  background: var(--accent);
+  color: var(--bg-primary);
+  opacity: 1;
+  border-radius: 3px;
+  padding: 0 3px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+/* Highlight session instance shortcut numbers when modifier held */
+.instance-shortcut-prefix {
+  display: none;
+}
+
+.modifier-held .instance-shortcut {
+  background: var(--accent);
+  color: var(--bg-primary);
+  opacity: 1;
+  border-radius: 3px;
+  padding: 0 3px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.modifier-held .instance-shortcut-prefix {
+  display: inline;
+}
+
 .sidebar-instance-actions {
   display: flex;
   flex-direction: column;
@@ -2426,6 +2454,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: var(--bg-surface);
   color: var(--text-secondary);
   transition: background 0.15s, color 0.15s;
+  position: relative;
 }
 
 .terminal-header-actions button:hover {

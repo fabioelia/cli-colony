@@ -846,6 +846,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
                 setSplitTab((saved && saved !== viewTab ? saved : defaultTab) as ViewTab)
               }} aria-label="Split view">
                 <PanelRight size={14} />
+                <span className="shortcut-hint">⌘⇧\</span>
               </button>
             </Tooltip>
           )}
@@ -975,6 +976,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
             <Tooltip text="Split View" detail="Open a second session side-by-side" shortcut="Cmd+\">
               <button onClick={onSplit} aria-label="Split view">
                 <Columns2 size={14} /> Split
+                <span className="shortcut-hint">⌘\</span>
               </button>
             </Tooltip>
           )}
@@ -1025,6 +1027,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
             <Tooltip text="Search" detail="Search terminal output" shortcut="Cmd+F">
               <button className={searchOpen ? 'active' : ''} onClick={() => onSearchToggle()} aria-label="Search terminal">
                 <Search size={14} />
+                <span className="shortcut-hint">⌘F</span>
               </button>
             </Tooltip>
           )}
@@ -1032,6 +1035,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
             <Tooltip text="Close Split" detail="Return to single session view" shortcut="Cmd+Shift+W">
               <button onClick={onCloseSplit} aria-label="Close split">
                 <X size={14} /> Close
+                <span className="shortcut-hint">⌘⇧W</span>
               </button>
             </Tooltip>
           )}
@@ -1115,12 +1119,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
           )}
         </div>
       )}
-      {/* Tab content — session/shell use absolute overlay for split; browser is persistent; others use flex split */}
-      {(viewTab === 'session' || viewTab === 'shell') && splitTab && (
-        <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: `${(1 - splitRatio) * 100}%`, display: 'flex', zIndex: 5 }}>
-          {renderSecondaryPane()}
-        </div>
-      )}
+      {/* Tab content — browser is persistent; other non-terminal tabs use flex split */}
       {viewTab !== 'session' && viewTab !== 'shell' && viewTab !== 'browser' && splitTab && (
         <div className="browser-split-container">
           <div className="browser-split-pane" style={{ flex: `0 0 ${splitRatio * 100}%` }}>
@@ -1182,109 +1181,118 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
       {browserMounted && envStatus && (
         <div style={{
           display: viewTab === 'browser' ? 'flex' : 'none',
-          flexDirection: 'column' as const,
+          flexDirection: 'row' as const,
           flex: 1,
           minHeight: 0,
-          position: 'relative' as const,
         }}>
-          <BrowserTab envStatus={envStatus} instanceId={instance.id} />
-          {splitTab && viewTab === 'browser' && (
-            <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: `${(1 - splitRatio) * 100}%`, display: 'flex', zIndex: 5, background: 'var(--bg-primary)' }}>
-              {renderSecondaryPane()}
-            </div>
-          )}
+          <div style={{ display: 'flex', flexDirection: 'column', flex: splitTab ? `0 0 ${splitRatio * 100}%` : '1', minWidth: 0, minHeight: 0 }}>
+            <BrowserTab envStatus={envStatus} instanceId={instance.id} />
+          </div>
+          {splitTab && viewTab === 'browser' && renderSecondaryPane()}
         </div>
       )}
-      <div
-        className={`terminal-container ${dragOver ? 'drag-over' : ''}`}
-        ref={containerRef}
-        onClick={() => {
-          onFocusPane?.()
-          const entry = terminalsRef.current.get(instance.id)
-          if (entry) entry.term.focus()
-        }}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        style={{ display: viewTab === 'session' ? undefined : 'none' }}
-      >
-        {searchOpen && (
-          <div className="terminal-search-bar">
-            <input
-              ref={searchInputRef}
-              className="terminal-search-input"
-              placeholder="Find..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={handleSearchKeyDown}
-            />
-            <button className="terminal-search-btn" onClick={handleSearchPrev} title="Previous match" aria-label="Previous match"><ChevronUp size={14} /></button>
-            <button className="terminal-search-btn" onClick={handleSearchNext} title="Next match" aria-label="Next match"><ChevronDown size={14} /></button>
-            <button className="terminal-search-btn" onClick={() => { setSearchQuery(''); onSearchClose?.() }} title="Close search" aria-label="Close search"><X size={14} /></button>
+      <div style={{ display: viewTab === 'session' ? 'flex' : 'none', flex: 1, minHeight: 0, position: 'relative', flexDirection: 'column' }}>
+        <div
+          className={`terminal-container ${dragOver ? 'drag-over' : ''}`}
+          ref={containerRef}
+          onClick={() => {
+            onFocusPane?.()
+            const entry = terminalsRef.current.get(instance.id)
+            if (entry) entry.term.focus()
+          }}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          {searchOpen && (
+            <div className="terminal-search-bar">
+              <input
+                ref={searchInputRef}
+                className="terminal-search-input"
+                placeholder="Find..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+              />
+              <button className="terminal-search-btn" onClick={handleSearchPrev} title="Previous match" aria-label="Previous match"><ChevronUp size={14} /></button>
+              <button className="terminal-search-btn" onClick={handleSearchNext} title="Next match" aria-label="Next match"><ChevronDown size={14} /></button>
+              <button className="terminal-search-btn" onClick={() => { setSearchQuery(''); onSearchClose?.() }} title="Close search" aria-label="Close search"><X size={14} /></button>
+            </div>
+          )}
+          {dragOver && (
+            <div className="terminal-drop-overlay">Drop to paste path</div>
+          )}
+          <div className="terminal-scroll-nav">
+            <button className="terminal-scroll-btn" onClick={scrollToTop} title="Scroll to top" aria-label="Scroll to top"><ChevronUp size={14} /></button>
+            <button className="terminal-scroll-btn" onClick={scrollToBottom} title="Scroll to bottom" aria-label="Scroll to bottom"><ChevronDown size={14} /></button>
+          </div>
+        </div>
+        {splitTab && (
+          <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: `${(1 - splitRatio) * 100}%`, display: 'flex', zIndex: 5, background: 'var(--bg-primary)' }}>
+            {renderSecondaryPane()}
           </div>
         )}
-        {dragOver && (
-          <div className="terminal-drop-overlay">Drop to paste path</div>
-        )}
-        <div className="terminal-scroll-nav">
-          <button className="terminal-scroll-btn" onClick={scrollToTop} title="Scroll to top" aria-label="Scroll to top"><ChevronUp size={14} /></button>
-          <button className="terminal-scroll-btn" onClick={scrollToBottom} title="Scroll to bottom" aria-label="Scroll to bottom"><ChevronDown size={14} /></button>
-        </div>
       </div>
-      {viewTab === 'shell' && shellTermReady && (
-        <div className="shell-quick-bar">
-          <button
-            className={`shell-quick-toggle ${shellQuickOpen ? 'open' : ''}`}
-            onClick={() => setShellQuickOpen(o => { const next = !o; localStorage.setItem('shell-quick-open', String(next)); return next })}
-            tabIndex={-1}
-          >
-            Quick {shellQuickOpen ? '›' : '‹'}
-          </button>
-          {shellQuickOpen && (
-            <div className="shell-quick-cmds">
-              {['git status', 'git log --oneline -5', 'ls -la', 'npm test'].map(cmd => (
-                <button
-                  key={cmd}
-                  className="shell-quick-cmd"
-                  tabIndex={-1}
-                  onClick={() => window.api.shellPty.write(instance.id, cmd + '\n')}
-                >
-                  {cmd}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-      <div
-        className={`terminal-container shell-terminal${dragOver ? ' drag-over' : ''}`}
-        ref={shellContainerRef}
-        onClick={() => {
-          onFocusPane?.()
-          shellTermRef.current?.term.focus()
-        }}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={(e) => handleDrop(e, 'shell')}
-        style={{ display: viewTab === 'shell' ? undefined : 'none' }}
-      >
-        {searchOpen && viewTab === 'shell' && (
-          <div className="terminal-search-bar">
-            <input
-              ref={searchInputRef}
-              className="terminal-search-input"
-              placeholder="Find..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={handleSearchKeyDown}
-            />
-            <button className="terminal-search-btn" onClick={handleSearchPrev} title="Previous match" aria-label="Previous match"><ChevronUp size={14} /></button>
-            <button className="terminal-search-btn" onClick={handleSearchNext} title="Next match" aria-label="Next match"><ChevronDown size={14} /></button>
-            <button className="terminal-search-btn" onClick={() => { setSearchQuery(''); onSearchClose?.() }} title="Close search" aria-label="Close search"><X size={14} /></button>
+      <div style={{ display: viewTab === 'shell' ? 'flex' : 'none', flex: 1, minHeight: 0, position: 'relative', flexDirection: 'column' }}>
+        {shellTermReady && (
+          <div className="shell-quick-bar">
+            <button
+              className={`shell-quick-toggle ${shellQuickOpen ? 'open' : ''}`}
+              onClick={() => setShellQuickOpen(o => { const next = !o; localStorage.setItem('shell-quick-open', String(next)); return next })}
+              tabIndex={-1}
+            >
+              Quick {shellQuickOpen ? '›' : '‹'}
+            </button>
+            {shellQuickOpen && (
+              <div className="shell-quick-cmds">
+                {['git status', 'git log --oneline -5', 'ls -la', 'npm test'].map(cmd => (
+                  <button
+                    key={cmd}
+                    className="shell-quick-cmd"
+                    tabIndex={-1}
+                    onClick={() => window.api.shellPty.write(instance.id, cmd + '\n')}
+                  >
+                    {cmd}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
-        {dragOver && (
-          <div className="terminal-drop-overlay">Drop to paste path</div>
+        <div
+          className={`terminal-container shell-terminal${dragOver ? ' drag-over' : ''}`}
+          ref={shellContainerRef}
+          onClick={() => {
+            onFocusPane?.()
+            shellTermRef.current?.term.focus()
+          }}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, 'shell')}
+        >
+          {searchOpen && viewTab === 'shell' && (
+            <div className="terminal-search-bar">
+              <input
+                ref={searchInputRef}
+                className="terminal-search-input"
+                placeholder="Find..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+              />
+              <button className="terminal-search-btn" onClick={handleSearchPrev} title="Previous match" aria-label="Previous match"><ChevronUp size={14} /></button>
+              <button className="terminal-search-btn" onClick={handleSearchNext} title="Next match" aria-label="Next match"><ChevronDown size={14} /></button>
+              <button className="terminal-search-btn" onClick={() => { setSearchQuery(''); onSearchClose?.() }} title="Close search" aria-label="Close search"><X size={14} /></button>
+            </div>
+          )}
+          {dragOver && (
+            <div className="terminal-drop-overlay">Drop to paste path</div>
+          )}
+        </div>
+        {splitTab && (
+          <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: `${(1 - splitRatio) * 100}%`, display: 'flex', zIndex: 5, background: 'var(--bg-primary)' }}>
+            {renderSecondaryPane()}
+          </div>
         )}
       </div>
     </>

@@ -154,7 +154,9 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
         />
       )}
       {shortcutIndex && (
-        <span className="instance-shortcut" title={`Cmd+${shortcutIndex}`}>{shortcutIndex}</span>
+        <span className="instance-shortcut" title={`Cmd+${shortcutIndex}`}>
+          <span className="instance-shortcut-prefix">⌘</span>{shortcutIndex}
+        </span>
       )}
       <div
         className={`instance-dot clickable ${inst.status === 'running' && inst.activity === 'busy' ? 'pulsing' : ''}`}
@@ -1148,10 +1150,11 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
               <span className="sidebar-nav-label">Activity</span>
             </button>
           </Tooltip>
-          <Tooltip text="Personas" detail="Autonomous AI agents with identity, goals, and memory" position="bottom">
+          <Tooltip text="Personas" detail="Autonomous AI agents with identity, goals, and memory" shortcut="Cmd+Shift+P" position="bottom">
             <button className={`sidebar-nav-btn ${view === 'personas' ? 'active' : ''}`} onClick={() => onViewChange('personas')}>
               <span className="sidebar-nav-icon"><User size={17} /></span>
               <span className="sidebar-nav-label">Personas</span>
+              <span className="shortcut-hint">⌘⇧P</span>
             </button>
           </Tooltip>
           {/* More button — shows active panel icon when an overflow view is selected */}
