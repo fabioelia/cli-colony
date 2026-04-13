@@ -183,6 +183,8 @@ export interface PipelineInfo {
   budget?: { maxCostUsd: number; warnAt: number } | null
   lastRunStoppedBudget?: boolean
   actionShape?: ActionShape
+  /** Raw (unresolved) prompt of the first action — used to pre-fill the run-with-override dialog */
+  firstActionPrompt?: string
 }
 
 const MAX_DEBUG_ITERATIONS = 20
@@ -691,6 +693,7 @@ async function fireActionWithRetry(
   action: ActionDef,
   ctx: TriggerContext,
   pipelineName: string,
+  promptOverride?: string,
 ): Promise<{ cost: number; responseSnippet?: string; subStages?: PipelineStageTrace[]; retryCount: number; sessionId?: string }> {
   // wait_for_session is a polling action — never retry it
   const maxRetries = action.type === 'wait_for_session' ? 0 : (action.max_retries ?? 0)
@@ -703,7 +706,7 @@ async function fireActionWithRetry(
         plog(pipelineName, `retry ${attempt}/${maxRetries} after ${delay}ms`)
         await new Promise(r => setTimeout(r, delay))
       }
-      const result = await fireAction(action, ctx, pipelineName)
+      const result = await fireAction(action, ctx, pipelineName, undefined, promptOverride)
       return { ...result, retryCount: attempt }
     } catch (err) {
       lastError = err
@@ -715,7 +718,7 @@ async function fireActionWithRetry(
   throw lastError
 }
 
-async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: string, runId?: string): Promise<{ cost: number; responseSnippet?: string; subStages?: PipelineStageTrace[]; sessionId?: string }> {
+async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: string, runId?: string, promptOverride?: string): Promise<{ cost: number; responseSnippet?: string; subStages?: PipelineStageTrace[]; sessionId?: string }> {
   markChecklistItem('ranPipeline')
   const effectiveRunId = runId || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const pipelineMeta = { pipelineName, pipelineRunId: effectiveRunId }
@@ -743,7 +746,8 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
   // Prefix with "Pipe" so pipeline-launched sessions are identifiable
   const name = rawName.startsWith('Pipe') ? rawName : `Pipe (${rawName})`
   const cwd = resolveTemplate(action.workingDirectory || '', ctx) || undefined
-  let prompt = resolveTemplate(action.prompt || '', ctx)
+  // Use promptOverride if provided (one-shot manual override); otherwise resolve from action config
+  let prompt = (promptOverride && promptOverride.trim()) ? promptOverride : resolveTemplate(action.prompt || '', ctx)
 
   // Inject artifact preamble (raw data from prior captures)
   if (action.artifactInputs?.length) {
@@ -1050,7 +1054,7 @@ export async function previewPipeline(fileNameOrName: string): Promise<PreviewRe
 
 // ---- Poll Loop ----
 
-async function runPoll(pipelineName: string): Promise<void> {
+async function runPoll(pipelineName: string, promptOverride?: string): Promise<void> {
   const p = pipelines.get(pipelineName)
   if (!p || !p.def.enabled) return
   if (runningPolls.has(pipelineName)) return // prevent overlapping polls
@@ -1215,6 +1219,10 @@ async function runPoll(pipelineName: string): Promise<void> {
         continue
       }
 
+      if (promptOverride && promptOverride.trim()) {
+        plog(pipelineName, `→ using prompt override (${promptOverride.length} chars)`)
+        appendActivity({ source: 'pipeline', name: pipelineName, summary: `Pipeline "${pipelineName}" manually triggered with custom prompt`, level: 'info' })
+      }
       plog(pipelineName, `→ firing action: ${p.def.action.type} for ${prLabel}`)
       const stageStart = Date.now()
       const stageSessionName = resolveTemplate(p.def.action.name || 'Pipeline Session', ctx)
@@ -1225,7 +1233,7 @@ async function runPoll(pipelineName: string): Promise<void> {
       let stageRetryCount = 0
       let stageSessionId: string | undefined
       try {
-        const result = await fireActionWithRetry(p.def.action, ctx, p.def.name)
+        const result = await fireActionWithRetry(p.def.action, ctx, p.def.name, promptOverride)
         stageCost = result.cost
         stageResponseSnippet = result.responseSnippet
         stageSubStages = result.subStages
@@ -1624,6 +1632,7 @@ export function getPipelineList(): PipelineInfo[] {
       budget: p.def.budget ? { maxCostUsd: p.def.budget.max_cost_usd, warnAt: p.def.budget.warn_at ?? p.def.budget.max_cost_usd * 0.75 } : null,
       lastRunStoppedBudget: p.state.lastRunStoppedBudget ?? false,
       actionShape: toActionShape(p.def.action),
+      firstActionPrompt: p.def.action.prompt || undefined,
     })
   }
   return result
@@ -1659,10 +1668,10 @@ export async function togglePipeline(name: string, enabled: boolean): Promise<bo
   return true
 }
 
-export function triggerPollNow(name: string): boolean {
+export function triggerPollNow(name: string, promptOverride?: string): boolean {
   const p = pipelines.get(name)
   if (!p) return false
-  runPoll(name)
+  runPoll(name, promptOverride)
   return true
 }
 

@@ -249,7 +249,7 @@ export interface ClaudeManagerAPI {
       fireCount: number
     }>>
     toggle: (name: string, enabled: boolean) => Promise<boolean>
-    triggerNow: (name: string) => Promise<boolean>
+    triggerNow: (name: string, promptOverride?: string) => Promise<boolean>
     getDir: () => Promise<string>
     getContent: (fileName: string) => Promise<string | null>
     saveContent: (fileName: string, content: string) => Promise<boolean>
@@ -850,7 +850,7 @@ const api: ClaudeManagerAPI = {
   pipeline: {
     list: () => ipcRenderer.invoke('pipeline:list'),
     toggle: (name, enabled) => ipcRenderer.invoke('pipeline:toggle', name, enabled),
-    triggerNow: (name) => ipcRenderer.invoke('pipeline:triggerNow', name),
+    triggerNow: (name, promptOverride) => ipcRenderer.invoke('pipeline:triggerNow', name, promptOverride),
     getDir: () => ipcRenderer.invoke('pipeline:getDir'),
     getContent: (fileName) => ipcRenderer.invoke('pipeline:getContent', fileName),
     saveContent: (fileName, content) => ipcRenderer.invoke('pipeline:saveContent', fileName, content),

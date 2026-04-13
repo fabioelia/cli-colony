@@ -43,6 +43,7 @@ interface PipelineInfo {
   lastRunStoppedBudget?: boolean
   consecutiveFailures?: number
   actionShape?: ActionShape
+  firstActionPrompt?: string
 }
 
 interface Props {
@@ -136,6 +137,35 @@ function formatDuration(ms: number): string {
   return remainSecs > 0 ? `${mins}m ${remainSecs}s` : `${mins}m`
 }
 
+function RunWithOverrideDialog({ pipelineName, firstActionPrompt, onRun, onClose }: {
+  pipelineName: string
+  firstActionPrompt: string
+  onRun: (name: string, promptOverride?: string) => void
+  onClose: () => void
+}) {
+  const [prompt, setPrompt] = useState(firstActionPrompt)
+  return (
+    <>
+      <textarea
+        value={prompt}
+        onChange={e => setPrompt(e.target.value)}
+        rows={6}
+        style={{ width: '100%', fontFamily: 'monospace', fontSize: 12, background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 4, padding: '6px 8px', resize: 'vertical' }}
+        placeholder="Session prompt..."
+        autoFocus
+      />
+      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, marginBottom: 12 }}>
+        Mustache variables ({"{{...}}"}) will be resolved at runtime.
+      </p>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <button onClick={onClose} style={{ padding: '5px 12px' }}>Cancel</button>
+        <button onClick={() => onRun(pipelineName, undefined)} style={{ padding: '5px 12px' }}>Run as configured</button>
+        <button className="panel-header-btn primary" onClick={() => onRun(pipelineName, prompt || undefined)} style={{ padding: '5px 12px' }}>Run with changes</button>
+      </div>
+    </>
+  )
+}
+
 export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, instances }: Props) {
   const [pipelines, setPipelines] = useState<PipelineInfo[]>([])
   const [expandedPipeline, setExpandedPipeline] = useState<string | null>(null)
@@ -157,6 +187,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
 
   const [triggeringPipelines, setTriggeringPipelines] = useState<Set<string>>(new Set())
   const [retryingFromHistory, setRetryingFromHistory] = useState(false)
+  const [runOverrideDialog, setRunOverrideDialog] = useState<{ name: string; firstActionPrompt: string } | null>(null)
   const [listMode, setListMode] = useState(() => localStorage.getItem('pipelines-list-mode') !== '0')
   const [sortBy, setSortBy] = useState<'name' | 'lastFired' | 'fireCount' | 'enabled'>(() =>
     (localStorage.getItem('pipelines-sort') as 'name' | 'lastFired' | 'fireCount' | 'enabled') || 'name'
@@ -329,11 +360,18 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     loadPipelines()
   }
 
-  const handleTriggerNow = async (name: string) => {
+  const handleTriggerNow = (name: string) => {
+    if (triggeringPipelines.has(name)) return
+    const pipeline = pipelines.find(p => p.name === name)
+    setRunOverrideDialog({ name, firstActionPrompt: pipeline?.firstActionPrompt || '' })
+  }
+
+  const handleRunWithOverride = async (name: string, promptOverride?: string) => {
+    setRunOverrideDialog(null)
     if (triggeringPipelines.has(name)) return
     setTriggeringPipelines(prev => new Set(prev).add(name))
     try {
-      await window.api.pipeline.triggerNow(name)
+      await window.api.pipeline.triggerNow(name, promptOverride)
     } finally {
       setTriggeringPipelines(prev => { const next = new Set(prev); next.delete(name); return next })
     }
@@ -632,6 +670,19 @@ action:
 
   return (
     <div className="pipelines-panel">
+      {runOverrideDialog && (
+        <div className="modal-overlay" onClick={() => setRunOverrideDialog(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
+            <h3 style={{ marginBottom: 12, fontSize: 15 }}>Run Pipeline: {runOverrideDialog.name}</h3>
+            <RunWithOverrideDialog
+              pipelineName={runOverrideDialog.name}
+              firstActionPrompt={runOverrideDialog.firstActionPrompt}
+              onRun={handleRunWithOverride}
+              onClose={() => setRunOverrideDialog(null)}
+            />
+          </div>
+        </div>
+      )}
       <div className="panel-header">
         <h2><Zap size={16} /> Pipelines</h2>
         <div className="panel-header-spacer" />

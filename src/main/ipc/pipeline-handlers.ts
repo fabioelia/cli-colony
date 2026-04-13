@@ -112,7 +112,7 @@ User description: `
 export function registerPipelineHandlers(): void {
   ipcMain.handle('pipeline:list', () => getPipelineList())
   ipcMain.handle('pipeline:toggle', (_e, name: string, enabled: boolean) => togglePipeline(name, enabled))
-  ipcMain.handle('pipeline:triggerNow', (_e, name: string) => triggerPollNow(name))
+  ipcMain.handle('pipeline:triggerNow', (_e, name: string, promptOverride?: string) => triggerPollNow(name, promptOverride))
   ipcMain.handle('pipeline:getDir', () => getPipelinesDir())
   ipcMain.handle('pipeline:delete', async (_e, fileName: string) => {
     if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) return false
