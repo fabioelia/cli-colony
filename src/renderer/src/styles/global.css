@@ -60,6 +60,43 @@ body.fullscreen {
   --titlebar-pad: 8px;
 }
 
+body.focus-mode .sidebar {
+  display: none;
+}
+
+body.focus-mode .main {
+  border-left: none;
+}
+
+.focus-mode-exit {
+  position: fixed;
+  top: var(--titlebar-pad);
+  left: 8px;
+  z-index: 100;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  -webkit-app-region: no-drag;
+}
+
+body.focus-mode .focus-mode-exit {
+  opacity: 0.3;
+}
+
+body.focus-mode .focus-mode-exit:hover {
+  opacity: 1;
+  background: var(--bg-hover);
+}
+
 html, body, #root {
   height: 100%;
   width: 100%;

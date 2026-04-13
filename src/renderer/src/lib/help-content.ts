@@ -289,6 +289,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Usage meter', detail: 'Shows today\'s persona cost vs daily budget. Green (<75%), amber (75-99%), red (≥100%). When no budget is set, shows just the dollar amount. Pulses red when rate-limited. Click to open Overview for the full cost chart. Updates hourly.', icon: 'DollarSign' },
           { label: 'Workspace presets', detail: 'Save and restore workspace layouts (sidebar view, layout mode, sidebar width). Ships with 3 built-in presets: Monitor, Review, Compare. Cmd+Shift+1-5 for quick-switch.', icon: 'LayoutGrid' },
           { label: 'Settings gear', detail: 'Opens the Settings panel for CLI defaults, shell profile, daemon management, and more.', icon: 'Settings' },
+          { label: 'Focus mode', detail: 'Cmd+B hides the sidebar for a distraction-free view. The main content expands to full width. Press Cmd+B, Esc, or hover the top-left button to restore.', icon: 'PanelLeft' },
         ],
       },
     ],
@@ -309,6 +310,7 @@ export const helpContent: Record<string, HelpEntry> = {
       { keys: 'Escape', action: 'Exit multi-select mode' },
       { keys: 'Cmd+Alt+←/→', action: 'Focus history — navigate back/forward through recently viewed sessions (like browser back/forward)' },
       { keys: 'Cmd+/', action: 'Show all keyboard shortcuts' },
+      { keys: 'Cmd+B', action: 'Toggle focus mode — hide the sidebar for a distraction-free view. Press Cmd+B or Esc to restore' },
     ],
   },
 

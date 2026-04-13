@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { Swords, BarChart3, X as XIcon, EyeOff, Trophy, Rocket, Gavel } from 'lucide-react'
+import { Swords, BarChart3, X as XIcon, EyeOff, Trophy, Rocket, Gavel, PanelLeft } from 'lucide-react'
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
 import { useModifierHeld } from './hooks/useModifierHeld'
 import { useResourceMonitor } from './hooks/useResourceMonitor'
@@ -128,6 +128,7 @@ export default function App() {
   const [cronsPaused, setCronsPaused] = useState(false)
   const [envPromptRequest, setEnvPromptRequest] = useState<{ requestId: string; envId: string; hookName: string; prompt: string; promptType: string; defaultPath?: string; defaultPathValid?: boolean; options?: string[] } | null>(null)
   const [showWelcome, setShowWelcome] = useState(false)
+  const [focusMode, setFocusMode] = useState(() => localStorage.getItem('focusMode') === 'true')
   const [forkModalInst, setForkModalInst] = useState<ClaudeInstance | null>(null)
   const [forkModalHint, setForkModalHint] = useState('')
   const [forkGroups, setForkGroups] = useState<ForkGroup[]>([])
@@ -429,6 +430,18 @@ export default function App() {
     })
   }, [])
 
+  const toggleFocusMode = useCallback(() => {
+    setFocusMode(prev => {
+      const next = !prev
+      localStorage.setItem('focusMode', String(next))
+      return next
+    })
+  }, [])
+
+  useEffect(() => {
+    document.body.classList.toggle('focus-mode', focusMode)
+  }, [focusMode])
+
   const handleCreate = useCallback(async (opts: {
     name?: string
     workingDirectory?: string
@@ -655,6 +668,8 @@ export default function App() {
     onNewSession: handleNewSession,
     onNavigate: handleViewChange,
     currentView: view as SidebarView,
+    onToggleFocusMode: toggleFocusMode,
+    focusMode,
   })
 
   const handleResumeSession = useCallback(async (session: CliSession) => {
@@ -1177,6 +1192,7 @@ export default function App() {
         if (showRestoreDialog) { setShowRestoreDialog(false); e.stopPropagation(); return }
         if (showSplitPicker) { setShowSplitPicker(false); e.stopPropagation() }
         if (showNewDialog) { setShowNewDialog(false); e.stopPropagation() }
+        if (focusMode && !document.querySelector('.modal-overlay')) { toggleFocusMode(); e.stopPropagation(); return }
       }
       if (e.metaKey && e.key === '/') {
         e.preventDefault()
@@ -1185,7 +1201,7 @@ export default function App() {
     }
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [showSplitPicker, showNewDialog, showRestoreDialog, cmdPaletteOpen, quickPromptOpen])
+  }, [showSplitPicker, showNewDialog, showRestoreDialog, cmdPaletteOpen, quickPromptOpen, focusMode, toggleFocusMode])
 
   // Custom event for Command Palette → Shortcut Overlay
   useEffect(() => {
@@ -1423,6 +1439,9 @@ export default function App() {
         </div>,
         document.body
       )}
+      <button className="focus-mode-exit" onClick={toggleFocusMode} title="Exit focus mode (Cmd+B)">
+        <PanelLeft size={14} /> <span>Sidebar</span>
+      </button>
       <Sidebar
         instances={instances}
         activeId={activeId}

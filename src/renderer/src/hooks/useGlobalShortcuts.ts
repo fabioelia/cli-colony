@@ -6,6 +6,8 @@ interface ShortcutHandlers {
   onNewSession: () => void
   onNavigate: (view: SidebarView) => void
   currentView: SidebarView
+  onToggleFocusMode?: () => void
+  focusMode?: boolean
 }
 
 /**
@@ -16,11 +18,10 @@ interface ShortcutHandlers {
  *
  * Guards: ignores events inside terminal inputs, text inputs, and textareas.
  */
-export function useGlobalShortcuts({ onNewSession, onNavigate, currentView }: ShortcutHandlers): void {
+export function useGlobalShortcuts({ onNewSession, onNavigate, currentView, onToggleFocusMode, focusMode }: ShortcutHandlers): void {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const meta = e.metaKey || e.ctrlKey
-      if (!meta) return
 
       // Don't steal from terminal helper textareas or regular inputs
       const target = e.target as HTMLElement | null
@@ -29,6 +30,8 @@ export function useGlobalShortcuts({ onNewSession, onNavigate, currentView }: Sh
         if (tag === 'input' || tag === 'textarea') return
         if (target.closest('.xterm-helper-textarea, .xterm-screen, .terminal-container')) return
       }
+
+      if (!meta) return
 
       if (e.key === 'n' && !e.shiftKey && !e.altKey) {
         e.preventDefault()
@@ -50,11 +53,18 @@ export function useGlobalShortcuts({ onNewSession, onNavigate, currentView }: Sh
         return
       }
 
+      // Cmd+B — Toggle focus mode (sidebar hide/show)
+      if (e.key === 'b' && !e.shiftKey && !e.altKey) {
+        e.preventDefault()
+        onToggleFocusMode?.()
+        return
+      }
+
       // Cmd+Shift+F is handled by the Electron menu accelerator (Global Search)
     }
 
     // Use capture phase so we get events before child components
     window.addEventListener('keydown', handler, true)
     return () => window.removeEventListener('keydown', handler, true)
-  }, [onNewSession, onNavigate, currentView])
+  }, [onNewSession, onNavigate, currentView, onToggleFocusMode, focusMode])
 }
