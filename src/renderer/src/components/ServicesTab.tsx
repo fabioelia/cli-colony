@@ -102,7 +102,7 @@ export default function ServicesTab({ envStatus, instance }: ServicesTabProps) {
                       name: `Fix: ${envStatus.displayName || envStatus.name}`,
                       workingDirectory: envStatus.paths.root || instance.workingDirectory,
                       color: '#ef4444',
-                      args: [...promptArgs, '--prompt', initialPrompt],
+                      args: [...promptArgs, initialPrompt],
                     })
                   } catch (err: any) {
                     setFixResult({ lines: [err.message || String(err)], isError: true })

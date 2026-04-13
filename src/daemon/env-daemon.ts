@@ -592,6 +592,39 @@ function registerEnvironment(manifest: InstanceManifest): void {
   if (environments.has(manifest.id)) {
     const existing = environments.get(manifest.id)!
     existing.manifest = manifest
+    // Sync service definitions so spawnService uses up-to-date cwds/commands
+    for (const [name, def] of Object.entries(manifest.services)) {
+      const svc = existing.services.get(name)
+      if (svc) {
+        svc.def = def
+        svc.resolved = def
+      } else {
+        // New service added to the manifest
+        existing.services.set(name, {
+          name,
+          def,
+          resolved: def,
+          process: null,
+          pid: null,
+          status: 'stopped',
+          startedAt: null,
+          restarts: 0,
+          maxRestarts: 3,
+          logStream: null,
+          healthTimer: null,
+          backoffTimer: null,
+          initialTimer: null,
+        })
+      }
+    }
+    // Remove services no longer in the manifest
+    for (const name of existing.services.keys()) {
+      if (!manifest.services[name]) {
+        const svc = existing.services.get(name)!
+        stopService(svc)
+        existing.services.delete(name)
+      }
+    }
     log(`updated environment ${manifest.name} (${manifest.id})`)
   } else {
     const services = new Map<string, ManagedService>()
