@@ -144,6 +144,11 @@ function RunWithOverrideDialog({ pipelineName, firstActionPrompt, onRun, onClose
   onClose: () => void
 }) {
   const [prompt, setPrompt] = useState(firstActionPrompt)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [onClose])
   return (
     <>
       <textarea

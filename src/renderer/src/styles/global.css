@@ -79,6 +79,7 @@ body.focus-mode .main {
   padding: 4px 8px;
   cursor: pointer;
   opacity: 0;
+  pointer-events: none;
   transition: opacity 0.2s;
   display: flex;
   align-items: center;
@@ -90,6 +91,7 @@ body.focus-mode .main {
 
 body.focus-mode .focus-mode-exit {
   opacity: 0.3;
+  pointer-events: auto;
 }
 
 body.focus-mode .focus-mode-exit:hover {
