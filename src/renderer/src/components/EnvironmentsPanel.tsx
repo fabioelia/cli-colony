@@ -709,16 +709,25 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                           try { await window.api.env.start(env.id); loadEnvironments() } catch { /* ignore */ }
                         }
                         // Resolve cwd from active worktree's primary repo path
-                        const activeWt = worktrees.find(wt => wt.mountedEnvId === env.id)
+                        const activeWt = env.activeWorktreeId
+                          ? worktrees.find(wt => wt.id === env.activeWorktreeId)
+                          : worktrees.find(wt => wt.mountedEnvId === env.id)
                         const wtPrimaryPath = activeWt?.repos?.[0]?.path
                         const sessionCwd = wtPrimaryPath || env.paths.root || env.paths.backend || undefined
                         const wtLabel = activeWt ? (activeWt.displayName || activeWt.branch) : null
                         const envContext = `You are working in the "${env.name}" environment${wtLabel ? ` (worktree: ${wtLabel})` : ''}.\n\nUpstream branch: ${env.branch} (use for fetching updates and rebasing — do NOT check this branch out)\nServices: ${env.services.map(s => `${s.name} (${s.status})`).join(', ')}\nPorts: ${Object.entries(env.ports).map(([k,v]) => `${k}:${v}`).join(', ')}\nURLs: ${Object.entries(env.urls).map(([k,v]) => `${k}: ${v}`).join(', ')}\nPaths: ${Object.entries(env.paths).map(([k,v]) => `${k}: ${v}`).join(', ')}\n\n## Git workflow for this environment\n- Run \`git branch\` to see what branch you are currently on.\n- You will typically be on a feature branch. Stay on it. Do NOT switch to ${env.branch} or any other branch.\n- To get upstream changes: \`git fetch origin ${env.branch} && git rebase origin/${env.branch}\`\n- When pushing, push the current branch: \`git push origin HEAD\`\n- Only create a new branch if the user explicitly asks for one.\n\nThe instance.json manifest is at ${env.paths.root || ''}/instance.json. You can read it for full configuration details.`
+                        let promptArgs: string[]
+                        try {
+                          const promptFile = await window.api.fs.writeTempFile(`env-${env.name}`, envContext)
+                          promptArgs = ['--append-system-prompt-file', promptFile]
+                        } catch {
+                          promptArgs = ['--append-system-prompt', envContext]
+                        }
                         await onLaunchInstance({
                           name: `Env: ${env.displayName || env.name}${wtLabel ? ` · ${wtLabel}` : ''}`,
                           workingDirectory: sessionCwd,
                           color: '#10b981',
-                          args: ['--append-system-prompt', envContext],
+                          args: promptArgs,
                         }).catch(err => console.error('[env] launch instance failed:', err))
                       }}
                     >
@@ -937,7 +946,9 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                 <div className="env-card-details">
                   {/* Active Worktree */}
                   {(() => {
-                    const activeWt = worktrees.find(wt => wt.mountedEnvId === env.id)
+                    const activeWt = env.activeWorktreeId
+                      ? worktrees.find(wt => wt.id === env.activeWorktreeId)
+                      : worktrees.find(wt => wt.mountedEnvId === env.id)
                     const unmountedWts = worktrees.filter(wt => !wt.mountedEnvId)
                     const isSwapping = swappingEnvId === env.id
 
