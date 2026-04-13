@@ -893,6 +893,7 @@ function getEnvStatus(env: ManagedEnvironment): EnvStatus {
     ports: manifest.ports || {},
     paths: manifest.paths || {},
     createdAt: manifest.createdAt,
+    activeWorktreeId: manifest.activeWorktreeId,
   }
 }
 

@@ -8,6 +8,7 @@
 import * as net from 'net'
 import * as fs from 'fs'
 import * as path from 'path'
+import * as os from 'os'
 import * as pty from 'node-pty'
 import { execSync, execFile } from 'child_process'
 import {
@@ -292,15 +293,53 @@ function buildSpawn(
   if (cliBackend === 'cursor-agent') {
     return { command: resolveCommand('agent'), argv: [...defaultArgs, ...userArgs] }
   }
-  const agentsMd = path.join(cwd, 'AGENTS.md')
-  const agentsArgs = fs.existsSync(agentsMd) ? ['--append-system-prompt-file', agentsMd] : []
-  const colonyMemory = path.join(cwd, '.colony', 'memory.md')
-  const memoryArgs = fs.existsSync(colonyMemory) ? ['--append-system-prompt-file', colonyMemory] : []
   const modelArgs = model ? ['--model', model] : []
   const permArgs = permissionMode === 'supervised' ? [] : ['--dangerously-skip-permissions']
+
+  // Consolidate all system prompt sources into a single file to avoid
+  // Claude CLI's "Cannot use both --append-system-prompt and --append-system-prompt-file" error.
+  const promptParts: string[] = []
+  const agentsMd = path.join(cwd, 'AGENTS.md')
+  if (fs.existsSync(agentsMd)) {
+    try { promptParts.push(fs.readFileSync(agentsMd, 'utf-8')) } catch { /* skip */ }
+  }
+  const colonyMemory = path.join(cwd, '.colony', 'memory.md')
+  if (fs.existsSync(colonyMemory)) {
+    try { promptParts.push(fs.readFileSync(colonyMemory, 'utf-8')) } catch { /* skip */ }
+  }
+
+  // Extract --append-system-prompt and --append-system-prompt-file from user/default args
+  // and merge their content into the consolidated prompt file
+  const allArgs = [...defaultArgs, ...userArgs]
+  const filteredArgs: string[] = []
+  for (let i = 0; i < allArgs.length; i++) {
+    if (allArgs[i] === '--append-system-prompt' && i + 1 < allArgs.length) {
+      promptParts.push(allArgs[i + 1])
+      i++ // skip value
+    } else if (allArgs[i] === '--append-system-prompt-file' && i + 1 < allArgs.length) {
+      try { promptParts.push(fs.readFileSync(allArgs[i + 1], 'utf-8')) } catch { /* skip */ }
+      i++ // skip value
+    } else {
+      filteredArgs.push(allArgs[i])
+    }
+  }
+
+  let promptArgs: string[] = []
+  if (promptParts.length > 0) {
+    const combined = promptParts.join('\n\n---\n\n')
+    const tmpFile = path.join(os.tmpdir(), `colony-prompt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.md`)
+    try {
+      fs.writeFileSync(tmpFile, combined, 'utf-8')
+      promptArgs = ['--append-system-prompt-file', tmpFile]
+    } catch {
+      // Last resort: use inline if temp file fails (only works if no file args remain)
+      promptArgs = ['--append-system-prompt', combined]
+    }
+  }
+
   return {
     command: resolveCommand('claude'),
-    argv: [...permArgs, ...modelArgs, '--add-dir', cwd, '--name', name, ...agentsArgs, ...memoryArgs, ...defaultArgs, ...userArgs],
+    argv: [...permArgs, ...modelArgs, '--add-dir', cwd, '--name', name, ...promptArgs, ...filteredArgs],
   }
 }
 
