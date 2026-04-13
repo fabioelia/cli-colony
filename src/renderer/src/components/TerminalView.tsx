@@ -5,7 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, X, RotateCcw, GitBranch, TerminalSquare, FolderTree, Columns2, LayoutGrid, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Trophy, GitCompare, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, FileDown, CheckCircle, Copy, Search } from 'lucide-react'
+import { ChevronUp, ChevronDown, X, RotateCcw, GitBranch, TerminalSquare, FolderTree, Columns2, LayoutGrid, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Trophy, GitCompare, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, FileDown, CheckCircle, Copy, Search, PanelRight } from 'lucide-react'
 import { TeamMetricsPanel } from './TeamMetricsPanel'
 import ServicesTab from './ServicesTab'
 import FilesTab from './FilesTab'
@@ -125,6 +125,14 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const [artifactCount, setArtifactCount] = useState(0)
   const [exportSuccess, setExportSuccess] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
+
+  // Browser split view
+  const [browserSplitTab, setBrowserSplitTab] = useState<ViewTab | null>(null)
+  const [browserSplitRatio, setBrowserSplitRatio] = useState(() => {
+    const saved = localStorage.getItem('colony:browserSplitRatio')
+    return saved ? parseFloat(saved) : 0.5
+  })
+  const [browserSplitDragging, setBrowserSplitDragging] = useState(false)
 
   // Session steering
   const [steerOpen, setSteerOpen] = useState(false)
@@ -551,6 +559,31 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     }
   }, [instance.id])
 
+  // Browser split divider drag handler
+  const handleBrowserSplitDrag = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startRatio = browserSplitRatio
+    const container = (e.target as HTMLElement).parentElement!
+    const containerWidth = container.getBoundingClientRect().width
+    setBrowserSplitDragging(true)
+    const onMove = (ev: MouseEvent) => {
+      const delta = (ev.clientX - startX) / containerWidth
+      const newRatio = Math.max(0.3, Math.min(0.7, startRatio + delta))
+      setBrowserSplitRatio(newRatio)
+    }
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      setBrowserSplitDragging(false)
+      setBrowserSplitRatio(r => { localStorage.setItem('colony:browserSplitRatio', String(r)); return r })
+    }
+    document.body.style.cursor = 'col-resize'
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [browserSplitRatio])
+
   // Paste images — Cmd+Shift+V checks clipboard for image via Electron main process
   useEffect(() => {
     const handler = async (e: KeyboardEvent) => {
@@ -579,6 +612,11 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     ...(instance.roleTag === 'Coordinator' ? (['team', 'metrics'] as ViewTab[]) : []),
   ], [effectiveEnvName, instance.workingDirectory, instance.roleTag, hasEnvUrls])
   usePanelTabKeys(visibleViewTabs, viewTab, setViewTab, focused)
+
+  // Secondary tabs available in browser split (exclude session/shell which need xterm reparenting)
+  const browserSplitTabs = useMemo<ViewTab[]>(() =>
+    visibleViewTabs.filter(t => t !== 'browser' && t !== 'session' && t !== 'shell'),
+  [visibleViewTabs])
 
   return (
     <>
@@ -711,6 +749,23 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           )}
         </div>
         <div className="terminal-header-actions">
+          {viewTab === 'browser' && !browserSplitTab && (
+            <Tooltip text="Split Browser" detail="Show another tab alongside the browser" shortcut="Cmd+Shift+\">
+              <button onClick={() => {
+                const saved = localStorage.getItem(`colony:browserSplitTab:${instance.id}`)
+                setBrowserSplitTab((saved as ViewTab) || 'logs')
+              }} aria-label="Split browser view">
+                <PanelRight size={14} />
+              </button>
+            </Tooltip>
+          )}
+          {viewTab === 'browser' && browserSplitTab && (
+            <Tooltip text="Close Split" detail="Close the secondary pane">
+              <button onClick={() => setBrowserSplitTab(null)} aria-label="Close browser split">
+                <X size={14} />
+              </button>
+            </Tooltip>
+          )}
           {viewTab === 'session' && (
             <Tooltip text="Export Session" detail="Save this session's output as a markdown file" position="bottom">
               <button
@@ -979,8 +1034,46 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
       {viewTab === 'logs' && envStatus && (
         <LogsTab envStatus={envStatus} />
       )}
-      {viewTab === 'browser' && envStatus && (
+      {viewTab === 'browser' && envStatus && !browserSplitTab && (
         <BrowserTab envStatus={envStatus} instanceId={instance.id} />
+      )}
+      {viewTab === 'browser' && envStatus && browserSplitTab && (
+        <div className="browser-split-container">
+          <div className="browser-split-pane" style={{ flex: `0 0 ${browserSplitRatio * 100}%` }}>
+            <BrowserTab envStatus={envStatus} instanceId={instance.id} />
+          </div>
+          <div
+            className="browser-split-divider"
+            onMouseDown={handleBrowserSplitDrag}
+            onDoubleClick={() => { setBrowserSplitRatio(0.5); localStorage.setItem('colony:browserSplitRatio', '0.5') }}
+          >
+            <div className="browser-split-divider-grip" />
+          </div>
+          <div className="browser-split-pane browser-split-secondary" style={{ flex: 1 }}>
+            <div className="browser-split-secondary-header">
+              <select value={browserSplitTab} onChange={(e) => {
+                const tab = e.target.value as ViewTab
+                setBrowserSplitTab(tab)
+                localStorage.setItem(`colony:browserSplitTab:${instance.id}`, tab)
+              }}>
+                {browserSplitTabs.map(t => (
+                  <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+                ))}
+              </select>
+              <button onClick={() => setBrowserSplitTab(null)} title="Close split"><X size={12} /></button>
+            </div>
+            {browserSplitTab === 'files' && <FilesTab instance={instance} focused={focused} onSwitchToSession={() => setViewTab('session')} />}
+            {browserSplitTab === 'services' && envStatus && <ServicesTab envStatus={envStatus} instance={instance} />}
+            {browserSplitTab === 'logs' && envStatus && <LogsTab envStatus={envStatus} />}
+            {browserSplitTab === 'changes' && <ChangesTab instance={instance} onChangeCount={setChangeCount} />}
+            {browserSplitTab === 'artifacts' && <ArtifactsTab instanceId={instance.id} instanceStatus={instance.status} onArtifactCount={setArtifactCount} />}
+            {browserSplitTab === 'team' && instance.roleTag === 'Coordinator' && <TeamTab instanceId={instance.id} onWorkerCountChange={setTeamWorkerCount} onNavigateToWorker={onNavigateToSession} />}
+            {browserSplitTab === 'metrics' && instance.roleTag === 'Coordinator' && (
+              <div className="changes-panel"><TeamMetricsPanel coordinatorSessionId={instance.id} /></div>
+            )}
+          </div>
+          {browserSplitDragging && <div className="browser-split-drag-overlay" />}
+        </div>
       )}
       {viewTab === 'changes' && (
         <ChangesTab instance={instance} onChangeCount={setChangeCount} />

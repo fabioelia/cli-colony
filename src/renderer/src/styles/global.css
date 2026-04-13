@@ -6945,6 +6945,82 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: var(--bg-hover);
 }
 
+/* Browser split view */
+.browser-split-container {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+.browser-split-pane {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.browser-split-divider {
+  width: 4px;
+  background: var(--border);
+  cursor: col-resize;
+  flex-shrink: 0;
+  transition: background 0.15s;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.browser-split-divider:hover {
+  background: var(--accent);
+}
+.browser-split-divider-grip {
+  width: 2px;
+  height: 24px;
+  background: var(--text-muted);
+  border-radius: 1px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.browser-split-divider:hover .browser-split-divider-grip {
+  opacity: 0.5;
+}
+.browser-split-secondary-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.browser-split-secondary-header select {
+  flex: 1;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 11px;
+  padding: 2px 6px;
+  outline: none;
+}
+.browser-split-secondary-header button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+}
+.browser-split-secondary-header button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.browser-split-drag-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  cursor: col-resize;
+}
+
 /* ===== List Panel (shared by Changes, Team, Metrics tabs) ===== */
 .changes-panel {
   display: flex;
