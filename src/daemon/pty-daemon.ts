@@ -495,8 +495,9 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
       const outputMatch = clean.match(/([\d,]+)\s*output\s*tokens?/i)
       if (outputMatch) instance.tokenUsage.output = parseInt(outputMatch[1].replace(/,/g, ''), 10)
 
-      // Parse rate limit errors
-      if (/(?:rate[_ ]?limit|429|too many requests|overloaded|resource[_ ]?exhausted)/i.test(clean)) {
+      // Parse rate limit errors — match API-level error messages only (not generated content)
+      // Removed: 'overloaded' (Claude capacity msg ≠ rate limit), bare '429' (matches code/port numbers)
+      if (/(?:rate[_ ]?limit(?:ed)?|too\s+many\s+requests|resource[_ ]?exhausted)/i.test(clean)) {
         // Extract retry-after seconds if present
         let retryAfterSecs: number | null = null
         const retryMatch = clean.match(/retry[- _]?after[:\s]*(\d+)\s*(?:s|sec|second)/i)
@@ -504,8 +505,9 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
           || clean.match(/wait\s+(\d+)\s*(?:s|sec|second)/i)
           || clean.match(/retry[- _]?after[:\s]*(\d+)/i)
         if (retryMatch) retryAfterSecs = parseInt(retryMatch[1], 10)
-        // Also check for minute-based retry
-        const minuteMatch = clean.match(/(\d+)\s*(?:m|min|minute)/i)
+        // Minute-based retry — require retry/wait context to avoid matching timestamps
+        const minuteMatch = clean.match(/(?:retry[- _]?after|wait)\s+(\d+)\s*(?:m|min|minute)/i)
+          || clean.match(/(\d+)\s*(?:min|minute)s?\s*(?:until|before|wait)/i)
         if (!retryAfterSecs && minuteMatch) retryAfterSecs = parseInt(minuteMatch[1], 10) * 60
         broadcastEvent({ type: 'rateLimitDetected', instanceId: id, retryAfterSecs, rawMessage: clean.slice(0, 200) })
       }
