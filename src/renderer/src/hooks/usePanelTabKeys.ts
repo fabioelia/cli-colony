@@ -74,6 +74,10 @@ export function computeTabKeyAction<T extends string>(
 /**
  * Alt+1..9 direct tab jump. Returns the target tab or null.
  * Uses e.code (not e.key) because Alt+digit produces special chars on macOS.
+ *
+ * No xterm guard — Alt+N always wins. Bash digit-argument (the only
+ * conflicting terminal use of Alt+digit) is extremely niche.
+ * Text inputs are still guarded to avoid stealing from form fields.
  */
 export function computeDirectTabAction<T extends string>(
   e: Pick<KeyboardEvent, 'altKey' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'code'> & {
@@ -85,8 +89,12 @@ export function computeDirectTabAction<T extends string>(
 ): T | null {
   if (!e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return null
   if (!e.code?.startsWith('Digit')) return null
-  // Guard: skip when inside text input or xterm
-  if (shouldIgnoreTabKeyEvent(e.target ?? null)) return null
+  // Guard text inputs only — Alt+N should work even from inside xterm
+  const el = e.target as HTMLElement | null
+  if (el) {
+    const tag = el.tagName?.toLowerCase()
+    if (tag === 'input' || tag === 'textarea' || el.isContentEditable) return null
+  }
   const idx = parseInt(e.code.slice(5)) - 1
   if (idx < 0 || idx >= tabs.length) return null
   e.preventDefault?.()
