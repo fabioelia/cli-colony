@@ -15183,6 +15183,28 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--danger);
 }
 
+.env-action-debug-on {
+  color: var(--warning);
+}
+
+.env-action-debug-on:hover {
+  color: var(--warning);
+  background: rgba(245, 158, 11, 0.15);
+}
+
+.env-purpose-debug {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warning);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.env-service-debug-port {
+  color: var(--warning);
+  font-style: italic;
+}
+
 .env-action-confirm {
   color: var(--danger) !important;
   background: rgba(239, 68, 68, 0.1) !important;

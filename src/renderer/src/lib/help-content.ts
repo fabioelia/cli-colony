@@ -652,6 +652,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Terminal', detail: 'Open a Claude session in the environment directory.', icon: 'Terminal' },
           { label: 'Open Folder', detail: 'Open the environment directory in Finder.', icon: 'FolderOpen' },
           { label: 'Diagnose', detail: 'Launch Claude to diagnose and fix environment issues.', icon: 'Stethoscope' },
+          { label: 'Debug', detail: 'Toggle debug mode. When on, services restart with a debugger attached (Node.js --inspect / Python debugpy). Amber bug icon indicates debug is active. Agent sessions launched in a debug environment automatically get debug_* MCP tools for setting breakpoints, inspecting variables, and stepping through code.', icon: 'Bug' },
           { label: 'Clone', detail: 'Duplicate an environment with the same template, branch, and base branch but fresh ports and a new directory. Enter a name in the dialog. Disabled while the source is still creating.', icon: 'Copy' },
         ],
       },
@@ -659,7 +660,7 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Expanded Environment',
         position: 'Below card when expanded',
         items: [
-          { label: 'Service list', detail: 'Each service row shows status, uptime, port, restart count, and start/stop/restart controls.' },
+          { label: 'Service list', detail: 'Each service row shows status, uptime, port, restart count, and start/stop/restart controls. When debug mode is on, an amber "debug :PORT" badge shows the debug adapter port.' },
           { label: 'URLs section', detail: 'Clickable URLs for accessible service endpoints.' },
           { label: 'Auto-restart toggle', detail: 'When enabled, any crashed service in this environment is automatically restarted after 5 seconds. Off by default.' },
           { label: 'Purpose tag', detail: 'Tag an environment as interactive (sprint work), background (parallel tasks), or nightly (overnight batch jobs). Shows as a colored badge on the card. Optional — helps you filter and understand at a glance what each environment is for.' },

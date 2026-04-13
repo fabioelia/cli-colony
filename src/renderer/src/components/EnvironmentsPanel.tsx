@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
-  Server, Play, Square, Trash2, RefreshCw, FileText, Copy,
+  Server, Play, Square, Trash2, RefreshCw, FileText, Copy, Bug,
   Plus, ExternalLink, ChevronDown, ChevronRight,
   Circle, AlertTriangle, Clock, X, FolderOpen, Terminal, Loader, CheckCircle, Check, SkipForward, Upload, Download, MessageSquare, Wrench, Stethoscope,
   GitBranch, Unlink, Link, Search, ArrowLeftRight
@@ -635,6 +635,9 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                         {purposeTags[env.id]}
                       </span>
                     )}
+                    {env.services.some(s => s.debugEnabled) && (
+                      <span className="env-purpose-badge env-purpose-debug"><Bug size={10} /> Debug</span>
+                    )}
                   </div>
                   <div className="env-card-meta">
                     <span className="env-card-branch">{env.branch}</span>
@@ -797,6 +800,27 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                       onClick={() => setLogViewEnv({ envId: env.id, envName: env.name, serviceNames: ['setup', ...env.services.map(s => s.name)] })}
                     >
                       <FileText size={14} />
+                    </button>
+                  </Tooltip>
+                  <Tooltip text={env.services.some(s => s.debugEnabled) ? 'Debug: ON' : 'Debug: OFF'} detail="Toggle debug mode — services restart with debugger attached">
+                    <button
+                      className={`env-action-btn${env.services.some(s => s.debugEnabled) ? ' env-action-debug-on' : ''}`}
+                      onClick={async () => {
+                        const isOn = env.services.some(s => s.debugEnabled)
+                        try {
+                          setActionInProgress(prev => new Set(prev).add(env.id))
+                          await window.api.env.toggleDebug(env.id, !isOn)
+                          setTimeout(loadEnvironments, 1000)
+                          setTimeout(loadEnvironments, 3000)
+                        } catch (err: any) {
+                          console.error('[env] toggle debug failed:', err)
+                        } finally {
+                          setActionInProgress(prev => { const s = new Set(prev); s.delete(env.id); return s })
+                        }
+                      }}
+                      disabled={isLoading || env.status === 'creating' || env.status === 'stopped'}
+                    >
+                      <Bug size={14} />
                     </button>
                   </Tooltip>
                   <Tooltip text="Clone" detail="Duplicate this environment">
@@ -1045,6 +1069,9 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                           <span className="env-service-name">{svc.name}</span>
                           <span className="env-service-status">{svc.status}</span>
                           {svc.port && <span className="env-service-port">:{svc.port}</span>}
+                          {svc.debugEnabled && svc.debugPort && (
+                            <span className="env-service-port env-service-debug-port" title="Debug port">debug :{svc.debugPort}</span>
+                          )}
                           {svc.uptime > 0 && (
                             <span className="env-service-uptime">
                               <Clock size={10} /> {formatUptime(svc.uptime)}
