@@ -672,6 +672,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
             onDeleteNote={async (index) => {
               await window.api.persona.deleteNote(persona.id, index)
             }}
+            cronsPaused={cronsPaused}
           />
         ))}
       </div>
@@ -1013,11 +1014,12 @@ interface PersonaCardProps {
   onScheduleSave: (schedule: string) => Promise<void>
   onWhisper: (text: string) => Promise<void>
   onDeleteNote: (index: number) => Promise<void>
+  cronsPaused: boolean
 }
 
 function PersonaCard({
   persona, expanded, instances, allPersonas, analytics, selected, onToggleSelect,
-  onToggleExpand, onRun, onStop, onToggle, onDelete, onDuplicate, onFocusInstance, onViewFile, onEditFile, onEditMeta, onScheduleSave, onWhisper, onDeleteNote
+  onToggleExpand, onRun, onStop, onToggle, onDelete, onDuplicate, onFocusInstance, onViewFile, onEditFile, onEditMeta, onScheduleSave, onWhisper, onDeleteNote, cronsPaused
 }: PersonaCardProps) {
   const [editingSchedule, setEditingSchedule] = useState(false)
   const [whisperOpen, setWhisperOpen] = useState(false)
