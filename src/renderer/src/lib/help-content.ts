@@ -1086,7 +1086,7 @@ export const helpContent: Record<string, HelpEntry> = {
     ],
     shortcuts: [
       { keys: 'Alt+1..N', action: 'Jump directly to the Nth visible tab' },
-      { keys: 'Cmd+Shift+{ / }', action: 'Cycle to previous / next tab' },
+      { keys: 'Cmd+[ / ]', action: 'Cycle to previous / next tab' },
       { keys: 'Hold Cmd', action: 'Show shortcut hints on all UI elements (release to hide)' },
       { keys: 'Cmd+F', action: 'Search in terminal' },
       { keys: 'Cmd+=', action: 'Zoom in' },
