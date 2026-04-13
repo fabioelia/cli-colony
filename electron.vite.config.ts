@@ -10,6 +10,7 @@ export default defineConfig({
           index: 'src/main/index.ts',
           'daemon/pty-daemon': 'src/daemon/pty-daemon.ts',
           'daemon/env-daemon': 'src/daemon/env-daemon.ts',
+          'debug-mcp/server': 'src/debug-mcp/server.ts',
         },
       },
     },

@@ -41,6 +41,12 @@ const ENVIRONMENTS_DIR = colonyPaths.environments
 // ---- Helpers ----
 // genId and slugify imported from shared/utils
 
+function detectServiceLanguage(command: string): 'node' | 'python' | null {
+  if (/\b(node|npm|npx|tsx|ts-node|bun)\b/.test(command)) return 'node'
+  if (/\b(python|manage\.py|django|gunicorn|uvicorn|flask)\b/.test(command)) return 'python'
+  return null
+}
+
 // ---- Daemon event wiring ----
 
 let _wired = false
@@ -653,6 +659,29 @@ export async function toggleDebug(envId: string, enabled: boolean, service?: str
 
   // Persist manifest
   await fsp.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
+
+  // Write debug MCP config for agent sessions
+  const debugMcpConfigPath = path.join(envDir, 'debug-mcp-config.json')
+  if (enabled) {
+    const targets = serviceNames
+      .map(name => {
+        const svc = manifest.services[name]
+        if (!svc?.debug?.enabled || !svc.debug.port) return null
+        const lang = svc.debug.language || detectServiceLanguage(svc.command)
+        if (!lang) return null
+        return { name, language: lang, host: '127.0.0.1', port: svc.debug.port }
+      })
+      .filter(Boolean)
+    if (targets.length > 0) {
+      await fsp.writeFile(debugMcpConfigPath, JSON.stringify({ targets }, null, 2))
+    }
+  } else {
+    // Clean up config if no services have debug enabled
+    const anyDebug = Object.values(manifest.services).some(s => s.debug?.enabled)
+    if (!anyDebug) {
+      try { await fsp.unlink(debugMcpConfigPath) } catch { /* */ }
+    }
+  }
 
   // Tell envd to toggle + restart affected services
   await getEnvDaemonClient().toggleDebug(envId, enabled, service)
