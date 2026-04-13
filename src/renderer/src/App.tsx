@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Swords, BarChart3, X as XIcon, EyeOff, Trophy, Rocket, Gavel } from 'lucide-react'
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
+import { useModifierHeld } from './hooks/useModifierHeld'
 import { useResourceMonitor } from './hooks/useResourceMonitor'
 import { useOutputTracking } from './hooks/useOutputTracking'
 import { useFocusHistory } from './hooks/useFocusHistory'
@@ -149,6 +150,7 @@ export default function App() {
   const resourceUsage = useResourceMonitor()
   const { unreadIds, setUnreadIds, outputBytes } = useOutputTracking(activeViewRef, instances)
   const { focusNavRef, removeFromHistory } = useFocusHistory(activeId, setActiveId)
+  useModifierHeld()
 
   useEffect(() => {
     window.api.instance.list().then((list) => setInstances(prev => instancesEqual(prev, list) ? prev : list))

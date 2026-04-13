@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState, useMemo, MutableRefObject } from 'react'
+import { useEffect, useRef, useCallback, useState, useMemo, memo, MutableRefObject } from 'react'
 import type { ContextUsage } from '../../../preload'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
@@ -86,7 +86,7 @@ function formatUptime(seconds: number): string {
 
 type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'changes' | 'artifacts' | 'team' | 'metrics' | 'browser'
 
-export default function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, onSearchToggle, fontSize = 13, fontFamily = 'Menlo, Monaco, "Courier New", monospace', cursorStyle = 'underline', cursorBlink = false, scrollback = 10000, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid, onNavigateToSession, errorSummary }: Props) {
+export default memo(function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, onSearchToggle, fontSize = 13, fontFamily = 'Menlo, Monaco, "Courier New", monospace', cursorStyle = 'underline', cursorBlink = false, scrollback = 10000, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid, onNavigateToSession, errorSummary }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const initializedRef = useRef(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -115,7 +115,25 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
     }
     return null
   })()
-  const [envStatus, setEnvStatus] = useState<EnvStatus | null>(null)
+  const [envStatus, setEnvStatusRaw] = useState<EnvStatus | null>(null)
+  // Stabilize envStatus — only update state when meaningful fields change
+  const setEnvStatus = useCallback((next: EnvStatus | null) => {
+    setEnvStatusRaw(prev => {
+      if (prev === null && next === null) return prev
+      if (prev === null || next === null) return next
+      if (prev.id !== next.id) return next
+      // Compare fields that actually affect rendering
+      if (prev.status !== next.status) return next
+      if (prev.services.length !== next.services.length) return next
+      if (JSON.stringify(prev.urls) !== JSON.stringify(next.urls)) return next
+      if (JSON.stringify(prev.ports) !== JSON.stringify(next.ports)) return next
+      for (let i = 0; i < prev.services.length; i++) {
+        const a = prev.services[i], b = next.services[i]
+        if (a.name !== b.name || a.status !== b.status || a.port !== b.port || a.uptime !== b.uptime || a.restarts !== b.restarts) return next
+      }
+      return prev
+    })
+  }, [])
   // Track whether we matched by paths.root (for non-colony-dir sessions)
   const [pathMatchedEnv, setPathMatchedEnv] = useState<string | null>(null)
   const effectiveEnvName = envName || pathMatchedEnv
@@ -126,13 +144,18 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   const [exportSuccess, setExportSuccess] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
 
-  // Browser split view
-  const [browserSplitTab, setBrowserSplitTab] = useState<ViewTab | null>(null)
-  const [browserSplitRatio, setBrowserSplitRatio] = useState(() => {
-    const saved = localStorage.getItem('colony:browserSplitRatio')
+  // Browser — lazy mount, keep alive once opened to avoid webview reloads
+  const [browserMounted, setBrowserMounted] = useState(false)
+  if (!browserMounted && viewTab === 'browser') setBrowserMounted(true)
+
+  // Tab split view — any tab can have a secondary pane, persists across tab switches
+  const [splitTab, setSplitTabRaw] = useState<ViewTab | null>(null)
+  const setSplitTab = useCallback((v: ViewTab | null | ((prev: ViewTab | null) => ViewTab | null)) => setSplitTabRaw(v), [])
+  const [splitRatio, setSplitRatio] = useState(() => {
+    const saved = localStorage.getItem('colony:splitRatio')
     return saved ? parseFloat(saved) : 0.5
   })
-  const [browserSplitDragging, setBrowserSplitDragging] = useState(false)
+  const [splitDragging, setSplitDragging] = useState(false)
 
   // Session steering
   const [steerOpen, setSteerOpen] = useState(false)
@@ -560,29 +583,29 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   }, [instance.id])
 
   // Browser split divider drag handler
-  const handleBrowserSplitDrag = useCallback((e: React.MouseEvent) => {
+  const handleSplitDrag = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     const startX = e.clientX
-    const startRatio = browserSplitRatio
+    const startRatio = splitRatio
     const container = (e.target as HTMLElement).parentElement!
     const containerWidth = container.getBoundingClientRect().width
-    setBrowserSplitDragging(true)
+    setSplitDragging(true)
     const onMove = (ev: MouseEvent) => {
       const delta = (ev.clientX - startX) / containerWidth
       const newRatio = Math.max(0.3, Math.min(0.7, startRatio + delta))
-      setBrowserSplitRatio(newRatio)
+      setSplitRatio(newRatio)
     }
     const onUp = () => {
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
       document.body.style.cursor = ''
-      setBrowserSplitDragging(false)
-      setBrowserSplitRatio(r => { localStorage.setItem('colony:browserSplitRatio', String(r)); return r })
+      setSplitDragging(false)
+      setSplitRatio(r => { localStorage.setItem('colony:splitRatio', String(r)); return r })
     }
     document.body.style.cursor = 'col-resize'
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
-  }, [browserSplitRatio])
+  }, [splitRatio])
 
   // Paste images — Cmd+Shift+V checks clipboard for image via Electron main process
   useEffect(() => {
@@ -613,10 +636,66 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
   ], [effectiveEnvName, instance.workingDirectory, instance.roleTag, hasEnvUrls])
   usePanelTabKeys(visibleViewTabs, viewTab, setViewTab, focused)
 
-  // Secondary tabs available in browser split (exclude session/shell which need xterm reparenting)
-  const browserSplitTabs = useMemo<ViewTab[]>(() =>
-    visibleViewTabs.filter(t => t !== 'browser' && t !== 'session' && t !== 'shell'),
-  [visibleViewTabs])
+  const tabHintMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    visibleViewTabs.forEach((tab, i) => {
+      if (i < 9) map[tab] = `⌥${i + 1}`
+    })
+    return map
+  }, [visibleViewTabs])
+
+  // All visible tabs available in split secondary (including current — user may want same tab in both)
+  const splitTabs = useMemo<ViewTab[]>(() => visibleViewTabs, [visibleViewTabs])
+
+  // Same tab in both primary and secondary is allowed — no collision handling
+
+  const renderTabContent = (tab: ViewTab): React.ReactNode => {
+    switch (tab) {
+      case 'session': return (
+        <div className="split-terminal-note"><MessageSquare size={14} /><span>Switch to Session tab to view the terminal</span></div>
+      )
+      case 'shell': return (
+        <div className="split-terminal-note"><TerminalSquare size={14} /><span>Switch to Terminal tab to use the shell</span></div>
+      )
+      case 'files': return <FilesTab instance={instance} focused={focused} onSwitchToSession={() => setViewTab('session')} />
+      case 'services': return envStatus ? <ServicesTab envStatus={envStatus} instance={instance} /> : null
+      case 'logs': return envStatus ? <LogsTab envStatus={envStatus} /> : null
+      case 'browser': return envStatus ? <BrowserTab envStatus={envStatus} instanceId={instance.id} /> : null
+      case 'changes': return <ChangesTab instance={instance} onChangeCount={setChangeCount} />
+      case 'artifacts': return <ArtifactsTab instanceId={instance.id} instanceStatus={instance.status} onArtifactCount={setArtifactCount} />
+      case 'team': return instance.roleTag === 'Coordinator' ? <TeamTab instanceId={instance.id} onWorkerCountChange={setTeamWorkerCount} onNavigateToWorker={onNavigateToSession} /> : null
+      case 'metrics': return instance.roleTag === 'Coordinator' ? <div className="changes-panel"><TeamMetricsPanel coordinatorSessionId={instance.id} /></div> : null
+      default: return null
+    }
+  }
+
+  const renderSecondaryPane = () => (
+    <>
+      <div
+        className="browser-split-divider"
+        onMouseDown={handleSplitDrag}
+        onDoubleClick={() => { setSplitRatio(0.5); localStorage.setItem('colony:splitRatio', '0.5') }}
+      >
+        <div className="browser-split-divider-grip" />
+      </div>
+      <div className="browser-split-pane browser-split-secondary" style={{ flex: 1 }}>
+        <div className="browser-split-secondary-header">
+          <select value={splitTab!} onChange={(e) => {
+            const tab = e.target.value as ViewTab
+            setSplitTab(tab)
+            localStorage.setItem(`colony:splitTab:${instance.id}`, tab)
+          }}>
+            {splitTabs.map(t => (
+              <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+            ))}
+          </select>
+          <button onClick={() => setSplitTab(null)} title="Close split"><X size={12} /></button>
+        </div>
+        {renderTabContent(splitTab!)}
+      </div>
+      {splitDragging && <div className="browser-split-drag-overlay" />}
+    </>
+  )
 
   return (
     <>
@@ -633,6 +712,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               title="Claude session"
             >
               <MessageSquare size={12} /> Session
+              {tabHintMap['session'] && <span className="shortcut-hint">{tabHintMap['session']}</span>}
             </button>
             <button
               className={`terminal-tab ${viewTab === 'shell' ? 'active' : ''}`}
@@ -640,6 +720,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               title="Shell terminal"
             >
               <TerminalSquare size={12} /> Terminal
+              {tabHintMap['shell'] && <span className="shortcut-hint">{tabHintMap['shell']}</span>}
             </button>
             <button
               className={`terminal-tab ${viewTab === 'files' ? 'active' : ''}`}
@@ -647,6 +728,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               title="View files"
             >
               <FolderTree size={12} /> Files
+              {tabHintMap['files'] && <span className="shortcut-hint">{tabHintMap['files']}</span>}
             </button>
             {effectiveEnvName && (
               <button
@@ -663,6 +745,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                   if (running > 0) return <span className="services-tab-badge success">{running}</span>
                   return null
                 })()}
+                {tabHintMap['services'] && <span className="shortcut-hint">{tabHintMap['services']}</span>}
               </button>
             )}
             {effectiveEnvName && (
@@ -672,6 +755,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 title="Service logs"
               >
                 <ScrollText size={12} /> Logs
+                {tabHintMap['logs'] && <span className="shortcut-hint">{tabHintMap['logs']}</span>}
               </button>
             )}
             {hasEnvUrls && (
@@ -682,6 +766,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               >
                 <Globe size={12} /> Browser
                 <span className="services-tab-badge" style={{ background: 'var(--accent)' }}>{Object.keys(envStatus!.urls).length}</span>
+                {tabHintMap['browser'] && <span className="shortcut-hint">{tabHintMap['browser']}</span>}
               </button>
             )}
             {instance.workingDirectory && (
@@ -694,6 +779,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 {viewTab !== 'changes' && changeCount > 0 && (
                   <span className="services-tab-badge" style={{ background: 'var(--warning)' }}>{changeCount}</span>
                 )}
+                {tabHintMap['changes'] && <span className="shortcut-hint">{tabHintMap['changes']}</span>}
               </button>
             )}
             <button
@@ -705,6 +791,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               {viewTab !== 'artifacts' && artifactCount > 0 && (
                 <span className="services-tab-badge" style={{ background: 'var(--accent)' }}>{artifactCount}</span>
               )}
+              {tabHintMap['artifacts'] && <span className="shortcut-hint">{tabHintMap['artifacts']}</span>}
             </button>
             {instance.roleTag === 'Coordinator' && (
               <button
@@ -716,6 +803,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 {viewTab !== 'team' && teamWorkerCount > 0 ? (
                   <span className="services-tab-badge" style={{ background: 'var(--warning)' }}>{teamWorkerCount}</span>
                 ) : null}
+                {tabHintMap['team'] && <span className="shortcut-hint">{tabHintMap['team']}</span>}
               </button>
             )}
             {instance.roleTag === 'Coordinator' && (
@@ -725,6 +813,7 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
                 title="Team metrics"
               >
                 <BarChart3 size={12} /> Metrics
+                {tabHintMap['metrics'] && <span className="shortcut-hint">{tabHintMap['metrics']}</span>}
               </button>
             )}
           </div>
@@ -749,19 +838,20 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           )}
         </div>
         <div className="terminal-header-actions">
-          {viewTab === 'browser' && !browserSplitTab && (
-            <Tooltip text="Split Browser" detail="Show another tab alongside the browser" shortcut="Cmd+Shift+\">
+          {!splitTab && (
+            <Tooltip text="Split View" detail="Show another tab alongside this one" shortcut="Cmd+Shift+\">
               <button onClick={() => {
-                const saved = localStorage.getItem(`colony:browserSplitTab:${instance.id}`)
-                setBrowserSplitTab((saved as ViewTab) || 'logs')
-              }} aria-label="Split browser view">
+                const saved = localStorage.getItem(`colony:splitTab:${instance.id}`)
+                const defaultTab = splitTabs[0] || 'files'
+                setSplitTab((saved && saved !== viewTab ? saved : defaultTab) as ViewTab)
+              }} aria-label="Split view">
                 <PanelRight size={14} />
               </button>
             </Tooltip>
           )}
-          {viewTab === 'browser' && browserSplitTab && (
+          {splitTab && (
             <Tooltip text="Close Split" detail="Close the secondary pane">
-              <button onClick={() => setBrowserSplitTab(null)} aria-label="Close browser split">
+              <button onClick={() => setSplitTab(null)} aria-label="Close split">
                 <X size={14} />
               </button>
             </Tooltip>
@@ -1025,70 +1115,21 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
           )}
         </div>
       )}
-      {viewTab === 'files' && (
-        <FilesTab instance={instance} focused={focused} onSwitchToSession={() => setViewTab('session')} />
+      {/* Tab content — session/shell use absolute overlay for split; browser is persistent; others use flex split */}
+      {(viewTab === 'session' || viewTab === 'shell') && splitTab && (
+        <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: `${(1 - splitRatio) * 100}%`, display: 'flex', zIndex: 5 }}>
+          {renderSecondaryPane()}
+        </div>
       )}
-      {viewTab === 'services' && envStatus && (
-        <ServicesTab envStatus={envStatus} instance={instance} />
-      )}
-      {viewTab === 'logs' && envStatus && (
-        <LogsTab envStatus={envStatus} />
-      )}
-      {viewTab === 'browser' && envStatus && !browserSplitTab && (
-        <BrowserTab envStatus={envStatus} instanceId={instance.id} />
-      )}
-      {viewTab === 'browser' && envStatus && browserSplitTab && (
+      {viewTab !== 'session' && viewTab !== 'shell' && viewTab !== 'browser' && splitTab && (
         <div className="browser-split-container">
-          <div className="browser-split-pane" style={{ flex: `0 0 ${browserSplitRatio * 100}%` }}>
-            <BrowserTab envStatus={envStatus} instanceId={instance.id} />
+          <div className="browser-split-pane" style={{ flex: `0 0 ${splitRatio * 100}%` }}>
+            {renderTabContent(viewTab)}
           </div>
-          <div
-            className="browser-split-divider"
-            onMouseDown={handleBrowserSplitDrag}
-            onDoubleClick={() => { setBrowserSplitRatio(0.5); localStorage.setItem('colony:browserSplitRatio', '0.5') }}
-          >
-            <div className="browser-split-divider-grip" />
-          </div>
-          <div className="browser-split-pane browser-split-secondary" style={{ flex: 1 }}>
-            <div className="browser-split-secondary-header">
-              <select value={browserSplitTab} onChange={(e) => {
-                const tab = e.target.value as ViewTab
-                setBrowserSplitTab(tab)
-                localStorage.setItem(`colony:browserSplitTab:${instance.id}`, tab)
-              }}>
-                {browserSplitTabs.map(t => (
-                  <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
-                ))}
-              </select>
-              <button onClick={() => setBrowserSplitTab(null)} title="Close split"><X size={12} /></button>
-            </div>
-            {browserSplitTab === 'files' && <FilesTab instance={instance} focused={focused} onSwitchToSession={() => setViewTab('session')} />}
-            {browserSplitTab === 'services' && envStatus && <ServicesTab envStatus={envStatus} instance={instance} />}
-            {browserSplitTab === 'logs' && envStatus && <LogsTab envStatus={envStatus} />}
-            {browserSplitTab === 'changes' && <ChangesTab instance={instance} onChangeCount={setChangeCount} />}
-            {browserSplitTab === 'artifacts' && <ArtifactsTab instanceId={instance.id} instanceStatus={instance.status} onArtifactCount={setArtifactCount} />}
-            {browserSplitTab === 'team' && instance.roleTag === 'Coordinator' && <TeamTab instanceId={instance.id} onWorkerCountChange={setTeamWorkerCount} onNavigateToWorker={onNavigateToSession} />}
-            {browserSplitTab === 'metrics' && instance.roleTag === 'Coordinator' && (
-              <div className="changes-panel"><TeamMetricsPanel coordinatorSessionId={instance.id} /></div>
-            )}
-          </div>
-          {browserSplitDragging && <div className="browser-split-drag-overlay" />}
+          {renderSecondaryPane()}
         </div>
       )}
-      {viewTab === 'changes' && (
-        <ChangesTab instance={instance} onChangeCount={setChangeCount} />
-      )}
-      {viewTab === 'artifacts' && (
-        <ArtifactsTab instanceId={instance.id} instanceStatus={instance.status} onArtifactCount={setArtifactCount} />
-      )}
-      {viewTab === 'team' && instance.roleTag === 'Coordinator' && (
-        <TeamTab instanceId={instance.id} onWorkerCountChange={setTeamWorkerCount} onNavigateToWorker={onNavigateToSession} />
-      )}
-      {viewTab === 'metrics' && instance.roleTag === 'Coordinator' && (
-        <div className="changes-panel">
-          <TeamMetricsPanel coordinatorSessionId={instance.id} />
-        </div>
-      )}
+      {viewTab !== 'session' && viewTab !== 'shell' && viewTab !== 'browser' && !splitTab && renderTabContent(viewTab)}
       {viewTab === 'session' && errorSummary && instance.status === 'exited' && (
         <details className="session-error-card" open>
           <summary className="session-error-card-summary">
@@ -1135,6 +1176,23 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
               <X size={12} /> Deny
             </button>
           </div>
+        </div>
+      )}
+      {/* Browser — persistent mount to prevent webview reloads on tab switch */}
+      {browserMounted && envStatus && (
+        <div style={{
+          display: viewTab === 'browser' ? 'flex' : 'none',
+          flexDirection: 'column' as const,
+          flex: 1,
+          minHeight: 0,
+          position: 'relative' as const,
+        }}>
+          <BrowserTab envStatus={envStatus} instanceId={instance.id} />
+          {splitTab && viewTab === 'browser' && (
+            <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: `${(1 - splitRatio) * 100}%`, display: 'flex', zIndex: 5, background: 'var(--bg-primary)' }}>
+              {renderSecondaryPane()}
+            </div>
+          )}
         </div>
       )}
       <div
@@ -1231,4 +1289,22 @@ export default function TerminalView({ instance, onKill, onRestart, onRemove, on
       </div>
     </>
   )
-}
+}, (prev, next) =>
+  prev.instance === next.instance &&
+  prev.focused === next.focused &&
+  prev.searchOpen === next.searchOpen &&
+  prev.isSplit === next.isSplit &&
+  prev.arenaMode === next.arenaMode &&
+  prev.arenaBlind === next.arenaBlind &&
+  prev.arenaVoted === next.arenaVoted &&
+  prev.arenaWinnerId === next.arenaWinnerId &&
+  prev.paneLabel === next.paneLabel &&
+  prev.outputBytes === next.outputBytes &&
+  prev.layoutMode === next.layoutMode &&
+  prev.fontSize === next.fontSize &&
+  prev.fontFamily === next.fontFamily &&
+  prev.cursorStyle === next.cursorStyle &&
+  prev.cursorBlink === next.cursorBlink &&
+  prev.scrollback === next.scrollback &&
+  prev.errorSummary === next.errorSummary
+)

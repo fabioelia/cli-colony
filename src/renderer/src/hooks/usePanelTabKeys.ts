@@ -72,6 +72,29 @@ export function computeTabKeyAction<T extends string>(
 }
 
 /**
+ * Alt+1..9 direct tab jump. Returns the target tab or null.
+ * Uses e.code (not e.key) because Alt+digit produces special chars on macOS.
+ */
+export function computeDirectTabAction<T extends string>(
+  e: Pick<KeyboardEvent, 'altKey' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'code'> & {
+    target?: EventTarget | null
+    preventDefault?: () => void
+    stopPropagation?: () => void
+  },
+  tabs: readonly T[]
+): T | null {
+  if (!e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return null
+  if (!e.code?.startsWith('Digit')) return null
+  // Guard: skip when inside text input or xterm
+  if (shouldIgnoreTabKeyEvent(e.target ?? null)) return null
+  const idx = parseInt(e.code.slice(5)) - 1
+  if (idx < 0 || idx >= tabs.length) return null
+  e.preventDefault?.()
+  e.stopPropagation?.()
+  return tabs[idx]
+}
+
+/**
  * Cmd+Shift+{ / Cmd+Shift+} (Ctrl+Shift on non-Mac) tab cycling for panels
  * with a tab row. Cycles left / right through the supplied `tabs` array,
  * wrapping at both ends.
@@ -101,7 +124,7 @@ export function usePanelTabKeys<T extends string>(
     if (tabs.length < 2) return
 
     const handler = (e: KeyboardEvent) => {
-      const next = computeTabKeyAction(e, tabs, active)
+      const next = computeTabKeyAction(e, tabs, active) ?? computeDirectTabAction(e, tabs)
       if (next !== null) setActive(next)
     }
 

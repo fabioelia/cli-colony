@@ -461,6 +461,35 @@ body:has(.daemon-update-banner) .app-update-banner {
   letter-spacing: 0;
 }
 
+/* Shortcut hint badges — hidden by default, shown when modifier held 400ms */
+.shortcut-hint {
+  display: none;
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  background: var(--accent);
+  color: var(--bg-primary);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  line-height: 1.2;
+  pointer-events: none;
+  z-index: 10;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.modifier-held .shortcut-hint {
+  display: block;
+}
+
+/* Allow hints to overflow sidebar nav buttons when visible */
+.modifier-held .sidebar-nav-btn {
+  overflow: visible;
+}
+
 .sidebar-instance-actions {
   display: flex;
   flex-direction: column;
@@ -2327,6 +2356,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-muted);
   transition: all 0.15s;
   cursor: pointer;
+  position: relative;
 }
 
 .terminal-tab.active {
@@ -2418,6 +2448,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   display: flex;
   flex: 1;
   height: 100%;
+  position: relative;
 }
 
 .terminal-wrapper.hidden {
@@ -6949,7 +6980,8 @@ body:has(.daemon-update-banner) .app-update-banner {
 .browser-split-container {
   display: flex;
   flex-direction: row;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
   position: relative;
 }
@@ -6958,6 +6990,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  height: 100%;
 }
 .browser-split-divider {
   width: 4px;
@@ -7019,6 +7052,15 @@ body:has(.daemon-update-banner) .app-update-banner {
   inset: 0;
   z-index: 10;
   cursor: col-resize;
+}
+.split-terminal-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1;
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 /* ===== List Panel (shared by Changes, Team, Metrics tabs) ===== */
