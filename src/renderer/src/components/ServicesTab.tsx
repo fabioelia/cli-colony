@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, memo } from 'react'
 import { Play, Square, FolderOpen, Stethoscope, RefreshCw, MessageSquare, AlertTriangle, CheckCircle, X, ExternalLink, ScrollText, Activity, RotateCcw } from 'lucide-react'
 import type { EnvStatus } from '../../../shared/types'
 import { buildDiagnosePrompt } from '../../../shared/env-prompts'
@@ -17,7 +17,7 @@ interface ServicesTabProps {
   instance: ClaudeInstance
 }
 
-export default function ServicesTab({ envStatus, instance }: ServicesTabProps) {
+export default memo(function ServicesTab({ envStatus, instance }: ServicesTabProps) {
   const [envLogs, setEnvLogs] = useState<{ service: string; content: string } | null>(null)
   const [fixMenuOpen, setFixMenuOpen] = useState(false)
   const [fixResult, setFixResult] = useState<{ lines: string[]; isError?: boolean } | null>(null)
@@ -254,4 +254,4 @@ export default function ServicesTab({ envStatus, instance }: ServicesTabProps) {
       )}
     </div>
   )
-}
+})

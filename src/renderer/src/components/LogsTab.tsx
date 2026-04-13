@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, memo, useCallback } from 'react'
 import { Trash2, ChevronsDown } from 'lucide-react'
 import type { EnvStatus } from '../../../shared/types'
 
@@ -12,56 +12,80 @@ function levelMatches(line: string, filter: 'all' | 'error' | 'warn'): boolean {
   return /warn|WARN|WARNING/i.test(line)
 }
 
-export default function LogsTab({ envStatus }: LogsTabProps) {
+// Visible DOM cap — keep full buffer in state for filtering, render only tail
+const VISIBLE_CAP = 300
+const BUFFER_CAP = 2000
+
+export default memo(function LogsTab({ envStatus }: LogsTabProps) {
   const [logsFilter, setLogsFilter] = useState<string | null>(null)
   const [logsLevelFilter, setLogsLevelFilter] = useState<'all' | 'error' | 'warn'>('all')
   const [logsContent, setLogsContent] = useState<Array<{ service: string; line: string; ts: number }>>([])
   const logsEndRef = useRef<HTMLDivElement>(null)
+  const logsAutoScrollRef = useRef(true)
   const [logsAutoScroll, setLogsAutoScroll] = useState(true)
-  const logsInitialized = useRef(false)
+  const envIdRef = useRef(envStatus.id)
+  envIdRef.current = envStatus.id
 
-  // Load initial logs + subscribe to streaming output
+  // Batched log ingestion — accumulate in ref, flush on interval
+  const pendingRef = useRef<Array<{ service: string; line: string; ts: number }>>([])
+
   useEffect(() => {
-    if (!logsInitialized.current) {
-      logsInitialized.current = true
-      const loadAll = async () => {
-        const entries: Array<{ service: string; line: string; ts: number }> = []
-        for (const svc of envStatus.services) {
-          try {
-            const content = await window.api.env.logs(envStatus.id, svc.name, 100)
-            if (content) {
-              for (const line of content.split('\n')) {
-                if (line.trim()) entries.push({ service: svc.name, line, ts: Date.now() })
-              }
+    const interval = setInterval(() => {
+      if (pendingRef.current.length === 0) return
+      const batch = pendingRef.current
+      pendingRef.current = []
+      setLogsContent(prev => {
+        const combined = [...prev, ...batch]
+        return combined.length > BUFFER_CAP ? combined.slice(-BUFFER_CAP) : combined
+      })
+    }, 150)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Load initial logs (once per env ID)
+  useEffect(() => {
+    const envId = envStatus.id
+    const loadAll = async () => {
+      const entries: Array<{ service: string; line: string; ts: number }> = []
+      for (const svc of envStatus.services) {
+        try {
+          const content = await window.api.env.logs(envId, svc.name, 100)
+          if (content) {
+            for (const line of content.split('\n')) {
+              if (line.trim()) entries.push({ service: svc.name, line, ts: Date.now() })
             }
-          } catch { /* skip */ }
-        }
+          }
+        } catch { /* skip */ }
+      }
+      // Only set if we're still on the same env
+      if (envIdRef.current === envId) {
         setLogsContent(entries)
       }
-      loadAll()
     }
+    setLogsContent([])
+    loadAll()
+  }, [envStatus.id])
+
+  // Subscribe to streaming output (stable — only depends on env ID)
+  useEffect(() => {
+    const envId = envStatus.id
     const unsub = window.api.env.onServiceOutput((data) => {
-      if (data.envId !== envStatus.id) return
+      if (data.envId !== envId) return
       const lines = data.data.split('\n').filter((l: string) => l.trim())
       if (lines.length === 0) return
-      setLogsContent(prev => {
-        const newEntries = lines.map((line: string) => ({ service: data.service, line, ts: Date.now() }))
-        const combined = [...prev, ...newEntries]
-        return combined.length > 2000 ? combined.slice(-2000) : combined
-      })
+      const now = Date.now()
+      const newEntries = lines.map((line: string) => ({ service: data.service, line, ts: now }))
+      pendingRef.current.push(...newEntries)
     })
-    return () => {
-      unsub()
-      logsInitialized.current = false
-    }
-  }, [envStatus])
+    return unsub
+  }, [envStatus.id])
 
-  // Auto-scroll logs
+  // Auto-scroll logs — instant, not smooth
   useEffect(() => {
-    if (logsAutoScroll && logsEndRef.current) {
-      logsEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    if (logsAutoScrollRef.current && logsEndRef.current) {
+      logsEndRef.current.scrollIntoView()
     }
-  }, [logsContent, logsAutoScroll])
+  }, [logsContent])
 
   // Scroll to bottom on mount
   useEffect(() => {
@@ -70,9 +94,21 @@ export default function LogsTab({ envStatus }: LogsTabProps) {
     }
   }, [])
 
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40
+    logsAutoScrollRef.current = atBottom
+    // Only trigger re-render when the value actually changes
+    setLogsAutoScroll(prev => prev === atBottom ? prev : atBottom)
+  }, [])
+
   const filtered = logsContent.filter(
     entry => (logsFilter === null || entry.service === logsFilter) && levelMatches(entry.line, logsLevelFilter)
   )
+
+  // Only render the visible tail
+  const visible = filtered.length > VISIBLE_CAP ? filtered.slice(-VISIBLE_CAP) : filtered
+  const hiddenCount = filtered.length - visible.length
 
   return (
     <div className="logs-panel">
@@ -119,18 +155,17 @@ export default function LogsTab({ envStatus }: LogsTabProps) {
           <button
             className={`logs-action-btn ${logsAutoScroll ? 'active' : ''}`}
             title="Follow latest output"
-            onClick={() => { setLogsAutoScroll(v => !v) }}
+            onClick={() => { const next = !logsAutoScrollRef.current; logsAutoScrollRef.current = next; setLogsAutoScroll(next) }}
           >
             <ChevronsDown size={12} />
           </button>
         </div>
       </div>
-      <div className="logs-panel-content" onScroll={(e) => {
-        const el = e.currentTarget
-        const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40
-        setLogsAutoScroll(atBottom)
-      }}>
-        {filtered.map((entry, i) => (
+      <div className="logs-panel-content" onScroll={handleScroll}>
+        {hiddenCount > 0 && (
+          <div className="logs-hidden-notice">{hiddenCount} older entries hidden</div>
+        )}
+        {visible.map((entry, i) => (
           <div key={i} className="logs-line">
             <span className={`logs-line-service ${entry.service}`}>{entry.service}</span>
             <span className="logs-line-text">{entry.line}</span>
@@ -145,4 +180,4 @@ export default function LogsTab({ envStatus }: LogsTabProps) {
       </div>
     </div>
   )
-}
+}, (prev, next) => prev.envStatus.id === next.envStatus.id)
