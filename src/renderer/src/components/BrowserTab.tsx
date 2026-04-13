@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, memo } from 'react'
 import { ChevronUp, RotateCw, ExternalLink, Bug, AlertTriangle } from 'lucide-react'
 import type { EnvStatus } from '../../../shared/types'
 
@@ -7,7 +7,7 @@ interface BrowserTabProps {
   instanceId: string
 }
 
-export default function BrowserTab({ envStatus, instanceId }: BrowserTabProps) {
+export default memo(function BrowserTab({ envStatus, instanceId }: BrowserTabProps) {
   const [browserService, setBrowserService] = useState<string | null>(null)
   const [browserUrl, setBrowserUrl] = useState<string | null>(null)
   const [browserUrlInput, setBrowserUrlInput] = useState<string>('')
@@ -18,58 +18,49 @@ export default function BrowserTab({ envStatus, instanceId }: BrowserTabProps) {
     x: number; y: number; editFlags: Record<string, boolean>
   } | null>(null)
 
-  // Auto-select first URL when browser tab opens or urls change
+  // Auto-select first URL on mount or when URLs change — only if no service is selected yet
+  const browserServiceRef2 = useRef(browserService)
+  browserServiceRef2.current = browserService
+  const urlsJson = JSON.stringify(envStatus?.urls || {})
   useEffect(() => {
     if (!envStatus?.urls) return
     const entries = Object.entries(envStatus.urls)
     if (entries.length === 0) return
-    if (!browserService || !envStatus.urls[browserService]) {
-      const stored = localStorage.getItem(`colony:browserUrl:${instanceId}`)
-      if (stored) {
-        try {
-          const { service, url, ts } = JSON.parse(stored)
-          if (Date.now() - ts < 20 * 60 * 1000 && envStatus.urls[service]) {
-            browserUrlIntentRef.current = url
-            setBrowserService(service)
-            setBrowserUrl(url)
-            setBrowserUrlInput(url)
-            return
-          }
-        } catch { /* ignore corrupt data */ }
-        localStorage.removeItem(`colony:browserUrl:${instanceId}`)
-      }
-      browserUrlIntentRef.current = entries[0][1]
-      setBrowserService(entries[0][0])
-      setBrowserUrl(entries[0][1])
+    // Already have a valid selection — don't override
+    if (browserServiceRef2.current && envStatus.urls[browserServiceRef2.current]) return
+    const stored = localStorage.getItem(`colony:browserUrl:${instanceId}`)
+    if (stored) {
+      try {
+        const { service, url, ts } = JSON.parse(stored)
+        if (Date.now() - ts < 20 * 60 * 1000 && envStatus.urls[service]) {
+          browserUrlIntentRef.current = url
+          setBrowserService(service)
+          setBrowserUrl(url)
+          setBrowserUrlInput(url)
+          return
+        }
+      } catch { /* ignore corrupt data */ }
+      localStorage.removeItem(`colony:browserUrl:${instanceId}`)
     }
-  }, [envStatus?.urls, browserService, instanceId])
+    browserUrlIntentRef.current = entries[0][1]
+    setBrowserService(entries[0][0])
+    setBrowserUrl(entries[0][1])
+  }, [urlsJson, instanceId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Imperatively set webview src and handle navigation events
+  // Attach webview event listeners once, navigate imperatively
   useEffect(() => {
     const wv = webviewRef.current
-    if (!wv || !browserUrl) return
-
-    if (browserUrlIntentRef.current) {
-      wv.src = browserUrlIntentRef.current
-      browserUrlIntentRef.current = null
-    }
-    if (wv.src && wv.src !== 'about:blank') {
-      try {
-        const currentUrl = wv.getURL?.() || wv.src
-        if (currentUrl && currentUrl !== 'about:blank') {
-          setBrowserUrlInput(currentUrl)
-        }
-      } catch { /* webview not ready yet */ }
-    }
-    setBrowserError(null)
+    if (!wv) return
 
     const handleNavigation = (e: { url: string }) => {
-      setBrowserUrl(e.url)
       setBrowserUrlInput(e.url)
-      if (e.url && e.url !== 'about:blank' && browserService) {
-        localStorage.setItem(`colony:browserUrl:${instanceId}`, JSON.stringify({
-          service: browserService, url: e.url, ts: Date.now()
-        }))
+      if (e.url && e.url !== 'about:blank') {
+        const svc = browserServiceRef.current
+        if (svc) {
+          localStorage.setItem(`colony:browserUrl:${instanceId}`, JSON.stringify({
+            service: svc, url: e.url, ts: Date.now()
+          }))
+        }
       }
     }
     const handleFailLoad = (e: Electron.DidFailLoadEvent) => {
@@ -87,17 +78,44 @@ export default function BrowserTab({ envStatus, instanceId }: BrowserTabProps) {
       })
     }
 
+    // Re-dispatch Alt+digit from webview to parent window for tab switching
+    const handleBeforeInput = (e: Electron.Event & { input: Electron.Input }) => {
+      const { input } = e
+      if (input.alt && !input.meta && !input.control && !input.shift && input.type === 'keyDown' && /^[1-9]$/.test(input.key)) {
+        e.preventDefault()
+        window.dispatchEvent(new KeyboardEvent('keydown', {
+          code: `Digit${input.key}`, key: input.key,
+          altKey: true, bubbles: true, cancelable: true,
+        }))
+      }
+    }
+
     wv.addEventListener('did-navigate', handleNavigation)
     wv.addEventListener('did-navigate-in-page', handleNavigation)
     wv.addEventListener('did-fail-load', handleFailLoad)
     wv.addEventListener('context-menu', handleContextMenu)
+    wv.addEventListener('before-input-event', handleBeforeInput as any)
     return () => {
       wv.removeEventListener('did-navigate', handleNavigation)
       wv.removeEventListener('did-navigate-in-page', handleNavigation)
       wv.removeEventListener('did-fail-load', handleFailLoad)
       wv.removeEventListener('context-menu', handleContextMenu)
+      wv.removeEventListener('before-input-event', handleBeforeInput as any)
     }
-  }, [browserUrl, instanceId, browserService])
+  }, [instanceId])
+
+  // Track browserService in a ref so the navigation handler can read it without re-subscribing
+  const browserServiceRef = useRef(browserService)
+  browserServiceRef.current = browserService
+
+  // Navigate webview when intent changes (avoids re-attaching listeners)
+  useEffect(() => {
+    const wv = webviewRef.current
+    if (!wv || !browserUrlIntentRef.current) return
+    wv.src = browserUrlIntentRef.current
+    browserUrlIntentRef.current = null
+    setBrowserError(null)
+  }, [browserUrl])
 
   return (
     <div className="browser-panel">
@@ -190,4 +208,4 @@ export default function BrowserTab({ envStatus, instanceId }: BrowserTabProps) {
       )}
     </div>
   )
-}
+}, (prev, next) => prev.instanceId === next.instanceId && prev.envStatus.id === next.envStatus.id && JSON.stringify(prev.envStatus.urls) === JSON.stringify(next.envStatus.urls))
