@@ -608,6 +608,56 @@ export async function restartServiceInEnv(envId: string, service: string): Promi
   await getEnvDaemonClient().restartService(envId, service)
 }
 
+/**
+ * Toggle debug mode on an environment. Allocates debug ports when enabling,
+ * updates the manifest, and tells envd to restart affected services with debug flags.
+ */
+export async function toggleDebug(envId: string, enabled: boolean, service?: string): Promise<void> {
+  const envDir = await findEnvDir(envId)
+  if (!envDir) throw new Error(`Environment ${envId} not found`)
+
+  const manifestPath = path.join(envDir, 'instance.json')
+  const manifest = JSON.parse(await fsp.readFile(manifestPath, 'utf-8')) as InstanceManifest
+
+  const serviceNames = service ? [service] : Object.keys(manifest.services)
+
+  if (enabled) {
+    // Allocate a debug port for each service that needs one
+    const needsPorts = serviceNames.filter(name => !manifest.services[name]?.debug?.port)
+    if (needsPorts.length > 0) {
+      const debugPortNames = needsPorts.map(name => `debug-${name}`)
+      const portMap = await allocatePorts(debugPortNames)
+      commitAllocations(portMap)
+      for (const name of needsPorts) {
+        const svc = manifest.services[name]
+        if (!svc) continue
+        svc.debug = {
+          enabled: true,
+          port: portMap[`debug-${name}`],
+          language: svc.debug?.language,
+        }
+      }
+    }
+    // Enable debug on services that already have a port
+    for (const name of serviceNames) {
+      const svc = manifest.services[name]
+      if (svc?.debug) svc.debug.enabled = true
+    }
+  } else {
+    // Disable debug — keep port allocation for fast re-enable
+    for (const name of serviceNames) {
+      const svc = manifest.services[name]
+      if (svc?.debug) svc.debug.enabled = false
+    }
+  }
+
+  // Persist manifest
+  await fsp.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
+
+  // Tell envd to toggle + restart affected services
+  await getEnvDaemonClient().toggleDebug(envId, enabled, service)
+}
+
 export async function getEnvironmentLogs(envId: string, service: string, lines?: number): Promise<string> {
   return await getEnvDaemonClient().logs(envId, service, lines)
 }

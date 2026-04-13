@@ -368,6 +368,7 @@ export interface ClaudeManagerAPI {
     retrySetup: (envId: string) => Promise<void>
     fix: (envId: string) => Promise<{ fixed: string[] }>
     clone: (envId: string, newName: string) => Promise<any>
+    toggleDebug: (envId: string, enabled: boolean, service?: string) => Promise<void>
     setRestartPolicy: (envId: string, policy: 'manual' | 'on-crash') => Promise<void>
     setPurposeTag: (envId: string, tag: 'interactive' | 'background' | 'nightly' | null) => Promise<void>
     listTemplates: () => Promise<any[]>
@@ -948,6 +949,7 @@ const api: ClaudeManagerAPI = {
     retrySetup: (envId) => ipcRenderer.invoke('env:retrySetup', envId),
     fix: (envId) => ipcRenderer.invoke('env:fix', envId),
     clone: (envId, newName) => ipcRenderer.invoke('env:clone', envId, newName),
+    toggleDebug: (envId: string, enabled: boolean, service?: string) => ipcRenderer.invoke('env:toggleDebug', envId, enabled, service),
     setRestartPolicy: (envId: string, policy: 'manual' | 'on-crash') => ipcRenderer.invoke('env:setRestartPolicy', envId, policy),
     setPurposeTag: (envId: string, tag: 'interactive' | 'background' | 'nightly' | null) => ipcRenderer.invoke('env:setPurposeTag', envId, tag),
     listTemplates: () => ipcRenderer.invoke('env:listTemplates'),

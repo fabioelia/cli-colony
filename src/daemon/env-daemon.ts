@@ -294,16 +294,20 @@ async function killStalePids(pids: Record<string, number>, envName: string): Pro
   })
 }
 
+// ---- Debug Helpers ----
+
+function detectLanguage(command: string): 'node' | 'python' | null {
+  if (/\b(node|npm|npx|tsx|ts-node|bun)\b/.test(command)) return 'node'
+  if (/\b(python|manage\.py|django|gunicorn|uvicorn|flask)\b/.test(command)) return 'python'
+  return null
+}
+
 // ---- Service Lifecycle ----
 
 function spawnService(env: ManagedEnvironment, svc: ManagedService): void {
   const manifest = env.manifest
   const resolved = resolveServiceDef(svc.def, manifest)
   svc.resolved = resolved
-
-  // Always run through a shell — commands use shell builtins (source, &&, ||, pipes, etc.)
-  const cmd = '/bin/bash'
-  const args = ['-c', resolved.command]
 
   const cwd = resolved.cwd
   if (!fs.existsSync(cwd)) {
@@ -317,6 +321,26 @@ function spawnService(env: ManagedEnvironment, svc: ManagedService): void {
     ...shellEnv,
     ...(resolved.env || {}),
   }
+
+  // Inject debug flags when debug mode is enabled (before building args — Python modifies the command)
+  const debugCfg = svc.def.debug
+  if (debugCfg?.enabled && debugCfg.port) {
+    const lang = debugCfg.language || detectLanguage(resolved.command)
+    if (lang === 'node') {
+      serviceEnv.NODE_OPTIONS = `--inspect=127.0.0.1:${debugCfg.port} ${serviceEnv.NODE_OPTIONS || ''}`.trim()
+      log(`[${manifest.name}/${svc.name}] debug: Node.js --inspect on port ${debugCfg.port}`)
+    } else if (lang === 'python') {
+      resolved.command = resolved.command.replace(
+        /^(python3?\s+)/,
+        `$1-m debugpy --listen 127.0.0.1:${debugCfg.port} `
+      )
+      log(`[${manifest.name}/${svc.name}] debug: Python debugpy on port ${debugCfg.port}`)
+    }
+  }
+
+  // Always run through a shell — commands use shell builtins (source, &&, ||, pipes, etc.)
+  const cmd = '/bin/bash'
+  const args = ['-c', resolved.command]
 
   // Open log stream
   if (svc.logStream) {
@@ -835,6 +859,8 @@ function getServiceStatus(svc: ManagedService): ServiceStatus {
     port: svc.resolved.port != null ? parseInt(String(svc.resolved.port), 10) || null : null,
     uptime: svc.startedAt ? Math.floor((Date.now() - svc.startedAt) / 1000) : 0,
     restarts: svc.restarts,
+    debugEnabled: svc.def.debug?.enabled || false,
+    debugPort: svc.def.debug?.port ?? null,
   }
 }
 
@@ -1002,6 +1028,35 @@ function handleRequest(req: EnvRequest, socket: net.Socket): void {
       }
       case 'subscribe': {
         subscribers.add(socket)
+        send({ type: 'ok', reqId: req.reqId })
+        break
+      }
+      case 'toggle-debug': {
+        const env = environments.get(req.envId)
+        if (!env) { send({ type: 'error', reqId: req.reqId, message: 'env not found' }); break }
+        // Toggle debug on specific service or all services
+        const targets = req.service
+          ? [env.services.get(req.service)].filter(Boolean) as ManagedService[]
+          : Array.from(env.services.values())
+        for (const svc of targets) {
+          if (!svc.def.debug) svc.def.debug = { enabled: false }
+          svc.def.debug.enabled = req.enabled
+          // Persist to manifest so restarts preserve debug state
+          if (env.manifest.services[svc.name]) {
+            env.manifest.services[svc.name].debug = { ...svc.def.debug }
+          }
+        }
+        // Persist manifest to disk
+        const manifestPath = path.join(env.manifest.paths?.root || '', 'instance.json')
+        try { fs.writeFileSync(manifestPath, JSON.stringify(env.manifest, null, 2)) } catch { /* */ }
+        // Restart affected services so debug flags take effect
+        for (const svc of targets) {
+          if (svc.status === 'running' || svc.status === 'starting') {
+            stopService(svc)
+            svc.restarts = 0
+            spawnService(env, svc)
+          }
+        }
         send({ type: 'ok', reqId: req.reqId })
         break
       }

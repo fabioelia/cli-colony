@@ -70,6 +70,10 @@ export class EnvDaemonClient extends BaseDaemonClient {
     return (await this.request({ type: 'logs', reqId: this.nextReqId(), envId, service, lines })) as string
   }
 
+  async toggleDebug(envId: string, enabled: boolean, service?: string): Promise<void> {
+    await this.request({ type: 'toggle-debug', reqId: this.nextReqId(), envId, service, enabled })
+  }
+
   async ping(): Promise<void> {
     await this.request({ type: 'ping', reqId: this.nextReqId() })
   }

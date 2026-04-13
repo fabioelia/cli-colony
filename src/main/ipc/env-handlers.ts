@@ -2,7 +2,7 @@ import { ipcMain, dialog, BrowserWindow } from 'electron'
 import {
   listEnvironments, getEnvironment, createEnvironment, setupEnvironment,
   startEnvironment, stopEnvironment, teardownEnvironment,
-  getEnvironmentLogs, restartServiceInEnv, getManifest, saveManifest,
+  getEnvironmentLogs, restartServiceInEnv, toggleDebug, getManifest, saveManifest,
   fixEnvironment, cloneEnvironment, setRestartPolicy, setPurposeTag, type PurposeTag,
   listTemplates, getTemplate, saveTemplate, deleteTemplate,
   refreshRepoConfigs,
@@ -41,6 +41,7 @@ export function registerEnvHandlers(): void {
     setupEnvironment(manifest.id).catch(err => console.error('[ipc] env clone setup failed:', err))
     return manifest
   })
+  ipcMain.handle('env:toggleDebug', (_e, envId: string, enabled: boolean, service?: string) => toggleDebug(envId, enabled, service))
   ipcMain.handle('env:setRestartPolicy', (_e, envId: string, policy: 'manual' | 'on-crash') => setRestartPolicy(envId, policy))
   ipcMain.handle('env:launchSessionWhenReady', async (
     _e,

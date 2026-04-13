@@ -163,6 +163,8 @@ export interface EnvServiceStatus {
   port: number | null
   uptime: number
   restarts: number
+  debugEnabled?: boolean
+  debugPort?: number | null
 }
 
 /** Aggregated environment status */

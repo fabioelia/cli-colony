@@ -18,6 +18,11 @@ export interface ServiceDef {
   }
   readyPattern?: string
   dependsOn?: string[]
+  debug?: {
+    enabled: boolean
+    port?: number          // allocated debug port (127.0.0.1 only)
+    language?: 'node' | 'python'  // auto-detected from command if omitted
+  }
 }
 
 export interface ResourceDef {
@@ -109,6 +114,8 @@ export interface InstanceManifest {
 // ---- Domain types (single source of truth in shared/types.ts) ----
 
 export type { EnvironmentTemplate, EnvStatus, EnvServiceStatus, EnvServiceState, EnvStatusState } from '../shared/types'
+// Aliases used by env-daemon.ts (legacy names)
+export type { EnvServiceStatus as ServiceStatus, EnvServiceState as ServiceState, EnvStatusState as EnvState } from '../shared/types'
 
 // ---- Client -> envd requests ----
 
@@ -124,6 +131,7 @@ export type EnvRequest =
   | { type: 'logs'; reqId: string; envId: string; service: string; lines?: number }
   | { type: 'subscribe'; reqId: string }
   | { type: 'teardown'; reqId: string; envId: string }
+  | { type: 'toggle-debug'; reqId: string; envId: string; service?: string; enabled: boolean }
   | { type: 'ping'; reqId: string }
   | { type: 'shutdown'; reqId: string }
 
