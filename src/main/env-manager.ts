@@ -687,6 +687,61 @@ export async function toggleDebug(envId: string, enabled: boolean, service?: str
   await getEnvDaemonClient().toggleDebug(envId, enabled, service)
 }
 
+/**
+ * Returns extra CLI args (--mcp-config, --append-system-prompt-file) for sessions
+ * launched in an environment with debug mode on. Returns empty array if debug is off.
+ */
+export async function getDebugMcpArgs(envId: string): Promise<string[]> {
+  const envDir = await findEnvDir(envId)
+  if (!envDir) return []
+
+  const targetsPath = path.join(envDir, 'debug-mcp-config.json')
+  try {
+    await fsp.access(targetsPath)
+  } catch {
+    return [] // no debug config = debug not enabled
+  }
+
+  // Write a Claude CLI MCP config that launches the debug MCP server
+  const serverScript = path.join(__dirname, 'debug-mcp', 'server.js')
+  const mcpConfig = {
+    mcpServers: {
+      debug: {
+        command: process.execPath,
+        args: [serverScript, '--config', targetsPath],
+        env: { ELECTRON_RUN_AS_NODE: '1' },
+      },
+    },
+  }
+
+  const mcpConfigPath = path.join(envDir, 'debug-mcp-claude.json')
+  await fsp.writeFile(mcpConfigPath, JSON.stringify(mcpConfig, null, 2))
+
+  // Write debugging guidance system prompt
+  const promptPath = path.join(envDir, 'debug-prompt.md')
+  await fsp.writeFile(promptPath, DEBUG_SYSTEM_PROMPT)
+
+  return ['--mcp-config', mcpConfigPath, '--append-system-prompt-file', promptPath]
+}
+
+const DEBUG_SYSTEM_PROMPT = `## Debugging Tools Available
+
+This environment has debugging enabled. You have debug_* MCP tools.
+
+**Recommended workflow when you hit an error:**
+1. Call debug_listTargets to see available services
+2. Call debug_attach to connect to the relevant service
+3. Call debug_breakOnException to catch errors at their source
+4. Re-trigger the failing operation (e.g., make the HTTP request again)
+5. When stopped at the exception, call debug_stackTrace to see where you are
+6. Call debug_variables to inspect local state in the relevant frame
+7. Call debug_evaluate to test fix hypotheses
+8. Call debug_continue when done inspecting
+9. Fix the code based on what you learned
+
+**Important:** When a breakpoint is hit, the service thread pauses. Always call debug_continue when you're done inspecting — otherwise the service appears hung.
+`
+
 export async function getEnvironmentLogs(envId: string, service: string, lines?: number): Promise<string> {
   return await getEnvDaemonClient().logs(envId, service, lines)
 }

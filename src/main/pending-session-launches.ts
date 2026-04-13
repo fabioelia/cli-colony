@@ -14,7 +14,7 @@
 
 import { broadcast } from './broadcast'
 import { createInstance } from './instance-manager'
-import { getEnvironmentLogs } from './env-manager'
+import { getEnvironmentLogs, getDebugMcpArgs } from './env-manager'
 import { sendPromptWhenReady } from './send-prompt-when-ready'
 import { genId } from '../shared/utils'
 import type { EnvStatus, EnvServiceStatus } from '../shared/types'
@@ -193,7 +193,12 @@ async function firePending(
       const autoHealPrefix = await buildAutoHealPrompt(entry.envId, env)
       promptText = promptText ? `${autoHealPrefix}\n\n${promptText}` : autoHealPrefix
     }
-    const inst = await createInstance(entry.spawnOpts)
+    // Inject debug MCP server args if environment has debug enabled
+    const debugArgs = await getDebugMcpArgs(entry.envId).catch(() => [] as string[])
+    const spawnOpts = debugArgs.length > 0
+      ? { ...entry.spawnOpts, args: [...(entry.spawnOpts.args || []), ...debugArgs] }
+      : entry.spawnOpts
+    const inst = await createInstance(spawnOpts)
     broadcast('pendingLaunch:spawned', {
       pendingId: entry.id,
       envId: env.id,
