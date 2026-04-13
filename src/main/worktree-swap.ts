@@ -13,6 +13,7 @@ import * as path from 'path'
 import { getManifest, getTemplate } from './env-manager'
 import { getWorktree, getWorktreesForEnv, mountWorktree, unmountWorktree } from './worktree-manager'
 import { getEnvDaemonClient } from './env-daemon-client'
+import { getDaemonRouter } from './daemon-router'
 import { broadcast } from './broadcast'
 import { buildContext, resolveTemplate as resolveTemplateVars } from '../shared/template-resolver'
 import type { InstanceManifest } from '../daemon/env-protocol'
@@ -107,6 +108,22 @@ export async function swapWorktree(envId: string, newWorktreeId: string): Promis
   // 8. Broadcast changes
   broadcast('worktree:changed', null)
   broadcast('env:changed', { envId })
+
+  // 9. Kill any running sessions whose cwd was inside the old worktree
+  //    so the user can re-launch with the new worktree paths
+  const oldPaths = currentlyMounted.flatMap(wt => wt.repos.map(r => r.path))
+  if (oldPaths.length > 0) {
+    getDaemonRouter().getAllInstances().then(instances => {
+      for (const inst of instances) {
+        if (inst.status !== 'running') continue
+        const inOldWt = oldPaths.some(p => inst.workingDirectory.startsWith(p))
+        if (inOldWt) {
+          console.log(`[worktree-swap] killing session ${inst.id} (${inst.name}) — old worktree cwd: ${inst.workingDirectory}`)
+          getDaemonRouter().killInstance(inst.id).catch(() => {})
+        }
+      }
+    }).catch(() => {})
+  }
 
   return manifest
 }
