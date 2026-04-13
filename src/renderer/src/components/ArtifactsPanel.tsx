@@ -580,6 +580,13 @@ export default function ArtifactsPanel() {
               {/* Expanded detail */}
               {expanded && (
                 <div style={{ padding: '0 10px 10px 30px', fontSize: 12 }}>
+                  {/* Summary line */}
+                  {artifact.summary && (
+                    <div style={{ marginBottom: 8, fontSize: 12, opacity: 0.85, fontStyle: 'italic' }}>
+                      {artifact.summary}
+                    </div>
+                  )}
+
                   {/* Meta row */}
                   <div style={{ display: 'flex', gap: 12, marginBottom: 8, opacity: 0.7, fontSize: 11 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>

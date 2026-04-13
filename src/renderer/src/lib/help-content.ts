@@ -1604,7 +1604,8 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Commit-type tags', detail: 'Colored badges extracted from conventional commit prefixes (feat, fix, ux, refactor, test, chore). Use the type filter chips to show only sessions of a specific type.' },
           { label: 'Exit status dot', detail: 'Green = exited successfully (code 0). Red = non-zero exit code (error or cancellation).', icon: 'Circle' },
           { label: 'Pipeline badge', detail: 'Artifacts from pipeline-triggered sessions show an amber lightning bolt badge. Hover for the pipeline run ID.', icon: 'Zap' },
-          { label: 'Expanded view', detail: 'Shows full commit list (hash + message), file change list (with M/A/D/R status), duration, and cost.', icon: 'FileText' },
+          { label: 'Expanded view', detail: 'Shows one-line summary, full commit list (hash + message), file change list (with M/A/D/R status), duration, and cost.', icon: 'FileText' },
+          { label: 'Session tile summary', detail: 'Exited sessions in the sidebar show a one-line summary below the title — e.g. commit messages and files changed. Loaded automatically from the most recent artifact.' },
         ],
       },
       {

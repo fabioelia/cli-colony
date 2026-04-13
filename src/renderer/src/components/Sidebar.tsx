@@ -63,6 +63,7 @@ interface InstanceItemProps {
   conflictFiles: { file: string; otherSessions: { id: string; name: string }[] }[] | null
   errorMessage: string | null
   idleMs: number | null
+  exitSummary?: string
 }
 
 function dirName(path: string) {
@@ -122,7 +123,7 @@ function buildTriggerChain(inst: ClaudeInstance, allInstances: ClaudeInstance[])
   return result
 }
 
-const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcutIndex, isUnread, ctxLevel, splitBadge, focusedPane, isRenaming, renameValue, renameRef, isEditingNote, noteValue, noteRef, onCommitNote, onCancelNote, onNoteChange, callbacks, selectMode, isSelected, onToggleSelect, conflictFiles, errorMessage, idleMs }: InstanceItemProps) {
+const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcutIndex, isUnread, ctxLevel, splitBadge, focusedPane, isRenaming, renameValue, renameRef, isEditingNote, noteValue, noteRef, onCommitNote, onCancelNote, onNoteChange, callbacks, selectMode, isSelected, onToggleSelect, conflictFiles, errorMessage, idleMs, exitSummary }: InstanceItemProps) {
   return (
     <div
       className={`instance-item ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''}`}
@@ -236,6 +237,9 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
               </div>
             )
           })()}
+          {inst.status === 'exited' && exitSummary && (
+            <div className="instance-summary" title={exitSummary}>{exitSummary}</div>
+          )}
           </>
         )}
         {isEditingNote ? (
@@ -486,6 +490,29 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     const id = setInterval(poll, 60000)
     return () => clearInterval(id)
   }, [])
+
+  // Artifact summaries — loaded for exited sessions, updated when new exits occur
+  const [artifactSummaries, setArtifactSummaries] = useState<Map<string, string>>(new Map())
+  const prevExitedIds = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const exitedIds = new Set(instances.filter(i => i.status === 'exited').map(i => i.id))
+    const newIds = [...exitedIds].filter(id => !prevExitedIds.current.has(id))
+    prevExitedIds.current = exitedIds
+    if (newIds.length === 0) return
+    // Delay briefly so artifact collection (async) has time to complete
+    const timer = setTimeout(() => {
+      window.api.artifacts.list().then(arts => {
+        setArtifactSummaries(prev => {
+          const next = new Map(prev)
+          for (const art of arts) {
+            if (art.summary) next.set(art.sessionId, art.summary)
+          }
+          return next
+        })
+      }).catch(() => {})
+    }, 1500)
+    return () => clearTimeout(timer)
+  }, [instances])
 
   // Elapsed time tick — forces re-render every 60s so formatElapsed stays current
   const [, setElapsedTick] = useState(0)
@@ -1099,6 +1126,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
         conflictFiles={fileOverlaps[inst.id] || null}
         errorMessage={errorSummaries?.get(inst.id) ? `${errorSummaries.get(inst.id)!.errorType}: ${errorSummaries.get(inst.id)!.message}` : null}
         idleMs={idleMap.get(inst.id) ?? null}
+        exitSummary={artifactSummaries.get(inst.id)}
       />
     )
     if (!isDraggable) return item

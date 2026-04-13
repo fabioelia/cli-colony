@@ -149,6 +149,22 @@ function generateSessionName(artifact: SessionArtifact): string | null {
   return null
 }
 
+function generateSummary(commits: SessionArtifactCommit[], changes: GitDiffEntry[]): string {
+  const parts: string[] = []
+  if (commits.length > 0) {
+    const msgs = commits.slice(0, 2).map(c => c.shortMsg)
+    if (commits.length > 2) msgs.push(`+${commits.length - 2} more`)
+    parts.push(msgs.join(', '))
+  }
+  const ins = changes.reduce((s, e) => s + e.insertions, 0)
+  const del = changes.reduce((s, e) => s + e.deletions, 0)
+  if (changes.length > 0) {
+    parts.push(`${changes.length} file${changes.length > 1 ? 's' : ''} (+${ins}/\u2212${del})`)
+  }
+  const summary = parts.join(' \u00b7 ')
+  return summary.length > 80 ? summary.slice(0, 77) + '\u2026' : summary
+}
+
 // ---- Public API ----
 
 /**
@@ -195,6 +211,7 @@ export async function collectSessionArtifact(instanceId: string): Promise<Sessio
     gitRepo: remote,
     commits,
     changes,
+    summary: generateSummary(commits, changes),
     totalInsertions: changes.reduce((sum, e) => sum + e.insertions, 0),
     totalDeletions: changes.reduce((sum, e) => sum + e.deletions, 0),
     costUsd: inst.tokenUsage?.cost,

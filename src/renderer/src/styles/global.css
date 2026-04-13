@@ -2256,6 +2256,16 @@ body:has(.daemon-update-banner) .app-update-banner {
   opacity: 0.85;
 }
 
+.instance-summary {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  opacity: 0.75;
+}
+
 /* Show actions on hover, hide status */
 .instance-item-actions {
   display: none;
