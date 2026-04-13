@@ -837,6 +837,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
             </div>
           )}
         </div>
+        <div className="terminal-header-spacer" />
         <div className="terminal-header-actions">
           {!splitTab && (
             <Tooltip text="Split View" detail="Show another tab alongside this one" shortcut="Cmd+Shift+\">
