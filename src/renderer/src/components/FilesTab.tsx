@@ -615,10 +615,10 @@ export default function FilesTab({ instance, focused, onSwitchToSession }: Files
                   <button
                     className={`filetree-preview-wrap filetree-preview-mode-toggle ${renderMd ? 'active' : ''}`}
                     onClick={() => setRenderMd(!renderMd)}
-                    title={renderMd ? 'Show source' : 'Show rendered markdown'}
+                    title={renderMd ? 'Switch to source view' : 'Switch to rendered view'}
                   >
-                    {renderMd ? <Code size={12} /> : <Eye size={12} />}
-                    <span>{renderMd ? 'Source' : 'Rendered'}</span>
+                    {renderMd ? <Eye size={12} /> : <Code size={12} />}
+                    <span>{renderMd ? 'Rendered' : 'Source'}</span>
                   </button>
                 )}
                 {!(isMarkdown && renderMd) && (
