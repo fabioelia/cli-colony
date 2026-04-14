@@ -544,7 +544,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   display: none;
 }
 
-.modifier-held .instance-shortcut {
+.modifier-held .instance-shortcut:not(.instance-shortcut-empty) {
   background: var(--accent);
   color: var(--bg-primary);
   opacity: 1;
@@ -555,6 +555,10 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .modifier-held .instance-shortcut-prefix {
   display: inline;
+}
+
+.instance-shortcut-empty {
+  visibility: hidden;
 }
 
 .sidebar-instance-actions {
@@ -16539,6 +16543,11 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .panel-header-btn--audit-alert {
   color: var(--warning);
+}
+
+.panel-header-btn--success {
+  color: var(--success);
+  border-color: var(--success);
 }
 
 .audit-badge {

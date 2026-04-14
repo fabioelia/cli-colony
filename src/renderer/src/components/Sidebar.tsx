@@ -154,11 +154,17 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
           onClick={(e) => e.stopPropagation()}
         />
       )}
-      {shortcutIndex && (
-        <span className="instance-shortcut" title={`Cmd+${shortcutIndex}`}>
-          <span className="instance-shortcut-prefix">⌘</span>{shortcutIndex}
-        </span>
-      )}
+      <span
+        className={`instance-shortcut${shortcutIndex ? '' : ' instance-shortcut-empty'}`}
+        title={shortcutIndex ? `Cmd+${shortcutIndex}` : undefined}
+        aria-hidden={!shortcutIndex}
+      >
+        {shortcutIndex && (
+          <>
+            <span className="instance-shortcut-prefix">⌘</span>{shortcutIndex}
+          </>
+        )}
+      </span>
       <div
         className={`instance-dot clickable ${inst.status === 'running' && inst.activity === 'busy' ? 'pulsing' : ''}`}
         style={{
