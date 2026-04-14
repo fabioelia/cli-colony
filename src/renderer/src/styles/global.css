@@ -8921,6 +8921,29 @@ body:has(.daemon-update-banner) .app-update-banner {
   overflow-x: auto;
   margin: 0;
 }
+.md-viewer .mermaid-block {
+  margin: 12px 0;
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+  min-height: 40px;
+  background: var(--bg-surface);
+  border-radius: 6px;
+  padding: 12px;
+}
+.md-viewer .mermaid-block svg {
+  max-width: 100%;
+  height: auto;
+  background: transparent;
+}
+.md-viewer .mermaid-error {
+  color: var(--danger);
+  background: var(--bg-tertiary);
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
 
 /* Syntax highlighting — atom-one-dark palette tuned for dark app theme */
 .md-viewer .hljs { color: #abb2bf; }

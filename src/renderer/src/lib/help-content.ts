@@ -1128,7 +1128,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Right pane',
         items: [
           { label: 'File content', detail: 'Shows file contents with line numbers. Supports Cmd+F to search within the file.' },
-          { label: 'Markdown rendering', detail: '.md / .markdown files render as formatted by default. Toggle Source/Rendered in the preview header. Cmd+F auto-switches to source so search highlights work.', icon: 'Eye' },
+          { label: 'Markdown rendering', detail: '.md / .markdown files render as formatted by default. Code blocks get syntax highlighting. Mermaid diagrams render inline (```mermaid fenced blocks). Toggle Source/Rendered in the preview header. Cmd+F auto-switches to source so search highlights work.', icon: 'Eye' },
           { label: 'Search results', detail: 'When using content search, results appear grouped by directory. Click a match to preview.' },
         ],
       },
@@ -1335,7 +1335,7 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Viewer',
         position: 'Right pane',
         items: [
-          { label: 'Markdown rendering', detail: 'Files ending in .md are rendered with rich formatting: syntax-highlighted code blocks (Python, JS/TS, Bash, JSON, YAML, and more), copy-to-clipboard on code blocks, task list checkboxes, alternating table row colors, and styled headings with borders.' },
+          { label: 'Markdown rendering', detail: 'Files ending in .md are rendered with rich formatting: syntax-highlighted code blocks (Python, JS/TS, Bash, JSON, YAML, and more), inline Mermaid diagrams for ```mermaid fenced blocks, copy-to-clipboard on code blocks, task list checkboxes, alternating table row colors, and styled headings with borders.' },
           { label: 'Size limit', detail: 'Files larger than 32KB are truncated with a notice at the end.' },
           { label: 'Diff with Previous', detail: 'Compare the selected file with the chronologically previous output from the same agent/persona. Shows a unified diff with green additions and red deletions. Enabled when the agent has 2+ output files. Click again to exit diff view.', icon: 'GitCompare' },
           { label: 'Copy Content', detail: 'Copy the full file contents to clipboard — not just the path. Shows a brief "Copied!" confirmation.', icon: 'ClipboardCopy' },
