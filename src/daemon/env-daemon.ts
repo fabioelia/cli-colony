@@ -933,27 +933,18 @@ async function remountEnvironment(envId: string, newManifest: InstanceManifest):
 
   log(`[${env.manifest.name}] remount: stopping services for worktree swap`)
 
-  // 1. Stop all services (graceful)
+  // 1. Snapshot PIDs BEFORE stopService clears them (stopService sets svc.pid = null)
+  const pidsToKill: Record<string, number> = {}
+  for (const [name, svc] of env.services) {
+    if (svc.pid != null) pidsToKill[name] = svc.pid
+  }
+
+  // 2. Stop all services (clears timers, sets svc.pid = null)
   await stopEnvironment(envId)
 
-  // 2. Wait for processes to die (up to 5s)
-  const deadline = Date.now() + 5000
-  while (Date.now() < deadline) {
-    const anyAlive = Array.from(env.services.values()).some(svc =>
-      svc.pid != null && isPidAlive(svc.pid)
-    )
-    if (!anyAlive) break
-    await new Promise(r => setTimeout(r, 200))
-  }
-
-  // 3. Force kill stragglers
-  for (const svc of env.services.values()) {
-    if (svc.pid != null && isPidAlive(svc.pid)) {
-      try { process.kill(-svc.pid, 'SIGKILL') } catch {
-        try { process.kill(svc.pid, 'SIGKILL') } catch { /* */ }
-      }
-    }
-  }
+  // 3. Wait for process trees to die using the snapshotted PIDs
+  //    Uses process group kill (-pid) to get bash + python + hupper children
+  await killStalePids(pidsToKill, env.manifest.name)
 
   // 4. Re-register with new manifest (updates paths, services, etc.)
   registerEnvironment(newManifest)
