@@ -516,9 +516,24 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     loadPipelines()
   }
 
+  const [reloading, setReloading] = useState<'idle' | 'loading' | 'done'>('idle')
+
   const handleReload = async () => {
-    await window.api.pipeline.reload()
-    loadPipelines()
+    if (reloading === 'loading') return
+    setReloading('loading')
+    const start = Date.now()
+    try {
+      await window.api.pipeline.reload()
+      await loadPipelines()
+      // Keep the spinner visible for at least 300ms — otherwise the fast
+      // path flashes imperceptibly and users double-click thinking nothing happened.
+      const elapsed = Date.now() - start
+      if (elapsed < 300) await new Promise(r => setTimeout(r, 300 - elapsed))
+      setReloading('done')
+      setTimeout(() => setReloading('idle'), 1200)
+    } catch {
+      setReloading('idle')
+    }
   }
 
   const handleExport = async () => {
@@ -748,8 +763,14 @@ action:
               {listMode ? <LayoutGrid size={13} /> : <LayoutList size={13} />}
             </button>
           )}
-          <button className="panel-header-btn" onClick={handleReload} title="Reload all pipeline files">
-            <RefreshCw size={12} /> Reload
+          <button
+            className={`panel-header-btn${reloading === 'done' ? ' panel-header-btn--success' : ''}`}
+            onClick={handleReload}
+            disabled={reloading === 'loading'}
+            title="Reload all pipeline files"
+          >
+            <RefreshCw size={12} className={reloading === 'loading' ? 'spin' : ''} />
+            {reloading === 'loading' ? 'Reloading…' : reloading === 'done' ? 'Reloaded' : 'Reload'}
           </button>
           <button
             className={`panel-header-btn${auditResults && auditResults.length > 0 ? ' panel-header-btn--audit-alert' : ''}`}
