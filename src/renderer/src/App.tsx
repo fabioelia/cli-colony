@@ -122,7 +122,7 @@ export default function App() {
   const [daemonUnresponsive, setDaemonUnresponsive] = useState(false)
   const [upgradeState, setUpgradeState] = useState<'idle' | 'upgrading' | 'draining' | 'complete'>('idle')
   const [drainRemaining, setDrainRemaining] = useState(0)
-  const [rateLimitState, setRateLimitState] = useState<{ paused: boolean; resetAt: number | null; lastError: string; detectedAt: number | null }>({ paused: false, resetAt: null, lastError: '', detectedAt: null })
+  const [rateLimitState, setRateLimitState] = useState<{ paused: boolean; resetAt: number | null; lastError: string; detectedAt: number | null; utilization: number | null; rateLimitType: string | null; status: string | null; source: string | null }>({ paused: false, resetAt: null, lastError: '', detectedAt: null, utilization: null, rateLimitType: null, status: null, source: null })
   const [rateLimitDismissed, setRateLimitDismissed] = useState(false)
   const [rateLimitCountdown, setRateLimitCountdown] = useState('')
   const [cronsPaused, setCronsPaused] = useState(false)
@@ -1426,8 +1426,15 @@ export default function App() {
       )}
       {rateLimitState.paused && !rateLimitDismissed && createPortal(
         <div className="daemon-update-banner rate-limit-banner">
-          <span>API rate limit reached — Colony paused. {rateLimitCountdown && rateLimitCountdown !== 'now' ? `Resumes in ${rateLimitCountdown}` : 'Resuming...'}</span>
+          <span>API rate limit reached — Colony paused.{rateLimitState.utilization != null ? ` (${Math.round(rateLimitState.utilization * 100)}% used)` : ''} {rateLimitCountdown && rateLimitCountdown !== 'now' ? `Resumes in ${rateLimitCountdown}` : 'Resuming...'}</span>
           <button onClick={() => { window.api.colony.resumeCrons(); setRateLimitDismissed(true) }}>Resume Now</button>
+          <button className="daemon-update-dismiss" onClick={() => setRateLimitDismissed(true)}>Dismiss</button>
+        </div>,
+        document.body
+      )}
+      {!rateLimitState.paused && rateLimitState.status === 'allowed_warning' && !rateLimitDismissed && createPortal(
+        <div className="daemon-update-banner rate-limit-warning-banner">
+          <span>Rate limit warning — {rateLimitState.utilization != null ? `${Math.round(rateLimitState.utilization * 100)}% used` : 'approaching limit'}{rateLimitState.rateLimitType ? ` (${rateLimitState.rateLimitType.replace(/_/g, ' ')})` : ''}. Crons still running.</span>
           <button className="daemon-update-dismiss" onClick={() => setRateLimitDismissed(true)}>Dismiss</button>
         </div>,
         document.body

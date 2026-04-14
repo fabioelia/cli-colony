@@ -34,6 +34,7 @@ import { snapshotRunningSync } from './recent-sessions'
 import { ensureRepoClones } from './github'
 import { loadPersonas, startWatcher as startPersonaWatcher, stopWatcher as stopPersonaWatcher, onSessionExit as onPersonaSessionExit, runPersona, getPersonaList, addWhisper } from './persona-manager'
 import { startScheduler as startPersonaScheduler, stopScheduler as stopPersonaScheduler } from './persona-scheduler'
+import { startProbe as startRateLimitProbe, stopProbe as stopRateLimitProbe } from './rate-limit-probe'
 import { initTriggerWatcher } from './persona-triggers'
 import { recordWorkerExit } from './team-metrics'
 import { stopTasksBoardWatcher } from './ipc/tasks-board-handlers'
@@ -571,6 +572,7 @@ app.whenReady().then(async () => {
       startPersonaScheduler()
       initTriggerWatcher(runPersona, getPersonaList, addWhisper)
     } catch (err) { console.warn('[app] persona/scheduler init failed:', err) }
+    startRateLimitProbe().catch(err => console.warn('[app] rate-limit probe init failed:', err))
   }).catch((err) => {
     console.error('[app] daemon init failed:', err)
     broadcast('daemon:connection-failed', { error: err instanceof Error ? err.message : String(err) })
@@ -614,6 +616,7 @@ app.on('before-quit', () => {
   try { shutdownAppUpdater() } catch (e) { console.error('[quit] shutdownAppUpdater:', e) }
   try { stopPersonaWatcher() } catch (e) { console.error('[quit] stopPersonaWatcher:', e) }
   try { stopPersonaScheduler() } catch (e) { console.error('[quit] stopPersonaScheduler:', e) }
+  try { stopRateLimitProbe() } catch (e) { console.error('[quit] stopRateLimitProbe:', e) }
   try { stopEnvWatching() } catch (e) { console.error('[quit] stopEnvWatching:', e) }
   try { stopTasksBoardWatcher() } catch (e) { console.error('[quit] stopTasksBoardWatcher:', e) }
   try { stopPipelines() } catch (e) { console.error('[quit] stopPipelines:', e) }

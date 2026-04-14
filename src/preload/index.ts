@@ -220,9 +220,10 @@ export interface ClaudeManagerAPI {
     getContextPath: () => Promise<string>
     getContextInstruction: () => Promise<string>
     writePromptFile: (content: string) => Promise<string>
-    rateLimitStatus: () => Promise<{ paused: boolean; resetAt: number | null; lastError: string; detectedAt: number | null }>
+    rateLimitStatus: () => Promise<{ paused: boolean; resetAt: number | null; lastError: string; detectedAt: number | null; utilization: number | null; rateLimitType: string | null; status: string | null; source: string | null }>
     resumeCrons: () => Promise<void>
-    onRateLimitChange: (cb: (state: { paused: boolean; resetAt: number | null; lastError: string; detectedAt: number | null }) => void) => () => void
+    probeRateLimit: () => Promise<{ status: string; utilization?: number; resetsAt?: number; rateLimitType?: string } | null>
+    onRateLimitChange: (cb: (state: { paused: boolean; resetAt: number | null; lastError: string; detectedAt: number | null; utilization: number | null; rateLimitType: string | null; status: string | null; source: string | null }) => void) => () => void
     listSpecs: () => Promise<Array<{ name: string; title: string; status: string; updatedAt: string }>>
     readSpec: (name: string) => Promise<string | null>
     archiveSpec: (name: string) => Promise<boolean>
@@ -801,6 +802,7 @@ const api: ClaudeManagerAPI = {
     writePromptFile: (content) => ipcRenderer.invoke('colony:writePromptFile', content),
     rateLimitStatus: () => ipcRenderer.invoke('colony:rateLimitStatus'),
     resumeCrons: () => ipcRenderer.invoke('colony:resumeCrons'),
+    probeRateLimit: () => ipcRenderer.invoke('colony:probeRateLimit'),
     onRateLimitChange: (cb) => {
       const listener = (_e: any, state: any) => cb(state)
       ipcRenderer.on('colony:rateLimitChange', listener)

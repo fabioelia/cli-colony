@@ -222,6 +222,11 @@ input, select {
   background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
 }
 
+/* Rate limit warning banner — amber variant for early warning (allowed_warning) */
+.rate-limit-warning-banner {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%) !important;
+}
+
 /* Cron pause banner — amber variant for manual cron pauses */
 .cron-pause-banner {
   background: linear-gradient(135deg, #d97706 0%, #b45309 100%) !important;

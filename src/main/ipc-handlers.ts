@@ -11,6 +11,7 @@ import { readCatalog, writeCatalog } from './mcp-catalog'
 import { loadApprovalRules, saveApprovalRules } from './approval-rules'
 import { updateColonyContext, getColonyContextPath, getColonyContextInstruction } from './colony-context'
 import { getRateLimitState, resumeCrons } from './rate-limit-state'
+import { runProbe as runRateLimitProbe } from './rate-limit-probe'
 import { getUsageSummary } from './persona-run-history'
 import { isCronsPaused, setCronsPaused } from './cron-pause'
 
@@ -237,6 +238,7 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('colony:resumeCrons', () => {
     resumeCrons()
   })
+  ipcMain.handle('colony:probeRateLimit', () => runRateLimitProbe())
   ipcMain.handle('colony:setCronsPaused', (_e, paused: boolean) => setCronsPaused(paused))
   ipcMain.handle('colony:getCronsPaused', () => isCronsPaused())
 
