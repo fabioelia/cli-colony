@@ -3517,7 +3517,7 @@ describe('pipeline-engine: launch-session auto-close', () => {
     expect(activityListeners.length).toBe(1)
   })
 
-  it('kills session after 5s delay when activity listener fires "waiting"', async () => {
+  it('kills session after stable-waiting window + 5s delay when activity stays "waiting"', async () => {
     const fs = buildFsMock(['ac.yaml'], { 'ac.yaml': AUTO_CLOSE_YAML })
     setupAutoCloseMocks(fs)
     mod = await import('../pipeline-engine')
@@ -3526,19 +3526,53 @@ describe('pipeline-engine: launch-session auto-close', () => {
     mod.triggerPollNow('Auto Close Pipe')
     await flushPromises()
 
-    // Simulate session finishing — fire activity=waiting for the launched instance
+    // Simulate session going idle — fire activity=waiting once
     for (const listener of [...activityListeners]) listener('inst-auto-1', 'waiting')
     await flushPromises()
 
-    // Kill should not happen immediately
+    // Kill should not happen immediately; the 20s stable window must elapse first.
     expect(mockKillInstance).not.toHaveBeenCalled()
 
-    // Advance 5s — the delayed kill fires
-    await vi.advanceTimersByTimeAsync(5000)
+    // Partway through the stable window — still not killed.
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(mockKillInstance).not.toHaveBeenCalled()
+
+    // Stable window elapses, then the 5s kill delay fires.
+    await vi.advanceTimersByTimeAsync(10_000 + 5_000)
     expect(mockKillInstance).toHaveBeenCalledWith('inst-auto-1')
   })
 
-  it('removes the activity listener after session finishes', async () => {
+  it('does NOT kill when session briefly flips to waiting mid-work (tool execution)', async () => {
+    // Reproduces the #263 root cause: daemon's 2s PTY-lull flips to "waiting"
+    // during tool execution. Stable-waiting guard must cancel the pending kill
+    // when activity transitions back to "busy".
+    const fs = buildFsMock(['ac.yaml'], { 'ac.yaml': AUTO_CLOSE_YAML })
+    setupAutoCloseMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Auto Close Pipe')
+    await flushPromises()
+
+    // First false-positive: waiting mid-tool-exec
+    for (const listener of [...activityListeners]) listener('inst-auto-1', 'waiting')
+    await flushPromises()
+    // Partway through stable window, resume work
+    await vi.advanceTimersByTimeAsync(10_000)
+    for (const listener of [...activityListeners]) listener('inst-auto-1', 'busy')
+    await flushPromises()
+    // Advance well past the original 20s stable window — kill must not fire.
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(mockKillInstance).not.toHaveBeenCalled()
+
+    // Session actually finishes — waiting held continuously for the full window.
+    for (const listener of [...activityListeners]) listener('inst-auto-1', 'waiting')
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(20_000 + 5_000)
+    expect(mockKillInstance).toHaveBeenCalledWith('inst-auto-1')
+  })
+
+  it('removes the activity listener after the stable-waiting window resolves', async () => {
     const fs = buildFsMock(['ac.yaml'], { 'ac.yaml': AUTO_CLOSE_YAML })
     setupAutoCloseMocks(fs)
     mod = await import('../pipeline-engine')
@@ -3549,9 +3583,10 @@ describe('pipeline-engine: launch-session auto-close', () => {
 
     expect(activityListeners.length).toBe(1)
 
-    // Fire "waiting" — listener should be removed
+    // Fire "waiting" and hold for the full stable window.
     for (const listener of [...activityListeners]) listener('inst-auto-1', 'waiting')
     await flushPromises()
+    await vi.advanceTimersByTimeAsync(20_000)
 
     expect(mockDaemonClient.removeListener).toHaveBeenCalledWith('activity', expect.any(Function))
   })
@@ -3612,7 +3647,7 @@ describe('pipeline-engine: launch-session auto-close', () => {
     expect(mockKillInstance).toHaveBeenCalledTimes(1)
   })
 
-  it('prevents double-kill: timeout ignored after activity listener fires', async () => {
+  it('prevents double-kill: timeout ignored after stable-waiting kill fires', async () => {
     const fs = buildFsMock(['ac.yaml'], { 'ac.yaml': AUTO_CLOSE_YAML })
     setupAutoCloseMocks(fs)
     mod = await import('../pipeline-engine')
@@ -3621,13 +3656,13 @@ describe('pipeline-engine: launch-session auto-close', () => {
     mod.triggerPollNow('Auto Close Pipe')
     await flushPromises()
 
-    // Activity listener fires first
+    // Stable-waiting path completes (20s stable + 5s kill delay)
     for (const listener of [...activityListeners]) listener('inst-auto-1', 'waiting')
     await flushPromises()
-    await vi.advanceTimersByTimeAsync(5000)
+    await vi.advanceTimersByTimeAsync(20_000 + 5_000)
     expect(mockKillInstance).toHaveBeenCalledTimes(1)
 
-    // Advance past timeout — should be a no-op due to autoCloseResolved flag
+    // Advance past the 10min absolute timeout — no second kill.
     await vi.advanceTimersByTimeAsync(10 * 60_000)
     expect(mockKillInstance).toHaveBeenCalledTimes(1)
   })

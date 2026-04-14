@@ -23,7 +23,7 @@ import type { GitHubRepo, GitHubPR, PRChecks, ApprovalRequest } from '../shared/
 import { appendActivity } from './activity-manager'
 import { notify } from './notifications'
 import { matchRules, estimateActionCost } from './approval-rules'
-import { waitForSessionCompletion } from './session-completion'
+import { waitForSessionCompletion, waitForStableIdle } from './session-completion'
 import { tagArtifactPipeline } from './session-artifacts'
 import { isRateLimited, getRateLimitState } from './rate-limit-state'
 import { isCronsPausedSync } from './cron-pause'
@@ -94,6 +94,7 @@ export interface ActionDef {
   // wait_for_session specific fields
   session_name?: string      // name of the session to wait for
   timeout_minutes?: number   // max wait time in minutes (default: 30)
+  stable_waiting_seconds?: number // continuous 'waiting' window before auto-close fires (default: 20)
   artifact_output?: string   // artifact name to write exit reason to
   // retry
   max_retries?: number       // retry failed stages up to N times (default: 0 = no retry)
@@ -898,48 +899,41 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
   // Full prompt is in the system prompt file — just send a trigger
   await sendPromptWhenReady(inst.id, { prompt: 'Execute the instructions in your system prompt. Begin now.' })
 
-  // Auto-close: kill session if still running after timeout (default 10 min)
+  // Auto-close: kill session if still running after timeout (default 10 min).
+  // Use stable-idle detection to avoid false-positives from the daemon's
+  // 2s PTY-lull heuristic (which fires during tool execution / long reasoning).
   const autoCloseMinutes = action.timeout_minutes || 10
-  const client = getDaemonRouter()
-  let autoCloseResolved = false
-
-  const onFinished = (id: string, activity: string) => {
-    if (id !== inst.id || activity !== 'waiting') return
-    if (autoCloseResolved) return
-    autoCloseResolved = true
-    client.removeListener('activity', onFinished)
-    clearTimeout(autoCloseTimeout)
-    log(`pipeline session ${inst.id} finished, killing in 5s`)
-    tagArtifactPipeline(inst.id, effectiveRunId).catch(() => {})
-    // Append captured decisions to living spec if specAppend is configured
-    if (action.specAppend && specDecisionsFile) {
-      (async () => {
+  const stableMs = (action.stable_waiting_seconds ?? 20) * 1000
+  const { promise: stablePromise } = waitForStableIdle(inst.id, {
+    stableMs,
+    absoluteMs: autoCloseMinutes * 60_000,
+  })
+  stablePromise.then(async (outcome) => {
+    if (outcome === 'stable') {
+      log(`pipeline session ${inst.id} idle ${stableMs}ms, killing in 5s`)
+      tagArtifactPipeline(inst.id, effectiveRunId).catch(() => {})
+      // Append captured decisions to living spec if specAppend is configured
+      if (action.specAppend && specDecisionsFile) {
         try {
           if (await pathExists(specDecisionsFile)) {
             const decisions = (await fsp.readFile(specDecisionsFile, 'utf-8')).trim()
             if (decisions) {
-              await appendToSpec(action.specAppend!, decisions, action.name || pipelineName)
+              await appendToSpec(action.specAppend, decisions, action.name || pipelineName)
             }
           }
         } catch (err: any) {
           log(`[spec] failed to append decisions for "${action.specAppend}": ${err?.message}`)
         }
-      })()
-    }
-    setTimeout(async () => {
+      }
+      setTimeout(async () => {
+        try { await killInstance(inst.id) } catch { /* already gone */ }
+      }, 5000)
+    } else {
+      log(`pipeline session ${inst.id} still running after ${autoCloseMinutes}min, force-killing`)
+      tagArtifactPipeline(inst.id, effectiveRunId).catch(() => {})
       try { await killInstance(inst.id) } catch { /* already gone */ }
-    }, 5000)
-  }
-  client.on('activity', onFinished)
-
-  const autoCloseTimeout = setTimeout(async () => {
-    if (autoCloseResolved) return
-    autoCloseResolved = true
-    client.removeListener('activity', onFinished)
-    log(`pipeline session ${inst.id} still running after ${autoCloseMinutes}min, force-killing`)
-    tagArtifactPipeline(inst.id, effectiveRunId).catch(() => {})
-    try { await killInstance(inst.id) } catch { /* already gone */ }
-  }, autoCloseMinutes * 60_000)
+    }
+  })
 
   // Notify renderer about pipeline-triggered session
   broadcast('pipeline:fired', { pipeline: name, instanceId: inst.id })

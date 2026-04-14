@@ -16,6 +16,7 @@ import { colonyPaths } from '../shared/colony-paths'
 import { createInstance, getAllInstances, killInstance, wasBudgetStopped, setCostCapResolver } from './instance-manager'
 import { getDaemonRouter } from './daemon-router'
 import { sendPromptWhenReady } from './send-prompt-when-ready'
+import { waitForStableIdle } from './session-completion'
 import { broadcast } from './broadcast'
 import { notify } from './notifications'
 import { slugify, parseFrontmatter as parseRawFrontmatter, stripAnsi } from '../shared/utils'
@@ -98,6 +99,12 @@ export interface PersonaFrontmatter {
   conflict_group?: string
   /** Session timeout in minutes for cron-triggered runs (default: 10). */
   session_timeout_minutes?: number
+  /**
+   * How many seconds the session must be continuously 'waiting' before we
+   * conclude the persona is done. Guards against the daemon's 2s PTY-lull
+   * false-positive (tool exec / long reasoning pauses). Default 20.
+   */
+  stable_waiting_seconds?: number
   /** Per-session cost cap in USD. Session auto-stops when exceeded. */
   max_cost_usd?: number
   /**
@@ -128,6 +135,7 @@ function parseFrontmatter(content: string): PersonaFrontmatter | null {
     can_invoke: parseStringArray(val('can_invoke')),
     auto_memory_extraction: val('auto_memory_extraction') !== 'false',
     session_timeout_minutes: parseInt(val('session_timeout_minutes')) || undefined,
+    stable_waiting_seconds: parseInt(val('stable_waiting_seconds')) || undefined,
     max_cost_usd: parseFloat(val('max_cost_usd')) || undefined,
     conflict_group: val('conflict_group') || undefined,
     run_condition: val('run_condition') || undefined,
@@ -407,7 +415,13 @@ export function togglePersona(fileName: string, enabled: boolean): boolean {
 
 // ---- Send trigger when CLI is ready ----
 
-function sendTriggerWhenReady(instanceId: string, message: string, timeoutMinutes?: number, onStateCommit?: () => void): void {
+function sendTriggerWhenReady(
+  instanceId: string,
+  message: string,
+  timeoutMinutes?: number,
+  onStateCommit?: () => void,
+  stableWaitingSeconds?: number,
+): void {
   // Use the shared sendPromptWhenReady, then watch for persona completion
   sendPromptWhenReady(instanceId, {
     prompt: message,
@@ -415,34 +429,26 @@ function sendTriggerWhenReady(instanceId: string, message: string, timeoutMinute
       console.log(`[persona] sent trigger to ${instanceId}`)
       if (onStateCommit) onStateCommit()
 
-      const client = getDaemonRouter()
-      let resolved = false
-      let absoluteTimeout: ReturnType<typeof setTimeout> | null = null
-
-      // After sending, watch for the next 'waiting' = persona finished its work
-      const onFinished = (id: string, activity: string) => {
-        if (id !== instanceId || activity !== 'waiting') return
-        if (resolved) return
-        resolved = true
-        client.removeListener('activity', onFinished)
-        if (absoluteTimeout) clearTimeout(absoluteTimeout)
-        console.log(`[persona] session ${instanceId} finished, killing in 5s`)
-        setTimeout(async () => {
-          try { await killInstance(instanceId) } catch { /* already gone */ }
-        }, 5000)
-      }
-      client.on('activity', onFinished)
-
-      // Absolute timeout: force-kill if still running (only for non-manual triggers)
-      if (timeoutMinutes != null) {
-        absoluteTimeout = setTimeout(async () => {
-          if (resolved) return
-          resolved = true
-          client.removeListener('activity', onFinished)
+      // Guard against daemon PTY-diff false-positives: require a continuous
+      // `waiting` window before we conclude the persona is done. The daemon
+      // flips to 'waiting' after ~2s of no PTY growth, which happens during
+      // tool execution and long reasoning pauses — not real completion.
+      const stableMs = (stableWaitingSeconds ?? 20) * 1000
+      const absoluteMs = timeoutMinutes != null ? timeoutMinutes * 60_000 : undefined
+      const { promise } = waitForStableIdle(instanceId, { stableMs, absoluteMs })
+      promise.then((outcome) => {
+        if (outcome === 'stable') {
+          console.log(`[persona] session ${instanceId} idle ${stableMs}ms, killing in 5s`)
+          setTimeout(async () => {
+            try { await killInstance(instanceId) } catch { /* already gone */ }
+          }, 5000)
+        } else {
           console.log(`[persona] session ${instanceId} still running after ${timeoutMinutes}min, force-killing`)
-          try { await killInstance(instanceId) } catch { /* already gone */ }
-        }, timeoutMinutes * 60_000)
-      }
+          ;(async () => {
+            try { await killInstance(instanceId) } catch { /* already gone */ }
+          })()
+        }
+      })
     },
   })
 }
@@ -560,7 +566,7 @@ export async function runPersona(fileName: string, trigger: TriggerSource = { ty
     broadcast('persona:run', { persona: fm.name, instanceId: inst.id })
     broadcastStatus()
     notify(`Colony: Persona started`, `${fm.name} run #${state.runCount} started`, 'personas')
-  })
+  }, fm.stable_waiting_seconds)
 
   console.log(`[persona] launched "${fm.name}" as session ${inst.id}`)
   return inst.id
