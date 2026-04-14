@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
-import { ChevronUp, ChevronDown, ChevronRight, Minimize2, Maximize2, X, FolderOpen, FolderTree, File, Folder, RefreshCw, Search, Settings, TerminalSquare, WrapText, ArrowUpDown } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronRight, Minimize2, Maximize2, X, FolderOpen, FolderTree, File, Folder, RefreshCw, Search, Settings, TerminalSquare, WrapText, ArrowUpDown, Eye, Code } from 'lucide-react'
 import type { ClaudeInstance } from '../types'
+import MarkdownViewer from './MarkdownViewer'
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -183,6 +184,21 @@ export default function FilesTab({ instance, focused, onSwitchToSession }: Files
   const [ignoreRules, setIgnoreRules] = useState<string[]>([])
   const [ignoreInput, setIgnoreInput] = useState('')
   const [filesSortMode, setFilesSortMode] = useState<'name' | 'modified'>('name')
+  const [renderMd, setRenderMd] = useState(true)
+
+  const isMarkdown = useMemo(() => {
+    if (!selectedFile) return false
+    const lower = selectedFile.toLowerCase()
+    return lower.endsWith('.md') || lower.endsWith('.markdown')
+  }, [selectedFile])
+
+  // Reset render mode on each new file
+  useEffect(() => { setRenderMd(true) }, [selectedFile])
+
+  // Auto-switch to source when in-file search opens on a markdown file
+  useEffect(() => {
+    if (fileSearchOpen && isMarkdown && renderMd) setRenderMd(false)
+  }, [fileSearchOpen, isMarkdown, renderMd])
 
   const fileSearchInputRef = useRef<HTMLInputElement>(null)
   const previewContentRef = useRef<HTMLDivElement>(null)
@@ -595,13 +611,25 @@ export default function FilesTab({ instance, focused, onSwitchToSession }: Files
                 >
                   <TerminalSquare size={12} /> Paste Path
                 </button>
-                <button
-                  className={`filetree-preview-wrap ${wordWrap ? 'active' : ''}`}
-                  onClick={() => setWordWrap(!wordWrap)}
-                  title={wordWrap ? 'Disable word wrap' : 'Enable word wrap'}
-                >
-                  <WrapText size={12} />
-                </button>
+                {isMarkdown && (
+                  <button
+                    className={`filetree-preview-wrap filetree-preview-mode-toggle ${renderMd ? 'active' : ''}`}
+                    onClick={() => setRenderMd(!renderMd)}
+                    title={renderMd ? 'Show source' : 'Show rendered markdown'}
+                  >
+                    {renderMd ? <Code size={12} /> : <Eye size={12} />}
+                    <span>{renderMd ? 'Source' : 'Rendered'}</span>
+                  </button>
+                )}
+                {!(isMarkdown && renderMd) && (
+                  <button
+                    className={`filetree-preview-wrap ${wordWrap ? 'active' : ''}`}
+                    onClick={() => setWordWrap(!wordWrap)}
+                    title={wordWrap ? 'Disable word wrap' : 'Enable word wrap'}
+                  >
+                    <WrapText size={12} />
+                  </button>
+                )}
               </div>
               {fileSearchOpen && (
                 <div className="filetree-search-bar">
@@ -638,7 +666,11 @@ export default function FilesTab({ instance, focused, onSwitchToSession }: Files
               <div className="filetree-preview-content" ref={previewContentRef}>
                 {fileLoading && <div className="filetree-preview-empty">Loading...</div>}
                 {fileError && <div className="filetree-preview-error">{fileError}</div>}
-                {fileContent !== null && (() => {
+                {fileContent !== null && isMarkdown && renderMd && !fileSearchQuery ? (
+                  <div className="filetree-preview-markdown">
+                    <MarkdownViewer content={fileContent} />
+                  </div>
+                ) : fileContent !== null ? (() => {
                   const raw = fileSearchQuery && highlightedHtml ? highlightedHtml : escapeHtml(fileContent)
                   const lines = raw.split('\n')
                   const gutterWidth = String(lines.length).length
@@ -646,7 +678,7 @@ export default function FilesTab({ instance, focused, onSwitchToSession }: Files
                     `<span class="filetree-line"><span class="filetree-linenum" style="min-width:${gutterWidth}ch">${i + 1}</span><span class="filetree-linecode">${line || ' '}</span></span>`
                   ).join('\n')
                   return <pre className={`filetree-preview-code ${wordWrap ? 'word-wrap' : ''}`} dangerouslySetInnerHTML={{ __html: html }} />
-                })()}
+                })() : null}
               </div>
             </>
           )}

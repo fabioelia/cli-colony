@@ -1128,6 +1128,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Right pane',
         items: [
           { label: 'File content', detail: 'Shows file contents with line numbers. Supports Cmd+F to search within the file.' },
+          { label: 'Markdown rendering', detail: '.md / .markdown files render as formatted by default. Toggle Source/Rendered in the preview header. Cmd+F auto-switches to source so search highlights work.', icon: 'Eye' },
           { label: 'Search results', detail: 'When using content search, results appear grouped by directory. Click a match to preview.' },
         ],
       },

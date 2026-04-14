@@ -10679,6 +10679,12 @@ body:has(.daemon-update-banner) .app-update-banner {
   word-break: break-word;
 }
 
+.filetree-preview-markdown {
+  padding: 12px 16px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 .filetree-preview-wrap {
   display: flex;
   align-items: center;
@@ -10698,6 +10704,12 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .filetree-preview-wrap.active {
   color: var(--accent);
+}
+.filetree-preview-mode-toggle {
+  width: auto;
+  padding: 0 8px;
+  gap: 4px;
+  font-size: 10px;
 }
 
 .filetree-preview-error {
