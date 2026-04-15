@@ -1,5 +1,5 @@
 import { getSettings } from './settings'
-import type { JiraTicket } from '../shared/types'
+import type { JiraTicket, JiraTicketSummary } from '../shared/types'
 
 // TODO(jira-server): V1 targets Jira Cloud only. On-prem Jira Server uses /rest/api/2/
 // and different auth. Add a `jiraType: 'cloud' | 'server'` setting to support it.
@@ -85,4 +85,55 @@ export async function fetchTicket(key: string): Promise<JiraTicket> {
     description,
     url: `https://${domain}/browse/${data.key || key}`,
   }
+}
+
+/**
+ * Fetch tickets assigned to the current user (resolution = Unresolved, sorted
+ * by updated DESC, capped at 20). Used by the ticket picker in NewInstanceDialog.
+ */
+export async function searchMyTickets(): Promise<JiraTicketSummary[]> {
+  const settings = await getSettings()
+  const domain = settings.jiraDomain?.trim()
+  const email = settings.jiraEmail?.trim()
+  const token = settings.jiraApiToken?.trim()
+
+  if (!domain || !email || !token) {
+    throw new Error('Jira not configured')
+  }
+
+  const credentials = Buffer.from(`${email}:${token}`).toString('base64')
+  const jql = encodeURIComponent('assignee=currentUser() AND resolution=Unresolved ORDER BY updated DESC')
+  const url = `https://${domain}/rest/api/3/search?jql=${jql}&fields=summary,status&maxResults=20`
+
+  let response: Response
+  try {
+    response = await fetch(url, {
+      headers: {
+        Authorization: `Basic ${credentials}`,
+        Accept: 'application/json',
+      },
+    })
+  } catch (err) {
+    throw new Error(`Network error fetching tickets: ${(err as Error).message}`)
+  }
+
+  if (response.status === 401 || response.status === 403) {
+    throw new Error('Jira auth failed — check email/token')
+  }
+  if (!response.ok) {
+    throw new Error(`Jira request failed: ${response.status} ${response.statusText}`)
+  }
+
+  const data = await response.json() as {
+    issues: Array<{
+      key: string
+      fields: { summary: string; status: { name: string } }
+    }>
+  }
+
+  return (data.issues ?? []).map(issue => ({
+    key: issue.key,
+    summary: issue.fields?.summary ?? '',
+    status: issue.fields?.status?.name ?? '',
+  }))
 }

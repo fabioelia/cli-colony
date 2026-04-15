@@ -12,6 +12,12 @@ export interface JiraTicket {
   url: string
 }
 
+export interface JiraTicketSummary {
+  key: string
+  summary: string
+  status: string
+}
+
 export type SessionRole = 'Orchestrator' | 'Planner' | 'Coder' | 'Tester' | 'Reviewer' | 'Researcher' | 'Coordinator' | 'Worker'
 
 export const SESSION_ROLES: SessionRole[] = ['Orchestrator', 'Planner', 'Coder', 'Tester', 'Reviewer', 'Researcher', 'Coordinator', 'Worker']

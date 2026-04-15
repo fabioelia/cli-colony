@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react'
-import { ChevronDown, ChevronRight, CheckCircle, XCircle } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { ChevronDown, ChevronRight, CheckCircle, XCircle, ListTodo, Loader } from 'lucide-react'
 import type { AgentDef, CliBackend } from '../types'
-import type { JiraTicket } from '../../../shared/types'
+import type { JiraTicket, JiraTicketSummary } from '../../../shared/types'
 import { COLORS, COLOR_MAP } from '../lib/constants'
 import { getHistory, addToHistory } from '../lib/prompt-history'
 
@@ -128,6 +128,12 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
   const [jiraKey, setJiraKey] = useState('')
   const [jiraPreview, setJiraPreview] = useState<{ ok: boolean; text: string } | null>(null)
   const [jiraTicket, setJiraTicket] = useState<JiraTicket | null>(null)
+  const [jiraConfigured, setJiraConfigured] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerTickets, setPickerTickets] = useState<JiraTicketSummary[]>([])
+  const [pickerLoading, setPickerLoading] = useState(false)
+  const [pickerError, setPickerError] = useState<string | null>(null)
+  const pickerRef = useRef<HTMLDivElement | null>(null)
 
   // When the starter-card / clone path opens the dialog, focus the prompt
   // textarea and place the cursor at the end so the user can just press Enter.
@@ -145,6 +151,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
     if (!cloneSource) {
       window.api.settings.getAll().then((s) => {
         setCliBackend(s.defaultCliBackend === 'cursor-agent' ? 'cursor-agent' : 'claude')
+        setJiraConfigured(!!s.jiraDomain?.trim())
       })
     }
     // Load environments for picker
@@ -240,13 +247,14 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (pickerOpen) { setPickerOpen(false); e.stopPropagation(); return }
         if (historyOpen) { setHistoryOpen(false); e.stopPropagation(); return }
         handleClose()
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [historyOpen])
+  }, [historyOpen, pickerOpen])
 
   // Close history dropdown on click outside
   useEffect(() => {
@@ -259,6 +267,40 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [historyOpen])
+
+  // Close ticket picker on click outside
+  useEffect(() => {
+    if (!pickerOpen) return
+    const handler = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setPickerOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [pickerOpen])
+
+  const handleOpenPicker = useCallback(async () => {
+    if (pickerOpen) { setPickerOpen(false); return }
+    setPickerOpen(true)
+    setPickerError(null)
+    setPickerLoading(true)
+    const result = await window.api.jira.myTickets()
+    setPickerLoading(false)
+    if (result.ok) {
+      setPickerTickets(result.tickets)
+    } else {
+      setPickerError("Couldn't fetch tickets — check Jira settings.")
+    }
+  }, [pickerOpen])
+
+  const handlePickTicket = (t: JiraTicketSummary) => {
+    setJiraKey(t.key)
+    setPickerOpen(false)
+    setJiraPreview(null)
+    setJiraTicket(null)
+    handleJiraFetch(t.key)
+  }
 
   return (
     <div className="dialog-overlay">
@@ -343,17 +385,61 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
 
         <div className="dialog-field">
           <label>Attach JIRA Ticket <span style={{ opacity: 0.5, fontWeight: 'normal' }}>(optional)</span></label>
-          <input
-            placeholder="e.g. NP-7663"
-            value={jiraKey}
-            onChange={(e) => {
-              setJiraKey(e.target.value)
-              // Clear preview if user edits after fetch
-              if (jiraPreview) { setJiraPreview(null); setJiraTicket(null) }
-            }}
-            onBlur={() => { if (jiraKey.trim()) handleJiraFetch(jiraKey) }}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (jiraKey.trim()) handleJiraFetch(jiraKey) } }}
-          />
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <input
+              style={{ flex: 1 }}
+              placeholder="e.g. NP-7663"
+              value={jiraKey}
+              onChange={(e) => {
+                setJiraKey(e.target.value)
+                // Clear preview if user edits after fetch
+                if (jiraPreview) { setJiraPreview(null); setJiraTicket(null) }
+              }}
+              onBlur={() => { if (jiraKey.trim()) handleJiraFetch(jiraKey) }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (jiraKey.trim()) handleJiraFetch(jiraKey) } }}
+            />
+            {jiraConfigured && (
+              <div style={{ position: 'relative' }} ref={pickerRef} onClick={e => e.stopPropagation()}>
+                <button
+                  type="button"
+                  className="panel-header-btn"
+                  title="My open tickets"
+                  onClick={handleOpenPicker}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                >
+                  <ListTodo size={13} />
+                  My Tickets
+                </button>
+                {pickerOpen && (
+                  <div className="jira-picker-popover">
+                    {pickerLoading && (
+                      <div className="jira-picker-state">
+                        <Loader size={12} className="spinning" /> Loading…
+                      </div>
+                    )}
+                    {pickerError && (
+                      <div className="jira-picker-state jira-picker-error">{pickerError}</div>
+                    )}
+                    {!pickerLoading && !pickerError && pickerTickets.length === 0 && (
+                      <div className="jira-picker-state">No open tickets assigned to you.</div>
+                    )}
+                    {!pickerLoading && !pickerError && pickerTickets.map(t => (
+                      <button
+                        key={t.key}
+                        type="button"
+                        className="jira-picker-row"
+                        onClick={() => handlePickTicket(t)}
+                      >
+                        <span className="jira-picker-key">{t.key}</span>
+                        <span className="jira-picker-summary">{t.summary}</span>
+                        <span className="jira-picker-status">{t.status}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           {jiraPreview && (
             <div className={`jira-preview ${jiraPreview.ok ? 'ok' : 'err'}`}>
               {jiraPreview.ok
