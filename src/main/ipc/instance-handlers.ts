@@ -3,8 +3,10 @@ import path from 'path'
 import { execFile, spawn } from 'child_process'
 import { resolveCommand } from '../resolve-command'
 import { promisify } from 'util'
+import { createHash } from 'crypto'
 import { DEFAULT_SCORING_PROMPT } from '../scoring-config'
 import type { ScoreCard } from '../../shared/types'
+import { getScoreCard, saveScoreCard, clearScoreCard } from '../scorecard-store'
 
 const execFileAsync = promisify(execFile)
 import { createShell, writeShell, resizeShell, killShell } from '../shell-pty'
@@ -271,8 +273,9 @@ export function registerInstanceHandlers(): void {
   })
 
   // LLM-as-Judge scorecard for uncommitted changes in a session's working directory.
-  ipcMain.handle('session:scoreOutput', async (_e, dir: string): Promise<ScoreCard> => {
-    // Get the git diff (truncated at 8KB)
+  // instanceId is used as the cache key; diffHash is computed from the full pre-truncation diff.
+  ipcMain.handle('session:scoreOutput', async (_e, instanceId: string, dir: string): Promise<ScoreCard> => {
+    // Get the full git diff (hash before truncation)
     let diff = ''
     try {
       const { stdout } = await execFileAsync(resolveCommand('git'), ['diff', 'HEAD'], { encoding: 'utf-8', timeout: 10000, cwd: dir })
@@ -281,19 +284,25 @@ export function registerInstanceHandlers(): void {
       return { confidence: 0, scopeCreep: false, testCoverage: 'none', summary: 'Could not read git diff.', raw: '' }
     }
 
-    const MAX_DIFF = 8 * 1024
-    if (Buffer.byteLength(diff, 'utf-8') > MAX_DIFF) {
-      const truncated = Buffer.from(diff).slice(0, MAX_DIFF).toString('utf-8')
-      const totalLines = diff.split('\n').length
-      const keptLines = truncated.split('\n').length
-      diff = truncated + `\n[... ${totalLines - keptLines} lines truncated]`
-    }
-
     if (!diff.trim()) {
       return { confidence: 0, scopeCreep: false, testCoverage: 'none', summary: 'No uncommitted changes to score.', raw: '' }
     }
 
-    const fullPrompt = DEFAULT_SCORING_PROMPT + diff
+    // Hash full diff before any truncation — cache hit short-circuits Haiku spawn
+    const diffHash = createHash('sha256').update(diff).digest('hex').slice(0, 16)
+    const cached = await getScoreCard(instanceId, diffHash)
+    if (cached) return cached
+
+    const MAX_DIFF = 8 * 1024
+    let scoreDiff = diff
+    if (Buffer.byteLength(diff, 'utf-8') > MAX_DIFF) {
+      const truncated = Buffer.from(diff).slice(0, MAX_DIFF).toString('utf-8')
+      const totalLines = diff.split('\n').length
+      const keptLines = truncated.split('\n').length
+      scoreDiff = truncated + `\n[... ${totalLines - keptLines} lines truncated]`
+    }
+
+    const fullPrompt = DEFAULT_SCORING_PROMPT + scoreDiff
 
     return new Promise((resolve) => {
       const proc = spawn(resolveCommand('claude'), ['-p', fullPrompt, '--model', 'claude-haiku-4-5-20251001'], {
@@ -304,20 +313,23 @@ export function registerInstanceHandlers(): void {
       proc.stdout.on('data', (chunk: Buffer) => { out += chunk.toString() })
       proc.on('close', () => {
         const raw = out.trim()
+        let card: ScoreCard
         try {
           // Strip markdown fences if present
           const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
           const parsed = JSON.parse(cleaned)
-          resolve({
+          card = {
             confidence: Math.min(5, Math.max(0, Math.round(Number(parsed.confidence) || 0))),
             scopeCreep: Boolean(parsed.scopeCreep),
             testCoverage: (['none', 'partial', 'good'].includes(parsed.testCoverage) ? parsed.testCoverage : 'none') as ScoreCard['testCoverage'],
             summary: String(parsed.summary || '').slice(0, 400),
             raw,
-          })
+          }
         } catch {
-          resolve({ confidence: 0, scopeCreep: false, testCoverage: 'none', summary: raw.slice(0, 400) || 'Could not parse score response.', raw })
+          card = { confidence: 0, scopeCreep: false, testCoverage: 'none', summary: raw.slice(0, 400) || 'Could not parse score response.', raw }
         }
+        saveScoreCard(instanceId, diffHash, card).catch(() => {})
+        resolve(card)
       })
       proc.on('error', (err) => {
         resolve({ confidence: 0, scopeCreep: false, testCoverage: 'none', summary: `Error: ${err.message}`, raw: '' })
@@ -325,10 +337,32 @@ export function registerInstanceHandlers(): void {
     })
   })
 
+  // Return the current diff hash (sha256 first 16 chars) for the given working directory.
+  // Used by ChangesTab to check if cached scorecard is still valid before mounting.
+  ipcMain.handle('session:getDiffHash', async (_e, dir: string): Promise<string | null> => {
+    try {
+      const { stdout } = await execFileAsync(resolveCommand('git'), ['diff', 'HEAD'], { encoding: 'utf-8', timeout: 10000, cwd: dir })
+      if (!stdout.trim()) return null
+      return createHash('sha256').update(stdout).digest('hex').slice(0, 16)
+    } catch {
+      return null
+    }
+  })
+
+  // Return the persisted ScoreCard if the stored diffHash matches the given hash.
+  ipcMain.handle('session:getCachedScoreCard', async (_e, instanceId: string, diffHash: string): Promise<ScoreCard | null> => {
+    return getScoreCard(instanceId, diffHash)
+  })
+
+  // Remove the persisted ScoreCard for an instance (user dismissed).
+  ipcMain.handle('session:clearScoreCard', async (_e, instanceId: string): Promise<void> => {
+    await clearScoreCard(instanceId)
+  })
+
   // AI-generated summary of a session's terminal buffer.
   ipcMain.handle('instance:summarize', async (_e, id: string): Promise<string> => {
     const COMPACTION_RE = /context.*(?:compacted|summarized)|conversation.*continued.*previous.*context/i
-    const rawBuf = await client.getInstanceBuffer(id).catch(() => '')
+    const rawBuf = await router.getInstanceBuffer(id).catch(() => '')
     const clean = stripAnsi(rawBuf)
     const lines = clean.split('\n').filter(l => l.trim())
     const relevant = lines.slice(-200).filter(l => !COMPACTION_RE.test(l))

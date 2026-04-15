@@ -57,6 +57,7 @@ export const colonyPaths = {
   specs: path.join(ROOT, 'specs'),
   forks: path.join(ROOT, 'forks'),
   forkGroups: path.join(ROOT, 'fork-groups.json'),
+  scorecards: path.join(ROOT, 'scorecards.json'),
   sessionArtifacts: path.join(ROOT, 'session-artifacts.json'),
   sessionTemplates: path.join(ROOT, 'session-templates.json'),
   notificationHistory: path.join(ROOT, 'notification-history.json'),

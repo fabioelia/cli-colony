@@ -424,7 +424,10 @@ export interface ClaudeManagerAPI {
     gitChanges: (dir: string) => Promise<GitDiffEntry[]>
     getFileDiff: (dir: string, filePath: string, fileStatus?: string) => Promise<string>
     gitRevert: (dir: string, file: string) => Promise<boolean>
-    scoreOutput: (dir: string) => Promise<ScoreCard>
+    scoreOutput: (instanceId: string, dir: string) => Promise<ScoreCard>
+    getDiffHash: (dir: string) => Promise<string | null>
+    getCachedScoreCard: (instanceId: string, diffHash: string) => Promise<ScoreCard | null>
+    clearScoreCard: (instanceId: string) => Promise<void>
     getComments: (instanceId: string) => Promise<ColonyComment[]>
     onComments: (callback: (data: { instanceId: string; comments: ColonyComment[] }) => void) => () => void
     getCoordinatorTeam: (sessionId: string) => Promise<CoordinatorTeam | null>
@@ -1039,7 +1042,10 @@ const api: ClaudeManagerAPI = {
     gitChanges: (dir) => ipcRenderer.invoke('session:gitChanges', dir),
     getFileDiff: (dir, filePath, fileStatus) => ipcRenderer.invoke('session:getFileDiff', dir, filePath, fileStatus),
     gitRevert: (dir, file) => ipcRenderer.invoke('session:gitRevert', dir, file),
-    scoreOutput: (dir) => ipcRenderer.invoke('session:scoreOutput', dir),
+    scoreOutput: (instanceId, dir) => ipcRenderer.invoke('session:scoreOutput', instanceId, dir),
+    getDiffHash: (dir) => ipcRenderer.invoke('session:getDiffHash', dir),
+    getCachedScoreCard: (instanceId, diffHash) => ipcRenderer.invoke('session:getCachedScoreCard', instanceId, diffHash),
+    clearScoreCard: (instanceId) => ipcRenderer.invoke('session:clearScoreCard', instanceId),
     getComments: (instanceId) => ipcRenderer.invoke('session:getComments', instanceId),
     onComments: (callback) => {
       const listener = (_e: any, data: { instanceId: string; comments: ColonyComment[] }) => callback(data)

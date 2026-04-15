@@ -24,6 +24,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [revertingAll, setRevertingAll] = useState(false)
   const [scoreCard, setScoreCard] = useState<ScoreCard | null>(null)
   const [scoreCardLoading, setScoreCardLoading] = useState(false)
+  const currentDiffHashRef = useRef<string | null>(null)
   const [showCommitDialog, setShowCommitDialog] = useState(false)
   const [expandedDiffFile, setExpandedDiffFile] = useState<string | null>(null)
   const diffCacheRef = useRef<Record<string, string>>({})
@@ -120,16 +121,36 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     if (!instance.workingDirectory) return
     setGitChangesLoading(true)
     diffCacheRef.current = {}
-    window.api.session.gitChanges(instance.workingDirectory).then((entries) => {
+    window.api.session.gitChanges(instance.workingDirectory).then(async (entries) => {
       setGitChanges(entries)
       onChangeCount?.(entries.length)
       setGitChangesLoading(false)
+
+      // Check for a cached scorecard when diff changes. Silent — no spinner.
+      if (entries.length > 0 && instance.workingDirectory) {
+        try {
+          const hash = await window.api.session.getDiffHash(instance.workingDirectory)
+          currentDiffHashRef.current = hash
+          if (hash) {
+            const cached = await window.api.session.getCachedScoreCard(instance.id, hash)
+            if (cached) setScoreCard(cached)
+          } else {
+            // Diff cleared — stale card no longer valid
+            setScoreCard(null)
+          }
+        } catch {
+          // Cache miss is non-fatal
+        }
+      } else if (entries.length === 0) {
+        currentDiffHashRef.current = null
+        setScoreCard(null)
+      }
     }).catch(() => {
       setGitChanges([])
       onChangeCount?.(0)
       setGitChangesLoading(false)
     })
-  }, [instance.workingDirectory])
+  }, [instance.workingDirectory, instance.id])
 
   // Load git changes on mount
   useEffect(() => {
@@ -176,14 +197,14 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     setScoreCardLoading(true)
     setScoreCard(null)
     try {
-      const result = await window.api.session.scoreOutput(instance.workingDirectory)
+      const result = await window.api.session.scoreOutput(instance.id, instance.workingDirectory)
       setScoreCard(result)
     } catch {
       setScoreCard({ confidence: 0, scopeCreep: false, testCoverage: 'none', summary: 'Scoring failed.', raw: '' })
     } finally {
       setScoreCardLoading(false)
     }
-  }, [instance.workingDirectory, gitChanges.length])
+  }, [instance.id, instance.workingDirectory, gitChanges.length])
 
   const toggleFileDiff = useCallback(async (file: string, status: string) => {
     if (expandedDiffFile === file) {
@@ -460,7 +481,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                 <button
                   className="changes-refresh-btn"
                   title="Dismiss"
-                  onClick={() => setScoreCard(null)}
+                  onClick={() => { window.api.session.clearScoreCard(instance.id).catch(() => {}); setScoreCard(null) }}
                   style={{ marginLeft: '4px' }}
                 >
                   <X size={11} />
