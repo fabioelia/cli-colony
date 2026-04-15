@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useEffect, useRef } from 'react'
+import React, { useMemo, useCallback, useEffect, useRef, useState } from 'react'
 import { Marked } from 'marked'
 import { markedHighlight } from 'marked-highlight'
 import { hljs } from '../lib/hljs'
@@ -39,20 +39,23 @@ function unescapeHtml(str: string): string {
   return str.replace(/&quot;/g, '"').replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&')
 }
 
-let mermaidPromise: Promise<typeof import('mermaid').default> | null = null
-async function getMermaid(): Promise<typeof import('mermaid').default> {
-  if (!mermaidPromise) {
-    mermaidPromise = import('mermaid').then((m) => {
-      m.default.initialize({
-        startOnLoad: false,
-        theme: 'dark',
-        securityLevel: 'strict',
-        fontFamily: 'inherit'
-      })
+let mermaidLoadPromise: Promise<typeof import('mermaid').default> | null = null
+let mermaidInstance: typeof import('mermaid').default | null = null
+let mermaidCurrentTheme: string | null = null
+
+async function getMermaid(theme: 'dark' | 'default'): Promise<typeof import('mermaid').default> {
+  if (!mermaidLoadPromise) {
+    mermaidLoadPromise = import('mermaid').then((m) => {
+      mermaidInstance = m.default
       return m.default
     })
   }
-  return mermaidPromise
+  const mermaid = await mermaidLoadPromise
+  if (mermaidCurrentTheme !== theme) {
+    mermaid.initialize({ startOnLoad: false, theme, securityLevel: 'strict', fontFamily: 'inherit' })
+    mermaidCurrentTheme = theme
+  }
+  return mermaid
 }
 
 let mermaidCounter = 0
@@ -65,20 +68,36 @@ interface Props {
 
 export default function MarkdownViewer({ content, className, preprocessor }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const [themeRevision, setThemeRevision] = useState(0)
 
   const html = useMemo(() => {
     const md = preprocessor ? preprocessor(content) : content
     return markedInstance.parse(md) as string
   }, [content, preprocessor])
 
+  // Watch for app theme changes and re-render mermaid diagrams with the correct theme
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      const container = containerRef.current
+      if (!container) return
+      container.querySelectorAll<HTMLDivElement>('.mermaid-block[data-rendered="true"]').forEach(el => {
+        delete el.dataset.rendered
+      })
+      setThemeRevision(r => r + 1)
+    })
+    observer.observe(document.documentElement, { attributeFilter: ['data-theme'] })
+    return () => observer.disconnect()
+  }, [])
+
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
     const blocks = container.querySelectorAll<HTMLDivElement>('.mermaid-block:not([data-rendered="true"])')
     if (blocks.length === 0) return
+    const theme = document.documentElement.dataset.theme === 'light' ? 'default' : 'dark'
     let cancelled = false
     ;(async () => {
-      const mermaid = await getMermaid()
+      const mermaid = await getMermaid(theme)
       if (cancelled) return
       for (const block of Array.from(blocks)) {
         if (block.dataset.rendered === 'true') continue
@@ -97,7 +116,7 @@ export default function MarkdownViewer({ content, className, preprocessor }: Pro
       }
     })()
     return () => { cancelled = true }
-  }, [html])
+  }, [html, themeRevision])
 
   const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const btn = (e.target as HTMLElement).closest('.code-copy-btn') as HTMLElement | null
