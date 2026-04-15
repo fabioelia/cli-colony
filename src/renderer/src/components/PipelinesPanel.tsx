@@ -194,12 +194,12 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [retryingFromHistory, setRetryingFromHistory] = useState(false)
   const [runOverrideDialog, setRunOverrideDialog] = useState<{ name: string; firstActionPrompt: string } | null>(null)
   const [listMode, setListMode] = useState(() => localStorage.getItem('pipelines-list-mode') !== '0')
-  const [sortBy, setSortBy] = useState<'name' | 'lastFired' | 'fireCount' | 'enabled'>(() =>
-    (localStorage.getItem('pipelines-sort') as 'name' | 'lastFired' | 'fireCount' | 'enabled') || 'name'
+  const [sortBy, setSortBy] = useState<'name' | 'lastFired' | 'fireCount' | 'enabled' | 'successRate'>(() =>
+    (localStorage.getItem('pipelines-sort') as 'name' | 'lastFired' | 'fireCount' | 'enabled' | 'successRate') || 'name'
   )
   const [healthView, setHealthView] = useState(() => localStorage.getItem('pipelines-health-view') === '1')
   const [pipelineSearch, setPipelineSearch] = useState('')
-  const [successRates, setSuccessRates] = useState<Map<string, number | null>>(new Map())
+  const [successRates, setSuccessRates] = useState<Map<string, { rate: number; successes: number; total: number } | null>>(new Map())
   const [cronsPaused, setCronsPaused] = useState(false)
 
   // 60s tick for next-run countdown refresh
@@ -282,26 +282,27 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     return unsub
   }, [loadPipelines])
 
-  // Fetch success rates for health view
+  // Fetch success rates (always, not just in health view)
   useEffect(() => {
-    if (!healthView || pipelines.length === 0) return
+    if (pipelines.length === 0) return
     let cancelled = false
     const fetchRates = async () => {
-      const rates = new Map<string, number | null>()
+      const rates = new Map<string, { rate: number; successes: number; total: number } | null>()
       await Promise.all(pipelines.map(async (p) => {
         try {
           const history = await window.api.pipeline.getHistory(p.name)
-          if (history.length === 0) { rates.set(p.name, null); return }
           const last10 = history.slice(-10)
+          if (last10.length < 3) { rates.set(p.name, null); return }
           const successes = last10.filter(e => e.success).length
-          rates.set(p.name, Math.round((successes / last10.length) * 100))
+          const total = last10.length
+          rates.set(p.name, { rate: Math.round((successes / total) * 100), successes, total })
         } catch { rates.set(p.name, null) }
       }))
       if (!cancelled) setSuccessRates(rates)
     }
     fetchRates()
     return () => { cancelled = true }
-  }, [healthView, pipelines])
+  }, [pipelines])
 
   // Load pipelines dir + last audit run
   useEffect(() => {
@@ -440,11 +441,19 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
       case 'enabled':
         sorted.sort((a, b) => (b.enabled ? 1 : 0) - (a.enabled ? 1 : 0) || a.name.localeCompare(b.name))
         break
+      case 'successRate':
+        // Low-to-high: problem pipelines first. Nulls (< 3 runs) sort last.
+        sorted.sort((a, b) => {
+          const ar = successRates.get(a.name)?.rate ?? 101
+          const br = successRates.get(b.name)?.rate ?? 101
+          return ar - br
+        })
+        break
       default:
         sorted.sort((a, b) => a.name.localeCompare(b.name))
     }
     return sorted
-  }, [pipelines, sortBy])
+  }, [pipelines, sortBy, successRates])
 
   // Health view: sorted by failures desc, then fire count desc
   const healthPipelines = useMemo(() => {
@@ -734,6 +743,7 @@ ${modelLine}  prompt: |
               <option value="lastFired">Last Fired</option>
               <option value="fireCount">Most Active</option>
               <option value="enabled">Enabled First</option>
+              <option value="successRate">Success Rate</option>
             </select>
           </div>
         )}
@@ -928,7 +938,7 @@ ${modelLine}  prompt: |
                     <td className="health-mono">{lastFiredAgo}</td>
                     <td className="health-mono">{p.fireCount}</td>
                     <td className={`health-mono${failures > 0 ? ' health-failures' : ''}`}>{failures}</td>
-                    <td className="health-mono">{rate != null ? `${rate}%` : '—'}</td>
+                    <td className="health-mono">{rate != null ? `${rate.rate}%` : '—'}</td>
                     <td className="health-error" title={p.lastError ?? undefined}>{p.lastError ? (p.lastError.length > 80 ? p.lastError.slice(0, 80) + '…' : p.lastError) : '—'}</td>
                   </tr>
                 )
@@ -954,6 +964,19 @@ ${modelLine}  prompt: |
                 <span className="pipeline-card-name">{p.name}</span>
                 {p.running && <span className="pipeline-running-badge">Running</span>}
                 {p.lastRunStoppedBudget && <span className="pipeline-budget-badge" title="Last run stopped: budget limit reached">$ Cap</span>}
+                {(() => {
+                  const stats = successRates.get(p.name)
+                  if (!stats) return null
+                  const cls = stats.rate >= 80 ? 'good' : stats.rate >= 50 ? 'warn' : 'bad'
+                  return (
+                    <span
+                      className={`pipeline-success-badge ${cls}`}
+                      title={`${stats.successes}/${stats.total} successful (last ${stats.total} runs)`}
+                    >
+                      {stats.successes}/{stats.total} ✓
+                    </span>
+                  )
+                })()}
               </div>
               <div className="pipeline-card-right">
                 {p.triggerType !== 'webhook' && <span className="pipeline-card-trigger">{p.triggerType}</span>}
@@ -997,6 +1020,19 @@ ${modelLine}  prompt: |
                     {timeSince(p.lastFiredAt)}
                   </span>
                 )}
+                {listMode && expandedPipeline !== p.name && (() => {
+                  const stats = successRates.get(p.name)
+                  if (!stats) return null
+                  const cls = stats.rate >= 80 ? 'good' : stats.rate >= 50 ? 'warn' : 'bad'
+                  return (
+                    <span
+                      className={`pipeline-success-badge ${cls}`}
+                      title={`${stats.successes}/${stats.total} successful (last ${stats.total} runs)`}
+                    >
+                      {stats.rate}%
+                    </span>
+                  )
+                })()}
                 {listMode && expandedPipeline !== p.name && p.lastError && (
                   <span className="pipeline-list-error" title={p.lastError}>
                     <AlertTriangle size={9} />

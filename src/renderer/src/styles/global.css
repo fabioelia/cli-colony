@@ -13148,6 +13148,30 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-weight: 600;
 }
 
+.pipeline-success-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.pipeline-success-badge.good {
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--success);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+.pipeline-success-badge.warn {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--warning);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+.pipeline-success-badge.bad {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--danger);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
 .pipeline-budget-bar {
   height: 3px;
   background: var(--border);
