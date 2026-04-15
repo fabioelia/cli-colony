@@ -166,3 +166,52 @@ export async function generateEnvClaudeMd(manifest: InstanceManifest): Promise<v
 
   await Promise.all(writes)
 }
+
+/**
+ * Regenerate CLAUDE.md for an environment and return the paths written.
+ * Unlike generateEnvClaudeMd, errors are NOT swallowed — they surface to the caller.
+ */
+export async function regenerateEnvClaudeMdStrict(manifest: InstanceManifest): Promise<{ writtenPaths: string[] }> {
+  const generated = buildClaudeMd(manifest)
+  const writtenPaths: string[] = []
+
+  if (manifest.paths.root) {
+    const p = path.join(manifest.paths.root, 'CLAUDE.md')
+    await writeWithMerge(p, generated)
+    writtenPaths.push(p)
+  }
+
+  if (manifest.activeWorktreeId) {
+    const wtDir = colonyPaths.worktreeDir(manifest.activeWorktreeId)
+    const p = path.join(wtDir, 'CLAUDE.md')
+    await writeWithMerge(p, generated)
+    writtenPaths.push(p)
+  }
+
+  return { writtenPaths }
+}
+
+/**
+ * Read the CLAUDE.md file for an environment from the specified target location.
+ * Returns { exists: false } on ENOENT instead of throwing.
+ */
+export async function readEnvClaudeMd(
+  manifest: InstanceManifest,
+  target: 'root' | 'worktree',
+): Promise<{ exists: boolean; content: string; path: string }> {
+  let filePath: string
+  if (target === 'worktree') {
+    if (!manifest.activeWorktreeId) throw new Error('No active worktree for this environment')
+    filePath = path.join(colonyPaths.worktreeDir(manifest.activeWorktreeId), 'CLAUDE.md')
+  } else {
+    if (!manifest.paths.root) throw new Error('No root path in manifest')
+    filePath = path.join(manifest.paths.root, 'CLAUDE.md')
+  }
+  try {
+    const content = await fsp.readFile(filePath, 'utf-8')
+    return { exists: true, content, path: filePath }
+  } catch (err: any) {
+    if (err.code === 'ENOENT') return { exists: false, content: '', path: filePath }
+    throw err
+  }
+}

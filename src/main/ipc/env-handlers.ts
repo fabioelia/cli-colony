@@ -7,6 +7,7 @@ import {
   listTemplates, getTemplate, saveTemplate, deleteTemplate,
   refreshRepoConfigs,
 } from '../env-manager'
+import { readEnvClaudeMd, regenerateEnvClaudeMdStrict } from '../env-claudemd'
 // getRepoConfig/getAllRepoConfigs removed — colony:repoConfig handlers were unreachable
 import {
   registerPendingLaunch,
@@ -87,6 +88,18 @@ export function registerEnvHandlers(): void {
       : await dialog.showOpenDialog(dialogOpts)
     if (result.canceled || result.filePaths.length === 0) return null
     return result.filePaths[0]
+  })
+
+  // CLAUDE.md visibility
+  ipcMain.handle('env:readClaudeMd', async (_e, envId: string, target: 'root' | 'worktree') => {
+    const manifest = await getManifest(envId)
+    if (!manifest) throw new Error(`Environment ${envId} not found`)
+    return readEnvClaudeMd(manifest, target)
+  })
+  ipcMain.handle('env:regenerateClaudeMd', async (_e, envId: string) => {
+    const manifest = await getManifest(envId)
+    if (!manifest) throw new Error(`Environment ${envId} not found`)
+    return regenerateEnvClaudeMdStrict(manifest)
   })
 
   // Note: colony:repoConfig and colony:allRepoConfigs removed — they were registered

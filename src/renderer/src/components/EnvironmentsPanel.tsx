@@ -5,6 +5,7 @@ import {
   Circle, AlertTriangle, Clock, X, FolderOpen, Terminal, Loader, CheckCircle, Check, SkipForward, Upload, Download, MessageSquare, Wrench, Stethoscope,
   GitBranch, Unlink, Link, Search, ArrowLeftRight
 } from 'lucide-react'
+import EnvClaudeMdModal from './EnvClaudeMdModal'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import { buildTemplateEditPrompt, buildDiagnosePrompt } from '../../../shared/env-prompts'
 import Tooltip from './Tooltip'
@@ -95,6 +96,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
   const [wtCreating, setWtCreating] = useState(false)
   const [swappingEnvId, setSwappingEnvId] = useState<string | null>(null)
   const [swapDropdownEnvId, setSwapDropdownEnvId] = useState<string | null>(null)
+  const [claudeMdModal, setClaudeMdModal] = useState<{ envId: string; envName: string; hasWorktree: boolean } | null>(null)
 
   const loadEnvironments = useCallback(async () => {
     try {
@@ -744,6 +746,18 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                       </button>
                     </Tooltip>
                   )}
+                  <Tooltip text="View Context" detail="View the CLAUDE.md context file injected into agent sessions for this environment">
+                    <button
+                      className="env-action-btn"
+                      onClick={() => setClaudeMdModal({
+                        envId: env.id,
+                        envName: env.displayName || env.name,
+                        hasWorktree: !!env.activeWorktreeId,
+                      })}
+                    >
+                      <FileText size={14} />
+                    </button>
+                  </Tooltip>
                   <div className="env-fix-dropdown-wrap">
                     <Tooltip text="Fix" detail="Repair environment configuration">
                       <button
@@ -1600,6 +1614,14 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
           </div>
         )
       })()}
+      {claudeMdModal && (
+        <EnvClaudeMdModal
+          envId={claudeMdModal.envId}
+          envName={claudeMdModal.envName}
+          hasWorktree={claudeMdModal.hasWorktree}
+          onClose={() => setClaudeMdModal(null)}
+        />
+      )}
     </div>
   )
 }

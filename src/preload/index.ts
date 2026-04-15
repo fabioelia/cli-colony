@@ -401,6 +401,8 @@ export interface ClaudeManagerAPI {
     getPendingLaunches: (envId?: string) => Promise<PendingLaunchRecord[]>
     onPendingLaunchStatus: (cb: (record: PendingLaunchRecord) => void) => () => void
     onPendingLaunchSpawned: (cb: (data: { pendingId: string; envId: string; instanceId: string; autoHeal: boolean; timedOut?: boolean }) => void) => () => void
+    readClaudeMd: (envId: string, target: 'root' | 'worktree') => Promise<{ exists: boolean; content: string; path: string }>
+    regenerateClaudeMd: (envId: string) => Promise<{ writtenPaths: string[] }>
   }
   activity: {
     list: () => Promise<ActivityEvent[]>
@@ -1013,6 +1015,8 @@ const api: ClaudeManagerAPI = {
       ipcRenderer.on('pendingLaunch:spawned', l)
       return () => ipcRenderer.removeListener('pendingLaunch:spawned', l)
     },
+    readClaudeMd: (envId: string, target: 'root' | 'worktree') => ipcRenderer.invoke('env:readClaudeMd', envId, target),
+    regenerateClaudeMd: (envId: string) => ipcRenderer.invoke('env:regenerateClaudeMd', envId),
   },
   activity: {
     list: () => ipcRenderer.invoke('activity:list'),

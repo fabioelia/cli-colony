@@ -663,6 +663,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Diagnose', detail: 'Launch Claude to diagnose and fix environment issues.', icon: 'Stethoscope' },
           { label: 'Debug', detail: 'Toggle debug mode. When on, services restart with a debugger attached (Node.js --inspect / Python debugpy). Amber bug icon indicates debug is active. Agent sessions launched in a debug environment automatically get debug_* MCP tools for setting breakpoints, inspecting variables, and stepping through code.', icon: 'Bug' },
           { label: 'Clone', detail: 'Duplicate an environment with the same template, branch, and base branch but fresh ports and a new directory. Enter a name in the dialog. Disabled while the source is still creating.', icon: 'Copy' },
+          { label: 'View Context', detail: 'Inspect the CLAUDE.md file injected into agent sessions for this environment. Shows merged content (auto-generated block + your edits). Tabs for Env Root and Worktree Bundle (when a worktree is mounted). Footer: Regenerate rewrites from current config; Open in Editor opens in your default app.', icon: 'FileText' },
         ],
       },
       {
