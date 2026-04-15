@@ -16,6 +16,7 @@ import CronEditor from './CronEditor'
 import PipelineFlowDiagram from './PipelineFlowDiagram'
 import { describeCron, nextRuns } from '../../../shared/cron'
 import { slugify } from '../../../shared/utils'
+import { firstErrorOf } from '../../../shared/pipeline-stats'
 
 interface ActionShape {
   type: string
@@ -1354,6 +1355,7 @@ ${modelLine}  prompt: |
                                 return next
                               })
                             }
+                            const firstErr = !entry.success && hasStages && !isExpanded ? firstErrorOf(entry) : null
                             return (
                               <div key={i}>
                                 <div
@@ -1402,6 +1404,17 @@ ${modelLine}  prompt: |
                                     </button>
                                   )}
                                 </div>
+                                {!entry.success && !isExpanded && entry.actionExecuted && (
+                                  firstErr
+                                    ? <div
+                                        className="pipeline-history-error-line"
+                                        title={firstErr}
+                                        onClick={hasStages ? toggleExpand : undefined}
+                                      >
+                                        {firstErr.length > 120 ? firstErr.slice(0, 120) + '…' : firstErr}
+                                      </div>
+                                    : <div className="pipeline-history-error-line no-error">action failed (no error captured)</div>
+                                )}
                                 {hasStages && isExpanded && (() => {
                                   const totalDuration = entry.stages!.reduce((sum, s) => sum + s.durationMs, 0)
                                   const hasTimingData = entry.stages!.some(s => s.startedAt != null)

@@ -13899,6 +13899,26 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: color-mix(in srgb, var(--danger) 8%, var(--bg-secondary));
 }
 
+.pipeline-history-error-line {
+  padding: 2px 8px 4px 40px;
+  color: color-mix(in srgb, var(--danger) 80%, var(--text-primary));
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+  border-radius: 0 0 3px 3px;
+}
+
+.pipeline-history-error-line:hover {
+  background: var(--bg-tertiary);
+}
+
+.pipeline-history-error-line.no-error {
+  color: var(--text-muted);
+  cursor: default;
+}
+
 .pipeline-history-icon.success {
   color: var(--success);
   flex-shrink: 0;
