@@ -6,7 +6,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import {
   ChevronRight, ChevronDown, Folder, FolderOpen, File,
-  RefreshCw, X, Search, Copy, ExternalLink,
+  RefreshCw, X, Search, Copy, ExternalLink, Navigation,
 } from 'lucide-react'
 
 interface FileNode {
@@ -163,7 +163,7 @@ export default function EnvFileBrowser({ paths }: Props) {
                 window.api.shell.openExternal(`file://${target}`)
               }}
             >
-              <FolderOpen size={12} />
+              <Navigation size={12} />
             </button>
             <button
               title={copied === node.path ? 'Copied!' : 'Copy Path'}
@@ -271,7 +271,7 @@ export default function EnvFileBrowser({ paths }: Props) {
                   window.api.shell.openExternal(`file://${parent}`)
                 }}
               >
-                <FolderOpen size={12} />
+                <Navigation size={12} />
               </button>
               <button
                 title={copied === selectedFile ? 'Copied!' : 'Copy Path'}
