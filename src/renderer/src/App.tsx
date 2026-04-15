@@ -124,6 +124,7 @@ export default function App() {
   const [drainRemaining, setDrainRemaining] = useState(0)
   const [rateLimitState, setRateLimitState] = useState<{ paused: boolean; resetAt: number | null; lastError: string; detectedAt: number | null; utilization: number | null; rateLimitType: string | null; status: string | null; source: string | null }>({ paused: false, resetAt: null, lastError: '', detectedAt: null, utilization: null, rateLimitType: null, status: null, source: null })
   const [rateLimitDismissed, setRateLimitDismissed] = useState(false)
+  const [rateLimitWarningDismissed, setRateLimitWarningDismissed] = useState(false)
   const [rateLimitCountdown, setRateLimitCountdown] = useState('')
   const [cronsPaused, setCronsPaused] = useState(false)
   const [envPromptRequest, setEnvPromptRequest] = useState<{ requestId: string; envId: string; hookName: string; prompt: string; promptType: string; defaultPath?: string; defaultPathValid?: boolean; options?: string[] } | null>(null)
@@ -236,6 +237,17 @@ export default function App() {
     const interval = setInterval(tick, 1000)
     return () => clearInterval(interval)
   }, [rateLimitState.paused, rateLimitState.resetAt])
+
+  // When rate limit transitions to hard-paused, reset the warning dismiss so the
+  // more important hard-limit banner (with Resume Now) is never suppressed by a
+  // prior warning dismissal.
+  const prevPausedRef = useRef(false)
+  useEffect(() => {
+    if (rateLimitState.paused && !prevPausedRef.current) {
+      setRateLimitWarningDismissed(false)
+    }
+    prevPausedRef.current = rateLimitState.paused
+  }, [rateLimitState.paused])
 
   // Listen for environment prompt requests (file picker etc.) — must be at app level
   // so it works regardless of which panel is active
@@ -1432,10 +1444,10 @@ export default function App() {
         </div>,
         document.body
       )}
-      {!rateLimitState.paused && rateLimitState.status === 'allowed_warning' && !rateLimitDismissed && createPortal(
+      {!rateLimitState.paused && rateLimitState.status === 'allowed_warning' && !rateLimitWarningDismissed && createPortal(
         <div className="daemon-update-banner rate-limit-warning-banner">
           <span>Rate limit warning — {rateLimitState.utilization != null ? `${Math.round(rateLimitState.utilization * 100)}% used` : 'approaching limit'}{rateLimitState.rateLimitType ? ` (${rateLimitState.rateLimitType.replace(/_/g, ' ')})` : ''}. Crons still running.</span>
-          <button className="daemon-update-dismiss" onClick={() => setRateLimitDismissed(true)}>Dismiss</button>
+          <button className="daemon-update-dismiss" onClick={() => setRateLimitWarningDismissed(true)}>Dismiss</button>
         </div>,
         document.body
       )}
