@@ -680,7 +680,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Active Worktree', detail: 'Shows the currently mounted worktree — display name, branch, and repo. Use "Swap" to switch to a different unmounted worktree without tearing down services (~7s). Appears only when worktrees exist.', icon: 'GitBranch' },
           { label: 'Swap Worktree', detail: 'Dropdown listing compatible unmounted worktrees. Selecting one triggers: stop services → swap mount → restart (~5-10s). "Create new worktree" opens the Worktrees tab. Disabled if no unmounted worktrees exist.', icon: 'ArrowLeftRight' },
           { label: 'Recent Worktrees', detail: 'Shows the 5 most recent unmounted worktrees with quick Swap and Delete actions. Swap mounts the worktree and restarts services in place.', icon: 'GitBranch' },
-          { label: 'Files', detail: 'Collapsible file browser for the environment worktree. Click to expand and browse repo checkouts — directories lazy-load on expand, files show a preview with line numbers. Filter by name and refresh the tree.', icon: 'FolderTree' },
+          { label: 'Files', detail: 'Collapsible file browser for the environment worktree. Click to expand and browse repo checkouts — directories lazy-load on expand, files show a preview with line numbers. Filter by name and refresh the tree. Hover any row to reveal Reveal-in-Finder and Copy Path buttons. The file preview header adds a third Open Externally action.', icon: 'FolderTree' },
           { label: 'Log filter', detail: 'Type in the search box to filter log lines by keyword. Match count updates in real-time. Download always exports the full unfiltered log.', icon: 'Search' },
         ],
       },

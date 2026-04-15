@@ -6,7 +6,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import {
   ChevronRight, ChevronDown, Folder, FolderOpen, File,
-  RefreshCw, X, Search,
+  RefreshCw, X, Search, Copy, ExternalLink,
 } from 'lucide-react'
 
 interface FileNode {
@@ -46,6 +46,7 @@ export default function EnvFileBrowser({ paths }: Props) {
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [fileLoading, setFileLoading] = useState(false)
   const [filter, setFilter] = useState('')
+  const [copied, setCopied] = useState<string | null>(null)
 
   // Auto-expand repos on mount (up to 2)
   useEffect(() => {
@@ -154,6 +155,29 @@ export default function EnvFileBrowser({ paths }: Props) {
             {isDir ? (isExpanded ? <FolderOpen size={14} /> : <Folder size={14} />) : <File size={14} />}
           </span>
           <span className="filetree-name">{node.name}</span>
+          <div className="filetree-row-actions" onClick={(e) => e.stopPropagation()}>
+            <button
+              title="Reveal in Finder"
+              onClick={() => {
+                const target = isDir ? node.path : node.path.substring(0, node.path.lastIndexOf('/'))
+                window.api.shell.openExternal(`file://${target}`)
+              }}
+            >
+              <FolderOpen size={12} />
+            </button>
+            <button
+              title={copied === node.path ? 'Copied!' : 'Copy Path'}
+              onClick={() => {
+                navigator.clipboard.writeText(node.path)
+                setCopied(node.path)
+                setTimeout(() => setCopied(c => c === node.path ? null : c), 1200)
+              }}
+            >
+              {copied === node.path
+                ? <span className="filetree-copied-label">Copied</span>
+                : <Copy size={12} />}
+            </button>
+          </div>
         </div>
         {isDir && isExpanded && children && (
           <div>
@@ -165,7 +189,7 @@ export default function EnvFileBrowser({ paths }: Props) {
         )}
       </div>
     )
-  }, [expanded, lazyChildren, selectedFile, filter, matchesFilter, toggleExpand, loadChildren, selectFile])
+  }, [expanded, lazyChildren, selectedFile, filter, matchesFilter, toggleExpand, loadChildren, selectFile, copied, setCopied])
 
   if (repoPaths.length === 0) return null
 
@@ -239,6 +263,35 @@ export default function EnvFileBrowser({ paths }: Props) {
           <div className="filetree-preview-header">
             <span className="filetree-preview-name">{selectedFile.split('/').pop()}</span>
             <span className="filetree-preview-path">{selectedFile}</span>
+            <div className="filetree-preview-actions">
+              <button
+                title="Reveal in Finder"
+                onClick={() => {
+                  const parent = selectedFile.substring(0, selectedFile.lastIndexOf('/'))
+                  window.api.shell.openExternal(`file://${parent}`)
+                }}
+              >
+                <FolderOpen size={12} />
+              </button>
+              <button
+                title={copied === selectedFile ? 'Copied!' : 'Copy Path'}
+                onClick={() => {
+                  navigator.clipboard.writeText(selectedFile)
+                  setCopied(selectedFile)
+                  setTimeout(() => setCopied(c => c === selectedFile ? null : c), 1200)
+                }}
+              >
+                {copied === selectedFile
+                  ? <span className="filetree-copied-label">Copied</span>
+                  : <Copy size={12} />}
+              </button>
+              <button
+                title="Open Externally"
+                onClick={() => window.api.shell.openExternal(`file://${selectedFile}`)}
+              >
+                <ExternalLink size={12} />
+              </button>
+            </div>
             <button
               className="env-files-preview-close"
               onClick={() => { setSelectedFile(null); setFileContent(null) }}

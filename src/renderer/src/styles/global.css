@@ -10986,6 +10986,42 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-primary);
 }
 
+.filetree-row-actions {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.filetree-row:hover .filetree-row-actions {
+  opacity: 1;
+}
+
+.filetree-row-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 3px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  transition: all 0.1s;
+}
+
+.filetree-row-actions button:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.filetree-copied-label {
+  font-size: 10px;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
 .filetree-loading,
 .filetree-empty {
   font-size: 11px;
@@ -16261,8 +16297,32 @@ body:has(.daemon-update-banner) .app-update-banner {
   gap: 6px;
 }
 
-.env-files-preview-close {
+.filetree-preview-actions {
+  display: flex;
+  gap: 2px;
   margin-left: auto;
+  flex-shrink: 0;
+}
+
+.filetree-preview-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 4px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  transition: all 0.1s;
+}
+
+.filetree-preview-actions button:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.env-files-preview-close {
+  flex-shrink: 0;
   background: none;
   border: none;
   cursor: pointer;
