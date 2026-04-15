@@ -5605,6 +5605,57 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-secondary);
 }
 
+/* Arena promote winner banner */
+.arena-promote-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  margin: 0 8px 4px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-secondary));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: 6px;
+  font-size: 12px;
+}
+.arena-promote-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.arena-promote-label {
+  color: var(--text-secondary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.arena-promote-btn {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 3px 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.arena-promote-btn:hover {
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+.arena-promote-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+.arena-promote-btn.primary:hover {
+  opacity: 0.88;
+}
+
 /* Grid empty pane */
 .grid-empty-pane {
   display: flex;

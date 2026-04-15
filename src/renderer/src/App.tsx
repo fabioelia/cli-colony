@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { Swords, BarChart3, X as XIcon, EyeOff, Trophy, Rocket, Gavel, PanelLeft } from 'lucide-react'
+import { Swords, BarChart3, X as XIcon, EyeOff, Trophy, Rocket, Gavel, PanelLeft, FolderOpen } from 'lucide-react'
 import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
 import { useModifierHeld } from './hooks/useModifierHeld'
 import { useResourceMonitor } from './hooks/useResourceMonitor'
@@ -981,7 +981,8 @@ export default function App() {
 
   const handleArenaCleanup = useCallback(async () => {
     if (arenaWorktreeIds.length === 0) return
-    const ok = confirm(`Remove ${arenaWorktreeIds.length} arena worktree${arenaWorktreeIds.length > 1 ? 's' : ''}?`)
+    const n = arenaWorktreeIds.length
+    const ok = confirm(`Remove all ${n} arena worktree${n > 1 ? 's' : ''} (including winner if any)?`)
     if (!ok) {
       setArenaWorktreeIds([])
       return
@@ -989,6 +990,30 @@ export default function App() {
     await window.api.arena.cleanupWorktrees(arenaWorktreeIds)
     setArenaWorktreeIds([])
   }, [arenaWorktreeIds])
+
+  const handleKeepWinner = useCallback(async () => {
+    if (!arenaWinnerId || arenaWorktreeIds.length === 0) return
+    // Index alignment: gridPanes[i] ↔ arenaWorktreeIds[i]
+    // WARNING: if panes were ever reordered this would break — nothing reorders today
+    const panes = gridPanes.some(p => p !== null)
+      ? gridPanes
+      : [activeId, splitId, null, null]
+    const winnerIdx = panes.indexOf(arenaWinnerId)
+    const winnerWorktreeId = winnerIdx >= 0 ? arenaWorktreeIds[winnerIdx] : null
+    const loserIds = arenaWorktreeIds.filter((_, i) => i !== winnerIdx)
+    const winner = instances.find(i => i.id === arenaWinnerId)
+    const winnerName = winner?.name ?? 'winner'
+    const n = loserIds.length
+    if (n === 0) {
+      // Nothing to remove — just clear arena state
+      setArenaWorktreeIds([])
+      return
+    }
+    const ok = confirm(`Remove ${n} loser worktree${n > 1 ? 's' : ''}, keep "${winnerName}"?`)
+    if (!ok) return
+    await window.api.arena.cleanupWorktrees(loserIds)
+    setArenaWorktreeIds(winnerWorktreeId ? [winnerWorktreeId] : [])
+  }, [arenaWinnerId, arenaWorktreeIds, gridPanes, activeId, splitId, instances])
 
   const handlePickSplit = useCallback((id: string) => {
     if (!activeId) return
@@ -1691,6 +1716,43 @@ export default function App() {
             <pre className="arena-verdict-text">{arenaVerdictText}</pre>
           </div>
         )}
+
+        {/* Promote Winner banner — shown when a winner is declared and worktrees exist */}
+        {arenaWinnerId !== null && arenaWorktreeIds.length > 0 && (() => {
+          const panes = gridPanes.some(p => p !== null)
+            ? gridPanes
+            : [activeId, splitId, null, null]
+          const winnerIdx = panes.indexOf(arenaWinnerId)
+          const winnerWorktreeId = winnerIdx >= 0 ? arenaWorktreeIds[winnerIdx] : null
+          const winner = instances.find(i => i.id === arenaWinnerId)
+          return (
+            <div className="arena-promote-banner">
+              <Trophy size={13} className="arena-promote-icon" />
+              <span className="arena-promote-label">
+                Winner: <strong>{winner?.name ?? 'Unknown'}</strong>
+              </span>
+              {winnerWorktreeId && (
+                <button
+                  className="arena-promote-btn"
+                  onClick={async () => {
+                    const info = await window.api.worktree.get(winnerWorktreeId)
+                    if (info?.path) window.api.shell.openExternal(`file://${info.path}`)
+                  }}
+                  title="Open winner worktree in Finder"
+                >
+                  <FolderOpen size={11} /> Reveal
+                </button>
+              )}
+              <button
+                className="arena-promote-btn primary"
+                onClick={handleKeepWinner}
+                title={`Remove ${arenaWorktreeIds.length - 1} loser worktree(s), keep winner`}
+              >
+                Keep Winner Only
+              </button>
+            </div>
+          )
+        })()}
 
         {/* Split divider */}
         {isSplit && (
