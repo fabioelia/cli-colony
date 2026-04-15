@@ -1314,7 +1314,7 @@ export default function SettingsPanel({ onBack }: Props) {
                   type="checkbox"
                   checked={jiraSessionEndComment}
                   onChange={(e) => setJiraSessionEndComment(e.target.checked)}
-                  style={{ margin: 0 }}
+                  style={{ margin: 0, width: 'auto', padding: 0, border: 'none', background: 'none' }}
                 />
                 Post comment on session exit
               </label>
