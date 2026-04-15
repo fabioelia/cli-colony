@@ -1033,6 +1033,13 @@ action:
             {p.description && (
               <div className="pipeline-card-desc">{p.description}</div>
             )}
+            {p.defaultModel && (
+              <div className="pipeline-card-default-model">
+                <span className="pipeline-default-model-chip" title={`Pipeline default model: ${p.defaultModel}. Applied to stages without their own model override.`}>
+                  default: {p.defaultModel.replace(/^claude-/, '')}
+                </span>
+              </div>
+            )}
 
             <div className="pipeline-card-meta">
               {p.lastPollAt && (

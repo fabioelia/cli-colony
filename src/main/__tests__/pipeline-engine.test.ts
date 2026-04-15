@@ -3703,3 +3703,128 @@ describe('pipeline-engine: launch-session auto-close', () => {
     expect(mockKillInstance).not.toHaveBeenCalled()
   })
 })
+
+// ---- default_model: pipeline-level model fallback ----
+
+const DEFAULT_MODEL_YAML = `
+name: Default Model Pipe
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+default_model: claude-haiku-4-5
+action:
+  type: launch-session
+  prompt: Do work with the default model
+dedup:
+  key: daily
+`
+
+const DEFAULT_MODEL_PARALLEL_YAML = `
+name: Parallel Model Pipe
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+default_model: claude-haiku-4-5
+action:
+  type: parallel
+  stages:
+    - type: launch-session
+      name: Opus Stage
+      model: claude-opus-4-6
+      prompt: Review carefully
+    - type: launch-session
+      name: Haiku Stage
+      prompt: Do cheap work
+dedup:
+  key: daily
+`
+
+describe('pipeline-engine: default_model', () => {
+  let mod: typeof import('../pipeline-engine')
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  it('exposes defaultModel in getPipelineList() when YAML has default_model', async () => {
+    const fs = buildFsMock(['dm.yaml'], { 'dm.yaml': DEFAULT_MODEL_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    const list = mod.getPipelineList()
+    expect(list).toHaveLength(1)
+    expect(list[0].defaultModel).toBe('claude-haiku-4-5')
+  })
+
+  it('does not set defaultModel when YAML has no default_model', async () => {
+    const fs = buildFsMock(['nd.yaml'], { 'nd.yaml': VALID_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    const list = mod.getPipelineList()
+    expect(list[0].defaultModel).toBeUndefined()
+  })
+
+  it('applies default_model to stage without explicit model, respects explicit override', async () => {
+    const mockCreateInstance = vi.fn().mockResolvedValue({ id: 'inst-1' })
+    const mockSendPrompt = vi.fn().mockResolvedValue(undefined)
+    const mockWaitForStableIdle = vi.fn().mockReturnValue({ promise: new Promise(() => {}) })
+
+    const fs = buildFsMock(['pm.yaml'], { 'pm.yaml': DEFAULT_MODEL_PARALLEL_YAML })
+    vi.resetModules()
+    vi.doMock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/home') } }))
+    vi.doMock('../../shared/colony-paths', () => ({
+      colonyPaths: { root: MOCK_ROOT, pipelines: PIPELINES_DIR, schedulerLog: `${MOCK_ROOT}/scheduler.log` },
+    }))
+    vi.doMock('fs', () => fs)
+    vi.doMock('../broadcast', () => ({ broadcast: mockBroadcast }))
+    vi.doMock('../repo-config-loader', () => ({ getAllRepoConfigs: mockGetAllRepoConfigs }))
+    vi.doMock('../instance-manager', () => ({
+      createInstance: mockCreateInstance,
+      getAllInstances: vi.fn().mockResolvedValue([]),
+    }))
+    vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
+    vi.doMock('../daemon-router', () => ({ getDaemonRouter: vi.fn() }))
+    vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: mockSendPrompt }))
+    vi.doMock('../session-completion', () => ({ waitForStableIdle: mockWaitForStableIdle }))
+    vi.doMock('../notifications', () => ({ notify: vi.fn() }))
+    vi.doMock('../github', () => ({
+      getRepos: vi.fn().mockReturnValue([]),
+      fetchPRs: vi.fn().mockResolvedValue([]),
+      fetchChecks: vi.fn().mockResolvedValue({ checks: [] }),
+      gh: vi.fn().mockResolvedValue('{}'),
+    }))
+    vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
+    vi.doMock('../activity-manager', () => ({ appendActivity: vi.fn() }))
+
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+    mod.triggerPollNow('Parallel Model Pipe')
+    await flushPromises()
+
+    // Two sub-stages should have launched with createInstance
+    expect(mockCreateInstance).toHaveBeenCalledTimes(2)
+
+    const calls = mockCreateInstance.mock.calls
+    const opusCall = calls.find(c => c[0].model === 'claude-opus-4-6')
+    const haikuCall = calls.find(c => c[0].model === 'claude-haiku-4-5')
+
+    expect(opusCall).toBeDefined() // explicit override wins
+    expect(haikuCall).toBeDefined() // default_model applied to stage with no model
+  })
+})

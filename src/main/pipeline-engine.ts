@@ -128,6 +128,8 @@ export interface PipelineDef {
   enabled: boolean
   requireApproval?: boolean
   approvalTtl?: number // hours; overrides global default
+  /** Fallback Claude model for all stages that don't set their own model override. */
+  default_model?: string
   trigger: TriggerDef
   condition: ConditionDef
   action: ActionDef
@@ -186,6 +188,8 @@ export interface PipelineInfo {
   actionShape?: ActionShape
   /** Raw (unresolved) prompt of the first action — used to pre-fill the run-with-override dialog */
   firstActionPrompt?: string
+  /** Pipeline-level fallback model applied to stages that don't set their own model override */
+  defaultModel?: string
 }
 
 const MAX_DEBUG_ITERATIONS = 20
@@ -689,6 +693,24 @@ async function evaluateCondition(condition: ConditionDef, ctx: TriggerContext): 
 
 // ---- Action Execution (stage runners imported from ./pipeline-stages) ----
 
+/**
+ * Model resolution precedence: action.model → pipeline.default_model → global default (caller's choice).
+ * Returns undefined when neither is set, letting createInstance fall through to the global setting.
+ */
+function resolveActionModel(action: ActionDef, pipelineDefaultModel?: string): string | undefined {
+  return action.model ?? pipelineDefaultModel
+}
+
+/**
+ * Recursively apply the pipeline's default_model to any action (and its parallel sub-stages)
+ * that do not already have an explicit model override. Must be called before firing.
+ */
+function applyDefaultModel(action: ActionDef, defaultModel: string | undefined): ActionDef {
+  if (!defaultModel) return action
+  const resolved: ActionDef = { ...action, model: action.model ?? defaultModel }
+  if (resolved.stages) resolved.stages = resolved.stages.map(s => applyDefaultModel(s, defaultModel))
+  return resolved
+}
 
 async function fireActionWithRetry(
   action: ActionDef,
@@ -1167,7 +1189,7 @@ async function runPoll(pipelineName: string, promptOverride?: string): Promise<v
           const ttlHours = p.def.approvalTtl ?? APPROVAL_DEFAULT_TTL_HOURS
           const expiresAt = new Date(Date.now() + ttlHours * 3600 * 1000).toISOString()
           const request: ApprovalRequest = { id: approvalId, pipelineName, summary, resolvedVars, createdAt: new Date().toISOString(), expiresAt }
-          pendingApprovals.set(approvalId, { request, action: p.def.action, ctx, dedupKey })
+          pendingApprovals.set(approvalId, { request, action: applyDefaultModel(p.def.action, p.def.default_model), ctx, dedupKey })
           pendingApprovalKeys.add(dedupKey)
           broadcast('pipeline:approval:new', request)
           plog(pipelineName, `→ approval required by rule "${ruleMatch.name}", queued request ${approvalId}`)
@@ -1219,7 +1241,8 @@ async function runPoll(pipelineName: string, promptOverride?: string): Promise<v
       }
       plog(pipelineName, `→ firing action: ${p.def.action.type} for ${prLabel}`)
       const stageStart = Date.now()
-      const stageSessionName = resolveTemplate(p.def.action.name || 'Pipeline Session', ctx)
+      const resolvedAction = applyDefaultModel(p.def.action, p.def.default_model)
+      const stageSessionName = resolveTemplate(resolvedAction.name || 'Pipeline Session', ctx)
       let stageError: string | undefined
       let stageCost = 0
       let stageResponseSnippet: string | undefined
@@ -1227,7 +1250,7 @@ async function runPoll(pipelineName: string, promptOverride?: string): Promise<v
       let stageRetryCount = 0
       let stageSessionId: string | undefined
       try {
-        const result = await fireActionWithRetry(p.def.action, ctx, p.def.name, promptOverride)
+        const result = await fireActionWithRetry(resolvedAction, ctx, p.def.name, promptOverride)
         stageCost = result.cost
         stageResponseSnippet = result.responseSnippet
         stageSubStages = result.subStages
@@ -1240,10 +1263,10 @@ async function runPoll(pipelineName: string, promptOverride?: string): Promise<v
         const stageEnd = Date.now()
         stages.push({
           index: stages.length,
-          actionType: p.def.action.type,
+          actionType: resolvedAction.type,
           sessionName: stageSessionName,
           sessionId: stageSessionId,
-          model: p.def.action.model,
+          model: resolveActionModel(p.def.action, p.def.default_model),
           durationMs: stageEnd - stageStart,
           startedAt: stageStart,
           completedAt: stageEnd,
@@ -1627,6 +1650,7 @@ export function getPipelineList(): PipelineInfo[] {
       lastRunStoppedBudget: p.state.lastRunStoppedBudget ?? false,
       actionShape: toActionShape(p.def.action),
       firstActionPrompt: p.def.action.prompt || undefined,
+      defaultModel: p.def.default_model || undefined,
     })
   }
   return result
