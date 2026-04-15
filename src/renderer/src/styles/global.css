@@ -13199,6 +13199,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-radius: 1px;
   background: var(--border);
   flex-shrink: 0;
+  cursor: default;
 }
 
 .pipeline-run-cell.pass {
