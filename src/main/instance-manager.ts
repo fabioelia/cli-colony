@@ -23,6 +23,7 @@ import { scanNewCommits } from './commit-attributor'
 import { markChecklistItem } from './onboarding-state'
 import { appendActivity } from './activity-manager'
 import { parseErrorSummary } from './error-parser'
+import { transitionTicket } from './jira'
 
 export type { ClaudeInstance } from '../daemon/protocol'
 import type { ClaudeInstance } from '../daemon/protocol'
@@ -357,6 +358,12 @@ export async function createInstance(opts: {
   }
   if (opts.ticket) {
     _instanceTickets.set(inst.id, opts.ticket)
+    getSetting('jiraSessionStartTransition').then(name => {
+      const trimmed = name.trim()
+      if (!trimmed) return
+      transitionTicket(opts.ticket!.key, trimmed)
+        .catch(err => console.warn('[instance] session-start transition failed:', err))
+    }).catch(() => {})
   }
   _lastOutputAt.set(inst.id, Date.now())
 

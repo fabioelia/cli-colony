@@ -89,6 +89,7 @@ export default function SettingsPanel({ onBack }: Props) {
   const [jiraEmail, setJiraEmail] = useState('')
   const [jiraApiToken, setJiraApiToken] = useState('')
   const [jiraTransitionOnCommit, setJiraTransitionOnCommit] = useState('')
+  const [jiraSessionStartTransition, setJiraSessionStartTransition] = useState('')
   const [jiraTestResult, setJiraTestResult] = useState<{ ok: boolean; message: string } | 'testing' | null>(null)
   const [onboardingState, setOnboardingState] = useState<OnboardingState | null>(null)
   const [approvalRuleFormError, setApprovalRuleFormError] = useState<string | null>(null)
@@ -165,6 +166,7 @@ export default function SettingsPanel({ onBack }: Props) {
       setJiraEmail(s.jiraEmail || '')
       setJiraApiToken(s.jiraApiToken || '')
       setJiraTransitionOnCommit(s.jiraTransitionOnCommit || '')
+      setJiraSessionStartTransition(s.jiraSessionStartTransition || '')
       setTheme((s.theme === 'light' ? 'light' : 'dark') as 'dark' | 'light')
       if (s.fontSize) setFontSize(parseInt(s.fontSize, 10) || 13)
       if (s.terminalFontFamily) setFontFamily(s.terminalFontFamily)
@@ -280,6 +282,7 @@ export default function SettingsPanel({ onBack }: Props) {
       window.api.settings.set('jiraEmail', jiraEmail),
       window.api.settings.set('jiraApiToken', jiraApiToken),
       window.api.settings.set('jiraTransitionOnCommit', jiraTransitionOnCommit),
+      window.api.settings.set('jiraSessionStartTransition', jiraSessionStartTransition),
       window.api.settings.set('theme', theme),
     ])
     // Re-register hotkey immediately (no app restart needed)
@@ -1292,6 +1295,15 @@ export default function SettingsPanel({ onBack }: Props) {
                 onChange={(e) => setJiraTransitionOnCommit(e.target.value)}
               />
               <div className="settings-field-hint">When set, automatically moves the attached ticket to this status after a commit.</div>
+            </div>
+            <div className="settings-field" style={{ marginTop: 12 }}>
+              <label>Status on session start</label>
+              <input
+                placeholder="e.g. In Progress (leave blank to disable)"
+                value={jiraSessionStartTransition}
+                onChange={(e) => setJiraSessionStartTransition(e.target.value)}
+              />
+              <div className="settings-field-hint">Exact status name (case-sensitive). When set, moves the attached ticket to this status when a session is created.</div>
             </div>
           </div>
         )}
