@@ -13182,6 +13182,42 @@ body:has(.daemon-update-banner) .app-update-banner {
   filter: brightness(1.2);
 }
 
+.pipeline-run-strip {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.pipeline-run-strip:hover {
+  filter: brightness(1.15);
+}
+
+.pipeline-run-cell {
+  width: 5px;
+  height: 10px;
+  border-radius: 1px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.pipeline-run-cell.pass {
+  background: color-mix(in srgb, var(--success) 70%, transparent);
+}
+
+.pipeline-run-cell.fail {
+  background: color-mix(in srgb, var(--danger) 80%, transparent);
+}
+
+.pipeline-run-cell.no-action {
+  background: var(--border);
+}
+
+.pipeline-run-strip.compact .pipeline-run-cell {
+  width: 3px;
+  height: 8px;
+}
+
 .pipeline-history-filter-bar {
   display: flex;
   align-items: center;

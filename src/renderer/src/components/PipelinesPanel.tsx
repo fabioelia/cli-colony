@@ -18,6 +18,34 @@ import { describeCron, nextRuns } from '../../../shared/cron'
 import { slugify } from '../../../shared/utils'
 import { firstErrorOf } from '../../../shared/pipeline-stats'
 
+interface RecentRun {
+  ts: string
+  success: boolean
+  actionExecuted: boolean
+  error: string | null
+}
+
+interface PipelineStats {
+  rate: number
+  successes: number
+  total: number
+  recent: RecentRun[]
+}
+
+function PipelineRunStrip({ recent, compact }: { recent: RecentRun[]; compact?: boolean }) {
+  return (
+    <div className={`pipeline-run-strip${compact ? ' compact' : ''}`}>
+      {recent.map((entry, i) => {
+        const cls = entry.success ? 'pass' : entry.actionExecuted ? 'fail' : 'no-action'
+        const label = entry.success ? 'success' : entry.actionExecuted ? 'failed' : 'no action'
+        const errSnippet = entry.error ? ` (${entry.error.slice(0, 80)}${entry.error.length > 80 ? '…' : ''})` : ''
+        const title = `${new Date(entry.ts).toLocaleString()} — ${label}${errSnippet}`
+        return <div key={i} className={`pipeline-run-cell ${cls}`} title={title} />
+      })}
+    </div>
+  )
+}
+
 interface ActionShape {
   type: string
   name?: string
@@ -201,7 +229,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   )
   const [healthView, setHealthView] = useState(() => localStorage.getItem('pipelines-health-view') === '1')
   const [pipelineSearch, setPipelineSearch] = useState('')
-  const [successRates, setSuccessRates] = useState<Map<string, { rate: number; successes: number; total: number } | null>>(new Map())
+  const [pipelineStats, setPipelineStats] = useState<Map<string, PipelineStats | null>>(new Map())
   const [cronsPaused, setCronsPaused] = useState(false)
 
   // 60s tick for next-run countdown refresh
@@ -284,23 +312,30 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     return unsub
   }, [loadPipelines])
 
-  // Fetch success rates (always, not just in health view)
+  // Fetch success rates + recent run strip (always, not just in health view)
   useEffect(() => {
     if (pipelines.length === 0) return
     let cancelled = false
     const fetchRates = async () => {
-      const rates = new Map<string, { rate: number; successes: number; total: number } | null>()
+      const stats = new Map<string, PipelineStats | null>()
       await Promise.all(pipelines.map(async (p) => {
         try {
           const history = await window.api.pipeline.getHistory(p.name)
           const last10 = history.slice(-10)
-          if (last10.length < 3) { rates.set(p.name, null); return }
+          if (last10.length < 3) { stats.set(p.name, null); return }
           const successes = last10.filter(e => e.success).length
           const total = last10.length
-          rates.set(p.name, { rate: Math.round((successes / total) * 100), successes, total })
-        } catch { rates.set(p.name, null) }
+          const last20 = history.slice(-20)
+          const recent: RecentRun[] = last20.map(e => ({
+            ts: e.ts,
+            success: e.success,
+            actionExecuted: e.actionExecuted,
+            error: e.success ? null : firstErrorOf(e),
+          }))
+          stats.set(p.name, { rate: Math.round((successes / total) * 100), successes, total, recent })
+        } catch { stats.set(p.name, null) }
       }))
-      if (!cancelled) setSuccessRates(rates)
+      if (!cancelled) setPipelineStats(stats)
     }
     fetchRates()
     return () => { cancelled = true }
@@ -446,8 +481,8 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
       case 'successRate':
         // Low-to-high: problem pipelines first. Nulls (< 3 runs) sort last.
         sorted.sort((a, b) => {
-          const ar = successRates.get(a.name)?.rate ?? 101
-          const br = successRates.get(b.name)?.rate ?? 101
+          const ar = pipelineStats.get(a.name)?.rate ?? 101
+          const br = pipelineStats.get(b.name)?.rate ?? 101
           return ar - br
         })
         break
@@ -455,7 +490,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
         sorted.sort((a, b) => a.name.localeCompare(b.name))
     }
     return sorted
-  }, [pipelines, sortBy, successRates])
+  }, [pipelines, sortBy, pipelineStats])
 
   // Health view: sorted by failures desc, then fire count desc
   const healthPipelines = useMemo(() => {
@@ -926,7 +961,7 @@ ${modelLine}  prompt: |
             <tbody>
               {healthPipelines.filter(p => !pipelineSearch || p.name.toLowerCase().includes(pipelineSearch.toLowerCase())).map(p => {
                 const failures = p.consecutiveFailures ?? 0
-                const rate = successRates.get(p.name)
+                const rate = pipelineStats.get(p.name)
                 const lastFiredAgo = p.lastFiredAt ? (() => {
                   const secs = (Date.now() - new Date(p.lastFiredAt!).getTime()) / 1000
                   if (secs < 60) return 'just now'
@@ -975,18 +1010,23 @@ ${modelLine}  prompt: |
                 {p.running && <span className="pipeline-running-badge">Running</span>}
                 {p.lastRunStoppedBudget && <span className="pipeline-budget-badge" title="Last run stopped: budget limit reached">$ Cap</span>}
                 {(() => {
-                  const stats = successRates.get(p.name)
+                  const stats = pipelineStats.get(p.name)
                   if (!stats) return null
                   const cls = stats.rate >= 80 ? 'good' : stats.rate >= 50 ? 'warn' : 'bad'
                   const clickable = stats.rate < 100
                   return (
-                    <span
-                      className={`pipeline-success-badge ${cls}${clickable ? ' clickable' : ''}`}
-                      title={`${stats.successes}/${stats.total} successful (last ${stats.total} runs)${clickable ? ' — click to see failures' : ''}`}
-                      onClick={clickable ? (e) => { e.stopPropagation(); handleExpand(p, { openFailures: true }) } : undefined}
-                    >
-                      {stats.successes}/{stats.total} <Check size={8} />
-                    </span>
+                    <>
+                      <span
+                        className={`pipeline-success-badge ${cls}${clickable ? ' clickable' : ''}`}
+                        title={`${stats.successes}/${stats.total} successful (last ${stats.total} runs)${clickable ? ' — click to see failures' : ''}`}
+                        onClick={clickable ? (e) => { e.stopPropagation(); handleExpand(p, { openFailures: true }) } : undefined}
+                      >
+                        {stats.successes}/{stats.total} <Check size={8} />
+                      </span>
+                      {stats.recent.length >= 5 && (
+                        <PipelineRunStrip recent={stats.recent} />
+                      )}
+                    </>
                   )
                 })()}
               </div>
@@ -1033,18 +1073,23 @@ ${modelLine}  prompt: |
                   </span>
                 )}
                 {listMode && expandedPipeline !== p.name && (() => {
-                  const stats = successRates.get(p.name)
+                  const stats = pipelineStats.get(p.name)
                   if (!stats) return null
                   const cls = stats.rate >= 80 ? 'good' : stats.rate >= 50 ? 'warn' : 'bad'
                   const clickable = stats.rate < 100
                   return (
-                    <span
-                      className={`pipeline-success-badge ${cls}${clickable ? ' clickable' : ''}`}
-                      title={`${stats.successes}/${stats.total} successful (last ${stats.total} runs)${clickable ? ' — click to see failures' : ''}`}
-                      onClick={clickable ? (e) => { e.stopPropagation(); handleExpand(p, { openFailures: true }) } : undefined}
-                    >
-                      {stats.rate}%
-                    </span>
+                    <>
+                      <span
+                        className={`pipeline-success-badge ${cls}${clickable ? ' clickable' : ''}`}
+                        title={`${stats.successes}/${stats.total} successful (last ${stats.total} runs)${clickable ? ' — click to see failures' : ''}`}
+                        onClick={clickable ? (e) => { e.stopPropagation(); handleExpand(p, { openFailures: true }) } : undefined}
+                      >
+                        {stats.rate}%
+                      </span>
+                      {stats.recent.length >= 5 && (
+                        <PipelineRunStrip recent={stats.recent} compact />
+                      )}
+                    </>
                   )
                 })()}
                 {listMode && expandedPipeline !== p.name && p.lastError && (
