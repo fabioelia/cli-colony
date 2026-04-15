@@ -703,15 +703,23 @@ ${modelLine}  prompt: |
   return (
     <div className="pipelines-panel">
       {runOverrideDialog && (
-        <div className="modal-overlay" onClick={() => setRunOverrideDialog(null)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
-            <h3 style={{ marginBottom: 12, fontSize: 15 }}>Run Pipeline: {runOverrideDialog.name}</h3>
-            <RunWithOverrideDialog
-              pipelineName={runOverrideDialog.name}
-              firstActionPrompt={runOverrideDialog.firstActionPrompt}
-              onRun={handleRunWithOverride}
-              onClose={() => setRunOverrideDialog(null)}
-            />
+        <div className="pipeline-preview-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setRunOverrideDialog(null) }}>
+          <div className="pipeline-preview-modal" style={{ maxWidth: 500 }}>
+            <div className="pipeline-preview-header">
+              <Play size={14} />
+              <span>Run Pipeline: {runOverrideDialog.name}</span>
+              <button className="pipeline-preview-close" onClick={() => setRunOverrideDialog(null)}>
+                <X size={14} />
+              </button>
+            </div>
+            <div style={{ padding: '14px 16px' }}>
+              <RunWithOverrideDialog
+                pipelineName={runOverrideDialog.name}
+                firstActionPrompt={runOverrideDialog.firstActionPrompt}
+                onRun={handleRunWithOverride}
+                onClose={() => setRunOverrideDialog(null)}
+              />
+            </div>
           </div>
         </div>
       )}
