@@ -7113,11 +7113,11 @@ body:has(.daemon-update-banner) .app-update-banner {
   height: 24px;
   background: var(--text-muted);
   border-radius: 1px;
-  opacity: 0;
+  opacity: 0.35;
   transition: opacity 0.15s;
 }
 .browser-split-divider:hover .browser-split-divider-grip {
-  opacity: 0.5;
+  opacity: 0.8;
 }
 .browser-split-secondary-header {
   display: flex;

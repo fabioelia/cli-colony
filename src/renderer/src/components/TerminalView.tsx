@@ -101,6 +101,8 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
     if (instance.toolDeferredInfo) setDeferredDismissed(false)
   }
   const shellContainerRef = useRef<HTMLDivElement>(null)
+  const sessionTabRef = useRef<HTMLDivElement>(null)
+  const shellTabRef = useRef<HTMLDivElement>(null)
   const shellTermRef = useRef<{ term: Terminal; fitAddon: FitAddon; searchAddon: SearchAddon; unsub?: () => void } | null>(null)
   const shellCreatedRef = useRef(false)
   const [shellResetKey, setShellResetKey] = useState(0)
@@ -587,8 +589,18 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
     e.preventDefault()
     const startX = e.clientX
     const startRatio = splitRatio
-    const container = (e.target as HTMLElement).parentElement!
-    const containerWidth = container.getBoundingClientRect().width
+    // For session/shell tabs the divider lives inside an absolute overlay whose width is
+    // (1 - splitRatio) * containerWidth — using parentElement.width gives wrong drag math.
+    // Use the full-width outer tab ref instead.
+    let containerWidth: number
+    if (viewTab === 'session' && sessionTabRef.current) {
+      containerWidth = sessionTabRef.current.getBoundingClientRect().width
+    } else if (viewTab === 'shell' && shellTabRef.current) {
+      containerWidth = shellTabRef.current.getBoundingClientRect().width
+    } else {
+      // browser: divider's parent IS the full-width flex row — original logic correct
+      containerWidth = (e.target as HTMLElement).parentElement!.getBoundingClientRect().width
+    }
     setSplitDragging(true)
     const onMove = (ev: MouseEvent) => {
       const delta = (ev.clientX - startX) / containerWidth
@@ -605,7 +617,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
     document.body.style.cursor = 'col-resize'
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
-  }, [splitRatio])
+  }, [splitRatio, viewTab])
 
   // Paste images — Cmd+Shift+V checks clipboard for image via Electron main process
   useEffect(() => {
@@ -1192,7 +1204,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
           {splitTab && viewTab === 'browser' && renderSecondaryPane()}
         </div>
       )}
-      <div style={{ display: viewTab === 'session' ? 'flex' : 'none', flex: 1, minHeight: 0, position: 'relative', flexDirection: 'column' }}>
+      <div ref={sessionTabRef} style={{ display: viewTab === 'session' ? 'flex' : 'none', flex: 1, minHeight: 0, position: 'relative', flexDirection: 'column' }}>
         <div
           className={`terminal-container ${dragOver ? 'drag-over' : ''}`}
           ref={containerRef}
@@ -1234,7 +1246,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
           </div>
         )}
       </div>
-      <div style={{ display: viewTab === 'shell' ? 'flex' : 'none', flex: 1, minHeight: 0, position: 'relative', flexDirection: 'column' }}>
+      <div ref={shellTabRef} style={{ display: viewTab === 'shell' ? 'flex' : 'none', flex: 1, minHeight: 0, position: 'relative', flexDirection: 'column' }}>
         {shellTermReady && (
           <div className="shell-quick-bar">
             <button
