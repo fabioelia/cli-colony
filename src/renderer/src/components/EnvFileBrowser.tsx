@@ -22,7 +22,21 @@ interface Props {
 }
 
 export default function EnvFileBrowser({ paths }: Props) {
-  const repoPaths = Object.entries(paths).filter(([k, v]) => k !== 'root' && v)
+  // Deduplicate by directory path — prefer shorter alias names, exclude root
+  const deduped = new Map<string, string>() // dirPath → alias
+  for (const [alias, dirPath] of Object.entries(paths)) {
+    if (!dirPath) continue
+    if (alias === 'root') continue // show root only as fallback below
+    const existing = deduped.get(dirPath)
+    if (!existing || alias.length < existing.length) {
+      deduped.set(dirPath, alias)
+    }
+  }
+  // Fallback: if no repo paths, use root
+  if (deduped.size === 0 && paths.root) {
+    deduped.set(paths.root, 'root')
+  }
+  const repoPaths = Array.from(deduped.entries()).map(([dirPath, alias]) => [alias, dirPath] as const)
 
   const [trees, setTrees] = useState<Record<string, FileNode[]>>({})
   const [loading, setLoading] = useState<Record<string, boolean>>({})
@@ -33,14 +47,15 @@ export default function EnvFileBrowser({ paths }: Props) {
   const [fileLoading, setFileLoading] = useState(false)
   const [filter, setFilter] = useState('')
 
-  // Auto-expand the single repo on mount
+  // Auto-expand repos on mount (up to 2)
   useEffect(() => {
-    if (repoPaths.length === 1) {
-      const [, dirPath] = repoPaths[0]
-      if (!trees[dirPath]) {
-        loadDir(dirPath)
-        setExpanded(new Set([dirPath]))
+    if (repoPaths.length > 0 && repoPaths.length <= 2) {
+      const toExpand = new Set<string>()
+      for (const [, dirPath] of repoPaths) {
+        if (!trees[dirPath]) loadDir(dirPath)
+        toExpand.add(dirPath)
       }
+      setExpanded(toExpand)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

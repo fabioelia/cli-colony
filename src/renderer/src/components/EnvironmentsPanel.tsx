@@ -1190,7 +1190,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                   </div>
 
                   {/* Files */}
-                  {Object.keys(env.paths).some(k => k !== 'root') && (
+                  {Object.keys(env.paths).length > 0 && (
                     <div className="env-detail-section">
                       <div
                         className="env-detail-label"
