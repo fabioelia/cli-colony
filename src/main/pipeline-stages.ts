@@ -325,6 +325,7 @@ export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pi
       color: action.color,
       args: ['--append-system-prompt-file', checkerPromptFile],
       model: action.model,
+      parentId: makerInst.id,
       ...pipelineMeta,
     })
 

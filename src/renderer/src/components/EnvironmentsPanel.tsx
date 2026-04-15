@@ -3,9 +3,10 @@ import {
   Server, Play, Square, Trash2, RefreshCw, FileText, Copy, Bug,
   Plus, ExternalLink, ChevronDown, ChevronRight,
   Circle, AlertTriangle, Clock, X, FolderOpen, Terminal, Loader, CheckCircle, Check, SkipForward, Upload, Download, MessageSquare, Wrench, Stethoscope,
-  GitBranch, Unlink, Link, Search, ArrowLeftRight
+  GitBranch, Unlink, Link, Search, ArrowLeftRight, FolderTree
 } from 'lucide-react'
 import EnvClaudeMdModal from './EnvClaudeMdModal'
+import EnvFileBrowser from './EnvFileBrowser'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import { buildTemplateEditPrompt, buildDiagnosePrompt } from '../../../shared/env-prompts'
 import Tooltip from './Tooltip'
@@ -97,6 +98,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
   const [swappingEnvId, setSwappingEnvId] = useState<string | null>(null)
   const [swapDropdownEnvId, setSwapDropdownEnvId] = useState<string | null>(null)
   const [claudeMdModal, setClaudeMdModal] = useState<{ envId: string; envName: string; hasWorktree: boolean } | null>(null)
+  const [filesOpenEnvId, setFilesOpenEnvId] = useState<string | null>(null)
 
   const loadEnvironments = useCallback(async () => {
     try {
@@ -1186,6 +1188,23 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                       ))}
                     </div>
                   </div>
+
+                  {/* Files */}
+                  {Object.keys(env.paths).some(k => k !== 'root') && (
+                    <div className="env-detail-section">
+                      <div
+                        className="env-detail-label"
+                        style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                        onClick={(e) => { e.stopPropagation(); setFilesOpenEnvId(filesOpenEnvId === env.id ? null : env.id) }}
+                      >
+                        <FolderTree size={11} /> Files
+                        {filesOpenEnvId === env.id ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                      </div>
+                      {filesOpenEnvId === env.id && (
+                        <EnvFileBrowser paths={env.paths} />
+                      )}
+                    </div>
+                  )}
 
                   {/* Recent Worktrees (unmounted, available for swap) */}
                   {worktrees.filter(wt => !wt.mountedEnvId).length > 0 && (

@@ -12,7 +12,7 @@ import { colonyPaths } from '../shared/colony-paths'
 import { parseFrontmatter as parseRawFrontmatter } from '../shared/utils'
 
 // Imported lazily via a setter to avoid circular deps with persona-manager
-type RunPersonaFn = (id: string, trigger: { type: 'handoff'; from: string }, note?: string) => Promise<string>
+type RunPersonaFn = (id: string, trigger: { type: 'handoff'; from: string }, note?: string, parentId?: string) => Promise<string>
 type GetPersonaListFn = () => Array<{ id: string; enabled: boolean; activeSessionId: string | null }>
 type AddWhisperFn = (id: string, text: string) => boolean
 
@@ -125,8 +125,11 @@ async function processTriggerFile(filePath: string): Promise<void> {
   }
 
   console.log(`[triggers] ${payload.from} → ${payload.to}${payload.note ? ' (with note)' : ''}`)
+  // Pass the invoker's current session as parent so the child appears in the Trigger Chain
+  const fromPersona = personas.find(p => p.id === payload.from)
+  const parentId = fromPersona?.activeSessionId ?? undefined
   try {
-    await _runPersona!(payload.to, { type: 'handoff', from: payload.from }, payload.note)
+    await _runPersona!(payload.to, { type: 'handoff', from: payload.from }, payload.note, parentId)
   } catch (err: unknown) {
     console.warn(`[triggers] failed to launch "${payload.to}": ${err instanceof Error ? err.message : String(err)}`)
   }

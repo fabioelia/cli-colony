@@ -680,6 +680,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Active Worktree', detail: 'Shows the currently mounted worktree — display name, branch, and repo. Use "Swap" to switch to a different unmounted worktree without tearing down services (~7s). Appears only when worktrees exist.', icon: 'GitBranch' },
           { label: 'Swap Worktree', detail: 'Dropdown listing compatible unmounted worktrees. Selecting one triggers: stop services → swap mount → restart (~5-10s). "Create new worktree" opens the Worktrees tab. Disabled if no unmounted worktrees exist.', icon: 'ArrowLeftRight' },
           { label: 'Recent Worktrees', detail: 'Shows the 5 most recent unmounted worktrees with quick Swap and Delete actions. Swap mounts the worktree and restarts services in place.', icon: 'GitBranch' },
+          { label: 'Files', detail: 'Collapsible file browser for the environment worktree. Click to expand and browse repo checkouts — directories lazy-load on expand, files show a preview with line numbers. Filter by name and refresh the tree.', icon: 'FolderTree' },
           { label: 'Log filter', detail: 'Type in the search box to filter log lines by keyword. Match count updates in real-time. Download always exports the full unfiltered log.', icon: 'Search' },
         ],
       },
@@ -1075,6 +1076,16 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Model', detail: 'The Claude model in use (e.g. sonnet-4-6). Parsed from launch args.' },
           { label: 'Uptime', detail: 'Time since the session was created.' },
           { label: 'Ctx indicator', detail: 'Amber = context ≥ 250 KB output, red ≥ 600 KB. Consider checkpointing.' },
+        ],
+      },
+      {
+        name: 'Children Panel',
+        position: 'Below status strip (sessions that spawned child sessions)',
+        items: [
+          { label: 'Child sessions', detail: 'Collapsible list of sessions spawned by this one — from persona triggers, maker-checker pipelines, or manual child spawns. Shows status dot (running/waiting/done), name, cost, and state.', icon: 'GitMerge' },
+          { label: 'Navigate to child', detail: 'Click any child row to focus that session in the sidebar and main view.' },
+          { label: 'Stop all', detail: 'Kills all running child sessions at once. Prompts for confirmation before stopping.', icon: 'Square' },
+          { label: 'Sidebar badge', detail: 'Parent tiles show a ⇣N accent badge when they have children. Click the badge to jump to the first child.' },
         ],
       },
       {

@@ -75,6 +75,14 @@ export function registerInstanceHandlers(): void {
   })
   ipcMain.handle('instance:list', () => getAllInstances())
 
+  // Kill all running child sessions of a given parent instance
+  ipcMain.handle('instance:stopChildren', async (_e, parentId: string) => {
+    const all = await getAllInstances()
+    const children = all.filter(i => i.parentId === parentId && i.status === 'running')
+    await Promise.allSettled(children.map(c => killInstance(c.id).catch(() => {})))
+    return children.length
+  })
+
   // Concurrent file conflict detection — find files changed by multiple running sessions
   ipcMain.handle('instances:fileOverlaps', async (): Promise<Record<string, { file: string; otherSessions: { id: string; name: string }[] }[]>> => {
     const instances = (await getAllInstances()).filter(i => i.status === 'running')

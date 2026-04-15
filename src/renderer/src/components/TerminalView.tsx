@@ -5,7 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, X, RotateCcw, GitBranch, TerminalSquare, FolderTree, Columns2, LayoutGrid, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Trophy, GitCompare, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, FileDown, CheckCircle, Copy, Search, PanelRight } from 'lucide-react'
+import { ChevronUp, ChevronDown, X, RotateCcw, GitBranch, TerminalSquare, FolderTree, Columns2, LayoutGrid, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Trophy, GitCompare, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, FileDown, CheckCircle, Copy, Search, PanelRight, GitMerge, Square } from 'lucide-react'
 import { TeamMetricsPanel } from './TeamMetricsPanel'
 import ServicesTab from './ServicesTab'
 import FilesTab from './FilesTab'
@@ -74,6 +74,7 @@ interface Props {
   onEnterGrid?: () => void
   onNavigateToSession?: (id: string) => void
   errorSummary?: ErrorSummary
+  childInstances?: ClaudeInstance[]
 }
 
 function formatUptime(seconds: number): string {
@@ -86,7 +87,7 @@ function formatUptime(seconds: number): string {
 
 type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'changes' | 'artifacts' | 'team' | 'metrics' | 'browser'
 
-export default memo(function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, onSearchToggle, fontSize = 13, fontFamily = 'Menlo, Monaco, "Courier New", monospace', cursorStyle = 'underline', cursorBlink = false, scrollback = 10000, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid, onNavigateToSession, errorSummary }: Props) {
+export default memo(function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, onSearchToggle, fontSize = 13, fontFamily = 'Menlo, Monaco, "Courier New", monospace', cursorStyle = 'underline', cursorBlink = false, scrollback = 10000, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid, onNavigateToSession, errorSummary, childInstances = [] }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const initializedRef = useRef(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -106,6 +107,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
   const shellTermRef = useRef<{ term: Terminal; fitAddon: FitAddon; searchAddon: SearchAddon; unsub?: () => void } | null>(null)
   const shellCreatedRef = useRef(false)
   const [shellResetKey, setShellResetKey] = useState(0)
+  const [childrenOpen, setChildrenOpen] = useState(true)
 
   // Environment detection: match by colony path OR by environment paths.root
   const envName = (() => {
@@ -1129,6 +1131,50 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
               <span className={`session-status-dot ${outputBytes >= 600 * 1024 ? 'red' : 'amber'}`} />
               ctx
             </span>
+          )}
+        </div>
+      )}
+      {/* Children panel — shows when this session spawned others (pipeline, persona trigger, maker-checker) */}
+      {viewTab === 'session' && childInstances.length > 0 && (
+        <div className={`session-children-panel${childrenOpen ? ' open' : ''}`}>
+          <div className="session-children-summary" onClick={() => setChildrenOpen(o => !o)}>
+            <GitMerge size={12} />
+            <span>{childInstances.length} child session{childInstances.length > 1 ? 's' : ''}</span>
+            {childInstances.some(c => c.status === 'running') && (
+              <button
+                className="session-children-stop-btn"
+                title="Stop all running child sessions"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (confirm(`Stop all ${childInstances.filter(c => c.status === 'running').length} running child session(s)?`)) {
+                    window.api.instance.stopChildren(instance.id).catch(() => {})
+                  }
+                }}
+              >
+                <Square size={10} /> Stop all
+              </button>
+            )}
+          </div>
+          {childrenOpen && (
+            <div className="session-children-list">
+              {childInstances.map(child => (
+                <div
+                  key={child.id}
+                  className="session-child-item clickable"
+                  onClick={() => onNavigateToSession?.(child.id)}
+                  title={`Click to navigate to ${child.name}`}
+                >
+                  <span className={`session-child-dot ${child.status === 'running' ? child.activity : 'exited'}`} />
+                  <span className="session-child-name">{child.name}</span>
+                  {child.tokenUsage?.cost != null && child.tokenUsage.cost > 0 && (
+                    <span className="session-child-cost">${child.tokenUsage.cost.toFixed(2)}</span>
+                  )}
+                  <span className={`session-child-status ${child.status === 'running' ? child.activity : 'exited'}`}>
+                    {child.status === 'running' ? (child.activity === 'waiting' ? 'waiting' : 'busy') : 'done'}
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}

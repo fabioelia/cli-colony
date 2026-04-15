@@ -90,6 +90,7 @@ export interface ClaudeManagerAPI {
     onBudgetExceeded: (callback: (data: { id: string; cost: number; cap: number }) => void) => () => void
     clearToolDeferred: (id: string) => Promise<boolean>
     fileOverlaps: () => Promise<Record<string, { file: string; otherSessions: { id: string; name: string }[] }[]>>
+    stopChildren: (parentId: string) => Promise<number>
   }
   shellPty: {
     create: (instanceId: string, cwd: string) => Promise<{ pid: number }>
@@ -654,6 +655,7 @@ const api: ClaudeManagerAPI = {
     },
     clearToolDeferred: (id) => ipcRenderer.invoke('instance:clearToolDeferred', id),
     fileOverlaps: () => ipcRenderer.invoke('instances:fileOverlaps'),
+    stopChildren: (parentId) => ipcRenderer.invoke('instance:stopChildren', parentId),
   },
   shellPty: {
     create: (instanceId, cwd) => ipcRenderer.invoke('shellPty:create', instanceId, cwd),

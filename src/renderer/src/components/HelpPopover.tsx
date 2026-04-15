@@ -13,7 +13,7 @@ import {
   Circle, Users, Layers, CheckSquare, ListChecks, Gavel, ExternalLink, Palette, FileDiff, Send,
   Archive, DollarSign, Swords, Bot, Timer, Unlink, Link, ChevronsUp, ClipboardCopy, Activity,
   Home, Server, GitPullRequest, MoreHorizontal, ArrowLeftRight, ArrowDown, Bookmark,
-  PauseCircle, PanelRight, PanelLeft,
+  PauseCircle, PanelRight, PanelLeft, FolderTree,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { helpContent, type HelpEntry, type HelpZone } from '../lib/help-content'
@@ -31,7 +31,7 @@ const iconMap: Record<string, LucideIcon> = {
   Circle, Users, Layers, CheckSquare, ListChecks, Gavel, ExternalLink, Palette, FileDiff, Send,
   Archive, DollarSign, Swords, Bot, Timer, Unlink, Link, ChevronsUp, ClipboardCopy, Activity,
   Home, Server, GitPullRequest, MoreHorizontal, ArrowLeftRight, ArrowDown, Bookmark,
-  PauseCircle, PanelRight, PanelLeft,
+  PauseCircle, PanelRight, PanelLeft, FolderTree,
 }
 
 function HelpIcon({ name }: { name?: string }) {

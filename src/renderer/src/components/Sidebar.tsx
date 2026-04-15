@@ -240,6 +240,10 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
               const ticketTooltip = inst.ticket.summary ? `${inst.ticket.key}: ${inst.ticket.summary}` : inst.ticket.key
               badges.push({ node: <button key="tk" className="ticket-badge" title={ticketTooltip} onClick={(e) => { e.stopPropagation(); if (inst.ticket?.url) window.api.shell.openExternal(inst.ticket.url) }}>{inst.ticket.key}</button>, label: inst.ticket.key })
             }
+            if (inst.childIds?.length > 0) {
+              const liveCount = inst.childIds.length
+              badges.push({ node: <button key="ch" className="instance-children-badge" title={`${liveCount} child session${liveCount > 1 ? 's' : ''} — click to navigate to first child`} onClick={(e) => { e.stopPropagation(); callbacks.onSelect(inst.childIds[0]) }}>⇣{liveCount}</button>, label: `${liveCount} children` })
+            }
             if (badges.length === 0) return null
             return (
               <div className="instance-badges">
@@ -281,7 +285,6 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
               <GitPullRequest size={9} /> {inst.gitBranch}
             </span>
           )}
-          {inst.childIds?.length > 0 && <span className="instance-parent-badge clickable" title={`Go to child session (${inst.childIds.length} total)`} onClick={(e) => { e.stopPropagation(); callbacks.onSelect(inst.childIds[0]) }}> · {inst.childIds.length} child{inst.childIds.length > 1 ? 'ren' : ''}</span>}
           {inst.status === 'running' && inst.createdAt && (
             <span className="instance-elapsed" title={`Started ${new Date(inst.createdAt).toLocaleString()}`}>
               <Clock size={9} /> {formatElapsed(inst.createdAt)}

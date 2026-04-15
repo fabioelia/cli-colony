@@ -1557,6 +1557,7 @@ export default function App() {
                 arenaWinnerId={arenaWinnerId}
                 onArenaWin={instanceCallbacksRef.current.get(inst.id)!.onArenaWin}
                 terminalsRef={terminalsRef}
+                childInstances={instances.filter(i => i.parentId === inst.id)}
                 searchOpen={isFocused && searchOpen}
                 onSearchClose={handleSearchClose}
                 onSearchToggle={() => setSearchOpen(prev => !prev)}

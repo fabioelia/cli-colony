@@ -465,7 +465,7 @@ export type TriggerSource =
   | { type: 'cron'; schedule: string }
   | { type: 'handoff'; from: string }
 
-export async function runPersona(fileName: string, trigger: TriggerSource = { type: 'manual' }, customMessage?: string): Promise<string> {
+export async function runPersona(fileName: string, trigger: TriggerSource = { type: 'manual' }, customMessage?: string, parentId?: string): Promise<string> {
   const filePath = resolvedPersonaPath(fileName)
   if (!existsSync(filePath)) throw new Error(`Persona file not found: ${fileName}`)
 
@@ -582,6 +582,7 @@ export async function runPersona(fileName: string, trigger: TriggerSource = { ty
     color: fm.color,
     model: fm.model,
     args: ['--append-system-prompt-file', promptFile],
+    parentId,
   })
 
   const kickoff = buildKickoff(filePath, trigger, customMessage)
