@@ -1645,6 +1645,16 @@ action:
               {/* Step 1: Trigger */}
               {wizardStep === 1 && (
                 <div className="automation-wizard-step-content">
+                  <div className="automation-wizard-field">
+                    <label className="automation-wizard-field-label">Automation name</label>
+                    <input
+                      className="automation-wizard-input"
+                      value={wizardName}
+                      onChange={(e) => setWizardName(e.target.value)}
+                      placeholder="My Automation"
+                      autoFocus
+                    />
+                  </div>
                   <p className="automation-wizard-section-label">When should this automation run?</p>
                   <div className="automation-wizard-options">
                     {([
@@ -1752,16 +1762,6 @@ action:
               {/* Step 3: Review */}
               {wizardStep === 3 && (
                 <div className="automation-wizard-step-content">
-                  <div className="automation-wizard-field">
-                    <label className="automation-wizard-field-label">Automation name</label>
-                    <input
-                      className="automation-wizard-input"
-                      value={wizardName}
-                      onChange={(e) => setWizardName(e.target.value)}
-                      placeholder="My Automation"
-                      autoFocus
-                    />
-                  </div>
                   <p className="automation-wizard-section-label">Generated pipeline YAML</p>
                   <pre className="automation-wizard-yaml-preview">{buildAutomationYaml()}</pre>
                   <p className="automation-wizard-hint">
@@ -1784,6 +1784,7 @@ action:
                   className="panel-header-btn primary"
                   onClick={() => setWizardStep(s => s + 1)}
                   disabled={
+                    (wizardStep === 1 && !wizardName.trim()) ||
                     (wizardStep === 1 && (wizardTrigger === 'pr-opened' || wizardTrigger === 'pr-merged') && !wizardSelectedRepo) ||
                     (wizardStep === 2 && !wizardPrompt.trim())
                   }
