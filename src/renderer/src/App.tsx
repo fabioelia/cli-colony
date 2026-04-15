@@ -483,7 +483,7 @@ export default function App() {
 
     const inst = await window.api.instance.create({
       ...createOpts,
-      ticket: jiraTicket ? { source: 'jira', key: jiraTicket.key, summary: jiraTicket.summary } : undefined,
+      ticket: jiraTicket ? { source: 'jira', key: jiraTicket.key, summary: jiraTicket.summary, url: jiraTicket.url } : undefined,
     })
     // If the caller seeded a first prompt, queue it to run once the session
     // signals it's ready — same path the Quick Prompt flow uses.

@@ -248,6 +248,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Repo Memory', detail: 'Place a `.colony/memory.md` file in a repo to automatically inject its conventions, architecture decisions, and team notes into every Colony session started in that directory. Same pattern as AGENTS.md — no UI needed.' },
           { label: 'Send Message', detail: 'Right-click a waiting session to send a prompt to it without switching views. Useful for orchestrating multiple parallel sessions.', icon: 'Send' },
           { label: 'Quiet / Stale detection', detail: 'Sessions marked "busy" that produce no output for 5+ minutes show an amber "quiet" badge. After 15+ minutes with no output, the badge turns red and says "stale". Stale sessions also appear in the Overview\'s Needs Attention section. Only applies to busy sessions — waiting sessions are excluded. Hover the badge to see exact idle duration.' },
+          { label: 'Jira ticket badge', detail: 'Sessions started with a Jira ticket attached show a blue NP-XXXX badge on the sidebar tile. Hover to see the ticket summary. Click the badge to open the ticket in your browser. Hidden when no ticket is attached.' },
         ],
       },
       {

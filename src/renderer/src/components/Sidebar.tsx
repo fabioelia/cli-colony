@@ -236,6 +236,10 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
               const mins = Math.floor(idleMs / 60000)
               badges.push({ node: <span key="id" className={`instance-idle-badge${isStale ? ' stale' : ''}`} title={`No output for ${mins} minute${mins !== 1 ? 's' : ''}`}>{isStale ? 'stale' : 'quiet'}</span>, label: isStale ? 'Stale' : 'Quiet' })
             }
+            if (inst.ticket) {
+              const ticketTooltip = inst.ticket.summary ? `${inst.ticket.key}: ${inst.ticket.summary}` : inst.ticket.key
+              badges.push({ node: <button key="tk" className="ticket-badge" title={ticketTooltip} onClick={(e) => { e.stopPropagation(); if (inst.ticket?.url) window.api.shell.openExternal(inst.ticket.url) }}>{inst.ticket.key}</button>, label: inst.ticket.key })
+            }
             if (badges.length === 0) return null
             return (
               <div className="instance-badges">

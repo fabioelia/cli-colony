@@ -2235,6 +2235,26 @@ body:has(.daemon-update-banner) .app-update-banner {
   vertical-align: middle;
 }
 
+.ticket-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  border-radius: 3px;
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--accent);
+  vertical-align: middle;
+  border: none;
+  cursor: pointer;
+  line-height: inherit;
+}
+
+.ticket-badge:hover {
+  background: rgba(59, 130, 246, 0.28);
+}
+
 .instance-unread-badge {
   display: inline-block;
   margin-left: 4px;

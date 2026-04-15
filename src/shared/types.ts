@@ -52,7 +52,7 @@ export interface ClaudeInstance {
   pipelineName?: string
   pipelineRunId?: string
   exitSummary?: string
-  ticket?: { source: 'jira'; key: string; summary: string }
+  ticket?: { source: 'jira'; key: string; summary: string; url?: string }
 }
 
 export interface AgentDef {
