@@ -394,6 +394,8 @@ interface Props {
   onCloneSession?: (inst: ClaudeInstance) => void
   errorSummaries?: Map<string, ErrorSummary>
   onNewWithHandoff?: (handoffContent: string, workingDirectory: string) => void
+  rateLimitState?: { utilization: number | null; resetAt: number | null; rateLimitType: string | null; paused: boolean; source: string | null }
+  rateLimitCountdown?: string
 }
 
 function SessionTile({ s, onResumeSession, hoveredSessionId, setHoveredSessionId, popoverPos, setPopoverPos, formatTime }: {
@@ -451,7 +453,7 @@ function SessionTile({ s, onResumeSession, hoveredSessionId, setHoveredSessionId
   )
 }
 
-function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onSetNote, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onShowRestoreDialog, restorableCount, unreadIds, outputBytes, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop, forkGroups = [], onForkSession, gridPanes, currentLayout = 'single', onLoadPreset, onCloneSession, errorSummaries, onNewWithHandoff }: Props) {
+function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onSetNote, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onShowRestoreDialog, restorableCount, unreadIds, outputBytes, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop, forkGroups = [], onForkSession, gridPanes, currentLayout = 'single', onLoadPreset, onCloneSession, errorSummaries, onNewWithHandoff, rateLimitState, rateLimitCountdown }: Props) {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
@@ -2232,6 +2234,24 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             currentLayout={currentLayout}
             onLoadPreset={onLoadPreset}
           />
+        )}
+        {rateLimitState && rateLimitState.utilization != null && rateLimitState.utilization >= 0.30 && !rateLimitState.paused && (
+          <Tooltip
+            text={[
+              `${(rateLimitState.utilization * 100).toFixed(1)}%`,
+              rateLimitState.rateLimitType ? rateLimitState.rateLimitType.replace(/_/g, ' ') : null,
+              rateLimitState.resetAt ? `Resets ${new Date(rateLimitState.resetAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : null,
+              rateLimitState.source ? `via ${rateLimitState.source}` : null,
+            ].filter(Boolean).join(' · ')}
+            position="top"
+          >
+            <button
+              className={`rate-limit-chip${rateLimitState.utilization >= 0.90 ? ' over' : rateLimitState.utilization >= 0.70 ? ' warn' : ''}`}
+              onClick={() => onViewChange('overview')}
+            >
+              {`RL ${Math.round(rateLimitState.utilization * 100)}%`}{rateLimitCountdown && rateLimitCountdown !== 'now' ? ` · ${rateLimitCountdown}` : ''}
+            </button>
+          </Tooltip>
         )}
         {usage && (usage.rateLimited || usage.todayCost > 0 || usage.budget) && (
           <Tooltip

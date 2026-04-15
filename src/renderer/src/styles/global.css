@@ -1289,6 +1289,30 @@ body:has(.daemon-update-banner) .app-update-banner {
   transition: width 0.3s;
 }
 
+/* ===== Rate Limit Chip ===== */
+.rate-limit-chip {
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-family: monospace;
+  padding: 3px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.rate-limit-chip:hover {
+  background: var(--bg-hover);
+}
+.rate-limit-chip.warn {
+  color: var(--warning);
+}
+.rate-limit-chip.over {
+  color: var(--danger);
+}
+
 /* ===== Activity Feed ===== */
 .sidebar-activity-badge {
   position: absolute;

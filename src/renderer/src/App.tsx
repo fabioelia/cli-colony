@@ -217,9 +217,9 @@ export default function App() {
     return () => { unsubVersion(); unsubFailed(); unsubUnresponsive(); unsubUpgradeStarted(); unsubUpgradeDraining(); unsubUpgradeComplete(); unsubRateLimit(); unsubCronsPause() }
   }, [])
 
-  // Rate limit countdown timer
+  // Rate limit countdown timer — runs whenever resetAt is set (chip uses it even when not paused)
   useEffect(() => {
-    if (!rateLimitState.paused || !rateLimitState.resetAt) {
+    if (!rateLimitState.resetAt) {
       setRateLimitCountdown('')
       return
     }
@@ -231,7 +231,11 @@ export default function App() {
       }
       const mins = Math.floor(remaining / 60000)
       const secs = Math.floor((remaining % 60000) / 1000)
-      setRateLimitCountdown(mins > 0 ? `${mins}m ${secs}s` : `${secs}s`)
+      if (rateLimitState.paused) {
+        setRateLimitCountdown(mins > 0 ? `${mins}m ${secs}s` : `${secs}s`)
+      } else {
+        setRateLimitCountdown(mins > 0 ? `${mins}m` : '< 1m')
+      }
     }
     tick()
     const interval = setInterval(tick, 1000)
@@ -1496,6 +1500,8 @@ export default function App() {
         onCloneSession={handleCloneSession}
         errorSummaries={errorSummaries}
         onNewWithHandoff={handleNewWithHandoff}
+        rateLimitState={rateLimitState}
+        rateLimitCountdown={rateLimitCountdown}
       />
       <div className={`main ${showGrid ? 'grid-4' : isSplit ? 'split' : ''}`}>
         {/* All terminals stay mounted (xterm doesn't support re-open); expensive effects gated on focused prop */}
