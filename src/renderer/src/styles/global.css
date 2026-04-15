@@ -18664,7 +18664,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .automation-wizard-option:hover:not(.selected) {
-  border-color: var(--border-hover, var(--border));
+  border-color: var(--border-active);
   color: var(--text-primary);
 }
 
