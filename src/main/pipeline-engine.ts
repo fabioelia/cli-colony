@@ -206,6 +206,8 @@ export interface TriggerContext {
   timestamp: string
   contentSha?: string // SHA of matched file — for change detection
   webhookPayload?: unknown
+  /** All configured repos as "owner/name" slugs — available as {{repos}} */
+  repoSlugs?: string[]
 }
 
 // Cron matching imported from src/shared/cron.ts
@@ -467,6 +469,7 @@ export function resolveTemplate(template: string, ctx: TriggerContext): string {
   const context: Record<string, unknown> = {
     ...ctx,
     github: { user: ctx.githubUser || '' },
+    repos: ctx.repoSlugs?.join(', ') || '',
     webhook_payload: JSON.stringify(ctx.webhookPayload || {}),
     ...ghVars,
   }
@@ -510,7 +513,7 @@ async function recordFired(pipelineName: string, key: string, contentSha?: strin
 
   // Clean expired keys
   const now = Date.now()
-  const ttl = (p.def.dedup.ttl || 3600) * 1000
+  const ttl = (p.def.dedup?.ttl || 3600) * 1000
   for (const [k, ts] of Object.entries(p.state.firedKeys)) {
     if (now - ts > ttl * 2) {
       delete p.state.firedKeys[k]
@@ -803,6 +806,11 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
   // Use promptOverride if provided (one-shot manual override); otherwise resolve from action config
   let prompt = (promptOverride && promptOverride.trim()) ? promptOverride : resolveTemplate(action.prompt || '', ctx)
 
+  // Inject configured repos context so sessions know which repos Colony tracks
+  if (ctx.repoSlugs?.length) {
+    prompt += `\n\n--- Configured Repositories ---\nThe following repositories are tracked by Colony. Use ONLY these repos unless the prompt specifies otherwise:\n${ctx.repoSlugs.map(s => `- ${s}`).join('\n')}\nDo NOT use repositories that are not in this list — they may be stale or deprecated.`
+  }
+
   // Inject artifact preamble (raw data from prior captures)
   if (action.artifactInputs?.length) {
     const preamble = await loadArtifactPreamble(action.artifactInputs)
@@ -1031,15 +1039,17 @@ export async function previewPipeline(fileNameOrName: string): Promise<PreviewRe
   }
 
   try {
+    const repoSlugs = (await getRepos()).map(r => `${r.owner}/${r.name}`)
     let contexts: TriggerContext[] = []
 
     if (def.trigger.type === 'git-poll') {
       plog(`Fetching PRs (git-poll, ${def.trigger.repos === 'auto' ? 'auto repos' : 'custom repos'})`)
       contexts = await executeGitPollTrigger(def.trigger)
+      for (const ctx of contexts) ctx.repoSlugs = repoSlugs
       plog(`Found ${contexts.length} repo/PR context(s) to evaluate`)
     } else if (def.trigger.type === 'cron') {
       plog(`Cron trigger — creating single context`)
-      contexts = [{ githubUser: githubUser || undefined, timestamp: new Date().toISOString() }]
+      contexts = [{ githubUser: githubUser || undefined, timestamp: new Date().toISOString(), repoSlugs }]
     } else {
       plog(`Trigger type "${def.trigger.type}" not supported for preview`)
     }
@@ -1060,8 +1070,9 @@ export async function previewPipeline(fileNameOrName: string): Promise<PreviewRe
       }
       plog(`  ✓ condition matched (sha=${ctx.contentSha || 'none'})`)
 
-      const dedupKey = resolveTemplate(def.dedup.key, ctx)
-      const wouldBeDeduped = isDuplicate(def.name, dedupKey, def.dedup.ttl || 3600, ctx.contentSha)
+      const dedup = def.dedup || { key: '{{timestamp}}', ttl: 3600 }
+      const dedupKey = resolveTemplate(dedup.key, ctx)
+      const wouldBeDeduped = isDuplicate(def.name, dedupKey, dedup.ttl || 3600, ctx.contentSha)
       if (wouldBeDeduped) {
         plog(`  ⊘ would be deduped (key=${dedupKey})`)
       } else {
@@ -1121,23 +1132,29 @@ async function runPoll(pipelineName: string, promptOverride?: string): Promise<v
   let budgetWarnSent = false
 
   try {
+    // Fetch configured repo slugs once for template resolution
+    const repoSlugs = (await getRepos()).map(r => `${r.owner}/${r.name}`)
     let contexts: TriggerContext[] = []
 
     if (p.def.trigger.type === 'git-poll') {
       plog(pipelineName, `polling (git-poll, ${p.def.trigger.repos === 'auto' ? 'auto repos' : 'custom repos'})`)
       contexts = await executeGitPollTrigger(p.def.trigger)
+      // Inject repoSlugs into git-poll contexts (they already have individual repo set)
+      for (const ctx of contexts) ctx.repoSlugs = repoSlugs
       plog(pipelineName, `found ${contexts.length} repo/PR contexts to evaluate`)
     } else if (p.def.trigger.type === 'cron') {
       plog(pipelineName, `cron triggered`)
       contexts = [{
         githubUser: githubUser || undefined,
         timestamp: new Date().toISOString(),
+        repoSlugs,
       }]
     } else if (p.def.trigger.type === 'file-poll') {
       plog(pipelineName, `file change detected`)
       contexts = [{
         githubUser: githubUser || undefined,
         timestamp: new Date().toISOString(),
+        repoSlugs,
       }]
     } else if (p.def.trigger.type === 'webhook') {
       plog(pipelineName, `webhook triggered`)
@@ -1147,6 +1164,7 @@ async function runPoll(pipelineName: string, promptOverride?: string): Promise<v
         githubUser: githubUser || undefined,
         timestamp: new Date().toISOString(),
         webhookPayload: payload,
+        repoSlugs,
       }]
     }
 
@@ -1171,8 +1189,9 @@ async function runPoll(pipelineName: string, promptOverride?: string): Promise<v
       p.state.lastMatchAt = new Date().toISOString()
       plog(pipelineName, `✓ condition matched for ${prLabel} (sha=${ctx.contentSha || 'none'})`)
 
-      const dedupKey = resolveTemplate(p.def.dedup.key, ctx)
-      if (isDuplicate(pipelineName, dedupKey, p.def.dedup.ttl || 3600, ctx.contentSha)) {
+      const dedup = p.def.dedup || { key: '{{timestamp}}', ttl: 3600 }
+      const dedupKey = resolveTemplate(dedup.key, ctx)
+      if (isDuplicate(pipelineName, dedupKey, dedup.ttl || 3600, ctx.contentSha)) {
         plog(pipelineName, `⊘ dedup: already processed ${dedupKey} with same content`)
         continue
       }
