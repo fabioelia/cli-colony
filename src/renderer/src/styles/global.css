@@ -1628,7 +1628,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   margin-top: 4px;
 }
 .activity-approval-diff-toggle:hover {
-  color: var(--text);
+  color: var(--text-primary);
 }
 .activity-approval-diff-body {
   max-height: 400px;
@@ -7469,6 +7469,47 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-muted);
   font-style: italic;
 }
+.diff-viewer-multi {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.diff-viewer-multi-file {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.diff-viewer-multi-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: var(--bg-secondary);
+  border: none;
+  padding: 5px 8px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: left;
+}
+.diff-viewer-multi-header:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.diff-viewer-multi-filename {
+  flex: 1;
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.diff-viewer-multi-stats {
+  flex-shrink: 0;
+  font-family: monospace;
+}
+.diff-stat-add { color: var(--success); }
+.diff-stat-del { color: var(--danger); }
 .diff-truncated {
   padding: 6px 12px;
   text-align: center;

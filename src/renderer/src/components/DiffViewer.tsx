@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react'
+import { ChevronRight, ChevronDown } from 'lucide-react'
 import { hljs, getLangFromFilename } from '../lib/hljs'
 import type { PRFile } from '../../../shared/types'
 
@@ -403,7 +404,7 @@ function DiffViewerMultiFile({ files }: { files: PRFile[] }) {
               className="diff-viewer-multi-header"
               onClick={() => toggle(file.filename)}
             >
-              <span className="diff-viewer-multi-chevron">{isCollapsed ? '▶' : '▼'}</span>
+              {isCollapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
               <span className="diff-viewer-multi-filename">{file.filename}</span>
               <span className="diff-viewer-multi-stats">
                 <span className="diff-stat-add">+{file.additions}</span>
