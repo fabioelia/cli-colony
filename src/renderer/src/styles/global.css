@@ -13149,6 +13149,9 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .pipeline-success-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   font-size: 9px;
   padding: 1px 5px;
   border-radius: 4px;

@@ -7,7 +7,7 @@ import {
   MessageSquare, Send, Plus, Search, Pencil, Eye, X, LayoutList, LayoutGrid,
   ShieldCheck, List, Globe, Wand2, ArrowRight, ArrowLeft, Hourglass, ArrowUpDown,
   GitPullRequest, GitMerge, GitBranch, Sparkles, RotateCw, Copy, Timer, Activity,
-  Download, Upload, PauseCircle, PlayCircle,
+  Download, Upload, PauseCircle, PlayCircle, Check,
 } from 'lucide-react'
 import type { AuditResult, GitHubRepo } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
@@ -973,7 +973,7 @@ ${modelLine}  prompt: |
                       className={`pipeline-success-badge ${cls}`}
                       title={`${stats.successes}/${stats.total} successful (last ${stats.total} runs)`}
                     >
-                      {stats.successes}/{stats.total} ✓
+                      {stats.successes}/{stats.total} <Check size={8} />
                     </span>
                   )
                 })()}
