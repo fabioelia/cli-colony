@@ -5644,7 +5644,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   flex-shrink: 0;
 }
 .arena-promote-btn:hover {
-  border-color: var(--border-hover);
+  border-color: var(--border-active);
   color: var(--text-primary);
 }
 .arena-promote-btn.primary {
