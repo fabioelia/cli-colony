@@ -24,6 +24,7 @@ interface SessionChanges {
   entries: GitDiffEntry[]
   loading: boolean
   error: boolean
+  ticket?: { source: 'jira'; key: string; summary: string }
 }
 
 interface ReviewPanelProps {
@@ -87,6 +88,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
           dir: inst.workingDirectory,
           branch: inst.gitBranch,
           createdAt: inst.createdAt,
+          ticket: inst.ticket,
           entries,
           loading: false,
           error: false,
@@ -112,6 +114,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
             dir: inst.workingDirectory,
             branch: inst.gitBranch,
             createdAt: inst.createdAt,
+            ticket: inst.ticket,
             entries: existing?.entries ?? [],
             loading: false,
             error: true,
@@ -135,6 +138,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
         dir: inst.workingDirectory,
         branch: inst.gitBranch,
         createdAt: inst.createdAt,
+        ticket: inst.ticket,
         entries: [],
         loading: true,
         error: false,
@@ -776,6 +780,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
           entries={commitSession.entries}
           onClose={() => setCommitSession(null)}
           onCommitted={() => { setCommitSession(null); loadAllChanges() }}
+          ticket={commitSession.ticket}
         />
       )}
     </div>

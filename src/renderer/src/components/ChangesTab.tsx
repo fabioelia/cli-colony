@@ -500,6 +500,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
           entries={gitChanges}
           onClose={() => setShowCommitDialog(false)}
           onCommitted={loadGitChanges}
+          ticket={instance.ticket}
         />
       )}
     </>

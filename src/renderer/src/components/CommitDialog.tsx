@@ -1,17 +1,20 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { GitCommit, Upload, AlertCircle, AlertTriangle, Check, Loader, GitBranch } from 'lucide-react'
 import type { GitDiffEntry } from '../../../shared/types'
+import { buildCommitSubject, buildBranchName, buildCommitBody } from '../../../shared/ticket-commit-format'
+import type { InstanceTicket } from '../../../shared/ticket-commit-format'
 
 interface CommitDialogProps {
   dir: string
   entries: GitDiffEntry[]
   onClose: () => void
   onCommitted: () => void
+  ticket?: InstanceTicket
 }
 
 type Phase = 'editing' | 'committing' | 'pushing' | 'done' | 'error'
 
-export default function CommitDialog({ dir, entries, onClose, onCommitted }: CommitDialogProps) {
+export default function CommitDialog({ dir, entries, onClose, onCommitted, ticket }: CommitDialogProps) {
   const [message, setMessage] = useState('')
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(() => new Set(entries.map(e => e.file)))
   const [phase, setPhase] = useState<Phase>('editing')
@@ -22,6 +25,18 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted }: Com
   const [creatingBranch, setCreatingBranch] = useState(false)
   const [branchError, setBranchError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const ticketSeededRef = useRef(false)
+
+  // Seed message + branch from ticket once on mount — never overwrite user edits
+  // Pre-fill the full message (subject + Refs footer) so the textarea shows
+  // exactly what will be committed — no silent body addition.
+  useEffect(() => {
+    if (ticket && !ticketSeededRef.current) {
+      ticketSeededRef.current = true
+      setMessage(`${buildCommitSubject(ticket)}\n\nRefs ${ticket.key}`)
+      setNewBranchName(buildBranchName(ticket))
+    }
+  }, [ticket])
 
   useEffect(() => {
     window.api.git.branchInfo(dir).then(setBranchInfo).catch(() => {})
@@ -74,7 +89,8 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted }: Com
     setPhase('committing')
     try {
       await window.api.git.stage(dir, [...selectedFiles])
-      const hash = await window.api.git.commit(dir, message.trim())
+      const finalMessage = ticket ? buildCommitBody(message.trim(), ticket) : message.trim()
+      const hash = await window.api.git.commit(dir, finalMessage)
       setCommitHash(hash)
       if (andPush) {
         setPhase('pushing')
