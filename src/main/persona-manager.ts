@@ -23,7 +23,8 @@ import { slugify, parseFrontmatter as parseRawFrontmatter, stripAnsi } from '../
 import type { PersonaInfo } from '../shared/types'
 import { JsonFile } from '../shared/json-file'
 import { appendActivity } from './activity-manager'
-import { appendRunEntry, checkDailyCostBudget } from './persona-run-history'
+import { appendRunEntry, checkDailyCostBudget, getPersonaDailyCost } from './persona-run-history'
+import { getRateLimitState } from './rate-limit-state'
 import { migrateFromMarkdown, readPersonaMemory, extractMemoryInBackground } from './persona-memory'
 import { buildPlanningPrompt, buildKickoff } from './persona-prompt-builder'
 
@@ -107,6 +108,8 @@ export interface PersonaFrontmatter {
   stable_waiting_seconds?: number
   /** Per-session cost cap in USD. Session auto-stops when exceeded. */
   max_cost_usd?: number
+  /** Per-persona daily cost cap in USD — trailing 24h window. Skips launch when exceeded. */
+  max_cost_per_day_usd?: number
   /**
    * Optional run condition. Currently supports 'new_commits' — skip run if no
    * commits have been made since the last run in the persona's working_directory.
@@ -137,6 +140,7 @@ function parseFrontmatter(content: string): PersonaFrontmatter | null {
     session_timeout_minutes: parseInt(val('session_timeout_minutes')) || undefined,
     stable_waiting_seconds: parseInt(val('stable_waiting_seconds')) || undefined,
     max_cost_usd: parseFloat(val('max_cost_usd')) || undefined,
+    max_cost_per_day_usd: parseFloat(val('max_cost_per_day_usd')) || undefined,
     conflict_group: val('conflict_group') || undefined,
     run_condition: val('run_condition') || undefined,
   }
@@ -244,6 +248,7 @@ export function getPersonaList(): PersonaInfo[] {
         conflictGroup: fm.conflict_group,
         lastSkipped: state.lastSkipped ?? null,
         maxCostUsd: fm.max_cost_usd,
+        maxCostPerDayUsd: fm.max_cost_per_day_usd,
       })
     } catch { /* skip invalid files */ }
   }
@@ -520,6 +525,40 @@ export async function runPersona(fileName: string, trigger: TriggerSource = { ty
       // Re-throw skip errors; for git failures (not a repo, etc.) fall through and run normally
       if (String(err).includes('Skipped —')) throw err
       console.log(`[persona] run_condition git check failed for "${fm.name}", running anyway: ${err}`)
+    }
+  }
+
+  // Check per-persona daily cost cap (trailing 24h window, independent of global budget)
+  if (fm.max_cost_per_day_usd && fm.max_cost_per_day_usd > 0) {
+    const personaSlug = basename(filePath, '.md')
+    const dailyCost = getPersonaDailyCost(personaSlug)
+    if (dailyCost >= fm.max_cost_per_day_usd) {
+      console.log(`[persona] Skipping "${fm.name}" — daily cap $${fm.max_cost_per_day_usd} reached (spent $${dailyCost.toFixed(4)} in last 24h)`)
+      state.lastSkipped = Date.now()
+      saveState()
+      broadcastStatus()
+      appendActivity({
+        source: 'persona',
+        name: fm.name,
+        summary: `Daily cap reached — $${dailyCost.toFixed(2)} of $${fm.max_cost_per_day_usd.toFixed(2)} used in last 24h`,
+        level: 'warn',
+      })
+      // One-time desktop notification per day, deduped by flag file; suppressed during rate limit pause
+      if (!getRateLimitState().paused) {
+        const today = new Date().toISOString().slice(0, 10)
+        const flagPath = join(colonyPaths.root, `.daily-cap-alert-${personaSlug}`)
+        let alreadyNotified = false
+        try { alreadyNotified = readFileSync(flagPath, 'utf-8').trim() === today } catch { /* first alert */ }
+        if (!alreadyNotified) {
+          try { writeFileSync(flagPath, today, 'utf-8') } catch { /* non-fatal */ }
+          notify(
+            `Colony: ${fm.name} Daily Cap Reached`,
+            `Spent $${dailyCost.toFixed(2)} of $${fm.max_cost_per_day_usd.toFixed(2)} in the last 24h. No more runs until the cap resets.`,
+            'personas',
+          ).catch(() => { /* non-fatal */ })
+        }
+      }
+      throw new Error(`Skipped — daily cost cap of $${fm.max_cost_per_day_usd} reached`)
     }
   }
 

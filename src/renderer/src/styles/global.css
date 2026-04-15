@@ -17554,6 +17554,23 @@ body:has(.daemon-update-banner) .app-update-banner {
   flex-shrink: 0;
   white-space: nowrap;
 }
+.persona-list-daily-cap {
+  font-size: 9px;
+  color: var(--text-muted);
+  background: var(--bg-hover);
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.persona-list-daily-cap.warn {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+}
+.persona-list-daily-cap.danger {
+  color: var(--error);
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+}
 
 .persona-list-actions {
   display: flex;

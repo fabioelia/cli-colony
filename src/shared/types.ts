@@ -321,6 +321,8 @@ export interface PersonaInfo {
   lastSkipped?: number | null
   /** Per-session cost cap in USD (optional, from frontmatter) */
   maxCostUsd?: number
+  /** Per-persona daily cost cap in USD — trailing 24h window (optional, from frontmatter) */
+  maxCostPerDayUsd?: number
 }
 
 // ---- Persona Memory (structured sidecar) ----
@@ -373,6 +375,8 @@ export interface PersonaAnalytics {
   avgDurationMs: number
   totalCostUsd: number
   costLast7d: number
+  /** Cost in the trailing 24h window (same window used for daily cap enforcement) */
+  dailyCostUsd: number
   recentRuns: PersonaRunEntry[]
 }
 

@@ -43,11 +43,22 @@ export function getRunHistory(personaId: string, max = 20): PersonaRunEntry[] {
   } catch { return [] }
 }
 
+/** Sum costUsd for a persona's runs in the trailing 24h window. Returns 0 if no cost data. */
+export function getPersonaDailyCost(personaId: string): number {
+  const allRuns = getRunHistory(personaId, MAX_ENTRIES)
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000
+  return Math.round(
+    allRuns
+      .filter(r => new Date(r.timestamp).getTime() > cutoff)
+      .reduce((s, r) => s + (r.costUsd ?? 0), 0) * 10000
+  ) / 10000
+}
+
 /** Compute aggregate analytics from a persona's run history. */
 export function getPersonaAnalytics(personaId: string): PersonaAnalytics {
   const allRuns = getRunHistory(personaId, MAX_ENTRIES)
   if (allRuns.length === 0) {
-    return { totalRuns: 0, successRate: 0, avgDurationMs: 0, totalCostUsd: 0, costLast7d: 0, recentRuns: [] }
+    return { totalRuns: 0, successRate: 0, avgDurationMs: 0, totalCostUsd: 0, costLast7d: 0, dailyCostUsd: 0, recentRuns: [] }
   }
 
   const successCount = allRuns.filter(r => r.success).length
@@ -62,7 +73,9 @@ export function getPersonaAnalytics(personaId: string): PersonaAnalytics {
       .reduce((s, r) => s + (r.costUsd ?? 0), 0) * 100,
   ) / 100
 
-  return { totalRuns: allRuns.length, successRate, avgDurationMs, totalCostUsd, costLast7d, recentRuns: allRuns.slice(0, 20) }
+  const dailyCostUsd = getPersonaDailyCost(personaId)
+
+  return { totalRuns: allRuns.length, successRate, avgDurationMs, totalCostUsd, costLast7d, dailyCostUsd, recentRuns: allRuns.slice(0, 20) }
 }
 
 /** Return last-run success for each persona with ≥1 run. Lightweight — reads only 1 entry per persona. */

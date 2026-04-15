@@ -1147,6 +1147,11 @@ function PersonaCard({
           })()}
           <span className="persona-list-model">{persona.model || 'sonnet'}</span>
           {persona.maxCostUsd != null && <span className="persona-list-cost-cap" title={`Session cost cap: $${persona.maxCostUsd.toFixed(2)}`}>${persona.maxCostUsd.toFixed(2)} cap</span>}
+          {persona.maxCostPerDayUsd != null && analytics != null && (() => {
+            const pct = analytics.dailyCostUsd / persona.maxCostPerDayUsd! * 100
+            const cls = pct >= 100 ? 'persona-list-daily-cap danger' : pct >= 75 ? 'persona-list-daily-cap warn' : 'persona-list-daily-cap'
+            return <span className={cls} title={`Daily cap (trailing 24h): $${analytics.dailyCostUsd.toFixed(2)} of $${persona.maxCostPerDayUsd!.toFixed(2)}`}>${analytics.dailyCostUsd.toFixed(2)} / ${persona.maxCostPerDayUsd!.toFixed(2)} today</span>
+          })()}
           {analytics && analytics.totalRuns > 0 && (
             <span className="persona-list-stats">
               <span className={`persona-stat-chip ${analytics.successRate >= 80 ? 'good' : analytics.successRate >= 50 ? 'warn' : 'bad'}`} title={`Success rate: ${analytics.successRate}%`}>
@@ -1756,6 +1761,7 @@ function EditPersonaModal({ persona, allPersonaIds, onClose, onSaved }: {
   const [enabled, setEnabled] = useState(persona.enabled)
   const [maxSessions, setMaxSessions] = useState(persona.maxSessions ?? 1)
   const [maxCostUsd, setMaxCostUsd] = useState(persona.maxCostUsd?.toString() ?? '')
+  const [maxCostPerDayUsd, setMaxCostPerDayUsd] = useState(persona.maxCostPerDayUsd?.toString() ?? '')
   const [onCompleteRun, setOnCompleteRun] = useState<string[]>(persona.onCompleteRun ?? [])
   const [canInvoke, setCanInvoke] = useState<string[]>(persona.canInvoke ?? [])
   const [saving, setSaving] = useState(false)
@@ -1783,6 +1789,12 @@ function EditPersonaModal({ persona, allPersonaIds, onClose, onSaved }: {
       } else if (persona.maxCostUsd != null) {
         // Clear the field by setting to 0 (parseFrontmatter treats 0/NaN as undefined)
         updates.max_cost_usd = 0
+      }
+      const parsedDailyCost = parseFloat(maxCostPerDayUsd)
+      if (parsedDailyCost > 0) {
+        updates.max_cost_per_day_usd = parsedDailyCost
+      } else if (persona.maxCostPerDayUsd != null) {
+        updates.max_cost_per_day_usd = 0
       }
       const ok = await window.api.persona.updateMeta(persona.id, updates)
       if (ok) {
@@ -1848,6 +1860,18 @@ function EditPersonaModal({ persona, allPersonaIds, onClose, onSaved }: {
               value={maxCostUsd}
               onChange={(e) => setMaxCostUsd(e.target.value)}
               placeholder="No limit"
+            />
+          </label>
+          <label className="persona-edit-meta-field">
+            <span>Daily Cap (USD)</span>
+            <input
+              className="persona-edit-meta-input"
+              type="number"
+              min={0}
+              step={1}
+              value={maxCostPerDayUsd}
+              onChange={(e) => setMaxCostPerDayUsd(e.target.value)}
+              placeholder="No limit (trailing 24h)"
             />
           </label>
           <div className="persona-edit-meta-field">
