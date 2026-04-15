@@ -13174,6 +13174,24 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--danger);
   border: 1px solid rgba(239, 68, 68, 0.25);
 }
+.pipeline-success-badge.clickable {
+  cursor: pointer;
+}
+.pipeline-success-badge.clickable:hover {
+  filter: brightness(1.2);
+}
+
+.pipeline-history-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.pipeline-history-filter-bar .panel-header-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 
 .pipeline-budget-bar {
   height: 3px;

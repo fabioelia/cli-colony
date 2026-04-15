@@ -189,6 +189,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [expandedHistoryRows, setExpandedHistoryRows] = useState<Set<number>>(new Set())
   const [comparedRuns, setComparedRuns] = useState<Set<number>>(new Set())
   const [showComparison, setShowComparison] = useState(false)
+  const [historyFilterFailures, setHistoryFilterFailures] = useState(false)
 
   const [triggeringPipelines, setTriggeringPipelines] = useState<Set<string>>(new Set())
   const [retryingFromHistory, setRetryingFromHistory] = useState(false)
@@ -473,8 +474,14 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     return { total, healthy, totalFires, totalErrors }
   }, [pipelines])
 
-  const handleExpand = async (p: PipelineInfo) => {
+  const handleExpand = async (p: PipelineInfo, opts?: { openFailures?: boolean }) => {
     if (expandedPipeline === p.name) {
+      if (opts?.openFailures) {
+        // Already expanded — just switch to history + set filter
+        setExpandedTab('history')
+        setHistoryFilterFailures(true)
+        return
+      }
       if ((dirty || memoryDirty) && !window.confirm('You have unsaved changes. Discard?')) return
       setExpandedPipeline(null)
       setEditingContent(null)
@@ -483,6 +490,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
       setDirty(false)
       setComparedRuns(new Set())
       setShowComparison(false)
+      setHistoryFilterFailures(false)
       return
     }
     if ((dirty || memoryDirty) && expandedPipeline) {
@@ -491,11 +499,12 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     setExpandedPipeline(p.name)
     setComparedRuns(new Set())
     setShowComparison(false)
+    setHistoryFilterFailures(opts?.openFailures ?? false)
     const content = await window.api.pipeline.getContent(p.fileName)
     setEditingContent(content || '')
     setEditingFileName(p.fileName)
     setDirty(false)
-    setExpandedTab('yaml')
+    setExpandedTab(opts?.openFailures ? 'history' : 'yaml')
 
     // Try to load companion README
     const readmeName = p.fileName.replace(/\.(yaml|yml)$/, '.readme.md')
@@ -968,10 +977,12 @@ ${modelLine}  prompt: |
                   const stats = successRates.get(p.name)
                   if (!stats) return null
                   const cls = stats.rate >= 80 ? 'good' : stats.rate >= 50 ? 'warn' : 'bad'
+                  const clickable = stats.rate < 100
                   return (
                     <span
-                      className={`pipeline-success-badge ${cls}`}
-                      title={`${stats.successes}/${stats.total} successful (last ${stats.total} runs)`}
+                      className={`pipeline-success-badge ${cls}${clickable ? ' clickable' : ''}`}
+                      title={`${stats.successes}/${stats.total} successful (last ${stats.total} runs)${clickable ? ' — click to see failures' : ''}`}
+                      onClick={clickable ? (e) => { e.stopPropagation(); handleExpand(p, { openFailures: true }) } : undefined}
                     >
                       {stats.successes}/{stats.total} <Check size={8} />
                     </span>
@@ -1024,10 +1035,12 @@ ${modelLine}  prompt: |
                   const stats = successRates.get(p.name)
                   if (!stats) return null
                   const cls = stats.rate >= 80 ? 'good' : stats.rate >= 50 ? 'warn' : 'bad'
+                  const clickable = stats.rate < 100
                   return (
                     <span
-                      className={`pipeline-success-badge ${cls}`}
-                      title={`${stats.successes}/${stats.total} successful (last ${stats.total} runs)`}
+                      className={`pipeline-success-badge ${cls}${clickable ? ' clickable' : ''}`}
+                      title={`${stats.successes}/${stats.total} successful (last ${stats.total} runs)${clickable ? ' — click to see failures' : ''}`}
+                      onClick={clickable ? (e) => { e.stopPropagation(); handleExpand(p, { openFailures: true }) } : undefined}
                     >
                       {stats.rate}%
                     </span>
@@ -1280,6 +1293,19 @@ ${modelLine}  prompt: |
                       <p className="pipeline-memory-hint">No runs recorded yet. History is captured after each poll.</p>
                     ) : (
                       <>
+                        {(() => {
+                          const failureCount = historyEntries.filter(e => !e.success).length
+                          return (
+                            <div className="pipeline-history-filter-bar">
+                              <button
+                                className={`panel-header-btn${historyFilterFailures ? ' active' : ''}`}
+                                onClick={() => setHistoryFilterFailures(f => !f)}
+                              >
+                                Failures only ({failureCount})
+                              </button>
+                            </div>
+                          )
+                        })()}
                         {comparedRuns.size > 0 && (
                           <div className="pipeline-comparison-toolbar">
                             <span className="pipeline-comparison-toolbar-label">{comparedRuns.size} selected</span>
@@ -1294,7 +1320,13 @@ ${modelLine}  prompt: |
                           </div>
                         )}
                         <div className="pipeline-history-list">
-                          {historyEntries.map((entry, i) => {
+                          {(() => {
+                            const indexed = historyEntries.map((e, i) => ({ e, i }))
+                            const filtered = historyFilterFailures ? indexed.filter(({ e }) => !e.success) : indexed
+                            if (historyFilterFailures && filtered.length === 0) {
+                              return <p className="pipeline-memory-hint">No failures in the last {historyEntries.length} runs.</p>
+                            }
+                            return filtered.map(({ e: entry, i }) => {
                             const hasStages = (entry.stages?.length ?? 0) >= 1
                             const isExpanded = expandedHistoryRows.has(i)
                             const isChecked = comparedRuns.has(i)
@@ -1435,7 +1467,8 @@ ${modelLine}  prompt: |
                                 })()}
                               </div>
                             )
-                          })}
+                          })
+                          })()}
                         </div>
                         {showComparison && comparedRuns.size === 2 && (() => {
                           const [idxA, idxB] = Array.from(comparedRuns).sort((a, b) => {
