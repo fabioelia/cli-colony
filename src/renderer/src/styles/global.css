@@ -3270,7 +3270,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   top: calc(100% + 4px);
   right: 0;
   width: 360px;
-  background: var(--surface-2);
+  background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: 6px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.3);
@@ -3282,7 +3282,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .jira-picker-state {
   padding: 12px 12px;
   font-size: 12px;
-  color: var(--muted);
+  color: var(--text-muted);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -3303,7 +3303,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-bottom: 1px solid var(--border);
   text-align: left;
   cursor: pointer;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .jira-picker-row:last-child {
@@ -3311,13 +3311,13 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .jira-picker-row:hover {
-  background: var(--surface-3);
+  background: var(--bg-hover);
 }
 
 .jira-picker-key {
   font-size: 11px;
   font-weight: 600;
-  color: var(--accent-blue);
+  color: var(--accent);
   flex-shrink: 0;
 }
 
@@ -3331,7 +3331,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .jira-picker-status {
   font-size: 10px;
-  color: var(--muted);
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
