@@ -5,6 +5,13 @@
 
 export type CliBackend = 'claude' | 'cursor-agent'
 
+export interface JiraTicket {
+  key: string
+  summary: string
+  description: string
+  url: string
+}
+
 export type SessionRole = 'Orchestrator' | 'Planner' | 'Coder' | 'Tester' | 'Reviewer' | 'Researcher' | 'Coordinator' | 'Worker'
 
 export const SESSION_ROLES: SessionRole[] = ['Orchestrator', 'Planner', 'Coder', 'Tester', 'Reviewer', 'Researcher', 'Coordinator', 'Worker']

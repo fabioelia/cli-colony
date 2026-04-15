@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X, Shield, Sparkles, Check, Circle, Sun, Moon, Palette, Eye, EyeOff, Search, Play, CheckCircle, XCircle, Loader, Download, Upload } from 'lucide-react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X, Shield, Sparkles, Check, Circle, Sun, Moon, Palette, Eye, EyeOff, Search, Play, CheckCircle, XCircle, Loader, Download, Upload, Puzzle } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import BatchExecutionSettings from './BatchExecutionSettings'
 import AppUpdateSettings from './AppUpdateSettings'
@@ -84,6 +84,11 @@ export default function SettingsPanel({ onBack }: Props) {
   const [showBatchSection, setShowBatchSection] = useState(false)
   const [showUpdateSection, setShowUpdateSection] = useState(false)
   const [showOnboardingSection, setShowOnboardingSection] = useState(false)
+  const [showIntegrationsSection, setShowIntegrationsSection] = useState(false)
+  const [jiraDomain, setJiraDomain] = useState('')
+  const [jiraEmail, setJiraEmail] = useState('')
+  const [jiraApiToken, setJiraApiToken] = useState('')
+  const [jiraTestResult, setJiraTestResult] = useState<{ ok: boolean; message: string } | 'testing' | null>(null)
   const [onboardingState, setOnboardingState] = useState<OnboardingState | null>(null)
   const [approvalRuleFormError, setApprovalRuleFormError] = useState<string | null>(null)
   const [approvalRuleFormName, setApprovalRuleFormName] = useState('')
@@ -111,6 +116,7 @@ export default function SettingsPanel({ onBack }: Props) {
     batch: 'batch execution parallel concurrent',
     onboarding: 'onboarding welcome checklist activation reset replay',
     scheduler: 'scheduler log cron schedule',
+    integrations: 'integrations jira ticket atlassian domain email api token',
   }
 
   const sectionVisible = useMemo(() => {
@@ -154,6 +160,9 @@ export default function SettingsPanel({ onBack }: Props) {
       setWebhookEnabled(s.webhookEnabled !== 'false')
       setWebhookPort(s.webhookPort || '7474')
       setApiToken(s.apiToken || '')
+      setJiraDomain(s.jiraDomain || '')
+      setJiraEmail(s.jiraEmail || '')
+      setJiraApiToken(s.jiraApiToken || '')
       setTheme((s.theme === 'light' ? 'light' : 'dark') as 'dark' | 'light')
       if (s.fontSize) setFontSize(parseInt(s.fontSize, 10) || 13)
       if (s.terminalFontFamily) setFontFamily(s.terminalFontFamily)
@@ -265,6 +274,9 @@ export default function SettingsPanel({ onBack }: Props) {
       window.api.settings.set('webhookEnabled', webhookEnabled ? 'true' : 'false'),
       window.api.settings.set('webhookPort', webhookPort),
       window.api.settings.set('apiToken', apiToken),
+      window.api.settings.set('jiraDomain', jiraDomain),
+      window.api.settings.set('jiraEmail', jiraEmail),
+      window.api.settings.set('jiraApiToken', jiraApiToken),
       window.api.settings.set('theme', theme),
     ])
     // Re-register hotkey immediately (no app restart needed)
@@ -1182,6 +1194,95 @@ export default function SettingsPanel({ onBack }: Props) {
           External webhooks need ngrok or similar to reach this server. Add <code>trigger: &#123;type: webhook&#125;</code> to a pipeline YAML to register a route at <code>/webhook/&lt;slug&gt;</code>.
           <span className="settings-restart-note">Requires app restart to take effect</span>
         </p>
+      </div>
+
+      {/* Integrations */}
+      <div className={`settings-section settings-logs-section ${showIntegrationsSection ? '' : 'collapsed'}`} style={{ display: sectionVisible('integrations') ? undefined : 'none' }}>
+        <div className="settings-section-title">
+          <Puzzle size={12} />
+          Integrations
+          <div className="settings-logs-actions">
+            <button
+              className="settings-logs-toggle"
+              onClick={() => setShowIntegrationsSection(!showIntegrationsSection)}
+              title={showIntegrationsSection ? 'Hide' : 'Show'}
+            >
+              {showIntegrationsSection ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            </button>
+          </div>
+        </div>
+        {showIntegrationsSection && (
+          <div>
+            <p className="settings-help">
+              Configure Jira Cloud credentials to attach ticket context to sessions. Uses Basic auth (email + API token).{' '}
+              <a
+                href="https://id.atlassian.com/manage-profile/security/api-tokens"
+                onClick={(e) => { e.preventDefault(); window.api.shell.openExternal('https://id.atlassian.com/manage-profile/security/api-tokens') }}
+                style={{ color: 'var(--accent)', cursor: 'pointer' }}
+              >
+                Create API token ↗
+              </a>
+            </p>
+            <div className="settings-field">
+              <label>Jira Domain</label>
+              <input
+                placeholder="e.g. yourcompany.atlassian.net"
+                value={jiraDomain}
+                onChange={(e) => setJiraDomain(e.target.value)}
+              />
+            </div>
+            <div className="settings-field">
+              <label>Jira Email</label>
+              <input
+                type="email"
+                placeholder="you@example.com"
+                value={jiraEmail}
+                onChange={(e) => setJiraEmail(e.target.value)}
+              />
+            </div>
+            <div className="settings-field">
+              <label>Jira API Token</label>
+              <input
+                type="password"
+                placeholder="••••••••"
+                value={jiraApiToken}
+                onChange={(e) => setJiraApiToken(e.target.value)}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+              <button
+                className="panel-header-btn"
+                disabled={jiraTestResult === 'testing' || !jiraDomain || !jiraEmail || !jiraApiToken}
+                onClick={async () => {
+                  setJiraTestResult('testing')
+                  // Save current values first so fetchTicket reads them
+                  await Promise.all([
+                    window.api.settings.set('jiraDomain', jiraDomain),
+                    window.api.settings.set('jiraEmail', jiraEmail),
+                    window.api.settings.set('jiraApiToken', jiraApiToken),
+                  ])
+                  const result = await window.api.jira.fetchTicket('TEST-0')
+                  if (result.ok) {
+                    setJiraTestResult({ ok: true, message: 'Connected' })
+                  } else if (result.error.includes('not found') || result.error.includes('404')) {
+                    setJiraTestResult({ ok: true, message: 'Connected' })
+                  } else {
+                    setJiraTestResult({ ok: false, message: result.error })
+                  }
+                }}
+              >
+                {jiraTestResult === 'testing' ? <Loader size={11} className="spinning" /> : <Play size={11} />}
+                {' '}Test Connection
+              </button>
+              {jiraTestResult && jiraTestResult !== 'testing' && (
+                <span style={{ fontSize: 12, color: jiraTestResult.ok ? 'var(--success)' : 'var(--warning)' }}>
+                  {jiraTestResult.ok ? <CheckCircle size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> : <XCircle size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />}
+                  {jiraTestResult.message}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Session Templates */}

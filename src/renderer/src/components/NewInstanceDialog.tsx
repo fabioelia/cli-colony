@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { AgentDef, CliBackend } from '../types'
+import type { JiraTicket } from '../../../shared/types'
 import { COLORS, COLOR_MAP } from '../lib/constants'
 import { getHistory, addToHistory } from '../lib/prompt-history'
 
@@ -32,6 +33,7 @@ interface Props {
     permissionMode?: 'autonomous' | 'supervised'
     planFirst?: boolean
     env?: Record<string, string>
+    jiraTicket?: JiraTicket
   }) => void | Promise<void>
   onClose: () => void
   prefill?: AgentDef
@@ -123,6 +125,9 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [agents, setAgents] = useState<AgentDef[]>([])
   const [selectedAgent, setSelectedAgent] = useState<string>('')  // filePath or empty
+  const [jiraKey, setJiraKey] = useState('')
+  const [jiraPreview, setJiraPreview] = useState<{ ok: boolean; text: string } | null>(null)
+  const [jiraTicket, setJiraTicket] = useState<JiraTicket | null>(null)
 
   // When the starter-card / clone path opens the dialog, focus the prompt
   // textarea and place the cursor at the end so the user can just press Enter.
@@ -178,6 +183,20 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
     if (dir) setWorkingDirectory(dir)
   }
 
+  const handleJiraFetch = async (key: string) => {
+    const trimmed = key.trim().toUpperCase()
+    if (!trimmed) return
+    setJiraPreview({ ok: true, text: 'Fetching…' })
+    setJiraTicket(null)
+    const result = await window.api.jira.fetchTicket(trimmed)
+    if (result.ok) {
+      setJiraTicket(result.ticket)
+      setJiraPreview({ ok: true, text: `${result.ticket.key}: ${result.ticket.summary}` })
+    } else {
+      setJiraPreview({ ok: false, text: `Could not fetch: ${result.error}` })
+    }
+  }
+
   const handleCreate = async () => {
     if (creating) return
     setCreating(true)
@@ -204,6 +223,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
         permissionMode,
         planFirst: planFirst || undefined,
         env: Object.keys(envRecord).length > 0 ? envRecord : undefined,
+        jiraTicket: jiraTicket || undefined,
       })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -318,6 +338,26 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
                 Runs automatically as soon as the session is ready. Leave blank to start idle.
               </div>
             </>
+          )}
+        </div>
+
+        <div className="dialog-field">
+          <label>Attach JIRA Ticket <span style={{ opacity: 0.5, fontWeight: 'normal' }}>(optional)</span></label>
+          <input
+            placeholder="e.g. NP-7663"
+            value={jiraKey}
+            onChange={(e) => {
+              setJiraKey(e.target.value)
+              // Clear preview if user edits after fetch
+              if (jiraPreview) { setJiraPreview(null); setJiraTicket(null) }
+            }}
+            onBlur={() => { if (jiraKey.trim()) handleJiraFetch(jiraKey) }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (jiraKey.trim()) handleJiraFetch(jiraKey) } }}
+          />
+          {jiraPreview && (
+            <div className={`jira-preview ${jiraPreview.ok ? 'ok' : 'err'}`}>
+              {jiraPreview.ok ? '✓' : '✗'} {jiraPreview.text}
+            </div>
           )}
         </div>
 

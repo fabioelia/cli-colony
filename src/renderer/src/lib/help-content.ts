@@ -204,6 +204,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Plan first', detail: 'When a first prompt is set, toggle "Plan first" to make Claude outline its approach (files to modify, steps, risks) and wait for your approval before taking any action. Useful for complex tasks where you want to review the strategy before committing tokens. Works with both the dialog and session templates.', icon: 'ListChecks' },
           { label: 'First prompt', detail: 'Collapsible textarea for seeding a session with a task. Click the "First prompt" toggle to expand. When cloning a session or launching from a starter card, it opens automatically. The prompt runs as soon as the session is ready; leave blank to start idle.', icon: 'ChevronRight' },
           { label: 'Prompt history', detail: 'When the "First prompt" field is expanded, a History button appears next to the label. Click it to see your last 20 session prompts with timestamps. Click an entry to fill the textarea. History is saved automatically on session creation and stored in localStorage.', icon: 'Clock' },
+          { label: 'Attach JIRA Ticket', detail: 'Attach a JIRA ticket by key (e.g. NP-7663) and its title + description will be prepended to your prompt. Type the key and press Enter or leave the field — the ticket is fetched and a preview shown. Requires Jira credentials in Settings → Integrations.' },
           { label: 'Restore banner', detail: 'After app restart, shows a button to restore sessions from your last run. Opens a dialog where you can search by name or directory, see how long each session was running, and select which to restore. Select All toggles only the visible (filtered) sessions.', icon: 'RotateCcw' },
         ],
       },
@@ -878,6 +879,14 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Edit rule', detail: 'Click the pencil icon on any rule row to edit its name, type, condition, or action inline. Updates are saved immediately.', icon: 'Pencil' },
           { label: 'Rule precedence', detail: 'Rules are evaluated in order — first match wins. Disabled rules are skipped.' },
           { label: 'Auto-approve audit trail', detail: 'Auto-approved actions are logged for compliance (autoApproved: true).' },
+        ],
+      },
+      {
+        name: 'Integrations Section',
+        position: 'Above Session Templates',
+        items: [
+          { label: 'Jira Cloud', detail: 'Configure Jira Cloud credentials to attach ticket context to sessions. Uses Basic auth (email + API token). Get your token at id.atlassian.com/manage-profile/security/api-tokens. Once configured, use the "Attach JIRA Ticket" field in the New Session dialog to prepend any ticket\'s title and description to the session\'s first prompt.' },
+          { label: 'Test Connection', detail: 'Sends a test request to the configured Jira domain. A 404 (ticket not found) counts as success — it confirms auth worked. A 401 means wrong email or API token.', icon: 'Play' },
         ],
       },
       {

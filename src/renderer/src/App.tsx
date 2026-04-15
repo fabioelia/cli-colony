@@ -7,7 +7,7 @@ import { useOutputTracking } from './hooks/useOutputTracking'
 import { useFocusHistory } from './hooks/useFocusHistory'
 import { createPortal } from 'react-dom'
 import type { ClaudeInstance, AgentDef, CliSession, RecentSession, CliBackend, ArenaStats } from './types'
-import type { ArenaMatchRecord } from '../../shared/types'
+import type { ArenaMatchRecord, JiraTicket } from '../../shared/types'
 import Sidebar, { SidebarView } from './components/Sidebar'
 import TerminalView from './components/TerminalView'
 import NewInstanceDialog, { type CloneSource } from './components/NewInstanceDialog'
@@ -469,16 +469,25 @@ export default function App() {
     permissionMode?: 'autonomous' | 'supervised'
     planFirst?: boolean
     env?: Record<string, string>
+    jiraTicket?: JiraTicket
   }) => {
     agentToLaunchRef.current = null
-    const { initialPrompt, planFirst, ...createOpts } = opts
+    const { initialPrompt, planFirst, jiraTicket, ...createOpts } = opts
+
+    // Prepend Jira ticket context if one was attached
+    let effectivePrompt = initialPrompt || ''
+    if (jiraTicket) {
+      const ticketHeader = `## Ticket: ${jiraTicket.key} — ${jiraTicket.summary}\n\n${jiraTicket.description}\n\n---\n\n`
+      effectivePrompt = ticketHeader + effectivePrompt
+    }
+
     const inst = await window.api.instance.create(createOpts)
     // If the caller seeded a first prompt, queue it to run once the session
     // signals it's ready — same path the Quick Prompt flow uses.
-    if (initialPrompt && initialPrompt.trim()) {
+    if (effectivePrompt.trim()) {
       const prompt = planFirst
-        ? `IMPORTANT: Before taking any action, first create a structured plan:\n1. Summarize your understanding of the task\n2. List the files you expect to modify and why\n3. Outline your step-by-step approach\n4. Note any risks or assumptions\n\nPresent the plan, then WAIT for my approval before proceeding.\nDo not use any tools or make any changes until I confirm.\n\nTask: ${initialPrompt}`
-        : initialPrompt
+        ? `IMPORTANT: Before taking any action, first create a structured plan:\n1. Summarize your understanding of the task\n2. List the files you expect to modify and why\n3. Outline your step-by-step approach\n4. Note any risks or assumptions\n\nPresent the plan, then WAIT for my approval before proceeding.\nDo not use any tools or make any changes until I confirm.\n\nTask: ${effectivePrompt}`
+        : effectivePrompt
       pendingPromptRef.current = { id: inst.id, prompt }
     }
     setActiveId(inst.id)

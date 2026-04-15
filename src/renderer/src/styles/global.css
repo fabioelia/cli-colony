@@ -3248,6 +3248,23 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-muted);
 }
 
+.jira-preview {
+  margin-top: 6px;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.jira-preview.ok {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+}
+
+.jira-preview.err {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+}
+
 .prompt-history-dropdown {
   position: absolute;
   top: 100%;
