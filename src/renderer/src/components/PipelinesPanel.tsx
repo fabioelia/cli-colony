@@ -516,7 +516,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     loadPipelines()
   }
 
-  const [reloading, setReloading] = useState<'idle' | 'loading' | 'done'>('idle')
+  const [reloading, setReloading] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
 
   const handleReload = async () => {
     if (reloading === 'loading') return
@@ -532,7 +532,8 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
       setReloading('done')
       setTimeout(() => setReloading('idle'), 1200)
     } catch {
-      setReloading('idle')
+      setReloading('error')
+      setTimeout(() => setReloading('idle'), 1200)
     }
   }
 
@@ -764,13 +765,13 @@ action:
             </button>
           )}
           <button
-            className={`panel-header-btn${reloading === 'done' ? ' panel-header-btn--success' : ''}`}
+            className={`panel-header-btn${reloading === 'done' ? ' panel-header-btn--success' : reloading === 'error' ? ' panel-header-btn--error' : ''}`}
             onClick={handleReload}
             disabled={reloading === 'loading'}
             title="Reload all pipeline files"
           >
             <RefreshCw size={12} className={reloading === 'loading' ? 'spin' : ''} />
-            {reloading === 'loading' ? 'Reloading…' : reloading === 'done' ? 'Reloaded' : 'Reload'}
+            {reloading === 'loading' ? 'Reloading…' : reloading === 'done' ? 'Reloaded' : reloading === 'error' ? 'Failed' : 'Reload'}
           </button>
           <button
             className={`panel-header-btn${auditResults && auditResults.length > 0 ? ' panel-header-btn--audit-alert' : ''}`}

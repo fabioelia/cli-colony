@@ -16555,6 +16555,11 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-color: var(--success);
 }
 
+.panel-header-btn--error {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
 .audit-badge {
   display: inline-flex;
   align-items: center;
