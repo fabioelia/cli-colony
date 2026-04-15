@@ -16,6 +16,7 @@ import { getEnvDaemonClient } from './env-daemon-client'
 import { getDaemonRouter } from './daemon-router'
 import { broadcast } from './broadcast'
 import { buildContext, resolveTemplate as resolveTemplateVars } from '../shared/template-resolver'
+import { generateEnvClaudeMd } from './env-claudemd'
 import type { InstanceManifest } from '../daemon/env-protocol'
 
 /**
@@ -101,11 +102,14 @@ export async function swapWorktree(envId: string, newWorktreeId: string): Promis
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8')
   }
 
-  // 7. Send remount to envd (atomic stop → re-register → start)
+  // 7. Regenerate CLAUDE.md for the new worktree
+  generateEnvClaudeMd(manifest).catch(() => {})
+
+  // 8. Send remount to envd (atomic stop → re-register → start)
   const envd = getEnvDaemonClient()
   await envd.remount(envId, manifest)
 
-  // 8. Broadcast changes
+  // 9. Broadcast changes
   broadcast('worktree:changed', null)
   broadcast('env:changed', { envId })
 

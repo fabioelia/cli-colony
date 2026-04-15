@@ -23,6 +23,7 @@ import { buildContext, resolveTemplate as resolveTemplateVars, findUnresolved } 
 import { readAndReconcileState, emptyState, writeState } from '../shared/env-state'
 import { addToIndex, removeFromIndex, allEnvDirs } from '../shared/env-index'
 import { broadcast } from './broadcast'
+import { generateEnvClaudeMd } from './env-claudemd'
 import { appendActivity } from './activity-manager'
 import { handleEnvStatusUpdate } from './pending-session-launches'
 import { runSetup } from './env-setup'
@@ -1001,4 +1002,6 @@ export async function saveManifest(envId: string, manifest: InstanceManifest): P
   await fsp.writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8')
   // Re-register with envd
   getEnvDaemonClient().register(manifest).catch(() => {})
+  // Regenerate CLAUDE.md with latest config
+  generateEnvClaudeMd(manifest).catch(() => {})
 }

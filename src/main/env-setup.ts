@@ -13,6 +13,7 @@ import { getEnvDaemonClient } from './env-daemon-client'
 import { ensureBareRepo, addWorktree } from '../shared/git-worktree'
 import { createWorktree, mountWorktree } from './worktree-manager'
 import { broadcast } from './broadcast'
+import { generateEnvClaudeMd } from './env-claudemd'
 import { gitRemoteUrl } from './settings'
 import { loadShellEnv } from '../shared/shell-env'
 import { buildContext, resolveTemplate as resolveTemplateVars } from '../shared/template-resolver'
@@ -377,6 +378,7 @@ export async function runSetup(
       manifest.setup!.error = null
       fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8')
       await getEnvDaemonClient().register(manifest)
+      generateEnvClaudeMd(manifest).catch(err => logSetup(`CLAUDE.md generation failed: ${err}`))
 
       // Auto-start services after successful setup
       logSetup('Starting services...')
