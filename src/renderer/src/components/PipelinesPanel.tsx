@@ -1719,20 +1719,60 @@ ${modelLine}  prompt: |
                     </div>
                   )}
 
-                  {wizardTrigger === 'cron' && (
-                    <div className="automation-wizard-field">
-                      <label className="automation-wizard-field-label">Schedule (cron expression)</label>
-                      <input
-                        className="automation-wizard-input"
-                        value={wizardCron}
-                        onChange={(e) => setWizardCron(e.target.value)}
-                        placeholder="0 9 * * 1-5"
-                      />
-                      {wizardCron.trim() && (
-                        <p className="automation-wizard-hint">{describeCron(wizardCron)}</p>
-                      )}
-                    </div>
-                  )}
+                  {wizardTrigger === 'cron' && (() => {
+                    const cronFields = wizardCron.trim().split(/\s+/)
+                    const cronValid = !wizardCron.trim() || cronFields.length === 5
+                    const cronRuns = cronValid && wizardCron.trim() ? nextRuns(wizardCron.trim(), 3) : []
+                    const fmtRun = (d: Date) => d.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+                    return (
+                      <div className="automation-wizard-field">
+                        <label className="automation-wizard-field-label">Schedule</label>
+                        <div className="cron-editor-presets">
+                          {[
+                            { label: '15 min', value: '*/15 * * * *' },
+                            { label: '30 min', value: '*/30 * * * *' },
+                            { label: 'Hourly', value: '0 * * * *' },
+                            { label: '2 hours', value: '0 */2 * * *' },
+                            { label: '4 hours', value: '0 */4 * * *' },
+                            { label: 'Daily 9am', value: '0 9 * * *' },
+                            { label: 'Weekdays 9am', value: '0 9 * * 1-5' },
+                          ].map(p => (
+                            <button
+                              key={p.value}
+                              type="button"
+                              className={`cron-preset-btn ${wizardCron.trim() === p.value ? 'active' : ''}`}
+                              onClick={() => setWizardCron(p.value)}
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="cron-editor-input-row">
+                          <Clock size={12} className="cron-editor-icon" />
+                          <input
+                            className={`cron-editor-input ${!cronValid ? 'invalid' : ''}`}
+                            value={wizardCron}
+                            onChange={(e) => setWizardCron(e.target.value)}
+                            placeholder="min hour dom month dow"
+                            spellCheck={false}
+                          />
+                        </div>
+                        {wizardCron.trim() && (
+                          <div className="cron-editor-description">
+                            {!cronValid ? `Needs 5 fields (got ${cronFields.length}): min hour dom month dow` : describeCron(wizardCron)}
+                          </div>
+                        )}
+                        {cronRuns.length > 0 && (
+                          <div className="cron-editor-next-runs">
+                            <span className="cron-next-label">Next:</span>
+                            {cronRuns.map((d, i) => (
+                              <span key={i} className="cron-next-run">{fmtRun(d)}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
 
                   {wizardTrigger === 'git-push' && (
                     <div className="automation-wizard-field">
