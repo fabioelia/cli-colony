@@ -13,6 +13,8 @@ const mockBroadcast = vi.fn()
 const mockCreateInstance = vi.fn()
 const mockGetEnvironmentLogs = vi.fn()
 const mockSendPromptWhenReady = vi.fn()
+const mockGetManifest = vi.fn()
+const mockGenerateEnvClaudeMd = vi.fn()
 
 function setupMocks(): void {
   vi.doMock('../broadcast', () => ({ broadcast: mockBroadcast }))
@@ -22,6 +24,10 @@ function setupMocks(): void {
   vi.doMock('../env-manager', () => ({
     getEnvironmentLogs: mockGetEnvironmentLogs,
     getDebugMcpArgs: vi.fn().mockResolvedValue([]),
+    getManifest: mockGetManifest,
+  }))
+  vi.doMock('../env-claudemd', () => ({
+    generateEnvClaudeMd: mockGenerateEnvClaudeMd,
   }))
   vi.doMock('../send-prompt-when-ready', () => ({
     sendPromptWhenReady: mockSendPromptWhenReady,
@@ -55,6 +61,8 @@ describe('pending-session-launches', () => {
     mockCreateInstance.mockReset().mockResolvedValue({ id: 'inst-1', name: 'Test' })
     mockGetEnvironmentLogs.mockReset().mockResolvedValue('log line 1\nlog line 2')
     mockSendPromptWhenReady.mockReset().mockResolvedValue(undefined)
+    mockGetManifest.mockReset().mockResolvedValue(null)
+    mockGenerateEnvClaudeMd.mockReset().mockResolvedValue(undefined)
     setupMocks()
   })
 
@@ -63,6 +71,7 @@ describe('pending-session-launches', () => {
     vi.doUnmock('../broadcast')
     vi.doUnmock('../instance-manager')
     vi.doUnmock('../env-manager')
+    vi.doUnmock('../env-claudemd')
     vi.doUnmock('../send-prompt-when-ready')
   })
 

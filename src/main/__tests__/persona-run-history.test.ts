@@ -92,7 +92,7 @@ describe('persona-run-history', () => {
       vi.mocked(fs.readFileSync).mockImplementation(() => { throw new Error('ENOENT') })
       const result = getPersonaAnalytics('colony-developer')
       expect(result).toEqual({
-        totalRuns: 0, successRate: 0, avgDurationMs: 0, totalCostUsd: 0, costLast7d: 0, recentRuns: [],
+        totalRuns: 0, successRate: 0, avgDurationMs: 0, totalCostUsd: 0, costLast7d: 0, dailyCostUsd: 0, recentRuns: [],
       })
     })
 

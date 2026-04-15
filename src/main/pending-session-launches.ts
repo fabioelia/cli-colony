@@ -14,7 +14,8 @@
 
 import { broadcast } from './broadcast'
 import { createInstance } from './instance-manager'
-import { getEnvironmentLogs, getDebugMcpArgs } from './env-manager'
+import { getEnvironmentLogs, getDebugMcpArgs, getManifest } from './env-manager'
+import { generateEnvClaudeMd } from './env-claudemd'
 import { sendPromptWhenReady } from './send-prompt-when-ready'
 import { genId } from '../shared/utils'
 import type { EnvStatus, EnvServiceStatus } from '../shared/types'
@@ -188,6 +189,10 @@ async function firePending(
   _pending.delete(entry.id)
 
   try {
+    // Ensure CLAUDE.md is up-to-date before spawning the session
+    const manifest = await getManifest(entry.envId).catch(() => null)
+    if (manifest) generateEnvClaudeMd(manifest).catch(() => {})
+
     let promptText = entry.initialPrompt ?? ''
     if (failed) {
       const autoHealPrefix = await buildAutoHealPrompt(entry.envId, env)
@@ -250,6 +255,7 @@ function handleTimeout(id: string): void {
   _pending.delete(id)
   broadcastStatus(entry)
   console.warn(`[pending-session-launches] env '${entry.envName}' did not reach ready within ${READY_TIMEOUT_MS / 1000}s — spawning anyway`)
+  getManifest(entry.envId).then(m => generateEnvClaudeMd(m)).catch(() => {})
   createInstance(entry.spawnOpts).then(inst => {
     broadcast('pendingLaunch:spawned', {
       pendingId: entry.id,
