@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { GitCompare, RefreshCw, ChevronDown, ChevronRight, Terminal, GitBranch, Copy, Filter, RotateCw, Clock, GitCommit, Upload, AlertTriangle, Undo2, Download, ArrowDown, ExternalLink, FolderOpen, Search, X } from 'lucide-react'
 import type { ClaudeInstance } from '../types'
 import type { GitDiffEntry } from '../../../shared/types'
@@ -40,7 +40,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
   const [sessionChanges, setSessionChanges] = useState<SessionChanges[]>([])
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState<FilterMode>('changes')
-  const [expandedDiffKey, setExpandedDiffKey] = useState<string | null>(null)
+  const [selectedDiffKey, setSelectedDiffKey] = useState<string | null>(null)
   const [reviewDiffContent, setReviewDiffContent] = useState<string | null>(null)
   const [reviewDiffLoading, setReviewDiffLoading] = useState(false)
   const reviewDiffCache = useRef<Record<string, string>>({})
@@ -355,14 +355,9 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   })
 
-  const toggleReviewDiff = useCallback(async (sessionDir: string, file: string, status: string) => {
+  const selectFile = useCallback(async (sessionDir: string, file: string, status: string) => {
     const key = `${sessionDir}:${file}`
-    if (expandedDiffKey === key) {
-      setExpandedDiffKey(null)
-      setReviewDiffContent(null)
-      return
-    }
-    setExpandedDiffKey(key)
+    setSelectedDiffKey(key)
     if (reviewDiffCache.current[key]) {
       setReviewDiffContent(reviewDiffCache.current[key])
       return
@@ -378,11 +373,95 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
     } finally {
       setReviewDiffLoading(false)
     }
-  }, [expandedDiffKey])
+  }, [])
 
   const totalChanges = sessionChanges.reduce((sum, s) => sum + s.entries.length, 0)
   const totalInsertions = sessionChanges.reduce((sum, s) => sum + s.entries.reduce((a, e) => a + e.insertions, 0), 0)
   const totalDeletions = sessionChanges.reduce((sum, s) => sum + s.entries.reduce((a, e) => a + e.deletions, 0), 0)
+
+  // Flat list of visible files for keyboard nav (respects session expand state + fileSearch)
+  const visibleFiles = useMemo(() => {
+    const files: Array<{dir: string; file: string; status: string; sessionId: string}> = []
+    for (const session of sorted) {
+      if (!expandedIds.has(session.instanceId)) continue
+      const filteredEntries = fileSearch
+        ? session.entries.filter(e => e.file.toLowerCase().includes(fileSearch.toLowerCase()))
+        : session.entries
+      for (const entry of filteredEntries) {
+        files.push({ dir: session.dir, file: entry.file, status: entry.status, sessionId: session.instanceId })
+      }
+    }
+    return files
+  }, [sorted, expandedIds, fileSearch])
+
+  // Keyboard nav: j/k or ArrowDown/ArrowUp when focus is inside review-content
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (activeTab !== 'changes') return
+      if (commitSession !== null) return
+      const tag = (document.activeElement as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (!document.activeElement?.closest('.review-content')) return
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'j' && e.key !== 'k' && e.key !== 'Escape') return
+      e.preventDefault()
+      if (e.key === 'Escape') {
+        setSelectedDiffKey(null)
+        setReviewDiffContent(null)
+        return
+      }
+      const currentIndex = selectedDiffKey
+        ? visibleFiles.findIndex(f => `${f.dir}:${f.file}` === selectedDiffKey)
+        : -1
+      if (visibleFiles.length === 0) return
+      if (e.key === 'ArrowDown' || e.key === 'j') {
+        const next = currentIndex < visibleFiles.length - 1 ? currentIndex + 1 : 0
+        const f = visibleFiles[next]; selectFile(f.dir, f.file, f.status)
+      } else {
+        const next = currentIndex > 0 ? currentIndex - 1 : visibleFiles.length - 1
+        const f = visibleFiles[next]; selectFile(f.dir, f.file, f.status)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [activeTab, commitSession, selectedDiffKey, visibleFiles, selectFile])
+
+  // Clear selection when selected file disappears (reverted / committed externally)
+  useEffect(() => {
+    if (!selectedDiffKey || visibleFiles.length === 0) return
+    const exists = visibleFiles.some(f => `${f.dir}:${f.file}` === selectedDiffKey)
+    if (!exists) {
+      setSelectedDiffKey(null)
+      setReviewDiffContent(null)
+    }
+  }, [sessionChanges, selectedDiffKey, visibleFiles])
+
+  // Memoized right pane — only re-renders DiffViewer when selection/content changes
+  const rightPane = useMemo(() => {
+    if (selectedDiffKey === null) {
+      return (
+        <div className="review-diff-pane-empty">
+          <GitCompare size={32} />
+          <span>Select a changed file to preview the diff</span>
+        </div>
+      )
+    }
+    if (reviewDiffLoading) {
+      return <div className="review-diff-pane-empty"><span>Loading diff…</span></div>
+    }
+    if (reviewDiffContent === '') {
+      return <div className="review-diff-pane-empty"><span>No diff available for this file</span></div>
+    }
+    if (reviewDiffContent !== null) {
+      const filename = selectedDiffKey.slice(selectedDiffKey.indexOf(':') + 1)
+      return <DiffViewer diff={reviewDiffContent} filename={filename} />
+    }
+    return (
+      <div className="review-diff-pane-empty">
+        <GitCompare size={32} />
+        <span>Select a changed file to preview the diff</span>
+      </div>
+    )
+  }, [selectedDiffKey, reviewDiffLoading, reviewDiffContent])
 
   return (
     <div className="review-panel" style={{ padding: 'var(--titlebar-pad, 44px) 16px 0', WebkitAppRegion: 'drag' } as React.CSSProperties}>
@@ -512,179 +591,182 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
             </div>
           )}
 
-          <div className="review-content" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-            {sorted.length === 0 && !refreshing && (
-              <div className="changes-empty">
-                {filter === 'changes' ? 'No sessions with uncommitted changes.' : 'No sessions with a working directory.'}
-              </div>
-            )}
-
-            {sorted.map(session => {
-          const expanded = expandedIds.has(session.instanceId)
-          const filteredEntries = fileSearch
-            ? session.entries.filter(e => e.file.toLowerCase().includes(fileSearch.toLowerCase()))
-            : session.entries
-          const insertions = filteredEntries.reduce((a, e) => a + e.insertions, 0)
-          const deletions = filteredEntries.reduce((a, e) => a + e.deletions, 0)
-
-          return (
-            <div key={session.instanceId} className="review-card">
-              <div
-                className="review-card-header"
-                onClick={() => session.entries.length > 0 && toggleExpand(session.instanceId)}
-                style={{ cursor: session.entries.length > 0 ? 'pointer' : 'default' }}
-              >
-                {/* Expand chevron */}
-                <span className="review-card-chevron">
-                  {session.entries.length > 0 ? (
-                    expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />
-                  ) : (
-                    <span style={{ width: 13 }} />
-                  )}
-                </span>
-
-                {/* Color dot + name */}
-                <span className="review-card-dot" style={{ background: session.color }} />
-                <span className="review-card-name">{session.name}</span>
-
-                {/* Status badge */}
-                <span className={`review-card-status ${session.status}`}>
-                  {session.status}
-                </span>
-
-                {/* File count + stats */}
-                {session.loading ? (
-                  <span className="review-card-stats" style={{ opacity: 0.5 }}>loading...</span>
-                ) : session.entries.length > 0 ? (
-                  <span className="review-card-stats">
-                    {fileSearch ? `${filteredEntries.length}/${session.entries.length}` : session.entries.length} file{(fileSearch ? filteredEntries.length : session.entries.length) !== 1 ? 's' : ''}
-                    {insertions > 0 && <span style={{ color: 'var(--success)', marginLeft: '6px' }}>+{insertions}</span>}
-                    {deletions > 0 && <span style={{ color: 'var(--danger)', marginLeft: '4px' }}>-{deletions}</span>}
-                  </span>
-                ) : (
-                  <span className="review-card-stats" style={{ opacity: 0.4 }}>no changes</span>
+          <div className="review-content review-content-two-pane" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+            <div className="review-diff-first-layout">
+              {/* Left pane: session/file list */}
+              <div className="review-diff-first-left">
+                {sorted.length === 0 && !refreshing && (
+                  <div className="changes-empty">
+                    {filter === 'changes' ? 'No sessions with uncommitted changes.' : 'No sessions with a working directory.'}
+                  </div>
                 )}
 
-                {/* Branch */}
-                {session.branch && (
-                  <span className="review-card-branch" title={session.branch}>
-                    <GitBranch size={11} /> {session.branch}
-                  </span>
-                )}
+                {sorted.map(session => {
+                  const expanded = expandedIds.has(session.instanceId)
+                  const filteredEntries = fileSearch
+                    ? session.entries.filter(e => e.file.toLowerCase().includes(fileSearch.toLowerCase()))
+                    : session.entries
+                  const insertions = filteredEntries.reduce((a, e) => a + e.insertions, 0)
+                  const deletions = filteredEntries.reduce((a, e) => a + e.deletions, 0)
 
-                {/* Quick actions */}
-                <span className="review-card-actions" onClick={e => e.stopPropagation()}>
-                  {session.entries.length > 0 && (
-                    <button
-                      className="changes-refresh-btn"
-                      title="Commit changes"
-                      onClick={() => setCommitSession(session)}
-                    >
-                      <GitCommit size={12} />
-                    </button>
-                  )}
-                  {session.entries.length > 0 && (
-                    <button
-                      className="changes-refresh-btn"
-                      title="Revert all changes"
-                      onClick={() => handleRevertAll(session)}
-                      disabled={revertingAllSession === session.instanceId}
-                      style={{ color: revertingAllSession === session.instanceId ? undefined : 'var(--danger)' }}
-                    >
-                      <Undo2 size={12} className={revertingAllSession === session.instanceId ? 'spinning' : ''} />
-                    </button>
-                  )}
-                  <button
-                    className="changes-refresh-btn"
-                    title="Open in terminal"
-                    onClick={() => onFocusInstance(session.instanceId)}
-                  >
-                    <Terminal size={12} />
-                  </button>
-                  {session.branch && (
-                    <button
-                      className="changes-refresh-btn"
-                      title={copiedBranch === session.branch ? 'Copied!' : 'Copy branch name'}
-                      onClick={() => handleCopyBranch(session.branch!)}
-                      style={copiedBranch === session.branch ? { color: 'var(--success)' } : undefined}
-                    >
-                      <Copy size={11} />
-                    </button>
-                  )}
-                  <button
-                    className="changes-refresh-btn"
-                    title="Open folder in Finder"
-                    onClick={() => window.api.shell.openExternal(`file://${session.dir}`)}
-                  >
-                    <FolderOpen size={12} />
-                  </button>
-                </span>
-              </div>
+                  return (
+                    <div key={session.instanceId} className="review-card">
+                      <div
+                        className="review-card-header"
+                        onClick={() => session.entries.length > 0 && toggleExpand(session.instanceId)}
+                        style={{ cursor: session.entries.length > 0 ? 'pointer' : 'default' }}
+                      >
+                        {/* Expand chevron */}
+                        <span className="review-card-chevron">
+                          {session.entries.length > 0 ? (
+                            expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />
+                          ) : (
+                            <span style={{ width: 13 }} />
+                          )}
+                        </span>
 
-              {/* Expanded file list */}
-              {expanded && (
-                <div className="review-card-files">
-                  {filteredEntries.map(entry => {
-                    const diffKey = `${session.dir}:${entry.file}`
-                    const isExpanded = expandedDiffKey === diffKey
-                    return (
-                      <div key={entry.file}>
-                        <div
-                          className="review-file-row"
-                          style={{ cursor: 'pointer' }}
-                          onClick={() => toggleReviewDiff(session.dir, entry.file, entry.status)}
-                        >
-                          <ChevronRight size={10} style={{ flexShrink: 0, transition: 'transform 0.15s', transform: isExpanded ? 'rotate(90deg)' : 'none', opacity: 0.5 }} />
-                          <span
-                            className="review-file-status"
-                            style={{
-                              color: entry.status === 'A' ? 'var(--success)'
-                                : entry.status === 'D' ? 'var(--danger)'
-                                : 'var(--warning)',
-                            }}
-                          >
-                            {entry.status}
+                        {/* Color dot + name */}
+                        <span className="review-card-dot" style={{ background: session.color }} />
+                        <span className="review-card-name">{session.name}</span>
+
+                        {/* Status badge */}
+                        <span className={`review-card-status ${session.status}`}>
+                          {session.status}
+                        </span>
+
+                        {/* File count + stats */}
+                        {session.loading ? (
+                          <span className="review-card-stats" style={{ opacity: 0.5 }}>loading...</span>
+                        ) : session.entries.length > 0 ? (
+                          <span className="review-card-stats">
+                            {fileSearch ? `${filteredEntries.length}/${session.entries.length}` : session.entries.length} file{(fileSearch ? filteredEntries.length : session.entries.length) !== 1 ? 's' : ''}
+                            {insertions > 0 && <span style={{ color: 'var(--success)', marginLeft: '6px' }}>+{insertions}</span>}
+                            {deletions > 0 && <span style={{ color: 'var(--danger)', marginLeft: '4px' }}>-{deletions}</span>}
                           </span>
-                          <span className="review-file-name">{entry.file}</span>
-                          <span className="review-file-stats">
-                            {entry.insertions > 0 && <span style={{ color: 'var(--success)' }}>+{entry.insertions}</span>}
-                            {entry.insertions > 0 && entry.deletions > 0 && ' '}
-                            {entry.deletions > 0 && <span style={{ color: 'var(--danger)' }}>-{entry.deletions}</span>}
-                          </span>
-                          <button
-                            className="review-file-open-btn"
-                            title={entry.status === 'D' ? 'File was deleted' : `Open ${entry.file}`}
-                            onClick={(e) => { e.stopPropagation(); window.api.shell.openExternal(`file://${session.dir}/${entry.file}`) }}
-                            disabled={entry.status === 'D'}
-                          >
-                            <ExternalLink size={10} />
-                          </button>
-                          <button
-                            className="review-file-revert-btn"
-                            title={entry.status === '?' ? 'Cannot revert untracked files' : `Revert ${entry.file}`}
-                            onClick={(e) => { e.stopPropagation(); handleRevertFile(session.dir, entry.file) }}
-                            disabled={revertingFile === `${session.dir}:${entry.file}` || entry.status === '?'}
-                          >
-                            <Undo2 size={10} className={revertingFile === `${session.dir}:${entry.file}` ? 'spinning' : ''} />
-                          </button>
-                        </div>
-                        {isExpanded && (
-                          <div className="changes-diff-container">
-                            {reviewDiffLoading ? (
-                              <div className="diff-viewer-empty">Loading diff...</div>
-                            ) : reviewDiffContent !== null ? (
-                              <DiffViewer diff={reviewDiffContent} filename={entry.file} />
-                            ) : null}
-                          </div>
+                        ) : (
+                          <span className="review-card-stats" style={{ opacity: 0.4 }}>no changes</span>
                         )}
+
+                        {/* Branch */}
+                        {session.branch && (
+                          <span className="review-card-branch" title={session.branch}>
+                            <GitBranch size={11} /> {session.branch}
+                          </span>
+                        )}
+
+                        {/* Quick actions */}
+                        <span className="review-card-actions" onClick={e => e.stopPropagation()}>
+                          {session.entries.length > 0 && (
+                            <button
+                              className="changes-refresh-btn"
+                              title="Commit changes"
+                              onClick={() => setCommitSession(session)}
+                            >
+                              <GitCommit size={12} />
+                            </button>
+                          )}
+                          {session.entries.length > 0 && (
+                            <button
+                              className="changes-refresh-btn"
+                              title="Revert all changes"
+                              onClick={() => handleRevertAll(session)}
+                              disabled={revertingAllSession === session.instanceId}
+                              style={{ color: revertingAllSession === session.instanceId ? undefined : 'var(--danger)' }}
+                            >
+                              <Undo2 size={12} className={revertingAllSession === session.instanceId ? 'spinning' : ''} />
+                            </button>
+                          )}
+                          <button
+                            className="changes-refresh-btn"
+                            title="Open in terminal"
+                            onClick={() => onFocusInstance(session.instanceId)}
+                          >
+                            <Terminal size={12} />
+                          </button>
+                          {session.branch && (
+                            <button
+                              className="changes-refresh-btn"
+                              title={copiedBranch === session.branch ? 'Copied!' : 'Copy branch name'}
+                              onClick={() => handleCopyBranch(session.branch!)}
+                              style={copiedBranch === session.branch ? { color: 'var(--success)' } : undefined}
+                            >
+                              <Copy size={11} />
+                            </button>
+                          )}
+                          <button
+                            className="changes-refresh-btn"
+                            title="Open folder in Finder"
+                            onClick={() => window.api.shell.openExternal(`file://${session.dir}`)}
+                          >
+                            <FolderOpen size={12} />
+                          </button>
+                        </span>
                       </div>
-                    )
-                  })}
-                </div>
-              )}
+
+                      {/* Expanded file list */}
+                      {expanded && (
+                        <div className="review-card-files">
+                          {filteredEntries.map(entry => {
+                            const diffKey = `${session.dir}:${entry.file}`
+                            const isSelected = selectedDiffKey === diffKey
+                            return (
+                              <div
+                                key={entry.file}
+                                className={`review-file-row${isSelected ? ' selected' : ''}`}
+                                style={{ cursor: 'pointer' }}
+                                role="button"
+                                tabIndex={0}
+                                aria-selected={isSelected}
+                                onClick={() => selectFile(session.dir, entry.file, entry.status)}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectFile(session.dir, entry.file, entry.status) } }}
+                              >
+                                <span
+                                  className="review-file-status"
+                                  style={{
+                                    color: entry.status === 'A' ? 'var(--success)'
+                                      : entry.status === 'D' ? 'var(--danger)'
+                                      : 'var(--warning)',
+                                  }}
+                                >
+                                  {entry.status}
+                                </span>
+                                <span className="review-file-name">{entry.file}</span>
+                                <span className="review-file-stats">
+                                  {entry.insertions > 0 && <span style={{ color: 'var(--success)' }}>+{entry.insertions}</span>}
+                                  {entry.insertions > 0 && entry.deletions > 0 && ' '}
+                                  {entry.deletions > 0 && <span style={{ color: 'var(--danger)' }}>-{entry.deletions}</span>}
+                                </span>
+                                <button
+                                  className="review-file-open-btn"
+                                  title={entry.status === 'D' ? 'File was deleted' : `Open ${entry.file}`}
+                                  onClick={(e) => { e.stopPropagation(); window.api.shell.openExternal(`file://${session.dir}/${entry.file}`) }}
+                                  disabled={entry.status === 'D'}
+                                >
+                                  <ExternalLink size={10} />
+                                </button>
+                                <button
+                                  className="review-file-revert-btn"
+                                  title={entry.status === '?' ? 'Cannot revert untracked files' : `Revert ${entry.file}`}
+                                  onClick={(e) => { e.stopPropagation(); handleRevertFile(session.dir, entry.file) }}
+                                  disabled={revertingFile === `${session.dir}:${entry.file}` || entry.status === '?'}
+                                >
+                                  <Undo2 size={10} className={revertingFile === `${session.dir}:${entry.file}` ? 'spinning' : ''} />
+                                </button>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Right pane: persistent diff viewer */}
+              <div className="review-diff-first-right">
+                {rightPane}
+              </div>
             </div>
-          )
-        })}
           </div>
         </>
       )}

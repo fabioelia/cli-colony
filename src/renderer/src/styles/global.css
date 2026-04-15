@@ -8058,8 +8058,52 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .review-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 4px 0;
+}
+
+/* Two-pane layout for Changes tab */
+.review-content.review-content-two-pane {
+  overflow: hidden;
+  padding: 0;
+}
+
+.review-diff-first-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 420px) 1fr;
+  gap: 1px;
+  background: var(--border);
+  height: 100%;
+  overflow: hidden;
+}
+
+.review-diff-first-left {
+  background: var(--bg-secondary);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.review-diff-first-right {
+  background: var(--bg-secondary);
+  overflow: auto;
+}
+
+.review-file-row.selected {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-left: 2px solid var(--accent);
+  padding-left: 34px;
+}
+
+.review-diff-pane-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  gap: 12px;
+  font-size: 13px;
 }
 
 .review-card {
