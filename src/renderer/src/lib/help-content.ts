@@ -1083,8 +1083,10 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Children Panel',
         position: 'Below status strip (sessions that spawned child sessions)',
         items: [
-          { label: 'Child sessions', detail: 'Collapsible list of sessions spawned by this one — from persona triggers, maker-checker pipelines, or manual child spawns. Shows status dot (running/waiting/done), name, cost, and state.', icon: 'GitMerge' },
+          { label: 'Child sessions', detail: 'Collapsible list of sessions spawned by this one — from persona triggers, maker-checker pipelines, or manual child spawns. Shows status dot (running/waiting/done), name, cost, and state. Running-busy sessions sort to the top, exited sessions sort by cost.', icon: 'GitMerge' },
           { label: 'Navigate to child', detail: 'Click any child row to focus that session in the sidebar and main view.' },
+          { label: 'Kill child', detail: 'Hover a running child row to reveal a stop button. Click to kill that session individually — without affecting siblings.', icon: 'Square' },
+          { label: 'Cost rollup', detail: 'When 2+ children have usage data, a Σ total footer shows the combined cost and session count.' },
           { label: 'Stop all', detail: 'Kills all running child sessions at once. Prompts for confirmation before stopping.', icon: 'Square' },
           { label: 'Sidebar badge', detail: 'Parent tiles show a ⇣N accent badge when they have children. Click the badge to jump to the first child.' },
         ],

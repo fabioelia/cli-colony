@@ -21,6 +21,24 @@ import Tooltip from './Tooltip'
 import HelpPopover from './HelpPopover'
 import { usePanelTabKeys } from '../hooks/usePanelTabKeys'
 
+function compareChildren(a: ClaudeInstance, b: ClaudeInstance): number {
+  const rank = (c: ClaudeInstance): number => {
+    if (c.status !== 'running') return 3
+    if (c.activity === 'busy') return 0
+    if (c.activity === 'waiting') return 1
+    return 2
+  }
+  const ra = rank(a), rb = rank(b)
+  if (ra !== rb) return ra - rb
+  // Both exited: sort by cost desc
+  if (a.status !== 'running' && b.status !== 'running') {
+    const ca = a.tokenUsage?.cost ?? 0
+    const cb = b.tokenUsage?.cost ?? 0
+    if (ca !== cb) return cb - ca
+  }
+  return (a.name ?? '').localeCompare(b.name ?? '')
+}
+
 function getXtermTheme(variant: 'session' | 'shell') {
   const isLight = document.documentElement.getAttribute('data-theme') === 'light'
   if (variant === 'shell') {
@@ -108,6 +126,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
   const shellCreatedRef = useRef(false)
   const [shellResetKey, setShellResetKey] = useState(0)
   const [childrenOpen, setChildrenOpen] = useState(true)
+  const sortedChildren = useMemo(() => [...childInstances].sort(compareChildren), [childInstances])
 
   // Environment detection: match by colony path OR by environment paths.root
   const envName = (() => {
@@ -1157,7 +1176,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
           </div>
           {childrenOpen && (
             <div className="session-children-list">
-              {childInstances.map(child => (
+              {sortedChildren.map(child => (
                 <div
                   key={child.id}
                   className="session-child-item clickable"
@@ -1172,8 +1191,30 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
                   <span className={`session-child-status ${child.status === 'running' ? child.activity : 'exited'}`}>
                     {child.status === 'running' ? (child.activity === 'waiting' ? 'waiting' : 'busy') : 'done'}
                   </span>
+                  {child.status === 'running' && (
+                    <button
+                      className="session-child-kill-btn"
+                      title={`Stop ${child.name}`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (confirm(`Stop ${child.name}?`)) {
+                          window.api.instance.kill(child.id).catch(() => {})
+                        }
+                      }}
+                    >
+                      <Square size={9} />
+                    </button>
+                  )}
                 </div>
               ))}
+              {(() => {
+                const total = childInstances.reduce((sum, c) => sum + (c.tokenUsage?.cost ?? 0), 0)
+                return childInstances.length >= 2 && total > 0 ? (
+                  <div className="session-children-total">
+                    Σ total: ${total.toFixed(2)} · {childInstances.length} sessions
+                  </div>
+                ) : null
+              })()}
             </div>
           )}
         </div>

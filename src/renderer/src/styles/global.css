@@ -6952,6 +6952,32 @@ body:has(.daemon-update-banner) .app-update-banner {
 .session-child-status.busy { color: var(--accent); }
 .session-child-status.waiting { color: var(--success); }
 .session-child-status.exited { color: var(--text-muted); }
+.session-child-kill-btn {
+  opacity: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 3px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  border-radius: 3px;
+  flex-shrink: 0;
+  transition: opacity 0.1s, color 0.1s;
+}
+.session-child-item:hover .session-child-kill-btn { opacity: 1; }
+.session-child-kill-btn:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.session-children-total {
+  display: flex;
+  align-items: center;
+  padding: 4px 12px 2px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-style: italic;
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+}
 
 /* ---- Session Error Card ---- */
 .session-error-card {
