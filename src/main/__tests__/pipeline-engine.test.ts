@@ -3828,3 +3828,56 @@ describe('pipeline-engine: default_model', () => {
     expect(haikuCall).toBeDefined() // default_model applied to stage with no model
   })
 })
+
+// ---- resolveActionModel heuristic (auto routing) ----
+
+describe('pipeline-engine: resolveActionModel auto heuristic', () => {
+  let mod: typeof import('../pipeline-engine')
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+    const fs = buildFsMock([], {})
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  it('auto + short prompt + no handoffInputs → haiku', () => {
+    const action = {
+      type: 'launch-session' as const,
+      model: 'auto',
+      prompt: 'Short prompt under 400 chars',
+    }
+    const result = mod.resolveActionModel(action, 'claude-opus-4-6')
+    expect(result).toBe('claude-haiku-4-5-20251001')
+  })
+
+  it('auto + long prompt (> 400 chars) → falls back to default_model', () => {
+    const action = {
+      type: 'launch-session' as const,
+      model: 'auto',
+      prompt: 'x'.repeat(401),
+    }
+    const result = mod.resolveActionModel(action, 'claude-opus-4-6')
+    expect(result).toBe('claude-opus-4-6')
+  })
+
+  it('auto + handoffInputs present → falls back to default_model', () => {
+    const action = {
+      type: 'launch-session' as const,
+      model: 'auto',
+      prompt: 'Short',
+      handoffInputs: ['prior-stage-output'],
+    }
+    const result = mod.resolveActionModel(action, 'claude-sonnet-4-6')
+    expect(result).toBe('claude-sonnet-4-6')
+  })
+})

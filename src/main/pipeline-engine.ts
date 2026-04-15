@@ -336,7 +336,8 @@ export interface PipelineStageTrace {
   actionType: string
   sessionName?: string
   sessionId?: string // links to the spawned session (if any)
-  model?: string  // per-stage model override if set
+  model?: string  // per-stage model override if set (resolved concrete model ID)
+  autoResolved?: boolean // true when model was resolved from 'auto' via heuristic
   durationMs: number
   startedAt?: number
   completedAt?: number
@@ -693,21 +694,46 @@ async function evaluateCondition(condition: ConditionDef, ctx: TriggerContext): 
 
 // ---- Action Execution (stage runners imported from ./pipeline-stages) ----
 
+/** Configurable prompt-length threshold for the 'auto' heuristic (default: 400 chars). */
+const AUTO_MODEL_THRESHOLD = parseInt(process.env.COLONY_AUTO_MODEL_THRESHOLD ?? '400', 10)
+
+/**
+ * Resolve 'auto' model hint to a concrete model ID using the v1 heuristic.
+ * Short prompt (≤ threshold) + no handoffInputs + launch-session type → haiku.
+ * Otherwise falls back to pipelineDefaultModel (or undefined, letting caller use global default).
+ */
+function resolveAutoModel(action: ActionDef, pipelineDefaultModel?: string): string | undefined {
+  const isShort = (action.prompt?.length ?? 0) <= AUTO_MODEL_THRESHOLD
+  const noHandoff = !action.handoffInputs?.length
+  const isSession = action.type === 'launch-session'
+  if (isShort && noHandoff && isSession) return 'claude-haiku-4-5-20251001'
+  return pipelineDefaultModel
+}
+
 /**
  * Model resolution precedence: action.model → pipeline.default_model → global default (caller's choice).
+ * 'auto' is resolved via the v1 heuristic (see resolveAutoModel).
  * Returns undefined when neither is set, letting createInstance fall through to the global setting.
  */
-function resolveActionModel(action: ActionDef, pipelineDefaultModel?: string): string | undefined {
+export function resolveActionModel(action: ActionDef, pipelineDefaultModel?: string): string | undefined {
+  if (action.model === 'auto') return resolveAutoModel(action, pipelineDefaultModel)
   return action.model ?? pipelineDefaultModel
 }
 
 /**
  * Recursively apply the pipeline's default_model to any action (and its parallel sub-stages)
- * that do not already have an explicit model override. Must be called before firing.
+ * that do not already have an explicit model override. Also resolves 'auto' to a concrete model.
+ * Must be called before firing.
  */
 function applyDefaultModel(action: ActionDef, defaultModel: string | undefined): ActionDef {
-  if (!defaultModel) return action
-  const resolved: ActionDef = { ...action, model: action.model ?? defaultModel }
+  let concreteModel: string | undefined
+  if (action.model === 'auto') {
+    concreteModel = resolveAutoModel(action, defaultModel)
+  } else {
+    if (!defaultModel) return action
+    concreteModel = action.model ?? defaultModel
+  }
+  const resolved: ActionDef = { ...action, model: concreteModel }
   if (resolved.stages) resolved.stages = resolved.stages.map(s => applyDefaultModel(s, defaultModel))
   return resolved
 }
@@ -1267,6 +1293,7 @@ async function runPoll(pipelineName: string, promptOverride?: string): Promise<v
           sessionName: stageSessionName,
           sessionId: stageSessionId,
           model: resolveActionModel(p.def.action, p.def.default_model),
+          autoResolved: p.def.action.model === 'auto',
           durationMs: stageEnd - stageStart,
           startedAt: stageStart,
           completedAt: stageEnd,

@@ -184,7 +184,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [outputFiles, setOutputFiles] = useState<Array<{ name: string; path: string; size: number; modified: number }>>([])
   const [outputPreview, setOutputPreview] = useState<{ name: string; content: string } | null>(null)
   const [expandedTab, setExpandedTab] = useState<'yaml' | 'flow' | 'docs' | 'memory' | 'outputs' | 'history' | 'debug'>('yaml')
-  type StageTrace = { index: number; actionType: string; sessionName?: string; sessionId?: string; model?: string; durationMs: number; startedAt?: number; completedAt?: number; success: boolean; error?: string; responseSnippet?: string; subStages?: StageTrace[] }
+  type StageTrace = { index: number; actionType: string; sessionName?: string; sessionId?: string; model?: string; autoResolved?: boolean; durationMs: number; startedAt?: number; completedAt?: number; success: boolean; error?: string; responseSnippet?: string; subStages?: StageTrace[] }
   const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; sessionIds?: string[]; stages?: StageTrace[] }>>([])
   const [expandedHistoryRows, setExpandedHistoryRows] = useState<Set<number>>(new Set())
   const [comparedRuns, setComparedRuns] = useState<Set<number>>(new Set())
@@ -231,6 +231,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [wizardBranch, setWizardBranch] = useState('main')
   const [wizardWorkingDir, setWizardWorkingDir] = useState('~/')
   const [wizardPrompt, setWizardPrompt] = useState('')
+  const [wizardModel, setWizardModel] = useState('auto')
   const [wizardName, setWizardName] = useState('')
   const [wizardSubmitting, setWizardSubmitting] = useState(false)
   const [wizardError, setWizardError] = useState('')
@@ -596,6 +597,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     setWizardWorkingDir('~/')
     setWizardPrompt('')
     setWizardName('')
+    setWizardModel('auto')
     setWizardSubmitting(false)
     setWizardError('')
     setShowAutomationWizard(true)
@@ -624,6 +626,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     }
 
     const indentedPrompt = wizardPrompt.trim().split('\n').join('\n    ')
+    const modelLine = wizardModel ? `  model: ${wizardModel}\n` : ''
 
     return `name: ${name}
 description: ${description}
@@ -637,7 +640,7 @@ condition:
 action:
   type: launch-session
   workingDirectory: "${wizardWorkingDir.trim() || '~/'}"
-  prompt: |
+${modelLine}  prompt: |
     ${indentedPrompt}
 `
   }
@@ -1344,7 +1347,7 @@ action:
                                             ? <span className="pipeline-history-stage-name pipeline-session-link" onClick={(e) => { e.stopPropagation(); onFocusInstance(stage.sessionId!) }}>{stage.sessionName}</span>
                                             : <span className="pipeline-history-stage-name" title={stage.sessionId && !instances.some(i => i.id === stage.sessionId) ? 'Session ended' : undefined}>{stage.sessionName}</span>
                                           )}
-                                          {stage.model && <span className="pipeline-history-stage-model" title={stage.model}>· {stage.model.replace(/^claude-/, '').split('-')[0]}</span>}
+                                          {stage.model && <span className="pipeline-history-stage-model" title={stage.model}>· {stage.model.replace(/^claude-/, '').split('-')[0]}{stage.autoResolved ? ' · auto' : ''}</span>}
                                           {stage.responseSnippet && <span className="pipeline-history-stage-snippet" title={stage.responseSnippet}>{stage.responseSnippet.length > 60 ? stage.responseSnippet.slice(0, 60) + '…' : stage.responseSnippet}</span>}
                                           <span className="pipeline-history-duration">{stage.durationMs < 1000 ? `${stage.durationMs}ms` : `${(stage.durationMs / 1000).toFixed(1)}s`}</span>
                                           {stage.error && <span className="pipeline-history-stage-error" title={stage.error}>err</span>}
@@ -1755,6 +1758,21 @@ action:
                     <p className="automation-wizard-hint">
                       Use template vars like {'{{pr.title}}'}, {'{{pr.branch}}'}, {'{{repo.name}}'}, {'{{timestamp}}'}.
                     </p>
+                  </div>
+                  <div className="automation-wizard-field">
+                    <label className="automation-wizard-field-label">Model</label>
+                    <select
+                      className="settings-select"
+                      value={wizardModel}
+                      onChange={(e) => setWizardModel(e.target.value)}
+                      style={{ width: '100%' }}
+                    >
+                      <option value="auto">Auto (adaptive — haiku for short steps, default for heavy)</option>
+                      <option value="claude-opus-4-6">Opus (claude-opus-4-6)</option>
+                      <option value="claude-sonnet-4-6">Sonnet (claude-sonnet-4-6)</option>
+                      <option value="claude-haiku-4-5-20251001">Haiku (claude-haiku-4-5-20251001)</option>
+                      <option value="">Default (global CLI setting)</option>
+                    </select>
                   </div>
                 </div>
               )}
