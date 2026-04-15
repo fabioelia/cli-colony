@@ -12906,6 +12906,10 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-secondary);
   font-style: italic;
 }
+.cron-editor-description.invalid {
+  color: var(--danger);
+  font-style: normal;
+}
 
 .cron-editor-next-runs {
   display: flex;

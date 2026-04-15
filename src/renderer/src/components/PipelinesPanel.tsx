@@ -1758,7 +1758,7 @@ ${modelLine}  prompt: |
                           />
                         </div>
                         {wizardCron.trim() && (
-                          <div className="cron-editor-description">
+                          <div className={`cron-editor-description${!cronValid ? ' invalid' : ''}`}>
                             {!cronValid ? `Needs 5 fields (got ${cronFields.length}): min hour dom month dow` : describeCron(wizardCron)}
                           </div>
                         )}
