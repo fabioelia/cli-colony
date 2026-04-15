@@ -4,6 +4,7 @@ import type { AgentDef, CliBackend } from '../types'
 import type { JiraTicket, JiraTicketSummary } from '../../../shared/types'
 import { COLORS, COLOR_MAP } from '../lib/constants'
 import { getHistory, addToHistory } from '../lib/prompt-history'
+import { extractTicketKey } from '../../../shared/ticket-commit-format'
 
 export interface CloneSource {
   name: string
@@ -129,6 +130,8 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
   const [jiraPreview, setJiraPreview] = useState<{ ok: boolean; text: string } | null>(null)
   const [jiraTicket, setJiraTicket] = useState<JiraTicket | null>(null)
   const [jiraConfigured, setJiraConfigured] = useState(false)
+  const [jiraTicketKeyPattern, setJiraTicketKeyPattern] = useState('[A-Z]+-\\d+')
+  const hasAutoAttached = useRef(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerTickets, setPickerTickets] = useState<JiraTicketSummary[]>([])
   const [pickerLoading, setPickerLoading] = useState(false)
@@ -152,6 +155,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
       window.api.settings.getAll().then((s) => {
         setCliBackend(s.defaultCliBackend === 'cursor-agent' ? 'cursor-agent' : 'claude')
         setJiraConfigured(!!s.jiraDomain?.trim())
+        if (s.jiraTicketKeyPattern?.trim()) setJiraTicketKeyPattern(s.jiraTicketKeyPattern.trim())
       })
     }
     // Load environments for picker
@@ -184,6 +188,28 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
       }
     }).catch(() => {})
   }, [])
+
+  // Auto-attach ticket from branch name when an env chip is clicked or on mount
+  // with a pre-set working directory. Non-destructive: skips if jiraKey already set.
+  const maybeAutoAttachTicket = (branch: string) => {
+    if (!jiraConfigured || !branch || jiraKey.trim() || jiraTicket) return
+    const match = extractTicketKey(branch, jiraTicketKeyPattern)
+    if (match) {
+      setJiraKey(match)
+      handleJiraFetch(match)
+    }
+  }
+
+  // Mount effect: if workingDirectory was pre-set and matches an env, auto-attach ticket.
+  // Fires once when environments (async) and jiraConfigured have both loaded.
+  useEffect(() => {
+    if (hasAutoAttached.current || !workingDirectory || !environments.length || !jiraConfigured) return
+    const dir = workingDirectory.trim()
+    const env = environments.find(e => dir === (e.paths.root || e.paths.backend || ''))
+    if (!env?.branch) return
+    hasAutoAttached.current = true
+    maybeAutoAttachTicket(env.branch)
+  }, [environments, jiraConfigured])
 
   const handlePickDir = async () => {
     const dir = await window.api.dialog.openDirectory()
@@ -475,6 +501,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
                     const dir = env.paths.root || env.paths.backend || ''
                     setWorkingDirectory(dir)
                     if (!name.trim()) setName(`${env.name}`)
+                    maybeAutoAttachTicket(env.branch)
                   }}
                 >
                   <span className={`dialog-env-dot ${env.status === 'running' ? 'running' : env.status === 'partial' ? 'partial' : ''}`} />

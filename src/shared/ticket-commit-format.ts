@@ -35,6 +35,21 @@ export function buildBranchName(ticket: InstanceTicket): string {
 }
 
 /**
+ * Extract the first ticket key from a string (e.g. a branch name) using the
+ * given regex pattern. Returns the key uppercased, or null on no match or
+ * invalid pattern.
+ */
+export function extractTicketKey(text: string, pattern: string): string | null {
+  if (!text || !pattern) return null
+  try {
+    const match = text.match(new RegExp(pattern, 'i'))
+    return match ? match[0].toUpperCase() : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Append "Refs <key>" footer to a commit body, if not already present.
  * No-ops if the footer is already in the text (case-insensitive).
  */
