@@ -11251,6 +11251,19 @@ body:has(.daemon-update-banner) .app-update-banner {
   flex-shrink: 0;
 }
 
+.filetree-env-roots-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 12px 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+
 .filetree-search-group {
   margin-bottom: 2px;
 }

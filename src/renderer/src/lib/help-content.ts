@@ -1158,6 +1158,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Directory tree', detail: 'Lazy-loading tree with expand/collapse. Click a directory to expand it.' },
           { label: 'File click', detail: 'Clicking a file pastes its path into the terminal input.' },
           { label: 'File preview', detail: 'Files also appear in the right-side preview pane with line numbers.' },
+          { label: 'Env repos', detail: 'When the session was launched from a multi-repo environment, sibling repo checkouts appear as collapsible roots below the primary tree (e.g. Newton: nri-server + nri-frontend). Preview, in-file search, content search, and Paste Path all work identically across roots.', icon: 'FolderTree' },
         ],
       },
       {

@@ -185,6 +185,8 @@ export default function FilesTab({ instance, focused, onSwitchToSession }: Files
   const [ignoreInput, setIgnoreInput] = useState('')
   const [filesSortMode, setFilesSortMode] = useState<'name' | 'modified'>('name')
   const [renderMd, setRenderMd] = useState(true)
+  const [envRoots, setEnvRoots] = useState<Array<{alias: string, path: string}>>([])
+
 
   const isMarkdown = useMemo(() => {
     if (!selectedFile) return false
@@ -250,6 +252,26 @@ export default function FilesTab({ instance, focused, onSwitchToSession }: Files
     })
   }, [])
 
+  // One-shot: find the matching env and compute sibling repo roots
+  useEffect(() => {
+    if (typeof window.api?.env?.list !== 'function') return
+    window.api.env.list().then((envs) => {
+      const match = envs.find((e) => Object.values(e.paths).includes(instance.workingDirectory))
+      if (!match) return
+      const deduped = new Map<string, string>() // path → alias
+      for (const [alias, path] of Object.entries(match.paths)) {
+        if (!path) continue
+        if (alias === 'root') continue
+        if (path === instance.workingDirectory) continue
+        const existing = deduped.get(path)
+        if (!existing || alias.length < existing.length) {
+          deduped.set(path, alias)
+        }
+      }
+      setEnvRoots(Array.from(deduped.entries()).map(([path, alias]) => ({ alias, path })))
+    })
+  }, [instance.workingDirectory])
+
   // Compute highlighted HTML + match count
   const { highlightedHtml, fileMatchCount } = (() => {
     if (!fileContent || !fileSearchQuery) return { highlightedHtml: '', fileMatchCount: 0 }
@@ -276,12 +298,25 @@ export default function FilesTab({ instance, focused, onSwitchToSession }: Files
     setContentSearching(true)
     setVisibleResultCount(20)
     contentDebounceRef.current = setTimeout(async () => {
-      const results = await window.api.fs.searchContent(instance.workingDirectory, contentSearch, ignoreRules)
-      setContentResults(results)
+      const allRoots = [instance.workingDirectory, ...envRoots.map(r => r.path)]
+      const perRoot = await Promise.all(
+        allRoots.map(root => window.api.fs.searchContent(root, contentSearch, ignoreRules))
+      )
+      const seen = new Set<string>()
+      const merged: Array<{ file: string; matches: Array<{ line: number; text: string }> }> = []
+      for (const results of perRoot) {
+        for (const result of results) {
+          if (!seen.has(result.file)) {
+            seen.add(result.file)
+            merged.push(result)
+          }
+        }
+      }
+      setContentResults(merged)
       setContentSearching(false)
     }, 300)
     return () => { if (contentDebounceRef.current) clearTimeout(contentDebounceRef.current) }
-  }, [contentSearch, searchMode, instance.workingDirectory])
+  }, [contentSearch, searchMode, instance.workingDirectory, envRoots])
 
   // Cmd+F opens file search
   useEffect(() => {
@@ -511,9 +546,20 @@ export default function FilesTab({ instance, focused, onSwitchToSession }: Files
                 )}
                 {(() => {
                   if (!contentResults) return null
+                  const allRootsForSearch = [
+                    { path: instance.workingDirectory, alias: null as string | null },
+                    ...envRoots.map(r => ({ path: r.path, alias: r.alias })),
+                  ]
                   const byDir = new Map<string, typeof contentResults>()
                   for (const result of contentResults.slice(0, visibleResultCount)) {
-                    const relPath = result.file.replace(instance.workingDirectory + '/', '')
+                    let relPath = result.file
+                    for (const root of allRootsForSearch) {
+                      if (result.file.startsWith(root.path + '/')) {
+                        const rel = result.file.slice(root.path.length + 1)
+                        relPath = root.alias ? `${root.alias}/${rel}` : rel
+                        break
+                      }
+                    }
                     const dirParts = relPath.split('/')
                     const dir = dirParts.length > 1 ? dirParts.slice(0, -1).join('/') : '.'
                     if (!byDir.has(dir)) byDir.set(dir, [])
@@ -588,6 +634,30 @@ export default function FilesTab({ instance, focused, onSwitchToSession }: Files
                 lazyChildren={sortedLazyChildren}
                 onLoadChildren={handleLoadChildren}
               />
+            )}
+            {searchMode === 'files' && envRoots.length > 0 && (
+              <>
+                <div className="filetree-env-roots-header">
+                  <FolderTree size={12} />
+                  Env repos ({envRoots.length})
+                </div>
+                {envRoots.map((root) => (
+                  <FileTreeNode
+                    key={root.path}
+                    node={{ name: root.alias, path: root.path, type: 'directory' }}
+                    depth={0}
+                    selectedPath={selectedFile}
+                    expandedPaths={expandedPaths}
+                    filter={treeFilter}
+                    onTogglePath={handleTogglePath}
+                    onExpandAll={handleExpandAll}
+                    onCollapseAll={handleCollapseAll}
+                    onSelectFile={handleSelectFile}
+                    lazyChildren={sortedLazyChildren}
+                    onLoadChildren={handleLoadChildren}
+                  />
+                ))}
+              </>
             )}
           </div>
         </div>
