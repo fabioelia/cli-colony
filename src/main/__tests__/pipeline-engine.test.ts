@@ -3881,3 +3881,150 @@ describe('pipeline-engine: resolveActionModel auto heuristic', () => {
     expect(result).toBe('claude-sonnet-4-6')
   })
 })
+
+// ---- PR approval diff pre-fetch YAML ----
+
+const PR_APPROVAL_YAML = `
+name: PR Approval Pipe
+enabled: true
+requireApproval: true
+trigger:
+  type: git-poll
+  interval: 300
+  repos: auto
+condition:
+  type: always
+action:
+  type: launch-session
+  prompt: Review and apply PR changes
+dedup:
+  key: "{{pr.number}}"
+`
+
+describe('approval PR diff pre-fetch', () => {
+  let mod: typeof import('../pipeline-engine')
+  let mockAppendActivity: ReturnType<typeof vi.fn>
+  let mockFetchPRFiles: ReturnType<typeof vi.fn>
+  let mockFetchPRs: ReturnType<typeof vi.fn>
+  let mockGetRepos: ReturnType<typeof vi.fn>
+
+  const mockRepo = { owner: 'owner', name: 'repo', localPath: '/repos/repo' }
+  const mockPR = {
+    number: 42,
+    branch: 'feature/my-feature',
+    title: 'My feature',
+    url: 'https://github.com/owner/repo/pull/42',
+    createdAt: '2026-04-01T10:00:00.000Z',
+    updatedAt: '2026-04-01T10:00:00.000Z',
+    additions: 3,
+    deletions: 1,
+    reviewDecision: '',
+    labels: [],
+    comments: [],
+    headSha: 'abc123',
+  }
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+    mockAppendActivity = vi.fn()
+    mockFetchPRFiles = vi.fn()
+    mockFetchPRs = vi.fn().mockResolvedValue([mockPR])
+    mockGetRepos = vi.fn().mockReturnValue([mockRepo])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  function setupPRApprovalMocks(fsMock: ReturnType<typeof buildFsMock>) {
+    vi.doMock('electron', () => ({
+      app: { getPath: vi.fn().mockReturnValue('/mock/home') },
+    }))
+    vi.doMock('../../shared/colony-paths', () => ({
+      colonyPaths: {
+        root: MOCK_ROOT,
+        pipelines: PIPELINES_DIR,
+        schedulerLog: `${MOCK_ROOT}/scheduler.log`,
+      },
+    }))
+    vi.doMock('fs', () => fsMock)
+    vi.doMock('../broadcast', () => ({ broadcast: mockBroadcast }))
+    vi.doMock('../repo-config-loader', () => ({ getAllRepoConfigs: mockGetAllRepoConfigs }))
+    vi.doMock('../instance-manager', () => ({
+      createInstance: vi.fn().mockResolvedValue({ id: 'inst-pr' }),
+      getAllInstances: vi.fn().mockResolvedValue([]),
+    }))
+    vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
+    vi.doMock('../daemon-router', () => ({ getDaemonRouter: vi.fn() }))
+    vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
+    vi.doMock('../notifications', () => ({ notify: vi.fn() }))
+    vi.doMock('../github', () => ({
+      getRepos: mockGetRepos,
+      fetchPRs: mockFetchPRs,
+      fetchPRFiles: mockFetchPRFiles,
+      fetchChecks: vi.fn().mockResolvedValue({ checks: [] }),
+      gh: vi.fn().mockResolvedValue('{}'),
+    }))
+    vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
+    vi.doMock('../activity-manager', () => ({ appendActivity: mockAppendActivity }))
+  }
+
+  it('populates prFiles and repoSlug on approval when fetchPRFiles succeeds', async () => {
+    const prFiles = [
+      { filename: 'src/a.ts', status: 'modified' as const, additions: 3, deletions: 1, patch: '@@ -1 +1 @@\n-old\n+new' },
+    ]
+    mockFetchPRFiles.mockResolvedValue(prFiles)
+
+    const fs = buildFsMock(['pr-approval.yaml'], { 'pr-approval.yaml': PR_APPROVAL_YAML })
+    setupPRApprovalMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('PR Approval Pipe')
+    await flushPromises()
+
+    const approvals = mod.listApprovals()
+    expect(approvals).toHaveLength(1)
+
+    const req = approvals[0]
+    expect(req.repoSlug).toBe('owner/repo')
+    expect(req.prFiles).toEqual(prFiles)
+
+    // Verify broadcast was called with the populated request
+    const newCall = mockBroadcast.mock.calls.find(([ch]) => ch === 'pipeline:approval:new')
+    expect(newCall).toBeTruthy()
+    expect(newCall![1].repoSlug).toBe('owner/repo')
+    expect(newCall![1].prFiles).toEqual(prFiles)
+  })
+
+  it('still creates approval when fetchPRFiles throws, leaving prFiles undefined', async () => {
+    mockFetchPRFiles.mockRejectedValue(new Error('rate limited'))
+
+    const fs = buildFsMock(['pr-approval.yaml'], { 'pr-approval.yaml': PR_APPROVAL_YAML })
+    setupPRApprovalMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('PR Approval Pipe')
+    await flushPromises()
+
+    // Approval should still be created
+    const approvals = mod.listApprovals()
+    expect(approvals).toHaveLength(1)
+
+    const req = approvals[0]
+    expect(req.prFiles).toBeUndefined()
+    // repoSlug should still be set even when prFiles fetch fails
+    expect(req.repoSlug).toBe('owner/repo')
+
+    // Broadcast was still called
+    const newCall = mockBroadcast.mock.calls.find(([ch]) => ch === 'pipeline:approval:new')
+    expect(newCall).toBeTruthy()
+    expect(newCall![1].prFiles).toBeUndefined()
+  })
+})

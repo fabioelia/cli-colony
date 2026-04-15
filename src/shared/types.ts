@@ -238,6 +238,8 @@ export interface ApprovalRequest {
   resolvedVars: Record<string, string>
   createdAt: string
   expiresAt?: string
+  prFiles?: PRFile[]      // pre-fetched PR diff files for inline review
+  repoSlug?: string       // e.g. "owner/name"
 }
 
 export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'blocked'

@@ -94,6 +94,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Approval card', detail: 'Pipeline approval gates waiting for your decision. Shows pipeline name, summary, and plan preview.' },
           { label: 'Approve / Dismiss', detail: 'Accept or reject the pending action. Dismissed actions are skipped without firing.' },
+          { label: 'Inline diff', detail: 'Expand a pending approval card to review the PR diff inline before approving.' },
         ],
       },
       {

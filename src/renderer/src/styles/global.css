@@ -1615,6 +1615,35 @@ body:has(.daemon-update-banner) .app-update-banner {
   border: 1px solid var(--border);
 }
 
+.activity-approval-diff-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 0;
+  margin-top: 4px;
+}
+.activity-approval-diff-toggle:hover {
+  color: var(--text);
+}
+.activity-approval-diff-body {
+  max-height: 400px;
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+.activity-approval-diff-unavailable {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: 4px;
+}
+
 /* ===== Notification History ===== */
 .notification-history-popover {
   position: absolute;

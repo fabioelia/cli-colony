@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Bell, Search, Trash2 } from 'lucide-react'
+import { Bell, Search, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
 import HelpPopover from './HelpPopover'
+import DiffViewer from './DiffViewer'
 import type { ActivityEvent, ApprovalRequest } from '../../../shared/types'
 
 type SourceFilter = 'persona' | 'pipeline' | 'env' | 'session'
@@ -44,6 +45,7 @@ export default function ActivityPanel({ onFocusSession, onNavigate }: Props) {
   const [searchQuery, setSearchQuery] = useState('')
   const [showAll, setShowAll] = useState(false)
   const [typeChip, setTypeChip] = useState<TypeChip>('all')
+  const [expandedApprovals, setExpandedApprovals] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     window.api.activity.list().then(all => {
@@ -203,6 +205,35 @@ export default function ActivityPanel({ onFocusSession, onNavigate }: Props) {
                       ? req.resolvedVars['plan.content'].slice(0, 280) + '…'
                       : req.resolvedVars['plan.content']}
                   </div>
+                )}
+                {/* Diff toggle */}
+                {req.prFiles && req.prFiles.length > 0 && (() => {
+                  const totalAdd = req.prFiles.reduce((s, f) => s + f.additions, 0)
+                  const totalDel = req.prFiles.reduce((s, f) => s + f.deletions, 0)
+                  const expanded = expandedApprovals.has(req.id)
+                  return (
+                    <>
+                      <button
+                        className="activity-approval-diff-toggle"
+                        onClick={() => setExpandedApprovals(prev => {
+                          const next = new Set(prev)
+                          expanded ? next.delete(req.id) : next.add(req.id)
+                          return next
+                        })}
+                      >
+                        {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                        View changes ({req.prFiles.length} file{req.prFiles.length !== 1 ? 's' : ''} · +{totalAdd}/-{totalDel})
+                      </button>
+                      {expanded && (
+                        <div className="activity-approval-diff-body">
+                          <DiffViewer files={req.prFiles} diff="" />
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
+                {!req.prFiles && req.repoSlug && (
+                  <div className="activity-approval-diff-unavailable">Diff unavailable</div>
                 )}
                 {formatApprovalExpiry(req.expiresAt) && (
                   <div className="activity-approval-expiry">{formatApprovalExpiry(req.expiresAt)}</div>

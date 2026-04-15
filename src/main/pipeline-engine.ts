@@ -14,7 +14,7 @@ import { createInstance, getAllInstances, killInstance } from './instance-manage
 import { markChecklistItem } from './onboarding-state'
 import { getDaemonRouter } from './daemon-router'
 import { sendPromptWhenReady } from './send-prompt-when-ready'
-import { getRepos, fetchPRs, fetchChecks, gh } from './github'
+import { getRepos, fetchPRs, fetchChecks, fetchPRFiles, gh } from './github'
 import { findBestRoute } from './session-router'
 import { getAllRepoConfigs } from './repo-config-loader'
 import { cronMatches } from '../shared/cron'
@@ -310,6 +310,11 @@ function parsePipelineYaml(content: string): PipelineDef | null {
     }
 
     if (result.enabled === undefined) result.enabled = true
+
+    // Default dedup: use pipeline name + timestamp date as key, 1-hour TTL
+    if (!result.dedup) {
+      result.dedup = { key: '{{timestamp}}', ttl: 3600 }
+    }
 
     // Normalize: route-to-session -> launch-session + reuse:true
     if (result.action?.type === 'route-to-session') {
@@ -1215,6 +1220,17 @@ async function runPoll(pipelineName: string, promptOverride?: string): Promise<v
           const ttlHours = p.def.approvalTtl ?? APPROVAL_DEFAULT_TTL_HOURS
           const expiresAt = new Date(Date.now() + ttlHours * 3600 * 1000).toISOString()
           const request: ApprovalRequest = { id: approvalId, pipelineName, summary, resolvedVars, createdAt: new Date().toISOString(), expiresAt }
+          if (ctx.repo) {
+            request.repoSlug = `${ctx.repo.owner}/${ctx.repo.name}`
+          }
+          if (ctx.pr && ctx.repo) {
+            try {
+              const files = await fetchPRFiles(ctx.repo, ctx.pr.number)
+              request.prFiles = files
+            } catch (err) {
+              plog(pipelineName, '⚠ fetchPRFiles failed: ' + (err as Error).message)
+            }
+          }
           pendingApprovals.set(approvalId, { request, action: applyDefaultModel(p.def.action, p.def.default_model), ctx, dedupKey })
           pendingApprovalKeys.add(dedupKey)
           broadcast('pipeline:approval:new', request)
@@ -1252,6 +1268,17 @@ async function runPoll(pipelineName: string, promptOverride?: string): Promise<v
         const ttlHours = p.def.approvalTtl ?? APPROVAL_DEFAULT_TTL_HOURS
         const expiresAt = new Date(Date.now() + ttlHours * 3600 * 1000).toISOString()
         const request: ApprovalRequest = { id: approvalId, pipelineName, summary, resolvedVars, createdAt: new Date().toISOString(), expiresAt }
+        if (ctx.repo) {
+          request.repoSlug = `${ctx.repo.owner}/${ctx.repo.name}`
+        }
+        if (ctx.pr && ctx.repo) {
+          try {
+            const files = await fetchPRFiles(ctx.repo, ctx.pr.number)
+            request.prFiles = files
+          } catch (err) {
+            plog(pipelineName, '⚠ fetchPRFiles failed: ' + (err as Error).message)
+          }
+        }
         pendingApprovals.set(approvalId, { request, action: p.def.action, ctx, dedupKey })
         pendingApprovalKeys.add(dedupKey)
         broadcast('pipeline:approval:new', request)

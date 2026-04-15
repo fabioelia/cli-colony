@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { hljs, getLangFromFilename } from '../lib/hljs'
+import type { PRFile } from '../../../shared/types'
 
 interface DiffLine {
   type: 'add' | 'del' | 'context' | 'hunk'
@@ -24,7 +25,7 @@ interface InlineComment {
   createdAt: string
 }
 
-interface DiffViewerProps {
+interface DiffViewerSingleProps {
   diff: string
   /** Filename for syntax highlighting language detection */
   filename?: string
@@ -32,6 +33,11 @@ interface DiffViewerProps {
   maxLines?: number
   /** PR review comments to render inline at matching line positions */
   comments?: Array<{ author: string; body: string; createdAt: string; line?: number; originalLine?: number }>
+}
+
+interface DiffViewerProps extends DiffViewerSingleProps {
+  /** When provided, render a multi-file collapsible list instead of a single diff */
+  files?: PRFile[]
 }
 
 function parseDiff(raw: string): DiffLine[] {
@@ -239,7 +245,7 @@ function InlineCommentCards({ comments, defaultCollapsed }: { comments: InlineCo
   )
 }
 
-function DiffViewer({ diff, filename, maxLines = 500, comments }: DiffViewerProps) {
+function DiffViewerSingle({ diff, filename, maxLines = 500, comments }: DiffViewerSingleProps) {
   const [showFull, setShowFull] = useState(false)
   const [mode, setMode] = useState<'unified' | 'split'>(() =>
     (localStorage.getItem('diff-view-mode') as 'unified' | 'split') || 'unified'
@@ -373,6 +379,55 @@ function DiffViewer({ diff, filename, maxLines = 500, comments }: DiffViewerProp
       )}
     </div>
   )
+}
+
+function DiffViewerMultiFile({ files }: { files: PRFile[] }) {
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+
+  const toggle = (filename: string) => {
+    setCollapsed(prev => {
+      const next = new Set(prev)
+      if (next.has(filename)) next.delete(filename)
+      else next.add(filename)
+      return next
+    })
+  }
+
+  return (
+    <div className="diff-viewer-multi">
+      {files.map(file => {
+        const isCollapsed = collapsed.has(file.filename)
+        return (
+          <div key={file.filename} className="diff-viewer-multi-file">
+            <button
+              className="diff-viewer-multi-header"
+              onClick={() => toggle(file.filename)}
+            >
+              <span className="diff-viewer-multi-chevron">{isCollapsed ? '▶' : '▼'}</span>
+              <span className="diff-viewer-multi-filename">{file.filename}</span>
+              <span className="diff-viewer-multi-stats">
+                <span className="diff-stat-add">+{file.additions}</span>
+                {' / '}
+                <span className="diff-stat-del">-{file.deletions}</span>
+              </span>
+            </button>
+            {!isCollapsed && (
+              file.patch
+                ? <DiffViewerSingle diff={file.patch} filename={file.filename} />
+                : <div className="diff-viewer-empty">{file.filename} (no diff)</div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function DiffViewer({ files, diff, filename, maxLines, comments }: DiffViewerProps) {
+  if (files && files.length > 0) {
+    return <DiffViewerMultiFile files={files} />
+  }
+  return <DiffViewerSingle diff={diff} filename={filename} maxLines={maxLines} comments={comments} />
 }
 
 export default DiffViewer
