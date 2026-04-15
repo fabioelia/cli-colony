@@ -13919,6 +13919,10 @@ body:has(.daemon-update-banner) .app-update-banner {
   cursor: default;
 }
 
+.pipeline-history-error-line.no-error:hover {
+  background: none;
+}
+
 .pipeline-history-icon.success {
   color: var(--success);
   flex-shrink: 0;
