@@ -19,6 +19,7 @@ export interface RecentSession {
   openedAt: string
   closedAt: string | null
   exitType: 'running' | 'exited' | 'killed'
+  ticket?: { source: 'jira'; key: string; summary: string }
 }
 
 import { colonyPaths } from '../shared/colony-paths'
@@ -131,6 +132,7 @@ export async function trackOpened(opts: {
   cliBackend?: CliBackend
   pinned?: boolean
   pid?: number | null
+  ticket?: { source: 'jira'; key: string; summary: string }
 }): Promise<void> {
   const sessions = await load()
   sessions.unshift({
@@ -142,6 +144,7 @@ export async function trackOpened(opts: {
     args: opts.args,
     cliBackend: opts.cliBackend,
     pinned: opts.pinned || false,
+    ticket: opts.ticket,
     openedAt: new Date().toISOString(),
     closedAt: null,
     exitType: 'running',

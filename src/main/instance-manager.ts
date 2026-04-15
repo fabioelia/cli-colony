@@ -30,6 +30,9 @@ import type { ClaudeInstance } from '../daemon/protocol'
 // Track MCP config files by instance ID so we can clean them up on exit
 const _mcpConfigPaths = new Map<string, string>()
 
+// Track Jira ticket attached at creation time — overlaid onto ClaudeInstance for the renderer
+const _instanceTickets = new Map<string, { source: 'jira'; key: string; summary: string }>()
+
 // Track last output timestamp per instance for idle detection
 const _lastOutputAt = new Map<string, number>()
 
@@ -69,6 +72,14 @@ export function setOnInstanceListChanged(cb: () => void): void {
 let onSessionExitCallback: ((instanceId: string) => void) | null = null
 export function setOnSessionExit(cb: (instanceId: string) => void): void {
   onSessionExitCallback = cb
+}
+
+/** Overlay ticket metadata onto instances from the in-memory map. */
+function applyTickets(instances: ClaudeInstance[]): ClaudeInstance[] {
+  return instances.map(inst => {
+    const ticket = _instanceTickets.get(inst.id)
+    return ticket ? { ...inst, ticket } : inst
+  })
 }
 
 /** Expand ~ and trim; default to ~/.claude-colony for Colony sessions. */
@@ -182,6 +193,7 @@ export function wireDaemonEvents(): void {
     _lastOutputAt.delete(instanceId)
     _lastCostCheckAt.delete(instanceId)
     _budgetStopped.delete(instanceId)
+    _instanceTickets.delete(instanceId)
     onSessionExitCallback?.(instanceId)
 
     // Parse error summary from PTY buffer on non-zero exit
@@ -245,7 +257,7 @@ export function wireDaemonEvents(): void {
 
   // Forward list changes
   router.on('list-changed', (instances: ClaudeInstance[]) => {
-    broadcast('instance:list', instances)
+    broadcast('instance:list', applyTickets(instances))
     onInstanceListChanged?.()
   })
 
@@ -310,6 +322,7 @@ export async function createInstance(opts: {
   env?: Record<string, string>
   pipelineName?: string
   pipelineRunId?: string
+  ticket?: { source: 'jira'; key: string; summary: string }
 }): Promise<ClaudeInstance> {
   const defaultArgs = await getDefaultArgs()
   const home = app.getPath('home')
@@ -342,6 +355,9 @@ export async function createInstance(opts: {
   if (mcpConfigPath) {
     _mcpConfigPaths.set(inst.id, mcpConfigPath)
   }
+  if (opts.ticket) {
+    _instanceTickets.set(inst.id, opts.ticket)
+  }
   _lastOutputAt.set(inst.id, Date.now())
 
   markChecklistItem('createdSession')
@@ -367,9 +383,10 @@ export async function createInstance(opts: {
     args: allArgs,
     cliBackend: inst.cliBackend,
     pid: inst.pid ?? null,
+    ticket: opts.ticket,
   })
 
-  return inst
+  return opts.ticket ? { ...inst, ticket: opts.ticket } : inst
 }
 
 export async function killInstance(id: string): Promise<boolean> {
@@ -385,7 +402,7 @@ export async function restartInstance(id: string): Promise<ClaudeInstance | null
 
 export async function getAllInstances(): Promise<ClaudeInstance[]> {
   try {
-    return await getDaemonRouter().getAllInstances()
+    return applyTickets(await getDaemonRouter().getAllInstances())
   } catch {
     return []
   }

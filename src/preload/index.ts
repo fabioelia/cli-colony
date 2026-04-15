@@ -59,6 +59,7 @@ export interface ClaudeManagerAPI {
       mcpServers?: string[]
       permissionMode?: 'autonomous' | 'supervised'
       env?: Record<string, string>
+      ticket?: { source: 'jira'; key: string; summary: string }
     }) => Promise<ClaudeInstance>
     write: (id: string, data: string) => void
     resize: (id: string, cols: number, rows: number) => Promise<boolean>
