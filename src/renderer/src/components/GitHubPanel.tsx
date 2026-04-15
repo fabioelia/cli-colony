@@ -43,6 +43,9 @@ interface Props {
   visible?: boolean
 }
 
+// Module-level cache for Jira ticket data keyed by ticket key (e.g. "NP-123")
+const _prTicketCache = new Map<string, { key: string; summary: string; url?: string } | null>()
+
 export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance, instances, visible }: Props) {
   const [viewTab, setViewTab] = useState<'prs' | 'issues'>('prs')
   const [repos, setRepos] = useState<GitHubRepo[]>([])
@@ -170,6 +173,12 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const [showEnvSelector, setShowEnvSelector] = useState(false)
   const [pendingPromptAction, setPendingPromptAction] = useState<{ prompt: QuickPrompt; pr: GitHubPR; repo: GitHubRepo } | null>(null)
 
+  // Jira ticket inline preview (keyed by "owner/name#number")
+  const [jiraEnabled, setJiraEnabled] = useState(false)
+  const [ticketKeyPattern, setTicketKeyPattern] = useState<RegExp>(/[A-Z]+-\d+/)
+  const [prTicketData, setPrTicketData] = useState<Record<string, { key: string; summary: string; url?: string }>>({})
+  const processedPrKeysRef = useRef<Set<string>>(new Set())
+
   // Sync PR context file whenever prsByRepo changes
   const [contextPath, setContextPath] = useState<string | null>(null)
   const hasPrs = Object.values(prsByRepo).some((prs) => prs.length > 0)
@@ -264,6 +273,12 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
       window.api.github.getPrMemoryPath().then(setMemoryPath),
       window.api.github.getPrWorkspacePath().then(setWorkspacePath),
       window.api.persona.list().then(setPersonaList),
+      window.api.settings.getAll().then(s => {
+        setJiraEnabled(!!s.jiraDomain?.trim())
+        if (s.jiraTicketKeyPattern?.trim()) {
+          try { setTicketKeyPattern(new RegExp(s.jiraTicketKeyPattern.trim())) } catch { /* keep default */ }
+        }
+      }),
     ])
     init.then(results => {
       const failed = results.filter(r => r.status === 'rejected')
@@ -280,6 +295,35 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
       window.api.github.getPrompts().then(setPrompts)
     }
   }, [visible])
+
+  // Fetch Jira ticket data for PRs whose titles contain a ticket key
+  useEffect(() => {
+    if (!jiraEnabled) return
+    for (const [slug, prs] of Object.entries(prsByRepo)) {
+      for (const pr of prs) {
+        const prKey = `${slug}#${pr.number}`
+        if (processedPrKeysRef.current.has(prKey)) continue
+        processedPrKeysRef.current.add(prKey)
+        const match = pr.title.match(ticketKeyPattern)
+        if (!match) continue
+        const ticketKey = match[0].toUpperCase()
+        if (_prTicketCache.has(ticketKey)) {
+          const cached = _prTicketCache.get(ticketKey)
+          if (cached) setPrTicketData(prev => ({ ...prev, [prKey]: cached! }))
+          continue
+        }
+        window.api.jira.fetchTicket(ticketKey).then(result => {
+          if (result.ok) {
+            const data = { key: result.ticket.key, summary: result.ticket.summary, url: result.ticket.url }
+            _prTicketCache.set(ticketKey, data)
+            setPrTicketData(prev => ({ ...prev, [prKey]: data }))
+          } else {
+            _prTicketCache.set(ticketKey, null)
+          }
+        }).catch(() => { _prTicketCache.set(ticketKey, null) })
+      }
+    }
+  }, [prsByRepo, jiraEnabled, ticketKeyPattern])
 
   // Escape key closes any open modal
   useEffect(() => {
@@ -1102,6 +1146,18 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                               {pr.draft && <span className="github-pr-draft">draft</span>}
                               {pr.title}
                             </div>
+                            {prTicketData[prKey] && (
+                              <div className="github-pr-ticket">
+                                <button
+                                  className="github-pr-ticket-key"
+                                  title={prTicketData[prKey]!.summary}
+                                  onClick={(e) => { e.stopPropagation(); if (prTicketData[prKey]?.url) window.api.shell.openExternal(prTicketData[prKey]!.url!) }}
+                                >
+                                  {prTicketData[prKey]!.key}
+                                </button>
+                                <span className="github-pr-ticket-summary">{prTicketData[prKey]!.summary}</span>
+                              </div>
+                            )}
                             <div className="github-pr-meta">
                               <span title="Author"><User size={11} /> {pr.author}</span>
                               {pr.assignees?.length > 0 && <span className="github-pr-assignees" title="Assignees"><Users size={11} /> {pr.assignees.join(', ')}</span>}

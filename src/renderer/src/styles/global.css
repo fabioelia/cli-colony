@@ -8584,6 +8584,40 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 10px;
 }
 
+.github-pr-ticket {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  min-width: 0;
+}
+
+.github-pr-ticket-key {
+  flex-shrink: 0;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  border-radius: 3px;
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--accent);
+  border: none;
+  cursor: pointer;
+  line-height: 16px;
+}
+
+.github-pr-ticket-key:hover {
+  background: rgba(59, 130, 246, 0.28);
+}
+
+.github-pr-ticket-summary {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .github-pr-link {
   flex-shrink: 0;
   display: flex;

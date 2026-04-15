@@ -401,6 +401,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Merge button', detail: 'Appears next to the "Ready" badge when a PR is approved and CI passes. Click to choose a merge method (Squash, Merge commit, or Rebase). The PR list refreshes automatically after a successful merge.', icon: 'GitMerge' },
           { label: 'Review Requested', detail: 'Amber badge appears when your review is requested on a PR.', icon: 'Eye' },
           { label: 'Feedback badge', detail: 'Shows Colony Feedback status: amber = feedback pending, green = new commits since review (ready for re-review).', icon: 'MessageSquare' },
+          { label: 'Jira ticket chip', detail: 'When a PR title contains a Jira ticket key (e.g. NP-1234), a blue chip appears below the title showing the key and summary. Click the chip to open the ticket in your browser. Requires Jira credentials in Settings → Integrations. Customize the key pattern with the jiraTicketKeyPattern setting.' },
           { label: 'CI badges', detail: 'Green/red/yellow dots for GitHub Actions check status. Click to see details and fetch failure logs.' },
           { label: 'Dispatch button', detail: 'Send this PR as a note to a persona. Pick a persona and add optional context — the note appears in the persona\'s ## Notes section on its next run.', icon: 'UserPlus' },
           { label: 'Colony Review', detail: 'Launches a Claude session that reviews the code and pushes structured feedback to the colony-feedback branch.', icon: 'Play' },
