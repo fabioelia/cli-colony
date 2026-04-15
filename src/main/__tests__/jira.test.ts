@@ -148,6 +148,56 @@ describe('transitionTicket', () => {
   })
 })
 
+describe('addComment', () => {
+  let addComment: (key: string, body: string) => Promise<{ ok: boolean; error?: string }>
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.doMock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/home') } }))
+    vi.doMock('../settings', () => ({ getSettings: mockGetSettings }))
+    globalThis.fetch = mockFetch
+    mockGetSettings.mockReset()
+    mockFetch.mockReset()
+    const mod = await import('../jira')
+    addComment = mod.addComment
+  })
+
+  it('posts ADF comment and returns ok:true on 201 response', async () => {
+    mockGetSettings.mockResolvedValue({
+      jiraDomain: 'acme.atlassian.net',
+      jiraEmail: 'user@acme.com',
+      jiraApiToken: 'token123',
+    })
+    mockFetch.mockResolvedValue({ ok: true, status: 201 })
+
+    const result = await addComment('NP-123', 'Session done.\n\nCommits (1):\n- abc123 Fix bug')
+
+    expect(result).toEqual({ ok: true })
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+    const [url, init] = mockFetch.mock.calls[0]
+    expect(url).toContain('/rest/api/3/issue/NP-123/comment')
+    expect(init.method).toBe('POST')
+    const body = JSON.parse(init.body)
+    expect(body.body.type).toBe('doc')
+    expect(body.body.content[0].type).toBe('paragraph')
+    expect(body.body.content[0].content[0].text).toContain('Session done.')
+  })
+
+  it('returns ok:false with error on 401 response', async () => {
+    mockGetSettings.mockResolvedValue({
+      jiraDomain: 'acme.atlassian.net',
+      jiraEmail: 'user@acme.com',
+      jiraApiToken: 'wrongtoken',
+    })
+    mockFetch.mockResolvedValue({ ok: false, status: 401, statusText: 'Unauthorized' })
+
+    const result = await addComment('NP-123', 'body')
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/auth failed/i)
+  })
+})
+
 describe('fetchTicket', () => {
   let fetchTicket: (key: string) => Promise<import('../../shared/types').JiraTicket>
 

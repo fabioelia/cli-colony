@@ -6,7 +6,7 @@
  */
 
 import { app, BrowserWindow, shell } from 'electron'
-import { exec } from 'child_process'
+import { exec, execFile } from 'child_process'
 import { join } from 'path'
 import { existsSync, statSync } from 'fs'
 import { getDaemonRouter } from './daemon-router'
@@ -23,7 +23,7 @@ import { scanNewCommits } from './commit-attributor'
 import { markChecklistItem } from './onboarding-state'
 import { appendActivity } from './activity-manager'
 import { parseErrorSummary } from './error-parser'
-import { transitionTicket } from './jira'
+import { transitionTicket, addComment } from './jira'
 
 export type { ClaudeInstance } from '../daemon/protocol'
 import type { ClaudeInstance } from '../daemon/protocol'
@@ -189,6 +189,8 @@ export function wireDaemonEvents(): void {
 
   // Forward exit events + handle auto-cleanup + track session closure
   router.on('exited', async (instanceId: string, exitCode: number) => {
+    // Capture ticket BEFORE clearing — _instanceTickets.delete runs below
+    const exitTicket = _instanceTickets.get(instanceId)
     broadcast('instance:exited', { id: instanceId, exitCode })
     trackClosed(instanceId, 'exited')
     _lastOutputAt.delete(instanceId)
@@ -234,6 +236,37 @@ export function wireDaemonEvents(): void {
           personaName,
           inst.tokenUsage?.cost
         ).catch(() => {})
+      }
+
+      // Post session-end comment to Jira if ticket attached and setting enabled
+      if (exitTicket?.key && inst.workingDirectory) {
+        getSetting('jiraSessionEndComment').then(async enabled => {
+          if (enabled !== 'true') return
+          try {
+            const stdout = await new Promise<string>((resolve, reject) =>
+              execFile('git', [
+                'log', `--since=${new Date(inst.createdAt).toISOString()}`,
+                '--pretty=format:%h %s', '--no-merges', '--max-count=50',
+              ], { cwd: inst.workingDirectory }, (err, out) => err ? reject(err) : resolve(out))
+            )
+            const lines = stdout.trim().split('\n').filter(Boolean)
+            if (lines.length === 0) return
+            const display = lines.slice(0, 20)
+            const extra = lines.length > 20 ? `\n... and ${lines.length - 20} more` : ''
+            const durationMins = Math.round((Date.now() - new Date(inst.createdAt).getTime()) / 60000)
+            const envLabel = inst.gitRepo ?? 'local'
+            const body = [
+              `Colony session "${inst.name}" completed.`,
+              '',
+              `Commits (${lines.length}):`,
+              ...display.map(l => `- ${l}`),
+              ...(extra ? [extra] : []),
+              '',
+              `Duration: ${durationMins}m | Env: ${envLabel}`,
+            ].join('\n')
+            await addComment(exitTicket.key, body)
+          } catch { /* swallow — never block exit flow */ }
+        }).catch(() => {})
       }
     }).catch(() => {})
     const mcpPath = _mcpConfigPaths.get(instanceId)

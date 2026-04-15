@@ -90,6 +90,7 @@ export default function SettingsPanel({ onBack }: Props) {
   const [jiraApiToken, setJiraApiToken] = useState('')
   const [jiraTransitionOnCommit, setJiraTransitionOnCommit] = useState('')
   const [jiraSessionStartTransition, setJiraSessionStartTransition] = useState('')
+  const [jiraSessionEndComment, setJiraSessionEndComment] = useState(false)
   const [jiraTestResult, setJiraTestResult] = useState<{ ok: boolean; message: string } | 'testing' | null>(null)
   const [onboardingState, setOnboardingState] = useState<OnboardingState | null>(null)
   const [approvalRuleFormError, setApprovalRuleFormError] = useState<string | null>(null)
@@ -167,6 +168,7 @@ export default function SettingsPanel({ onBack }: Props) {
       setJiraApiToken(s.jiraApiToken || '')
       setJiraTransitionOnCommit(s.jiraTransitionOnCommit || '')
       setJiraSessionStartTransition(s.jiraSessionStartTransition || '')
+      setJiraSessionEndComment(s.jiraSessionEndComment === 'true')
       setTheme((s.theme === 'light' ? 'light' : 'dark') as 'dark' | 'light')
       if (s.fontSize) setFontSize(parseInt(s.fontSize, 10) || 13)
       if (s.terminalFontFamily) setFontFamily(s.terminalFontFamily)
@@ -283,6 +285,7 @@ export default function SettingsPanel({ onBack }: Props) {
       window.api.settings.set('jiraApiToken', jiraApiToken),
       window.api.settings.set('jiraTransitionOnCommit', jiraTransitionOnCommit),
       window.api.settings.set('jiraSessionStartTransition', jiraSessionStartTransition),
+      window.api.settings.set('jiraSessionEndComment', jiraSessionEndComment ? 'true' : 'false'),
       window.api.settings.set('theme', theme),
     ])
     // Re-register hotkey immediately (no app restart needed)
@@ -1304,6 +1307,18 @@ export default function SettingsPanel({ onBack }: Props) {
                 onChange={(e) => setJiraSessionStartTransition(e.target.value)}
               />
               <div className="settings-field-hint">Exact status name (case-sensitive). When set, moves the attached ticket to this status when a session is created.</div>
+            </div>
+            <div className="settings-field" style={{ marginTop: 12 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={jiraSessionEndComment}
+                  onChange={(e) => setJiraSessionEndComment(e.target.checked)}
+                  style={{ margin: 0 }}
+                />
+                Post comment on session exit
+              </label>
+              <div className="settings-field-hint">Post a comment to the linked Jira ticket when a session exits with commits.</div>
             </div>
           </div>
         )}

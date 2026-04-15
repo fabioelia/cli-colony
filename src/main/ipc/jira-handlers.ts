@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { fetchTicket, searchMyTickets, transitionTicket } from '../jira'
+import { fetchTicket, searchMyTickets, transitionTicket, addComment } from '../jira'
 import { getSettings } from '../settings'
 
 export function registerJiraHandlers(): void {
@@ -28,6 +28,14 @@ export function registerJiraHandlers(): void {
       if (!transitionName) return { ok: false, error: 'No transition configured' }
       await transitionTicket(key, transitionName)
       return { ok: true, transitionName }
+    } catch (err) {
+      return { ok: false, error: (err as Error).message }
+    }
+  })
+
+  ipcMain.handle('jira:addComment', async (_e, key: string, body: string) => {
+    try {
+      return await addComment(key, body)
     } catch (err) {
       return { ok: false, error: (err as Error).message }
     }

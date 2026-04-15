@@ -892,6 +892,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Test Connection', detail: 'Sends a test request to the configured Jira domain. A 404 (ticket not found) counts as success — it confirms auth worked. A 401 means wrong email or API token.', icon: 'Play' },
           { label: 'Transition on Commit', detail: 'Exact Jira status name (case-sensitive). When set, Colony automatically moves the attached ticket to this status whenever a commit is made from the session. Leave blank to disable. Example: "In Review".' },
           { label: 'Status on session start', detail: 'Exact Jira status name (case-sensitive). When set, Colony moves the attached ticket to this status the moment a new session is created with that ticket attached. Leave blank to disable. Example: "In Progress".' },
+          { label: 'Post comment on session exit', detail: 'When enabled, Colony posts a comment to the linked Jira ticket when a session exits with commits. The comment lists commit SHAs and subjects made during the session, the duration, and the environment name. Sessions with no commits are skipped.' },
         ],
       },
       {

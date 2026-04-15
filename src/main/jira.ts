@@ -142,6 +142,54 @@ export async function transitionTicket(key: string, transitionName: string): Pro
 }
 
 /**
+ * Post a comment to a Jira issue (ADF-wrapped body).
+ * Returns { ok: true } on success or { ok: false, error } on failure.
+ */
+export async function addComment(key: string, body: string): Promise<{ ok: boolean; error?: string }> {
+  const settings = await getSettings()
+  const domain = settings.jiraDomain?.trim()
+  const email = settings.jiraEmail?.trim()
+  const token = settings.jiraApiToken?.trim()
+
+  if (!domain || !email || !token) {
+    throw new Error('Jira not configured')
+  }
+
+  const credentials = Buffer.from(`${email}:${token}`).toString('base64')
+  const url = `https://${domain}/rest/api/3/issue/${encodeURIComponent(key)}/comment`
+
+  let response: Response
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${credentials}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        body: {
+          type: 'doc',
+          version: 1,
+          content: [{ type: 'paragraph', content: [{ type: 'text', text: body }] }],
+        },
+      }),
+    })
+  } catch (err) {
+    return { ok: false, error: `Network error: ${(err as Error).message}` }
+  }
+
+  if (response.status === 401 || response.status === 403) {
+    return { ok: false, error: 'Jira auth failed — check email/token' }
+  }
+  if (!response.ok) {
+    return { ok: false, error: `Comment failed: ${response.status} ${response.statusText}` }
+  }
+
+  return { ok: true }
+}
+
+/**
  * Fetch tickets assigned to the current user (resolution = Unresolved, sorted
  * by updated DESC, capped at 20). Used by the ticket picker in NewInstanceDialog.
  */
