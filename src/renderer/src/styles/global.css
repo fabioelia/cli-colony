@@ -3261,8 +3261,8 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .jira-preview.err {
-  color: var(--warning);
-  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
 }
 
 .prompt-history-dropdown {

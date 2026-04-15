@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, CheckCircle, XCircle } from 'lucide-react'
 import type { AgentDef, CliBackend } from '../types'
 import type { JiraTicket } from '../../../shared/types'
 import { COLORS, COLOR_MAP } from '../lib/constants'
@@ -356,7 +356,10 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
           />
           {jiraPreview && (
             <div className={`jira-preview ${jiraPreview.ok ? 'ok' : 'err'}`}>
-              {jiraPreview.ok ? '✓' : '✗'} {jiraPreview.text}
+              {jiraPreview.ok
+                ? <CheckCircle size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
+                : <XCircle size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
+              }{jiraPreview.text}
             </div>
           )}
         </div>

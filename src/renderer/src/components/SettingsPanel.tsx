@@ -1275,7 +1275,7 @@ export default function SettingsPanel({ onBack }: Props) {
                 {' '}Test Connection
               </button>
               {jiraTestResult && jiraTestResult !== 'testing' && (
-                <span style={{ fontSize: 12, color: jiraTestResult.ok ? 'var(--success)' : 'var(--warning)' }}>
+                <span style={{ fontSize: 12, color: jiraTestResult.ok ? 'var(--success)' : 'var(--danger)' }}>
                   {jiraTestResult.ok ? <CheckCircle size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} /> : <XCircle size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />}
                   {jiraTestResult.message}
                 </span>
