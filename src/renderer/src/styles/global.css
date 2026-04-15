@@ -21480,8 +21480,8 @@ body:has(.daemon-update-banner) .app-update-banner {
 .env-claudemd-body { flex: 1; overflow-y: auto; padding: 16px; min-height: 0; }
 .env-claudemd-error {
   display: flex; align-items: center; gap: 7px; color: var(--danger);
-  font-size: 12px; padding: 10px 12px; background: rgba(248,113,113,0.08);
-  border: 1px solid rgba(248,113,113,0.2); border-radius: 6px;
+  font-size: 12px; padding: 10px 12px; background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.2); border-radius: 6px;
 }
 .env-claudemd-loading { color: var(--text-muted); font-size: 13px; text-align: center; padding: 40px 0; }
 .env-claudemd-empty {
