@@ -10220,6 +10220,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .panel-header-btn.danger { color: var(--danger); }
 .panel-header-btn.danger:hover { background: color-mix(in srgb, var(--danger) 15%, transparent); }
+.panel-header-btn.active { border-color: var(--accent); color: var(--accent); }
 
 .panel-header-tabs {
   display: flex;
@@ -13187,10 +13188,6 @@ body:has(.daemon-update-banner) .app-update-banner {
   gap: 6px;
   padding: 6px 12px;
   border-bottom: 1px solid var(--border);
-}
-.pipeline-history-filter-bar .panel-header-btn.active {
-  border-color: var(--accent);
-  color: var(--accent);
 }
 
 .pipeline-budget-bar {
