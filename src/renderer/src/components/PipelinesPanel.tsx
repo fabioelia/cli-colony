@@ -320,6 +320,14 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     })
   }, [showAutomationWizard])
 
+  // Escape to close wizard
+  useEffect(() => {
+    if (!showAutomationWizard) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowAutomationWizard(false) }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [showAutomationWizard])
+
   // Track if assistant is still alive
   useEffect(() => {
     if (assistantId && !instances.some(i => i.id === assistantId && i.status === 'running')) {
@@ -1624,8 +1632,8 @@ ${modelLine}  prompt: |
 
       {/* Automation Wizard Modal */}
       {showAutomationWizard && (
-        <div className="pipeline-preview-overlay" onClick={() => setShowAutomationWizard(false)}>
-          <div className="pipeline-preview-modal automation-wizard-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="pipeline-preview-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setShowAutomationWizard(false) }}>
+          <div className="pipeline-preview-modal automation-wizard-modal">
             <div className="pipeline-preview-header">
               <Wand2 size={14} />
               <span>New Automation — Step {wizardStep} of 3</span>
