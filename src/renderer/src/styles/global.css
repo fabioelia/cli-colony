@@ -8089,6 +8089,14 @@ body:has(.daemon-update-banner) .app-update-banner {
   overflow: auto;
 }
 
+.review-card.selected {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-left: 2px solid var(--accent);
+}
+.review-card.selected .review-card-header {
+  padding-left: 10px;
+}
+
 .review-file-row.selected {
   background: color-mix(in srgb, var(--accent) 15%, transparent);
   border-left: 2px solid var(--accent);

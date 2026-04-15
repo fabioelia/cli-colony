@@ -56,7 +56,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
   // Commits tab state
   const [unpushedCommits, setUnpushedCommits] = useState<UnpushedCommit[]>([])
   const [commitsLoading, setCommitsLoading] = useState(false)
-  const [expandedCommitHash, setExpandedCommitHash] = useState<string | null>(null)
+  const [selectedCommitHash, setSelectedCommitHash] = useState<string | null>(null)
   const [commitDiffContent, setCommitDiffContent] = useState<string | null>(null)
   const [commitDiffLoading, setCommitDiffLoading] = useState(false)
   const commitDiffCache = useRef<Record<string, string>>({})
@@ -236,13 +236,8 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
     }
   }, [loadAllChanges])
 
-  const toggleCommitDiff = useCallback(async (hash: string) => {
-    if (expandedCommitHash === hash) {
-      setExpandedCommitHash(null)
-      setCommitDiffContent(null)
-      return
-    }
-    setExpandedCommitHash(hash)
+  const selectCommit = useCallback(async (hash: string) => {
+    setSelectedCommitHash(hash)
     if (commitDiffCache.current[hash]) {
       setCommitDiffContent(commitDiffCache.current[hash])
       return
@@ -258,7 +253,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
     } finally {
       setCommitDiffLoading(false)
     }
-  }, [expandedCommitHash, projectDir])
+  }, [projectDir])
 
   const handlePush = useCallback(async () => {
     if (!projectDir) return
@@ -267,6 +262,8 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
     try {
       await window.api.git.push(projectDir)
       setUnpushedCommits([])
+      setSelectedCommitHash(null)
+      setCommitDiffContent(null)
       setPushConfirm(false)
     } catch {
       setPushError(true)
@@ -315,6 +312,9 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
     }
     setSwitching(true)
     setShowBranchPicker(false)
+    commitDiffCache.current = {}
+    setSelectedCommitHash(null)
+    setCommitDiffContent(null)
     try {
       const result = await window.api.git.switchBranch(projectDir, branch)
       if (!result.success) {
@@ -379,6 +379,9 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
   const totalInsertions = sessionChanges.reduce((sum, s) => sum + s.entries.reduce((a, e) => a + e.insertions, 0), 0)
   const totalDeletions = sessionChanges.reduce((sum, s) => sum + s.entries.reduce((a, e) => a + e.deletions, 0), 0)
 
+  // Flat list of visible commits for keyboard nav
+  const visibleCommits = useMemo(() => unpushedCommits, [unpushedCommits])
+
   // Flat list of visible files for keyboard nav (respects session expand state + fileSearch)
   const visibleFiles = useMemo(() => {
     const files: Array<{dir: string; file: string; status: string; sessionId: string}> = []
@@ -397,33 +400,52 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
   // Keyboard nav: j/k or ArrowDown/ArrowUp when focus is inside review-content
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (activeTab !== 'changes') return
+      if (activeTab !== 'changes' && activeTab !== 'commits') return
       if (commitSession !== null) return
       const tag = (document.activeElement as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
       if (!document.activeElement?.closest('.review-content')) return
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'j' && e.key !== 'k' && e.key !== 'Escape') return
       e.preventDefault()
-      if (e.key === 'Escape') {
-        setSelectedDiffKey(null)
-        setReviewDiffContent(null)
-        return
-      }
-      const currentIndex = selectedDiffKey
-        ? visibleFiles.findIndex(f => `${f.dir}:${f.file}` === selectedDiffKey)
-        : -1
-      if (visibleFiles.length === 0) return
-      if (e.key === 'ArrowDown' || e.key === 'j') {
-        const next = currentIndex < visibleFiles.length - 1 ? currentIndex + 1 : 0
-        const f = visibleFiles[next]; selectFile(f.dir, f.file, f.status)
+      if (activeTab === 'changes') {
+        if (e.key === 'Escape') {
+          setSelectedDiffKey(null)
+          setReviewDiffContent(null)
+          return
+        }
+        const currentIndex = selectedDiffKey
+          ? visibleFiles.findIndex(f => `${f.dir}:${f.file}` === selectedDiffKey)
+          : -1
+        if (visibleFiles.length === 0) return
+        if (e.key === 'ArrowDown' || e.key === 'j') {
+          const next = currentIndex < visibleFiles.length - 1 ? currentIndex + 1 : 0
+          const f = visibleFiles[next]; selectFile(f.dir, f.file, f.status)
+        } else {
+          const next = currentIndex > 0 ? currentIndex - 1 : visibleFiles.length - 1
+          const f = visibleFiles[next]; selectFile(f.dir, f.file, f.status)
+        }
       } else {
-        const next = currentIndex > 0 ? currentIndex - 1 : visibleFiles.length - 1
-        const f = visibleFiles[next]; selectFile(f.dir, f.file, f.status)
+        if (e.key === 'Escape') {
+          setSelectedCommitHash(null)
+          setCommitDiffContent(null)
+          return
+        }
+        const currentIndex = selectedCommitHash
+          ? visibleCommits.findIndex(c => c.hash === selectedCommitHash)
+          : -1
+        if (visibleCommits.length === 0) return
+        if (e.key === 'ArrowDown' || e.key === 'j') {
+          const next = currentIndex < visibleCommits.length - 1 ? currentIndex + 1 : 0
+          selectCommit(visibleCommits[next].hash)
+        } else {
+          const next = currentIndex > 0 ? currentIndex - 1 : visibleCommits.length - 1
+          selectCommit(visibleCommits[next].hash)
+        }
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [activeTab, commitSession, selectedDiffKey, visibleFiles, selectFile])
+  }, [activeTab, commitSession, selectedDiffKey, visibleFiles, selectFile, selectedCommitHash, visibleCommits, selectCommit])
 
   // Clear selection when selected file disappears (reverted / committed externally)
   useEffect(() => {
@@ -434,6 +456,45 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
       setReviewDiffContent(null)
     }
   }, [sessionChanges, selectedDiffKey, visibleFiles])
+
+  // Clear commit selection when selected commit disappears (pushed / rebased / branch switched)
+  useEffect(() => {
+    if (!selectedCommitHash) return
+    const exists = visibleCommits.some(c => c.hash === selectedCommitHash)
+    if (!exists) {
+      setSelectedCommitHash(null)
+      setCommitDiffContent(null)
+    }
+  }, [unpushedCommits, selectedCommitHash, visibleCommits])
+
+  // Memoized commit right pane — only re-renders DiffViewer when commit selection/content changes
+  const commitRightPane = useMemo(() => {
+    if (selectedCommitHash === null) {
+      return (
+        <div className="review-diff-pane-empty">
+          <GitCommit size={32} />
+          <span>Select a commit to view its diff</span>
+        </div>
+      )
+    }
+    if (commitDiffLoading) {
+      return <div className="review-diff-pane-empty"><span>Loading diff…</span></div>
+    }
+    if (commitDiffContent === '') {
+      return <div className="review-diff-pane-empty"><span>No diff available for this commit</span></div>
+    }
+    if (commitDiffContent !== null) {
+      const commit = visibleCommits.find(c => c.hash === selectedCommitHash)
+      const label = commit ? `${commit.hash.slice(0, 7)} ${commit.subject}` : selectedCommitHash.slice(0, 7)
+      return <DiffViewer diff={commitDiffContent} filename={label} />
+    }
+    return (
+      <div className="review-diff-pane-empty">
+        <GitCommit size={32} />
+        <span>Select a commit to view its diff</span>
+      </div>
+    )
+  }, [selectedCommitHash, commitDiffLoading, commitDiffContent, visibleCommits])
 
   // Memoized right pane — only re-renders DiffViewer when selection/content changes
   const rightPane = useMemo(() => {
@@ -772,7 +833,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
       )}
 
       {activeTab === 'commits' && (
-        <div className="review-content" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <div className="review-content review-content-two-pane" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           {commitsLoading && unpushedCommits.length === 0 && (
             <div className="changes-empty" style={{ opacity: 0.5 }}>Loading commits...</div>
           )}
@@ -820,39 +881,38 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
               )}
             </div>
           )}
-          {unpushedCommits.map(commit => {
-            const isExpanded = expandedCommitHash === commit.hash
-            return (
-              <div key={commit.hash} className="review-card">
-                <div
-                  className="review-card-header"
-                  onClick={() => toggleCommitDiff(commit.hash)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <span className="review-card-chevron">
-                    {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                  </span>
-                  <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: '11px', color: 'var(--accent)', marginRight: '8px', flexShrink: 0 }}>
-                    {commit.hash.slice(0, 7)}
-                  </span>
-                  <span className="review-card-name" style={{ flex: 1 }}>{commit.subject}</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '8px', flexShrink: 0 }}>{commit.author}</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '8px', flexShrink: 0 }}>{commit.date}</span>
-                </div>
-                {isExpanded && (
-                  <div className="review-card-files">
-                    {commitDiffLoading ? (
-                      <div className="diff-viewer-empty">Loading diff...</div>
-                    ) : commitDiffContent !== null ? (
-                      <div className="changes-diff-container">
-                        <DiffViewer diff={commitDiffContent} filename={`${commit.hash.slice(0, 7)} ${commit.subject}`} />
+          {unpushedCommits.length > 0 && (
+            <div className="review-diff-first-layout" style={{ gridTemplateColumns: 'minmax(280px, 380px) 1fr' }}>
+              <div className="review-diff-first-left">
+                {visibleCommits.map(commit => {
+                  const isSelected = selectedCommitHash === commit.hash
+                  return (
+                    <div
+                      key={commit.hash}
+                      className={`review-card${isSelected ? ' selected' : ''}`}
+                      role="button"
+                      tabIndex={0}
+                      aria-selected={isSelected}
+                      onClick={() => selectCommit(commit.hash)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectCommit(commit.hash) } }}
+                    >
+                      <div className="review-card-header" style={{ cursor: 'pointer' }}>
+                        <span style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: '11px', color: 'var(--accent)', marginRight: '8px', flexShrink: 0 }}>
+                          {commit.hash.slice(0, 7)}
+                        </span>
+                        <span className="review-card-name" style={{ flex: 1 }}>{commit.subject}</span>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '8px', flexShrink: 0 }}>{commit.author}</span>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '8px', flexShrink: 0 }}>{commit.date}</span>
                       </div>
-                    ) : null}
-                  </div>
-                )}
+                    </div>
+                  )
+                })}
               </div>
-            )
-          })}
+              <div className="review-diff-first-right">
+                {commitRightPane}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
