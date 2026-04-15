@@ -89,6 +89,65 @@ describe('searchMyTickets', () => {
   })
 })
 
+describe('transitionTicket', () => {
+  let transitionTicket: (key: string, transitionName: string) => Promise<void>
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.doMock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/home') } }))
+    vi.doMock('../settings', () => ({ getSettings: mockGetSettings }))
+    globalThis.fetch = mockFetch
+    mockGetSettings.mockReset()
+    mockFetch.mockReset()
+    const mod = await import('../jira')
+    transitionTicket = mod.transitionTicket
+  })
+
+  it('fetches transitions, matches by name (case-insensitive), and POSTs the transition', async () => {
+    mockGetSettings.mockResolvedValue({
+      jiraDomain: 'acme.atlassian.net',
+      jiraEmail: 'user@acme.com',
+      jiraApiToken: 'token123',
+    })
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          transitions: [
+            { id: '11', name: 'To Do' },
+            { id: '21', name: 'In Progress' },
+            { id: '31', name: 'Done' },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({ ok: true, status: 204 })
+
+    await transitionTicket('NP-123', 'in progress')
+
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+    const postCall = mockFetch.mock.calls[1]
+    expect(postCall[0]).toContain('/rest/api/3/issue/NP-123/transitions')
+    expect(postCall[1].method).toBe('POST')
+    expect(JSON.parse(postCall[1].body)).toEqual({ transition: { id: '21' } })
+  })
+
+  it('throws when transition name not found', async () => {
+    mockGetSettings.mockResolvedValue({
+      jiraDomain: 'acme.atlassian.net',
+      jiraEmail: 'user@acme.com',
+      jiraApiToken: 'token123',
+    })
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ transitions: [{ id: '11', name: 'To Do' }] }),
+    })
+
+    await expect(transitionTicket('NP-123', 'Unknown Status')).rejects.toThrow('Transition "Unknown Status" not found on NP-123')
+  })
+})
+
 describe('fetchTicket', () => {
   let fetchTicket: (key: string) => Promise<import('../../shared/types').JiraTicket>
 

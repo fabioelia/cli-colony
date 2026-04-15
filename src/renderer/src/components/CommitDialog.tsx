@@ -21,6 +21,7 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
   const [error, setError] = useState<string | null>(null)
   const [branchInfo, setBranchInfo] = useState<{ branch: string; remote: string | null; ahead: number } | null>(null)
   const [commitHash, setCommitHash] = useState('')
+  const [transitionToast, setTransitionToast] = useState<string | null>(null)
   const [newBranchName, setNewBranchName] = useState('')
   const [creatingBranch, setCreatingBranch] = useState(false)
   const [branchError, setBranchError] = useState<string | null>(null)
@@ -98,11 +99,19 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
       }
       setPhase('done')
       onCommitted()
+      if (ticket?.key) {
+        window.api.jira.transitionTicket(ticket.key).then(result => {
+          if (result.ok) {
+            setTransitionToast(`Ticket moved to ${result.transitionName}`)
+            setTimeout(() => setTransitionToast(null), 3000)
+          }
+        }).catch(() => {/* silent */})
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
       setPhase('error')
     }
-  }, [dir, message, selectedFiles, onCommitted])
+  }, [dir, message, selectedFiles, onCommitted, ticket])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -234,6 +243,7 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
         {phase === 'done' && (
           <div className="commit-dialog-success">
             <Check size={13} /> Committed{commitHash ? ` (${commitHash})` : ''}
+            {transitionToast && <span style={{ marginLeft: 8, opacity: 0.7 }}> · {transitionToast}</span>}
           </div>
         )}
 

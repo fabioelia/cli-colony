@@ -88,6 +88,60 @@ export async function fetchTicket(key: string): Promise<JiraTicket> {
 }
 
 /**
+ * Transition a Jira ticket to a named status (e.g. "In Progress").
+ * Fetches available transitions for the issue, matches by name (case-insensitive),
+ * then POSTs the transition. Throws on any error.
+ */
+export async function transitionTicket(key: string, transitionName: string): Promise<void> {
+  const settings = await getSettings()
+  const domain = settings.jiraDomain?.trim()
+  const email = settings.jiraEmail?.trim()
+  const token = settings.jiraApiToken?.trim()
+
+  if (!domain || !email || !token) {
+    throw new Error('Jira not configured')
+  }
+
+  const credentials = Buffer.from(`${email}:${token}`).toString('base64')
+  const headers = {
+    Authorization: `Basic ${credentials}`,
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  }
+  const base = `https://${domain}/rest/api/3/issue/${encodeURIComponent(key)}/transitions`
+
+  let listResponse: Response
+  try {
+    listResponse = await fetch(base, { headers })
+  } catch (err) {
+    throw new Error(`Network error fetching transitions: ${(err as Error).message}`)
+  }
+  if (!listResponse.ok) {
+    throw new Error(`Failed to fetch transitions: ${listResponse.status} ${listResponse.statusText}`)
+  }
+
+  const data = await listResponse.json() as { transitions: Array<{ id: string; name: string }> }
+  const match = (data.transitions ?? []).find(t => t.name.toLowerCase() === transitionName.toLowerCase())
+  if (!match) {
+    throw new Error(`Transition "${transitionName}" not found on ${key}`)
+  }
+
+  let applyResponse: Response
+  try {
+    applyResponse = await fetch(base, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ transition: { id: match.id } }),
+    })
+  } catch (err) {
+    throw new Error(`Network error applying transition: ${(err as Error).message}`)
+  }
+  if (!applyResponse.ok) {
+    throw new Error(`Transition failed: ${applyResponse.status} ${applyResponse.statusText}`)
+  }
+}
+
+/**
  * Fetch tickets assigned to the current user (resolution = Unresolved, sorted
  * by updated DESC, capped at 20). Used by the ticket picker in NewInstanceDialog.
  */

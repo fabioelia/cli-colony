@@ -219,6 +219,7 @@ export interface ClaudeManagerAPI {
   jira: {
     fetchTicket: (key: string) => Promise<{ ok: true; ticket: import('../shared/types').JiraTicket } | { ok: false; error: string }>
     myTickets: () => Promise<{ ok: true; tickets: import('../shared/types').JiraTicketSummary[] } | { ok: false; error: string }>
+    transitionTicket: (key: string) => Promise<{ ok: true; transitionName: string } | { ok: false; error: string }>
   }
   colony: {
     updateContext: () => Promise<string>
@@ -806,6 +807,7 @@ const api: ClaudeManagerAPI = {
   jira: {
     fetchTicket: (key) => ipcRenderer.invoke('jira:fetchTicket', key),
     myTickets: () => ipcRenderer.invoke('jira:myTickets'),
+    transitionTicket: (key) => ipcRenderer.invoke('jira:transitionTicket', key),
   },
   colony: {
     updateContext: () => ipcRenderer.invoke('colony:updateContext'),
