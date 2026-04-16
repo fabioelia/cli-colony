@@ -421,6 +421,49 @@ export async function fetchWorktree(worktreeId: string): Promise<{ ok: true } | 
   }
 }
 
+// ---- Disk size ----
+
+export async function getWorktreeSize(worktreeId: string): Promise<{ bytes: number; computedAt: string }> {
+  const info = await getWorktree(worktreeId)
+  const computedAt = new Date().toISOString()
+  if (!info || info.repos.length === 0) return { bytes: 0, computedAt }
+
+  let totalBytes = 0
+  for (const repo of info.repos) {
+    try {
+      const { stdout } = await execFileAsync('du', ['-sk', repo.path], { timeout: 30000 })
+      const kb = parseInt(stdout.trim().split(/\s+/)[0], 10)
+      if (!isNaN(kb)) totalBytes += kb * 1024
+    } catch {
+      // du unavailable (Windows) or path missing — fall back to JS recursive walk
+      totalBytes += await jsWalkSize(repo.path)
+    }
+  }
+  return { bytes: totalBytes, computedAt }
+}
+
+async function jsWalkSize(dirPath: string): Promise<number> {
+  try {
+    const entries = await fsp.readdir(dirPath, { withFileTypes: true })
+    let size = 0
+    await Promise.all(entries.map(async (entry) => {
+      const full = path.join(dirPath, entry.name)
+      if (entry.isSymbolicLink()) return
+      if (entry.isDirectory()) {
+        size += await jsWalkSize(full)
+      } else {
+        try {
+          const stat = await fsp.stat(full)
+          size += stat.size
+        } catch { /* skip unreadable */ }
+      }
+    }))
+    return size
+  } catch {
+    return 0
+  }
+}
+
 // ---- Internal ----
 
 /** Backfill displayName + repos[] for worktrees created before multi-repo support. */

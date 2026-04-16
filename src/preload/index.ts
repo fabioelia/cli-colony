@@ -578,6 +578,7 @@ export interface ClaudeManagerAPI {
       behind: number; ahead: number; dirty: boolean; upToDate: boolean; upstream: string | null; error?: string
     }>
     fetch: (worktreeId: string) => Promise<{ ok: true } | { ok: false; message: string }>
+    size: (worktreeId: string) => Promise<{ bytes: number; computedAt: string }>
   }
   artifacts: {
     list: () => Promise<SessionArtifact[]>
@@ -1231,6 +1232,7 @@ const api: ClaudeManagerAPI = {
     pull: (worktreeId) => ipcRenderer.invoke('worktree:pull', worktreeId),
     status: (worktreeId) => ipcRenderer.invoke('worktree:status', worktreeId),
     fetch: (worktreeId) => ipcRenderer.invoke('worktree:fetch', worktreeId),
+    size: (worktreeId) => ipcRenderer.invoke('worktree:size', worktreeId),
   },
   artifacts: {
     list: () => ipcRenderer.invoke('artifacts:list'),

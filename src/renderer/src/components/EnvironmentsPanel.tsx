@@ -3,7 +3,7 @@ import {
   Server, Play, Square, Trash2, RefreshCw, FileText, Copy, Bug,
   Plus, ExternalLink, ChevronDown, ChevronRight,
   Circle, AlertTriangle, Clock, X, FolderOpen, Terminal, Loader, CheckCircle, Check, SkipForward, Upload, Download, MessageSquare, Wrench, Stethoscope,
-  GitBranch, Unlink, Link, Search, ArrowLeftRight, FolderTree
+  GitBranch, Unlink, Link, Search, ArrowLeftRight, FolderTree, HardDrive
 } from 'lucide-react'
 import EnvClaudeMdModal from './EnvClaudeMdModal'
 import EnvFileBrowser from './EnvFileBrowser'
@@ -37,6 +37,13 @@ function formatAge(iso: string): string {
   if (ms < 3600000) return `${Math.floor(ms / 60000)}m ago`
   if (ms < 86400000) return `${Math.floor(ms / 3600000)}h ago`
   return `${Math.floor(ms / 86400000)}d ago`
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}GB`
 }
 
 function statusColor(status: string): string {
@@ -98,6 +105,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
   const [wtRepos, setWtRepos] = useState<Array<{ owner: string; name: string }>>([])
   const [wtCreating, setWtCreating] = useState(false)
   const [wtStatus, setWtStatus] = useState<Record<string, { behind: number; ahead: number; dirty: boolean; upToDate: boolean; upstream: string | null; error?: string }>>({})
+  const [wtSizes, setWtSizes] = useState<Record<string, number>>({})
   const [pullingId, setPullingId] = useState<string | null>(null)
   const [checkingUpstream, setCheckingUpstream] = useState(false)
   const [wtMsg, setWtMsg] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null)
@@ -203,6 +211,15 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
     Promise.all(worktrees.map(async (w) => {
       const s = await window.api.worktree.status(w.id)
       setWtStatus(prev => ({ ...prev, [w.id]: s }))
+    })).catch(() => { /* best-effort */ })
+  }, [activeTab, worktrees])
+
+  // Load disk sizes when Worktrees tab is active
+  useEffect(() => {
+    if (activeTab !== 'worktrees' || worktrees.length === 0) return
+    Promise.all(worktrees.map(async (w) => {
+      const r = await window.api.worktree.size(w.id)
+      setWtSizes(prev => ({ ...prev, [w.id]: r.bytes }))
     })).catch(() => { /* best-effort */ })
   }, [activeTab, worktrees])
 
@@ -1527,6 +1544,8 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                       await window.api.worktree.fetch(w.id)
                       const s = await window.api.worktree.status(w.id)
                       setWtStatus(prev => ({ ...prev, [w.id]: s }))
+                      const r = await window.api.worktree.size(w.id)
+                      setWtSizes(prev => ({ ...prev, [w.id]: r.bytes }))
                     }))
                   } finally {
                     setCheckingUpstream(false)
@@ -1674,6 +1693,11 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                     : <span className="env-worktree-unmounted">{isStale ? 'Stale — unmounted >30d' : 'Unmounted'}</span>
                 }
                 <span className="env-worktree-age">{formatAge(w.createdAt)}</span>
+                {wtSizes[w.id] !== undefined && (
+                  <span className="env-worktree-size" title="Disk usage across all repos">
+                    <HardDrive size={9} /> {formatBytes(wtSizes[w.id])}
+                  </span>
+                )}
               </div>
               <div className="env-worktree-actions">
                 {pullBtn}

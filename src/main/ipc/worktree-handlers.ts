@@ -10,6 +10,7 @@ import {
   pullWorktree,
   getWorktreeUpstreamStatus,
   fetchWorktree,
+  getWorktreeSize,
 } from '../worktree-manager'
 import { swapWorktree } from '../worktree-swap'
 
@@ -54,4 +55,6 @@ export function registerWorktreeHandlers(): void {
   ipcMain.handle('worktree:status', (_e, worktreeId: string) => getWorktreeUpstreamStatus(worktreeId))
 
   ipcMain.handle('worktree:fetch', (_e, worktreeId: string) => fetchWorktree(worktreeId))
+
+  ipcMain.handle('worktree:size', (_e, worktreeId: string) => getWorktreeSize(worktreeId))
 }

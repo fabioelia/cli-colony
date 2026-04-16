@@ -714,6 +714,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'New worktree', detail: 'Create a standalone git worktree from a tracked repo. Pick a repo and branch — Colony creates the worktree in its managed directory. Mount it to an environment later.', icon: 'Plus' },
           { label: 'Pull button', detail: 'Fast-forwards the worktree to the latest origin/<branch>. Shows "Check" until status is loaded, then "Pull N" (N commits behind), "Up to date", "Diverged", or "Pull (dirty)" if there are uncommitted changes. Disabled when dirty or diverged — stash or rebase manually first. For mounted worktrees, services pick up file changes on next hot-reload.', icon: 'Download' },
           { label: 'Check upstream button', detail: 'Fetches latest refs from origin and refreshes upstream status for all worktrees simultaneously. Use this to see how far behind each worktree is before pulling.', icon: 'RefreshCw' },
+          { label: 'Disk size', detail: 'Shows how much disk space each worktree uses (summed across all repos). Useful for identifying bloated arena or fork worktrees before pruning. Updated on tab open and on Check upstream.', icon: 'HardDrive' },
         ],
       },
       {
