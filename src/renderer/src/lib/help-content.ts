@@ -658,6 +658,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Main area — Environments tab',
         items: [
           { label: 'Status dot', detail: 'Green = all services running. Yellow = partial. Red = crashed. Gray = stopped.' },
+          { label: 'Template drift badge', detail: 'Amber "template drift" badge on the env card when the source template has changed since this environment was created. V1 is detection only — use Clone or Fix to get a fresh copy.' },
           { label: 'Service dots', detail: 'Colored dot + service name for each service. Dot color shows status: green = running, red = crashed, gray = stopped. Hover for port and restart info.' },
           { label: 'Start', detail: 'Launch all services in the environment.', icon: 'Play' },
           { label: 'Stop', detail: 'Halt all running services.', icon: 'Square' },

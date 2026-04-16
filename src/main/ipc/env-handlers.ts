@@ -7,6 +7,7 @@ import {
   listTemplates, getTemplate, saveTemplate, deleteTemplate,
   refreshRepoConfigs,
 } from '../env-manager'
+import { getEnvDriftStatus } from '../env-drift'
 import { readEnvClaudeMd, regenerateEnvClaudeMdStrict } from '../env-claudemd'
 // getRepoConfig/getAllRepoConfigs removed — colony:repoConfig handlers were unreachable
 import {
@@ -63,6 +64,7 @@ export function registerEnvHandlers(): void {
   ipcMain.handle('env:retrySetup', (_e, envId: string) => {
     return setupEnvironment(envId)
   })
+  ipcMain.handle('env:getDriftStatus', (_e, envId: string) => getEnvDriftStatus(envId))
 
   // Templates
   ipcMain.handle('env:listTemplates', () => listTemplates())

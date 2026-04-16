@@ -15932,6 +15932,19 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--accent);
 }
 
+.env-drift-badge {
+  display: inline-block;
+  padding: 0 5px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border-radius: 3px;
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warning);
+  cursor: default;
+}
+
 .env-card-services {
   display: flex;
   gap: 6px;

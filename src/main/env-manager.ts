@@ -34,6 +34,7 @@ import type { InstanceManifest, EnvStatus, EnvironmentTemplate } from '../daemon
 
 import { colonyPaths } from '../shared/colony-paths'
 import { genId, slugify } from '../shared/utils'
+import { computeDriftHash } from '../shared/template-drift'
 
 const HOME = process.env.HOME || '/'
 const ENVIRONMENTS_DIR = colonyPaths.environments
@@ -439,7 +440,7 @@ export async function createEnvironment(opts: CreateEnvironmentOpts): Promise<In
     logs: { dir: path.join(envDir, 'logs'), maxSizeKb: 500, retention: 5 },
     hooks,
     setup: { status: 'creating', steps: setupSteps, error: null },
-    meta: { templateId: template?.id, templateName: template?.name },
+    meta: { templateId: template?.id, templateName: template?.name, templateBaseline: template ? computeDriftHash(template) : undefined },
   }
 
   // Validate: scan manifest for unresolved ${...} variables before writing
@@ -934,7 +935,7 @@ export async function fixEnvironment(envId: string): Promise<{ fixed: string[] }
     resources,
     urls,
     hooks,
-    meta: { ...manifest.meta as any, templateId: template.id, templateName: template.name },
+    meta: { ...manifest.meta as any, templateId: template.id, templateName: template.name, templateBaseline: computeDriftHash(template) },
   }
 
   // Validate

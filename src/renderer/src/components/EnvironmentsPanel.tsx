@@ -88,6 +88,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
   const [restartPolicies, setRestartPolicies] = useState<Record<string, 'manual' | 'on-crash'>>({})
   const [purposeTags, setPurposeTags] = useState<Record<string, 'interactive' | 'background' | 'nightly' | null>>({})
   const [tagFilter, setTagFilter] = useState<'interactive' | 'background' | 'nightly' | null>(null)
+  const [driftStatus, setDriftStatus] = useState<Record<string, 'clean' | 'drifted' | 'unknown'>>({})
   const [envSearch, setEnvSearch] = useState('')
   const [showCreateWorktree, setShowCreateWorktree] = useState(false)
   const [wtBranch, setWtBranch] = useState('')
@@ -159,6 +160,16 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
       window.removeEventListener('focus', onFocus)
     }
   }, [loadEnvironments, loadTemplates])
+
+  // Load drift status for all environments; backend returns 'unknown' for non-templated ones.
+  useEffect(() => {
+    if (environments.length === 0) return
+    for (const env of environments) {
+      window.api.env.getDriftStatus(env.id)
+        .then(status => { if (status !== 'unknown') setDriftStatus(prev => ({ ...prev, [env.id]: status })) })
+        .catch(() => {})
+    }
+  }, [environments])
 
   // Load repos when create worktree form opens
   useEffect(() => {
@@ -659,6 +670,11 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                   <div className="env-card-meta">
                     <span className="env-card-branch">{env.branch}</span>
                     {env.projectType && <span className="env-card-type">{env.projectType}</span>}
+                    {driftStatus[env.id] === 'drifted' && (
+                      <span className="env-drift-badge" title="Template has changed since this environment was created">
+                        template drift
+                      </span>
+                    )}
                   </div>
                 </div>
 
