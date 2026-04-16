@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
-import { ChevronRight, RefreshCw, RotateCw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch } from 'lucide-react'
+import { ChevronRight, RefreshCw, RotateCw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search } from 'lucide-react'
 import type { GitDiffEntry, ColonyComment, ScoreCard } from '../../../shared/types'
 import type { ClaudeInstance } from '../types'
 import DiffViewer from './DiffViewer'
@@ -30,6 +30,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const diffCacheRef = useRef<Record<string, string>>({})
   const [diffContent, setDiffContent] = useState<string | null>(null)
   const [diffLoading, setDiffLoading] = useState(false)
+  const [fileSearch, setFileSearch] = useState('')
 
   // Checkpoint state
   const [checkpoints, setCheckpoints] = useState<CheckpointTag[]>([])
@@ -225,8 +226,11 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     }
   }, [instance.workingDirectory])
 
-  // visibleFiles — pass-through today, structured for future filtering
-  const visibleFiles = useMemo(() => gitChanges, [gitChanges])
+  // visibleFiles — filtered by search, structured for keyboard nav
+  const visibleFiles = useMemo(
+    () => fileSearch ? gitChanges.filter(f => f.file.toLowerCase().includes(fileSearch.toLowerCase())) : gitChanges,
+    [gitChanges, fileSearch]
+  )
 
   // Keyboard nav: j/k or ArrowDown/ArrowUp to navigate files, Escape to clear
   useEffect(() => {
@@ -340,6 +344,24 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
             <GitCompare size={13} /> Git Changes
           </span>
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            {gitChanges.length > 0 && (
+              <div className="review-search-wrapper">
+                <Search size={12} className="review-search-icon" />
+                <input
+                  type="text"
+                  className="review-search-input"
+                  placeholder="Filter files..."
+                  value={fileSearch}
+                  onChange={(e) => setFileSearch(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Escape') { setFileSearch(''); (e.target as HTMLInputElement).blur() } }}
+                />
+                {fileSearch && (
+                  <button className="review-search-clear" onClick={() => setFileSearch('')}>
+                    <X size={10} />
+                  </button>
+                )}
+              </div>
+            )}
             <button
               className="changes-refresh-btn"
               title="Refresh"
@@ -397,6 +419,9 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
             <div className="diff-first-layout">
               {/* Left pane: file list */}
               <div className="diff-first-left">
+                {fileSearch && visibleFiles.length === 0 && (
+                  <div className="changes-empty">No files match &ldquo;{fileSearch}&rdquo;.</div>
+                )}
                 {visibleFiles.map((entry) => {
                   const isSelected = selectedDiffFile === entry.file
                   const fileComments = colonyComments.filter(c => {

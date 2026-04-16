@@ -1402,6 +1402,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Score Output', detail: 'Run an LLM-as-Judge assessment on the current diff. Returns a 1–5 confidence score, scope creep warning, test coverage indicator, and 2-3 sentence summary. Powered by claude-haiku. Results are cached by diff hash — switching tabs and back restores the card instantly with no extra token cost.', icon: 'Sparkles' },
           { label: 'Save Checkpoint', detail: 'Create a lightweight git tag at the current HEAD, saving a named restore point for this session. Tags are namespaced per-session (colony-cp/<session-id>/<timestamp>) so they don\'t collide across sessions. Appears in the checkpoint timeline below.', icon: 'Bookmark' },
           { label: 'Revert All', detail: 'Revert every changed file to HEAD. A confirmation dialog appears first — this cannot be undone.', icon: 'Undo2' },
+          { label: 'File search', detail: 'Filter the file list by name. Only visible when there are changed files. Escape clears the filter and returns keyboard focus.', icon: 'Search' },
           { label: 'Auto-refresh', detail: 'The change list refreshes automatically every 10 seconds while this tab is open.' },
         ],
       },
