@@ -27,7 +27,7 @@ vi.mock('fs', () => ({
   promises: { writeFile: mockWriteFile },
 }))
 
-import { getEnvDriftStatus } from '../env-drift'
+import { getEnvDriftStatus, acceptDriftBaseline } from '../env-drift'
 
 const TEMPLATE = { id: 'tpl-1', name: 'Newton', projectType: 'django', services: {}, repos: [], createdAt: '2026-01-01' }
 
@@ -88,5 +88,60 @@ describe('getEnvDriftStatus', () => {
     expect(mockWriteFile).toHaveBeenCalledOnce()
     const writtenContent = JSON.parse(mockWriteFile.mock.calls[0][1] as string)
     expect(writtenContent.meta.templateBaseline).toBe('hash-abc123')
+  })
+})
+
+describe('acceptDriftBaseline', () => {
+  it('writes current hash and returns ok:true for a drifted env', async () => {
+    mockGetManifest.mockResolvedValue(makeManifest({ templateBaseline: 'old-hash-999' }))
+    mockGetTemplate.mockResolvedValue(TEMPLATE)
+
+    const result = await acceptDriftBaseline('env-1')
+    expect(result).toEqual({ ok: true, baseline: 'hash-abc123' })
+
+    // Manifest written with new hash
+    expect(mockWriteFile).toHaveBeenCalledOnce()
+    const written = JSON.parse(mockWriteFile.mock.calls[0][1] as string)
+    expect(written.meta.templateBaseline).toBe('hash-abc123')
+  })
+
+  it('returns ok:false with reason no-manifest when manifest missing', async () => {
+    mockGetManifest.mockResolvedValue(null)
+    const result = await acceptDriftBaseline('env-1')
+    expect(result).toEqual({ ok: false, reason: 'no-manifest' })
+    expect(mockWriteFile).not.toHaveBeenCalled()
+  })
+
+  it('returns ok:false with reason no-template-id when env has no templateId', async () => {
+    mockGetManifest.mockResolvedValue({ ...makeManifest(), meta: {} })
+    const result = await acceptDriftBaseline('env-1')
+    expect(result).toEqual({ ok: false, reason: 'no-template-id' })
+    expect(mockWriteFile).not.toHaveBeenCalled()
+  })
+
+  it('returns ok:false with reason template-not-found when template missing', async () => {
+    mockGetManifest.mockResolvedValue(makeManifest())
+    mockGetTemplate.mockResolvedValue(null)
+    const result = await acceptDriftBaseline('env-1')
+    expect(result).toEqual({ ok: false, reason: 'template-not-found' })
+    expect(mockWriteFile).not.toHaveBeenCalled()
+  })
+
+  it('subsequent getEnvDriftStatus returns clean after accept', async () => {
+    // First call: drifted
+    mockGetManifest.mockResolvedValueOnce(makeManifest({ templateBaseline: 'old-hash-999' }))
+    mockGetTemplate.mockResolvedValueOnce(TEMPLATE)
+    expect(await getEnvDriftStatus('env-1')).toBe('drifted')
+
+    // Accept baseline
+    mockGetManifest.mockResolvedValueOnce(makeManifest({ templateBaseline: 'old-hash-999' }))
+    mockGetTemplate.mockResolvedValueOnce(TEMPLATE)
+    const result = await acceptDriftBaseline('env-1')
+    expect(result.ok).toBe(true)
+
+    // Now clean (simulate what the written manifest would look like)
+    mockGetManifest.mockResolvedValueOnce(makeManifest({ templateBaseline: 'hash-abc123' }))
+    mockGetTemplate.mockResolvedValueOnce(TEMPLATE)
+    expect(await getEnvDriftStatus('env-1')).toBe('clean')
   })
 })

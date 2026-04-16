@@ -18,6 +18,10 @@ import { computeDriftHash, hasDrift } from '../shared/template-drift'
 
 export type DriftStatus = 'clean' | 'drifted' | 'unknown'
 
+export type AcceptBaselineResult =
+  | { ok: true; baseline: string }
+  | { ok: false; reason: 'no-manifest' | 'no-template-id' | 'template-not-found' }
+
 /**
  * Get the drift status for an environment.
  * Performs lazy baseline migration when templateBaseline is missing.
@@ -42,6 +46,25 @@ export async function getEnvDriftStatus(envId: string): Promise<DriftStatus> {
   }
 
   return hasDrift(storedBaseline, currentHash) ? 'drifted' : 'clean'
+}
+
+/**
+ * Accept the current template state as the new baseline for an environment.
+ * Clears the "drifted" indicator without modifying services or config.
+ */
+export async function acceptDriftBaseline(envId: string): Promise<AcceptBaselineResult> {
+  const manifest = await getManifest(envId)
+  if (!manifest) return { ok: false, reason: 'no-manifest' }
+
+  const templateId = (manifest.meta as any)?.templateId as string | undefined
+  if (!templateId) return { ok: false, reason: 'no-template-id' }
+
+  const template = await getTemplate(templateId)
+  if (!template) return { ok: false, reason: 'template-not-found' }
+
+  const newHash = computeDriftHash(template)
+  await writeBaseline(manifest, newHash)
+  return { ok: true, baseline: newHash }
 }
 
 /** Write templateBaseline into the manifest's meta without triggering envd re-register. */

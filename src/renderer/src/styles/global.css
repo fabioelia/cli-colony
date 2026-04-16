@@ -15944,6 +15944,17 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: rgba(245, 158, 11, 0.15);
   color: var(--warning);
   cursor: default;
+  border: none;
+  font-family: inherit;
+  line-height: inherit;
+}
+
+.env-drift-badge-interactive {
+  cursor: pointer;
+}
+
+.env-drift-badge-interactive:hover {
+  background: rgba(245, 158, 11, 0.28);
 }
 
 .env-card-services {

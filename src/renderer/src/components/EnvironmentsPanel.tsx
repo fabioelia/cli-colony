@@ -671,9 +671,26 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                     <span className="env-card-branch">{env.branch}</span>
                     {env.projectType && <span className="env-card-type">{env.projectType}</span>}
                     {driftStatus[env.id] === 'drifted' && (
-                      <span className="env-drift-badge" title="Template has changed since this environment was created">
+                      <button
+                        type="button"
+                        className="env-drift-badge env-drift-badge-interactive"
+                        title="Template has changed since this environment was created. Click to accept the current template as the new baseline."
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          const ok = confirm(
+                            `Accept the current version of this env's template as the new baseline?\n\n` +
+                            `This only clears the drift indicator — services and config are not modified.\n` +
+                            `(To apply template changes, teardown + recreate the env from the template.)`
+                          )
+                          if (!ok) return
+                          const result = await window.api.env.acceptDriftBaseline(env.id)
+                          if (result.ok) {
+                            setDriftStatus(prev => ({ ...prev, [env.id]: 'clean' }))
+                          }
+                        }}
+                      >
                         template drift
-                      </span>
+                      </button>
                     )}
                   </div>
                 </div>
