@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mockGetManifest = vi.hoisted(() => vi.fn())
 const mockGetTemplate = vi.hoisted(() => vi.fn())
 const mockComputeDriftHash = vi.hoisted(() => vi.fn())
+const mockGetDriftSubset = vi.hoisted(() => vi.fn(() => ({})))
 const mockWriteFile = vi.hoisted(() => vi.fn(async () => undefined))
 
 vi.mock('../env-manager', () => ({
@@ -21,6 +22,8 @@ vi.mock('../env-manager', () => ({
 vi.mock('../../shared/template-drift', () => ({
   computeDriftHash: mockComputeDriftHash,
   hasDrift: (a: string, b: string) => a !== b,
+  getDriftSubset: mockGetDriftSubset,
+  getFieldDrift: () => [],
 }))
 
 vi.mock('fs', () => ({

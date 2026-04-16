@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeDriftHash, getDriftSubset, hasDrift } from '../template-drift'
+import { computeDriftHash, getDriftSubset, getFieldDrift, hasDrift } from '../template-drift'
 import type { EnvironmentTemplate } from '../types'
 
 function makeTemplate(overrides: Partial<EnvironmentTemplate> = {}): EnvironmentTemplate {
@@ -72,5 +72,44 @@ describe('getDriftSubset', () => {
     expect(subset).toHaveProperty('projectType')
     expect(subset).toHaveProperty('services')
     expect(subset).toHaveProperty('repos')
+  })
+})
+
+describe('getFieldDrift', () => {
+  function makeSubset(overrides: Record<string, unknown> = {}) {
+    const t = makeTemplate(overrides as Partial<EnvironmentTemplate>)
+    return getDriftSubset(t)
+  }
+
+  it('returns [] for identical subsets', () => {
+    const s = makeSubset()
+    expect(getFieldDrift(s, s)).toEqual([])
+  })
+
+  it('returns [] when only key order differs (deep equality)', () => {
+    const a = makeSubset({ services: { backend: { port: 8000, command: 'run' } } })
+    const b = makeSubset({ services: { backend: { command: 'run', port: 8000 } } })
+    expect(getFieldDrift(a, b)).toEqual([])
+  })
+
+  it('returns single field when only services changed', () => {
+    const a = makeSubset()
+    const b = makeSubset({ services: { backend: { command: 'uvicorn app:main' } } })
+    expect(getFieldDrift(a, b)).toEqual(['services'])
+  })
+
+  it('returns multiple fields when multiple differ', () => {
+    const a = makeSubset()
+    const b = makeSubset({ services: { backend: { command: 'uvicorn' } }, ports: ['web'] })
+    const result = getFieldDrift(a, b)
+    expect(result).toContain('services')
+    expect(result).toContain('ports')
+  })
+
+  it('returns fields in declaration order (services before ports)', () => {
+    const a = makeSubset()
+    const b = makeSubset({ services: { backend: { command: 'uvicorn' } }, ports: ['web'] })
+    const result = getFieldDrift(a, b)
+    expect(result.indexOf('services')).toBeLessThan(result.indexOf('ports'))
   })
 })

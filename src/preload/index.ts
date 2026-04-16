@@ -390,6 +390,8 @@ export interface ClaudeManagerAPI {
     getDriftStatus: (envId: string) => Promise<'clean' | 'drifted' | 'unknown'>
     /** Accept the current template as the new baseline — clears the drift badge. */
     acceptDriftBaseline: (envId: string) => Promise<{ ok: boolean; baseline?: string; reason?: string }>
+    /** Return which top-level template fields changed (e.g. ['services', 'ports']). Empty when clean or snapshot missing. */
+    getDriftFields: (envId: string) => Promise<string[]>
     onStatusUpdate: (cb: (environments: EnvStatus[]) => void) => () => void
     onServiceOutput: (cb: (data: { envId: string; service: string; data: string }) => void) => () => void
     onServiceCrashed: (cb: (data: { envId: string; service: string; exitCode: number }) => void) => () => void
@@ -993,6 +995,7 @@ const api: ClaudeManagerAPI = {
     refreshTemplates: () => ipcRenderer.invoke('env:refreshTemplates'),
     getDriftStatus: (envId: string) => ipcRenderer.invoke('env:getDriftStatus', envId),
     acceptDriftBaseline: (envId: string) => ipcRenderer.invoke('env:acceptDriftBaseline', envId),
+    getDriftFields: (envId: string) => ipcRenderer.invoke('env:getDriftFields', envId),
     onTemplatesChanged: (cb: (templates: any[]) => void) => {
       const l = (_e: any, templates: any[]) => cb(templates)
       ipcRenderer.on('env:templates-changed', l)

@@ -89,6 +89,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
   const [purposeTags, setPurposeTags] = useState<Record<string, 'interactive' | 'background' | 'nightly' | null>>({})
   const [tagFilter, setTagFilter] = useState<'interactive' | 'background' | 'nightly' | null>(null)
   const [driftStatus, setDriftStatus] = useState<Record<string, 'clean' | 'drifted' | 'unknown'>>({})
+  const [driftFields, setDriftFields] = useState<Record<string, string[]>>({})
   const [envSearch, setEnvSearch] = useState('')
   const [showCreateWorktree, setShowCreateWorktree] = useState(false)
   const [wtBranch, setWtBranch] = useState('')
@@ -166,7 +167,16 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
     if (environments.length === 0) return
     for (const env of environments) {
       window.api.env.getDriftStatus(env.id)
-        .then(status => { if (status !== 'unknown') setDriftStatus(prev => ({ ...prev, [env.id]: status })) })
+        .then(status => {
+          if (status !== 'unknown') {
+            setDriftStatus(prev => ({ ...prev, [env.id]: status }))
+            if (status === 'drifted') {
+              window.api.env.getDriftFields(env.id)
+                .then(fields => setDriftFields(prev => ({ ...prev, [env.id]: fields })))
+                .catch(() => {})
+            }
+          }
+        })
         .catch(() => {})
     }
   }, [environments])
@@ -670,30 +680,39 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                   <div className="env-card-meta">
                     <span className="env-card-branch">{env.branch}</span>
                     {env.projectType && <span className="env-card-type">{env.projectType}</span>}
-                    {driftStatus[env.id] === 'drifted' && (
-                      <button
-                        type="button"
-                        className="env-drift-badge env-drift-badge-interactive"
-                        title="Template has changed since this environment was created. Click to accept the current template as the new baseline."
-                        onClick={async (e) => {
-                          e.stopPropagation()
-                          const ok = confirm(
-                            `Accept the current version of this env's template as the new baseline?\n\n` +
-                            `This only clears the drift indicator — services and config are not modified.\n` +
-                            `(To apply template changes, teardown + recreate the env from the template.)`
-                          )
-                          if (!ok) return
-                          const result = await window.api.env.acceptDriftBaseline(env.id)
-                          if (result.ok) {
-                            setDriftStatus(prev => ({ ...prev, [env.id]: 'clean' }))
-                          } else {
-                            alert(`Failed to accept baseline: ${result.message ?? 'unknown error'}`)
-                          }
-                        }}
-                      >
-                        template drift
-                      </button>
-                    )}
+                    {driftStatus[env.id] === 'drifted' && (() => {
+                      const fields = driftFields[env.id] || []
+                      const badgeText = fields.length > 0
+                        ? `drift: ${fields.slice(0, 2).join(', ')}${fields.length > 2 ? '…' : ''}`
+                        : 'template drift'
+                      const tooltipText = fields.length > 0
+                        ? `Template changed — ${fields.join(', ')}. Click to accept current as baseline.`
+                        : 'Template has changed since this environment was created. Click to accept the current template as the new baseline.'
+                      return (
+                        <button
+                          type="button"
+                          className="env-drift-badge env-drift-badge-interactive"
+                          title={tooltipText}
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            const ok = confirm(
+                              `Accept the current version of this env's template as the new baseline?\n\n` +
+                              `This only clears the drift indicator — services and config are not modified.\n` +
+                              `(To apply template changes, teardown + recreate the env from the template.)`
+                            )
+                            if (!ok) return
+                            const result = await window.api.env.acceptDriftBaseline(env.id)
+                            if (result.ok) {
+                              setDriftStatus(prev => ({ ...prev, [env.id]: 'clean' }))
+                            } else {
+                              alert(`Failed to accept baseline: ${(result as any).message ?? 'unknown error'}`)
+                            }
+                          }}
+                        >
+                          {badgeText}
+                        </button>
+                      )
+                    })()}
                   </div>
                 </div>
 

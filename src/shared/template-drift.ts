@@ -62,3 +62,21 @@ export function computeDriftHash(template: EnvironmentTemplate): string {
 export function hasDrift(baseline: string, current: string): boolean {
   return baseline !== current
 }
+
+/** The ordered list of fields tracked for per-field drift reporting. */
+const DRIFT_FIELDS = ['projectType', 'repos', 'services', 'resources', 'ports', 'hooks', 'branches'] as const
+
+/**
+ * Return which top-level DriftSubset fields differ between baseline and current.
+ * Comparison is by stable JSON serialization (sorted keys). Returns fields in
+ * declaration order (not Object.keys order) for deterministic output.
+ */
+export function getFieldDrift(baseline: DriftSubset, current: DriftSubset): string[] {
+  const changed: string[] = []
+  for (const field of DRIFT_FIELDS) {
+    const a = JSON.stringify(sortedKeys(baseline[field]))
+    const b = JSON.stringify(sortedKeys(current[field]))
+    if (a !== b) changed.push(field)
+  }
+  return changed
+}
