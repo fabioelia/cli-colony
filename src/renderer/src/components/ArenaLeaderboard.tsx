@@ -260,6 +260,12 @@ export default function ArenaLeaderboard({ open, onClose, onReplay }: Props) {
                   <span className="arena-match-detail-verdict">{detailMatch.verdictText}</span>
                 </div>
               )}
+              {detailMatch.reason && (
+                <div className="arena-match-detail-row" style={{ flexDirection: 'column', gap: 4 }}>
+                  <span className="arena-match-detail-label">Your reason</span>
+                  <span className="arena-match-detail-verdict">{detailMatch.reason}</span>
+                </div>
+              )}
               {onReplay && detailMatch.prompt && (
                 <button
                   className="panel-header-btn primary"
