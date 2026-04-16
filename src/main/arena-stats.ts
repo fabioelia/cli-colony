@@ -49,3 +49,13 @@ export async function appendMatchRecord(record: ArenaMatchRecord): Promise<void>
 export async function clearMatchHistory(): Promise<void> {
   try { await fsp.unlink(MATCH_HISTORY_PATH) } catch { /* ok */ }
 }
+
+export function buildJudgeHistorySection(history: ArenaMatchRecord[]): string {
+  const manualWithReason = history
+    .filter(m => m.judgeType === 'manual' && m.reason && m.reason.trim().length > 0)
+    .slice(-5)
+  if (manualWithReason.length === 0) return ''
+  return `\n\nUser preference history — past arena winners with their reasons (most recent last):\n` +
+    manualWithReason.map((m, i) => `${i + 1}. Winner "${m.winnerName}" (participants: ${m.participants.map(p => p.name).join(', ')}) — reason: ${m.reason}`).join('\n') +
+    `\n\nUse these preferences as a soft guide. The diffs below are authoritative; use history to break ties or calibrate "what good looks like" for this user.\n`
+}

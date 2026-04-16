@@ -210,6 +210,16 @@ export default function ArenaLeaderboard({ open, onClose, onReplay }: Props) {
           )}
         </div>
 
+        {/* Judge learning footer */}
+        {(() => {
+          const n = Math.min(5, matchHistory.filter(m => m.judgeType === 'manual' && m.reason).length)
+          return n > 0 ? (
+            <div className="arena-leaderboard-footer">
+              {n} past decision{n !== 1 ? 's' : ''} with reasons will inform the next LLM judge
+            </div>
+          ) : null
+        })()}
+
         {/* Match detail modal */}
         {detailMatch && (
           <div className="arena-match-detail" onClick={(ev) => ev.stopPropagation()}>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X, Shield, Sparkles, Check, Circle, Sun, Moon, Palette, Eye, EyeOff, Search, Play, CheckCircle, XCircle, Loader, Download, Upload, Puzzle } from 'lucide-react'
+import { ArrowLeft, Terminal, ScrollText, AlertTriangle, RotateCcw, Bell, Cpu, Settings, Network, Plus, Trash2, Pencil, ChevronDown, ChevronRight, Clock, ClipboardList, GitCommit, Globe, BookTemplate, Copy, X, Shield, Sparkles, Check, Circle, Sun, Moon, Palette, Eye, EyeOff, Search, Play, CheckCircle, XCircle, Loader, Download, Upload, Puzzle, Trophy } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import BatchExecutionSettings from './BatchExecutionSettings'
 import AppUpdateSettings from './AppUpdateSettings'
@@ -81,6 +81,8 @@ export default function SettingsPanel({ onBack }: Props) {
   const [showApprovalRulesSection, setShowApprovalRulesSection] = useState(false)
   const [approvalRuleForm, setApprovalRuleForm] = useState<Partial<ApprovalRule> | null>(null)
 
+  const [arenaJudgeUseHistory, setArenaJudgeUseHistory] = useState(true)
+
   const [showBatchSection, setShowBatchSection] = useState(false)
   const [showUpdateSection, setShowUpdateSection] = useState(false)
   const [showOnboardingSection, setShowOnboardingSection] = useState(false)
@@ -104,6 +106,7 @@ export default function SettingsPanel({ onBack }: Props) {
   const SECTION_KEYWORDS: Record<string, string> = {
     cli: 'cli arguments args default backend claude cursor slash commands sync',
     appearance: 'appearance theme dark light font size family cursor style blink scrollback lines terminal monospace',
+    arena: 'arena judge learning history reasons manual pick auto-judge',
     general: 'general tray keep running close quit',
     notifications: 'notifications sound desktop alert pipeline persona approval session budget system',
     sessions: 'sessions cleanup auto-cleanup idle cost daily budget hotkey global shortcut',
@@ -175,6 +178,7 @@ export default function SettingsPanel({ onBack }: Props) {
       if (s.terminalCursorStyle) setCursorStyle(s.terminalCursorStyle as 'block' | 'bar' | 'underline')
       if (s.terminalCursorBlink) setCursorBlink(s.terminalCursorBlink === 'true')
       if (s.terminalScrollback) setScrollback(parseInt(s.terminalScrollback, 10) || 10000)
+      setArenaJudgeUseHistory(s.arenaJudgeUseHistory !== 'false')
     })
     window.api.settings.getShells().then(setAvailableShells)
     window.api.daemon.getVersion().then(setDaemonVersion).catch(() => {})
@@ -287,6 +291,7 @@ export default function SettingsPanel({ onBack }: Props) {
       window.api.settings.set('jiraSessionStartTransition', jiraSessionStartTransition),
       window.api.settings.set('jiraSessionEndComment', jiraSessionEndComment ? 'true' : 'false'),
       window.api.settings.set('theme', theme),
+      window.api.settings.set('arenaJudgeUseHistory', arenaJudgeUseHistory ? 'true' : 'false'),
     ])
     // Re-register hotkey immediately (no app restart needed)
     const result = await window.api.settings.reregisterHotkey(globalHotkey)
@@ -610,6 +615,27 @@ export default function SettingsPanel({ onBack }: Props) {
           </div>
           <p className="settings-help settings-help-bottom">Range 1,000–100,000. Higher values use more memory.</p>
         </div>
+      </div>
+
+      {/* Arena */}
+      <div className="settings-section" style={{ display: sectionVisible('arena') ? undefined : 'none' }}>
+        <div className="settings-section-title">
+          <Trophy size={12} />
+          Arena
+        </div>
+        <div className="settings-row">
+          <span className="settings-row-label">Include past manual-pick reasons in LLM auto-judge prompt</span>
+          <button
+            className={`settings-toggle ${arenaJudgeUseHistory ? 'active' : ''}`}
+            onClick={() => setArenaJudgeUseHistory(!arenaJudgeUseHistory)}
+            role="switch"
+            aria-checked={arenaJudgeUseHistory}
+            title={arenaJudgeUseHistory ? 'LLM judge sees last 5 manual-pick reasons' : 'LLM judge runs without preference history'}
+          >
+            <span className="settings-toggle-knob" />
+          </button>
+        </div>
+        <p className="settings-help settings-help-bottom">When on, the LLM judge sees the last 5 reasons you gave when picking winners manually.</p>
       </div>
 
       {/* General */}

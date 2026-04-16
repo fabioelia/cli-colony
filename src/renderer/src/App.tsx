@@ -897,9 +897,12 @@ export default function App() {
     if (loserNames.length === 0) return
     setArenaWinnerId(winnerInstId)
     setArenaBlind(false)
+    const raw = window.prompt('Optional — why did you pick this winner? (helps auto-judge learn)')
+    const reason = raw?.trim() || undefined
     await window.api.arena.recordWinner(winner.name, loserNames, {
       prompt: arenaText || undefined,
       judgeType: 'manual',
+      reason,
     })
   }, [activeId, splitId, arenaWinnerId, instances, gridPanes, arenaText])
 

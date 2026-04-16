@@ -487,6 +487,7 @@ export interface ArenaMatchRecord {
   winnerId: string        // participant name
   winnerName: string
   judgeType: 'manual' | 'command' | 'llm'
+  reason?: string
   verdictText?: string
   repo?: string
   branch?: string

@@ -4,7 +4,8 @@ import { promisify } from 'util'
 import { execFile } from 'child_process'
 import { resolveCommand } from '../resolve-command'
 import { join } from 'path'
-import { readArenaStats, writeArenaStats, readMatchHistory, appendMatchRecord, clearMatchHistory } from '../arena-stats'
+import { readArenaStats, writeArenaStats, readMatchHistory, appendMatchRecord, clearMatchHistory, buildJudgeHistorySection } from '../arena-stats'
+import { getSetting } from '../settings'
 import type { ArenaMatchRecord } from '../../shared/types'
 import { createWorktree, removeWorktree } from '../worktree-manager'
 import { createInstance } from '../instance-manager'
@@ -21,7 +22,7 @@ export function registerArenaHandlers(): void {
     _e,
     winnerKey: string,
     loserKey: string | string[],
-    matchCtx?: { prompt?: string; judgeType?: 'manual' | 'command' | 'llm'; models?: (string | null)[] },
+    matchCtx?: { prompt?: string; judgeType?: 'manual' | 'command' | 'llm'; models?: (string | null)[]; reason?: string },
   ): Promise<boolean> => {
     try {
       const stats = await readArenaStats()
@@ -49,6 +50,7 @@ export function registerArenaHandlers(): void {
         winnerId: winnerKey,
         winnerName: winnerKey,
         judgeType: matchCtx?.judgeType ?? 'manual',
+        reason: matchCtx?.reason,
       }
       await appendMatchRecord(record)
 
@@ -229,9 +231,16 @@ export function registerArenaHandlers(): void {
     const verdictPath = join(verdictDir, 'arena-judge-verdict.txt')
     await fsp.mkdir(verdictDir, { recursive: true })
 
+    const useHistory = (await getSetting('arenaJudgeUseHistory')) !== 'false'
+    let historySection = ''
+    if (useHistory) {
+      const history = await readMatchHistory()
+      historySection = buildJudgeHistorySection(history)
+    }
+
     const judgePrompt = `You are judging an arena competition between ${instanceIds.length} agents.
 
-${judgeConfig.prompt}
+${judgeConfig.prompt}${historySection}
 
 ${diffSections}
 
