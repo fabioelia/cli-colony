@@ -686,6 +686,8 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                           const result = await window.api.env.acceptDriftBaseline(env.id)
                           if (result.ok) {
                             setDriftStatus(prev => ({ ...prev, [env.id]: 'clean' }))
+                          } else {
+                            alert(`Failed to accept baseline: ${result.message ?? 'unknown error'}`)
                           }
                         }}
                       >
