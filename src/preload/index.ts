@@ -564,6 +564,14 @@ export interface ClaudeManagerAPI {
     forEnv: (envId: string) => Promise<WorktreeInfo[]>
     swap: (envId: string, worktreeId: string) => Promise<InstanceManifest>
     onChanged: (cb: () => void) => () => void
+    pull: (worktreeId: string) => Promise<
+      | { ok: true; before: string; after: string; commitsPulled: number }
+      | { ok: false; reason: 'dirty' | 'diverged' | 'detached' | 'not-found' | 'fetch-failed' | 'no-upstream'; message: string }
+    >
+    status: (worktreeId: string) => Promise<{
+      behind: number; ahead: number; dirty: boolean; upToDate: boolean; upstream: string | null; error?: string
+    }>
+    fetch: (worktreeId: string) => Promise<{ ok: true } | { ok: false; message: string }>
   }
   artifacts: {
     list: () => Promise<SessionArtifact[]>
@@ -1211,6 +1219,9 @@ const api: ClaudeManagerAPI = {
       ipcRenderer.on('worktree:changed', l)
       return () => ipcRenderer.removeListener('worktree:changed', l)
     },
+    pull: (worktreeId) => ipcRenderer.invoke('worktree:pull', worktreeId),
+    status: (worktreeId) => ipcRenderer.invoke('worktree:status', worktreeId),
+    fetch: (worktreeId) => ipcRenderer.invoke('worktree:fetch', worktreeId),
   },
   artifacts: {
     list: () => ipcRenderer.invoke('artifacts:list'),

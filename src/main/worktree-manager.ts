@@ -11,13 +11,43 @@
  */
 
 import { promises as fsp } from 'fs'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import * as path from 'path'
 import { colonyPaths } from '../shared/colony-paths'
 import { genId } from '../shared/utils'
+import { loadShellEnv } from '../shared/shell-env'
 import { ensureBareRepo, addWorktree as gitAddWorktree, removeWorktree as gitRemoveWorktree } from '../shared/git-worktree'
 import { gitRemoteUrl } from './settings'
+import { resolveCommand } from './resolve-command'
 import { broadcast } from './broadcast'
 import type { WorktreeInfo, WorktreeRepo } from '../shared/types'
+
+const execFileAsync = promisify(execFile)
+
+async function runGit(args: string[], cwd: string, timeout = 30000): Promise<string> {
+  const { stdout } = await execFileAsync(
+    resolveCommand('git'),
+    args,
+    { cwd, timeout, env: { ...loadShellEnv(), GIT_TERMINAL_PROMPT: '0' } }
+  )
+  return stdout.trim()
+}
+
+// ---- Pull / upstream status types ----
+
+export type PullResult =
+  | { ok: true; before: string; after: string; commitsPulled: number }
+  | { ok: false; reason: 'dirty' | 'diverged' | 'detached' | 'not-found' | 'fetch-failed' | 'no-upstream'; message: string }
+
+export type UpstreamStatus = {
+  behind: number
+  ahead: number
+  dirty: boolean
+  upToDate: boolean
+  upstream: string | null
+  error?: string
+}
 
 async function pathExists(p: string): Promise<boolean> {
   try { await fsp.access(p); return true } catch { return false }
@@ -249,6 +279,146 @@ export async function cleanupOrphans(existingEnvIds: string[]): Promise<number> 
     console.log(`[worktree-manager] cleaned ${cleaned} orphaned worktree${cleaned !== 1 ? 's' : ''}`)
   }
   return cleaned
+}
+
+// ---- Pull / upstream status ----
+
+/**
+ * Fast-forward a worktree to the latest origin/<branch>.
+ * Fetches, checks cleanliness, validates fast-forward safety, then merges --ff-only.
+ */
+export async function pullWorktree(worktreeId: string): Promise<PullResult> {
+  const info = await getWorktree(worktreeId)
+  if (!info) return { ok: false, reason: 'not-found', message: `Worktree ${worktreeId} not found` }
+
+  const repos = info.repos
+  const failures: Array<{ repoAlias: string; reason: string; message: string }> = []
+  let firstBefore = ''
+  let firstAfter = ''
+  let totalPulled = 0
+
+  for (const repo of repos) {
+    // Step 1: Fetch
+    try {
+      await runGit(['fetch', 'origin', info.branch], repo.bareRepoPath, 60000)
+    } catch (err: any) {
+      const msg = (err?.stderr as string | undefined)?.trim() || err?.message || 'Fetch failed'
+      if (repos.length === 1) return { ok: false, reason: 'fetch-failed', message: msg }
+      failures.push({ repoAlias: repo.alias, reason: 'fetch-failed', message: msg })
+      continue
+    }
+
+    // Step 2: Cleanliness check
+    let statusOut: string
+    try {
+      statusOut = await runGit(['status', '--porcelain'], repo.path)
+    } catch (err: any) {
+      const msg = err?.message || 'Failed to read status'
+      if (repos.length === 1) return { ok: false, reason: 'fetch-failed', message: msg }
+      failures.push({ repoAlias: repo.alias, reason: 'fetch-failed', message: msg })
+      continue
+    }
+    if (statusOut.length > 0) {
+      if (repos.length === 1) return { ok: false, reason: 'dirty', message: 'Working tree has uncommitted changes' }
+      failures.push({ repoAlias: repo.alias, reason: 'dirty', message: 'Working tree has uncommitted changes' })
+      continue
+    }
+
+    // Step 3: Upstream check (detached HEAD has no upstream)
+    try {
+      const upstream = await runGit(['rev-parse', '--abbrev-ref', 'HEAD@{u}'], repo.path)
+      if (!upstream) throw new Error('empty')
+    } catch {
+      if (repos.length === 1) return { ok: false, reason: 'no-upstream', message: 'No upstream tracking branch configured' }
+      failures.push({ repoAlias: repo.alias, reason: 'no-upstream', message: 'No upstream tracking branch configured' })
+      continue
+    }
+
+    // Step 4: Ancestor check (fast-forward safety)
+    const before = await runGit(['rev-parse', 'HEAD'], repo.path)
+    if (!firstBefore) firstBefore = before
+    try {
+      await runGit(['merge-base', '--is-ancestor', 'HEAD', `origin/${info.branch}`], repo.path)
+    } catch {
+      const msg = `Local commits not in origin/${info.branch} — rebase manually`
+      if (repos.length === 1) return { ok: false, reason: 'diverged', message: msg }
+      failures.push({ repoAlias: repo.alias, reason: 'diverged', message: msg })
+      continue
+    }
+
+    // Step 5: Count commits behind
+    const countStr = await runGit(['rev-list', '--count', `HEAD..origin/${info.branch}`], repo.path)
+    const commitsPulled = parseInt(countStr, 10) || 0
+    totalPulled += commitsPulled
+
+    if (commitsPulled > 0) {
+      await runGit(['merge', '--ff-only', `origin/${info.branch}`], repo.path)
+    }
+    const after = await runGit(['rev-parse', 'HEAD'], repo.path)
+    if (!firstAfter) firstAfter = after
+  }
+
+  if (failures.length > 0) {
+    const first = failures[0]
+    const detail = repos.length > 1
+      ? ` (${failures.map(f => `${f.repoAlias}: ${f.reason}`).join(', ')})`
+      : ''
+    return { ok: false, reason: first.reason as 'dirty' | 'diverged' | 'detached' | 'not-found' | 'fetch-failed' | 'no-upstream', message: first.message + detail }
+  }
+
+  broadcast('worktree:changed', null)
+  return { ok: true, before: firstBefore, after: firstAfter, commitsPulled: totalPulled }
+}
+
+/**
+ * Read upstream status for a worktree without fetching (cheap, reads local refs only).
+ */
+export async function getWorktreeUpstreamStatus(worktreeId: string): Promise<UpstreamStatus> {
+  const info = await getWorktree(worktreeId)
+  if (!info) return { behind: 0, ahead: 0, dirty: false, upToDate: true, upstream: null, error: 'Not found' }
+
+  const repo = info.repos[0]
+  if (!repo) return { behind: 0, ahead: 0, dirty: false, upToDate: true, upstream: null, error: 'No repos' }
+
+  try {
+    const revListOut = await runGit(
+      ['rev-list', '--left-right', '--count', `origin/${info.branch}...HEAD`],
+      repo.path
+    )
+    const parts = revListOut.split(/\s+/)
+    const behind = parseInt(parts[0], 10) || 0
+    const ahead = parseInt(parts[1], 10) || 0
+
+    const statusOut = await runGit(['status', '--porcelain'], repo.path)
+    const dirty = statusOut.length > 0
+
+    return {
+      behind,
+      ahead,
+      dirty,
+      upToDate: behind === 0 && ahead === 0 && !dirty,
+      upstream: `origin/${info.branch}`,
+    }
+  } catch (err: any) {
+    return { behind: 0, ahead: 0, dirty: false, upToDate: true, upstream: null, error: err?.message || 'Unknown error' }
+  }
+}
+
+/**
+ * Fetch latest refs for a worktree's branch from origin. Does not merge.
+ */
+export async function fetchWorktree(worktreeId: string): Promise<{ ok: true } | { ok: false; message: string }> {
+  const info = await getWorktree(worktreeId)
+  if (!info) return { ok: false, message: `Worktree ${worktreeId} not found` }
+
+  try {
+    for (const repo of info.repos) {
+      await runGit(['fetch', 'origin', info.branch], repo.bareRepoPath, 60000)
+    }
+    return { ok: true }
+  } catch (err: any) {
+    return { ok: false, message: (err?.stderr as string | undefined)?.trim() || err?.message || 'Fetch failed' }
+  }
 }
 
 // ---- Internal ----

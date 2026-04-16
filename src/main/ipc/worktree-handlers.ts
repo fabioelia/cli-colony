@@ -7,6 +7,9 @@ import {
   unmountWorktree,
   removeWorktree,
   getWorktreesForEnv,
+  pullWorktree,
+  getWorktreeUpstreamStatus,
+  fetchWorktree,
 } from '../worktree-manager'
 import { swapWorktree } from '../worktree-swap'
 
@@ -45,4 +48,10 @@ export function registerWorktreeHandlers(): void {
   ipcMain.handle('worktree:swap', async (_e, envId: string, worktreeId: string) => {
     return swapWorktree(envId, worktreeId)
   })
+
+  ipcMain.handle('worktree:pull', (_e, worktreeId: string) => pullWorktree(worktreeId))
+
+  ipcMain.handle('worktree:status', (_e, worktreeId: string) => getWorktreeUpstreamStatus(worktreeId))
+
+  ipcMain.handle('worktree:fetch', (_e, worktreeId: string) => fetchWorktree(worktreeId))
 }

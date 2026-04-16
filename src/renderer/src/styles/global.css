@@ -15453,7 +15453,10 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 /* Worktrees tab */
-.env-worktrees-bulk { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.env-wt-msg { padding: 6px 12px; font-size: 11px; border-bottom: 1px solid var(--border); }
+.env-wt-msg--ok { background: rgba(52, 211, 153, 0.12); color: var(--success, #34d399); }
+.env-wt-msg--err { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+.env-worktrees-bulk { padding: 8px 12px; border-bottom: 1px solid var(--border); display: flex; gap: 6px; align-items: center; }
 .env-worktree-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; border-bottom: 1px solid var(--border); font-size: 11px; }
 .env-worktree-item:last-child { border-bottom: none; }
 .env-worktree-info { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; min-width: 0; }

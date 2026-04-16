@@ -95,6 +95,10 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
   const [wtRepoIdx, setWtRepoIdx] = useState(0)
   const [wtRepos, setWtRepos] = useState<Array<{ owner: string; name: string }>>([])
   const [wtCreating, setWtCreating] = useState(false)
+  const [wtStatus, setWtStatus] = useState<Record<string, { behind: number; ahead: number; dirty: boolean; upToDate: boolean; upstream: string | null; error?: string }>>({})
+  const [pullingId, setPullingId] = useState<string | null>(null)
+  const [checkingUpstream, setCheckingUpstream] = useState(false)
+  const [wtMsg, setWtMsg] = useState<{ msg: string; kind: 'ok' | 'err' } | null>(null)
   const [swappingEnvId, setSwappingEnvId] = useState<string | null>(null)
   const [swapDropdownEnvId, setSwapDropdownEnvId] = useState<string | null>(null)
   const [claudeMdModal, setClaudeMdModal] = useState<{ envId: string; envName: string; hasWorktree: boolean } | null>(null)
@@ -171,6 +175,15 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
     })
     return unsub
   }, [])
+
+  // Load upstream status when Worktrees tab is active (reads local refs, no network)
+  useEffect(() => {
+    if (activeTab !== 'worktrees' || worktrees.length === 0) return
+    Promise.all(worktrees.map(async (w) => {
+      const s = await window.api.worktree.status(w.id)
+      setWtStatus(prev => ({ ...prev, [w.id]: s }))
+    })).catch(() => { /* best-effort */ })
+  }, [activeTab, worktrees])
 
   // Poll more aggressively when services are in transitional states
   useEffect(() => {
@@ -1447,21 +1460,45 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
               </div>
             </div>
           )}
-          {worktrees.length > 0 && worktrees.some(w => !w.mountedEnvId) && (
+          {worktrees.length > 0 && (
             <div className="env-worktrees-bulk">
               <button
-                className="panel-header-btn danger"
+                className="panel-header-btn"
+                disabled={checkingUpstream}
+                title="Fetch + check upstream status for all worktrees"
                 onClick={async () => {
-                  const unmounted = worktrees.filter(w => !w.mountedEnvId)
-                  if (!confirm(`Remove ${unmounted.length} unmounted worktree${unmounted.length !== 1 ? 's' : ''}?`)) return
-                  for (const w of unmounted) {
-                    await window.api.worktree.remove(w.id)
+                  setCheckingUpstream(true)
+                  try {
+                    await Promise.all(worktrees.map(async (w) => {
+                      await window.api.worktree.fetch(w.id)
+                      const s = await window.api.worktree.status(w.id)
+                      setWtStatus(prev => ({ ...prev, [w.id]: s }))
+                    }))
+                  } finally {
+                    setCheckingUpstream(false)
                   }
                 }}
               >
-                <Trash2 size={12} /> Remove All Unmounted
+                <RefreshCw size={12} className={checkingUpstream ? 'spin' : ''} /> Check upstream
               </button>
+              {worktrees.some(w => !w.mountedEnvId) && (
+                <button
+                  className="panel-header-btn danger"
+                  onClick={async () => {
+                    const unmounted = worktrees.filter(w => !w.mountedEnvId)
+                    if (!confirm(`Remove ${unmounted.length} unmounted worktree${unmounted.length !== 1 ? 's' : ''}?`)) return
+                    for (const w of unmounted) {
+                      await window.api.worktree.remove(w.id)
+                    }
+                  }}
+                >
+                  <Trash2 size={12} /> Remove All Unmounted
+                </button>
+              )}
             </div>
+          )}
+          {wtMsg && (
+            <div className={`env-wt-msg env-wt-msg--${wtMsg.kind}`}>{wtMsg.msg}</div>
           )}
           {worktrees.length === 0 ? (
             <div className="env-empty">
@@ -1475,6 +1512,80 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
             const ageDays = (Date.now() - new Date(w.createdAt).getTime()) / (1000 * 60 * 60 * 24)
             const isStale = !w.mountedEnvId && ageDays > 30
             const statusClass = isOrphaned ? 'orphaned' : isStale ? 'stale' : ''
+            const wts = wtStatus[w.id]
+            const mountedEnv = w.mountedEnvId ? environments.find(e => e.id === w.mountedEnvId) : null
+            const mountedRunning = mountedEnv && mountedEnv.status !== 'stopped'
+            const pullTooltip = wts?.dirty
+              ? `Uncommitted changes — stash or commit first${mountedRunning ? '. Services will pick up changes on next reload.' : ''}`
+              : wts?.ahead && wts.ahead > 0
+                ? `Local commits not in origin/${w.branch} — rebase manually`
+                : wts?.behind && wts.behind > 0
+                  ? `Fast-forward to origin/${w.branch}${mountedRunning ? '. Services will pick up changes on next reload.' : ''}`
+                  : wts?.upToDate
+                    ? `Up to date with origin/${w.branch}`
+                    : 'Check upstream status'
+
+            const pullBtn = (() => {
+              if (!wts) {
+                return (
+                  <button
+                    className="panel-header-btn"
+                    title="Check upstream status"
+                    onClick={async () => {
+                      setPullingId(w.id + ':check')
+                      try {
+                        await window.api.worktree.fetch(w.id)
+                        const s = await window.api.worktree.status(w.id)
+                        setWtStatus(prev => ({ ...prev, [w.id]: s }))
+                      } finally {
+                        setPullingId(null)
+                      }
+                    }}
+                    disabled={pullingId === w.id + ':check'}
+                  >
+                    <RefreshCw size={12} className={pullingId === w.id + ':check' ? 'spin' : ''} /> {pullingId === w.id + ':check' ? 'Checking…' : 'Check'}
+                  </button>
+                )
+              }
+              if (wts.dirty) {
+                return <button className="panel-header-btn" disabled title={pullTooltip}><Download size={12} /> Pull (dirty)</button>
+              }
+              if (wts.ahead && wts.ahead > 0) {
+                return <button className="panel-header-btn" disabled title={pullTooltip}><Download size={12} /> Diverged</button>
+              }
+              if (wts.behind && wts.behind > 0) {
+                return (
+                  <button
+                    className="panel-header-btn primary"
+                    title={pullTooltip}
+                    disabled={pullingId === w.id}
+                    onClick={async () => {
+                      setPullingId(w.id)
+                      try {
+                        const result = await window.api.worktree.pull(w.id)
+                        if (result.ok) {
+                          const s = await window.api.worktree.status(w.id)
+                          setWtStatus(prev => ({ ...prev, [w.id]: s }))
+                          setWtMsg({ msg: `Pulled ${result.commitsPulled} commit${result.commitsPulled !== 1 ? 's' : ''} into ${w.branch}`, kind: 'ok' })
+                        } else {
+                          setWtMsg({ msg: `Pull failed: ${result.message}`, kind: 'err' })
+                        }
+                      } catch (err: any) {
+                        setWtMsg({ msg: `Pull error: ${err?.message || 'Unknown error'}`, kind: 'err' })
+                      } finally {
+                        setPullingId(null)
+                        setTimeout(() => setWtMsg(null), 4000)
+                      }
+                    }}
+                  >
+                    {pullingId === w.id ? <RefreshCw size={12} className="spin" /> : <Download size={12} />}
+                    {pullingId === w.id ? 'Pulling…' : `Pull ${wts.behind}`}
+                  </button>
+                )
+              }
+              return <button className="panel-header-btn" disabled style={{ color: 'var(--text-muted)' }} title={pullTooltip}><Check size={12} /> Up to date</button>
+            })()
+
             return (
             <div key={w.id} className={`env-worktree-item ${statusClass}`}>
               <div className="env-worktree-info">
@@ -1511,6 +1622,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                 <span className="env-worktree-age">{formatAge(w.createdAt)}</span>
               </div>
               <div className="env-worktree-actions">
+                {pullBtn}
                 {w.mountedEnvId ? (
                   <button className="panel-header-btn" onClick={() => window.api.worktree.unmount(w.id)} title="Unmount from environment">
                     <Unlink size={12} /> Unmount
