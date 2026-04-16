@@ -56,6 +56,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
   // Commits tab state
   const [unpushedCommits, setUnpushedCommits] = useState<UnpushedCommit[]>([])
   const [commitsLoading, setCommitsLoading] = useState(false)
+  const [commitSearch, setCommitSearch] = useState('')
   const [selectedCommitHash, setSelectedCommitHash] = useState<string | null>(null)
   const [commitDiffContent, setCommitDiffContent] = useState<string | null>(null)
   const [commitDiffLoading, setCommitDiffLoading] = useState(false)
@@ -379,8 +380,12 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
   const totalInsertions = sessionChanges.reduce((sum, s) => sum + s.entries.reduce((a, e) => a + e.insertions, 0), 0)
   const totalDeletions = sessionChanges.reduce((sum, s) => sum + s.entries.reduce((a, e) => a + e.deletions, 0), 0)
 
-  // Flat list of visible commits for keyboard nav
-  const visibleCommits = useMemo(() => unpushedCommits, [unpushedCommits])
+  // Flat list of visible commits for keyboard nav (respects commitSearch filter)
+  const visibleCommits = useMemo(() => commitSearch
+    ? unpushedCommits.filter(c =>
+        c.subject.toLowerCase().includes(commitSearch.toLowerCase()) ||
+        c.hash.toLowerCase().startsWith(commitSearch.toLowerCase()))
+    : unpushedCommits, [unpushedCommits, commitSearch])
 
   // Flat list of visible files for keyboard nav (respects session expand state + fileSearch)
   const visibleFiles = useMemo(() => {
@@ -571,6 +576,24 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
             >
               <Filter size={13} /> {filter === 'changes' ? 'Changed' : 'All'}
             </button>
+          )}
+          {activeTab === 'commits' && unpushedCommits.length > 0 && (
+            <div className="review-search-wrapper">
+              <Search size={12} className="review-search-icon" />
+              <input
+                type="text"
+                className="review-search-input"
+                placeholder="Filter commits..."
+                value={commitSearch}
+                onChange={(e) => setCommitSearch(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Escape') { setCommitSearch(''); (e.target as HTMLInputElement).blur() } }}
+              />
+              {commitSearch && (
+                <button className="review-search-clear" onClick={() => setCommitSearch('')}>
+                  <X size={10} />
+                </button>
+              )}
+            </div>
           )}
           {activeTab === 'commits' && (
             <>
@@ -839,6 +862,9 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
           )}
           {!commitsLoading && unpushedCommits.length === 0 && (
             <div className="changes-empty">No unpushed commits. All changes have been pushed to origin.</div>
+          )}
+          {commitSearch && visibleCommits.length === 0 && unpushedCommits.length > 0 && (
+            <div className="changes-empty">No commits match "{commitSearch}"</div>
           )}
           {(unpushedCommits.length > 0 || behindCount > 0 || branchName) && (
             <div className="review-summary" style={{ WebkitAppRegion: 'no-drag', position: 'relative' } as React.CSSProperties}>

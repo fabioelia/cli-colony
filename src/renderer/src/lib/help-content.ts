@@ -1577,6 +1577,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Main area (Commits tab)',
         items: [
           { label: 'Two-pane layout', detail: 'Commits tab uses a persistent split view: left pane shows the unpushed commit list, right pane shows the selected commit\'s full diff. No inline expand — clicking a commit loads its diff in the right pane immediately.' },
+          { label: 'Commit search', detail: 'Filter commits by subject or hash prefix (case-insensitive). Type in the search box to narrow the list. Escape clears.', icon: 'Search' },
           { label: 'Commit row', detail: 'Short hash (7 chars), subject, author, and relative date. Click to select and load the diff in the right pane. Selected row is highlighted with an accent border.' },
           { label: 'Keyboard navigation', detail: 'Press j / ArrowDown or k / ArrowUp to move between commits without using the mouse. Escape clears the selection. Focus must be inside the commit list (click any row first). Navigation is blocked when focus is in a text field.' },
           { label: 'Diff viewer', detail: 'Right pane shows the selected commit\'s full diff with syntax highlighting. Lazy-loaded and cached — rapid j/k navigation stays fast.' },
