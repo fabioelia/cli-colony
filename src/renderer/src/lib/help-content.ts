@@ -1736,6 +1736,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Replay', detail: 'In the match detail panel, click Replay to re-launch the arena with the same participant count, model overrides, and prompt. You still pick the repo and branch. Only available for matches that had a prompt.', icon: 'RotateCcw' },
           { label: 'Voting', detail: 'In blind mode, panes are anonymized. Click a pane to vote it as the winner. Toggle blind mode with the eye icon.', icon: 'EyeOff' },
           { label: 'Clear Stats', detail: 'Trash icon in the leaderboard header. Clears all arena win/loss data and match history. Requires confirmation.', icon: 'Trash2' },
+          { label: 'Learning footer', detail: 'When you have manual picks with reasons, the Leaderboard footer shows a count — click it to see the exact text the LLM judge will receive as preference history.', icon: 'Brain' },
         ],
       },
     ],

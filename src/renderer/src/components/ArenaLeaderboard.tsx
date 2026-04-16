@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Trophy, X, Trash2, Gavel, Brain, Hand, ChevronDown, ChevronRight, RotateCcw } from 'lucide-react'
+import { Trophy, X, Trash2, Gavel, Brain, Hand, ChevronDown, ChevronRight, ChevronUp, RotateCcw } from 'lucide-react'
 import type { ArenaStats, ArenaMatchRecord } from '../../../shared/types'
 
 const LS_KEY = 'arena-leaderboard'
@@ -42,6 +42,7 @@ export default function ArenaLeaderboard({ open, onClose, onReplay }: Props) {
   const [matchHistory, setMatchHistory] = useState<ArenaMatchRecord[]>([])
   const [expandedName, setExpandedName] = useState<string | null>(null)
   const [detailMatch, setDetailMatch] = useState<ArenaMatchRecord | null>(null)
+  const [previewOpen, setPreviewOpen] = useState(false)
 
   const load = useCallback(async () => {
     // Merge persisted localStorage stats with live arena-stats.json
@@ -93,6 +94,7 @@ export default function ArenaLeaderboard({ open, onClose, onReplay }: Props) {
       load()
       setExpandedName(null)
       setDetailMatch(null)
+      setPreviewOpen(false)
     }
   }, [open, load])
 
@@ -212,12 +214,30 @@ export default function ArenaLeaderboard({ open, onClose, onReplay }: Props) {
 
         {/* Judge learning footer */}
         {(() => {
-          const n = Math.min(5, matchHistory.filter(m => m.judgeType === 'manual' && m.reason).length)
-          return n > 0 ? (
-            <div className="arena-leaderboard-footer">
-              {n} past decision{n !== 1 ? 's' : ''} with reasons will inform the next LLM judge
-            </div>
-          ) : null
+          const reasoned = matchHistory.filter(m => m.judgeType === 'manual' && m.reason && m.reason.trim().length > 0)
+          const n = Math.min(5, reasoned.length)
+          if (n === 0) return null
+          const previewText = `User preference history — past arena winners with their reasons (most recent last):\n` +
+            reasoned.slice(-5).map((m, i) => `${i + 1}. Winner "${m.winnerName}" (participants: ${m.participants.map(p => p.name).join(', ')}) — reason: ${m.reason}`).join('\n') +
+            `\n\nUse these preferences as a soft guide. The diffs below are authoritative; use history to break ties or calibrate "what good looks like" for this user.`
+          return (
+            <>
+              <button
+                type="button"
+                className="arena-leaderboard-footer-btn"
+                aria-expanded={previewOpen}
+                aria-label="Show injected learning context"
+                onClick={() => setPreviewOpen(v => !v)}
+              >
+                <Brain size={11} />
+                {n} past decision{n !== 1 ? 's' : ''} with reasons will inform the next LLM judge
+                {previewOpen ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+              </button>
+              {previewOpen && (
+                <div className="arena-learning-preview">{previewText}</div>
+              )}
+            </>
+          )
         })()}
 
         {/* Match detail modal */}
