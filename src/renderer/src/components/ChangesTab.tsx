@@ -353,7 +353,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                   placeholder="Filter files..."
                   value={fileSearch}
                   onChange={(e) => setFileSearch(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Escape') { setFileSearch(''); (e.target as HTMLInputElement).blur() } }}
+                  onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setFileSearch(''); (e.target as HTMLInputElement).blur() } }}
                 />
                 {fileSearch && (
                   <button className="review-search-clear" onClick={() => setFileSearch('')}>
