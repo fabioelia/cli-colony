@@ -15922,6 +15922,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .env-card-meta {
   display: flex;
+  align-items: center;
   gap: 8px;
   font-size: 11px;
   color: var(--text-muted);
@@ -15934,7 +15935,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 
 .env-drift-badge {
   display: inline-block;
-  padding: 0 5px;
+  padding: 1px 5px;
   font-size: 9px;
   font-weight: 600;
   text-transform: uppercase;
