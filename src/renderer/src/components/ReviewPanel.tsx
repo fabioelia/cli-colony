@@ -559,7 +559,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
                 placeholder="Filter files..."
                 value={fileSearch}
                 onChange={(e) => setFileSearch(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Escape') { setFileSearch(''); (e.target as HTMLInputElement).blur() } }}
+                onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setFileSearch(''); (e.target as HTMLInputElement).blur() } }}
               />
               {fileSearch && (
                 <button className="review-search-clear" onClick={() => setFileSearch('')}>
@@ -586,7 +586,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
                 placeholder="Filter commits..."
                 value={commitSearch}
                 onChange={(e) => setCommitSearch(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Escape') { setCommitSearch(''); (e.target as HTMLInputElement).blur() } }}
+                onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setCommitSearch(''); (e.target as HTMLInputElement).blur() } }}
               />
               {commitSearch && (
                 <button className="review-search-clear" onClick={() => setCommitSearch('')}>
