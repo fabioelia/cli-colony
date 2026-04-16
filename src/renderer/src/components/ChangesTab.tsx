@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { ChevronRight, RefreshCw, RotateCw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch } from 'lucide-react'
 import type { GitDiffEntry, ColonyComment, ScoreCard } from '../../../shared/types'
 import type { ClaudeInstance } from '../types'
@@ -26,7 +26,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [scoreCardLoading, setScoreCardLoading] = useState(false)
   const currentDiffHashRef = useRef<string | null>(null)
   const [showCommitDialog, setShowCommitDialog] = useState(false)
-  const [expandedDiffFile, setExpandedDiffFile] = useState<string | null>(null)
+  const [selectedDiffFile, setSelectedDiffFile] = useState<string | null>(null)
   const diffCacheRef = useRef<Record<string, string>>({})
   const [diffContent, setDiffContent] = useState<string | null>(null)
   const [diffLoading, setDiffLoading] = useState(false)
@@ -206,13 +206,8 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     }
   }, [instance.id, instance.workingDirectory, gitChanges.length])
 
-  const toggleFileDiff = useCallback(async (file: string, status: string) => {
-    if (expandedDiffFile === file) {
-      setExpandedDiffFile(null)
-      setDiffContent(null)
-      return
-    }
-    setExpandedDiffFile(file)
+  const selectFile = useCallback(async (file: string, status: string) => {
+    setSelectedDiffFile(file)
     if (diffCacheRef.current[file]) {
       setDiffContent(diffCacheRef.current[file])
       return
@@ -228,7 +223,114 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     } finally {
       setDiffLoading(false)
     }
-  }, [expandedDiffFile, instance.workingDirectory])
+  }, [instance.workingDirectory])
+
+  // visibleFiles — pass-through today, structured for future filtering
+  const visibleFiles = useMemo(() => gitChanges, [gitChanges])
+
+  // Keyboard nav: j/k or ArrowDown/ArrowUp to navigate files, Escape to clear
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (visibleFiles.length === 0) return
+      if (showCommitDialog) return
+      const tag = (document.activeElement as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if (document.activeElement?.closest('[contenteditable]')) return
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'j' && e.key !== 'k' && e.key !== 'Escape') return
+      e.preventDefault()
+      if (e.key === 'Escape') {
+        setSelectedDiffFile(null)
+        setDiffContent(null)
+        return
+      }
+      const currentIndex = selectedDiffFile
+        ? visibleFiles.findIndex(f => f.file === selectedDiffFile)
+        : -1
+      if (e.key === 'ArrowDown' || e.key === 'j') {
+        const next = currentIndex < visibleFiles.length - 1 ? currentIndex + 1 : 0
+        selectFile(visibleFiles[next].file, visibleFiles[next].status)
+      } else {
+        const next = currentIndex > 0 ? currentIndex - 1 : visibleFiles.length - 1
+        selectFile(visibleFiles[next].file, visibleFiles[next].status)
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [visibleFiles, showCommitDialog, selectedDiffFile, selectFile])
+
+  // Clear selection if selected file disappears (reverted / committed externally)
+  useEffect(() => {
+    if (!selectedDiffFile) return
+    const exists = gitChanges.some(f => f.file === selectedDiffFile)
+    if (!exists) {
+      setSelectedDiffFile(null)
+      setDiffContent(null)
+    }
+  }, [gitChanges, selectedDiffFile])
+
+  // Memoized right pane — only re-renders DiffViewer when selection/content changes
+  const rightPane = useMemo(() => {
+    if (selectedDiffFile === null) {
+      return (
+        <div className="diff-first-pane-empty">
+          <GitCompare size={32} />
+          <span>Select a changed file to view its diff</span>
+        </div>
+      )
+    }
+    if (diffLoading) {
+      return <div className="diff-first-pane-empty"><span>Loading diff…</span></div>
+    }
+    if (diffContent === '') {
+      return <div className="diff-first-pane-empty"><span>No diff available (binary or deleted file)</span></div>
+    }
+    if (diffContent !== null) {
+      const fileComments = colonyComments.filter(c => {
+        const normalised = c.file.replace(/^b\//, '')
+        return normalised === selectedDiffFile || normalised.endsWith('/' + selectedDiffFile) || selectedDiffFile.endsWith('/' + normalised)
+      })
+      return (
+        <>
+          <DiffViewer diff={diffContent} filename={selectedDiffFile} />
+          {fileComments.map((comment, i) => (
+            <div key={i} style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '6px',
+              padding: '4px 8px 4px 24px',
+              borderLeft: `2px solid ${comment.severity === 'error' ? 'var(--danger)' : comment.severity === 'warn' ? 'var(--warning)' : 'var(--accent)'}`,
+              marginTop: '2px',
+              background: 'var(--bg-secondary)',
+            }}>
+              <span style={{
+                fontSize: '9px',
+                fontWeight: 600,
+                letterSpacing: '0.04em',
+                color: comment.severity === 'error' ? 'var(--danger)' : comment.severity === 'warn' ? 'var(--warning)' : 'var(--accent)',
+                textTransform: 'uppercase',
+                minWidth: '28px',
+                paddingTop: '1px',
+              }}>
+                {comment.severity}
+              </span>
+              <span style={{ fontSize: '10px', opacity: 0.7, minWidth: '30px', fontFamily: 'monospace' }}>
+                L{comment.line}
+              </span>
+              <span style={{ fontSize: '11px', flex: 1, lineHeight: 1.4 }}>
+                {comment.message}
+              </span>
+            </div>
+          ))}
+        </>
+      )
+    }
+    return (
+      <div className="diff-first-pane-empty">
+        <GitCompare size={32} />
+        <span>Select a changed file to view its diff</span>
+      </div>
+    )
+  }, [selectedDiffFile, diffLoading, diffContent, colonyComments])
 
   return (
     <>
@@ -291,88 +393,69 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
           {!gitChangesLoading && gitChanges.length === 0 && (
             <div className="changes-empty">No uncommitted changes.</div>
           )}
-          {!gitChangesLoading && gitChanges.map((entry) => {
-            const fileComments = colonyComments.filter(c => {
-              const normalised = c.file.replace(/^b\//, '')
-              return normalised === entry.file || normalised.endsWith('/' + entry.file) || entry.file.endsWith('/' + normalised)
-            })
-            return (
-              <div key={entry.file} className={`changes-event${expandedDiffFile === entry.file ? ' expanded' : ''}`}>
-                <div className="changes-event-header" style={{ alignItems: 'center', cursor: 'pointer' }} onClick={() => toggleFileDiff(entry.file, entry.status)}>
-                  <ChevronRight size={11} style={{ flexShrink: 0, transition: 'transform 0.15s', transform: expandedDiffFile === entry.file ? 'rotate(90deg)' : 'none', opacity: 0.5 }} />
-                  <span className="changes-event-tool" title={entry.status === 'A' ? 'Added' : entry.status === 'D' ? 'Deleted' : entry.status === 'R' ? 'Renamed' : 'Modified'} style={{
-                    color: entry.status === 'A' ? 'var(--success)'
-                      : entry.status === 'D' ? 'var(--danger)'
-                      : 'var(--warning)',
-                    minWidth: '12px',
-                  }}>
-                    {entry.status}
-                  </span>
-                  <span className="changes-event-input" style={{ flex: 1, fontFamily: 'monospace', fontSize: '11px' }}>
-                    {entry.file}
-                  </span>
-                  <span className="changes-event-time" style={{ fontSize: '10px', opacity: 0.7 }}>
-                    {entry.insertions > 0 && <span style={{ color: 'var(--success)' }}>+{entry.insertions}</span>}
-                    {entry.insertions > 0 && entry.deletions > 0 && ' '}
-                    {entry.deletions > 0 && <span style={{ color: 'var(--danger)' }}>-{entry.deletions}</span>}
-                  </span>
-                  {fileComments.length > 0 && (
-                    <span style={{ marginLeft: '4px', fontSize: '10px', color: 'var(--warning)', opacity: 0.85, display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
-                      <MessageCircleWarning size={11} />
-                      {fileComments.length > 1 && fileComments.length}
-                    </span>
-                  )}
-                  <button
-                    className="changes-refresh-btn"
-                    title={`Revert ${entry.file}`}
-                    disabled={reverting.has(entry.file)}
-                    onClick={(e) => { e.stopPropagation(); handleRevert(entry.file) }}
-                    style={{ marginLeft: '4px', color: 'var(--danger)' }}
-                  >
-                    {reverting.has(entry.file) ? <RotateCw size={11} className="spinning" /> : <Undo2 size={11} />}
-                  </button>
-                </div>
-                {expandedDiffFile === entry.file && (
-                  <div className="changes-diff-container">
-                    {diffLoading ? (
-                      <div className="diff-viewer-empty">Loading diff...</div>
-                    ) : diffContent !== null ? (
-                      <DiffViewer diff={diffContent} filename={entry.file} />
-                    ) : null}
-                  </div>
-                )}
-                {fileComments.map((comment, i) => (
-                  <div key={i} style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '6px',
-                    padding: '4px 8px 4px 24px',
-                    borderLeft: `2px solid ${comment.severity === 'error' ? 'var(--danger)' : comment.severity === 'warn' ? 'var(--warning)' : 'var(--accent)'}`,
-                    marginTop: '2px',
-                    background: 'var(--bg-secondary)',
-                  }}>
-                    <span style={{
-                      fontSize: '9px',
-                      fontWeight: 600,
-                      letterSpacing: '0.04em',
-                      color: comment.severity === 'error' ? 'var(--danger)' : comment.severity === 'warn' ? 'var(--warning)' : 'var(--accent)',
-                      textTransform: 'uppercase',
-                      minWidth: '28px',
-                      paddingTop: '1px',
-                    }}>
-                      {comment.severity}
-                    </span>
-                    <span style={{ fontSize: '10px', opacity: 0.7, minWidth: '30px', fontFamily: 'monospace' }}>
-                      L{comment.line}
-                    </span>
-                    <span style={{ fontSize: '11px', flex: 1, lineHeight: 1.4 }}>
-                      {comment.message}
-                    </span>
-                  </div>
-                ))}
+          {!gitChangesLoading && gitChanges.length > 0 && (
+            <div className="diff-first-layout">
+              {/* Left pane: file list */}
+              <div className="diff-first-left">
+                {visibleFiles.map((entry) => {
+                  const isSelected = selectedDiffFile === entry.file
+                  const fileComments = colonyComments.filter(c => {
+                    const normalised = c.file.replace(/^b\//, '')
+                    return normalised === entry.file || normalised.endsWith('/' + entry.file) || entry.file.endsWith('/' + normalised)
+                  })
+                  return (
+                    <div
+                      key={entry.file}
+                      className={`changes-event${isSelected ? ' selected' : ''}`}
+                      role="button"
+                      tabIndex={0}
+                      aria-selected={isSelected}
+                      onClick={() => selectFile(entry.file, entry.status)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectFile(entry.file, entry.status) } }}
+                    >
+                      <div className="changes-event-header" style={{ alignItems: 'center', cursor: 'pointer' }}>
+                        <span className="changes-event-tool" title={entry.status === 'A' ? 'Added' : entry.status === 'D' ? 'Deleted' : entry.status === 'R' ? 'Renamed' : 'Modified'} style={{
+                          color: entry.status === 'A' ? 'var(--success)'
+                            : entry.status === 'D' ? 'var(--danger)'
+                            : 'var(--warning)',
+                          minWidth: '12px',
+                        }}>
+                          {entry.status}
+                        </span>
+                        <span className="changes-event-input" style={{ flex: 1, fontFamily: 'monospace', fontSize: '11px' }}>
+                          {entry.file}
+                        </span>
+                        <span className="changes-event-time" style={{ fontSize: '10px', opacity: 0.7 }}>
+                          {entry.insertions > 0 && <span style={{ color: 'var(--success)' }}>+{entry.insertions}</span>}
+                          {entry.insertions > 0 && entry.deletions > 0 && ' '}
+                          {entry.deletions > 0 && <span style={{ color: 'var(--danger)' }}>-{entry.deletions}</span>}
+                        </span>
+                        {fileComments.length > 0 && (
+                          <span style={{ marginLeft: '4px', fontSize: '10px', color: 'var(--warning)', opacity: 0.85, display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+                            <MessageCircleWarning size={11} />
+                            {fileComments.length > 1 && fileComments.length}
+                          </span>
+                        )}
+                        <button
+                          className="changes-refresh-btn"
+                          title={`Revert ${entry.file}`}
+                          disabled={reverting.has(entry.file)}
+                          onClick={(e) => { e.stopPropagation(); handleRevert(entry.file) }}
+                          style={{ marginLeft: '4px', color: 'var(--danger)' }}
+                        >
+                          {reverting.has(entry.file) ? <RotateCw size={11} className="spinning" /> : <Undo2 size={11} />}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
-            )
-          })}
+              {/* Right pane: diff viewer */}
+              <div className="diff-first-right">
+                {rightPane}
+              </div>
+            </div>
+          )}
           {/* Checkpoint Timeline */}
           <div className="checkpoint-section">
             <div className="checkpoint-section-header" onClick={() => setCheckpointsOpen(!checkpointsOpen)}>

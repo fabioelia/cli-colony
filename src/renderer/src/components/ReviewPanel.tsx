@@ -471,17 +471,17 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
   const commitRightPane = useMemo(() => {
     if (selectedCommitHash === null) {
       return (
-        <div className="review-diff-pane-empty">
+        <div className="diff-first-pane-empty">
           <GitCommit size={32} />
           <span>Select a commit to view its diff</span>
         </div>
       )
     }
     if (commitDiffLoading) {
-      return <div className="review-diff-pane-empty"><span>Loading diff…</span></div>
+      return <div className="diff-first-pane-empty"><span>Loading diff…</span></div>
     }
     if (commitDiffContent === '') {
-      return <div className="review-diff-pane-empty"><span>No diff available for this commit</span></div>
+      return <div className="diff-first-pane-empty"><span>No diff available for this commit</span></div>
     }
     if (commitDiffContent !== null) {
       const commit = visibleCommits.find(c => c.hash === selectedCommitHash)
@@ -489,7 +489,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
       return <DiffViewer diff={commitDiffContent} filename={label} />
     }
     return (
-      <div className="review-diff-pane-empty">
+      <div className="diff-first-pane-empty">
         <GitCommit size={32} />
         <span>Select a commit to view its diff</span>
       </div>
@@ -500,24 +500,24 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
   const rightPane = useMemo(() => {
     if (selectedDiffKey === null) {
       return (
-        <div className="review-diff-pane-empty">
+        <div className="diff-first-pane-empty">
           <GitCompare size={32} />
           <span>Select a changed file to preview the diff</span>
         </div>
       )
     }
     if (reviewDiffLoading) {
-      return <div className="review-diff-pane-empty"><span>Loading diff…</span></div>
+      return <div className="diff-first-pane-empty"><span>Loading diff…</span></div>
     }
     if (reviewDiffContent === '') {
-      return <div className="review-diff-pane-empty"><span>No diff available for this file</span></div>
+      return <div className="diff-first-pane-empty"><span>No diff available for this file</span></div>
     }
     if (reviewDiffContent !== null) {
       const filename = selectedDiffKey.slice(selectedDiffKey.indexOf(':') + 1)
       return <DiffViewer diff={reviewDiffContent} filename={filename} />
     }
     return (
-      <div className="review-diff-pane-empty">
+      <div className="diff-first-pane-empty">
         <GitCompare size={32} />
         <span>Select a changed file to preview the diff</span>
       </div>
@@ -653,9 +653,9 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
           )}
 
           <div className="review-content review-content-two-pane" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-            <div className="review-diff-first-layout">
+            <div className="diff-first-layout">
               {/* Left pane: session/file list */}
-              <div className="review-diff-first-left">
+              <div className="diff-first-left">
                 {sorted.length === 0 && !refreshing && (
                   <div className="changes-empty">
                     {filter === 'changes' ? 'No sessions with uncommitted changes.' : 'No sessions with a working directory.'}
@@ -824,7 +824,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
               </div>
 
               {/* Right pane: persistent diff viewer */}
-              <div className="review-diff-first-right">
+              <div className="diff-first-right">
                 {rightPane}
               </div>
             </div>
@@ -882,8 +882,8 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
             </div>
           )}
           {unpushedCommits.length > 0 && (
-            <div className="review-diff-first-layout" style={{ gridTemplateColumns: 'minmax(280px, 380px) 1fr' }}>
-              <div className="review-diff-first-left">
+            <div className="diff-first-layout" style={{ gridTemplateColumns: 'minmax(280px, 380px) 1fr' }}>
+              <div className="diff-first-left">
                 {visibleCommits.map(commit => {
                   const isSelected = selectedCommitHash === commit.hash
                   return (
@@ -908,7 +908,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
                   )
                 })}
               </div>
-              <div className="review-diff-first-right">
+              <div className="diff-first-right">
                 {commitRightPane}
               </div>
             </div>

@@ -7549,7 +7549,10 @@ body:has(.daemon-update-banner) .app-update-banner {
 .changes-panel-content {
   flex: 1;
   overflow-y: auto;
-  padding: 4px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .changes-empty {
@@ -7569,6 +7572,13 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .changes-event:hover {
   background: var(--bg-hover);
+}
+.changes-event.selected {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-left: 2px solid var(--accent);
+}
+.changes-event.selected .changes-event-header {
+  padding-left: 10px;
 }
 .changes-event-header {
   display: flex;
@@ -8063,30 +8073,38 @@ body:has(.daemon-update-banner) .app-update-banner {
   padding: 4px 0;
 }
 
-/* Two-pane layout for Changes tab */
+/* Two-pane layout for Changes/Commits tabs */
 .review-content.review-content-two-pane {
   overflow: hidden;
   padding: 0;
 }
 
-.review-diff-first-layout {
+.diff-first-layout {
   display: grid;
   grid-template-columns: minmax(300px, 420px) 1fr;
   gap: 1px;
   background: var(--border);
   height: 100%;
   overflow: hidden;
+  min-width: 0;
 }
 
-.review-diff-first-left {
+.diff-first-left {
   background: var(--bg-secondary);
   overflow-y: auto;
   overflow-x: hidden;
 }
 
-.review-diff-first-right {
+.diff-first-right {
   background: var(--bg-secondary);
   overflow: auto;
+}
+
+/* In ChangesTab context, grid grows to fill flex column */
+.changes-panel-content .diff-first-layout {
+  flex: 1 1 auto;
+  min-height: 400px;
+  height: auto;
 }
 
 .review-card.selected {
@@ -8103,7 +8121,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   padding-left: 34px;
 }
 
-.review-diff-pane-empty {
+.diff-first-pane-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
