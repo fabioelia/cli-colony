@@ -1041,6 +1041,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Services tab', detail: 'Appears when an environment is attached. Manage services.' },
           { label: 'Logs tab', detail: 'Appears when an environment is attached. Stream service logs.' },
           { label: 'Artifacts tab', detail: 'Auto-generated proof-of-work bundle: commits, changed files, duration, cost. Collected on session exit.' },
+          { label: 'Jira tab', detail: 'Auto-appears when a Jira ticket is attached (manually or auto-detected from branch name matching NP-XXXX pattern). Shows ticket key, status, summary, and full description. Click the key to open in browser. Configure pattern in Settings → Integrations.', icon: 'Ticket' },
           { label: 'Tab navigation', detail: 'Cmd+Shift+{ / Cmd+Shift+} cycles through the visible tabs (Session, Terminal, Files, Changes, Artifacts, plus Services/Logs when an environment is attached and Team/Metrics for Coordinator sessions). Works even when focus is inside a terminal or input — the Cmd+Shift combo never conflicts with typing `{`/`}`. Same shortcut works in Environments (Environments ↔ Templates).' },
         ],
       },

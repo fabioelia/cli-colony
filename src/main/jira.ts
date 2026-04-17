@@ -40,7 +40,7 @@ export async function fetchTicket(key: string): Promise<JiraTicket> {
   }
 
   const credentials = Buffer.from(`${email}:${token}`).toString('base64')
-  const url = `https://${domain}/rest/api/3/issue/${encodeURIComponent(key)}?fields=summary,description`
+  const url = `https://${domain}/rest/api/3/issue/${encodeURIComponent(key)}?fields=summary,description,status`
 
   let response: Response
   try {
@@ -66,10 +66,11 @@ export async function fetchTicket(key: string): Promise<JiraTicket> {
 
   const data = await response.json() as {
     key: string
-    fields: { summary: string; description: unknown }
+    fields: { summary: string; description: unknown; status?: { name: string } }
   }
 
   const summary = data.fields?.summary || ''
+  const status = data.fields?.status?.name || ''
   let description = ''
 
   if (data.fields?.description) {
@@ -83,6 +84,7 @@ export async function fetchTicket(key: string): Promise<JiraTicket> {
     key: data.key || key,
     summary,
     description,
+    status,
     url: `https://${domain}/browse/${data.key || key}`,
   }
 }

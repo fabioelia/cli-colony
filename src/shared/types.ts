@@ -9,6 +9,7 @@ export interface JiraTicket {
   key: string
   summary: string
   description: string
+  status: string
   url: string
 }
 

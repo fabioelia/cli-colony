@@ -5,7 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, X, RotateCcw, GitBranch, TerminalSquare, FolderTree, Columns2, LayoutGrid, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Trophy, GitCompare, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, FileDown, CheckCircle, Copy, Search, PanelRight, GitMerge, Square } from 'lucide-react'
+import { ChevronUp, ChevronDown, X, RotateCcw, GitBranch, TerminalSquare, FolderTree, Columns2, LayoutGrid, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Trophy, GitCompare, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, FileDown, CheckCircle, Copy, Search, PanelRight, GitMerge, Square, Ticket } from 'lucide-react'
 import { TeamMetricsPanel } from './TeamMetricsPanel'
 import ServicesTab from './ServicesTab'
 import FilesTab from './FilesTab'
@@ -15,6 +15,8 @@ import ArtifactsTab from './ArtifactsTab'
 import LogsTab from './LogsTab'
 import BrowserTab from './BrowserTab'
 import TeamTab from './TeamTab'
+import JiraTab from './JiraTab'
+import { extractTicketKey } from '../../../shared/ticket-commit-format'
 import type { EnvStatus, ErrorSummary } from '../../../shared/types'
 import '@xterm/xterm/css/xterm.css'
 import type { ClaudeInstance } from '../types'
@@ -111,7 +113,7 @@ function formatUptime(seconds: number): string {
   return m > 0 ? `${h}h ${m}m` : `${h}h`
 }
 
-type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'changes' | 'artifacts' | 'team' | 'metrics' | 'browser'
+type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'changes' | 'artifacts' | 'team' | 'metrics' | 'browser' | 'jira'
 
 export default memo(function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, onSearchToggle, fontSize = 13, fontFamily = 'Menlo, Monaco, "Courier New", monospace', cursorStyle = 'underline', cursorBlink = false, scrollback = 10000, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid, onNavigateToSession, errorSummary, childInstances = [] }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -692,14 +694,19 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
 
   // Session tab keyboard navigation — Cmd+Shift+{ (prev) / Cmd+Shift+} (next)
   const hasEnvUrls = effectiveEnvName && envStatus && Object.keys(envStatus.urls).length > 0
+  const hasJiraTicket = useMemo(() =>
+    !!instance.ticket || !!extractTicketKey(instance.gitBranch || '', '[A-Z]+-\\d+'),
+  [instance.ticket, instance.gitBranch])
+
   const visibleViewTabs = useMemo<ViewTab[]>(() => [
     'session', 'shell', 'files',
     ...(effectiveEnvName ? (['services', 'logs'] as ViewTab[]) : []),
     ...(hasEnvUrls ? (['browser'] as ViewTab[]) : []),
     ...(instance.workingDirectory ? (['changes'] as ViewTab[]) : []),
     'artifacts',
+    ...(hasJiraTicket ? (['jira'] as ViewTab[]) : []),
     ...(instance.roleTag === 'Coordinator' ? (['team', 'metrics'] as ViewTab[]) : []),
-  ], [effectiveEnvName, instance.workingDirectory, instance.roleTag, hasEnvUrls])
+  ], [effectiveEnvName, instance.workingDirectory, instance.roleTag, hasEnvUrls, hasJiraTicket])
   usePanelTabKeys(visibleViewTabs, viewTab, setViewTab, focused)
 
   const tabHintMap = useMemo(() => {
@@ -729,6 +736,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
       case 'browser': return envStatus ? <BrowserTab envStatus={envStatus} instanceId={instance.id} /> : null
       case 'changes': return <ChangesTab instance={instance} onChangeCount={setChangeCount} />
       case 'artifacts': return <ArtifactsTab instanceId={instance.id} instanceStatus={instance.status} onArtifactCount={setArtifactCount} />
+      case 'jira': return <JiraTab ticket={instance.ticket} gitBranch={instance.gitBranch} />
       case 'team': return instance.roleTag === 'Coordinator' ? <TeamTab instanceId={instance.id} onWorkerCountChange={setTeamWorkerCount} onNavigateToWorker={onNavigateToSession} /> : null
       case 'metrics': return instance.roleTag === 'Coordinator' ? <div className="changes-panel"><TeamMetricsPanel coordinatorSessionId={instance.id} /></div> : null
       default: return null
@@ -859,6 +867,16 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
               )}
               {tabHintMap['artifacts'] && <span className="shortcut-hint">{tabHintMap['artifacts']}</span>}
             </button>
+            {hasJiraTicket && (
+              <button
+                className={`terminal-tab ${viewTab === 'jira' ? 'active' : ''}`}
+                onClick={(e) => { e.stopPropagation(); setViewTab('jira') }}
+                title="Jira ticket"
+              >
+                <Ticket size={12} /> Jira
+                {tabHintMap['jira'] && <span className="shortcut-hint">{tabHintMap['jira']}</span>}
+              </button>
+            )}
             {instance.roleTag === 'Coordinator' && (
               <button
                 className={`terminal-tab ${viewTab === 'team' ? 'active' : ''}`}
@@ -890,6 +908,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
           {viewTab === 'logs' && <HelpPopover topic="logsTab" />}
           {viewTab === 'changes' && <HelpPopover topic="changesTab" />}
           {viewTab === 'artifacts' && <HelpPopover topic="artifactsTab" />}
+          {viewTab === 'jira' && <HelpPopover topic="sessionTab" zone="Jira Tab" />}
           {viewTab === 'team' && <HelpPopover topic="teamTab" />}
           {viewTab === 'browser' && <HelpPopover topic="browserTab" />}
           {(instance.gitRepo || instance.gitBranch) && (
