@@ -71,6 +71,16 @@ function dirName(path: string) {
   return parts[parts.length - 1] || path
 }
 
+function getModelLabel(args: string[]): string | null {
+  const idx = args.indexOf('--model')
+  if (idx < 0 || !args[idx + 1]) return null
+  const raw = args[idx + 1]
+  if (raw.includes('opus')) return 'opus'
+  if (raw.includes('sonnet')) return 'sonnet'
+  if (raw.includes('haiku')) return 'haiku'
+  return raw.length > 8 ? raw.slice(0, 8) : raw
+}
+
 function formatElapsed(createdAt: string): string {
   const ms = Date.now() - new Date(createdAt).getTime()
   const mins = Math.floor(ms / 60000)
@@ -223,6 +233,9 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
                 badges.push({ node: <span key="ro" className={`instance-role-badge role-${inst.roleTag.toLowerCase()}`} title={`Role: ${inst.roleTag}`}>{ROLE_ABBREV[inst.roleTag] ?? inst.roleTag.slice(0, 4)}</span>, label: inst.roleTag })
               }
             }
+            const modelLabel = getModelLabel(inst.args)
+            if (modelLabel)
+              badges.push({ node: <span key="ml" className="instance-model-badge" title={inst.args[inst.args.indexOf('--model') + 1]}>{modelLabel}</span>, label: modelLabel })
             if (inst.mcpServers.length > 0)
               badges.push({ node: <span key="mc" className="instance-mcp-badge" title={inst.mcpServers.join(', ')}>MCP {inst.mcpServers.length}</span>, label: `MCP ${inst.mcpServers.length}` })
             if (inst.cliBackend === 'cursor-agent')

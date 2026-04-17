@@ -2222,6 +2222,18 @@ body:has(.daemon-update-banner) .app-update-banner {
   margin-right: 4px;
   vertical-align: middle;
 }
+.instance-model-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 4px;
+  font-size: 9px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--text-muted) 10%, transparent);
+  color: var(--text-muted);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
 .instance-mcp-badge {
   display: inline-block;
   margin-left: 6px;
