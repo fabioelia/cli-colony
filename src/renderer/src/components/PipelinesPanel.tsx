@@ -1665,7 +1665,7 @@ ${modelLine}  prompt: |
                                               <div className="pipeline-session-preview-meta">
                                                 <span title="Duration">{art.durationMs < 60000 ? `${(art.durationMs / 1000).toFixed(0)}s` : `${(art.durationMs / 60000).toFixed(1)}m`}</span>
                                                 {art.costUsd != null && <span title="Cost">${art.costUsd.toFixed(3)}</span>}
-                                                <span title="Exit code">exit {art.exitCode}</span>
+                                                <span title="Exit code" style={art.exitCode !== 0 ? { color: 'var(--danger)' } : undefined}>exit {art.exitCode}</span>
                                                 {art.commits.length > 0 && <span>{art.commits.length} commit{art.commits.length > 1 ? 's' : ''}</span>}
                                                 {art.totalInsertions + art.totalDeletions > 0 && (
                                                   <span className="pipeline-session-preview-diff">+{art.totalInsertions} −{art.totalDeletions}</span>
@@ -1729,7 +1729,7 @@ ${modelLine}  prompt: |
                                                       <div className="pipeline-session-preview-meta">
                                                         <span title="Duration">{art.durationMs < 60000 ? `${(art.durationMs / 1000).toFixed(0)}s` : `${(art.durationMs / 60000).toFixed(1)}m`}</span>
                                                         {art.costUsd != null && <span title="Cost">${art.costUsd.toFixed(3)}</span>}
-                                                        <span title="Exit code">exit {art.exitCode}</span>
+                                                        <span title="Exit code" style={art.exitCode !== 0 ? { color: 'var(--danger)' } : undefined}>exit {art.exitCode}</span>
                                                         {art.commits.length > 0 && <span>{art.commits.length} commit{art.commits.length > 1 ? 's' : ''}</span>}
                                                         {art.totalInsertions + art.totalDeletions > 0 && (
                                                           <span className="pipeline-session-preview-diff">+{art.totalInsertions} −{art.totalDeletions}</span>
