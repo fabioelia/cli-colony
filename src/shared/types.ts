@@ -354,6 +354,8 @@ export interface PersonaInfo {
   maxCostPerDayUsd?: number
   /** Count of unresolved attention requests from this persona */
   attentionCount: number
+  /** First meaningful line of the latest brief (max 120 chars), or null if no brief exists */
+  briefPreview: string | null
 }
 
 // ---- Persona Memory (structured sidecar) ----

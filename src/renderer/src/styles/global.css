@@ -18416,14 +18416,32 @@ body:has(.daemon-update-banner) .app-update-banner {
   align-items: center;
 }
 
+.persona-list-name-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
 .persona-list-name {
   font-size: 12px;
   font-weight: 500;
-  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.persona-list-brief {
+  display: block;
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  margin-top: 1px;
 }
 .persona-list-row.disabled .persona-list-name {
   color: var(--text-muted);

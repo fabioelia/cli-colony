@@ -253,6 +253,20 @@ export function getPersonaList(): PersonaInfo[] {
         maxCostUsd: fm.max_cost_usd,
         maxCostPerDayUsd: fm.max_cost_per_day_usd,
         attentionCount: getAttentionCount(personaId),
+        briefPreview: (() => {
+          const bp = join(PERSONAS_DIR, `${personaId}.brief.md`)
+          try {
+            if (!existsSync(bp)) return null
+            const text = readFileSync(bp, 'utf-8')
+            for (const line of text.split('\n')) {
+              const trimmed = line.trim()
+              if (!trimmed) continue
+              if (trimmed.startsWith('#') || trimmed.startsWith('---') || trimmed.startsWith('_')) continue
+              return trimmed.length > 120 ? trimmed.slice(0, 117) + '...' : trimmed
+            }
+            return null
+          } catch { return null }
+        })(),
       })
     } catch { /* skip invalid files */ }
   }

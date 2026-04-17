@@ -1146,7 +1146,12 @@ function PersonaCard({
             {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
           </span>
           <span className={`persona-card-status-dot ${statusClass}`} />
-          <span className="persona-list-name">{persona.name}</span>
+          <span className="persona-list-name-col">
+            <span className="persona-list-name">{persona.name}</span>
+            {persona.briefPreview && (
+              <span className="persona-list-brief" title={persona.briefPreview}>{persona.briefPreview}</span>
+            )}
+          </span>
           {isRunning && <span className="persona-list-badge running">Running</span>}
           {!isRunning && persona.pendingTrigger && (
             <span className="persona-list-badge pending" title={`Queued by ${fromName(persona.pendingTrigger.from)}${persona.pendingTrigger.note ? `: ${persona.pendingTrigger.note}` : ''}`}>
