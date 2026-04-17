@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react'
+import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo } from 'react'
 import { useFileDrop } from '../hooks/useFileDrop'
 import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
@@ -167,8 +167,9 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
   const [chatResponse, setChatResponse] = useState<string | null>(null)
   const [chatLoading, setChatLoading] = useState(false)
 
-  // Sort
+  // Sort + search
   const [sortBy, setSortBy] = useState<'name' | 'lastRun' | 'runs' | 'cost' | 'successRate'>('name')
+  const [personaSearch, setPersonaSearch] = useState('')
   const [panelView, setPanelView] = useState<'list' | 'schedule' | 'triggers'>('list')
 
   // Cron pause
@@ -229,6 +230,15 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
         return a.name.localeCompare(b.name)
     }
   })
+
+  // Filter sorted personas by search term
+  const visiblePersonas = useMemo(() => {
+    const q = personaSearch.trim().toLowerCase()
+    if (!q) return sortedPersonas
+    return sortedPersonas.filter(p =>
+      p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)
+    )
+  }, [sortedPersonas, personaSearch])
 
   // Persona Edit Modal state
   const [editMetaPersona, setEditMetaPersona] = useState<PersonaInfo | null>(null)
@@ -412,12 +422,12 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
   }, [])
 
   const handleSelectAll = useCallback(() => {
-    if (selectedPersonas.size === sortedPersonas.length) {
+    if (selectedPersonas.size === visiblePersonas.length) {
       setSelectedPersonas(new Set())
     } else {
-      setSelectedPersonas(new Set(sortedPersonas.map(p => p.id)))
+      setSelectedPersonas(new Set(visiblePersonas.map(p => p.id)))
     }
-  }, [sortedPersonas, selectedPersonas.size])
+  }, [visiblePersonas, selectedPersonas.size])
 
   const handleBatchEnable = useCallback(async () => {
     for (const id of selectedPersonas) await window.api.persona.toggle(id, true)
@@ -470,16 +480,32 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
         </div>
         <div className="panel-header-spacer" />
         {panelView === 'list' && (
-          <div className="persona-sort-dropdown">
-            <ArrowUpDown size={11} />
-            <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
-              <option value="name">Name</option>
-              <option value="lastRun">Last Run</option>
-              <option value="runs">Runs</option>
-              <option value="cost">Cost</option>
-              <option value="successRate">Success Rate</option>
-            </select>
-          </div>
+          <>
+            <div className="review-search-wrapper">
+              <Search size={11} className="review-search-icon" />
+              <input
+                className="review-search-input"
+                placeholder="Filter personas…"
+                value={personaSearch}
+                onChange={(e) => setPersonaSearch(e.target.value)}
+              />
+              {personaSearch && (
+                <button className="review-search-clear" onClick={() => setPersonaSearch('')} title="Clear">
+                  <X size={10} />
+                </button>
+              )}
+            </div>
+            <div className="persona-sort-dropdown">
+              <ArrowUpDown size={11} />
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
+                <option value="name">Name</option>
+                <option value="lastRun">Last Run</option>
+                <option value="runs">Runs</option>
+                <option value="cost">Cost</option>
+                <option value="successRate">Success Rate</option>
+              </select>
+            </div>
+          </>
         )}
         <HelpPopover topic="personas" align="right" />
         <div className="panel-header-actions">
@@ -546,7 +572,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
       {selectedPersonas.size > 0 && (
         <div className="persona-bulk-bar">
           <button className="persona-bulk-select-all" onClick={handleSelectAll}>
-            {selectedPersonas.size === sortedPersonas.length ? 'Deselect All' : 'Select All'}
+            {selectedPersonas.size === visiblePersonas.length ? 'Deselect All' : 'Select All'}
           </button>
           <span className="persona-bulk-count">{selectedPersonas.size} selected</span>
           <div className="persona-bulk-actions">
@@ -642,8 +668,12 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
         />
       )}
 
+      {visiblePersonas.length === 0 && personas.length > 0 && (
+        <div className="panel-search-empty">No personas match &ldquo;{personaSearch}&rdquo;</div>
+      )}
+
       <div className="personas-list list-mode">
-        {sortedPersonas.map((persona) => (
+        {visiblePersonas.map((persona) => (
           <PersonaCard
             key={persona.id}
             persona={persona}
