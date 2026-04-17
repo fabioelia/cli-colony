@@ -36,6 +36,8 @@ const _instanceTickets = new Map<string, { source: 'jira'; key: string; summary:
 
 // Track last output timestamp per instance for idle detection
 const _lastOutputAt = new Map<string, number>()
+// Track last stale notification threshold per instance (ms) to avoid repeat fires
+const _staleNotified = new Map<string, number>()
 
 // Rate-limit cost checks: track last check timestamp per instance (30s throttle)
 const _lastCostCheckAt = new Map<string, number>()
@@ -118,6 +120,37 @@ function resolveWorkingDirectory(input: string | undefined, home: string): strin
 
 // ---- Daemon event wiring ----
 
+async function checkStaleNotifications(): Promise<void> {
+  const now = Date.now()
+  const STALE_15M = 900_000
+  const STALE_30M = 1_800_000
+  const instances = await getDaemonRouter().getAllInstances().catch(() => [])
+  const byId = new Map(instances.map(i => [i.id, i]))
+  for (const [id, lastAt] of _lastOutputAt) {
+    const idleMs = now - lastAt
+    const inst = byId.get(id)
+    if (!inst || inst.status !== 'running' || inst.activity !== 'busy') continue
+    const lastNotified = _staleNotified.get(id) ?? 0
+    if (idleMs >= STALE_30M && lastNotified < STALE_30M) {
+      _staleNotified.set(id, STALE_30M)
+      notify(
+        'Colony: Session may be stuck',
+        `"${inst.name}" has had no output for 30 minutes — consider checking or stopping`,
+        { type: 'session', id },
+        'session'
+      )
+    } else if (idleMs >= STALE_15M && lastNotified < STALE_15M) {
+      _staleNotified.set(id, STALE_15M)
+      notify(
+        'Colony: Session may be stuck',
+        `No output from "${inst.name}" for 15 minutes`,
+        { type: 'session', id },
+        'session'
+      )
+    }
+  }
+}
+
 let _wired = false
 
 export function wireDaemonEvents(): void {
@@ -131,6 +164,7 @@ export function wireDaemonEvents(): void {
   router.on('output', (instanceId: string, data: string) => {
     broadcast('instance:output', { id: instanceId, data })
     _lastOutputAt.set(instanceId, Date.now())
+    _staleNotified.delete(instanceId)
 
     // Rate-limited persona cost cap check (every 30s)
     if (!_budgetStopped.has(instanceId)) {
@@ -220,6 +254,7 @@ export function wireDaemonEvents(): void {
     updateDockBadge()
     trackClosed(instanceId, 'exited')
     _lastOutputAt.delete(instanceId)
+    _staleNotified.delete(instanceId)
     _lastCostCheckAt.delete(instanceId)
     _budgetStopped.delete(instanceId)
     _instanceTickets.delete(instanceId)
@@ -366,6 +401,8 @@ export function wireDaemonEvents(): void {
   router.on('instance-migrated', (info: { oldId: string; newId: string }) => {
     broadcast('daemon:instance-migrated', info)
   })
+
+  setInterval(checkStaleNotifications, 60_000)
 }
 
 // ---- Public API (same signatures as before) ----
