@@ -9,7 +9,7 @@ import { resolveCommand } from './resolve-command'
 import { promisify } from 'util'
 import { join } from 'path'
 import { app } from 'electron'
-import { createInstance, getAllInstances, killInstance } from './instance-manager'
+import { createInstance, getAllInstances, killInstance, updateDockBadge } from './instance-manager'
 import { getDaemonRouter } from './daemon-router'
 import { sendPromptWhenReady } from './send-prompt-when-ready'
 import { appendActivity } from './activity-manager'
@@ -524,6 +524,7 @@ export async function runDiffReview(action: ActionDef, ctx: TriggerContext, pipe
   pendingApprovals.set(approvalId, { request, action, ctx, dedupKey: approvalId })
   pendingApprovalKeys.add(approvalId)
   broadcast('pipeline:approval:new', request)
+  updateDockBadge()
   appendActivity({ source: 'pipeline', name: pipelineName, summary: `Diff review "${pipelineName}" needs attention: ${reviewText.slice(0, 100)}`, level: 'warn' })
   notify(`Colony: Diff Review — ${pipelineName}`, summary, 'pipelines')
 
@@ -636,6 +637,7 @@ export async function runPlanStage(action: ActionDef, ctx: TriggerContext, pipel
     })
     pendingApprovalKeys.add(approvalId)
     broadcast('pipeline:approval:new', request)
+    updateDockBadge()
     plog(pipelineName, `plan-stage: awaiting approval ${approvalId}`)
     appendActivity({ source: 'pipeline', name: pipelineName, summary: `Pipeline "${pipelineName}" waiting for plan approval`, level: 'warn' })
     notify(`Colony: Plan approval needed`, `Pipeline "${pipelineName}" — Approve plan to proceed?`, 'pipelines')

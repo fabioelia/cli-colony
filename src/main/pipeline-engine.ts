@@ -10,7 +10,7 @@ import { promises as fsp } from 'fs'
 import { join, basename } from 'path'
 import { createHash } from 'crypto'
 import { app } from 'electron'
-import { createInstance, getAllInstances, killInstance } from './instance-manager'
+import { createInstance, getAllInstances, killInstance, setApprovalCountGetter, updateDockBadge } from './instance-manager'
 import { markChecklistItem } from './onboarding-state'
 import { getDaemonRouter } from './daemon-router'
 import { sendPromptWhenReady } from './send-prompt-when-ready'
@@ -1262,6 +1262,7 @@ async function runPoll(pipelineName: string, promptOverride?: string): Promise<v
           pendingApprovals.set(approvalId, { request, action: applyDefaultModel(p.def.action, p.def.default_model), ctx, dedupKey })
           pendingApprovalKeys.add(dedupKey)
           broadcast('pipeline:approval:new', request)
+          updateDockBadge()
           plog(pipelineName, `→ approval required by rule "${ruleMatch.name}", queued request ${approvalId}`)
           appendActivity({
             source: 'pipeline',
@@ -1310,6 +1311,7 @@ async function runPoll(pipelineName: string, promptOverride?: string): Promise<v
         pendingApprovals.set(approvalId, { request, action: p.def.action, ctx, dedupKey })
         pendingApprovalKeys.add(dedupKey)
         broadcast('pipeline:approval:new', request)
+        updateDockBadge()
         plog(pipelineName, `→ approval required, queued request ${approvalId} for ${prLabel}`)
         appendActivity({ source: 'pipeline', name: pipelineName, summary: `Pipeline "${pipelineName}" waiting for approval — ${summary}`, level: 'warn' })
         notify(`Colony: Approval needed`, `Pipeline "${pipelineName}" — ${summary}`, 'pipelines')
@@ -1533,6 +1535,8 @@ export async function loadPipelines(): Promise<void> {
 export async function startPipelines(): Promise<void> {
   if (started) return
   started = true
+
+  setApprovalCountGetter(() => pendingApprovals.size)
 
   // Resolve GitHub user
   try {
@@ -1849,6 +1853,7 @@ export function sweepExpiredApprovals(): void {
         level: 'warn',
       })
       broadcast('pipeline:approval:update', { id, status: 'expired' })
+      updateDockBadge()
       log(`Approval ${id} for "${request.pipelineName}" expired`)
     }
   }
@@ -1872,6 +1877,7 @@ export async function approveAction(id: string): Promise<boolean> {
     resolve()
     appendActivity({ source: 'pipeline', name: request.pipelineName, summary: `Pipeline "${request.pipelineName}" plan approved — proceeding`, level: 'info' })
     broadcast('pipeline:approval:update', { id, status: 'approved' })
+    updateDockBadge()
     return true
   }
 
@@ -1883,6 +1889,7 @@ export async function approveAction(id: string): Promise<boolean> {
     appendActivity({ source: 'pipeline', name: request.pipelineName, summary: `Pipeline "${request.pipelineName}" failed after approval: ${String(err).slice(0, 100)}`, level: 'error' })
   }
   broadcast('pipeline:approval:update', { id, status: 'approved' })
+  updateDockBadge()
   return true
 }
 
@@ -1897,6 +1904,7 @@ export function dismissAction(id: string): boolean {
   }
   appendActivity({ source: 'pipeline', name: request.pipelineName, summary: `Pipeline "${request.pipelineName}" action dismissed — ${request.summary}`, level: 'warn' })
   broadcast('pipeline:approval:update', { id, status: 'dismissed' })
+  updateDockBadge()
   return true
 }
 

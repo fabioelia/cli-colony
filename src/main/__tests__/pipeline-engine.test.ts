@@ -120,6 +120,8 @@ function setupMocks(fsMock: ReturnType<typeof buildFsMock>) {
   vi.doMock('../instance-manager', () => ({
     createInstance: vi.fn(),
     getAllInstances: vi.fn().mockResolvedValue([]),
+      updateDockBadge: vi.fn(),
+      setApprovalCountGetter: vi.fn(),
   }))
   vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
   vi.doMock('../daemon-router', () => ({ getDaemonRouter: vi.fn() }))
@@ -783,6 +785,8 @@ describe('pipeline-engine: auto-pause on consecutive failures', () => {
     vi.doMock('../instance-manager', () => ({
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
+        updateDockBadge: vi.fn(),
+        setApprovalCountGetter: vi.fn(),
     }))
     const mockDaemonClientObjAuto = {
       on: vi.fn(),
@@ -1030,6 +1034,8 @@ describe('pipeline-engine: approval gates', () => {
     vi.doMock('../instance-manager', () => ({
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
+        updateDockBadge: vi.fn(),
+        setApprovalCountGetter: vi.fn(),
     }))
     const mockDaemonClientObjApproval = {
       on: vi.fn(),
@@ -1279,6 +1285,8 @@ describe('pipeline-engine: approval expiry (sweepExpiredApprovals)', () => {
     vi.doMock('../instance-manager', () => ({
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
+        updateDockBadge: vi.fn(),
+        setApprovalCountGetter: vi.fn(),
     }))
     const mockDaemonClientObjTtl = {
       on: vi.fn(),
@@ -1568,6 +1576,8 @@ describe('pipeline-engine: file-poll trigger', () => {
     vi.doMock('../instance-manager', () => ({
       createInstance: fpCreateInstance,
       getAllInstances: fpGetAllInstances,
+        updateDockBadge: vi.fn(),
+        setApprovalCountGetter: vi.fn(),
     }))
     const mockDaemonClientObjFp = {
       on: vi.fn(),
@@ -1755,6 +1765,8 @@ dedup:
     vi.doMock('../instance-manager', () => ({
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
+        updateDockBadge: vi.fn(),
+        setApprovalCountGetter: vi.fn(),
     }))
     const mockDaemonClientObjArt = {
       on: vi.fn(),
@@ -1967,6 +1979,8 @@ dedup:
     vi.doMock('../instance-manager', () => ({
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
+        updateDockBadge: vi.fn(),
+        setApprovalCountGetter: vi.fn(),
     }))
     const mockDaemonClientObjHandoff = {
       on: vi.fn(),
@@ -2149,6 +2163,8 @@ describe('pipeline-engine: run history', () => {
     vi.doMock('../instance-manager', () => ({
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
+        updateDockBadge: vi.fn(),
+        setApprovalCountGetter: vi.fn(),
     }))
     const mockDaemonClientObjHistory = {
       on: vi.fn(),
@@ -2413,6 +2429,8 @@ dedup:
     vi.doMock('../instance-manager', () => ({
       createInstance: mockCreateInstance2,
       getAllInstances: vi.fn().mockResolvedValue([]),
+        updateDockBadge: vi.fn(),
+        setApprovalCountGetter: vi.fn(),
     }))
     vi.doMock('../daemon-client', () => ({ getDaemonClient: mockGetDaemon }))
     vi.doMock('../daemon-router', () => ({ getDaemonRouter: mockGetDaemon }))
@@ -2702,6 +2720,8 @@ describe('pipeline-engine: plan stage approval gate behavior', () => {
     vi.doMock('../instance-manager', () => ({
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
+        updateDockBadge: vi.fn(),
+        setApprovalCountGetter: vi.fn(),
     }))
     const mockDaemonClientObjPlan = {
       on: vi.fn().mockImplementation((event: string, handler: (id: string, act: string) => void) => {
@@ -2929,6 +2949,8 @@ describe('pipeline-engine: wait_for_session behavior', () => {
     vi.doMock('../instance-manager', () => ({
       createInstance: mockCreateInstance,
       getAllInstances,
+        updateDockBadge: vi.fn(),
+        setApprovalCountGetter: vi.fn(),
     }))
     const mockDaemonClientObjWait = {
       on: vi.fn(),
@@ -3184,6 +3206,8 @@ budget:
     vi.doMock('../instance-manager', () => ({
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
+        updateDockBadge: vi.fn(),
+        setApprovalCountGetter: vi.fn(),
     }))
     const mockDaemonClientObjBudget = {
       on: vi.fn().mockImplementation((event: string, handler: (id: string, act: string) => void) => {
@@ -3367,6 +3391,8 @@ describe('pipeline-engine: per-stage model selection', () => {
     vi.doMock('../instance-manager', () => ({
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
+        updateDockBadge: vi.fn(),
+        setApprovalCountGetter: vi.fn(),
     }))
     const mockDaemonClientObjModel = {
       on: vi.fn(),
@@ -3506,6 +3532,8 @@ describe('pipeline-engine: launch-session auto-close', () => {
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
       killInstance: mockKillInstance,
+        updateDockBadge: vi.fn(),
+        setApprovalCountGetter: vi.fn(),
     }))
     vi.doMock('../daemon-client', () => ({
       getDaemonClient: vi.fn().mockReturnValue(mockDaemonClient),
@@ -3845,6 +3873,8 @@ describe('pipeline-engine: default_model', () => {
     vi.doMock('../instance-manager', () => ({
       createInstance: mockCreateInstance,
       getAllInstances: vi.fn().mockResolvedValue([]),
+        updateDockBadge: vi.fn(),
+        setApprovalCountGetter: vi.fn(),
     }))
     vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
     vi.doMock('../daemon-router', () => ({ getDaemonRouter: vi.fn() }))
@@ -4010,6 +4040,8 @@ describe('approval PR diff pre-fetch', () => {
     vi.doMock('../instance-manager', () => ({
       createInstance: vi.fn().mockResolvedValue({ id: 'inst-pr' }),
       getAllInstances: vi.fn().mockResolvedValue([]),
+        updateDockBadge: vi.fn(),
+        setApprovalCountGetter: vi.fn(),
     }))
     vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
     vi.doMock('../daemon-router', () => ({ getDaemonRouter: vi.fn() }))

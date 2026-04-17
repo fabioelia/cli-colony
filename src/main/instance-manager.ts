@@ -63,6 +63,24 @@ export function setCostCapResolver(fn: (instanceId: string) => number | undefine
   _costCapResolver = fn
 }
 
+// Approval count getter — registered by pipeline-engine at startup to avoid circular import
+let _approvalCountGetter: () => number = () => 0
+export function setApprovalCountGetter(fn: () => number): void {
+  _approvalCountGetter = fn
+}
+
+export function updateDockBadge(): void {
+  getDaemonRouter().getAllInstances().then(instances => {
+    const waitingCount = instances.filter(i => i.status === 'running' && i.activity === 'waiting').length
+    const total = waitingCount + _approvalCountGetter()
+    if (process.platform === 'darwin') {
+      app.dock?.setBadge(total > 0 ? String(total) : '')
+    } else {
+      app.setBadgeCount(total)
+    }
+  }).catch(() => {})
+}
+
 // Tray update callback
 let onInstanceListChanged: (() => void) | null = null
 export function setOnInstanceListChanged(cb: () => void): void {
@@ -146,6 +164,7 @@ export function wireDaemonEvents(): void {
   // Forward activity changes + notify when Claude finishes processing
   router.on('activity', async (instanceId: string, activity: string) => {
     broadcast('instance:activity', { id: instanceId, activity })
+    updateDockBadge()
 
     // When an instance transitions to 'waiting', Claude finished its task
     if (activity === 'waiting') {
@@ -192,6 +211,7 @@ export function wireDaemonEvents(): void {
     // Capture ticket BEFORE clearing — _instanceTickets.delete runs below
     const exitTicket = _instanceTickets.get(instanceId)
     broadcast('instance:exited', { id: instanceId, exitCode })
+    updateDockBadge()
     trackClosed(instanceId, 'exited')
     _lastOutputAt.delete(instanceId)
     _lastCostCheckAt.delete(instanceId)
@@ -311,6 +331,7 @@ export function wireDaemonEvents(): void {
 
   router.on('connected', () => {
     console.log('[instance-manager] daemon connected')
+    updateDockBadge()
   })
 
   router.on('version-mismatch', (info: { running: number; expected: number }) => {
