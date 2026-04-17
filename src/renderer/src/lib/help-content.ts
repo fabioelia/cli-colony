@@ -145,6 +145,13 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Coming Up',
+        position: 'Below Active Personas',
+        items: [
+          { label: 'Upcoming runs', detail: 'Next 8 scheduled fires across enabled personas and pipelines, sorted by fire time ascending. Each row shows an icon (person = persona, zap = pipeline), name, countdown ("in 5m", "in 1h 30m"), and model badge for personas. Click any row to navigate to the respective panel. Refreshes every 60 seconds. Hidden when no scheduled items exist.', icon: 'Clock' },
+        ],
+      },
+      {
         name: 'Recent Activity',
         position: 'Below running sessions',
         items: [
@@ -955,6 +962,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Main area',
         items: [
           { label: 'Status dot', detail: 'Green pulsing = running a session. Gray = idle. Dimmed = disabled.' },
+          { label: 'Brief preview', detail: 'Muted one-line subtitle below the persona name showing the first meaningful line of its latest session brief. Gives an at-a-glance "what did it do last?" without opening the card. Empty when the persona has never run or has no brief.' },
           { label: 'Queued badge', detail: 'Amber "queued" badge appears when another persona has dispatched a trigger for this one — it will launch on its next scheduled run or when manually triggered. Hover for the triggering persona name and context note.' },
           { label: 'Schedule', detail: 'Shows when the persona runs automatically as a human-readable label (e.g. "Every 2 hours"). Click to open the schedule editor with presets and next-run times.', icon: 'Clock' },
           { label: 'Run count', detail: 'How many sessions this persona has completed.' },

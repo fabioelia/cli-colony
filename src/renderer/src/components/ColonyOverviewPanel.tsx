@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import SessionTimeline from './SessionTimeline'
+import { nextRuns } from '../../../shared/cron'
 import type { ClaudeInstance, ActivityEvent, PersonaInfo, ApprovalRequest, TaskBoardItem, PersonaHealthEntry, EnvStatus } from '../../../preload'
 
 interface PipelineSummary {
@@ -15,6 +16,7 @@ interface PipelineSummary {
   lastFiredAt: string | null
   lastError: string | null
   fireCount: number
+  cron: string | null
 }
 
 interface Props {
@@ -56,6 +58,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const [costLeaderboard, setCostLeaderboard] = useState<Array<{ name: string; id: string; cost: number }>>([])
   const [environments, setEnvironments] = useState<EnvStatus[]>([])
   const [dailyCostBudget, setDailyCostBudget] = useState(0)
+  const [tick, setTick] = useState(0)
 
   useEffect(() => {
     window.api.activity.list().then(setActivity)
@@ -105,6 +108,32 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
     ]
     return () => unsubs.forEach(fn => fn())
   }, [])
+
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 60000)
+    return () => clearInterval(id)
+  }, [])
+
+  const upcomingRuns = useMemo(() => {
+    const items: Array<{ name: string; type: 'persona' | 'pipeline'; nextAt: Date; model?: string }> = []
+    for (const p of personas) {
+      if (!p.enabled || !p.schedule) continue
+      const fires = nextRuns(p.schedule, 1)
+      if (fires.length > 0 && fires[0].getTime() > Date.now()) {
+        items.push({ name: p.name, type: 'persona', nextAt: fires[0], model: p.model })
+      }
+    }
+    for (const pl of pipelines) {
+      if (!pl.enabled || !pl.cron) continue
+      const fires = nextRuns(pl.cron, 1)
+      if (fires.length > 0 && fires[0].getTime() > Date.now()) {
+        items.push({ name: pl.name, type: 'pipeline', nextAt: fires[0] })
+      }
+    }
+    items.sort((a, b) => a.nextAt.getTime() - b.nextAt.getTime())
+    return items.slice(0, 8)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personas, pipelines, tick])
 
   const running = useMemo(() => instances.filter(i => i.status === 'running'), [instances])
   const totalCost = useMemo(() => instances.reduce((sum, i) => sum + (i.tokenUsage.cost || 0), 0), [instances])
@@ -506,6 +535,30 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                   <span className="overview-session-cost">run #{p.runCount}</span>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Coming Up */}
+        {upcomingRuns.length > 0 && (
+          <div className="overview-section">
+            <h3><Clock size={14} /> Coming Up</h3>
+            <div className="overview-session-list">
+              {upcomingRuns.map((item, i) => {
+                const diffMs = item.nextAt.getTime() - Date.now()
+                const mins = Math.floor(diffMs / 60000)
+                const label = mins < 1 ? '<1m' : mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h ${mins % 60}m`
+                return (
+                  <div key={`${item.type}-${item.name}-${i}`} className="overview-session-tile"
+                    onClick={() => onNavigate(item.type === 'persona' ? 'personas' : 'pipelines')}>
+                    <span className="overview-session-dot" style={{ background: item.type === 'persona' ? 'var(--accent-purple)' : 'var(--accent)' }} />
+                    {item.type === 'persona' ? <Users size={11} /> : <Zap size={11} />}
+                    <span className="overview-session-name">{item.name}</span>
+                    <span className="overview-badge badge-role">in {label}</span>
+                    {item.model && <span className="overview-session-cost">{item.model}</span>}
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
