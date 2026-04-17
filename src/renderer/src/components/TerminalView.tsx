@@ -1471,8 +1471,12 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
         workingDirectory={instance.workingDirectory}
         onSelectFile={(path) => {
           setFileQuickOpen(false)
-          setViewTab('files')
-          setJumpFilePath(path)
+          if (viewTab === 'files') {
+            setJumpFilePath(path)
+          } else {
+            setSplitTab('files')
+            setJumpFilePath(path)
+          }
         }}
       />
     </>
