@@ -101,7 +101,7 @@ describe('github module', () => {
     mockFsp.writeFile.mockResolvedValue(undefined)
     mockFsp.mkdir.mockResolvedValue(undefined)
     mockGetAllRepoConfigs.mockReturnValue([])
-    mockGitRemoteUrl.mockReturnValue('git@github.com:test/repo.git')
+    mockGitRemoteUrl.mockImplementation((owner: string, name: string) => `git@github.com:${owner}/${name}.git`)
     mockEnsureBareRepo.mockResolvedValue(undefined)
 
     setupMocks()
@@ -246,21 +246,21 @@ describe('github module', () => {
   })
 
   describe('addRepo', () => {
-    it('adds a new repo to config', () => {
+    it('adds a new repo to config', async () => {
       mockJsonFileRead.mockReturnValue({ repos: [], prompts: [] })
-      const result = mod.addRepo({ owner: 'test', name: 'new-repo' })
+      const result = await mod.addRepo({ owner: 'test', name: 'new-repo' })
       expect(mockJsonFileWrite).toHaveBeenCalledWith(expect.objectContaining({
         repos: [expect.objectContaining({ owner: 'test', name: 'new-repo' })],
       }))
       expect(result).toHaveLength(1)
     })
 
-    it('does not add duplicate repo', () => {
+    it('does not add duplicate repo', async () => {
       mockJsonFileRead.mockReturnValue({
         repos: [{ owner: 'test', name: 'existing' }],
         prompts: [],
       })
-      const result = mod.addRepo({ owner: 'test', name: 'existing' })
+      const result = await mod.addRepo({ owner: 'test', name: 'existing' })
       expect(mockJsonFileWrite).not.toHaveBeenCalled()
       expect(result).toHaveLength(1)
     })
@@ -273,9 +273,9 @@ describe('github module', () => {
       }))
     })
 
-    it('triggers bare repo clone in background', () => {
+    it('triggers bare repo clone', async () => {
       mockJsonFileRead.mockReturnValue({ repos: [], prompts: [] })
-      mod.addRepo({ owner: 'org', name: 'app' })
+      await mod.addRepo({ owner: 'org', name: 'app' })
       expect(mockEnsureBareRepo).toHaveBeenCalledWith('org', 'app', 'git@github.com:org/app.git')
     })
   })
@@ -933,7 +933,7 @@ describe('github module', () => {
       })
       mockFsp.stat.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
       await mod.ensureRepoClones()
-      expect(mockEnsureBareRepo).toHaveBeenCalledWith('a', 'b', 'git@github.com:test/repo.git')
+      expect(mockEnsureBareRepo).toHaveBeenCalledWith('a', 'b', 'git@github.com:a/b.git')
     })
 
     it('skips repos that already have bare clones', async () => {
