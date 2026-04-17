@@ -1581,6 +1581,16 @@ ${modelLine}  prompt: |
                                     {entry.actionExecuted ? 'action fired' : 'no action'}
                                   </span>
                                   <span className="pipeline-history-duration">{entry.durationMs < 1000 ? `${entry.durationMs}ms` : `${(entry.durationMs / 1000).toFixed(1)}s`}</span>
+                                  {entry.totalCost != null && (
+                                    <span className={`pipeline-history-cost${entry.totalCost > 1 ? ' high' : entry.totalCost < 0.10 ? ' low' : ''}`}>
+                                      ${entry.totalCost.toFixed(2)}
+                                    </span>
+                                  )}
+                                  {entry.sessionIds && entry.sessionIds.length > 0 && (
+                                    <span className="pipeline-history-sessions">
+                                      {entry.sessionIds.length} sess
+                                    </span>
+                                  )}
                                   {p.budget && entry.totalCost != null && (
                                     <div className="pipeline-budget-bar" title={`$${entry.totalCost.toFixed(2)} of $${p.budget.maxCostUsd.toFixed(2)} budget`}>
                                       <div
