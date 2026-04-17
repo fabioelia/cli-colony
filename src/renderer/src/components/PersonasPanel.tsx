@@ -702,6 +702,9 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
             onDeleteNote={async (index) => {
               await window.api.persona.deleteNote(persona.id, index)
             }}
+            onUpdateNote={async (index, newText) => {
+              await window.api.persona.updateNote(persona.id, index, newText)
+            }}
             cronsPaused={cronsPaused}
           />
         ))}
@@ -1044,16 +1047,19 @@ interface PersonaCardProps {
   onScheduleSave: (schedule: string) => Promise<void>
   onWhisper: (text: string) => Promise<void>
   onDeleteNote: (index: number) => Promise<void>
+  onUpdateNote: (index: number, newText: string) => Promise<void>
   cronsPaused: boolean
 }
 
 function PersonaCard({
   persona, expanded, instances, allPersonas, analytics, selected, onToggleSelect,
-  onToggleExpand, onRun, onStop, onToggle, onDelete, onDuplicate, onFocusInstance, onViewFile, onEditFile, onEditMeta, onScheduleSave, onWhisper, onDeleteNote, cronsPaused
+  onToggleExpand, onRun, onStop, onToggle, onDelete, onDuplicate, onFocusInstance, onViewFile, onEditFile, onEditMeta, onScheduleSave, onWhisper, onDeleteNote, onUpdateNote, cronsPaused
 }: PersonaCardProps) {
   const [editingSchedule, setEditingSchedule] = useState(false)
   const [whisperOpen, setWhisperOpen] = useState(false)
   const [whisperText, setWhisperText] = useState('')
+  const [editingNoteIndex, setEditingNoteIndex] = useState<number | null>(null)
+  const [editNoteText, setEditNoteText] = useState('')
   const [activeTab, setActiveTab] = useState<'content' | 'outputs' | 'history' | 'analytics' | 'memory'>('content')
   const [artifacts, setArtifacts] = useState<PersonaArtifact[] | null>(null)
   const [viewingArtifact, setViewingArtifact] = useState<{ name: string; content: string } | null>(null)
@@ -1704,7 +1710,31 @@ function PersonaCard({
                   <span className="persona-whisper-item-time">
                     {new Date(w.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                   </span>
-                  <span className="persona-whisper-item-text">{w.text}</span>
+                  {editingNoteIndex === i ? (
+                    <textarea
+                      className="persona-whisper-edit-input"
+                      value={editNoteText}
+                      onChange={e => setEditNoteText(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          onUpdateNote(i, editNoteText)
+                          setEditingNoteIndex(null)
+                        }
+                        if (e.key === 'Escape') setEditingNoteIndex(null)
+                      }}
+                      autoFocus
+                    />
+                  ) : (
+                    <span className="persona-whisper-item-text">{w.text}</span>
+                  )}
+                  <button
+                    className="persona-whisper-item-edit"
+                    title="Edit note"
+                    onClick={(e) => { e.stopPropagation(); setEditingNoteIndex(i); setEditNoteText(w.text) }}
+                  >
+                    <Pencil size={10} />
+                  </button>
                   <button
                     className="persona-whisper-item-delete"
                     title="Delete note"

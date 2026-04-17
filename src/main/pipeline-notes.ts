@@ -35,6 +35,15 @@ export function deletePipelineNote(fileName: string, index: number): boolean {
   return true
 }
 
+export function updatePipelineNote(fileName: string, index: number, newText: string): boolean {
+  if (!newText.trim()) return false
+  const notes = getPipelineNotes(fileName)
+  if (index < 0 || index >= notes.length) return false
+  notes[index].text = newText.trim()
+  writeFileSync(notesPath(fileName), JSON.stringify(notes, null, 2), 'utf-8')
+  return true
+}
+
 export function clearPipelineNotes(fileName: string): void {
   try { unlinkSync(notesPath(fileName)) } catch { /* ok */ }
 }

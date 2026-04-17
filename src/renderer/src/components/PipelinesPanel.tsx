@@ -251,6 +251,8 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [cronEditingPipeline, setCronEditingPipeline] = useState<string | null>(null)
   const [pipelineNotes, setPipelineNotes] = useState<Record<string, Array<{ createdAt: string; text: string }>>>({})
   const [noteOpenPipeline, setNoteOpenPipeline] = useState<string | null>(null)
+  const [editingNoteKey, setEditingNoteKey] = useState<{ fileName: string; index: number } | null>(null)
+  const [editNoteText, setEditNoteText] = useState('')
   const [noteText, setNoteText] = useState('')
 
   // Automation Wizard
@@ -1268,7 +1270,31 @@ ${modelLine}  prompt: |
                 {pipelineNotes[p.fileName].map((n, i) => (
                   <div key={i} className="pipeline-note-item">
                     <span className="pipeline-note-item-time">{new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    <span className="pipeline-note-item-text">{n.text}</span>
+                    {editingNoteKey?.fileName === p.fileName && editingNoteKey.index === i ? (
+                      <textarea
+                        className="pipeline-note-edit-input"
+                        value={editNoteText}
+                        onChange={e => setEditNoteText(e.target.value)}
+                        onKeyDown={async e => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault()
+                            await window.api.pipeline.updateNote(p.fileName, i, editNoteText)
+                            const notes = await window.api.pipeline.getNotes(p.fileName)
+                            setPipelineNotes(prev => ({ ...prev, [p.fileName]: notes }))
+                            setEditingNoteKey(null)
+                          }
+                          if (e.key === 'Escape') setEditingNoteKey(null)
+                        }}
+                        autoFocus
+                      />
+                    ) : (
+                      <span className="pipeline-note-item-text">{n.text}</span>
+                    )}
+                    <button className="pipeline-note-item-edit" title="Edit note" onClick={e => {
+                      e.stopPropagation()
+                      setEditingNoteKey({ fileName: p.fileName, index: i })
+                      setEditNoteText(n.text)
+                    }}><Pencil size={10} /></button>
                     <button className="pipeline-note-item-delete" onClick={async (e) => {
                       e.stopPropagation()
                       await window.api.pipeline.deleteNote(p.fileName, i)

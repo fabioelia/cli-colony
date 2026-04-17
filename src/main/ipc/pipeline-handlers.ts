@@ -11,7 +11,7 @@ import {
   getPipelineContent, savePipelineContent, loadPipelines, setPipelineCron,
   previewPipeline, listApprovals, approveAction, dismissAction, getHistory,
 } from '../pipeline-engine'
-import { getPipelineNotes, addPipelineNote, deletePipelineNote } from '../pipeline-notes'
+import { getPipelineNotes, addPipelineNote, deletePipelineNote, updatePipelineNote } from '../pipeline-notes'
 
 const PIPELINE_SCHEMA_PROMPT = `You are a pipeline YAML generator for Claude Colony.
 
@@ -268,6 +268,10 @@ export function registerPipelineHandlers(): void {
   ipcMain.handle('pipeline:deleteNote', (_e, fileName: string, index: number) => {
     if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) return false
     return deletePipelineNote(fileName, index)
+  })
+  ipcMain.handle('pipeline:updateNote', (_e, fileName: string, index: number, newText: string) => {
+    if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) return false
+    return updatePipelineNote(fileName, index, newText)
   })
 
   // Create a pipeline from generated YAML (Automation Wizard)

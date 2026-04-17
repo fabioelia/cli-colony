@@ -17823,6 +17823,31 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: rgba(239, 68, 68, 0.1);
 }
 
+.persona-whisper-item-edit {
+  flex-shrink: 0;
+  opacity: 0;
+  color: var(--text-muted);
+  padding: 2px 3px;
+  border-radius: 3px;
+  transition: opacity 0.1s;
+  align-self: center;
+}
+.persona-whisper-item:hover .persona-whisper-item-edit { opacity: 1; }
+.persona-whisper-item-edit:hover { color: var(--accent); background: var(--accent-muted); }
+
+.persona-whisper-edit-input {
+  flex: 1;
+  font-size: 11px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  color: var(--text-primary);
+  padding: 2px 4px;
+  resize: none;
+  font-family: inherit;
+  line-height: 1.4;
+}
+
 .persona-card-preview {
   padding: 6px 12px 8px;
   border-top: 1px solid var(--border);
@@ -22292,6 +22317,34 @@ body:has(.daemon-update-banner) .app-update-banner {
 .pipeline-note-item-delete:hover {
   color: var(--danger);
   background: rgba(239, 68, 68, 0.1);
+}
+
+.pipeline-note-item-edit {
+  background: none;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0;
+  color: var(--text-muted);
+  padding: 2px 3px;
+  border-radius: 3px;
+  transition: opacity 0.1s;
+  align-self: center;
+}
+.pipeline-note-item:hover .pipeline-note-item-edit { opacity: 1; }
+.pipeline-note-item-edit:hover { color: var(--accent); background: var(--accent-muted); }
+
+.pipeline-note-edit-input {
+  flex: 1;
+  font-size: 11px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  color: var(--text-primary);
+  padding: 2px 4px;
+  resize: none;
+  font-family: inherit;
+  line-height: 1.4;
 }
 
 /* JiraTab */

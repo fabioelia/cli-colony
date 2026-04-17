@@ -324,6 +324,30 @@ export function deleteNote(id: string, index: number): boolean {
   return true
 }
 
+/** Update a note by index in the ## Notes section, preserving its timestamp. */
+export function updateNote(id: string, index: number, newText: string): boolean {
+  if (!newText.trim()) return false
+  const filePath = resolvedPersonaPath(id)
+  if (!existsSync(filePath)) return false
+  const content = readFileSync(filePath, 'utf-8')
+  const noteLines = (extractSection(content, 'Notes') || extractSection(content, 'Whispers') || '')
+    .split('\n')
+    .filter((l) => l.trim().startsWith('- ['))
+  if (index < 0 || index >= noteLines.length) return false
+  const oldLine = noteLines[index]
+  const timestampMatch = oldLine.match(/^(-\s*\[[^\]]+\])\s*/)
+  if (!timestampMatch) return false
+  const newLine = `${timestampMatch[1]} ${newText.trim()}`
+  let replaced = false
+  const updated = content.split('\n').map((l) => {
+    if (!replaced && l === oldLine) { replaced = true; return newLine }
+    return l
+  }).join('\n')
+  writeFileSync(filePath, updated, 'utf-8')
+  broadcastStatus()
+  return true
+}
+
 /** Surgically update the schedule field in a persona frontmatter without touching the rest. */
 export function setPersonaSchedule(fileName: string, schedule: string): boolean {
   const { content } = getPersonaContent(fileName)

@@ -293,6 +293,7 @@ export interface ClaudeManagerAPI {
     getNotes: (fileName: string) => Promise<Array<{ createdAt: string; text: string }>>
     addNote: (fileName: string, text: string) => Promise<boolean>
     deleteNote: (fileName: string, index: number) => Promise<boolean>
+    updateNote: (fileName: string, index: number, newText: string) => Promise<boolean>
   }
   persona: {
     list: () => Promise<PersonaInfo[]>
@@ -307,6 +308,7 @@ export interface ClaudeManagerAPI {
     setSchedule: (fileName: string, schedule: string) => Promise<boolean>
     whisper: (fileName: string, text: string) => Promise<boolean>
     deleteNote: (fileName: string, index: number) => Promise<boolean>
+    updateNote: (fileName: string, index: number, newText: string) => Promise<boolean>
     updateMeta: (fileName: string, updates: Record<string, string | boolean | number | string[]>) => Promise<boolean>
     getArtifacts: (personaId: string) => Promise<PersonaArtifact[]>
     readArtifact: (personaId: string, filename: string) => Promise<string | null>
@@ -932,6 +934,7 @@ const api: ClaudeManagerAPI = {
     getNotes: (fileName) => ipcRenderer.invoke('pipeline:getNotes', fileName),
     addNote: (fileName, text) => ipcRenderer.invoke('pipeline:addNote', fileName, text),
     deleteNote: (fileName, index) => ipcRenderer.invoke('pipeline:deleteNote', fileName, index),
+    updateNote: (fileName, index, newText) => ipcRenderer.invoke('pipeline:updateNote', fileName, index, newText),
   },
   persona: {
     list: () => ipcRenderer.invoke('persona:list'),
@@ -946,6 +949,7 @@ const api: ClaudeManagerAPI = {
     setSchedule: (fileName, schedule) => ipcRenderer.invoke('persona:setSchedule', fileName, schedule),
     whisper: (fileName, text) => ipcRenderer.invoke('persona:whisper', fileName, text),
     deleteNote: (fileName, index) => ipcRenderer.invoke('persona:deleteNote', fileName, index),
+    updateNote: (fileName, index, newText) => ipcRenderer.invoke('persona:updateNote', fileName, index, newText),
     updateMeta: (fileName, updates) => ipcRenderer.invoke('persona:updateMeta', fileName, updates),
     getArtifacts: (personaId) => ipcRenderer.invoke('persona:getArtifacts', personaId),
     readArtifact: (personaId, filename) => ipcRenderer.invoke('persona:readArtifact', personaId, filename),
