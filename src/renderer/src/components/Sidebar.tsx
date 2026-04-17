@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock, RotateCcw, DollarSign } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, GitBranch, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock, RotateCcw, DollarSign } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate, ErrorSummary } from '../../../shared/types'
@@ -196,6 +196,12 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
             {inst.pinned && <span className="instance-pin-icon" title="Pinned"><Pin size={11} /></span>}
             {inst.name}
           </div>
+          {inst.gitBranch && inst.gitBranch !== 'main' && inst.gitBranch !== 'master' && (
+            <div className="instance-branch" title={inst.gitBranch}>
+              <GitBranch size={10} />
+              {inst.gitBranch}
+            </div>
+          )}
           {(() => {
             const badges: Array<{ node: React.ReactNode; label: string }> = []
             if (splitBadge === 'left')
@@ -280,11 +286,6 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
         <div className="instance-meta">
           {inst.parentId && <span className="instance-child-indicator clickable" title="Go to parent session" onClick={(e) => { e.stopPropagation(); callbacks.onSelect(inst.parentId!) }}>↳ </span>}
           {dirName(inst.workingDirectory)}
-          {inst.gitBranch && (
-            <span className="instance-branch-badge" title={`Branch: ${inst.gitBranch}${inst.gitRepo ? ` · ${inst.gitRepo}` : ''}`}>
-              <GitPullRequest size={9} /> {inst.gitBranch}
-            </span>
-          )}
           {inst.status === 'running' && inst.createdAt && (
             <span className="instance-elapsed" title={`Started ${new Date(inst.createdAt).toLocaleString()}`}>
               <Clock size={9} /> {formatElapsed(inst.createdAt)}
