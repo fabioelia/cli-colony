@@ -22299,7 +22299,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .jira-tab-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .jira-tab-key { font-size: 13px; font-weight: 600; color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
 .jira-tab-key:hover { text-decoration: underline; }
-.jira-tab-status { font-size: 11px; padding: 2px 6px; border-radius: 3px; background: var(--accent-muted); color: var(--text-secondary); }
+.jira-tab-status { font-size: 11px; padding: 2px 6px; border-radius: 3px; background: var(--bg-tertiary); color: var(--text-secondary); }
 .jira-tab-summary { font-size: 15px; font-weight: 500; margin: 0 0 12px; color: var(--text-primary); }
 .jira-tab-description { font-size: 12px; line-height: 1.5; color: var(--text-secondary); white-space: pre-wrap; word-break: break-word; margin: 0; font-family: inherit; background: var(--bg-secondary); padding: 12px; border-radius: 6px; max-height: 60vh; overflow-y: auto; }
 .jira-tab-empty, .jira-tab-loading, .jira-tab-error { padding: 32px; text-align: center; color: var(--text-muted); font-size: 13px; }
