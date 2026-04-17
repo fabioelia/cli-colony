@@ -17824,6 +17824,9 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .persona-whisper-item-edit {
+  background: none;
+  border: none;
+  cursor: pointer;
   flex-shrink: 0;
   opacity: 0;
   color: var(--text-muted);
@@ -17833,7 +17836,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   align-self: center;
 }
 .persona-whisper-item:hover .persona-whisper-item-edit { opacity: 1; }
-.persona-whisper-item-edit:hover { color: var(--accent); background: var(--accent-muted); }
+.persona-whisper-item-edit:hover { color: var(--accent); background: var(--bg-tertiary); }
 
 .persona-whisper-edit-input {
   flex: 1;
@@ -22332,7 +22335,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   align-self: center;
 }
 .pipeline-note-item:hover .pipeline-note-item-edit { opacity: 1; }
-.pipeline-note-item-edit:hover { color: var(--accent); background: var(--accent-muted); }
+.pipeline-note-item-edit:hover { color: var(--accent); background: var(--bg-tertiary); }
 
 .pipeline-note-edit-input {
   flex: 1;

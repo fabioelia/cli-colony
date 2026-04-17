@@ -1714,6 +1714,7 @@ function PersonaCard({
                     <textarea
                       className="persona-whisper-edit-input"
                       value={editNoteText}
+                      placeholder="Shift+Enter for newline"
                       onChange={e => setEditNoteText(e.target.value)}
                       onKeyDown={e => {
                         if (e.key === 'Enter' && !e.shiftKey) {
@@ -1728,13 +1729,15 @@ function PersonaCard({
                   ) : (
                     <span className="persona-whisper-item-text">{w.text}</span>
                   )}
-                  <button
-                    className="persona-whisper-item-edit"
-                    title="Edit note"
-                    onClick={(e) => { e.stopPropagation(); setEditingNoteIndex(i); setEditNoteText(w.text) }}
-                  >
-                    <Pencil size={10} />
-                  </button>
+                  {editingNoteIndex !== i && (
+                    <button
+                      className="persona-whisper-item-edit"
+                      title="Edit note"
+                      onClick={(e) => { e.stopPropagation(); setEditingNoteIndex(i); setEditNoteText(w.text) }}
+                    >
+                      <Pencil size={10} />
+                    </button>
+                  )}
                   <button
                     className="persona-whisper-item-delete"
                     title="Delete note"

@@ -1274,6 +1274,7 @@ ${modelLine}  prompt: |
                       <textarea
                         className="pipeline-note-edit-input"
                         value={editNoteText}
+                        placeholder="Shift+Enter for newline"
                         onChange={e => setEditNoteText(e.target.value)}
                         onKeyDown={async e => {
                           if (e.key === 'Enter' && !e.shiftKey) {
@@ -1290,11 +1291,13 @@ ${modelLine}  prompt: |
                     ) : (
                       <span className="pipeline-note-item-text">{n.text}</span>
                     )}
-                    <button className="pipeline-note-item-edit" title="Edit note" onClick={e => {
-                      e.stopPropagation()
-                      setEditingNoteKey({ fileName: p.fileName, index: i })
-                      setEditNoteText(n.text)
-                    }}><Pencil size={10} /></button>
+                    {!(editingNoteKey?.fileName === p.fileName && editingNoteKey.index === i) && (
+                      <button className="pipeline-note-item-edit" title="Edit note" onClick={e => {
+                        e.stopPropagation()
+                        setEditingNoteKey({ fileName: p.fileName, index: i })
+                        setEditNoteText(n.text)
+                      }}><Pencil size={10} /></button>
+                    )}
                     <button className="pipeline-note-item-delete" onClick={async (e) => {
                       e.stopPropagation()
                       await window.api.pipeline.deleteNote(p.fileName, i)
