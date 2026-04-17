@@ -547,7 +547,8 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
               {upcomingRuns.map((item, i) => {
                 const diffMs = item.nextAt.getTime() - Date.now()
                 const mins = Math.floor(diffMs / 60000)
-                const label = mins < 1 ? '<1m' : mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h ${mins % 60}m`
+                const h = Math.floor(mins / 60), m = mins % 60
+                const label = mins < 1 ? '<1m' : mins < 60 ? `${mins}m` : m ? `${h}h ${m}m` : `${h}h`
                 return (
                   <div key={`${item.type}-${item.name}-${i}`} className="overview-session-tile"
                     onClick={() => onNavigate(item.type === 'persona' ? 'personas' : 'pipelines')}>
