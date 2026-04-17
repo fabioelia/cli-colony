@@ -158,10 +158,11 @@ interface FilesTabProps {
   instance: ClaudeInstance
   focused: boolean
   onSwitchToSession: () => void
-  fileJumpKey?: number
+  jumpFilePath?: string | null
+  onJumpConsumed?: () => void
 }
 
-export default function FilesTab({ instance, focused, onSwitchToSession, fileJumpKey }: FilesTabProps) {
+export default function FilesTab({ instance, focused, onSwitchToSession, jumpFilePath, onJumpConsumed }: FilesTabProps) {
   const [fileTree, setFileTree] = useState<FileNode[] | null>(null)
   const [fileTreeLoading, setFileTreeLoading] = useState(false)
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
@@ -190,17 +191,10 @@ export default function FilesTab({ instance, focused, onSwitchToSession, fileJum
   const treeFilterInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (!fileJumpKey) return
-    if (searchMode !== 'files') {
-      setSearchMode('files')
-      setContentSearch('')
-      setContentResults(null)
-    }
-    setTimeout(() => {
-      treeFilterInputRef.current?.focus()
-      treeFilterInputRef.current?.select()
-    }, 0)
-  }, [fileJumpKey])
+    if (!jumpFilePath) return
+    handleSelectFile(jumpFilePath)
+    onJumpConsumed?.()
+  }, [jumpFilePath])
 
   const isMarkdown = useMemo(() => {
     if (!selectedFile) return false

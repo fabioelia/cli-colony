@@ -306,6 +306,7 @@ export const helpContent: Record<string, HelpEntry> = {
       { keys: 'Cmd+\\', action: 'Toggle split view' },
       { keys: 'Cmd+Shift+F', action: 'Global Search — search across all sessions\' terminal output' },
       { keys: 'Cmd+K', action: 'Command palette — switch sessions, run personas, launch agents, launch templates, navigate panels, search session history. Shows shortcut hints inline and recent commands at the top' },
+      { keys: 'Cmd+P', action: 'File quick-open — floating overlay to jump to any file by name. ↑↓ to navigate, Enter to open, ESC to dismiss' },
       { keys: 'Cmd+Shift+↵', action: 'Quick Prompt — launch a new session with a prompt pre-filled; ↑↓ to cycle history; save frequently-used prompts as named snippets; filter snippets by name; edit existing snippets in-place' },
       { keys: 'Cmd+Shift+1–5', action: 'Load workspace preset by position' },
       { keys: 'Cmd+Click', action: 'Enter multi-select mode and toggle session' },
@@ -1148,7 +1149,7 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Toolbar',
         position: 'Top of files area',
         items: [
-          { label: 'Quick open', detail: 'Press ⌘P from any tab to jump to the Files tab with the search filter focused. Type to filter files by name.', icon: 'Search' },
+          { label: 'Quick open', detail: 'Press ⌘P from any tab to open a floating file search overlay. Type to filter by filename, use ↑↓ to navigate, Enter to open the file, ESC to dismiss.', icon: 'Search' },
           { label: 'Name filter', detail: 'Type to filter the file tree by name. Matching directories auto-expand.' },
           { label: 'Search icon', detail: 'Switch to content search mode — grep across all files in the project.', icon: 'Search' },
           { label: 'Open in Finder', detail: 'Open the working directory in macOS Finder.', icon: 'FolderOpen' },

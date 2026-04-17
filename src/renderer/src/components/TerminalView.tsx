@@ -9,6 +9,7 @@ import { ChevronUp, ChevronDown, X, RotateCcw, GitBranch, TerminalSquare, Folder
 import { TeamMetricsPanel } from './TeamMetricsPanel'
 import ServicesTab from './ServicesTab'
 import FilesTab from './FilesTab'
+import FileQuickOpen from './FileQuickOpen'
 import ChangesTab from './ChangesTab'
 import ArtifactsTab from './ArtifactsTab'
 import LogsTab from './LogsTab'
@@ -120,7 +121,8 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
   const [dragOver, setDragOver] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [viewTab, setViewTab] = useState<ViewTab>('session')
-  const [fileJumpKey, setFileJumpKey] = useState(0)
+  const [fileQuickOpen, setFileQuickOpen] = useState(false)
+  const [jumpFilePath, setJumpFilePath] = useState<string | null>(null)
   const [deferredDismissed, setDeferredDismissed] = useState(false)
   // Reset dismissed state when a new deferred event arrives
   const deferredToolRef = useRef(instance.toolDeferredInfo?.toolName)
@@ -674,15 +676,14 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
     return () => window.removeEventListener('keydown', handler, true)
   }, [instance.id, viewTab, focused])
 
-  // Cmd+P — jump to Files tab and focus the filename filter input
+  // Cmd+P — open floating file quick-open overlay
   useEffect(() => {
     if (!focused) return
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'p' && !e.shiftKey && !e.altKey) {
         e.preventDefault()
         e.stopPropagation()
-        setViewTab('files')
-        setFileJumpKey(k => k + 1)
+        setFileQuickOpen(true)
       }
     }
     window.addEventListener('keydown', handler, true)
@@ -722,7 +723,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
       case 'shell': return (
         <div className="split-terminal-note"><TerminalSquare size={14} /><span>Switch to Terminal tab to use the shell</span></div>
       )
-      case 'files': return <FilesTab instance={instance} focused={focused} onSwitchToSession={() => setViewTab('session')} fileJumpKey={fileJumpKey} />
+      case 'files': return <FilesTab instance={instance} focused={focused} onSwitchToSession={() => setViewTab('session')} jumpFilePath={jumpFilePath} onJumpConsumed={() => setJumpFilePath(null)} />
       case 'services': return envStatus ? <ServicesTab envStatus={envStatus} instance={instance} /> : null
       case 'logs': return envStatus ? <LogsTab envStatus={envStatus} /> : null
       case 'browser': return envStatus ? <BrowserTab envStatus={envStatus} instanceId={instance.id} /> : null
@@ -1445,6 +1446,16 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
           </div>
         )}
       </div>
+      <FileQuickOpen
+        open={fileQuickOpen}
+        onClose={() => setFileQuickOpen(false)}
+        workingDirectory={instance.workingDirectory}
+        onSelectFile={(path) => {
+          setFileQuickOpen(false)
+          setViewTab('files')
+          setJumpFilePath(path)
+        }}
+      />
     </>
   )
 }, (prev, next) =>
