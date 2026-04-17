@@ -11592,6 +11592,17 @@ body:has(.daemon-update-banner) .app-update-banner {
   text-overflow: ellipsis;
 }
 
+.cmd-palette-item-badge {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--accent-muted);
+  color: var(--text-secondary);
+  margin-left: 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .cmd-palette-item-detail {
   font-size: 11px;
   color: var(--text-muted);

@@ -8,6 +8,13 @@ interface FileNode {
   children?: FileNode[]
 }
 
+interface QuickOpenFile {
+  name: string
+  path: string
+  relPath: string
+  rootAlias: string
+}
+
 interface Props {
   open: boolean
   onClose: () => void
@@ -15,39 +22,65 @@ interface Props {
   onSelectFile: (path: string) => void
 }
 
-function flattenFiles(nodes: FileNode[]): string[] {
-  const files: string[] = []
-  for (const n of nodes) {
-    if (n.type === 'file') {
-      files.push(n.path)
-    } else if (n.children) {
-      files.push(...flattenFiles(n.children))
+function flattenRoot(nodes: FileNode[], rootPath: string, alias: string): QuickOpenFile[] {
+  const files: QuickOpenFile[] = []
+  const walk = (ns: FileNode[]) => {
+    for (const n of ns) {
+      if (n.type === 'file') {
+        const relPath = n.path.startsWith(rootPath + '/') ? n.path.slice(rootPath.length + 1) : n.path
+        files.push({ name: relPath.split('/').pop()!, path: n.path, relPath, rootAlias: alias })
+      } else if (n.children) {
+        walk(n.children)
+      }
     }
   }
+  walk(nodes)
   return files
 }
 
 export default function FileQuickOpen({ open, onClose, workingDirectory, onSelectFile }: Props) {
   const [query, setQuery] = useState('')
-  const [files, setFiles] = useState<string[]>([])
+  const [files, setFiles] = useState<QuickOpenFile[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [envRoots, setEnvRoots] = useState<Array<{ alias: string; path: string }>>([])
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
+  // Detect sibling env roots (one-shot, same pattern as FilesTab)
+  useEffect(() => {
+    if (typeof window.api?.env?.list !== 'function') return
+    window.api.env.list().then((envs) => {
+      const match = envs.find((e) => Object.values(e.paths).includes(workingDirectory))
+      if (!match) return
+      const deduped = new Map<string, string>()
+      for (const [alias, path] of Object.entries(match.paths)) {
+        if (!path || alias === 'root' || path === workingDirectory) continue
+        const existing = deduped.get(path)
+        if (!existing || alias.length < existing.length) deduped.set(path, alias)
+      }
+      setEnvRoots(Array.from(deduped.entries()).map(([path, alias]) => ({ alias, path })))
+    })
+  }, [workingDirectory])
+
+  // Load files from all roots in parallel
   useEffect(() => {
     if (!open) return
     setQuery('')
     setSelectedIndex(0)
     setLoading(true)
-    window.api.fs.listDir(workingDirectory, 5).then((tree) => {
-      setFiles(flattenFiles(tree as FileNode[]))
-      setLoading(false)
-    }).catch(() => {
-      setFiles([])
+    const roots = [{ path: workingDirectory, alias: '' }, ...envRoots]
+    Promise.all(
+      roots.map(({ path: rootPath, alias }) =>
+        window.api.fs.listDir(rootPath, 5)
+          .then((tree) => flattenRoot(tree as FileNode[], rootPath, alias))
+          .catch(() => [] as QuickOpenFile[])
+      )
+    ).then((results) => {
+      setFiles(results.flat())
       setLoading(false)
     })
-  }, [open, workingDirectory])
+  }, [open, workingDirectory, envRoots])
 
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 0)
@@ -56,7 +89,7 @@ export default function FileQuickOpen({ open, onClose, workingDirectory, onSelec
   const filtered = useMemo(() => {
     if (!query.trim()) return files.slice(0, 50)
     const q = query.toLowerCase()
-    return files.filter(p => p.toLowerCase().includes(q)).slice(0, 100)
+    return files.filter((f) => f.relPath.toLowerCase().includes(q)).slice(0, 100)
   }, [files, query])
 
   useEffect(() => setSelectedIndex(0), [query])
@@ -72,13 +105,11 @@ export default function FileQuickOpen({ open, onClose, workingDirectory, onSelec
     if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedIndex(i => Math.max(i - 1, 0)); return }
     if (e.key === 'Enter') {
       e.preventDefault()
-      if (filtered[selectedIndex]) onSelectFile(filtered[selectedIndex])
+      if (filtered[selectedIndex]) onSelectFile(filtered[selectedIndex].path)
     }
   }, [filtered, selectedIndex, onClose, onSelectFile])
 
   if (!open) return null
-
-  const relPath = (p: string) => p.startsWith(workingDirectory + '/') ? p.slice(workingDirectory.length + 1) : p
 
   return (
     <div className="cmd-palette-overlay" onClick={onClose}>
@@ -88,7 +119,7 @@ export default function FileQuickOpen({ open, onClose, workingDirectory, onSelec
           <input
             ref={inputRef}
             className="cmd-palette-input"
-            placeholder="Jump to file..."
+            placeholder="Jump to file…"
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -98,19 +129,17 @@ export default function FileQuickOpen({ open, onClose, workingDirectory, onSelec
         <div className="cmd-palette-list" ref={listRef}>
           {loading && <div className="cmd-palette-empty">Loading files…</div>}
           {!loading && filtered.length === 0 && <div className="cmd-palette-empty">No files found</div>}
-          {!loading && filtered.map((p, i) => {
-            const rel = relPath(p)
-            const slashIdx = rel.lastIndexOf('/')
-            const name = slashIdx >= 0 ? rel.slice(slashIdx + 1) : rel
-            const dir = slashIdx >= 0 ? rel.slice(0, slashIdx) : ''
+          {!loading && filtered.map((f, i) => {
+            const dir = f.relPath.includes('/') ? f.relPath.slice(0, f.relPath.lastIndexOf('/')) : ''
             return (
               <div
-                key={p}
+                key={f.path}
                 className={`cmd-palette-item ${i === selectedIndex ? 'selected' : ''}`}
-                onClick={() => onSelectFile(p)}
+                onClick={() => onSelectFile(f.path)}
               >
                 <span className="cmd-palette-item-icon"><File size={14} /></span>
-                <span className="cmd-palette-item-label">{name}</span>
+                <span className="cmd-palette-item-label">{f.name}</span>
+                {f.rootAlias && <span className="cmd-palette-item-badge">{f.rootAlias}</span>}
                 {dir && <span className="cmd-palette-item-detail">{dir}</span>}
               </div>
             )

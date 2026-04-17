@@ -306,7 +306,7 @@ export const helpContent: Record<string, HelpEntry> = {
       { keys: 'Cmd+\\', action: 'Toggle split view' },
       { keys: 'Cmd+Shift+F', action: 'Global Search — search across all sessions\' terminal output' },
       { keys: 'Cmd+K', action: 'Command palette — switch sessions, run personas, launch agents, launch templates, navigate panels, search session history. Shows shortcut hints inline and recent commands at the top' },
-      { keys: 'Cmd+P', action: 'File quick-open — floating overlay to jump to any file by name. ↑↓ to navigate, Enter to open, ESC to dismiss' },
+      { keys: 'Cmd+P', action: 'File quick-open — floating overlay to jump to any file by name across all env repos (sibling roots shown with [alias] badge). ↑↓ to navigate, Enter to open, ESC to dismiss' },
       { keys: 'Cmd+Shift+↵', action: 'Quick Prompt — launch a new session with a prompt pre-filled; ↑↓ to cycle history; save frequently-used prompts as named snippets; filter snippets by name; edit existing snippets in-place' },
       { keys: 'Cmd+Shift+1–5', action: 'Load workspace preset by position' },
       { keys: 'Cmd+Click', action: 'Enter multi-select mode and toggle session' },
