@@ -95,6 +95,13 @@ interface Props {
   childInstances?: ClaudeInstance[]
 }
 
+const SEARCH_DECORATIONS = {
+  matchBackground: '#ffb03b40',
+  activeMatchBackground: '#ffb03b80',
+  matchBorder: '#ffb03b60',
+  activeMatchBorder: '#ffb03bcc',
+}
+
 function formatUptime(seconds: number): string {
   if (seconds < 60) return `${seconds}s`
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
@@ -109,6 +116,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
   const containerRef = useRef<HTMLDivElement>(null)
   const initializedRef = useRef(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<{ resultIndex: number; resultCount: number } | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [viewTab, setViewTab] = useState<ViewTab>('session')
@@ -246,6 +254,9 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
     const shellSearchAddon = new SearchAddon()
     term.loadAddon(fitAddon)
     term.loadAddon(shellSearchAddon)
+    shellSearchAddon.onDidChangeResults((e) => {
+      setSearchResults(e.resultCount > 0 ? e : null)
+    })
     term.loadAddon(new WebLinksAddon())
     term.open(shellContainerRef.current)
     fitAddon.fit()
@@ -394,12 +405,12 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
 
   const handleSearchNext = useCallback(() => {
     const addon = getActiveSearchAddon()
-    if (addon && searchQuery) addon.findNext(searchQuery)
+    if (addon && searchQuery) addon.findNext(searchQuery, { decorations: SEARCH_DECORATIONS })
   }, [getActiveSearchAddon, searchQuery])
 
   const handleSearchPrev = useCallback(() => {
     const addon = getActiveSearchAddon()
-    if (addon && searchQuery) addon.findPrevious(searchQuery)
+    if (addon && searchQuery) addon.findPrevious(searchQuery, { decorations: SEARCH_DECORATIONS })
   }, [getActiveSearchAddon, searchQuery])
 
   const handleSearchKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -410,6 +421,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
     if (e.key === 'Escape') {
       getActiveSearchAddon()?.clearDecorations()
       setSearchQuery('')
+      setSearchResults(null)
       onSearchClose?.()
     }
   }, [handleSearchNext, handleSearchPrev, getActiveSearchAddon, onSearchClose])
@@ -419,9 +431,10 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
     const addon = getActiveSearchAddon()
     if (!addon) return
     if (searchQuery) {
-      addon.findNext(searchQuery)
+      addon.findNext(searchQuery, { decorations: SEARCH_DECORATIONS })
     } else {
       addon.clearDecorations()
+      setSearchResults(null)
     }
   }, [searchQuery, getActiveSearchAddon])
 
@@ -453,6 +466,9 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
       })
       term.loadAddon(fitAddon)
       term.loadAddon(searchAddon)
+      searchAddon.onDidChangeResults((e) => {
+        setSearchResults(e.resultCount > 0 ? e : null)
+      })
       term.loadAddon(webLinksAddon)
 
       const proxy = new TerminalProxy(term)
@@ -1330,9 +1346,18 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
               />
+              {searchQuery && (
+                <span className="terminal-search-count">
+                  {searchResults
+                    ? searchResults.resultIndex >= 0
+                      ? `${searchResults.resultIndex + 1} of ${searchResults.resultCount}`
+                      : `${searchResults.resultCount}+`
+                    : 'No results'}
+                </span>
+              )}
               <button className="terminal-search-btn" onClick={handleSearchPrev} title="Previous match" aria-label="Previous match"><ChevronUp size={14} /></button>
               <button className="terminal-search-btn" onClick={handleSearchNext} title="Next match" aria-label="Next match"><ChevronDown size={14} /></button>
-              <button className="terminal-search-btn" onClick={() => { setSearchQuery(''); onSearchClose?.() }} title="Close search" aria-label="Close search"><X size={14} /></button>
+              <button className="terminal-search-btn" onClick={() => { setSearchQuery(''); setSearchResults(null); onSearchClose?.() }} title="Close search" aria-label="Close search"><X size={14} /></button>
             </div>
           )}
           {dragOver && (
@@ -1396,9 +1421,18 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
               />
+              {searchQuery && (
+                <span className="terminal-search-count">
+                  {searchResults
+                    ? searchResults.resultIndex >= 0
+                      ? `${searchResults.resultIndex + 1} of ${searchResults.resultCount}`
+                      : `${searchResults.resultCount}+`
+                    : 'No results'}
+                </span>
+              )}
               <button className="terminal-search-btn" onClick={handleSearchPrev} title="Previous match" aria-label="Previous match"><ChevronUp size={14} /></button>
               <button className="terminal-search-btn" onClick={handleSearchNext} title="Next match" aria-label="Next match"><ChevronDown size={14} /></button>
-              <button className="terminal-search-btn" onClick={() => { setSearchQuery(''); onSearchClose?.() }} title="Close search" aria-label="Close search"><X size={14} /></button>
+              <button className="terminal-search-btn" onClick={() => { setSearchQuery(''); setSearchResults(null); onSearchClose?.() }} title="Close search" aria-label="Close search"><X size={14} /></button>
             </div>
           )}
           {dragOver && (

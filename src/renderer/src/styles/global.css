@@ -6229,6 +6229,15 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-primary);
 }
 
+.terminal-search-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 0 6px;
+  white-space: nowrap;
+  line-height: 24px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ===== Shell Terminal ===== */
 .shell-terminal {
   padding-left: 4px;

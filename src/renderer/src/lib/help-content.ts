@@ -1125,7 +1125,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Drag & drop', detail: 'Drop files onto the terminal to paste their path.' },
           { label: 'Scroll behavior', detail: 'Reading history while output streams won\'t jump you to the bottom.' },
           { label: 'Search button', detail: 'Click the magnifying glass in the terminal header to open/close the search bar. Also available via Cmd+F.', icon: 'Search' },
-          { label: 'Search navigation', detail: 'Use the Next (Enter) and Previous (Shift+Enter) buttons in the search bar to jump between matches in the terminal output. Press Escape to clear.' },
+          { label: 'Search navigation', detail: 'Use the Next (Enter) and Previous (Shift+Enter) buttons in the search bar to jump between matches. The match counter shows your position (e.g. "3 of 12"). Press Escape to clear.' },
         ],
       },
     ],
