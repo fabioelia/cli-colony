@@ -290,6 +290,9 @@ export interface ClaudeManagerAPI {
     delete: (fileName: string) => Promise<boolean>
     export: (fileNames: string[]) => Promise<boolean>
     import: () => Promise<number>
+    getNotes: (fileName: string) => Promise<Array<{ createdAt: string; text: string }>>
+    addNote: (fileName: string, text: string) => Promise<boolean>
+    deleteNote: (fileName: string, index: number) => Promise<boolean>
   }
   persona: {
     list: () => Promise<PersonaInfo[]>
@@ -926,6 +929,9 @@ const api: ClaudeManagerAPI = {
     delete: (fileName) => ipcRenderer.invoke('pipeline:delete', fileName),
     export: (fileNames) => ipcRenderer.invoke('pipeline:export', fileNames),
     import: () => ipcRenderer.invoke('pipeline:import'),
+    getNotes: (fileName) => ipcRenderer.invoke('pipeline:getNotes', fileName),
+    addNote: (fileName, text) => ipcRenderer.invoke('pipeline:addNote', fileName, text),
+    deleteNote: (fileName, index) => ipcRenderer.invoke('pipeline:deleteNote', fileName, index),
   },
   persona: {
     list: () => ipcRenderer.invoke('persona:list'),

@@ -566,6 +566,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Repo pipelines', detail: 'Pipelines from .colony/pipelines/ in tracked repos appear here (disabled by default).' },
           { label: 'Next-run countdown', detail: 'For cron-triggered pipelines, shows when the next fire will happen. Updates every 60 seconds. Shows "Paused" when the pipeline is disabled.', icon: 'Timer' },
           { label: 'Duplicate', detail: 'Create a copy of this pipeline with "(copy)" appended to the name. The copy starts disabled so it won\'t fire until you review and enable it.', icon: 'Copy' },
+          { label: 'Notes button', detail: 'Queue a one-shot note for the pipeline\'s next fire. Notes are injected into the session prompt then automatically cleared — they won\'t appear on subsequent runs. Use for run-specific steering like "focus on the auth test failure" or "skip frontend lint this time."', icon: 'StickyNote' },
           { label: 'Right-click menu', detail: 'Right-click any pipeline card for quick actions: enable/disable, trigger now, duplicate, or preview next run — without expanding the detail panel.' },
           { label: 'Run with override', detail: 'Click Run Now to open a dialog pre-filled with the pipeline\'s first action prompt. Edit it for a one-shot run with a custom prompt — does not modify the YAML. Click "Run as configured" to fire without changes.', icon: 'Play' },
         ],

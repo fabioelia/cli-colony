@@ -254,6 +254,7 @@ export function plog(name: string, msg: string): void {
 
 import { broadcast } from './broadcast'
 import { runMakerChecker, runDiffReview, runPlanStage, runParallel, runWaitForSession, runBestOfN, captureArtifacts, loadArtifactPreamble, loadHandoffPreamble, loadSpecPreamble, appendToSpec } from './pipeline-stages'
+import { getPipelineNotes, clearPipelineNotes } from './pipeline-notes'
 import { parseYaml as parseYamlShared, parseYamlArray } from '../shared/yaml-parser'
 
 // ---- Pipeline YAML Parsing (uses shared parser + pipeline-specific post-processing) ----
@@ -850,6 +851,14 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
       }
     }
     prompt += `\n\nWhen you finish, if you learned anything new about tools, approaches, or useful patterns that would help future runs, append it to ${memPath}`
+
+    // Inject one-shot notes and auto-clear
+    const notes = getPipelineNotes(p.fileName)
+    if (notes.length > 0) {
+      prompt += `\n\n--- User Notes (one-shot) ---\nThe user left these notes specifically for this run. Address them and then disregard — they will not appear again:\n${notes.map(n => `- [${n.createdAt}] ${n.text}`).join('\n')}`
+      clearPipelineNotes(p.fileName)
+      log(`Injected and cleared ${notes.length} one-shot note(s)`)
+    }
   }
 
   // Inject spec-append instructions — tell the session to write decisions to a known artifact file

@@ -133,6 +133,10 @@ function setupMocks(fsMock: ReturnType<typeof buildFsMock>) {
   }))
   vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
   vi.doMock('../activity-manager', () => ({ appendActivity: vi.fn() }))
+  vi.doMock('../pipeline-notes', () => ({
+    getPipelineNotes: vi.fn().mockReturnValue([]),
+    clearPipelineNotes: vi.fn(),
+  }))
 }
 
 // ---- Test suites ----
@@ -802,6 +806,10 @@ describe('pipeline-engine: auto-pause on consecutive failures', () => {
     vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
     vi.doMock('../activity-manager', () => ({ appendActivity: mockAppendActivity }))
     vi.doMock('../notifications', () => ({ notify: vi.fn() }))
+    vi.doMock('../pipeline-notes', () => ({
+      getPipelineNotes: vi.fn().mockReturnValue([]),
+      clearPipelineNotes: vi.fn(),
+    }))
   }
 
   it('starts with consecutiveFailures = 0', async () => {
@@ -1045,6 +1053,10 @@ describe('pipeline-engine: approval gates', () => {
     vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
     vi.doMock('../activity-manager', () => ({ appendActivity: mockAppendActivity }))
     vi.doMock('../notifications', () => ({ notify: vi.fn() }))
+    vi.doMock('../pipeline-notes', () => ({
+      getPipelineNotes: vi.fn().mockReturnValue([]),
+      clearPipelineNotes: vi.fn(),
+    }))
   }
 
   it('queues an approval request instead of firing when requireApproval is true', async () => {
@@ -1290,6 +1302,10 @@ describe('pipeline-engine: approval expiry (sweepExpiredApprovals)', () => {
     vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
     vi.doMock('../activity-manager', () => ({ appendActivity: mockAppendActivity }))
     vi.doMock('../notifications', () => ({ notify: vi.fn() }))
+    vi.doMock('../pipeline-notes', () => ({
+      getPipelineNotes: vi.fn().mockReturnValue([]),
+      clearPipelineNotes: vi.fn(),
+    }))
   }
 
   it('approval request includes expiresAt set to now + approvalTtl hours', async () => {
@@ -1575,6 +1591,10 @@ describe('pipeline-engine: file-poll trigger', () => {
     }))
     vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
     vi.doMock('../activity-manager', () => ({ appendActivity: vi.fn() }))
+    vi.doMock('../pipeline-notes', () => ({
+      getPipelineNotes: vi.fn().mockReturnValue([]),
+      clearPipelineNotes: vi.fn(),
+    }))
   }
 
   beforeEach(async () => {
@@ -1758,6 +1778,10 @@ dedup:
     }))
     vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
     vi.doMock('../activity-manager', () => ({ appendActivity: vi.fn() }))
+    vi.doMock('../pipeline-notes', () => ({
+      getPipelineNotes: vi.fn().mockReturnValue([]),
+      clearPipelineNotes: vi.fn(),
+    }))
   }
 
   beforeEach(() => {
@@ -1966,6 +1990,10 @@ dedup:
     }))
     vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
     vi.doMock('../activity-manager', () => ({ appendActivity: vi.fn() }))
+    vi.doMock('../pipeline-notes', () => ({
+      getPipelineNotes: vi.fn().mockReturnValue([]),
+      clearPipelineNotes: vi.fn(),
+    }))
   }
 
   beforeEach(() => {
@@ -2144,6 +2172,10 @@ describe('pipeline-engine: run history', () => {
     vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
     vi.doMock('../activity-manager', () => ({ appendActivity: vi.fn() }))
     vi.doMock('../notifications', () => ({ notify: vi.fn() }))
+    vi.doMock('../pipeline-notes', () => ({
+      getPipelineNotes: vi.fn().mockReturnValue([]),
+      clearPipelineNotes: vi.fn(),
+    }))
   }
 
   it('getHistory returns [] when history file does not exist', async () => {
@@ -2394,6 +2426,10 @@ dedup:
     }))
     vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
     vi.doMock('../activity-manager', () => ({ appendActivity: vi.fn() }))
+    vi.doMock('../pipeline-notes', () => ({
+      getPipelineNotes: vi.fn().mockReturnValue([]),
+      clearPipelineNotes: vi.fn(),
+    }))
 
     mod = await import('../pipeline-engine')
     await mod.loadPipelines()
@@ -2691,6 +2727,10 @@ describe('pipeline-engine: plan stage approval gate behavior', () => {
     vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
     vi.doMock('../activity-manager', () => ({ appendActivity: mockAppendActivity }))
     vi.doMock('../notifications', () => ({ notify: vi.fn() }))
+    vi.doMock('../pipeline-notes', () => ({
+      getPipelineNotes: vi.fn().mockReturnValue([]),
+      clearPipelineNotes: vi.fn(),
+    }))
   }
 
   function fireActivityComplete(instanceId = 'inst-plan-123') {
@@ -3350,6 +3390,10 @@ describe('pipeline-engine: per-stage model selection', () => {
     vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
     vi.doMock('../activity-manager', () => ({ appendActivity: vi.fn() }))
     vi.doMock('../notifications', () => ({ notify: vi.fn() }))
+    vi.doMock('../pipeline-notes', () => ({
+      getPipelineNotes: vi.fn().mockReturnValue([]),
+      clearPipelineNotes: vi.fn(),
+    }))
   }
 
   it('passes model to createInstance when action.model is set', async () => {
@@ -3479,6 +3523,10 @@ describe('pipeline-engine: launch-session auto-close', () => {
     vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
     vi.doMock('../activity-manager', () => ({ appendActivity: mockAppendActivity }))
     vi.doMock('../notifications', () => ({ notify: vi.fn() }))
+    vi.doMock('../pipeline-notes', () => ({
+      getPipelineNotes: vi.fn().mockReturnValue([]),
+      clearPipelineNotes: vi.fn(),
+    }))
   }
 
   beforeEach(async () => {
@@ -3811,6 +3859,10 @@ describe('pipeline-engine: default_model', () => {
     }))
     vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
     vi.doMock('../activity-manager', () => ({ appendActivity: vi.fn() }))
+    vi.doMock('../pipeline-notes', () => ({
+      getPipelineNotes: vi.fn().mockReturnValue([]),
+      clearPipelineNotes: vi.fn(),
+    }))
 
     mod = await import('../pipeline-engine')
     await mod.loadPipelines()

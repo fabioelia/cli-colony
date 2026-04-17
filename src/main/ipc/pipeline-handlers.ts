@@ -11,6 +11,7 @@ import {
   getPipelineContent, savePipelineContent, loadPipelines, setPipelineCron,
   previewPipeline, listApprovals, approveAction, dismissAction, getHistory,
 } from '../pipeline-engine'
+import { getPipelineNotes, addPipelineNote, deletePipelineNote } from '../pipeline-notes'
 
 const PIPELINE_SCHEMA_PROMPT = `You are a pipeline YAML generator for Claude Colony.
 
@@ -124,6 +125,7 @@ export function registerPipelineHandlers(): void {
       join(dir, `${base}.readme.md`),
       join(dir, `${base}.debug.json`),
       join(dir, `${base}.state.json`),
+      join(dir, `${base}.notes.json`),
     ]
     for (const f of targets) {
       try { await fsp.unlink(f) } catch { /* ignore missing */ }
@@ -167,7 +169,7 @@ export function registerPipelineHandlers(): void {
       for (const fn of fileNames) {
         const base = fn.replace(/\.(yaml|yml)$/, '')
         archive.file(join(dir, fn), { name: fn })
-        for (const ext of ['.memory.md', '.readme.md']) {
+        for (const ext of ['.memory.md', '.readme.md', '.notes.json']) {
           try { archive.file(join(dir, base + ext), { name: base + ext }) } catch { /* skip */ }
         }
       }
@@ -252,6 +254,20 @@ export function registerPipelineHandlers(): void {
     const memPath = join(PIPELINES_DIR_MEM, `${fileName.replace(/\.(yaml|yml)$/, '')}.memory.md`)
     await fsp.writeFile(memPath, content, 'utf-8')
     return true
+  })
+
+  // Pipeline notes (one-shot per-run steering)
+  ipcMain.handle('pipeline:getNotes', (_e, fileName: string) => {
+    if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) return []
+    return getPipelineNotes(fileName)
+  })
+  ipcMain.handle('pipeline:addNote', (_e, fileName: string, text: string) => {
+    if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) return false
+    return addPipelineNote(fileName, text)
+  })
+  ipcMain.handle('pipeline:deleteNote', (_e, fileName: string, index: number) => {
+    if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) return false
+    return deletePipelineNote(fileName, index)
   })
 
   // Create a pipeline from generated YAML (Automation Wizard)

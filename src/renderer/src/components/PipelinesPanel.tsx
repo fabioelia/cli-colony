@@ -7,7 +7,7 @@ import {
   MessageSquare, Send, Plus, Search, Pencil, Eye, X, LayoutList, LayoutGrid,
   ShieldCheck, List, Globe, Wand2, ArrowRight, ArrowLeft, Hourglass, ArrowUpDown,
   GitPullRequest, GitMerge, GitBranch, Sparkles, RotateCw, Copy, Timer, Activity,
-  Download, Upload, PauseCircle, PlayCircle, Check,
+  Download, Upload, PauseCircle, PlayCircle, Check, StickyNote,
 } from 'lucide-react'
 import type { AuditResult, GitHubRepo } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
@@ -249,6 +249,9 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
 
   // Cron editor — tracks which pipeline's cron is being edited
   const [cronEditingPipeline, setCronEditingPipeline] = useState<string | null>(null)
+  const [pipelineNotes, setPipelineNotes] = useState<Record<string, Array<{ createdAt: string; text: string }>>>({})
+  const [noteOpenPipeline, setNoteOpenPipeline] = useState<string | null>(null)
+  const [noteText, setNoteText] = useState('')
 
   // Automation Wizard
   type WizardTrigger = 'pr-opened' | 'pr-merged' | 'cron' | 'git-push'
@@ -338,6 +341,22 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
       if (!cancelled) setPipelineStats(stats)
     }
     fetchRates()
+    return () => { cancelled = true }
+  }, [pipelines])
+
+  // Fetch one-shot notes for all pipelines
+  useEffect(() => {
+    if (pipelines.length === 0) return
+    let cancelled = false
+    const fetchNotes = async () => {
+      const entries: Record<string, Array<{ createdAt: string; text: string }>> = {}
+      for (const p of pipelines) {
+        const notes = await window.api.pipeline.getNotes(p.fileName)
+        if (notes.length > 0) entries[p.fileName] = notes
+      }
+      if (!cancelled) setPipelineNotes(entries)
+    }
+    fetchNotes()
     return () => { cancelled = true }
   }, [pipelines])
 
@@ -464,6 +483,15 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     const slug = p.fileName.replace(/\.(yaml|yml)$/, '') + '-copy'
     await window.api.pipeline.createFromTemplate(modified, slug)
     await window.api.pipeline.reload()
+  }
+
+  const handleAddNote = async (p: PipelineInfo) => {
+    if (!noteText.trim()) return
+    await window.api.pipeline.addNote(p.fileName, noteText.trim())
+    setNoteText('')
+    setNoteOpenPipeline(null)
+    const notes = await window.api.pipeline.getNotes(p.fileName)
+    setPipelineNotes(prev => ({ ...prev, [p.fileName]: notes }))
   }
 
   const sortedPipelines = useMemo(() => {
@@ -1129,9 +1157,39 @@ ${modelLine}  prompt: |
                   >
                     <Copy size={11} />
                   </button>
+                  <button
+                    className={`pipeline-action-btn${(pipelineNotes[p.fileName]?.length ?? 0) > 0 ? ' note-active' : ''}`}
+                    onClick={() => { setNoteOpenPipeline(noteOpenPipeline === p.name ? null : p.name); setNoteText('') }}
+                    title="Leave a one-shot note for the next run"
+                  >
+                    <StickyNote size={11} />
+                    {(pipelineNotes[p.fileName]?.length ?? 0) > 0 && (
+                      <span className="pipeline-note-badge">{pipelineNotes[p.fileName].length}</span>
+                    )}
+                  </button>
                 </div>
               </div>
             </div>
+
+            {noteOpenPipeline === p.name && (
+              <div className="pipeline-note-bar" onClick={e => e.stopPropagation()}>
+                <StickyNote size={13} className="pipeline-note-icon" />
+                <textarea
+                  className="pipeline-note-input"
+                  placeholder="Note for next run… Enter to save, Shift+Enter for newline"
+                  value={noteText}
+                  onChange={e => setNoteText(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && noteText.trim()) { e.preventDefault(); handleAddNote(p) } }}
+                />
+                <button
+                  className="pipeline-note-send"
+                  disabled={!noteText.trim()}
+                  onClick={() => handleAddNote(p)}
+                >
+                  <Send size={12} />
+                </button>
+              </div>
+            )}
 
             {cronEditingPipeline === p.name && (
               <CronEditor
@@ -1183,6 +1241,49 @@ ${modelLine}  prompt: |
                 <AlertTriangle size={10} />
                 {/* Threshold hardcoded to match CONSECUTIVE_FAILURE_THRESHOLD in pipeline-engine.ts */}
                 <span className="pipeline-error-text">{p.consecutiveFailures}/3 consecutive failures</span>
+              </div>
+            )}
+
+            {expandedPipeline !== p.name && (pipelineNotes[p.fileName]?.length ?? 0) > 0 && (
+              <div className="pipeline-notes-preview">
+                {pipelineNotes[p.fileName].slice(0, 2).map((n, i) => (
+                  <div key={i} className="pipeline-note-entry">
+                    <StickyNote size={10} className="pipeline-note-entry-icon" />
+                    <span className="pipeline-note-entry-text">{n.text}</span>
+                  </div>
+                ))}
+                {pipelineNotes[p.fileName].length > 2 && (
+                  <span className="pipeline-note-more">+{pipelineNotes[p.fileName].length - 2} more</span>
+                )}
+              </div>
+            )}
+
+            {expandedPipeline === p.name && (pipelineNotes[p.fileName]?.length ?? 0) > 0 && (
+              <div className="pipeline-notes-list">
+                <div className="pipeline-notes-list-header">
+                  <StickyNote size={11} />
+                  <span>Notes for next run</span>
+                  <span className="pipeline-notes-count">{pipelineNotes[p.fileName].length} pending</span>
+                </div>
+                {pipelineNotes[p.fileName].map((n, i) => (
+                  <div key={i} className="pipeline-note-item">
+                    <span className="pipeline-note-item-time">{new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className="pipeline-note-item-text">{n.text}</span>
+                    <button className="pipeline-note-item-delete" onClick={async (e) => {
+                      e.stopPropagation()
+                      await window.api.pipeline.deleteNote(p.fileName, i)
+                      const notes = await window.api.pipeline.getNotes(p.fileName)
+                      setPipelineNotes(prev => {
+                        if (notes.length === 0) {
+                          const copy = { ...prev }
+                          delete copy[p.fileName]
+                          return copy
+                        }
+                        return { ...prev, [p.fileName]: notes }
+                      })
+                    }} title="Remove this note"><X size={10} /></button>
+                  </div>
+                ))}
               </div>
             )}
 
