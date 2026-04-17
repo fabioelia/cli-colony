@@ -11596,7 +11596,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 9px;
   padding: 1px 4px;
   border-radius: 3px;
-  background: var(--accent-muted);
+  background: var(--bg-tertiary);
   color: var(--text-secondary);
   margin-left: 4px;
   flex-shrink: 0;
