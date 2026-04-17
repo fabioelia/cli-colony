@@ -15,6 +15,7 @@ import type {
   NotificationEntry,
   ErrorSummary,
   PersonaHealthEntry,
+  PersonaAttentionRequest,
 } from '../shared/types'
 import type { InstanceManifest } from '../daemon/env-protocol'
 
@@ -35,6 +36,7 @@ export type {
   NotificationEntry,
   ErrorSummary,
   PersonaHealthEntry,
+  PersonaAttentionRequest,
 }
 
 
@@ -317,6 +319,9 @@ export interface ClaudeManagerAPI {
     getAnalytics: (personaId: string) => Promise<PersonaAnalytics>
     getColonyCostTrend: () => Promise<{ date: string; cost: number }[]>
     healthSummary: () => Promise<PersonaHealthEntry[]>
+    getAllAttention: () => Promise<PersonaAttentionRequest[]>
+    resolveAttention: (personaId: string, attnId: string, response?: string) => Promise<boolean>
+    dismissAttention: (personaId: string, attnId: string) => Promise<boolean>
     onStatus: (cb: (personas: PersonaInfo[]) => void) => () => void
     onRun: (cb: (data: { persona: string; instanceId: string }) => void) => () => void
   }
@@ -958,6 +963,9 @@ const api: ClaudeManagerAPI = {
     getAnalytics: (personaId) => ipcRenderer.invoke('persona:analytics', personaId),
     getColonyCostTrend: () => ipcRenderer.invoke('persona:analytics:colony'),
     healthSummary: () => ipcRenderer.invoke('persona:healthSummary'),
+    getAllAttention: () => ipcRenderer.invoke('persona:getAllAttention'),
+    resolveAttention: (personaId, attnId, response?) => ipcRenderer.invoke('persona:resolveAttention', personaId, attnId, response),
+    dismissAttention: (personaId, attnId) => ipcRenderer.invoke('persona:dismissAttention', personaId, attnId),
     onStatus: (cb) => {
       const l = (_e: any, data: PersonaInfo[]) => cb(data)
       ipcRenderer.on('persona:status', l)

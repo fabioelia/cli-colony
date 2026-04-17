@@ -962,6 +962,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Run button', detail: 'Manually trigger a persona session now.', icon: 'Play' },
           { label: 'Stop button', detail: 'Stop the currently running persona session.', icon: 'Square' },
           { label: 'Notes button', detail: 'Queue a note for the persona\'s next session. Notes are injected into the planning prompt, then removed after use. Hover a queued note for edit (pencil) and delete (×) buttons. Click the pencil to edit inline — Enter saves, Escape cancels.', icon: 'StickyNote' },
+          { label: 'Attention badge', detail: 'Bell icon badge appears when a persona has unresolved attention requests — things it needs your input on. Click the amber banner at the top of the app to reply or dismiss.', icon: 'Bell' },
           { label: 'Enable/Disable', detail: 'Toggle scheduled runs on or off without deleting the persona.' },
           { label: 'Duplicate', detail: 'Clone this persona with a new name. The copy starts disabled so you can edit it before enabling scheduled runs.', icon: 'Copy' },
           { label: 'Delete', detail: 'Remove the persona file.', icon: 'Trash2' },

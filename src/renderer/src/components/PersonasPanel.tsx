@@ -4,7 +4,7 @@ import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
   ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote, ArrowRightCircle, Save, Loader2,
   Hourglass, ArrowRight, FolderOpen, Search, Check, Bot, BarChart3, ArrowUpDown, DollarSign, TrendingUp, Copy,
-  CalendarClock, GitBranch, Brain, ShieldCheck,
+  CalendarClock, GitBranch, Brain, ShieldCheck, Bell,
 } from 'lucide-react'
 import EmptyStateHook from './EmptyStateHook'
 import MarkdownViewer from './MarkdownViewer'
@@ -1222,6 +1222,14 @@ function PersonaCard({
                 {whispers.length > 0 && <span className="persona-whisper-badge">{whispers.length}</span>}
               </button>
             </Tooltip>
+            {persona.attentionCount > 0 && (
+              <Tooltip text={`${persona.attentionCount} unresolved attention request${persona.attentionCount !== 1 ? 's' : ''}`}>
+                <button className="persona-action-btn attention-active">
+                  <Bell size={11} />
+                  <span className="persona-attention-badge">{persona.attentionCount}</span>
+                </button>
+              </Tooltip>
+            )}
             <button
               className="persona-toggle"
               onClick={() => onToggle(!persona.enabled)}

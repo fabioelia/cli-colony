@@ -69,10 +69,16 @@ export function setApprovalCountGetter(fn: () => number): void {
   _approvalCountGetter = fn
 }
 
+// Attention count getter — registered by persona-manager at startup to avoid circular import
+let _attentionCountGetter: () => number = () => 0
+export function setAttentionCountGetter(fn: () => number): void {
+  _attentionCountGetter = fn
+}
+
 export function updateDockBadge(): void {
   getDaemonRouter().getAllInstances().then(instances => {
     const waitingCount = instances.filter(i => i.status === 'running' && i.activity === 'waiting').length
-    const total = waitingCount + _approvalCountGetter()
+    const total = waitingCount + _approvalCountGetter() + _attentionCountGetter()
     if (process.platform === 'darwin') {
       app.dock?.setBadge(total > 0 ? String(total) : '')
     } else {

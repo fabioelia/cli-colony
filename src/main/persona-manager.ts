@@ -13,7 +13,7 @@ import { resolveCommand } from './resolve-command'
 const execFileAsync = promisify(execFile)
 import { getPendingTriggers } from './persona-triggers'
 import { colonyPaths } from '../shared/colony-paths'
-import { createInstance, getAllInstances, killInstance, wasBudgetStopped, setCostCapResolver } from './instance-manager'
+import { createInstance, getAllInstances, killInstance, wasBudgetStopped, setCostCapResolver, setAttentionCountGetter } from './instance-manager'
 import { getDaemonRouter } from './daemon-router'
 import { sendPromptWhenReady } from './send-prompt-when-ready'
 import { waitForStableIdle } from './session-completion'
@@ -27,6 +27,7 @@ import { appendRunEntry, checkDailyCostBudget, getPersonaDailyCost } from './per
 import { getRateLimitState } from './rate-limit-state'
 import { migrateFromMarkdown, readPersonaMemory, extractMemoryInBackground } from './persona-memory'
 import { buildPlanningPrompt, buildKickoff } from './persona-prompt-builder'
+import { getAttentionCount, getAttentionRequests, pruneOldAttention } from './persona-attention'
 
 const PERSONAS_DIR = colonyPaths.personas
 const STATE_PATH = colonyPaths.personaState
@@ -173,6 +174,8 @@ export function loadPersonas(): void {
 
   // Register cost cap resolver so instance-manager can check persona budgets
   setCostCapResolver(getPersonaCostCap)
+  // Register attention count getter so instance-manager can include it in dock badge
+  setAttentionCountGetter(() => getAllPendingAttention().length)
   const mdFiles = readdirSync(PERSONAS_DIR).filter(f => f.endsWith('.md'))
   // Auto-migrate markdown sections to structured .memory.json sidecars
   let migrated = 0
@@ -249,6 +252,7 @@ export function getPersonaList(): PersonaInfo[] {
         lastSkipped: state.lastSkipped ?? null,
         maxCostUsd: fm.max_cost_usd,
         maxCostPerDayUsd: fm.max_cost_per_day_usd,
+        attentionCount: getAttentionCount(personaId),
       })
     } catch { /* skip invalid files */ }
   }
@@ -872,6 +876,17 @@ export async function onSessionExit(instanceId: string): Promise<void> {
       })
       notify(`Colony: ${name} run complete`, `Session finished${commitLabel}`, 'personas')
 
+      // Check for new attention requests from this session
+      const newAttention = getAttentionRequests(name).filter(a => !a.resolved)
+      if (newAttention.length > 0) {
+        const latest = newAttention[newAttention.length - 1]
+        notify(
+          `Colony: ${name} needs attention`,
+          latest.message.slice(0, 100),
+          'personas'
+        )
+      }
+
       // Collect on_complete_run triggers from the persona's frontmatter
       const personaFile = readdirSync(PERSONAS_DIR).find(f => {
         try {
@@ -972,6 +987,7 @@ let watcher: ReturnType<typeof watch> | null = null
 
 export function startWatcher(): void {
   ensureDir()
+  pruneOldAttention()
   if (watcher) return
   try {
     watcher = watch(PERSONAS_DIR, (event, filename) => {

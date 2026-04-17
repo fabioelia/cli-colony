@@ -17772,6 +17772,29 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-top: 1px solid var(--border);
   background: rgba(167, 139, 250, 0.05);
 }
+.persona-action-btn.attention-active {
+  color: var(--warning);
+  position: relative;
+  cursor: default;
+  pointer-events: none;
+}
+.persona-attention-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  background: var(--warning);
+  color: #000;
+  font-size: 8px;
+  font-weight: 700;
+  border-radius: 999px;
+  min-width: 13px;
+  height: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 2px;
+  line-height: 1;
+}
 .persona-whisper-icon {
   color: #a78bfa;
   flex-shrink: 0;
@@ -22434,3 +22457,42 @@ body:has(.daemon-update-banner) .app-update-banner {
 .jira-tab-description { font-size: 12px; line-height: 1.5; color: var(--text-secondary); white-space: pre-wrap; word-break: break-word; margin: 0; font-family: inherit; background: var(--bg-secondary); padding: 12px; border-radius: 6px; max-height: 60vh; overflow-y: auto; }
 .jira-tab-empty, .jira-tab-loading, .jira-tab-error { padding: 32px; text-align: center; color: var(--text-muted); font-size: 13px; }
 .jira-tab-error { color: var(--danger); }
+
+/* Attention Banner */
+.attention-banner {
+  background: color-mix(in srgb, var(--warning) 10%, var(--bg-primary));
+  border-bottom: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  flex-shrink: 0;
+}
+.attention-banner-collapsed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+  user-select: none;
+}
+.attention-banner-collapsed:hover { background: color-mix(in srgb, var(--warning) 15%, transparent); }
+.attention-banner-icon { color: var(--warning); flex-shrink: 0; }
+.attention-banner-count { font-weight: 700; color: var(--warning); }
+.attention-banner-chevron { margin-left: auto; color: var(--text-muted); flex-shrink: 0; }
+.attention-banner-list { max-height: 300px; overflow-y: auto; }
+.attention-card { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.attention-card:last-child { border-bottom: none; }
+.attention-card-header { display: flex; align-items: center; gap: 8px; }
+.attention-card-persona { font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background: color-mix(in srgb, var(--warning) 20%, transparent); color: var(--warning); }
+.attention-card-time { font-size: 10px; color: var(--text-muted); }
+.attention-card-dismiss { margin-left: auto; background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 2px; border-radius: 3px; display: flex; align-items: center; }
+.attention-card-dismiss:hover { color: var(--text-primary); background: var(--bg-tertiary); }
+.attention-card-message { font-size: 12px; color: var(--text-primary); margin: 4px 0; line-height: 1.4; }
+.attention-card-actions { display: flex; gap: 6px; margin-top: 4px; }
+.attention-reply-btn { font-size: 11px; padding: 2px 8px; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 3px; cursor: pointer; color: var(--text-secondary); }
+.attention-reply-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.attention-reply-area { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+.attention-reply-input { width: 100%; font-size: 12px; resize: vertical; min-height: 40px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary); padding: 4px 8px; font-family: inherit; box-sizing: border-box; }
+.attention-reply-input:focus { outline: none; border-color: var(--accent); }
+.attention-send-btn { display: flex; align-items: center; gap: 4px; align-self: flex-end; font-size: 11px; padding: 3px 10px; background: var(--accent); color: white; border: none; border-radius: 3px; cursor: pointer; }
+.attention-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.attention-send-btn:not(:disabled):hover { filter: brightness(1.1); }

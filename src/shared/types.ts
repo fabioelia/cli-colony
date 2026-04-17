@@ -286,6 +286,18 @@ export interface ColonyComment {
   message: string
 }
 
+export interface PersonaAttentionRequest {
+  id: string
+  personaId: string
+  personaName: string
+  message: string
+  createdAt: string
+  sessionId?: string
+  resolved: boolean
+  resolvedAt?: string
+  response?: string
+}
+
 export interface PersonaInfo {
   /** File name (without .md extension) */
   id: string
@@ -340,6 +352,8 @@ export interface PersonaInfo {
   maxCostUsd?: number
   /** Per-persona daily cost cap in USD — trailing 24h window (optional, from frontmatter) */
   maxCostPerDayUsd?: number
+  /** Count of unresolved attention requests from this persona */
+  attentionCount: number
 }
 
 // ---- Persona Memory (structured sidecar) ----

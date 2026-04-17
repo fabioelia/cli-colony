@@ -227,6 +227,20 @@ When creating tasks, always set:
 
 **Output paths** — Write task results to \`~/.claude-colony/outputs/<task-slug>.md\` so other sessions can find them.
 
+### Requesting User Attention
+
+If you need user input or want to flag something important for the user, write to:
+\`${colonyPaths.personas}/${personaId}.attention.json\`
+
+Format (JSON array — read existing file first and append, don't overwrite):
+\`\`\`json
+[{"id": "attn-<timestamp>", "personaId": "${personaId}", "personaName": "${fm.name}", "message": "Your question or alert here", "createdAt": "<ISO timestamp>", "resolved": false}]
+\`\`\`
+
+The user will see a banner in Colony and can reply directly. Their reply becomes a whisper for your next run.
+Use sparingly — only when you genuinely need user input or want to flag something critical.
+Do NOT use this for routine status updates — use your brief for that.
+
 **Inter-Session Messages** — To send a message to another running session by display name:
 \`\`\`
 await window.api.session.sendMessage('Colony Developer', 'your message here')

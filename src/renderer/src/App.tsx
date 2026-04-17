@@ -38,6 +38,7 @@ import GlobalSearch from './components/GlobalSearch'
 import ShortcutOverlay from './components/ShortcutOverlay'
 import AppUpdateBanner from './components/AppUpdateBanner'
 import WelcomeModal from './components/WelcomeModal'
+import AttentionBanner from './components/AttentionBanner'
 import RestoreDialog from './components/RestoreDialog'
 import { stripAnsi } from '../../shared/utils'
 import type { ForkGroup, ErrorSummary } from '../../shared/types'
@@ -1544,6 +1545,7 @@ export default function App() {
         rateLimitCountdown={rateLimitCountdown}
       />
       <div className={`main ${showGrid ? 'grid-4' : isSplit ? 'split' : ''}`}>
+        <AttentionBanner />
         {/* All terminals stay mounted (xterm doesn't support re-open); expensive effects gated on focused prop */}
         {regularInstances.map((inst) => {
           const gridIdx = showGrid ? gridPanes.indexOf(inst.id) : -1
