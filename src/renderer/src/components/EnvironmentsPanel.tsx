@@ -450,9 +450,14 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
         promptArgs = ['--append-system-prompt', systemPrompt]
       }
 
+      const activeWt = env.activeWorktreeId
+        ? worktrees.find(wt => wt.id === env.activeWorktreeId)
+        : worktrees.find(wt => wt.mountedEnvId === env.id)
+      const sessionCwd = activeWt?.repos?.[0]?.path || env.paths.root || env.paths.backend || undefined
+
       const id = await onLaunchInstance({
         name: `${isError ? 'Diagnose' : 'Manage'}: ${env.displayName || env.name}`,
-        workingDirectory: env.paths.root || undefined,
+        workingDirectory: sessionCwd,
         color: isError ? '#ef4444' : '#8b5cf6',
         args: promptArgs,
       })

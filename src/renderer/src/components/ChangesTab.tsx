@@ -31,6 +31,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [diffContent, setDiffContent] = useState<string | null>(null)
   const [diffLoading, setDiffLoading] = useState(false)
   const [fileSearch, setFileSearch] = useState('')
+  const [gitError, setGitError] = useState<string | null>(null)
 
   // Checkpoint state
   const [checkpoints, setCheckpoints] = useState<CheckpointTag[]>([])
@@ -122,6 +123,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     if (!instance.workingDirectory) return
     setGitChangesLoading(true)
     diffCacheRef.current = {}
+    setGitError(null)
     window.api.session.gitChanges(instance.workingDirectory).then(async (entries) => {
       setGitChanges(entries)
       onChangeCount?.(entries.length)
@@ -146,10 +148,12 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
         currentDiffHashRef.current = null
         setScoreCard(null)
       }
-    }).catch(() => {
+    }).catch((err: any) => {
       setGitChanges([])
       onChangeCount?.(0)
       setGitChangesLoading(false)
+      const msg: string = err?.message ?? ''
+      setGitError(msg.includes('ENOENT') || msg.includes('not a git') ? 'Working directory no longer exists' : null)
     })
   }, [instance.workingDirectory, instance.id])
 
@@ -412,7 +416,10 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
         </div>
         <div className="changes-panel-content">
           {gitChangesLoading && <div className="changes-empty">Loading...</div>}
-          {!gitChangesLoading && gitChanges.length === 0 && (
+          {!gitChangesLoading && gitError && (
+            <div className="changes-empty">{gitError}</div>
+          )}
+          {!gitChangesLoading && !gitError && gitChanges.length === 0 && (
             <div className="changes-empty">No uncommitted changes.</div>
           )}
           {!gitChangesLoading && gitChanges.length > 0 && (

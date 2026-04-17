@@ -1400,7 +1400,7 @@ export const helpContent: Record<string, HelpEntry> = {
   },
   changesTab: {
     title: 'Changes (Git Diff)',
-    description: 'Shows uncommitted file changes in the session\'s working directory (`git diff HEAD`). Each file can be reverted individually or all at once. Review agents can annotate specific lines via COLONY_COMMENT sentinels — annotations appear inline below the file they reference.',
+    description: 'Shows uncommitted file changes in the session\'s working directory (`git diff HEAD`). For sessions in worktree-backed environments, the diff is shown for the worktree repo root (not the env config directory). Each file can be reverted individually or all at once. If the working directory no longer exists, a clear error message is shown instead of a silent empty state. Review agents can annotate specific lines via COLONY_COMMENT sentinels — annotations appear inline below the file they reference.',
     zones: [
       {
         name: 'Header',
