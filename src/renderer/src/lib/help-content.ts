@@ -1151,7 +1151,7 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Toolbar',
         position: 'Top of files area',
         items: [
-          { label: 'Quick open', detail: 'Press ⌘P from any tab to open a floating file search overlay. Type to filter by filename, use ↑↓ to navigate, Enter to open the file, ESC to dismiss. File type icons distinguish .ts, .json, .md, images, archives, and more.', icon: 'Search' },
+          { label: 'Quick open', detail: 'Press ⌘P from any tab to open a floating file search overlay. Type to filter by filename, use ↑↓ to navigate, Enter to open the file, ESC to dismiss. Selecting a file expands the tree to reveal its location and scrolls it into view. File type icons distinguish .ts, .json, .md, images, archives, and more.', icon: 'Search' },
           { label: 'Name filter', detail: 'Type to filter the file tree by name. Matching directories auto-expand.' },
           { label: 'Search icon', detail: 'Switch to content search mode — grep across all files in the project.', icon: 'Search' },
           { label: 'Open in Finder', detail: 'Open the working directory in macOS Finder.', icon: 'FolderOpen' },

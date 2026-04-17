@@ -32,6 +32,17 @@ interface FileNode {
   children?: FileNode[]
 }
 
+function getParentPaths(filePath: string, rootDir: string): string[] {
+  const parts: string[] = []
+  let dir = filePath.substring(0, filePath.lastIndexOf('/'))
+  while (dir.length > rootDir.length) {
+    parts.push(dir)
+    dir = dir.substring(0, dir.lastIndexOf('/'))
+  }
+  if (dir === rootDir) parts.push(dir)
+  return parts
+}
+
 function sortFileNodes(nodes: FileNode[], mode: 'name' | 'modified'): FileNode[] {
   return [...nodes]
     .sort((a, b) => {
@@ -193,8 +204,47 @@ export default function FilesTab({ instance, focused, onSwitchToSession, jumpFil
 
   useEffect(() => {
     if (!jumpFilePath) return
+
+    // Find the correct root for this path (primary or env sibling repo)
+    const allRoots = [instance.workingDirectory, ...envRoots.map(r => r.path)]
+    const root = allRoots.find(r => jumpFilePath.startsWith(r + '/')) ?? instance.workingDirectory
+    const parents = getParentPaths(jumpFilePath, root)
+
+    // Expand all parent directories (union — don't collapse already-open paths)
+    setExpandedPaths(prev => {
+      const next = new Set(prev)
+      for (const p of parents) next.add(p)
+      return next
+    })
+
+    // Lazy-load children for any unloaded parent directories
+    for (const p of parents) {
+      if (!lazyChildren.has(p)) {
+        window.api.fs.listDir(p, 1).then(children => {
+          setLazyChildren(prev => {
+            const next = new Map(prev)
+            next.set(p, children)
+            return next
+          })
+        })
+      }
+    }
+
     handleSelectFile(jumpFilePath)
     onJumpConsumed?.()
+
+    // Scroll selected row into view after React re-renders with expanded tree
+    requestAnimationFrame(() => {
+      const el = document.querySelector('.filetree-row.selected')
+      if (el) {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      } else {
+        // Fallback: lazy-loads may not have settled yet — retry after async ops
+        setTimeout(() => {
+          document.querySelector('.filetree-row.selected')?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+        }, 150)
+      }
+    })
   }, [jumpFilePath])
 
   const isMarkdown = useMemo(() => {
