@@ -699,11 +699,12 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                     {env.projectType && <span className="env-card-type">{env.projectType}</span>}
                     {driftStatus[env.id] === 'drifted' && (() => {
                       const fields = driftFields[env.id] || []
+                      const toDisplay = (f: string) => f.replace(/([A-Z])/g, ' $1').toLowerCase()
                       const badgeText = fields.length > 0
-                        ? `drift: ${fields.slice(0, 2).join(', ')}${fields.length > 2 ? '…' : ''}`
+                        ? `drift: ${fields.slice(0, 2).map(toDisplay).join(', ')}${fields.length > 2 ? '…' : ''}`
                         : 'template drift'
                       const tooltipText = fields.length > 0
-                        ? `Template changed — ${fields.join(', ')}. Click to accept current as baseline.`
+                        ? `Template changed — ${fields.map(toDisplay).join(', ')}. Click to accept current as baseline.`
                         : 'Template has changed since this environment was created. Click to accept the current template as the new baseline.'
                       return (
                         <button
