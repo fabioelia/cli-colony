@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { Search, File } from 'lucide-react'
+import { Search } from 'lucide-react'
+import { getFileIcon } from '../lib/file-icons'
 
 interface FileNode {
   name: string
@@ -131,13 +132,14 @@ export default function FileQuickOpen({ open, onClose, workingDirectory, onSelec
           {!loading && filtered.length === 0 && <div className="cmd-palette-empty">No files found</div>}
           {!loading && filtered.map((f, i) => {
             const dir = f.relPath.includes('/') ? f.relPath.slice(0, f.relPath.lastIndexOf('/')) : ''
+            const FileIcon = getFileIcon(f.name)
             return (
               <div
                 key={f.path}
                 className={`cmd-palette-item ${i === selectedIndex ? 'selected' : ''}`}
                 onClick={() => onSelectFile(f.path)}
               >
-                <span className="cmd-palette-item-icon"><File size={14} /></span>
+                <span className="cmd-palette-item-icon"><FileIcon size={14} /></span>
                 <span className="cmd-palette-item-label">{f.name}</span>
                 {f.rootAlias && <span className="cmd-palette-item-badge">{f.rootAlias}</span>}
                 {dir && <span className="cmd-palette-item-detail">{dir}</span>}

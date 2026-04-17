@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { ChevronUp, ChevronDown, ChevronRight, Minimize2, Maximize2, X, FolderOpen, FolderTree, File, Folder, RefreshCw, Search, Settings, TerminalSquare, WrapText, ArrowUpDown, Eye, Code } from 'lucide-react'
+import { getFileIcon } from '../lib/file-icons'
 import type { ClaudeInstance } from '../types'
 import MarkdownViewer from './MarkdownViewer'
 
@@ -105,7 +106,7 @@ function FileTreeNode({ node, depth, selectedPath, expandedPaths, filter, onTogg
         ) : (
           <>
             <span className="filetree-chevron-spacer" />
-            <File size={14} className="filetree-icon file" />
+            {(() => { const FileIcon = getFileIcon(node.name); return <FileIcon size={14} className="filetree-icon file" /> })()}
           </>
         )}
         <span className="filetree-name">{node.name}</span>
@@ -588,7 +589,7 @@ export default function FilesTab({ instance, focused, onSwitchToSession, jumpFil
                               className="filetree-search-result-file"
                               onClick={() => handleSelectFile(result.file)}
                             >
-                              <File size={13} className="filetree-icon file" />
+                              {(() => { const FileIcon = getFileIcon(fileName || ''); return <FileIcon size={13} className="filetree-icon file" /> })()}
                               <span className="filetree-search-result-name">{fileName}</span>
                             </div>
                             {result.matches.map((m, i) => (
