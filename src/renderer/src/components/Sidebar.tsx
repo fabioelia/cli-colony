@@ -1882,7 +1882,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
           <div className="handoff-modal" onClick={e => e.stopPropagation()}>
             <div className="handoff-modal-header">
               <span>Handoff Doc — {handoffInst.name}</span>
-              <button className="handoff-modal-close" onClick={() => setHandoffInst(null)}>✕</button>
+              <button className="handoff-modal-close" onClick={() => setHandoffInst(null)}><X size={14} /></button>
             </div>
             <div className="handoff-modal-body">
               <div className="handoff-modal-hint">Paste into a new Claude session to restore context.</div>
