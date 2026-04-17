@@ -112,6 +112,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
   const [dragOver, setDragOver] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [viewTab, setViewTab] = useState<ViewTab>('session')
+  const [fileJumpKey, setFileJumpKey] = useState(0)
   const [deferredDismissed, setDeferredDismissed] = useState(false)
   // Reset dismissed state when a new deferred event arrives
   const deferredToolRef = useRef(instance.toolDeferredInfo?.toolName)
@@ -657,6 +658,21 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
     return () => window.removeEventListener('keydown', handler, true)
   }, [instance.id, viewTab, focused])
 
+  // Cmd+P — jump to Files tab and focus the filename filter input
+  useEffect(() => {
+    if (!focused) return
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'p' && !e.shiftKey && !e.altKey) {
+        e.preventDefault()
+        e.stopPropagation()
+        setViewTab('files')
+        setFileJumpKey(k => k + 1)
+      }
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [focused])
+
   // Session tab keyboard navigation — Cmd+Shift+{ (prev) / Cmd+Shift+} (next)
   const hasEnvUrls = effectiveEnvName && envStatus && Object.keys(envStatus.urls).length > 0
   const visibleViewTabs = useMemo<ViewTab[]>(() => [
@@ -690,7 +706,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
       case 'shell': return (
         <div className="split-terminal-note"><TerminalSquare size={14} /><span>Switch to Terminal tab to use the shell</span></div>
       )
-      case 'files': return <FilesTab instance={instance} focused={focused} onSwitchToSession={() => setViewTab('session')} />
+      case 'files': return <FilesTab instance={instance} focused={focused} onSwitchToSession={() => setViewTab('session')} fileJumpKey={fileJumpKey} />
       case 'services': return envStatus ? <ServicesTab envStatus={envStatus} instance={instance} /> : null
       case 'logs': return envStatus ? <LogsTab envStatus={envStatus} /> : null
       case 'browser': return envStatus ? <BrowserTab envStatus={envStatus} instanceId={instance.id} /> : null

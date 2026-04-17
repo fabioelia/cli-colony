@@ -1147,6 +1147,7 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Toolbar',
         position: 'Top of files area',
         items: [
+          { label: 'Quick open', detail: 'Press ⌘P from any tab to jump to the Files tab with the search filter focused. Type to filter files by name.', icon: 'Search' },
           { label: 'Name filter', detail: 'Type to filter the file tree by name. Matching directories auto-expand.' },
           { label: 'Search icon', detail: 'Switch to content search mode — grep across all files in the project.', icon: 'Search' },
           { label: 'Open in Finder', detail: 'Open the working directory in macOS Finder.', icon: 'FolderOpen' },

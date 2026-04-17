@@ -158,9 +158,10 @@ interface FilesTabProps {
   instance: ClaudeInstance
   focused: boolean
   onSwitchToSession: () => void
+  fileJumpKey?: number
 }
 
-export default function FilesTab({ instance, focused, onSwitchToSession }: FilesTabProps) {
+export default function FilesTab({ instance, focused, onSwitchToSession, fileJumpKey }: FilesTabProps) {
   const [fileTree, setFileTree] = useState<FileNode[] | null>(null)
   const [fileTreeLoading, setFileTreeLoading] = useState(false)
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
@@ -186,7 +187,20 @@ export default function FilesTab({ instance, focused, onSwitchToSession }: Files
   const [filesSortMode, setFilesSortMode] = useState<'name' | 'modified'>('name')
   const [renderMd, setRenderMd] = useState(true)
   const [envRoots, setEnvRoots] = useState<Array<{alias: string, path: string}>>([])
+  const treeFilterInputRef = useRef<HTMLInputElement>(null)
 
+  useEffect(() => {
+    if (!fileJumpKey) return
+    if (searchMode !== 'files') {
+      setSearchMode('files')
+      setContentSearch('')
+      setContentResults(null)
+    }
+    setTimeout(() => {
+      treeFilterInputRef.current?.focus()
+      treeFilterInputRef.current?.select()
+    }, 0)
+  }, [fileJumpKey])
 
   const isMarkdown = useMemo(() => {
     if (!selectedFile) return false
@@ -517,6 +531,7 @@ export default function FilesTab({ instance, focused, onSwitchToSession }: Files
             </div>
             {searchMode === 'files' ? (
               <input
+                ref={treeFilterInputRef}
                 placeholder="Filter files..."
                 value={treeFilter}
                 onChange={(e) => setTreeFilter(e.target.value)}
