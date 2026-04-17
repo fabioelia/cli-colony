@@ -215,6 +215,7 @@ export async function collectSessionArtifact(instanceId: string): Promise<Sessio
     totalInsertions: changes.reduce((sum, e) => sum + e.insertions, 0),
     totalDeletions: changes.reduce((sum, e) => sum + e.deletions, 0),
     costUsd: inst.tokenUsage?.cost,
+    claudeSessionId: inst.lastSessionId ?? undefined,
   }
 
   // Persist to index (in-memory canonical array — no re-read race)

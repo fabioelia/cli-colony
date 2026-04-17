@@ -9,7 +9,7 @@ import {
   GitPullRequest, GitMerge, GitBranch, Sparkles, RotateCw, Copy, Timer, Activity,
   Download, Upload, PauseCircle, PlayCircle, Check, StickyNote,
 } from 'lucide-react'
-import type { AuditResult, GitHubRepo } from '../../../shared/types'
+import type { AuditResult, GitHubRepo, SessionArtifact } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
 import EmptyStateHook from './EmptyStateHook'
 import CronEditor from './CronEditor'
@@ -219,6 +219,8 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [comparedRuns, setComparedRuns] = useState<Set<number>>(new Set())
   const [showComparison, setShowComparison] = useState(false)
   const [historyFilterFailures, setHistoryFilterFailures] = useState(false)
+  const [runArtifacts, setRunArtifacts] = useState<Record<string, SessionArtifact[]>>({})
+  const [previewSessionId, setPreviewSessionId] = useState<string | null>(null)
 
   const [triggeringPipelines, setTriggeringPipelines] = useState<Set<string>>(new Set())
   const [retryingFromHistory, setRetryingFromHistory] = useState(false)
@@ -393,6 +395,25 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
       setAssistantId(null)
     }
   }, [instances, assistantId])
+
+  useEffect(() => {
+    for (const idx of expandedHistoryRows) {
+      const entry = historyEntries[idx]
+      if (!entry?.stages?.length) continue
+      const runKey = entry.ts
+      if (runArtifacts[runKey]) continue
+      const stageSessionIds = new Set<string>()
+      entry.stages.forEach(s => {
+        if (s.sessionId) stageSessionIds.add(s.sessionId)
+        s.subStages?.forEach(sub => { if (sub.sessionId) stageSessionIds.add(sub.sessionId) })
+      })
+      if (stageSessionIds.size === 0) continue
+      Promise.all(Array.from(stageSessionIds).map(sid => window.api.artifacts.get(sid))).then(results => {
+        const arts = results.filter((a): a is SessionArtifact => a !== null)
+        setRunArtifacts(prev => ({ ...prev, [runKey]: arts }))
+      })
+    }
+  }, [expandedHistoryRows, historyEntries])
 
   const sendPromptToAssistant = useCallback((id: string, prompt: string) => {
     sendPromptWhenReady(id, { prompt })
@@ -1617,7 +1638,9 @@ ${modelLine}  prompt: |
                                           {statusChanged && <span className="pipeline-history-stage-delta" title={`Changed from ${prevStatus} in prior run`}>△</span>}
                                           {stage.sessionName && (stage.sessionId && instances.some(i => i.id === stage.sessionId)
                                             ? <span className="pipeline-history-stage-name pipeline-session-link" onClick={(e) => { e.stopPropagation(); onFocusInstance(stage.sessionId!) }}>{stage.sessionName}</span>
-                                            : <span className="pipeline-history-stage-name" title={stage.sessionId && !instances.some(i => i.id === stage.sessionId) ? 'Session ended' : undefined}>{stage.sessionName}</span>
+                                            : stage.sessionId
+                                              ? <span className="pipeline-history-stage-name pipeline-session-link ended" onClick={(e) => { e.stopPropagation(); setPreviewSessionId(prev => prev === stage.sessionId ? null : stage.sessionId!) }}>{stage.sessionName}<Eye size={10} style={{ marginLeft: 3, opacity: 0.6, verticalAlign: 'middle' }} /></span>
+                                              : <span className="pipeline-history-stage-name">{stage.sessionName}</span>
                                           )}
                                           {stage.model && <span className="pipeline-history-stage-model" title={stage.model}>· {stage.model.replace(/^claude-/, '').split('-')[0]}{stage.autoResolved ? ' · auto' : ''}</span>}
                                           {stage.responseSnippet && <span className="pipeline-history-stage-snippet" title={stage.responseSnippet}>{stage.responseSnippet.length > 60 ? stage.responseSnippet.slice(0, 60) + '…' : stage.responseSnippet}</span>}
@@ -1629,20 +1652,116 @@ ${modelLine}  prompt: |
                                             <div className="stage-duration-bar" style={{ width: barWidth }} />
                                           </div>
                                         )}
+                                        {previewSessionId === stage.sessionId && (() => {
+                                          const art = runArtifacts[entry.ts]?.find(a => a.sessionId === stage.sessionId)
+                                          if (!art) return (
+                                            <div className="pipeline-session-preview empty">
+                                              No artifact recorded for this session.
+                                            </div>
+                                          )
+                                          return (
+                                            <div className="pipeline-session-preview">
+                                              <div className="pipeline-session-preview-summary">{art.summary}</div>
+                                              <div className="pipeline-session-preview-meta">
+                                                <span title="Duration">{art.durationMs < 60000 ? `${(art.durationMs / 1000).toFixed(0)}s` : `${(art.durationMs / 60000).toFixed(1)}m`}</span>
+                                                {art.costUsd != null && <span title="Cost">${art.costUsd.toFixed(3)}</span>}
+                                                <span title="Exit code">exit {art.exitCode}</span>
+                                                {art.commits.length > 0 && <span>{art.commits.length} commit{art.commits.length > 1 ? 's' : ''}</span>}
+                                                {art.totalInsertions + art.totalDeletions > 0 && (
+                                                  <span className="pipeline-session-preview-diff">+{art.totalInsertions} −{art.totalDeletions}</span>
+                                                )}
+                                              </div>
+                                              {art.commits.length > 0 && (
+                                                <div className="pipeline-session-preview-commits">
+                                                  {art.commits.slice(0, 5).map(c => (
+                                                    <div key={c.hash} className="pipeline-session-preview-commit">
+                                                      <code>{c.hash.slice(0, 7)}</code> {c.shortMsg}
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              )}
+                                              <button
+                                                className="pipeline-session-preview-resume"
+                                                disabled={!art.claudeSessionId}
+                                                title={art.claudeSessionId ? `Resume session in ${art.workingDirectory}` : 'Claude session ID not available (pre-feature session)'}
+                                                onClick={(e) => {
+                                                  e.stopPropagation()
+                                                  onLaunchInstance({
+                                                    name: `Resume: ${art.sessionName}`,
+                                                    workingDirectory: art.workingDirectory,
+                                                    args: ['--resume', art.claudeSessionId!],
+                                                  })
+                                                }}
+                                              >
+                                                <Play size={11} /> Resume
+                                              </button>
+                                            </div>
+                                          )
+                                        })()}
                                         {stage.subStages && stage.subStages.length > 0 && (
                                           <div className="pipeline-history-parallel-group">
                                             {stage.subStages.map(sub => (
-                                              <div key={sub.index} className={`pipeline-history-stage-row sub ${sub.success ? '' : 'error'}`}>
-                                                <span className={`pipeline-history-icon ${sub.success ? 'success' : 'failure'}`}>
-                                                  {sub.success ? <CheckCircle size={9} /> : <XCircle size={9} />}
-                                                </span>
-                                                <span className="pipeline-history-stage-type">{stageTypeLabel(sub.actionType)}</span>
-                                                {sub.sessionName && (sub.sessionId && instances.some(i => i.id === sub.sessionId)
-                                                  ? <span className="pipeline-history-stage-name pipeline-session-link" onClick={(e) => { e.stopPropagation(); onFocusInstance(sub.sessionId!) }}>{sub.sessionName}</span>
-                                                  : <span className="pipeline-history-stage-name" title={sub.sessionId && !instances.some(i => i.id === sub.sessionId) ? 'Session ended' : undefined}>{sub.sessionName}</span>
-                                                )}
-                                                <span className="pipeline-history-duration">{sub.durationMs < 1000 ? `${sub.durationMs}ms` : `${(sub.durationMs / 1000).toFixed(1)}s`}</span>
-                                                {sub.error && <span className="pipeline-history-stage-error" title={sub.error}>err</span>}
+                                              <div key={sub.index}>
+                                                <div className={`pipeline-history-stage-row sub ${sub.success ? '' : 'error'}`}>
+                                                  <span className={`pipeline-history-icon ${sub.success ? 'success' : 'failure'}`}>
+                                                    {sub.success ? <CheckCircle size={9} /> : <XCircle size={9} />}
+                                                  </span>
+                                                  <span className="pipeline-history-stage-type">{stageTypeLabel(sub.actionType)}</span>
+                                                  {sub.sessionName && (sub.sessionId && instances.some(i => i.id === sub.sessionId)
+                                                    ? <span className="pipeline-history-stage-name pipeline-session-link" onClick={(e) => { e.stopPropagation(); onFocusInstance(sub.sessionId!) }}>{sub.sessionName}</span>
+                                                    : sub.sessionId
+                                                      ? <span className="pipeline-history-stage-name pipeline-session-link ended" onClick={(e) => { e.stopPropagation(); setPreviewSessionId(prev => prev === sub.sessionId ? null : sub.sessionId!) }}>{sub.sessionName}<Eye size={10} style={{ marginLeft: 3, opacity: 0.6, verticalAlign: 'middle' }} /></span>
+                                                      : <span className="pipeline-history-stage-name">{sub.sessionName}</span>
+                                                  )}
+                                                  <span className="pipeline-history-duration">{sub.durationMs < 1000 ? `${sub.durationMs}ms` : `${(sub.durationMs / 1000).toFixed(1)}s`}</span>
+                                                  {sub.error && <span className="pipeline-history-stage-error" title={sub.error}>err</span>}
+                                                </div>
+                                                {previewSessionId === sub.sessionId && (() => {
+                                                  const art = runArtifacts[entry.ts]?.find(a => a.sessionId === sub.sessionId)
+                                                  if (!art) return (
+                                                    <div className="pipeline-session-preview empty">
+                                                      No artifact recorded for this session.
+                                                    </div>
+                                                  )
+                                                  return (
+                                                    <div className="pipeline-session-preview">
+                                                      <div className="pipeline-session-preview-summary">{art.summary}</div>
+                                                      <div className="pipeline-session-preview-meta">
+                                                        <span title="Duration">{art.durationMs < 60000 ? `${(art.durationMs / 1000).toFixed(0)}s` : `${(art.durationMs / 60000).toFixed(1)}m`}</span>
+                                                        {art.costUsd != null && <span title="Cost">${art.costUsd.toFixed(3)}</span>}
+                                                        <span title="Exit code">exit {art.exitCode}</span>
+                                                        {art.commits.length > 0 && <span>{art.commits.length} commit{art.commits.length > 1 ? 's' : ''}</span>}
+                                                        {art.totalInsertions + art.totalDeletions > 0 && (
+                                                          <span className="pipeline-session-preview-diff">+{art.totalInsertions} −{art.totalDeletions}</span>
+                                                        )}
+                                                      </div>
+                                                      {art.commits.length > 0 && (
+                                                        <div className="pipeline-session-preview-commits">
+                                                          {art.commits.slice(0, 5).map(c => (
+                                                            <div key={c.hash} className="pipeline-session-preview-commit">
+                                                              <code>{c.hash.slice(0, 7)}</code> {c.shortMsg}
+                                                            </div>
+                                                          ))}
+                                                        </div>
+                                                      )}
+                                                      <button
+                                                        className="pipeline-session-preview-resume"
+                                                        disabled={!art.claudeSessionId}
+                                                        title={art.claudeSessionId ? `Resume session in ${art.workingDirectory}` : 'Claude session ID not available (pre-feature session)'}
+                                                        onClick={(e) => {
+                                                          e.stopPropagation()
+                                                          onLaunchInstance({
+                                                            name: `Resume: ${art.sessionName}`,
+                                                            workingDirectory: art.workingDirectory,
+                                                            args: ['--resume', art.claudeSessionId!],
+                                                          })
+                                                        }}
+                                                      >
+                                                        <Play size={11} /> Resume
+                                                      </button>
+                                                    </div>
+                                                  )
+                                                })()}
                                               </div>
                                             ))}
                                           </div>

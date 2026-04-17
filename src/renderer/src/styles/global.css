@@ -14164,6 +14164,72 @@ body:has(.daemon-update-banner) .app-update-banner {
 .pipeline-session-link:hover {
   text-decoration: underline;
 }
+.pipeline-session-link.ended {
+  opacity: 0.8;
+}
+.pipeline-session-link.ended:hover {
+  opacity: 1;
+}
+
+.pipeline-session-preview {
+  margin: 4px 0 8px 24px;
+  padding: 8px 10px;
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  border-left: 2px solid var(--accent);
+  font-size: 11px;
+}
+.pipeline-session-preview.empty {
+  color: var(--text-muted);
+  border-left-color: var(--text-muted);
+}
+.pipeline-session-preview-summary {
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.pipeline-session-preview-meta {
+  display: flex;
+  gap: 10px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.pipeline-session-preview-diff {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.pipeline-session-preview-commits {
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.pipeline-session-preview-commit {
+  margin: 2px 0;
+}
+.pipeline-session-preview-commit code {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+.pipeline-session-preview-resume {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+.pipeline-session-preview-resume:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+.pipeline-session-preview-resume:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
 .pipeline-history-stage-error {
   color: var(--danger);
