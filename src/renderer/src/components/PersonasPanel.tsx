@@ -30,7 +30,7 @@ function PersonaRunStrip({ runs }: { runs: PersonaRunEntry[] }) {
         <div
           key={i}
           className={`pipeline-run-cell ${r.success ? 'pass' : 'fail'}`}
-          title={`${new Date(r.timestamp).toLocaleString()} — ${r.success ? 'success' : 'failed'}${r.costUsd ? ` ($${r.costUsd.toFixed(2)})` : ''}`}
+          title={`${new Date(r.timestamp).toLocaleString()} — ${r.stopReason === 'manual' ? 'stopped' : r.success ? 'success' : 'failed'}${r.costUsd ? ` ($${r.costUsd.toFixed(2)})` : ''}`}
         />
       ))}
     </div>
@@ -967,10 +967,12 @@ function PersonaAnalyticsTab({ analytics, personaName, onRun, instances, onFocus
                 <div className="persona-run-detail-row">
                   <span className="persona-run-detail-label">Outcome</span>
                   <span className={`persona-run-detail-badge ${run.success ? 'success' : 'fail'}`}>
-                    {run.success ? (run.stopReason === 'budget_exceeded' ? 'Budget stopped' : 'Success') : 'Failed'}
+                    {run.success
+                      ? (run.stopReason === 'budget_exceeded' ? 'Budget stopped' : run.stopReason === 'manual' ? 'Stopped' : 'Success')
+                      : 'Failed'}
                   </span>
                 </div>
-                {run.stopReason && run.stopReason !== 'budget_exceeded' && (
+                {run.stopReason && run.stopReason !== 'budget_exceeded' && run.stopReason !== 'manual' && (
                   <div className="persona-run-detail-row">
                     <span className="persona-run-detail-label">Stop Reason</span>
                     <span>{run.stopReason}</span>
@@ -1421,7 +1423,7 @@ function PersonaCard({
                       const dur = durMin > 0 ? `${durMin}m ${durSec}s` : `${durSec}s`
                       return (
                         <div key={i} className="persona-history-row">
-                          <span className={`persona-history-status ${entry.success ? 'success' : 'fail'}`} title={entry.success ? 'Completed successfully' : 'Run failed'}>
+                          <span className={`persona-history-status ${entry.success ? 'success' : 'fail'}`} title={entry.stopReason === 'manual' ? 'Manually stopped' : entry.success ? 'Completed successfully' : 'Run failed'}>
                             {entry.success ? <Check size={12} /> : <X size={12} />}
                           </span>
                           <span className="persona-history-time">{ago}</span>
