@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import {
   Home, Play, Plus, Zap, Clock, AlertCircle,
   CheckCircle2, XCircle, Circle, Users, FolderOpen, Activity, GanttChart, BarChart3, X, Eye, Square, Pin, PinOff,
-  ChevronLeft, ChevronRight, Calendar, RotateCcw, Search
+  ChevronLeft, ChevronRight, Calendar, RotateCcw, Search, MessageSquare
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import SessionTimeline from './SessionTimeline'
@@ -786,6 +786,16 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
           >
             <button className="context-menu-item" onClick={() => { onFocusInstance(ctxMenu.inst.id); setCtxMenu(null) }}>
               <Eye size={12} /> Focus
+            </button>
+            <button className="context-menu-item" onClick={() => {
+              const text = window.prompt('Send message to session:')
+              if (text?.trim()) {
+                window.api.session.steer(ctxMenu.inst.id, text.trim())
+                markActioned(`whisper-${ctxMenu.inst.id}`)
+              }
+              setCtxMenu(null)
+            }}>
+              <MessageSquare size={12} /> Whisper
             </button>
             {onKill && (
               <button className="context-menu-item" onClick={() => { onKill(ctxMenu.inst.id); setCtxMenu(null) }}>
