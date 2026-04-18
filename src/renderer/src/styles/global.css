@@ -6816,7 +6816,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .session-exited-cost.green { color: var(--success); }
 .session-exited-cost.amber { color: var(--warning); }
-.session-exited-cost.red { color: var(--error); }
+.session-exited-cost.red { color: var(--danger); }
 
 /* Context Meter */
 .session-status-context {
