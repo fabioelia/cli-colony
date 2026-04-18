@@ -847,6 +847,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Sound on finish', detail: 'Play a sound when Claude finishes processing and the app isn\'t focused.' },
           { label: 'Quiet hours', detail: 'Suppress desktop notifications during a time window (e.g. 22:00–07:00). In-app notification history still records everything — only OS-level alerts are silenced. Supports overnight ranges that cross midnight.' },
           { label: 'Auto-cleanup', detail: 'Remove stopped sessions after N minutes. Set to 0 to keep them forever.' },
+          { label: 'Session retention', detail: 'Auto-remove stopped sessions older than N days on startup and every 6 hours. Persona and pinned sessions are always kept. Set to 0 to disable.' },
           { label: 'Daily cost budget', detail: 'Set a daily dollar limit for persona run costs. When exceeded, a desktop notification fires (once per day). The overview cost chart shows a dashed budget line and today\'s bar turns amber/red. Leave empty to disable.' },
         ],
       },

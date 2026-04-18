@@ -27,6 +27,7 @@ export default function SettingsPanel({ onBack }: Props) {
   const [quietHoursStart, setQuietHoursStart] = useState('22:00')
   const [quietHoursEnd, setQuietHoursEnd] = useState('07:00')
   const [autoCleanupMinutes, setAutoCleanupMinutes] = useState('5')
+  const [sessionRetentionDays, setSessionRetentionDays] = useState('7')
   const [dailyCostBudget, setDailyCostBudget] = useState('')
   const [globalHotkey, setGlobalHotkey] = useState('CommandOrControl+Shift+Space')
   const [hotkeyError, setHotkeyError] = useState('')
@@ -109,7 +110,7 @@ export default function SettingsPanel({ onBack }: Props) {
     arena: 'arena judge learning history reasons manual pick auto-judge',
     general: 'general tray keep running close quit',
     notifications: 'notifications sound desktop alert pipeline persona approval session budget system',
-    sessions: 'sessions cleanup auto-cleanup idle cost daily budget hotkey global shortcut',
+    sessions: 'sessions cleanup auto-cleanup idle cost daily budget hotkey global shortcut retention purge age',
     mcp: 'mcp server catalog stdio sse environment variables',
     audit: 'mcp audit tool call approval log',
     commit: 'commit attribution git',
@@ -160,6 +161,7 @@ export default function SettingsPanel({ onBack }: Props) {
       setQuietHoursStart(s.quietHoursStart || '22:00')
       setQuietHoursEnd(s.quietHoursEnd || '07:00')
       setAutoCleanupMinutes(s.autoCleanupMinutes || '5')
+      setSessionRetentionDays(s.sessionRetentionDays || '7')
       setDailyCostBudget(s.dailyCostBudgetUsd || '')
       setGlobalHotkey(s.globalHotkey || 'CommandOrControl+Shift+Space')
       setKeepInTray(s.keepInTray !== 'false')
@@ -278,6 +280,7 @@ export default function SettingsPanel({ onBack }: Props) {
       window.api.settings.set('quietHoursStart', quietHoursStart),
       window.api.settings.set('quietHoursEnd', quietHoursEnd),
       window.api.settings.set('autoCleanupMinutes', autoCleanupMinutes),
+      window.api.settings.set('sessionRetentionDays', sessionRetentionDays),
       window.api.settings.set('dailyCostBudgetUsd', dailyCostBudget),
       window.api.settings.set('globalHotkey', globalHotkey),
       window.api.settings.set('keepInTray', keepInTray ? 'true' : 'false'),
@@ -328,6 +331,7 @@ export default function SettingsPanel({ onBack }: Props) {
         setQuietHoursStart(s.quietHoursStart || '22:00')
         setQuietHoursEnd(s.quietHoursEnd || '07:00')
         setAutoCleanupMinutes(s.autoCleanupMinutes || '5')
+        setSessionRetentionDays(s.sessionRetentionDays || '7')
         setDailyCostBudget(s.dailyCostBudgetUsd || '')
         setGlobalHotkey(s.globalHotkey || 'CommandOrControl+Shift+Space')
         setKeepInTray(s.keepInTray !== 'false')
@@ -754,6 +758,22 @@ export default function SettingsPanel({ onBack }: Props) {
           </div>
         </div>
         <p className="settings-help settings-help-bottom">Set to 0 to keep stopped sessions indefinitely.</p>
+        <div className="settings-row">
+          <span className="settings-row-label">Auto-remove old sessions</span>
+          <div className="settings-row-control">
+            <input
+              type="number"
+              min="0"
+              max="365"
+              value={sessionRetentionDays}
+              onChange={(e) => setSessionRetentionDays(e.target.value)}
+              onBlur={() => { const v = parseInt(sessionRetentionDays, 10); setSessionRetentionDays(String(isNaN(v) ? 7 : Math.max(0, Math.min(365, v)))) }}
+              className="settings-compact-number"
+            />
+            <span className="settings-unit">days</span>
+          </div>
+        </div>
+        <p className="settings-help settings-help-bottom">0 = keep forever. Excludes pinned and persona sessions.</p>
         <div className="settings-row">
           <span className="settings-row-label">Daily cost budget</span>
           <div className="settings-row-control">

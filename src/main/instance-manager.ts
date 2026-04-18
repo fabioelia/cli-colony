@@ -412,6 +412,31 @@ export function wireDaemonEvents(): void {
   })
 
   setInterval(checkStaleNotifications, 60_000)
+
+  // Age-based retention: remove old stopped sessions on startup and every 6h
+  async function runRetentionCheck(): Promise<void> {
+    const days = parseInt(await getSetting('sessionRetentionDays') || '7', 10)
+    if (days <= 0) return
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000
+    const instances = await router.getAllInstances()
+    const toRemove = instances.filter((i: ClaudeInstance) =>
+      i.status === 'exited' &&
+      !i.name.startsWith('Persona: ') &&
+      !i.pinned &&
+      (i.exitedAt ?? new Date(i.createdAt).getTime()) < cutoff
+    )
+    for (const inst of toRemove) {
+      await router.removeInstance(inst.id).catch(() => {})
+    }
+    if (toRemove.length > 0) {
+      notify(
+        'Session cleanup',
+        `Removed ${toRemove.length} session${toRemove.length > 1 ? 's' : ''} older than ${days} day${days > 1 ? 's' : ''}`
+      )
+    }
+  }
+  setTimeout(runRetentionCheck, 30_000)
+  setInterval(runRetentionCheck, 6 * 60 * 60 * 1000)
 }
 
 // ---- Public API (same signatures as before) ----
