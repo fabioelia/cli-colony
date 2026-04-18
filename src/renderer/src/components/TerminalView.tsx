@@ -5,7 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, X, RotateCcw, GitBranch, TerminalSquare, FolderTree, Columns2, LayoutGrid, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Trophy, GitCompare, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, FileDown, CheckCircle, Copy, Search, PanelRight, GitMerge, Square, Ticket } from 'lucide-react'
+import { ChevronUp, ChevronDown, X, RotateCcw, GitBranch, TerminalSquare, FolderTree, Columns2, LayoutGrid, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Trophy, GitCompare, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, FileDown, CheckCircle, Copy, Search, PanelRight, GitMerge, Square, Ticket, Pencil } from 'lucide-react'
 import { TeamMetricsPanel } from './TeamMetricsPanel'
 import ServicesTab from './ServicesTab'
 import FilesTab from './FilesTab'
@@ -201,9 +201,21 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
 
   // Shell quick commands
   const [shellQuickOpen, setShellQuickOpen] = useState(() => localStorage.getItem('shell-quick-open') !== 'false')
+  const defaultQuickCmds = ['git status', 'git log --oneline -5', 'ls -la', 'npm test']
+  const quickCmdsKey = `shell-quick-cmds:${instance.workingDirectory || 'default'}`
+  const [quickCmds, setQuickCmds] = useState<string[]>(() => {
+    const stored = localStorage.getItem(quickCmdsKey)
+    return stored ? JSON.parse(stored) : defaultQuickCmds
+  })
+  const [editingQuickCmds, setEditingQuickCmds] = useState(false)
+  const [newCmdText, setNewCmdText] = useState('')
   const [shellTermReady, setShellTermReady] = useState(false)
   // Context usage tracking
   const [contextUsage, setContextUsage] = useState<ContextUsage | null>(null)
+
+  useEffect(() => {
+    localStorage.setItem(quickCmdsKey, JSON.stringify(quickCmds))
+  }, [quickCmds, quickCmdsKey])
 
   useEffect(() => {
     const findMatch = (envs: EnvStatus[]) => {
@@ -1450,7 +1462,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
             </button>
             {shellQuickOpen && (
               <div className="shell-quick-cmds">
-                {['git status', 'git log --oneline -5', 'ls -la', 'npm test'].map(cmd => (
+                {quickCmds.map(cmd => (
                   <button
                     key={cmd}
                     className="shell-quick-cmd"
@@ -1460,6 +1472,43 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
                     {cmd}
                   </button>
                 ))}
+                <button
+                  className="shell-quick-edit"
+                  onClick={() => setEditingQuickCmds(e => !e)}
+                  title="Edit commands"
+                  tabIndex={-1}
+                >
+                  <Pencil size={11} />
+                </button>
+              </div>
+            )}
+            {shellQuickOpen && editingQuickCmds && (
+              <div className="shell-quick-editor">
+                <div className="shell-quick-editor-list">
+                  {quickCmds.map((cmd, i) => (
+                    <div key={i} className="shell-quick-editor-item">
+                      <span>{cmd}</span>
+                      <button onClick={() => setQuickCmds(prev => prev.filter((_, j) => j !== i))} title="Remove" tabIndex={-1}>
+                        <X size={11} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="shell-quick-editor-add">
+                  <input
+                    value={newCmdText}
+                    onChange={e => setNewCmdText(e.target.value)}
+                    placeholder="New command..."
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && newCmdText.trim()) {
+                        setQuickCmds(prev => [...prev, newCmdText.trim()])
+                        setNewCmdText('')
+                      }
+                    }}
+                  />
+                  <button onClick={() => { if (newCmdText.trim()) { setQuickCmds(prev => [...prev, newCmdText.trim()]); setNewCmdText('') } }} tabIndex={-1}>Add</button>
+                </div>
+                <button className="shell-quick-editor-reset" onClick={() => setQuickCmds(defaultQuickCmds)} tabIndex={-1}>Reset to defaults</button>
               </div>
             )}
           </div>

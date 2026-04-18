@@ -1261,7 +1261,8 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Quick Commands',
         position: 'Top bar (once shell is initialized)',
         items: [
-          { label: 'Quick commands bar', detail: 'One-click shortcuts for common commands: git status, git log, ls -la, npm test. Click a chip to run it.' },
+          { label: 'Quick commands bar', detail: 'One-click shortcuts for common commands. Click a chip to run it instantly in the shell.' },
+          { label: 'Customize', icon: 'Pencil', detail: 'Click the pencil icon to add, remove, or reset commands. Commands are saved per project and persist across restarts.' },
           { label: 'Toggle', detail: 'Click "Quick ›/‹" to collapse or expand the commands bar.' },
         ],
       },

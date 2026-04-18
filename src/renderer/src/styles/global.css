@@ -7307,6 +7307,78 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-color: var(--text-muted);
   background: var(--bg-primary);
 }
+.shell-quick-edit {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  display: flex;
+  align-items: center;
+  border-radius: 3px;
+}
+.shell-quick-edit:hover { color: var(--text-primary); background: var(--bg-tertiary); }
+.shell-quick-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+.shell-quick-editor-list { display: flex; flex-direction: column; gap: 2px; }
+.shell-quick-editor-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-family: var(--font-mono, monospace);
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+.shell-quick-editor-item:hover { background: var(--bg-tertiary); }
+.shell-quick-editor-item button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 1px 3px;
+  display: flex;
+  align-items: center;
+}
+.shell-quick-editor-item button:hover { color: var(--text-primary); }
+.shell-quick-editor-add { display: flex; gap: 4px; }
+.shell-quick-editor-add input {
+  flex: 1;
+  font-size: 12px;
+  font-family: var(--font-mono, monospace);
+  padding: 3px 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+}
+.shell-quick-editor-add input:focus { outline: none; border-color: var(--accent); }
+.shell-quick-editor-add button {
+  font-size: 11px;
+  padding: 3px 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.shell-quick-editor-add button:hover { background: var(--bg-primary); color: var(--text-primary); }
+.shell-quick-editor-reset {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  padding: 2px 4px;
+}
+.shell-quick-editor-reset:hover { color: var(--text-secondary); }
 
 /* ---- Logs Panel (TerminalView tab) ---- */
 .logs-panel {
