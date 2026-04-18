@@ -1175,6 +1175,15 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
           <span className="session-status-item session-status-uptime" tabIndex={-1}>
             {formatUptime(Math.max(0, Math.floor((Date.now() - new Date(instance.createdAt).getTime()) / 1000)))}
           </span>
+          {instance.tokenUsage.cost != null && instance.tokenUsage.cost > 0 && (
+            <span
+              className={`session-status-item session-status-cost ${instance.tokenUsage.cost > 5 ? 'red' : instance.tokenUsage.cost > 1 ? 'amber' : 'green'}`}
+              tabIndex={-1}
+              title={`Session cost: $${instance.tokenUsage.cost.toFixed(4)}`}
+            >
+              ${instance.tokenUsage.cost < 0.01 ? '<0.01' : instance.tokenUsage.cost.toFixed(2)}
+            </span>
+          )}
           {contextUsage && (() => {
             const b = contextUsage.breakdown
             const fmt = (n: number) => n.toLocaleString()
