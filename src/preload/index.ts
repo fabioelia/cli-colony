@@ -177,6 +177,7 @@ export interface ClaudeManagerAPI {
   fs: {
     listDir: (dirPath: string, depth?: number) => Promise<any[]>
     readFile: (filePath: string) => Promise<{ content?: string; error?: string }>
+    readBinary: (filePath: string) => Promise<{ dataUrl?: string; error?: string }>
     searchContent: (dirPath: string, query: string, ignoreDirs?: string[]) => Promise<Array<{ file: string; matches: Array<{ line: number; text: string }> }>>
     saveClipboardImage: (base64Data: string) => Promise<string>
     pasteClipboardImage: () => Promise<string | null>
@@ -794,6 +795,7 @@ const api: ClaudeManagerAPI = {
   fs: {
     listDir: (dirPath, depth) => ipcRenderer.invoke('fs:listDir', dirPath, depth),
     readFile: (filePath) => ipcRenderer.invoke('fs:readFile', filePath),
+    readBinary: (filePath) => ipcRenderer.invoke('fs:readBinary', filePath),
     searchContent: (dirPath, query, ignoreDirs) => ipcRenderer.invoke('fs:searchContent', dirPath, query, ignoreDirs),
     saveClipboardImage: (base64Data) => ipcRenderer.invoke('fs:saveClipboardImage', base64Data),
     pasteClipboardImage: () => ipcRenderer.invoke('fs:pasteClipboardImage'),

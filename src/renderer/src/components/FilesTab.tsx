@@ -166,6 +166,8 @@ function FileTreeNode({ node, depth, selectedPath, expandedPaths, filter, onTogg
   )
 }
 
+const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.ico'])
+
 interface FilesTabProps {
   instance: ClaudeInstance
   focused: boolean
@@ -199,6 +201,8 @@ export default function FilesTab({ instance, focused, onSwitchToSession, jumpFil
   const [ignoreInput, setIgnoreInput] = useState('')
   const [filesSortMode, setFilesSortMode] = useState<'name' | 'modified'>('name')
   const [renderMd, setRenderMd] = useState(true)
+  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null)
+  const [imageDims, setImageDims] = useState<string | null>(null)
   const [envRoots, setEnvRoots] = useState<Array<{alias: string, path: string}>>([])
   const treeFilterInputRef = useRef<HTMLInputElement>(null)
 
@@ -252,6 +256,8 @@ export default function FilesTab({ instance, focused, onSwitchToSession, jumpFil
     const lower = selectedFile.toLowerCase()
     return lower.endsWith('.md') || lower.endsWith('.markdown')
   }, [selectedFile])
+
+  const isSvg = useMemo(() => selectedFile?.toLowerCase().endsWith('.svg') ?? false, [selectedFile])
 
   // Reset render mode on each new file
   useEffect(() => { setRenderMd(true) }, [selectedFile])
@@ -482,17 +488,31 @@ export default function FilesTab({ instance, focused, onSwitchToSession, jumpFil
     })
   }, [])
 
-  const handleSelectFile = useCallback(async (path: string) => {
-    setSelectedFile(path)
+  const handleSelectFile = useCallback(async (filePath: string) => {
+    setSelectedFile(filePath)
     setFileContent(null)
     setFileError(null)
+    setImageDataUrl(null)
+    setImageDims(null)
     setFileLoading(true)
-    const result = await window.api.fs.readFile(path)
-    setFileLoading(false)
-    if (result.error) {
-      setFileError(result.error)
+    const ext = `.${filePath.split('.').pop()?.toLowerCase()}`
+    if (IMAGE_EXTS.has(ext)) {
+      const [binaryResult, textResult] = await Promise.all([
+        window.api.fs.readBinary(filePath),
+        // For SVG, also fetch text so Source toggle works
+        ext === '.svg' ? window.api.fs.readFile(filePath) : Promise.resolve({ content: undefined, error: undefined }),
+      ])
+      setFileLoading(false)
+      if (binaryResult.error) setFileError(binaryResult.error)
+      else {
+        setImageDataUrl(binaryResult.dataUrl!)
+        if (textResult.content != null) setFileContent(textResult.content)
+      }
     } else {
-      setFileContent(result.content ?? '')
+      const result = await window.api.fs.readFile(filePath)
+      setFileLoading(false)
+      if (result.error) setFileError(result.error)
+      else setFileContent(result.content ?? '')
     }
   }, [])
 
@@ -728,7 +748,10 @@ export default function FilesTab({ instance, focused, onSwitchToSession, jumpFil
           {selectedFile && (
             <>
               <div className="filetree-preview-header">
-                <span className="filetree-preview-name">{selectedFile.split('/').pop()}</span>
+                <span className="filetree-preview-name">
+                  {selectedFile.split('/').pop()}
+                  {imageDims && <span className="filetree-preview-dims"> ({imageDims})</span>}
+                </span>
                 <span className="filetree-preview-path">{selectedFile}</span>
                 <button
                   className="filetree-preview-paste"
@@ -741,7 +764,7 @@ export default function FilesTab({ instance, focused, onSwitchToSession, jumpFil
                 >
                   <TerminalSquare size={12} /> Paste Path
                 </button>
-                {isMarkdown && (
+                {(isMarkdown || isSvg) && (
                   <button
                     className={`filetree-preview-wrap filetree-preview-mode-toggle ${renderMd ? 'active' : ''}`}
                     onClick={() => setRenderMd(!renderMd)}
@@ -751,7 +774,7 @@ export default function FilesTab({ instance, focused, onSwitchToSession, jumpFil
                     <span>{renderMd ? 'Rendered' : 'Source'}</span>
                   </button>
                 )}
-                {!(isMarkdown && renderMd) && (
+                {!(isMarkdown && renderMd) && !(imageDataUrl && renderMd) && (
                   <button
                     className={`filetree-preview-wrap ${wordWrap ? 'active' : ''}`}
                     onClick={() => setWordWrap(!wordWrap)}
@@ -796,7 +819,15 @@ export default function FilesTab({ instance, focused, onSwitchToSession, jumpFil
               <div className="filetree-preview-content" ref={previewContentRef}>
                 {fileLoading && <div className="filetree-preview-empty">Loading...</div>}
                 {fileError && <div className="filetree-preview-error">{fileError}</div>}
-                {fileContent !== null && isMarkdown && renderMd && !fileSearchQuery ? (
+                {imageDataUrl && renderMd ? (
+                  <div className="filetree-preview-image">
+                    <img
+                      src={imageDataUrl}
+                      alt={selectedFile?.split('/').pop()}
+                      onLoad={(e) => setImageDims(`${e.currentTarget.naturalWidth}×${e.currentTarget.naturalHeight}`)}
+                    />
+                  </div>
+                ) : fileContent !== null && isMarkdown && renderMd && !fileSearchQuery ? (
                   <div className="filetree-preview-markdown">
                     <MarkdownViewer content={fileContent} />
                   </div>

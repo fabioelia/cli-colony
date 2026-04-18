@@ -11413,6 +11413,30 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--danger);
 }
 
+.filetree-preview-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 16px;
+  background-image: repeating-conic-gradient(#333 0% 25%, #444 0% 50%);
+  background-size: 16px 16px;
+  background-position: 50%;
+  overflow: auto;
+}
+
+.filetree-preview-image img {
+  max-width: 100%;
+  max-height: calc(100vh - 200px);
+  object-fit: contain;
+}
+
+.filetree-preview-dims {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
 .filetree-search-bar {
   display: flex;
   align-items: center;

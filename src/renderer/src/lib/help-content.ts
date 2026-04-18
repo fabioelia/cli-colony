@@ -1228,6 +1228,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'File content', detail: 'Shows file contents with line numbers. Supports Cmd+F to search within the file.' },
           { label: 'Markdown rendering', detail: '.md / .markdown files render as formatted by default. Code blocks get syntax highlighting. Mermaid diagrams render inline (```mermaid fenced blocks). Toggle Source/Rendered in the preview header. Cmd+F auto-switches to source so search highlights work.', icon: 'Eye' },
+          { label: 'Image preview', detail: 'Select PNG, JPG, SVG, GIF, WebP, BMP, or ICO files to see an inline preview on a checkered background. Dimensions appear in the header after load. SVG files have a Source/Rendered toggle to view the raw XML.', icon: 'Eye' },
           { label: 'Search results', detail: 'When using content search, results appear grouped by directory. Click a match to preview.' },
         ],
       },

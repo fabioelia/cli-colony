@@ -128,4 +128,22 @@ export function registerFsHandlers(): void {
       return { error: err.message }
     }
   })
+
+  ipcMain.handle('fs:readBinary', async (_e, filePath: string) => {
+    try {
+      const stat = await fsp.stat(filePath)
+      if (stat.size > 5 * 1024 * 1024) return { error: `File too large for preview (${(stat.size / 1024 / 1024).toFixed(1)} MB)` }
+      const buf = await fsp.readFile(filePath)
+      const ext = path.extname(filePath).toLowerCase()
+      const mimeMap: Record<string, string> = {
+        '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif', '.svg': 'image/svg+xml', '.webp': 'image/webp',
+        '.bmp': 'image/bmp', '.ico': 'image/x-icon',
+      }
+      const mime = mimeMap[ext] || 'application/octet-stream'
+      return { dataUrl: `data:${mime};base64,${buf.toString('base64')}` }
+    } catch (err: any) {
+      return { error: err.message }
+    }
+  })
 }
