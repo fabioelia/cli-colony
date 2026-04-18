@@ -825,7 +825,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Middle section',
         items: [
           { label: 'Global hotkey', detail: 'Keyboard shortcut to summon Colony from any app (default: Ctrl+Shift+Space).' },
-          { label: 'Desktop notifications', detail: 'Show system notifications for pipeline fires, approval gates, persona run start/complete events, and session error exits (non-zero exit code). Per-source toggles appear below when enabled — mute noisy sources (e.g. pipelines) while keeping important ones (e.g. approval gates). Error exit notifications fire when a session crashes (non-zero exit code). Persona sessions use their own notification.' },
+          { label: 'Desktop notifications', detail: 'Show system notifications for pipeline fires, approval gates, persona run start/complete events, and session error exits. Per-source toggles appear below when enabled — mute noisy sources (e.g. pipelines) while keeping important ones (e.g. approval gates). Error exit notifications fire for non-zero exit codes on non-persona sessions.' },
           { label: 'Sound on finish', detail: 'Play a sound when Claude finishes processing and the app isn\'t focused.' },
           { label: 'Quiet hours', detail: 'Suppress desktop notifications during a time window (e.g. 22:00–07:00). In-app notification history still records everything — only OS-level alerts are silenced. Supports overnight ranges that cross midnight.' },
           { label: 'Auto-cleanup', detail: 'Remove stopped sessions after N minutes. Set to 0 to keep them forever.' },
