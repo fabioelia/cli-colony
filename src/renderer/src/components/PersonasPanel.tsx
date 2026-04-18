@@ -628,7 +628,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
           <button className="personas-ask-response-close" onClick={() => { setChatResponse(null); setChatQuery('') }} title="Dismiss">
             <X size={11} />
           </button>
-          <pre>{chatResponse}</pre>
+          <MarkdownViewer content={chatResponse} />
         </div>
       )}
 
@@ -854,6 +854,7 @@ function PersonaAnalyticsTab({ analytics, personaName, onRun, instances, onFocus
   onFocusInstance: (id: string) => void
 }) {
   const [selectedRunIndex, setSelectedRunIndex] = useState<number | null>(null)
+  const [showAllRuns, setShowAllRuns] = useState(false)
   if (!analytics || analytics.totalRuns === 0) {
     return (
       <div className="persona-outputs-tab">
@@ -1018,14 +1019,14 @@ function PersonaAnalyticsTab({ analytics, personaName, onRun, instances, onFocus
       )}
 
       {/* Recent runs table */}
-      <div className="persona-analytics-table">
+      <div className="persona-analytics-table" style={showAllRuns ? { maxHeight: 400, overflowY: 'auto' } : undefined}>
         <div className="persona-analytics-table-header">
           <span>Status</span>
           <span>When</span>
           <span>Duration</span>
           <span>Cost</span>
         </div>
-        {analytics.recentRuns.slice(0, 10).map((r, i) => {
+        {(showAllRuns ? analytics.recentRuns : analytics.recentRuns.slice(0, 10)).map((r, i) => {
           const secs = (Date.now() - new Date(r.timestamp).getTime()) / 1000
           const ago = secs < 60 ? 'just now' : secs < 3600 ? `${Math.floor(secs / 60)}m ago` : secs < 86400 ? `${Math.floor(secs / 3600)}h ago` : `${Math.floor(secs / 86400)}d ago`
           const durMin = Math.floor(r.durationMs / 60000)
@@ -1043,6 +1044,11 @@ function PersonaAnalyticsTab({ analytics, personaName, onRun, instances, onFocus
           )
         })}
       </div>
+      {analytics.recentRuns.length > 10 && (
+        <button className="persona-analytics-show-more" onClick={() => setShowAllRuns(!showAllRuns)}>
+          {showAllRuns ? 'Show less' : `Show all ${analytics.recentRuns.length} runs`}
+        </button>
+      )}
     </div>
   )
 }

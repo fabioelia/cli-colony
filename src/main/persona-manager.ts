@@ -898,7 +898,7 @@ export async function onSessionExit(instanceId: string): Promise<void> {
         summary: `Persona "${name}" ${exitLabel} session${commitLabel}`,
         level: failed ? 'warn' : 'info',
         sessionId: instanceId,
-        details: { type: 'session-outcome', duration: durationSec, commitsCount, filesChanged, exitCode },
+        details: { type: 'session-outcome', duration: durationSec, commitsCount, filesChanged, exitCode, costUsd: sessionCost },
       })
       const notifyTitle = failed ? `Colony: ${name} run failed` : `Colony: ${name} run complete`
       const notifyBody = failed ? `Session failed (exit ${exitCode})${commitLabel}` : `Session finished${commitLabel}`

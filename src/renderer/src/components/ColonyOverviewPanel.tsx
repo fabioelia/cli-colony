@@ -1161,6 +1161,23 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                     <SourceIcon size={11} className={`overview-activity-icon activity-${ev.level}`} />
                     <span className="overview-activity-source">{ev.name}</span>
                     <span className="overview-activity-summary">{ev.summary}</span>
+                    {ev.details?.type === 'session-outcome' && (
+                      <span className="activity-outcome-badges">
+                        {typeof ev.details.duration === 'number' && ev.details.duration > 0 && (() => {
+                          const s = ev.details.duration as number
+                          const label = s >= 3600 ? `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`
+                            : s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s`
+                            : `${s}s`
+                          return <span className="activity-outcome-badge"><Clock size={9} /> {label}</span>
+                        })()}
+                        {(ev.details.commitsCount as number) > 0 && (
+                          <span className="activity-outcome-badge"><GitCommit size={9} /> {ev.details.commitsCount as number}</span>
+                        )}
+                        {(ev.details.costUsd as number) > 0 && (
+                          <span className="activity-outcome-badge cost">${(ev.details.costUsd as number).toFixed(2)}</span>
+                        )}
+                      </span>
+                    )}
                     <span className="overview-activity-time">{timeAgo(ev.timestamp)}</span>
                   </div>
                 )

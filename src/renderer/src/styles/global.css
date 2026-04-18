@@ -19874,14 +19874,10 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 12px;
   line-height: 1.6;
   flex-shrink: 0;
+  max-height: 300px;
+  overflow-y: auto;
 }
-.personas-ask-response pre {
-  white-space: pre-wrap;
-  word-break: break-word;
-  margin: 0;
-  font-family: inherit;
-  color: var(--text-primary);
-}
+.personas-ask-response .md-viewer { font-size: 12px; }
 .personas-ask-response-close {
   position: absolute;
   top: 6px;
@@ -20236,6 +20232,8 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-secondary);
 }
 .persona-analytics-table-row:hover { background: var(--bg-hover); }
+.persona-analytics-show-more { background: none; border: none; color: var(--accent); cursor: pointer; padding: 6px 0; font-size: 11px; width: 100%; text-align: center; }
+.persona-analytics-show-more:hover { text-decoration: underline; }
 
 /* ===== Persona Memory Tab ===== */
 .persona-memory-tab { padding: 8px 0; }
@@ -22204,6 +22202,9 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 11px;
   white-space: nowrap;
 }
+.activity-outcome-badges { display: inline-flex; gap: 4px; margin-left: 6px; flex-shrink: 0; }
+.activity-outcome-badge { display: inline-flex; align-items: center; gap: 2px; font-size: 10px; color: var(--text-muted); background: var(--bg-tertiary); padding: 1px 5px; border-radius: 3px; white-space: nowrap; }
+.activity-outcome-badge.cost { color: var(--accent-green, #4ade80); }
 .overview-empty-hint {
   font-size: 12px;
   color: var(--text-muted);
