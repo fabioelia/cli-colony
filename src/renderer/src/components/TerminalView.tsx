@@ -1290,6 +1290,28 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
         </div>
       )}
       {viewTab !== 'session' && viewTab !== 'shell' && viewTab !== 'browser' && !splitTab && renderTabContent(viewTab)}
+      {viewTab === 'session' && instance.status === 'exited' && !arenaMode && (
+        <div className="session-exited-bar">
+          <span className={`session-exited-badge ${instance.exitCode === 0 ? 'success' : 'error'}`}>
+            {instance.exitCode === 0 ? 'Completed' : instance.exitCode != null ? `Failed (${instance.exitCode})` : 'Failed'}
+          </span>
+          <div className="session-exited-spacer" />
+          <button
+            className="session-exited-btn"
+            onClick={() => onRestart(instance.id)}
+            title="Restart this session"
+          >
+            <RotateCcw size={12} /> Restart
+          </button>
+          <button
+            className="session-exited-btn danger"
+            onClick={() => onRemove(instance.id)}
+            title="Remove this session"
+          >
+            <X size={12} /> Remove
+          </button>
+        </div>
+      )}
       {viewTab === 'session' && errorSummary && instance.status === 'exited' && (
         <details className="session-error-card" open>
           <summary className="session-error-card-summary">

@@ -6759,6 +6759,54 @@ body:has(.daemon-update-banner) .app-update-banner {
   50% { opacity: 0.4; }
 }
 
+/* Exited Session Action Bar */
+.session-exited-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  font-size: 11px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+.session-exited-badge {
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 500;
+  font-size: 10px;
+}
+.session-exited-badge.success {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+}
+.session-exited-badge.error {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+}
+.session-exited-spacer { flex: 1; }
+.session-exited-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+}
+.session-exited-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.session-exited-btn.danger:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
 /* Context Meter */
 .session-status-context {
   display: flex;

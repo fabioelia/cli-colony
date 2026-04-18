@@ -1132,6 +1132,15 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Exited Session Bar',
+        position: 'Below tab bar (exited sessions)',
+        items: [
+          { label: 'Exit badge', detail: '"Completed" (green) for exit code 0, "Failed (N)" (red) for non-zero exit codes. Gives immediate visual feedback on session outcome.' },
+          { label: 'Restart', detail: 'Re-launch the session with the same configuration. Same as the sidebar restart action.', icon: 'RotateCcw' },
+          { label: 'Remove', detail: 'Remove the session from the sidebar entirely. Same as the sidebar remove action.', icon: 'X' },
+        ],
+      },
+      {
         name: 'Error Summary Card',
         position: 'Above terminal (exited sessions with non-zero exit code)',
         items: [
