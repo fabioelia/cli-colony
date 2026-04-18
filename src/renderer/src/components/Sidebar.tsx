@@ -459,7 +459,7 @@ interface Props {
   onCloneSession?: (inst: ClaudeInstance) => void
   errorSummaries?: Map<string, ErrorSummary>
   onNewWithHandoff?: (handoffContent: string, workingDirectory: string) => void
-  rateLimitState?: { utilization: number | null; resetAt: number | null; rateLimitType: string | null; paused: boolean; source: string | null }
+  rateLimitState?: { utilization: number | null; resetAt: number | null; rateLimitType: string | null; paused: boolean; source: string | null; projectedMinutesToLimit?: number | null }
   rateLimitCountdown?: string
 }
 
@@ -2332,12 +2332,15 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
               `${(rateLimitState.utilization * 100).toFixed(1)}%`,
               rateLimitState.rateLimitType ? rateLimitState.rateLimitType.replace(/_/g, ' ') : null,
               rateLimitState.resetAt ? `Resets ${new Date(rateLimitState.resetAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : null,
+              rateLimitState.projectedMinutesToLimit != null && rateLimitState.projectedMinutesToLimit < 120
+                ? `~${rateLimitState.projectedMinutesToLimit}m to limit at current rate`
+                : null,
               rateLimitState.source ? `via ${rateLimitState.source}` : null,
             ].filter(Boolean).join(' · ')}
             position="top"
           >
             <button
-              className={`rate-limit-chip${rateLimitState.utilization >= 0.90 ? ' over' : rateLimitState.utilization >= 0.70 ? ' warn' : ''}`}
+              className={`rate-limit-chip${rateLimitState.utilization >= 0.90 ? ' over' : rateLimitState.utilization >= 0.70 ? ' warn' : ''}${rateLimitState.projectedMinutesToLimit != null && rateLimitState.projectedMinutesToLimit < 30 ? ' pulsing' : ''}`}
               onClick={() => onViewChange('overview')}
             >
               {`RL ${Math.round(rateLimitState.utilization * 100)}%`}{rateLimitCountdown && rateLimitCountdown !== 'now' ? ` · ${rateLimitCountdown}` : ''}

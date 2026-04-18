@@ -24,9 +24,27 @@ export interface RateLimitState {
   isUsingOverage: boolean | null
   overageDisabledReason: string | null
   source: 'pty' | 'probe' | null  // which detection source set this
+  projectedMinutesToLimit: number | null
 }
 
 const DEFAULT_PAUSE_SECS = 5 * 60 // 5 min fallback when no retry-after found (was 1 hour)
+
+interface UtilSample { ts: number; util: number }
+const _samples: UtilSample[] = []
+const MAX_SAMPLES = 20
+
+export function getProjectedMinutesToLimit(): number | null {
+  if (_samples.length < 3) return null
+  const first = _samples[0]
+  const last = _samples[_samples.length - 1]
+  if (last.util < 0.3) return null // unreliable at low utilization
+  const dtMinutes = (last.ts - first.ts) / 60_000
+  if (dtMinutes < 1) return null
+  const slope = (last.util - first.util) / dtMinutes
+  if (slope <= 0) return null
+  const remaining = 1.0 - last.util
+  return Math.round(remaining / slope)
+}
 
 let _state: RateLimitState = {
   paused: false,
@@ -39,6 +57,7 @@ let _state: RateLimitState = {
   isUsingOverage: null,
   overageDisabledReason: null,
   source: null,
+  projectedMinutesToLimit: null,
 }
 let _clearTimer: ReturnType<typeof setTimeout> | null = null
 let _onChangeCallback: (() => void) | null = null
@@ -49,7 +68,7 @@ export function onRateLimitStateChange(cb: () => void): void {
 }
 
 function broadcastState(): void {
-  broadcast('colony:rateLimitChange', _state)
+  broadcast('colony:rateLimitChange', { ..._state, projectedMinutesToLimit: getProjectedMinutesToLimit() })
   _onChangeCallback?.()
 }
 
@@ -102,6 +121,11 @@ export function setRateLimitFromProbe(info: ProbeRateLimitInfo, retryAfterSecs: 
   const paused = info.status === 'rejected'
   const resetAt = info.resetsAt ? info.resetsAt * 1000 : null // convert epoch seconds → ms
 
+  if (info.utilization != null) {
+    _samples.push({ ts: Date.now(), util: info.utilization })
+    if (_samples.length > MAX_SAMPLES) _samples.shift()
+  }
+
   _state = {
     paused,
     resetAt,
@@ -113,6 +137,7 @@ export function setRateLimitFromProbe(info: ProbeRateLimitInfo, retryAfterSecs: 
     isUsingOverage: info.isUsingOverage ?? null,
     overageDisabledReason: info.overageDisabledReason ?? null,
     source: 'probe',
+    projectedMinutesToLimit: null, // recomputed in broadcastState
   }
 
   // Schedule auto-clear for rejected state
@@ -133,10 +158,12 @@ export function clearRateLimit(): void {
     clearTimeout(_clearTimer)
     _clearTimer = null
   }
+  _samples.length = 0
   _state = {
     paused: false, resetAt: null, lastError: '', detectedAt: null,
     utilization: null, rateLimitType: null, status: null,
     isUsingOverage: null, overageDisabledReason: null, source: null,
+    projectedMinutesToLimit: null,
   }
   console.log('[rate-limit] cleared — crons resuming')
   broadcastState()

@@ -138,7 +138,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Stale sessions', detail: 'Sessions that are marked "busy" but have produced no output for 15+ minutes. May indicate a stuck process or hung PTY. Inline Stop button kills the session. Click to navigate to the session terminal.', icon: 'Clock' },
           { label: 'Unhealthy environments', detail: 'Environments in error or partial state. Inline Restart button retries setup for error state or restarts services for partial state.', icon: 'AlertCircle' },
           { label: 'Failed persona runs', detail: 'Enabled personas whose last run failed. Inline Run Now button triggers a new run immediately. Click to navigate to the Personas panel. Capped at 5 entries.', icon: 'Users' },
-          { label: 'Rate limit warning', detail: 'Appears when API rate limit utilization reaches 70% or higher. Amber at 70–89%, red at 90%+ or when paused. Shows utilization percentage, limit type, and reset countdown. Click to navigate to sessions. Colony-wide — reflects the shared API quota across all sessions.', icon: 'AlertCircle' },
+          { label: 'Rate limit warning', detail: 'Appears when API rate limit utilization reaches 30% or higher. Amber at 70–89%, red at 90%+ or when paused. Shows utilization percentage, limit type, reset countdown, and burn-rate projection (~Nm to limit) when approaching the limit. Pulses when limit is projected within 30 minutes. Click to navigate to sessions. Colony-wide — reflects the shared API quota across all sessions.', icon: 'AlertCircle' },
         ],
       },
       {

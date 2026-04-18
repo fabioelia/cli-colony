@@ -1350,6 +1350,13 @@ body:has(.daemon-update-banner) .app-update-banner {
 .rate-limit-chip.over {
   color: var(--danger);
 }
+.rate-limit-chip.pulsing {
+  animation: rl-pulse 2s ease-in-out infinite;
+}
+@keyframes rl-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
 
 /* ===== Activity Feed ===== */
 .sidebar-activity-badge {
