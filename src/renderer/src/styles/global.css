@@ -13435,9 +13435,9 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 9px;
   padding: 1px 5px;
   border-radius: 4px;
-  background: rgba(52, 211, 153, 0.1);
+  background: rgba(59, 130, 246, 0.08);
   color: var(--accent);
-  border: 1px solid rgba(52, 211, 153, 0.25);
+  border: 1px solid rgba(59, 130, 246, 0.2);
   font-weight: 600;
   font-family: var(--font-mono);
 }
