@@ -13603,6 +13603,9 @@ body:has(.daemon-update-banner) .app-update-banner {
   padding: 6px 12px;
   border-bottom: 1px solid var(--border);
 }
+.pipeline-history-search { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; font-size: 11px; color: var(--text-primary); width: 140px; }
+.pipeline-history-date-filter { display: inline-flex; gap: 2px; margin-left: 4px; }
+.pipeline-yaml-warning { display: flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: 11px; color: var(--warning); background: var(--bg-tertiary); border-top: 1px solid var(--border); }
 
 .pipeline-budget-bar {
   height: 3px;
@@ -16745,6 +16748,8 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--warning);
   font-size: 11px;
 }
+.env-service-restarts.crash-loop { color: var(--danger); font-weight: 600; animation: pulse-danger 2s infinite; }
+@keyframes pulse-danger { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 
 .env-service-actions {
   display: flex;

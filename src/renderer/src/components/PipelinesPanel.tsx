@@ -17,6 +17,7 @@ import PipelineFlowDiagram from './PipelineFlowDiagram'
 import { describeCron, nextRuns } from '../../../shared/cron'
 import { slugify } from '../../../shared/utils'
 import { firstErrorOf } from '../../../shared/pipeline-stats'
+import { parseYaml } from '../../../shared/yaml-parser'
 
 interface RecentRun {
   ts: string
@@ -221,6 +222,9 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [comparedRuns, setComparedRuns] = useState<Set<number>>(new Set())
   const [showComparison, setShowComparison] = useState(false)
   const [historyFilterFailures, setHistoryFilterFailures] = useState(false)
+  const [historySearch, setHistorySearch] = useState('')
+  const [historyDateRange, setHistoryDateRange] = useState<'today' | '7d' | '30d' | 'all'>('all')
+  const [yamlWarning, setYamlWarning] = useState<string | null>(null)
   const [runArtifacts, setRunArtifacts] = useState<Record<string, SessionArtifact[]>>({})
   const [previewSessionId, setPreviewSessionId] = useState<string | null>(null)
 
@@ -582,6 +586,9 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
       setComparedRuns(new Set())
       setShowComparison(false)
       setHistoryFilterFailures(false)
+      setHistorySearch('')
+      setHistoryDateRange('all')
+      setYamlWarning(null)
       return
     }
     if ((dirty || memoryDirty) && expandedPipeline) {
@@ -591,6 +598,9 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     setComparedRuns(new Set())
     setShowComparison(false)
     setHistoryFilterFailures(opts?.openFailures ?? false)
+    setHistorySearch('')
+    setHistoryDateRange('all')
+    setYamlWarning(null)
     const content = await window.api.pipeline.getContent(p.fileName)
     setEditingContent(content || '')
     setEditingFileName(p.fileName)
@@ -629,6 +639,16 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
 
   const handleSave = async () => {
     if (!editingFileName || editingContent == null) return
+    const parsed = parseYaml(editingContent)
+    if (!parsed) {
+      setYamlWarning('Warning: YAML may contain syntax errors — pipeline may not load correctly')
+    } else {
+      const missing: string[] = []
+      if (!parsed.name) missing.push('name')
+      if (!parsed.trigger?.type) missing.push('trigger.type')
+      if (!parsed.actions && !parsed.action) missing.push('actions')
+      setYamlWarning(missing.length ? `Missing required field${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}` : null)
+    }
     await window.api.pipeline.saveContent(editingFileName, editingContent)
     setDirty(false)
     loadPipelines()
@@ -1434,12 +1454,19 @@ ${modelLine}  prompt: |
                   )}
                 </div>
                 {expandedTab === 'yaml' ? (
-                  <textarea
-                    className="pipeline-editor-textarea"
-                    value={editingContent}
-                    onChange={(e) => { setEditingContent(e.target.value); setDirty(true) }}
-                    spellCheck={false}
-                  />
+                  <>
+                    <textarea
+                      className="pipeline-editor-textarea"
+                      value={editingContent}
+                      onChange={(e) => { setEditingContent(e.target.value); setDirty(true); setYamlWarning(null) }}
+                      spellCheck={false}
+                    />
+                    {yamlWarning && (
+                      <div className="pipeline-yaml-warning">
+                        <AlertTriangle size={11} /> {yamlWarning}
+                      </div>
+                    )}
+                  </>
                 ) : expandedTab === 'flow' ? (
                   <PipelineFlowDiagram
                     actionShape={p.actionShape}
@@ -1519,6 +1546,23 @@ ${modelLine}  prompt: |
                               >
                                 Failures only ({failureCount})
                               </button>
+                              <input
+                                className="pipeline-history-search"
+                                placeholder="Search history..."
+                                value={historySearch}
+                                onChange={e => setHistorySearch(e.target.value)}
+                              />
+                              <div className="pipeline-history-date-filter">
+                                {(['all', 'today', '7d', '30d'] as const).map(range => (
+                                  <button
+                                    key={range}
+                                    className={`panel-header-btn${historyDateRange === range ? ' active' : ''}`}
+                                    onClick={() => setHistoryDateRange(range)}
+                                  >
+                                    {range === 'all' ? 'All' : range === 'today' ? 'Today' : range}
+                                  </button>
+                                ))}
+                              </div>
                             </div>
                           )
                         })()}
@@ -1538,9 +1582,23 @@ ${modelLine}  prompt: |
                         <div className="pipeline-history-list">
                           {(() => {
                             const indexed = historyEntries.map((e, i) => ({ e, i }))
-                            const filtered = historyFilterFailures ? indexed.filter(({ e }) => !e.success) : indexed
-                            if (historyFilterFailures && filtered.length === 0) {
-                              return <p className="pipeline-memory-hint">No failures in the last {historyEntries.length} runs.</p>
+                            let filtered = historyFilterFailures ? indexed.filter(({ e }) => !e.success) : indexed
+                            if (historySearch.trim()) {
+                              const q = historySearch.toLowerCase()
+                              filtered = filtered.filter(({ e }) =>
+                                e.trigger?.toLowerCase().includes(q) ||
+                                e.stages?.some(s => s.error?.toLowerCase().includes(q))
+                              )
+                            }
+                            if (historyDateRange !== 'all') {
+                              const now = Date.now()
+                              const cutoff = historyDateRange === 'today' ? new Date().setHours(0,0,0,0)
+                                : historyDateRange === '7d' ? now - 7 * 86400000
+                                : now - 30 * 86400000
+                              filtered = filtered.filter(({ e }) => new Date(e.ts).getTime() >= cutoff)
+                            }
+                            if (filtered.length === 0) {
+                              return <p className="pipeline-memory-hint">No matching runs{historyFilterFailures ? ' (failures only)' : ''}{historySearch ? ` for "${historySearch}"` : ''}{historyDateRange !== 'all' ? ` in ${historyDateRange}` : ''}.</p>
                             }
                             return filtered.map(({ e: entry, i }) => {
                             const hasStages = (entry.stages?.length ?? 0) >= 1

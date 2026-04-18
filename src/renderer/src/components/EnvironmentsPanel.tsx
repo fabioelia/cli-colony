@@ -24,6 +24,10 @@ interface Props {
   onFocusInstance: (id: string) => void
 }
 
+function isCrashLooping(svc: EnvServiceStatus): boolean {
+  return svc.restarts > 2 && svc.uptime > 0 && svc.uptime < 60
+}
+
 function formatUptime(seconds: number): string {
   if (seconds < 60) return `${seconds}s`
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
@@ -749,8 +753,8 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                   {env.services.map(svc => (
                     <Tooltip
                       key={svc.name}
-                      text={`${svc.name}: ${svc.status}`}
-                      detail={`${svc.port ? `port ${svc.port}` : ''}${svc.restarts > 0 ? ` · ${svc.restarts} restart${svc.restarts > 1 ? 's' : ''}` : ''}`}
+                      text={`${svc.name}: ${svc.status}${isCrashLooping(svc) ? ' (crash loop)' : ''}`}
+                      detail={`${svc.port ? `port ${svc.port}` : ''}${svc.restarts > 0 ? ` · ${svc.restarts} restart${svc.restarts > 1 ? 's' : ''}` : ''}${isCrashLooping(svc) ? ' · restarting rapidly' : ''}`}
                     >
                       <span className="env-service-dot-row">
                         <div
@@ -1200,9 +1204,9 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                             </span>
                           )}
                           {svc.restarts > 0 && (
-                            <Tooltip text={`${svc.restarts} restart${svc.restarts > 1 ? 's' : ''}`} detail={`Service crashed and was restarted ${svc.restarts} time${svc.restarts > 1 ? 's' : ''}. Check logs for details.`}>
-                              <span className="env-service-restarts">
-                                <AlertTriangle size={10} /> {svc.restarts}
+                            <Tooltip text={`${svc.restarts} restart${svc.restarts > 1 ? 's' : ''}${isCrashLooping(svc) ? ' — crash loop detected' : ''}`} detail={isCrashLooping(svc) ? `Service is restarting rapidly (up only ${formatUptime(svc.uptime)}). Check logs.` : `Service crashed and was restarted ${svc.restarts} time${svc.restarts > 1 ? 's' : ''}. Check logs for details.`}>
+                              <span className={`env-service-restarts${isCrashLooping(svc) ? ' crash-loop' : ''}`}>
+                                <AlertTriangle size={10} /> {svc.restarts}{isCrashLooping(svc) ? ' ⚠' : ''}
                               </span>
                             </Tooltip>
                           )}
