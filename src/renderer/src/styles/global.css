@@ -7353,10 +7353,10 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 12px;
   font-family: var(--font-mono, monospace);
   padding: 3px 6px;
-  background: var(--bg);
+  background: var(--bg-primary);
   border: 1px solid var(--border);
   border-radius: 4px;
-  color: var(--text);
+  color: var(--text-primary);
 }
 .shell-quick-editor-add input:focus { outline: none; border-color: var(--accent); }
 .shell-quick-editor-add button {
