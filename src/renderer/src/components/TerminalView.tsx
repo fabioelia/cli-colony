@@ -1295,6 +1295,17 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
           <span className={`session-exited-badge ${instance.exitCode === 0 ? 'success' : 'error'}`}>
             {instance.exitCode === 0 ? 'Completed' : instance.exitCode != null ? `Failed (${instance.exitCode})` : 'Failed'}
           </span>
+          <span className="session-exited-duration" title={`Started ${new Date(instance.createdAt).toLocaleString()}`}>
+            ran {formatUptime(Math.max(0, Math.floor((Date.now() - new Date(instance.createdAt).getTime()) / 1000)))}
+          </span>
+          {instance.tokenUsage.cost != null && instance.tokenUsage.cost > 0 && (
+            <span
+              className={`session-exited-cost ${instance.tokenUsage.cost > 5 ? 'red' : instance.tokenUsage.cost > 1 ? 'amber' : 'green'}`}
+              title={`Session cost: $${instance.tokenUsage.cost.toFixed(4)}`}
+            >
+              ${instance.tokenUsage.cost < 0.01 ? '<0.01' : instance.tokenUsage.cost.toFixed(2)}
+            </span>
+          )}
           <div className="session-exited-spacer" />
           <button
             className="session-exited-btn"

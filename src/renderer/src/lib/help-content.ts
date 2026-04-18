@@ -1138,6 +1138,8 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Below tab bar (exited sessions)',
         items: [
           { label: 'Exit badge', detail: '"Completed" (green) for exit code 0, "Failed (N)" (red) for non-zero exit codes. Gives immediate visual feedback on session outcome.' },
+          { label: 'Duration', detail: 'How long the session ran (wall time from creation). Format: "ran 45m", "ran 2h 15m". Hover for exact start time.' },
+          { label: 'Cost', detail: 'Session cost after completion. Green under $1, amber $1–$5, red over $5. Hover for precise amount. Hidden for zero-cost sessions.' },
           { label: 'Restart', detail: 'Re-launch the session with the same configuration. Same as the sidebar restart action.', icon: 'RotateCcw' },
           { label: 'Remove', detail: 'Remove the session from the sidebar entirely. Same as the sidebar remove action.', icon: 'X' },
         ],
