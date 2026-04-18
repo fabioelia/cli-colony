@@ -117,7 +117,7 @@ function formatUptime(seconds: number): string {
 
 type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'changes' | 'artifacts' | 'team' | 'metrics' | 'browser' | 'jira'
 
-export default memo(function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, onSearchToggle, fontSize = 13, fontFamily = 'Menlo, Monaco, "Courier New", monospace', cursorStyle = 'underline', cursorBlink = false, scrollback = 10000, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid, onNavigateToSession, errorSummary, childInstances = [] }: Props) {
+export default memo(function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, onSearchToggle, fontSize = 13, fontFamily = 'Menlo, Monaco, Consolas, "Courier New", monospace', cursorStyle = 'underline', cursorBlink = false, scrollback = 10000, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid, onNavigateToSession, errorSummary, childInstances = [] }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const initializedRef = useRef(false)
   const [searchQuery, setSearchQuery] = useState('')

@@ -76,7 +76,10 @@ export async function checkClaudeCli(): Promise<PrerequisiteCheck> {
   if (result.stderr.includes('ENOENT') || result.stderr.includes('not found')) {
     return {
       ok: false,
-      error: 'Not found — install with: brew install anthropic/tap/claude',
+      error:
+        process.platform === 'win32'
+          ? 'Not found — install via: npm install -g @anthropic-ai/claude-code'
+          : 'Not found — install with: brew install anthropic/tap/claude',
     }
   }
   if (result.stderr.includes('timeout')) {
@@ -127,7 +130,13 @@ export async function checkAnthropicAuth(): Promise<PrerequisiteCheck> {
 export async function checkGitConfig(): Promise<PrerequisiteCheck> {
   const versionResult = await runCommand('git', ['--version'])
   if (versionResult.code !== 0) {
-    return { ok: false, error: 'git not found — install Xcode Command Line Tools or brew install git' }
+    return {
+      ok: false,
+      error:
+        process.platform === 'win32'
+          ? 'git not found — install from https://git-scm.com/download/win'
+          : 'git not found — install Xcode Command Line Tools or brew install git',
+    }
   }
   const emailResult = await runCommand('git', ['config', '--global', 'user.email'])
   const email = emailResult.stdout.trim()
