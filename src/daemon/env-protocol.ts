@@ -12,9 +12,13 @@ export interface ServiceDef {
   env?: Record<string, string>
   port?: string | number
   healthCheck?: {
-    type: 'tcp' | 'process'
+    type: 'tcp' | 'process' | 'http'
     port?: string | number
-    interval?: number // seconds
+    interval?: number    // seconds (tcp/process)
+    intervalMs?: number  // milliseconds (overrides interval)
+    url?: string         // http only
+    expectedStatus?: number // http only
+    timeoutMs?: number   // http only
   }
   readyPattern?: string
   dependsOn?: string[]
@@ -113,6 +117,7 @@ export interface InstanceManifest {
 
 // ---- Domain types (single source of truth in shared/types.ts) ----
 
+import type { EnvStatus } from '../shared/types'
 export type { EnvironmentTemplate, EnvStatus, EnvServiceStatus, EnvServiceState, EnvStatusState } from '../shared/types'
 // Aliases used by env-daemon.ts (legacy names)
 export type { EnvServiceStatus as ServiceStatus, EnvServiceState as ServiceState, EnvStatusState as EnvState } from '../shared/types'
