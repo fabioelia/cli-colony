@@ -19,7 +19,7 @@ import { describeCron, nextRuns } from '../../../shared/cron'
 import type { PersonaInfo, ClaudeInstance, PersonaArtifact, PersonaRunEntry, PersonaAnalytics, PersonaMemory, AuditResult } from '../../../shared/types'
 
 function PersonaRunStrip({ runs }: { runs: PersonaRunEntry[] }) {
-  const cells = runs.slice(0, 20)
+  const cells = runs.slice(0, 20).reverse()
   const pad = 20 - cells.length
   return (
     <div className="pipeline-run-strip compact">
