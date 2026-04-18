@@ -679,7 +679,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                       background: e.status === 'running' ? 'var(--success)' : e.status === 'partial' ? 'var(--warning)' : 'var(--danger)'
                     }} />
                     <span className="overview-session-name">{e.displayName || e.name}</span>
-                    <span className="overview-badge badge-model">{e.status}</span>
+                    <span className={`overview-badge ${e.status === 'running' ? 'badge-busy' : e.status === 'error' ? 'badge-stale' : 'badge-idle'}`}>{e.status}</span>
                     <span className="overview-session-elapsed">
                       {e.services.filter(s => s.status === 'running').length}/{e.services.length} services
                     </span>
