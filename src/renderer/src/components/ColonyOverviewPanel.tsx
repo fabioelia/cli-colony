@@ -559,18 +559,39 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
           <div className="overview-section">
             <h3><Users size={14} /> Active Personas</h3>
             <div className="overview-session-list">
-              {runningPersonas.map(p => (
-                <div
-                  key={p.id}
-                  className="overview-session-tile"
-                  onClick={() => onNavigate('personas')}
-                >
-                  <span className="overview-session-dot" style={{ background: 'var(--accent-purple)' }} />
-                  <span className="overview-session-name">{p.name}</span>
-                  <span className="overview-badge badge-role">{p.model}</span>
-                  <span className="overview-session-cost">run #{p.runCount}</span>
-                </div>
-              ))}
+              {runningPersonas.map(p => {
+                const sess = instances.find(i => i.id === p.activeSessionId)
+                return (
+                  <div
+                    key={p.id}
+                    className="overview-session-tile"
+                    onClick={() => sess ? onFocusInstance(sess.id) : onNavigate('personas')}
+                  >
+                    <span className="overview-session-dot" style={{ background: p.color || 'var(--accent-purple)' }} />
+                    <span className="overview-session-name">{p.name}</span>
+                    <span className="overview-badge badge-role">{p.model}</span>
+                    {sess && (
+                      <span className="overview-session-elapsed" title={`Running since ${new Date(sess.createdAt).toLocaleTimeString()}`}>
+                        {formatElapsed(sess.createdAt)}
+                      </span>
+                    )}
+                    {sess && sess.tokenUsage.cost != null && sess.tokenUsage.cost > 0.01 && (
+                      <span className="overview-session-cost">{formatCost(sess.tokenUsage.cost)}</span>
+                    )}
+                    <button
+                      className="attention-action-btn dismiss"
+                      title="Stop persona"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        window.api.persona.stop(p.id)
+                        markActioned(`persona-stop-${p.id}`)
+                      }}
+                    >
+                      {actionedIds.has(`persona-stop-${p.id}`) ? <CheckCircle2 size={13} /> : <Square size={13} />}
+                    </button>
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}

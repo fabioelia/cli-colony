@@ -145,6 +145,13 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Active Personas',
+        position: 'Between Running Sessions and Just Finished',
+        items: [
+          { label: 'Persona row', detail: 'Each active persona shows name, model, elapsed time, and cost from its running session. Click to focus the session terminal directly. Stop button (square icon) halts the persona run.', icon: 'Users' },
+        ],
+      },
+      {
         name: 'Just Finished',
         position: 'Between Running Sessions and Coming Up',
         items: [
