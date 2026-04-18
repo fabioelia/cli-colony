@@ -21713,6 +21713,11 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 11px;
   color: var(--text-muted);
 }
+.overview-session-elapsed {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
 .overview-badge {
   font-size: 10px;
   padding: 1px 6px;

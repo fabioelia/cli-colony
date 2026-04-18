@@ -141,7 +141,7 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Running Sessions',
         position: 'Middle',
         items: [
-          { label: 'Session tile', detail: 'Click any session to focus it. Right-click for a context menu with Focus, Stop, and Pin/Unpin actions. Shows name, activity status (busy/quiet/stale), role tag, cost, and elapsed running time (e.g., "23m", "2h 15m"). Hover the elapsed time to see the exact start timestamp. Quiet badge (amber, 5+ min no output) and stale badge (red, 15+ min) appear for busy sessions with no recent output.', icon: 'Play' },
+          { label: 'Session tile', detail: 'Click any session to focus it. Right-click for a context menu with Focus, Stop, and Pin/Unpin actions. Shows name, activity status (busy/quiet/stale), role tag, elapsed running time (e.g., "23m", "2h 15m"), and cost. Hover the elapsed time to see the exact start timestamp. Quiet badge (amber, 5+ min no output) and stale badge (red, 15+ min) appear for busy sessions with no recent output. Inline Stop button (square icon) halts the session directly from the overview — red hover indicates it\'s destructive.', icon: 'Play' },
         ],
       },
       {

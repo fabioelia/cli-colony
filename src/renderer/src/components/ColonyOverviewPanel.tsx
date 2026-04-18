@@ -28,6 +28,15 @@ interface Props {
   onRestart?: (id: string) => void
 }
 
+function formatElapsed(ts: string): string {
+  const mins = Math.floor((Date.now() - new Date(ts).getTime()) / 60000)
+  if (mins < 1) return '<1m'
+  if (mins < 60) return `${mins}m`
+  const hrs = Math.floor(mins / 60)
+  const rem = mins % 60
+  return rem > 0 ? `${hrs}h ${rem}m` : `${hrs}h`
+}
+
 function timeAgo(ts: string): string {
   const diff = Date.now() - new Date(ts).getTime()
   const mins = Math.floor(diff / 60000)
@@ -518,9 +527,27 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                   {inst.activity === 'busy' && (idleMap.get(inst.id) || 0) <= 300000 && <span className="overview-badge badge-busy">busy</span>}
                   {inst.activity === 'waiting' && <span className="overview-badge badge-waiting">idle</span>}
                   {inst.roleTag && <span className="overview-badge badge-role">{inst.roleTag}</span>}
+                  <span className="overview-session-elapsed" title={`Running since ${new Date(inst.createdAt).toLocaleTimeString()}`}>
+                    {formatElapsed(inst.createdAt)}
+                  </span>
                   {inst.tokenUsage.cost ? (
                     <span className="overview-session-cost">{formatCost(inst.tokenUsage.cost)}</span>
                   ) : null}
+                  {onKill && (
+                    <button
+                      className="attention-action-btn dismiss"
+                      title="Stop session"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onKill(inst.id)
+                        const key = `stop-${inst.id}`
+                        setTriggeredIds(prev => new Set(prev).add(key))
+                        setTimeout(() => setTriggeredIds(prev => { const n = new Set(prev); n.delete(key); return n }), 2000)
+                      }}
+                    >
+                      {triggeredIds.has(`stop-${inst.id}`) ? <CheckCircle2 size={13} /> : <Square size={13} />}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
