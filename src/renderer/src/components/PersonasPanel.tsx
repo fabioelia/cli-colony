@@ -18,6 +18,25 @@ import { describeCron, nextRuns } from '../../../shared/cron'
 
 import type { PersonaInfo, ClaudeInstance, PersonaArtifact, PersonaRunEntry, PersonaAnalytics, PersonaMemory, AuditResult } from '../../../shared/types'
 
+function PersonaRunStrip({ runs }: { runs: PersonaRunEntry[] }) {
+  const cells = runs.slice(0, 20)
+  const pad = 20 - cells.length
+  return (
+    <div className="pipeline-run-strip compact">
+      {Array.from({ length: pad }, (_, i) => (
+        <div key={`pad-${i}`} className="pipeline-run-cell" />
+      ))}
+      {cells.map((r, i) => (
+        <div
+          key={i}
+          className={`pipeline-run-cell ${r.success ? 'pass' : 'fail'}`}
+          title={`${new Date(r.timestamp).toLocaleString()} — ${r.success ? 'success' : 'failed'}${r.costUsd ? ` ($${r.costUsd.toFixed(2)})` : ''}`}
+        />
+      ))}
+    </div>
+  )
+}
+
 function formatRelativeTime(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime()
   if (ms < 60000) return 'just now'
@@ -1204,6 +1223,9 @@ function PersonaCard({
                 </span>
               )}
             </span>
+          )}
+          {analytics && analytics.recentRuns.length > 0 && (
+            <PersonaRunStrip runs={analytics.recentRuns} />
           )}
           <div className="persona-list-actions" onClick={(e) => e.stopPropagation()}>
             {!isRunning ? (

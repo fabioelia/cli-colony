@@ -976,6 +976,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Queued badge', detail: 'Amber "queued" badge appears when another persona has dispatched a trigger for this one — it will launch on its next scheduled run or when manually triggered. Hover for the triggering persona name and context note.' },
           { label: 'Schedule', detail: 'Shows when the persona runs automatically as a human-readable label (e.g. "Every 2 hours"). Click to open the schedule editor with presets and next-run times.', icon: 'Clock' },
           { label: 'Run count', detail: 'How many sessions this persona has completed.' },
+          { label: 'Run history sparkline', detail: 'Shows pass/fail pattern for the last 20 runs (green = success, red = failure, gray = no data). Hover any cell for timestamp, outcome, and cost. Hidden when the persona has no run history.' },
           { label: 'Trigger label', detail: '"→ colony-qa" (accent color) — set via on_complete_run; those personas auto-launch when this session ends. Muted "→ x" — set via can_invoke; personas this one may trigger dynamically via a trigger file, but never fires automatically.' },
           { label: 'Run button', detail: 'Manually trigger a persona session now.', icon: 'Play' },
           { label: 'Stop button', detail: 'Stop the currently running persona session.', icon: 'Square' },
