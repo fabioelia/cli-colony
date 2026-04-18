@@ -318,7 +318,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
           <div className="overview-stat-card" onClick={() => onNavigate('pipelines')}>
             <div className="overview-stat-value">{activePipelines.length}</div>
             <div className="overview-stat-label">Pipelines Enabled</div>
-            {pipelineLastFireSubtitle && <div className="overview-stat-subtitle">last {pipelineLastFireSubtitle}</div>}
+            {pipelineLastFireSubtitle && <div className="overview-stat-subtitle">fired {pipelineLastFireSubtitle}</div>}
           </div>
           <div className="overview-stat-card" onClick={() => onNavigate('environments')}>
             <div className={`overview-stat-value${unhealthyEnvs.some(e => e.status === 'error') ? ' env-error' : unhealthyEnvs.length > 0 ? ' env-warn' : ''}`}>
