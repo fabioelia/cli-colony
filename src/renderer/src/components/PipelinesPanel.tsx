@@ -1087,6 +1087,11 @@ ${modelLine}  prompt: |
                 })()}
               </div>
               <div className="pipeline-card-right">
+                {p.actionShape?.type && p.actionShape.type !== 'launch-session' && (
+                  <span className="pipeline-action-type" title={`Action type: ${p.actionShape.type}`}>
+                    {({ 'maker-checker': 'Maker-Checker', 'diff_review': 'Diff Review', 'best-of-n': 'Best of N', 'parallel': 'Parallel', 'plan': 'Plan', 'wait_for_session': 'Wait' } as Record<string, string>)[p.actionShape.type] || p.actionShape.type}
+                  </span>
+                )}
                 {p.triggerType !== 'webhook' && <span className="pipeline-card-trigger">{p.triggerType}</span>}
                 {p.triggerType === 'webhook' ? (
                   <span className="pipeline-webhook-badge" title="Triggered by HTTP webhook POST">
