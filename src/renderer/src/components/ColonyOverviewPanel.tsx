@@ -2,12 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react'
 import {
   Home, Play, Plus, Zap, Clock, AlertCircle, Layers,
   CheckCircle2, XCircle, Circle, Users, FolderOpen, Activity, GanttChart, BarChart3, X, Eye, Square, Pin, PinOff,
-  ChevronLeft, ChevronRight, Calendar, RotateCcw, Search, MessageSquare, Trash2, Server, Download, Gauge, Terminal
+  ChevronLeft, ChevronRight, Calendar, RotateCcw, Search, MessageSquare, Trash2, Server, Download, Gauge, Terminal, GitCommit
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import SessionTimeline from './SessionTimeline'
 import { nextRuns } from '../../../shared/cron'
-import type { ClaudeInstance, ActivityEvent, PersonaInfo, ApprovalRequest, TaskBoardItem, PersonaHealthEntry, EnvStatus, ContextUsage } from '../../../preload'
+import type { ClaudeInstance, ActivityEvent, PersonaInfo, ApprovalRequest, TaskBoardItem, PersonaHealthEntry, EnvStatus, ContextUsage, SessionArtifact } from '../../../preload'
 
 interface PipelineSummary {
   name: string
@@ -85,6 +85,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const [contextPressure, setContextPressure] = useState<ContextUsage[]>([])
   const [tick, setTick] = useState(0)
   const [triggeredIds, setTriggeredIds] = useState<Set<string>>(new Set())
+  const [todayArtifacts, setTodayArtifacts] = useState<SessionArtifact[]>([])
 
   useEffect(() => {
     window.api.activity.list().then(setActivity)
@@ -161,6 +162,18 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
     return () => clearInterval(id)
   }, [])
 
+  useEffect(() => {
+    const fetch = () => {
+      const today = new Date().toISOString().slice(0, 10)
+      window.api.artifacts.list().then(arts => {
+        setTodayArtifacts(arts.filter(a => a.createdAt.startsWith(today)))
+      }).catch(() => {})
+    }
+    fetch()
+    const id = setInterval(fetch, 30000)
+    return () => clearInterval(id)
+  }, [])
+
   const upcomingRuns = useMemo(() => {
     const items: Array<{ name: string; id: string; type: 'persona' | 'pipeline'; nextAt: Date; model?: string; estCost?: number }> = []
     for (const p of personas) {
@@ -182,6 +195,29 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
     return items.slice(0, 8)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [personas, pipelines, costLeaderboard, tick])
+
+  const scheduleCluster = useMemo(() => {
+    if (upcomingRuns.length < 3) return null
+    let maxCluster = 0
+    for (let i = 0; i < upcomingRuns.length; i++) {
+      const windowEnd = upcomingRuns[i].nextAt.getTime() + 5 * 60000
+      const count = upcomingRuns.filter(r => r.nextAt.getTime() >= upcomingRuns[i].nextAt.getTime() && r.nextAt.getTime() < windowEnd).length
+      if (count > maxCluster) maxCluster = count
+    }
+    return maxCluster >= 3 ? maxCluster : null
+  }, [upcomingRuns])
+
+  const todayOutput = useMemo(() => {
+    if (todayArtifacts.length === 0) return null
+    const allCommits = todayArtifacts.flatMap(a => a.commits.map(c => ({ ...c, sessionId: a.sessionId, sessionName: a.sessionName, createdAt: a.createdAt })))
+    return {
+      sessions: todayArtifacts.length,
+      commits: allCommits.length,
+      insertions: todayArtifacts.reduce((s, a) => s + a.totalInsertions, 0),
+      deletions: todayArtifacts.reduce((s, a) => s + a.totalDeletions, 0),
+      recentCommits: allCommits.slice(-8).reverse(),
+    }
+  }, [todayArtifacts])
 
   const running = useMemo(() => instances.filter(i => i.status === 'running'), [instances])
   const modelBreakdown = useMemo(() => {
@@ -694,6 +730,34 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
           </div>
         )}
 
+        {/* Today's Output */}
+        {todayOutput && (
+          <div className="overview-section">
+            <h3><GitCommit size={14} /> Today's Output</h3>
+            <div className="overview-output-summary">
+              <span>{todayOutput.commits} commits</span>
+              <span className="output-sep">·</span>
+              <span style={{ color: 'var(--success)' }}>+{todayOutput.insertions}</span>
+              <span style={{ color: 'var(--danger)' }}>-{todayOutput.deletions}</span>
+              <span className="output-sep">·</span>
+              <span>{todayOutput.sessions} sessions</span>
+            </div>
+            <div className="overview-session-list">
+              {todayOutput.recentCommits.map((c, i) => (
+                <div key={`${c.hash}-${i}`} className="overview-session-tile" onClick={() => {
+                  const inst = instances.find(ii => ii.id === c.sessionId)
+                  if (inst) onFocusInstance(inst.id)
+                }}>
+                  <GitCommit size={11} />
+                  <span className="overview-session-name" style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{c.hash.slice(0, 7)}</span>
+                  <span className="overview-session-name">{c.shortMsg}</span>
+                  <span className="overview-session-elapsed">{c.sessionName}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Active personas */}
         {runningPersonas.length > 0 && (
           <div className="overview-section">
@@ -848,7 +912,15 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
         {/* Coming Up */}
         {upcomingRuns.length > 0 && (
           <div className="overview-section">
-            <h3><Clock size={14} /> Coming Up</h3>
+            <h3>
+              <Clock size={14} /> Coming Up
+              {scheduleCluster && (
+                <span className="overview-badge badge-idle" style={{ marginLeft: 8, fontSize: 10 }}
+                  title={`${scheduleCluster} runs scheduled within 5 minutes — consider staggering schedules to avoid rate limits`}>
+                  {scheduleCluster} at once
+                </span>
+              )}
+            </h3>
             <div className="overview-session-list">
               {upcomingRuns.map((item, i) => {
                 const diffMs = item.nextAt.getTime() - Date.now()

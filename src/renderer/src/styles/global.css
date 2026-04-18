@@ -20037,6 +20037,11 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-variant-numeric: tabular-nums;
   margin-left: auto;
 }
+.persona-history-reason {
+  font-size: 10px;
+  color: var(--danger);
+  white-space: nowrap;
+}
 
 /* ===== Persona Sort Dropdown ===== */
 .persona-sort-dropdown {
@@ -21984,6 +21989,17 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .overview-session-cost {
   font-size: 11px;
+  color: var(--text-muted);
+}
+.overview-output-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 4px 0 8px;
+  color: var(--text-secondary);
+}
+.output-sep {
   color: var(--text-muted);
 }
 .overview-session-elapsed {

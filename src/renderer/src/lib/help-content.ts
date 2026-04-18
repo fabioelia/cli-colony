@@ -157,8 +157,15 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: "Today's Output",
+        position: 'Between Running Sessions and Active Personas',
+        items: [
+          { label: "Today's Output section", detail: "Aggregates all session artifacts from today: total commits, insertions/deletions, and number of sessions that produced output. Shows up to 8 most recent commits (hash + message + session name), newest first. Click any commit row to focus the originating session if it's still loaded. Refreshes every 30 seconds. Hidden when no artifacts have been collected today.", icon: 'GitCommit' },
+        ],
+      },
+      {
         name: 'Active Personas',
-        position: 'Between Running Sessions and Just Finished',
+        position: 'Between Today\'s Output and Just Finished',
         items: [
           { label: 'Persona row', detail: 'Each active persona shows name, model, elapsed time, and cost from its running session. Click to focus the session terminal directly. Stop button (square icon) halts the persona run.', icon: 'Users' },
         ],
@@ -191,6 +198,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Below Active Personas',
         items: [
           { label: 'Upcoming runs', detail: 'Next 8 scheduled fires across enabled personas and pipelines, sorted by fire time ascending. Each row shows an icon (person = persona, zap = pipeline), name, countdown ("in 5m", "in 1h 30m"), model badge for personas, and estimated cost (~$X.XX) based on the 7-day average per run when available. Click any row to navigate to the respective panel. Play button triggers a persona or pipeline run immediately without waiting for the schedule. Refreshes every 60 seconds. Hidden when no scheduled items exist.', icon: 'Clock' },
+          { label: 'Cluster warning badge', detail: 'Amber "N at once" badge appears next to the Coming Up heading when 3 or more runs are scheduled within the same 5-minute window. Hover for a tooltip explaining the rate-limit risk. Consider staggering schedules (e.g. */15, 1/15, 2/15) to spread load.', icon: 'AlertCircle' },
         ],
       },
       {
@@ -1043,7 +1051,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Session Log', detail: 'Recent session summaries. Auto-pruned to the last 20 entries.' },
           { label: 'Permissions', detail: 'What the persona can and cannot do: push code, merge PRs, create sessions. conflict_group serializes two can_push personas so they never run simultaneously (same group = one at a time; different groups = concurrent). run_condition: new_commits skips a run if no new commits have landed since the last run.' },
           { label: 'Outputs tab', detail: 'Switch to the Outputs tab in an expanded card to browse files the persona wrote to ~/.claude-colony/outputs/<persona>/. Click any file to open a read-only viewer with a copy-to-clipboard button in the header. Session Brief is always listed first.', icon: 'FolderOpen' },
-          { label: 'History tab', detail: 'Switch to the History tab in an expanded card to see a timeline of past runs — timestamp, duration, cost, and success status.', icon: 'Clock' },
+          { label: 'History tab', detail: 'Switch to the History tab in an expanded card to see a timeline of past runs — timestamp, duration, cost, and success status. Failed runs show an inline failure reason (budget exceeded, timed out, stopped, failed). Click any row with a session ID to focus that session in the sidebar. Run history sparkline at the top shows pass/fail pattern over the last 20 runs.', icon: 'Clock' },
           { label: 'Analytics tab', detail: 'Switch to the Analytics tab to see aggregate stats: total runs, success rate, average duration, total cost, 7-day cost. Includes a run-duration sparkline (green=success, red=fail) — click any bar to expand a detail card showing timestamp, duration, cost, outcome, and a "View Session" button if the session still exists. Daily cost bar chart and a table of the last 10 runs with per-run cost.', icon: 'BarChart3' },
           { label: 'Memory tab', detail: 'View and edit a persona\'s structured memory. Click a situation status badge to cycle it (pending → done → delegated → blocked). Use the + button next to "Active Situations" or "Learnings" to add new entries via an inline form. Double-click any situation or learning text to edit it in-place (Enter saves, Escape cancels). Hover any row for a remove button. Session Log heading has a + button for adding manual notes and a "clear old" button that keeps only the last 5 entries.', icon: 'Brain' },
           { label: 'Multi-select', detail: 'Click the checkbox on each persona row to select it. A bulk action bar appears with Enable, Disable, Run Now (2s stagger), and Stop. Select All / Deselect All toggles the full list. Press Escape to clear selection.' },

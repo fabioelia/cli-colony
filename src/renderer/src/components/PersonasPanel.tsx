@@ -1422,10 +1422,21 @@ function PersonaCard({
                       const durSec = Math.floor((entry.durationMs % 60000) / 1000)
                       const dur = durMin > 0 ? `${durMin}m ${durSec}s` : `${durSec}s`
                       return (
-                        <div key={i} className="persona-history-row">
+                        <div key={i} className={`persona-history-row${entry.sessionId ? ' clickable' : ''}`}
+                          onClick={() => entry.sessionId && onFocusInstance?.(entry.sessionId)}
+                          title={entry.sessionId ? 'Click to focus session' : undefined}
+                        >
                           <span className={`persona-history-status ${entry.success ? 'success' : 'fail'}`} title={entry.stopReason === 'manual' ? 'Manually stopped' : entry.success ? 'Completed successfully' : 'Run failed'}>
                             {entry.success ? <Check size={12} /> : <X size={12} />}
                           </span>
+                          {!entry.success && (
+                            <span className="persona-history-reason">
+                              {entry.stopReason === 'budget_exceeded' ? 'budget exceeded'
+                                : entry.stopReason === 'timeout' ? 'timed out'
+                                : entry.stopReason === 'manual' ? 'stopped'
+                                : 'failed'}
+                            </span>
+                          )}
                           <span className="persona-history-time">{ago}</span>
                           <span className="persona-history-dur">{dur}</span>
                           {entry.costUsd != null && entry.costUsd > 0 && (
