@@ -6956,7 +6956,6 @@ body:has(.daemon-update-banner) .app-update-banner {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  margin-left: 6px;
   padding: 0 5px;
   font-size: 9px;
   border-radius: 3px;
