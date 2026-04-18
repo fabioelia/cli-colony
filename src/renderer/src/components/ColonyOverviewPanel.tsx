@@ -467,9 +467,9 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                 const inst = instances.find(i => i.id === u.sessionId)
                 return (
                   <div key={u.sessionId} className="overview-session-tile" onClick={() => inst && onFocusInstance(inst.id)}>
-                    <span className={`overview-session-dot ${u.percentage >= 95 ? 'red' : u.percentage >= 80 ? 'amber' : 'green'}`} style={{ background: u.percentage >= 95 ? 'var(--error)' : u.percentage >= 80 ? 'var(--warn)' : 'var(--success)' }} />
+                    <span className="overview-session-dot" style={{ background: u.percentage >= 95 ? 'var(--danger)' : u.percentage >= 80 ? 'var(--warning)' : 'var(--success)' }} />
                     <span className="overview-session-name">{inst?.name || u.sessionId.slice(0, 8)}</span>
-                    <span className={`overview-badge ${u.percentage >= 95 ? 'badge-error' : u.percentage >= 80 ? 'badge-warn' : 'badge-model'}`}>
+                    <span className={`overview-badge ${u.percentage >= 95 ? 'badge-stale' : u.percentage >= 80 ? 'badge-idle' : 'badge-model'}`}>
                       {u.percentage}%
                     </span>
                     <span className="overview-session-elapsed">{Math.round(u.tokens / 1000)}k tokens</span>
