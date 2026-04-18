@@ -149,6 +149,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Between Running Sessions and Coming Up',
         items: [
           { label: 'Recently exited sessions', detail: 'Up to 5 most recently started sessions that have exited, sorted newest first. Each row shows success (green check) or failure (red X) status, session name, first 60 chars of exit summary, time since start, and cost if over $0.01. Click any row to focus that session. Hidden when no exited sessions exist.', icon: 'CheckCircle2' },
+          { label: 'Restart button', detail: 'Play button on each Just Finished row restarts the session (launches a new session in the same working directory). Shows a checkmark for 2 seconds after triggering. Does not navigate — row click still focuses the session.', icon: 'Play' },
         ],
       },
       {
@@ -824,7 +825,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Middle section',
         items: [
           { label: 'Global hotkey', detail: 'Keyboard shortcut to summon Colony from any app (default: Ctrl+Shift+Space).' },
-          { label: 'Desktop notifications', detail: 'Show system notifications for pipeline fires, approval gates, and persona run start/complete events. Per-source toggles appear below when enabled — mute noisy sources (e.g. pipelines) while keeping important ones (e.g. approval gates).' },
+          { label: 'Desktop notifications', detail: 'Show system notifications for pipeline fires, approval gates, persona run start/complete events, and session error exits (non-zero exit code). Per-source toggles appear below when enabled — mute noisy sources (e.g. pipelines) while keeping important ones (e.g. approval gates). Error exit notifications fire when a session crashes (non-zero exit code). Persona sessions use their own notification.' },
           { label: 'Sound on finish', detail: 'Play a sound when Claude finishes processing and the app isn\'t focused.' },
           { label: 'Quiet hours', detail: 'Suppress desktop notifications during a time window (e.g. 22:00–07:00). In-app notification history still records everything — only OS-level alerts are silenced. Supports overnight ranges that cross midnight.' },
           { label: 'Auto-cleanup', detail: 'Remove stopped sessions after N minutes. Set to 0 to keep them forever.' },

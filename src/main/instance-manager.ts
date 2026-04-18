@@ -285,6 +285,15 @@ export function wireDaemonEvents(): void {
         sessionId: instanceId,
       }).catch(() => {})
 
+      if (exitCode !== 0 && !inst.name.startsWith('Persona: ')) {
+        notify(
+          'Colony: Session error',
+          `"${inst.name}" exited with code ${exitCode}`,
+          { type: 'session', id: instanceId },
+          'session'
+        )
+      }
+
       if (inst.workingDirectory) {
         const personaName = inst.name.startsWith('Persona: ')
           ? inst.name.slice('Persona: '.length)
