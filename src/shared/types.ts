@@ -420,6 +420,7 @@ export interface PersonaAnalytics {
 export interface PersonaHealthEntry {
   personaId: string
   lastRunSuccess: boolean
+  stopReason?: 'budget_exceeded' | 'timeout' | 'manual'
 }
 
 export interface AuditResult {

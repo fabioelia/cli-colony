@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import {
   Home, Play, Plus, Zap, Clock, AlertCircle, Layers,
   CheckCircle2, XCircle, Circle, Users, FolderOpen, Activity, GanttChart, BarChart3, X, Eye, Square, Pin, PinOff,
-  ChevronLeft, ChevronRight, Calendar, RotateCcw, Search, MessageSquare, Trash2, Server, Download, Gauge
+  ChevronLeft, ChevronRight, Calendar, RotateCcw, Search, MessageSquare, Trash2, Server, Download, Gauge, Terminal
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import SessionTimeline from './SessionTimeline'
@@ -184,6 +184,17 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   }, [personas, pipelines, costLeaderboard, tick])
 
   const running = useMemo(() => instances.filter(i => i.status === 'running'), [instances])
+  const modelBreakdown = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const inst of running) {
+      const label = getModelLabel(inst.args) || 'default'
+      counts.set(label, (counts.get(label) || 0) + 1)
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([model, count]) => `${count} ${model}`)
+      .join(' · ')
+  }, [running])
   const totalCost = useMemo(() => instances.reduce((sum, i) => sum + (i.tokenUsage.cost || 0), 0), [instances])
   const activePipelines = useMemo(() => pipelines.filter(p => p.enabled), [pipelines])
   const errorPipelines = useMemo(() => pipelines.filter(p => p.lastError), [pipelines])
@@ -338,6 +349,9 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
             <div className="overview-stat-label">Running Sessions</div>
             {instances.length > running.length && (
               <div className="overview-stat-subtitle">{instances.length - running.length} stopped</div>
+            )}
+            {running.length >= 2 && modelBreakdown && (
+              <div className="overview-stat-subtitle">{modelBreakdown}</div>
             )}
           </div>
           <div className="overview-stat-card" onClick={() => onNavigate('personas')}>
@@ -557,10 +571,15 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
               ))}
               {failedPersonas.slice(0, 5).map(ph => {
                 const p = personas.find(pp => pp.id === ph.personaId)
+                const reasonLabel = ph.stopReason === 'budget_exceeded' ? 'budget exceeded'
+                  : ph.stopReason === 'timeout' ? 'timed out'
+                  : ph.stopReason === 'manual' ? 'stopped manually'
+                  : null
                 return (
                   <div key={ph.personaId} className="overview-attention-item attention-error" onClick={() => onNavigate('personas')}>
                     <Users size={13} />
                     <span className="attention-label">{p?.name || ph.personaId} — last run failed</span>
+                    {reasonLabel && <span className="attention-time">{reasonLabel}</span>}
                     {actionedIds.has(`persona-${ph.personaId}`) ? (
                       <span className="attention-action-btn approve"><CheckCircle2 size={13} /></span>
                     ) : (
@@ -966,21 +985,28 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
             }</div>
           ) : (
             <div className="overview-activity-list">
-              {filteredActivity.map(ev => (
-                <div key={ev.id} className="overview-activity-item"
-                  onClick={() => {
-                    if (ev.source === 'session' && ev.sessionId) onFocusInstance(ev.sessionId)
-                    else if (ev.source === 'persona') onNavigate('personas')
-                    else if (ev.source === 'pipeline') onNavigate('pipelines')
-                    else if (ev.source === 'env') onNavigate('environments')
-                  }}
-                >
-                  <span className={`overview-activity-dot activity-${ev.level}`} />
-                  <span className="overview-activity-source">{ev.name}</span>
-                  <span className="overview-activity-summary">{ev.summary}</span>
-                  <span className="overview-activity-time">{timeAgo(ev.timestamp)}</span>
-                </div>
-              ))}
+              {filteredActivity.map(ev => {
+                const SourceIcon = ev.source === 'persona' ? Users
+                  : ev.source === 'pipeline' ? Zap
+                  : ev.source === 'session' ? Terminal
+                  : ev.source === 'env' ? Server
+                  : Circle
+                return (
+                  <div key={ev.id} className="overview-activity-item"
+                    onClick={() => {
+                      if (ev.source === 'session' && ev.sessionId) onFocusInstance(ev.sessionId)
+                      else if (ev.source === 'persona') onNavigate('personas')
+                      else if (ev.source === 'pipeline') onNavigate('pipelines')
+                      else if (ev.source === 'env') onNavigate('environments')
+                    }}
+                  >
+                    <SourceIcon size={11} className={`overview-activity-icon activity-${ev.level}`} />
+                    <span className="overview-activity-source">{ev.name}</span>
+                    <span className="overview-activity-summary">{ev.summary}</span>
+                    <span className="overview-activity-time">{timeAgo(ev.timestamp)}</span>
+                  </div>
+                )
+              })}
             </div>
           )}
           {!activityExpanded && displayActivity.length > 20 && (

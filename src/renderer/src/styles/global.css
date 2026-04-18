@@ -22175,6 +22175,9 @@ body:has(.daemon-update-banner) .app-update-banner {
 .overview-activity-dot.activity-info { background: var(--accent); }
 .overview-activity-dot.activity-warn { background: var(--warning); }
 .overview-activity-dot.activity-error { background: var(--danger); }
+.overview-activity-icon { flex-shrink: 0; color: var(--text-muted); }
+.overview-activity-icon.activity-warn { color: var(--warning); }
+.overview-activity-icon.activity-error { color: var(--danger); }
 .overview-activity-source {
   color: var(--text-secondary);
   font-weight: 500;

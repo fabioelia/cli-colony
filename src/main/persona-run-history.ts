@@ -79,20 +79,20 @@ export function getPersonaAnalytics(personaId: string): PersonaAnalytics {
 }
 
 /** Return last-run success for each persona with ≥1 run. Lightweight — reads only 1 entry per persona. */
-export function getPersonaHealthSummary(): { personaId: string; lastRunSuccess: boolean }[] {
+export function getPersonaHealthSummary(): { personaId: string; lastRunSuccess: boolean; stopReason?: string }[] {
   let files: string[] = []
   try {
     files = readdirSync(colonyPaths.root).filter(f => f.startsWith('persona-run-history-') && f.endsWith('.json'))
   } catch { return [] }
 
-  const results: { personaId: string; lastRunSuccess: boolean }[] = []
+  const results: { personaId: string; lastRunSuccess: boolean; stopReason?: string }[] = []
   for (const file of files) {
     const personaId = file.replace('persona-run-history-', '').replace('.json', '')
     try {
       const raw = readFileSync(join(colonyPaths.root, file), 'utf-8')
       const entries = JSON.parse(raw)
       if (Array.isArray(entries) && entries.length > 0) {
-        results.push({ personaId, lastRunSuccess: !!entries[0].success })
+        results.push({ personaId, lastRunSuccess: !!entries[0].success, stopReason: entries[0].stopReason })
       }
     } catch { /* skip corrupt */ }
   }
