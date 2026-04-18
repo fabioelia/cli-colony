@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import {
   Home, Play, Plus, Zap, Clock, AlertCircle,
   CheckCircle2, XCircle, Circle, Users, FolderOpen, Activity, GanttChart, BarChart3, X, Eye, Square, Pin, PinOff,
-  ChevronLeft, ChevronRight, Calendar, RotateCcw, Search, MessageSquare
+  ChevronLeft, ChevronRight, Calendar, RotateCcw, Search, MessageSquare, Trash2
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import SessionTimeline from './SessionTimeline'
@@ -26,6 +26,7 @@ interface Props {
   onNavigate: (view: string) => void
   onKill?: (id: string) => void
   onRestart?: (id: string) => void
+  onRemove?: (id: string) => void
   rateLimitState?: { utilization: number | null; resetAt: number | null; rateLimitType: string | null; paused: boolean; source: string | null }
 }
 
@@ -66,7 +67,7 @@ function getModelLabel(args: string[]): string | null {
 
 type OverviewTab = 'dashboard' | 'timeline'
 
-export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewSession, onNavigate, onKill, onRestart, rateLimitState }: Props) {
+export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewSession, onNavigate, onKill, onRestart, onRemove, rateLimitState }: Props) {
   const [tab, setTab] = useState<OverviewTab>('dashboard')
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; inst: ClaudeInstance } | null>(null)
   const [activity, setActivity] = useState<ActivityEvent[]>([])
@@ -677,6 +678,21 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                       }}
                     >
                       {triggeredIds.has(`restart-${inst.id}`) ? <CheckCircle2 size={13} /> : <Play size={13} />}
+                    </button>
+                  )}
+                  {onRemove && (
+                    <button
+                      className="attention-action-btn dismiss"
+                      title="Remove session"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onRemove(inst.id)
+                        const key = `remove-${inst.id}`
+                        setTriggeredIds(prev => new Set(prev).add(key))
+                        setTimeout(() => setTriggeredIds(prev => { const n = new Set(prev); n.delete(key); return n }), 2000)
+                      }}
+                    >
+                      {triggeredIds.has(`remove-${inst.id}`) ? <CheckCircle2 size={13} /> : <Trash2 size={13} />}
                     </button>
                   )}
                 </div>

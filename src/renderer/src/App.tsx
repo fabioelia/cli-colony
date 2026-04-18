@@ -2052,6 +2052,7 @@ export default function App() {
             onNavigate={(v) => setView(v as View)}
             onKill={handleKill}
             onRestart={handleRestart}
+            onRemove={handleRemove}
             rateLimitState={rateLimitState}
           />
         )}
@@ -2095,6 +2096,7 @@ export default function App() {
             onNavigate={(v) => setView(v as View)}
             onKill={handleKill}
             onRestart={handleRestart}
+            onRemove={handleRemove}
             rateLimitState={rateLimitState}
           />
         )}

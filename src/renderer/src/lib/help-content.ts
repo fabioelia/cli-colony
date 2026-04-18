@@ -158,6 +158,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Recently exited sessions', detail: 'Up to 5 most recently started sessions that have exited, sorted newest first. Each row shows success (green check) or failure (red X) status, session name, first 60 chars of exit summary, time since start, and cost if over $0.01. Click any row to focus that session. Hidden when no exited sessions exist.', icon: 'CheckCircle2' },
           { label: 'Restart button', detail: 'Play button on each Just Finished row restarts the session (launches a new session in the same working directory). Shows a checkmark for 2 seconds after triggering. Does not navigate — row click still focuses the session.', icon: 'Play' },
+          { label: 'Remove button', detail: 'Trash icon removes the session from the sidebar entirely. Shows a checkmark for 2 seconds after triggering. Does not navigate.', icon: 'Trash2' },
         ],
       },
       {
