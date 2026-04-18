@@ -1296,7 +1296,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
             {instance.exitCode === 0 ? 'Completed' : instance.exitCode != null ? `Failed (${instance.exitCode})` : 'Failed'}
           </span>
           <span className="session-exited-duration" title={`Started ${new Date(instance.createdAt).toLocaleString()}`}>
-            ran {formatUptime(Math.max(0, Math.floor((Date.now() - new Date(instance.createdAt).getTime()) / 1000)))}
+            ran {formatUptime(Math.max(0, Math.floor(((instance.exitedAt ?? Date.now()) - new Date(instance.createdAt).getTime()) / 1000)))}
           </span>
           {instance.tokenUsage.cost != null && instance.tokenUsage.cost > 0 && (
             <span

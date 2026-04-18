@@ -635,6 +635,7 @@ function createInstance(opts: CreateOpts): ClaudeInstance {
     const lastOutput = instance.outputBuffer.slice(-20).join('').slice(-500)
     log(`instance ${id} (${name}) exited with code ${exitCode} output=${JSON.stringify(lastOutput)}`)
     instance.status = 'exited'
+    instance.exitedAt = Date.now()
     instance.activity = 'waiting'
     instance.exitCode = exitCode
     instance.pty = null
@@ -715,6 +716,7 @@ function killInstance(id: string): boolean {
   if (inst._sessionIdTimer) clearTimeout(inst._sessionIdTimer)
   if (inst._handoffPollInterval) clearInterval(inst._handoffPollInterval)
   inst.status = 'exited'
+  inst.exitedAt = Date.now()
   inst.exitCode = -1
   inst.pty = null
   notifyListChanged()
@@ -863,6 +865,7 @@ function restartInstance(id: string, defaultArgs?: string[]): ClaudeInstance | n
     })
   } catch (err) {
     inst.status = 'exited'
+    inst.exitedAt = Date.now()
     instances.set(id, inst)
     throw err
   }

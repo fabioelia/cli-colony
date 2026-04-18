@@ -52,6 +52,7 @@ export interface ClaudeInstance {
   daemonId?: string
   pipelineName?: string
   pipelineRunId?: string
+  exitedAt?: number
   exitSummary?: string
   ticket?: { source: 'jira'; key: string; summary: string; url?: string }
 }
