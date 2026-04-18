@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   Home, Play, Plus, Zap, Clock, AlertCircle,
-  CheckCircle2, Circle, Users, FolderOpen, Activity, GanttChart, BarChart3, X, Eye, Square, Pin, PinOff,
+  CheckCircle2, XCircle, Circle, Users, FolderOpen, Activity, GanttChart, BarChart3, X, Eye, Square, Pin, PinOff,
   ChevronLeft, ChevronRight, Calendar, RotateCcw, Search
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
@@ -147,6 +147,13 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const staleSessions = useMemo(() => running.filter(inst =>
     inst.activity === 'busy' && (idleMap.get(inst.id) || 0) > 900000
   ), [running, idleMap])
+  const recentlyExited = useMemo(() =>
+    instances
+      .filter(i => i.status === 'exited')
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 5),
+    [instances]
+  )
   const runningEnvs = useMemo(() => environments.filter(e => e.status === 'running'), [environments])
   const unhealthyEnvs = useMemo(() => environments.filter(e => e.status === 'error' || e.status === 'partial'), [environments])
   const failedPersonas = useMemo(() => personaHealth.filter(ph =>
@@ -534,6 +541,32 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                   <span className="overview-session-name">{p.name}</span>
                   <span className="overview-badge badge-role">{p.model}</span>
                   <span className="overview-session-cost">run #{p.runCount}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Just Finished */}
+        {recentlyExited.length > 0 && (
+          <div className="overview-section">
+            <h3><CheckCircle2 size={14} /> Just Finished</h3>
+            <div className="overview-session-list">
+              {recentlyExited.map(inst => (
+                <div key={inst.id} className="overview-session-tile" onClick={() => onFocusInstance(inst.id)}>
+                  {inst.exitCode === 0 || inst.exitCode == null
+                    ? <CheckCircle2 size={13} className="overview-exit-ok" />
+                    : <XCircle size={13} className="overview-exit-err" />}
+                  <span className="overview-session-name">{inst.name}</span>
+                  {inst.exitSummary && (
+                    <span className="overview-exit-summary" title={inst.exitSummary}>
+                      {inst.exitSummary.length > 60 ? inst.exitSummary.slice(0, 57) + '...' : inst.exitSummary}
+                    </span>
+                  )}
+                  <span className="overview-badge badge-role">{timeAgo(inst.createdAt)}</span>
+                  {(inst.tokenUsage.cost || 0) > 0.01 && (
+                    <span className="overview-session-cost">{formatCost(inst.tokenUsage.cost || 0)}</span>
+                  )}
                 </div>
               ))}
             </div>

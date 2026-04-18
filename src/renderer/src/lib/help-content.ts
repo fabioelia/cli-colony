@@ -145,6 +145,13 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Just Finished',
+        position: 'Between Running Sessions and Coming Up',
+        items: [
+          { label: 'Recently exited sessions', detail: 'Up to 5 most recently started sessions that have exited, sorted newest first. Each row shows success (green check) or failure (red X) status, session name, first 60 chars of exit summary, time since start, and cost if over $0.01. Click any row to focus that session. Hidden when no exited sessions exist.', icon: 'CheckCircle2' },
+        ],
+      },
+      {
         name: 'Coming Up',
         position: 'Below Active Personas',
         items: [

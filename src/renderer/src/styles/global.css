@@ -21728,6 +21728,16 @@ body:has(.daemon-update-banner) .app-update-banner {
 .badge-role { background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border); }
 .attention-stale { cursor: pointer; }
 .attention-stale:hover { background: var(--bg-hover); }
+.overview-exit-ok { color: var(--success); flex-shrink: 0; }
+.overview-exit-err { color: var(--danger); flex-shrink: 0; }
+.overview-exit-summary {
+  font-size: 10px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
 /* Activity date navigation */
 .activity-date-nav {
   display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
