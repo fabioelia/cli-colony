@@ -2392,6 +2392,12 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-muted);
 }
 
+.instance-exit-duration {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
 .instance-error-preview {
   font-size: 10px;
   color: var(--danger);

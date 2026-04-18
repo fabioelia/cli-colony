@@ -64,6 +64,7 @@ interface InstanceItemProps {
   errorMessage: string | null
   idleMs: number | null
   exitSummary?: string
+  exitDuration?: number
 }
 
 function dirName(path: string) {
@@ -134,7 +135,7 @@ function buildTriggerChain(inst: ClaudeInstance, allInstances: ClaudeInstance[])
   return result
 }
 
-const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcutIndex, isUnread, ctxLevel, splitBadge, focusedPane, isRenaming, renameValue, renameRef, isEditingNote, noteValue, noteRef, onCommitNote, onCancelNote, onNoteChange, callbacks, selectMode, isSelected, onToggleSelect, conflictFiles, errorMessage, idleMs, exitSummary }: InstanceItemProps) {
+const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcutIndex, isUnread, ctxLevel, splitBadge, focusedPane, isRenaming, renameValue, renameRef, isEditingNote, noteValue, noteRef, onCommitNote, onCancelNote, onNoteChange, callbacks, selectMode, isSelected, onToggleSelect, conflictFiles, errorMessage, idleMs, exitSummary, exitDuration }: InstanceItemProps) {
   return (
     <div
       className={`instance-item ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''}`}
@@ -312,9 +313,16 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
       </div>
       <div className="instance-item-right">
         {inst.status !== 'running' && (
-          <span className={`instance-status ${(inst.exitCode == null || inst.exitCode === 0) ? 'done' : 'exited'}`}>
-            {(inst.exitCode == null || inst.exitCode === 0) ? 'done' : `err ${inst.exitCode}`}
-          </span>
+          <>
+            <span className={`instance-status ${(inst.exitCode == null || inst.exitCode === 0) ? 'done' : 'exited'}`}>
+              {(inst.exitCode == null || inst.exitCode === 0) ? 'done' : `err ${inst.exitCode}`}
+            </span>
+            {exitDuration != null && exitDuration > 0 && (
+              <span className="instance-exit-duration" title={`Session ran for ${Math.floor(exitDuration / 60000)} minutes`}>
+                {formatElapsed(new Date(Date.now() - exitDuration).toISOString())}
+              </span>
+            )}
+          </>
         )}
         <div className="instance-item-actions">
           <Tooltip text="Export Handoff Doc" detail="Generate a markdown snapshot to paste into a new session and restore context">
@@ -378,6 +386,7 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
     prev.isSelected === next.isSelected &&
     prev.onToggleSelect === next.onToggleSelect &&
     prev.conflictFiles === next.conflictFiles &&
+    prev.exitDuration === next.exitDuration &&
     prev.errorMessage === next.errorMessage
 })
 
@@ -521,8 +530,9 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     return () => clearInterval(id)
   }, [])
 
-  // Artifact summaries — loaded for exited sessions, updated when new exits occur
+  // Artifact summaries/durations — loaded for exited sessions, updated when new exits occur
   const [artifactSummaries, setArtifactSummaries] = useState<Map<string, string>>(new Map())
+  const [artifactDurations, setArtifactDurations] = useState<Map<string, number>>(new Map())
   const prevExitedIds = useRef<Set<string>>(new Set())
   useEffect(() => {
     const exitedIds = new Set(instances.filter(i => i.status === 'exited').map(i => i.id))
@@ -536,6 +546,13 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
           const next = new Map(prev)
           for (const art of arts) {
             if (art.summary) next.set(art.sessionId, art.summary)
+          }
+          return next
+        })
+        setArtifactDurations(prev => {
+          const next = new Map(prev)
+          for (const art of arts) {
+            if (art.durationMs) next.set(art.sessionId, art.durationMs)
           }
           return next
         })
@@ -1157,6 +1174,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
         errorMessage={errorSummaries?.get(inst.id) ? `${errorSummaries.get(inst.id)!.errorType}: ${errorSummaries.get(inst.id)!.message}` : null}
         idleMs={idleMap.get(inst.id) ?? null}
         exitSummary={artifactSummaries.get(inst.id)}
+        exitDuration={artifactDurations.get(inst.id)}
       />
     )
     if (!isDraggable) return item
