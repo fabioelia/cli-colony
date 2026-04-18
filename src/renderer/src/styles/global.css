@@ -22169,7 +22169,6 @@ body:has(.daemon-update-banner) .app-update-banner {
 .session-group-cost {
   font-size: 9px;
   color: var(--success);
-  margin-left: 6px;
   flex-shrink: 0;
   opacity: 0.7;
 }

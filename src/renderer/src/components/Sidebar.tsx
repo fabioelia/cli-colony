@@ -1528,7 +1528,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                   if (totalCost < 0.01) return null
                   return (
                     <span className="session-group-cost" title={`Total cost for ${items.length} sessions: $${totalCost.toFixed(2)}`}>
-                      ${totalCost < 1 ? totalCost.toFixed(2) : totalCost.toFixed(0)}
+                      ${totalCost < 10 ? totalCost.toFixed(2) : totalCost.toFixed(0)}
                     </span>
                   )
                 })()}
