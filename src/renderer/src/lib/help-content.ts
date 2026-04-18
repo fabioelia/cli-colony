@@ -43,7 +43,7 @@ export interface HelpEntry {
 export const helpContent: Record<string, HelpEntry> = {
   navigation: {
     title: 'Navigation',
-    description: 'The top bar shows 5 tabs: Home, Sessions, Activity, Personas, and More. The More button opens a grouped menu with the remaining panels.',
+    description: 'The top bar shows up to 4 customizable tabs plus a More menu. Right-click any tab to move it to More, or right-click an item in More to pin it to the nav bar. Your layout is saved automatically.',
     zones: [
       {
         name: 'Primary Tabs',
@@ -53,6 +53,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Sessions', detail: 'All Claude CLI sessions. Badge shows total count.', icon: 'TerminalSquare' },
           { label: 'Activity', detail: 'Live automation events. Badge shows unread count.', icon: 'Bell' },
           { label: 'Personas', detail: 'Autonomous AI agents with identity, goals, and memory.', icon: 'User' },
+          { label: 'Customize', detail: 'Right-click any primary tab to move it to the More menu. Right-click any More item to pin it to the nav bar (replaces the last slot if full). At least one primary tab must remain. Layout persists in localStorage.' },
         ],
       },
       {

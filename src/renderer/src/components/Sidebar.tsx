@@ -20,6 +20,24 @@ import { COLORS, formatTime, cliBackendLabel, formatInstanceCmd } from '../lib/c
 
 export type SidebarView = 'overview' | 'instances' | 'agents' | 'github' | 'settings' | 'tasks' | 'pipelines' | 'environments' | 'personas' | 'outputs' | 'review' | 'artifacts' | 'activity'
 
+const NAV_ITEMS: Record<SidebarView, { label: string; shortLabel: string; Icon: typeof Home; group: string; tooltip: string; detail: string }> = {
+  overview:     { label: 'Home',         shortLabel: 'Home',     Icon: Home,          group: 'primary',    tooltip: 'Overview',      detail: 'Colony command center — sessions, pipelines, personas, cost' },
+  instances:    { label: 'Sessions',     shortLabel: 'Sessions', Icon: TerminalSquare, group: 'primary',   tooltip: 'Sessions',      detail: '' },
+  activity:     { label: 'Activity',     shortLabel: 'Activity', Icon: Bell,           group: 'primary',   tooltip: 'Activity',      detail: 'Automation events from personas, pipelines, and environments' },
+  personas:     { label: 'Personas',     shortLabel: 'Personas', Icon: User,           group: 'primary',   tooltip: 'Personas',      detail: 'Autonomous AI agents with identity, goals, and memory' },
+  github:       { label: 'PRs',          shortLabel: 'PRs',      Icon: GitPullRequest, group: 'code',      tooltip: 'PRs',           detail: 'GitHub pull requests, reviews, and comments' },
+  review:       { label: 'Review',       shortLabel: 'Review',   Icon: GitCompare,     group: 'code',      tooltip: 'Review',        detail: 'Cross-session diff review dashboard' },
+  agents:       { label: 'Agents',       shortLabel: 'Agents',   Icon: Bot,            group: 'code',      tooltip: 'Agents',        detail: 'Browse and create agent definitions' },
+  pipelines:    { label: 'Pipelines',    shortLabel: 'Pipes',    Icon: Zap,            group: 'automation', tooltip: 'Pipelines',    detail: 'Automated triggers and actions' },
+  tasks:        { label: 'Tasks',        shortLabel: 'Tasks',    Icon: ListChecks,     group: 'automation', tooltip: 'Tasks',        detail: 'Task queues and batch execution' },
+  environments: { label: 'Environments', shortLabel: 'Envs',     Icon: Server,         group: 'automation', tooltip: 'Environments', detail: 'Dev environment management' },
+  outputs:      { label: 'Outputs',      shortLabel: 'Outputs',  Icon: FolderOpen,     group: 'data',      tooltip: 'Outputs',       detail: 'Browse artifacts, briefs, and pipeline outputs' },
+  artifacts:    { label: 'History',      shortLabel: 'History',  Icon: Archive,        group: 'data',      tooltip: 'History',       detail: 'Past session artifacts — commits, changes, and costs' },
+  settings:     { label: 'Settings',     shortLabel: 'Settings', Icon: Settings,       group: 'primary',   tooltip: 'Settings',      detail: '' },
+}
+const NON_NAV_VIEWS: SidebarView[] = ['settings']
+const DEFAULT_PRIMARY_SLOTS: SidebarView[] = ['overview', 'instances', 'activity', 'personas']
+
 // ---- Memoized per-instance row ----
 
 interface InstanceItemCallbacks {
@@ -765,6 +783,15 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const [templates, setTemplates] = useState<SessionTemplate[]>([])
   const [showTemplatePopover, setShowTemplatePopover] = useState(false)
   const [showNavOverflow, setShowNavOverflow] = useState(false)
+  const [primarySlots, setPrimarySlots] = useState<SidebarView[]>(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('primaryNavSlots') || 'null')
+      if (Array.isArray(stored) && stored.length >= 1 && stored.length <= 4 && stored.every((s: string) => s in NAV_ITEMS))
+        return stored as SidebarView[]
+    } catch {}
+    return DEFAULT_PRIMARY_SLOTS
+  })
+  const [navContextMenu, setNavContextMenu] = useState<{ x: number; y: number; slotId: SidebarView; source: 'primary' | 'overflow' } | null>(null)
   const [savedTemplateId, setSavedTemplateId] = useState<string | null>(null)
   const [exportedId, setExportedId] = useState<string | null>(null)
   const newSessionBtnRef = useRef<HTMLButtonElement>(null)
@@ -802,6 +829,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   }, [renamingId])
 
   useEffect(() => { localStorage.setItem('colony:sessionSort', sessionSort) }, [sessionSort])
+  useEffect(() => { localStorage.setItem('primaryNavSlots', JSON.stringify(primarySlots)) }, [primarySlots])
   useEffect(() => {
     if (sessionProjectFilter) localStorage.setItem('colony:sessionProjectFilter', sessionProjectFilter)
     else localStorage.removeItem('colony:sessionProjectFilter')
@@ -1214,108 +1242,106 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
       <div className="sidebar-resize-handle" onMouseDown={handleResizeMouseDown} />
       <div className="sidebar-header">
         <div className="sidebar-nav">
-          <Tooltip text="Overview" detail="Colony command center — sessions, pipelines, personas, cost" position="bottom">
-            <button className={`sidebar-nav-btn ${view === 'overview' ? 'active' : ''}`} onClick={() => onViewChange('overview')}>
-              <span className="sidebar-nav-icon"><Home size={17} /></span>
-              <span className="sidebar-nav-label">Home</span>
-            </button>
-          </Tooltip>
-          <Tooltip text="Sessions" detail={`${instances.filter(i => i.status === 'running').length} running, ${instances.length} total`} shortcut="Cmd+1-9" position="bottom">
-            <button className={`sidebar-nav-btn ${view === 'instances' ? 'active' : ''}`} onClick={() => onViewChange('instances')}>
-              <span className="sidebar-nav-icon">
-                <TerminalSquare size={17} />
-                {instances.length > 0 && <span className="sidebar-nav-badge">{instances.length}</span>}
-              </span>
-              <span className="sidebar-nav-label">Sessions</span>
-            </button>
-          </Tooltip>
-          <Tooltip text="Activity" detail="Automation events from personas, pipelines, and environments" position="bottom">
-            <button className={`sidebar-nav-btn ${view === 'activity' ? 'active' : ''}`} onClick={() => { onViewChange('activity'); window.api.activity.markRead().catch(() => {}); setActivityUnread(0) }}>
-              <span className="sidebar-nav-icon" style={{ position: 'relative' }}>
-                <Bell size={17} />
-                {pendingApprovals.length > 0 ? (
-                  <span className="sidebar-nav-badge" style={{ background: 'var(--warning)' }}>{pendingApprovals.length}</span>
-                ) : activityUnread > 0 ? (
-                  <span className="sidebar-nav-badge">{activityUnread > 99 ? '99+' : activityUnread}</span>
-                ) : null}
-              </span>
-              <span className="sidebar-nav-label">Activity</span>
-            </button>
-          </Tooltip>
-          <Tooltip text="Personas" detail="Autonomous AI agents with identity, goals, and memory" shortcut="Cmd+Shift+P" position="bottom">
-            <button className={`sidebar-nav-btn ${view === 'personas' ? 'active' : ''}`} onClick={() => onViewChange('personas')}>
-              <span className="sidebar-nav-icon"><User size={17} /></span>
-              <span className="sidebar-nav-label">Personas</span>
-              <span className="shortcut-hint">⌘⇧P</span>
-            </button>
-          </Tooltip>
+          {primarySlots.map(slotId => {
+            const def = NAV_ITEMS[slotId]
+            if (!def) return null
+            const tooltipDetail = slotId === 'instances'
+              ? `${instances.filter(i => i.status === 'running').length} running, ${instances.length} total`
+              : def.detail
+            return (
+              <Tooltip key={slotId} text={def.tooltip} detail={tooltipDetail} shortcut={slotId === 'instances' ? 'Cmd+1-9' : undefined} position="bottom">
+                <button
+                  className={`sidebar-nav-btn ${view === slotId ? 'active' : ''}`}
+                  onClick={() => {
+                    onViewChange(slotId)
+                    if (slotId === 'activity') { window.api.activity.markRead().catch(() => {}); setActivityUnread(0) }
+                  }}
+                  onContextMenu={(e) => { e.preventDefault(); setNavContextMenu({ x: e.clientX, y: e.clientY, slotId, source: 'primary' }) }}
+                >
+                  <span className="sidebar-nav-icon">
+                    <def.Icon size={17} />
+                    {slotId === 'instances' && instances.length > 0 && <span className="sidebar-nav-badge">{instances.length}</span>}
+                    {slotId === 'activity' && (pendingApprovals.length > 0
+                      ? <span className="sidebar-nav-badge" style={{ background: 'var(--warning)' }}>{pendingApprovals.length}</span>
+                      : activityUnread > 0 ? <span className="sidebar-nav-badge">{activityUnread > 99 ? '99+' : activityUnread}</span> : null)}
+                    {slotId === 'environments' && runningEnvCount > 0 && <span className="sidebar-nav-badge">{runningEnvCount}</span>}
+                  </span>
+                  <span className="sidebar-nav-label">{def.shortLabel}</span>
+                  {slotId === 'personas' && <span className="shortcut-hint">⌘⇧P</span>}
+                </button>
+              </Tooltip>
+            )
+          })}
           {/* More button — shows active panel icon when an overflow view is selected */}
           <div style={{ position: 'relative', flex: 1, minWidth: 40 }}>
-            <Tooltip text={(() => {
-              const overflowLabels: Record<string, string> = { github: 'PRs', review: 'Review', agents: 'Agents', pipelines: 'Pipelines', tasks: 'Tasks', environments: 'Environments', outputs: 'Outputs', artifacts: 'History' }
-              return overflowLabels[view] || 'More panels'
-            })()} position="bottom">
+            <Tooltip text={NAV_ITEMS[view]?.label || 'More panels'} position="bottom">
               <button
-                className={`sidebar-nav-btn ${!['overview', 'instances', 'activity', 'personas', 'settings'].includes(view) ? 'active' : ''}`}
+                className={`sidebar-nav-btn ${!primarySlots.includes(view) && view !== 'settings' ? 'active' : ''}`}
                 onClick={(e) => { e.stopPropagation(); setShowNavOverflow(v => !v) }}
               >
                 <span className="sidebar-nav-icon">
                   {(() => {
-                    const iconMap: Record<string, typeof Home> = { github: GitPullRequest, review: GitCompare, agents: Bot, pipelines: Zap, tasks: ListChecks, environments: Server, outputs: FolderOpen, artifacts: Archive }
-                    const ActiveIcon = iconMap[view]
+                    const ActiveIcon = !primarySlots.includes(view) && view !== 'settings' ? NAV_ITEMS[view]?.Icon : null
                     return ActiveIcon ? <ActiveIcon size={17} /> : <MoreHorizontal size={17} />
                   })()}
                 </span>
                 <span className="sidebar-nav-label">More</span>
               </button>
             </Tooltip>
-            {showNavOverflow && (
-              <div className="nav-overflow-popover" onClick={(e) => e.stopPropagation()}>
-                <div className="nav-overflow-group-label">Code</div>
-                <div className="nav-overflow-grid">
-                  <button className={`nav-overflow-item ${view === 'github' ? 'active' : ''}`} onClick={() => { onViewChange('github'); setShowNavOverflow(false) }}>
-                    <GitPullRequest size={16} />
-                    <span>PRs</span>
-                  </button>
-                  <button className={`nav-overflow-item ${view === 'review' ? 'active' : ''}`} onClick={() => { onViewChange('review'); setShowNavOverflow(false) }}>
-                    <GitCompare size={16} />
-                    <span>Review</span>
-                  </button>
-                  <button className={`nav-overflow-item ${view === 'agents' ? 'active' : ''}`} onClick={() => { onViewChange('agents'); setShowNavOverflow(false) }}>
-                    <Bot size={16} />
-                    <span>Agents</span>
-                  </button>
+            {showNavOverflow && (() => {
+              const overflowSlots = (Object.keys(NAV_ITEMS) as SidebarView[]).filter(id => !primarySlots.includes(id) && !NON_NAV_VIEWS.includes(id))
+              return (
+                <div className="nav-overflow-popover" onClick={(e) => e.stopPropagation()}>
+                  {(['code', 'automation', 'data', 'primary'] as const).filter(g => overflowSlots.some(s => NAV_ITEMS[s].group === g)).map(group => (
+                    <React.Fragment key={group}>
+                      <div className="nav-overflow-group-label">{group === 'primary' ? 'General' : group.charAt(0).toUpperCase() + group.slice(1)}</div>
+                      <div className="nav-overflow-grid">
+                        {overflowSlots.filter(s => NAV_ITEMS[s].group === group).map(slotId => {
+                          const def = NAV_ITEMS[slotId]
+                          return (
+                            <button
+                              key={slotId}
+                              className={`nav-overflow-item ${view === slotId ? 'active' : ''}`}
+                              onClick={() => { onViewChange(slotId); setShowNavOverflow(false) }}
+                              onContextMenu={(e) => { e.preventDefault(); setNavContextMenu({ x: e.clientX, y: e.clientY, slotId, source: 'overflow' }); setShowNavOverflow(false) }}
+                            >
+                              <def.Icon size={16} />
+                              <span>{def.shortLabel}</span>
+                              {slotId === 'environments' && runningEnvCount > 0 && <span className="sidebar-nav-badge" style={{ position: 'static', marginLeft: 4 }}>{runningEnvCount}</span>}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </React.Fragment>
+                  ))}
                 </div>
-                <div className="nav-overflow-group-label">Automation</div>
-                <div className="nav-overflow-grid">
-                  <button className={`nav-overflow-item ${view === 'pipelines' ? 'active' : ''}`} onClick={() => { onViewChange('pipelines'); setShowNavOverflow(false) }}>
-                    <Zap size={16} />
-                    <span>Pipes</span>
-                  </button>
-                  <button className={`nav-overflow-item ${view === 'tasks' ? 'active' : ''}`} onClick={() => { onViewChange('tasks'); setShowNavOverflow(false) }}>
-                    <ListChecks size={16} />
-                    <span>Tasks</span>
-                  </button>
-                  <button className={`nav-overflow-item ${view === 'environments' ? 'active' : ''}`} onClick={() => { onViewChange('environments'); setShowNavOverflow(false) }}>
-                    <Server size={16} />
-                    <span>Envs</span>
-                    {runningEnvCount > 0 && <span className="sidebar-nav-badge" style={{ position: 'static', marginLeft: 4 }}>{runningEnvCount}</span>}
-                  </button>
-                </div>
-                <div className="nav-overflow-group-label">Data</div>
-                <div className="nav-overflow-grid">
-                  <button className={`nav-overflow-item ${view === 'outputs' ? 'active' : ''}`} onClick={() => { onViewChange('outputs'); setShowNavOverflow(false) }}>
-                    <FolderOpen size={16} />
-                    <span>Outputs</span>
-                  </button>
-                  <button className={`nav-overflow-item ${view === 'artifacts' ? 'active' : ''}`} onClick={() => { onViewChange('artifacts'); setShowNavOverflow(false) }}>
-                    <Archive size={16} />
-                    <span>History</span>
-                  </button>
-                </div>
-              </div>
-            )}
+              )
+            })()}
           </div>
+          {navContextMenu && (
+            <>
+              <div className="nav-context-backdrop" onClick={() => setNavContextMenu(null)} />
+              <div className="nav-context-menu" style={{ top: navContextMenu.y, left: navContextMenu.x }}>
+                {navContextMenu.source === 'primary' ? (
+                  <button onClick={() => {
+                    setPrimarySlots(prev => prev.filter(s => s !== navContextMenu.slotId))
+                    setNavContextMenu(null)
+                  }} disabled={primarySlots.length <= 1}>
+                    Move to More
+                  </button>
+                ) : (
+                  <button onClick={() => {
+                    setPrimarySlots(prev => prev.length >= 4
+                      ? [...prev.slice(0, 3), navContextMenu.slotId]
+                      : [...prev, navContextMenu.slotId])
+                    setNavContextMenu(null)
+                  }}>
+                    Pin to Nav Bar
+                  </button>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
