@@ -2052,6 +2052,7 @@ export default function App() {
             onNavigate={(v) => setView(v as View)}
             onKill={handleKill}
             onRestart={handleRestart}
+            rateLimitState={rateLimitState}
           />
         )}
         {view === 'review' && (
@@ -2094,6 +2095,7 @@ export default function App() {
             onNavigate={(v) => setView(v as View)}
             onKill={handleKill}
             onRestart={handleRestart}
+            rateLimitState={rateLimitState}
           />
         )}
 

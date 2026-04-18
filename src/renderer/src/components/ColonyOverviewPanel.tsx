@@ -26,6 +26,7 @@ interface Props {
   onNavigate: (view: string) => void
   onKill?: (id: string) => void
   onRestart?: (id: string) => void
+  rateLimitState?: { utilization: number | null; resetAt: number | null; rateLimitType: string | null; paused: boolean; source: string | null }
 }
 
 function formatElapsed(ts: string): string {
@@ -65,7 +66,7 @@ function getModelLabel(args: string[]): string | null {
 
 type OverviewTab = 'dashboard' | 'timeline'
 
-export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewSession, onNavigate, onKill, onRestart }: Props) {
+export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewSession, onNavigate, onKill, onRestart, rateLimitState }: Props) {
   const [tab, setTab] = useState<OverviewTab>('dashboard')
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; inst: ClaudeInstance } | null>(null)
   const [activity, setActivity] = useState<ActivityEvent[]>([])
@@ -430,7 +431,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
         })()}
 
         {/* Attention needed */}
-        {(pendingApprovals.length > 0 || errorPipelines.length > 0 || blockedTasks.length > 0 || staleSessions.length > 0 || unhealthyEnvs.length > 0 || failedPersonas.length > 0) && (
+        {(pendingApprovals.length > 0 || errorPipelines.length > 0 || blockedTasks.length > 0 || staleSessions.length > 0 || unhealthyEnvs.length > 0 || failedPersonas.length > 0 || (rateLimitState?.utilization != null && rateLimitState.utilization >= 0.70)) && (
           <div className="overview-section">
             <h3><AlertCircle size={14} /> Needs Attention</h3>
             <div className="overview-attention-list">
@@ -519,6 +520,32 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                 <div className="overview-attention-item attention-error" onClick={() => onNavigate('personas')}>
                   <Users size={13} />
                   <span className="attention-label">and {failedPersonas.length - 5} more failed</span>
+                </div>
+              )}
+              {rateLimitState?.utilization != null && rateLimitState.utilization >= 0.70 && (
+                <div
+                  className={`overview-attention-item ${rateLimitState.paused || rateLimitState.utilization >= 0.90 ? 'attention-error' : 'attention-stale'}`}
+                  onClick={() => onNavigate('instances')}
+                  title={[
+                    `API rate limit: ${(rateLimitState.utilization * 100).toFixed(0)}%`,
+                    rateLimitState.rateLimitType ? rateLimitState.rateLimitType.replace(/_/g, ' ') : null,
+                    rateLimitState.resetAt ? `Resets ${new Date(rateLimitState.resetAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : null,
+                    rateLimitState.source ? `via ${rateLimitState.source}` : null,
+                  ].filter(Boolean).join(' · ')}
+                >
+                  <AlertCircle size={13} />
+                  <span className="attention-label">
+                    {rateLimitState.paused ? 'Rate limited — paused' : `Rate limit ${Math.round(rateLimitState.utilization * 100)}%`}
+                  </span>
+                  {rateLimitState.resetAt && (() => {
+                    const resetMs = rateLimitState.resetAt - Date.now()
+                    const resetMins = Math.max(0, Math.ceil(resetMs / 60000))
+                    return (
+                      <span className="attention-time">
+                        {resetMins > 0 ? `resets in ${resetMins}m` : 'resetting...'}
+                      </span>
+                    )
+                  })()}
                 </div>
               )}
             </div>
