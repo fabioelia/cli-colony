@@ -208,17 +208,31 @@ function createWindow(): void {
     bounds.y = savedState.y
   }
 
+  const platformWindowOptions: Partial<Electron.BrowserWindowConstructorOptions> =
+    process.platform === 'darwin'
+      ? {
+          titleBarStyle: 'hiddenInset',
+          trafficLightPosition: { x: 16, y: 16 },
+          vibrancy: 'sidebar',
+        }
+      : {
+          titleBarStyle: 'hidden',
+          titleBarOverlay: {
+            color: '#1a1a2e',
+            symbolColor: '#e0e0e0',
+            height: 36,
+          },
+        }
+
   mainWindow = new BrowserWindow({
     ...bounds,
+    ...platformWindowOptions,
     minHeight: 600,
     minWidth: 900,
     show: false,
     // Helps first paint / ready-to-show on macOS vibrancy windows; matches renderer theme
     backgroundColor: '#1a1a2e',
     title: 'Claude Colony',
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 16, y: 16 },
-    vibrancy: 'sidebar',
     icon: getIconPath(),
     webPreferences: {
       contextIsolation: true,
@@ -315,6 +329,12 @@ function createWindow(): void {
 
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     console.error('[app] render-process-gone:', details)
+  })
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindow?.webContents.executeJavaScript(
+      `document.documentElement.dataset.platform = '${process.platform}'`
+    )
   })
 
   // Prevent Electron from handling Cmd+- / Cmd+= / Cmd+0 as native zoom

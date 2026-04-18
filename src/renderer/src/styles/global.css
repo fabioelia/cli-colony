@@ -56,6 +56,10 @@
   --border-overlay: rgba(0, 0, 0, 0.20);
 }
 
+[data-platform="win32"] {
+  --titlebar-pad: 36px;
+}
+
 body.fullscreen {
   --titlebar-pad: 8px;
 }

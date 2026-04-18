@@ -5,11 +5,12 @@ import { getAllInstances, ClaudeInstance } from './instance-manager'
 let tray: Tray | null = null
 
 export function createTray(mainWindow: BrowserWindow | null): void {
-  // Use -Template naming so macOS auto-handles light/dark mode
-  // nativeImage automatically picks up @2x for Retina
-  const trayIconPath = join(__dirname, '../../resources/tray-iconTemplate.png')
+  const trayIconPath =
+    process.platform === 'win32'
+      ? join(__dirname, '../../resources/icon.ico')
+      : join(__dirname, '../../resources/tray-iconTemplate.png')
   const icon = nativeImage.createFromPath(trayIconPath)
-  icon.setTemplateImage(true)
+  if (process.platform === 'darwin') icon.setTemplateImage(true)
 
   tray = new Tray(icon)
   tray.setToolTip('Claude Colony')
