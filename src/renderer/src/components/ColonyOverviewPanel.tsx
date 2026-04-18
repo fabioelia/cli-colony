@@ -1173,7 +1173,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                         {(ev.details.commitsCount as number) > 0 && (
                           <span className="activity-outcome-badge"><GitCommit size={9} /> {ev.details.commitsCount as number}</span>
                         )}
-                        {(ev.details.costUsd as number) > 0 && (
+                        {(ev.details.costUsd as number) >= 0.005 && (
                           <span className="activity-outcome-badge cost">${(ev.details.costUsd as number).toFixed(2)}</span>
                         )}
                       </span>
