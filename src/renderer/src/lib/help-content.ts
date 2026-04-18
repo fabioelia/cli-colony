@@ -590,6 +590,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Running indicator', detail: 'Pulsing amber dot when the pipeline is actively polling.' },
           { label: 'Error display', detail: 'Red block with error message if the last run failed.' },
           { label: 'Failure badge', detail: 'Amber warning showing consecutive failure count (e.g. 2/3). Pipelines auto-pause after 3 consecutive failures — this badge surfaces the count before it happens.', icon: 'AlertTriangle' },
+          { label: 'Budget badge', detail: 'Shows the configured cost cap per run (e.g. "$5"). Turns into "$ Cap" after a run hits the budget limit. Hover for warning threshold. Pipelines without a budget configured show no badge.' },
           { label: 'Success rate badge', detail: 'Shows N/M ✓ (card) or XX% (list) — successes over the last 10 runs. Green ≥80%, amber 50–79%, red <50%. Hidden until a pipeline has ≥3 runs. Hover for full counts. Sort by "Success Rate" to surface unreliable pipelines first. Click the badge (when rate < 100%) to auto-expand, jump to the History tab, and pre-filter to failures only.' },
           { label: 'Run strip', detail: 'Thin horizontal sparkline of up to 20 recent runs next to the success badge. Green cells = success, red = failed, gray = ran but took no action (condition gate). Newest runs on the right. Hover any cell for its timestamp, outcome, and first error. Visible once a pipeline has ≥5 runs — answers "when did the failure wave start?" at a glance.' },
           { label: 'Repo pipelines', detail: 'Pipelines from .colony/pipelines/ in tracked repos appear here (disabled by default).' },
@@ -689,6 +690,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Main area — Environments tab',
         items: [
           { label: 'Status dot', detail: 'Green = all services running. Yellow = partial. Red = crashed. Gray = stopped.' },
+          { label: 'Age badge', detail: 'Shows how long ago the environment was created (e.g. "2d ago"). Hover for the exact date. Helps identify stale environments.' },
           { label: 'Template drift badge', detail: 'Amber badge appears when the environment\'s source template changed after creation. Tooltip shows which fields differ (services, ports, etc.). Click to accept the current template as the new baseline (clears the indicator without modifying services or config). To apply template changes to services, teardown + recreate the env from the template.' },
           { label: 'Service dots', detail: 'Colored dot + service name for each service. Dot color shows status: green = running, red = crashed, gray = stopped. Hover for port and restart info.' },
           { label: 'Start', detail: 'Launch all services in the environment.', icon: 'Play' },

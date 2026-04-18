@@ -702,6 +702,11 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                   <div className="env-card-meta">
                     <span className="env-card-branch">{env.branch}</span>
                     {env.projectType && <span className="env-card-type">{env.projectType}</span>}
+                    {env.createdAt && (
+                      <span className="env-card-age" title={new Date(env.createdAt).toLocaleString()}>
+                        {formatAge(env.createdAt)}
+                      </span>
+                    )}
                     {driftStatus[env.id] === 'drifted' && (() => {
                       const fields = driftFields[env.id] || []
                       const toDisplay = (f: string) => f.replace(/([A-Z])/g, ' $1').toLowerCase()

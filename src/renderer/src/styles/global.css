@@ -16120,6 +16120,10 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--accent);
 }
 
+.env-card-age {
+  opacity: 0.6;
+}
+
 .env-drift-badge {
   display: inline-block;
   padding: 1px 5px;
