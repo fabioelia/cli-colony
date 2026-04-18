@@ -312,6 +312,9 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
           <div className="overview-stat-card" onClick={() => onNavigate('instances')}>
             <div className="overview-stat-value">{running.length}</div>
             <div className="overview-stat-label">Running Sessions</div>
+            {instances.length > running.length && (
+              <div className="overview-stat-subtitle">{instances.length - running.length} stopped</div>
+            )}
           </div>
           <div className="overview-stat-card" onClick={() => onNavigate('personas')}>
             <div className="overview-stat-value">{runningPersonas.length}</div>

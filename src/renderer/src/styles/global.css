@@ -13431,6 +13431,17 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-weight: 600;
 }
 
+.pipeline-cost-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(52, 211, 153, 0.1);
+  color: var(--accent);
+  border: 1px solid rgba(52, 211, 153, 0.25);
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
 .pipeline-success-badge {
   display: inline-flex;
   align-items: center;

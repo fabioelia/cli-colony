@@ -200,12 +200,12 @@ async function _executeBatchInner(config: BatchConfig): Promise<BatchRun> {
     .filter(f => (f.endsWith('.yaml') || f.endsWith('.yml')) && !f.endsWith('.memory.md'))
 
   // 2. Parse all tasks
-  const allTasks: Array<{ task: TaskQueueItem; queueName: string }> = []
+  const allTasks: Array<{ task: TaskQueueItem; queueName: string; taskIndex: number }> = []
   for (const file of files) {
     const tasks = await parseTaskQueue(join(taskQueueDir, file))
     if (tasks) {
       const queueName = file.replace(/\.(yaml|yml)$/, '')
-      for (const task of tasks) allTasks.push({ task, queueName })
+      for (let i = 0; i < tasks.length; i++) allTasks.push({ task: tasks[i], queueName, taskIndex: i + 1 })
     }
   }
 
@@ -222,10 +222,10 @@ async function _executeBatchInner(config: BatchConfig): Promise<BatchRun> {
   async function runNext(): Promise<void> {
     const item = taskQueue.shift()
     if (!item) return
-    const { task, queueName } = item
+    const { task, queueName, taskIndex } = item
     const start = Date.now()
     const taskRun: BatchTaskRun = {
-      taskId: task.id || task.name || uuid(),
+      taskId: task.id || task.name || `${queueName}-${taskIndex}`,
       queueName,
       status: 'running' as BatchTaskStatus,
       startedAt: new Date().toISOString(),
@@ -233,7 +233,7 @@ async function _executeBatchInner(config: BatchConfig): Promise<BatchRun> {
     }
     try {
       const inst = await createInstance({
-        name: `Batch: ${task.name || task.id}`,
+        name: `Batch: ${task.name || task.id || `${queueName} #${taskIndex}`}`,
         workingDirectory: (task as any).directory || colonyPaths.root,
       })
       // Attach completion listener BEFORE sending prompt (race condition guard)

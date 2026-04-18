@@ -289,7 +289,7 @@ export interface ClaudeManagerAPI {
     dismiss: (id: string) => Promise<boolean>
     onApprovalNew: (cb: (request: ApprovalRequest) => void) => () => void
     onApprovalUpdate: (cb: (data: { id: string; status: 'approved' | 'dismissed' | 'expired' }) => void) => () => void
-    getHistory: (name: string) => Promise<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; stages?: Array<{ index: number; actionType: string; sessionName?: string; durationMs: number; success: boolean; error?: string }> }>>
+    getHistory: (name: string) => Promise<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; stages?: Array<{ index: number; actionType: string; sessionName?: string; durationMs: number; success: boolean; error?: string }> }>>
     createFromTemplate: (yaml: string, slug: string) => Promise<boolean>
     generate: (description: string) => Promise<string>
     delete: (fileName: string) => Promise<boolean>

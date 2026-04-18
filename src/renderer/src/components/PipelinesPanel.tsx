@@ -30,6 +30,7 @@ interface PipelineStats {
   successes: number
   total: number
   recent: RecentRun[]
+  cumulativeCost: number
 }
 
 function PipelineRunStrip({ recent, compact }: { recent: RecentRun[]; compact?: boolean }) {
@@ -340,7 +341,8 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
             actionExecuted: e.actionExecuted,
             error: e.success ? null : firstErrorOf(e),
           }))
-          stats.set(p.name, { rate: Math.round((successes / total) * 100), successes, total, recent })
+          const cumulativeCost = history.reduce((sum, e) => sum + (e.totalCost || 0), 0)
+          stats.set(p.name, { rate: Math.round((successes / total) * 100), successes, total, recent, cumulativeCost })
         } catch { stats.set(p.name, null) }
       }))
       if (!cancelled) setPipelineStats(stats)
@@ -1083,6 +1085,11 @@ ${modelLine}  prompt: |
                       </span>
                       {stats.recent.length >= 5 && (
                         <PipelineRunStrip recent={stats.recent} />
+                      )}
+                      {stats.cumulativeCost > 0.01 && (
+                        <span className="pipeline-cost-badge" title={`Total cost across ${stats.total} runs`}>
+                          ${stats.cumulativeCost < 10 ? stats.cumulativeCost.toFixed(2) : stats.cumulativeCost.toFixed(0)}
+                        </span>
                       )}
                     </>
                   )
