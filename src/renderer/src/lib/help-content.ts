@@ -117,7 +117,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Running Sessions', detail: 'Count of live sessions. Click to jump to the sessions list.' },
           { label: 'Active Personas', detail: 'Personas currently executing a scheduled or manual run.' },
-          { label: 'Pipelines Enabled', detail: 'Number of pipelines with automation turned on.' },
+          { label: 'Pipelines Enabled', detail: 'Number of pipelines with automation turned on. A muted subtitle shows how long ago the most recent pipeline fired (e.g. "last 4m ago"). Hidden until at least one pipeline has fired.' },
           { label: 'Environments', detail: 'Running vs. total environment count. Amber when any environment is in partial/creating state, red when any is in error state. Click to navigate to the Environments panel.', icon: 'FolderOpen' },
           { label: 'Colony Health', detail: 'Composite health score (0–100%). Weighted: persona last-run success (35%), pipeline error-free (25%), session health (25%), environment health (15%). Green ≥80%, amber 50–79%, red <50%. Click to expand an inline breakdown showing each category with a progress bar and status dot. Click any row to navigate to that panel. Click the card again to collapse.' },
           { label: 'Session Cost', detail: 'Total cost across all current sessions.' },

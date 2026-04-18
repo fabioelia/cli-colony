@@ -21432,6 +21432,12 @@ body:has(.daemon-update-banner) .app-update-banner {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+.overview-stat-subtitle {
+  font-size: 10px;
+  color: var(--text-muted);
+  opacity: 0.7;
+  margin-top: 3px;
+}
 .health-score-badge {
   display: inline-block;
   padding: 2px 10px;

@@ -150,6 +150,14 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const totalCost = useMemo(() => instances.reduce((sum, i) => sum + (i.tokenUsage.cost || 0), 0), [instances])
   const activePipelines = useMemo(() => pipelines.filter(p => p.enabled), [pipelines])
   const errorPipelines = useMemo(() => pipelines.filter(p => p.lastError), [pipelines])
+  const pipelineLastFireSubtitle = useMemo(() => {
+    const latest = activePipelines
+      .map(p => p.lastFiredAt)
+      .filter(Boolean)
+      .sort()
+      .at(-1)
+    return latest ? timeAgo(latest) : null
+  }, [activePipelines])
   const runningPersonas = useMemo(() => personas.filter(p => p.activeSessionId), [personas])
   const pendingApprovals = approvals
   const inProgressTasks = useMemo(() => tasks.filter(t => t.status === 'in_progress'), [tasks])
@@ -299,6 +307,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
           <div className="overview-stat-card" onClick={() => onNavigate('pipelines')}>
             <div className="overview-stat-value">{activePipelines.length}</div>
             <div className="overview-stat-label">Pipelines Enabled</div>
+            {pipelineLastFireSubtitle && <div className="overview-stat-subtitle">last {pipelineLastFireSubtitle}</div>}
           </div>
           <div className="overview-stat-card" onClick={() => onNavigate('environments')}>
             <div className={`overview-stat-value${unhealthyEnvs.some(e => e.status === 'error') ? ' env-error' : unhealthyEnvs.length > 0 ? ' env-warn' : ''}`}>
