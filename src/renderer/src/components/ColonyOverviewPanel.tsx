@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import {
-  Home, Play, Plus, Zap, Clock, AlertCircle,
+  Home, Play, Plus, Zap, Clock, AlertCircle, Layers,
   CheckCircle2, XCircle, Circle, Users, FolderOpen, Activity, GanttChart, BarChart3, X, Eye, Square, Pin, PinOff,
   ChevronLeft, ChevronRight, Calendar, RotateCcw, Search, MessageSquare, Trash2
 } from 'lucide-react'
@@ -665,7 +665,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
         {/* Running Batch */}
         {batchProgress && (
           <div className="overview-section">
-            <h3><Zap size={14} /> Running Batch</h3>
+            <h3><Layers size={14} /> Running Batch</h3>
             <div className="overview-session-list">
               <div className="overview-session-tile" onClick={() => onNavigate('task-queues')}>
                 <span className="overview-session-name">{batchProgress.completed}/{batchProgress.total} tasks</span>

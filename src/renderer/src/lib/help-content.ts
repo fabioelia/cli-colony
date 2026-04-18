@@ -168,7 +168,7 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Running Batch',
         position: 'Between Active Personas and Just Finished',
         items: [
-          { label: 'Running Batch section', detail: 'Appears when a task queue is executing. Shows progress (N/M tasks) and a live progress bar. Click to navigate to the Task Queues panel. Disappears automatically when the batch completes.', icon: 'Zap' },
+          { label: 'Running Batch section', detail: 'Appears when a task queue is executing. Shows progress (N/M tasks) and a live progress bar. Click to navigate to the Task Queues panel. Disappears automatically when the batch completes.', icon: 'Layers' },
         ],
       },
       {
