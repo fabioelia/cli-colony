@@ -6936,6 +6936,15 @@ body:has(.daemon-update-banner) .app-update-banner {
   white-space: nowrap;
 }
 
+.instance-cost-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
 /* Idle / stale session badge — amber idle, red stale */
 .instance-idle-badge {
   font-size: 9px;
@@ -13270,6 +13279,15 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: var(--bg-hover);
   padding: 2px 6px;
   border-radius: 3px;
+}
+
+.pipeline-action-type {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
 }
 
 .pipeline-card-interval {

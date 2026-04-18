@@ -262,6 +262,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Split/Grid indicator', detail: 'A columns icon appears on sessions in a split view or grid view. In grid mode, all assigned panes show the indicator.', icon: 'Columns2' },
           { label: 'Group by', detail: 'A grouping selector appears above the session history list. Group by Persona, Project (working directory), Status, or Pipeline. Pipeline grouping shows sessions under their pipeline run with an aggregate status dot (green = all done, blue = running, red = failed). Non-pipeline sessions appear under "Manual Sessions". Groups are collapsible and the mode persists across sessions.', icon: 'Layers' },
           { label: 'Collapse/Expand All', detail: 'Toggle all session group headers collapsed or expanded at once. Appears when sessions are grouped by persona, project, status, or pipeline.', icon: 'ChevronsUp' },
+          { label: 'Cost badge', detail: 'Green badge showing the session\'s API cost (e.g. "$0.42"). Only appears when cost exceeds $0.001. Hover for full precision.' },
           { label: 'Group cost badge', detail: 'Group headers show a green cost badge (e.g. "$4.23") next to the session count when the group total exceeds $0.01. Hover for exact total. Works for all group modes.' },
           { label: 'Drag to reorder', detail: 'Drag sessions to rearrange them in the sidebar. Custom order persists across restarts. Only available when group-by is set to "none". A reset button appears to return to the default sort (pinned → running → stopped).' },
           { label: 'Multi-select', detail: 'Click the checkbox icon (next to group-by) or Cmd+click any session to enter select mode. Shift+click to select a contiguous range from the last-clicked session. A floating action bar appears for bulk Send Prompt, Stop, Restart, or Remove. Send Prompt opens an inline textarea to broadcast a message to all selected running sessions. Cmd+A selects all visible sessions; Escape exits. Remove only affects stopped sessions.', icon: 'CheckSquare' },
@@ -586,6 +587,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Main area — expandable cards',
         items: [
           { label: 'Pipeline card', detail: 'Shows name, trigger type (git-poll/cron/file-poll), and enabled/disabled toggle.' },
+          { label: 'Action type chip', detail: 'Shows the pipeline action type (e.g. "Parallel", "Maker-Checker") on the card header. Simple session pipelines omit the chip to reduce noise.' },
           { label: 'Schedule badge', detail: 'Shows the current cron schedule as a human-readable label (e.g. "Weekdays 9am"). Click it to open the schedule editor with presets and next-run preview.', icon: 'Clock' },
           { label: 'Running indicator', detail: 'Pulsing amber dot when the pipeline is actively polling.' },
           { label: 'Error display', detail: 'Red block with error message if the last run failed.' },

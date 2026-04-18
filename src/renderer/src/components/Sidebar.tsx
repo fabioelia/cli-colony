@@ -263,6 +263,8 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
               badges.push({ node: <span key="cf" className="instance-conflict-badge" title={conflictFiles.map(o => `${o.file} (also in ${o.otherSessions.map(s => s.name).join(', ')})`).join('\n')}><AlertTriangle size={11} /> {conflictFiles.length}</span>, label: `${conflictFiles.length} conflict${conflictFiles.length > 1 ? 's' : ''}` })
             if (inst.budgetExceeded)
               badges.push({ node: <span key="be" className="instance-budget-badge" title="Budget exceeded — session stopped">$cap</span>, label: 'Budget exceeded' })
+            if ((inst.tokenUsage?.cost ?? 0) > 0.001)
+              badges.push({ node: <span key="co" className="instance-cost-badge" title={`API cost: $${inst.tokenUsage!.cost!.toFixed(4)}`}>${inst.tokenUsage!.cost!.toFixed(2)}</span>, label: `$${inst.tokenUsage!.cost!.toFixed(2)}` })
             if (idleMs !== null && inst.activity === 'busy' && idleMs > 300000) {
               const isStale = idleMs > 900000
               const mins = Math.floor(idleMs / 60000)
