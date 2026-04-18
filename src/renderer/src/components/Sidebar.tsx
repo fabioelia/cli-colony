@@ -93,6 +93,17 @@ function formatElapsed(createdAt: string): string {
   return `${days}d ${hrs % 24}h`
 }
 
+function formatDuration(ms: number): string {
+  const secs = Math.floor(ms / 1000)
+  if (secs < 60) return `${secs}s`
+  const mins = Math.floor(secs / 60)
+  if (mins < 60) return `${mins}m`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ${mins % 60}m`
+  const days = Math.floor(hrs / 24)
+  return `${days}d ${hrs % 24}h`
+}
+
 interface TriggerChainNode {
   id: string
   name: string
@@ -318,8 +329,8 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
               {(inst.exitCode == null || inst.exitCode === 0) ? 'done' : `err ${inst.exitCode}`}
             </span>
             {exitDuration != null && exitDuration > 0 && (
-              <span className="instance-exit-duration" title={`Session ran for ${Math.floor(exitDuration / 60000)} minutes`}>
-                {formatElapsed(new Date(Date.now() - exitDuration).toISOString())}
+              <span className="instance-exit-duration" title={`Session duration: ${formatDuration(exitDuration)}`}>
+                {formatDuration(exitDuration)}
               </span>
             )}
           </>
