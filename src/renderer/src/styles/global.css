@@ -21737,6 +21737,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .badge-idle { background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning); }
 .badge-stale { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); }
 .badge-role { background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border); }
+.badge-model { background: rgba(107, 107, 128, 0.1); color: var(--text-muted); }
 .attention-stale { cursor: pointer; }
 .attention-stale:hover { background: var(--bg-hover); }
 .overview-exit-ok { color: var(--success); flex-shrink: 0; }

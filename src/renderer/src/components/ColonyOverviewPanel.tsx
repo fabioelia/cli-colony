@@ -52,6 +52,17 @@ function formatCost(cost: number): string {
   return `$${cost.toFixed(2)}`
 }
 
+function getModelLabel(args: string[]): string | null {
+  const idx = args.indexOf('--model')
+  if (idx < 0 || !args[idx + 1]) return null
+  const raw = args[idx + 1]
+  if (raw.includes('opus-4-7') || raw === 'opus-4-7') return '4.7'
+  if (raw.includes('opus')) return '4.6'
+  if (raw.includes('sonnet')) return 'sonnet'
+  if (raw.includes('haiku')) return 'haiku'
+  return raw.length > 8 ? raw.slice(0, 8) : raw
+}
+
 type OverviewTab = 'dashboard' | 'timeline'
 
 export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewSession, onNavigate, onKill, onRestart }: Props) {
@@ -536,6 +547,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                   {inst.activity === 'busy' && (idleMap.get(inst.id) || 0) <= 300000 && <span className="overview-badge badge-busy">busy</span>}
                   {inst.activity === 'waiting' && <span className="overview-badge badge-waiting">idle</span>}
                   {inst.roleTag && <span className="overview-badge badge-role">{inst.roleTag}</span>}
+                  {getModelLabel(inst.args) && <span className="overview-badge badge-model" title={inst.args[inst.args.indexOf('--model') + 1]}>{getModelLabel(inst.args)}</span>}
                   <span className="overview-session-elapsed" title={`Running since ${new Date(inst.createdAt).toLocaleTimeString()}`}>
                     {formatElapsed(inst.createdAt)}
                   </span>
