@@ -129,6 +129,13 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Context Pressure',
+        position: 'Above Needs Attention (when applicable)',
+        items: [
+          { label: 'Context Pressure section', detail: 'Shows running sessions approaching their context window limit (≥60% used). Color-coded: green (60–79%), amber (80–94%), red (≥95%). Sorted by percentage descending — most pressed first. Each row shows session name, percentage badge, and token count. Click a row to focus that session. Polls every 10 seconds. Hidden when no session exceeds 60%.', icon: 'Gauge' },
+        ],
+      },
+      {
         name: 'Needs Attention',
         position: 'Below stats (when applicable)',
         items: [
@@ -139,6 +146,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Unhealthy environments', detail: 'Environments in error or partial state. Inline Restart button retries setup for error state or restarts services for partial state.', icon: 'AlertCircle' },
           { label: 'Failed persona runs', detail: 'Enabled personas whose last run failed. Inline Run Now button triggers a new run immediately. Click to navigate to the Personas panel. Capped at 5 entries.', icon: 'Users' },
           { label: 'Rate limit warning', detail: 'Appears when API rate limit utilization reaches 30% or higher. Amber at 70–89%, red at 90%+ or when paused. Shows utilization percentage, limit type, reset countdown, and burn-rate projection (~Nm to limit) when approaching the limit. Pulses when limit is projected within 30 minutes. Click to navigate to sessions. Colony-wide — reflects the shared API quota across all sessions.', icon: 'AlertCircle' },
+          { label: 'Priority ordering', detail: 'Items are ordered by urgency: Rate limit (top, affects all sessions) → Errors (pipeline failures, unhealthy envs, failed personas) → Pending approvals → Blocked tasks → Stale sessions (bottom, usually harmless). When 2+ categories are present, subtle group headers appear (e.g. "3 Errors", "2 Pending") so you can scan at a glance.' },
         ],
       },
       {

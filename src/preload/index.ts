@@ -458,6 +458,7 @@ export interface ClaudeManagerAPI {
     onComments: (callback: (data: { instanceId: string; comments: ColonyComment[] }) => void) => () => void
     getCoordinatorTeam: (sessionId: string) => Promise<CoordinatorTeam | null>
     getContextUsage: (sessionId: string) => Promise<ContextUsage | null>
+    getAllContextUsage: () => Promise<ContextUsage[]>
     tokenizeApproximate: (text: string) => Promise<number>
     exportMarkdown: (instanceId: string) => Promise<string>
     exportMarkdownToFile: (instanceId: string) => Promise<boolean>
@@ -1107,6 +1108,7 @@ const api: ClaudeManagerAPI = {
     },
     getCoordinatorTeam: (sessionId) => ipcRenderer.invoke('session:getCoordinatorTeam', sessionId) as Promise<CoordinatorTeam | null>,
     getContextUsage: (sessionId) => ipcRenderer.invoke('session:getContextUsage', sessionId),
+    getAllContextUsage: () => ipcRenderer.invoke('session:getAllContextUsage'),
     tokenizeApproximate: (text) => ipcRenderer.invoke('session:tokenizeApproximate', text),
     exportMarkdown: (instanceId) => ipcRenderer.invoke('session:exportMarkdown', instanceId),
     exportMarkdownToFile: (instanceId) => ipcRenderer.invoke('session:exportMarkdownToFile', instanceId),

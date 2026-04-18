@@ -9,7 +9,7 @@ import {
 } from '../session-scanner'
 import { getRestorableSessions, clearRestorable, getRecentSessions } from '../recent-sessions'
 import { getAllInstances, getIdleInfo } from '../instance-manager'
-import { getContextUsage, tokenizeApproximate } from '../context-counter'
+import { getContextUsage, getAllContextUsage, tokenizeApproximate } from '../context-counter'
 import { getArtifact } from '../session-artifacts'
 import { getDaemonRouter } from '../daemon-router'
 import { stripAnsi } from '../../shared/utils'
@@ -75,6 +75,10 @@ export function registerSessionHandlers(): void {
 
   ipcMain.handle('session:getContextUsage', (_e, sessionId: string): ContextUsage | null => {
     return getContextUsage(sessionId)
+  })
+
+  ipcMain.handle('session:getAllContextUsage', (): ContextUsage[] => {
+    return getAllContextUsage()
   })
 
   ipcMain.handle('session:tokenizeApproximate', (_e, text: string): number => {

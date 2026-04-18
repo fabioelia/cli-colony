@@ -152,6 +152,17 @@ export function removeContext(sessionId: string): void {
 }
 
 /**
+ * Get context usage for all tracked sessions.
+ */
+export function getAllContextUsage(): ContextUsage[] {
+  const results: ContextUsage[] = []
+  for (const state of contextStates.values()) {
+    results.push(buildContextUsage(state))
+  }
+  return results
+}
+
+/**
  * Get all tracked context states (for testing/debugging).
  */
 export function getAllContextStates(): ContextState[] {

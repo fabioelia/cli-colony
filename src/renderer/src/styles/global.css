@@ -21949,6 +21949,8 @@ body:has(.daemon-update-banner) .app-update-banner {
 .attention-action-btn:hover { background: var(--bg-hover); }
 .attention-action-btn.approve:hover { color: var(--success); border-color: var(--success); }
 .attention-action-btn.dismiss:hover { color: var(--danger); border-color: var(--danger); }
+.attention-category-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); padding: 6px 0 2px; }
+.attention-category-label:first-child { padding-top: 0; }
 /* Session / persona tiles */
 .overview-session-list {
   display: flex;

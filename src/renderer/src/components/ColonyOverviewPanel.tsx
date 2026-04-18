@@ -2,12 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react'
 import {
   Home, Play, Plus, Zap, Clock, AlertCircle, Layers,
   CheckCircle2, XCircle, Circle, Users, FolderOpen, Activity, GanttChart, BarChart3, X, Eye, Square, Pin, PinOff,
-  ChevronLeft, ChevronRight, Calendar, RotateCcw, Search, MessageSquare, Trash2, Server, Download
+  ChevronLeft, ChevronRight, Calendar, RotateCcw, Search, MessageSquare, Trash2, Server, Download, Gauge
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import SessionTimeline from './SessionTimeline'
 import { nextRuns } from '../../../shared/cron'
-import type { ClaudeInstance, ActivityEvent, PersonaInfo, ApprovalRequest, TaskBoardItem, PersonaHealthEntry, EnvStatus } from '../../../preload'
+import type { ClaudeInstance, ActivityEvent, PersonaInfo, ApprovalRequest, TaskBoardItem, PersonaHealthEntry, EnvStatus, ContextUsage } from '../../../preload'
 
 interface PipelineSummary {
   name: string
@@ -82,6 +82,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const [batchProgress, setBatchProgress] = useState<{ id: string; total: number; completed: number } | null>(null)
   const [environments, setEnvironments] = useState<EnvStatus[]>([])
   const [dailyCostBudget, setDailyCostBudget] = useState(0)
+  const [contextPressure, setContextPressure] = useState<ContextUsage[]>([])
   const [tick, setTick] = useState(0)
   const [triggeredIds, setTriggeredIds] = useState<Set<string>>(new Set())
 
@@ -148,6 +149,15 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
 
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 60000)
+    return () => clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    const fetch = () => window.api.session.getAllContextUsage().then(all => {
+      setContextPressure(all.filter(u => u.percentage >= 60).sort((a, b) => b.percentage - a.percentage))
+    })
+    fetch()
+    const id = setInterval(fetch, 10000)
     return () => clearInterval(id)
   }, [])
 
@@ -448,39 +458,72 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
           )
         })()}
 
+        {/* Context Pressure */}
+        {contextPressure.length > 0 && (
+          <div className="overview-section">
+            <h3><Gauge size={14} /> Context Pressure</h3>
+            <div className="overview-session-list">
+              {contextPressure.map(u => {
+                const inst = instances.find(i => i.id === u.sessionId)
+                return (
+                  <div key={u.sessionId} className="overview-session-tile" onClick={() => inst && onFocusInstance(inst.id)}>
+                    <span className={`overview-session-dot ${u.percentage >= 95 ? 'red' : u.percentage >= 80 ? 'amber' : 'green'}`} style={{ background: u.percentage >= 95 ? 'var(--error)' : u.percentage >= 80 ? 'var(--warn)' : 'var(--success)' }} />
+                    <span className="overview-session-name">{inst?.name || u.sessionId.slice(0, 8)}</span>
+                    <span className={`overview-badge ${u.percentage >= 95 ? 'badge-error' : u.percentage >= 80 ? 'badge-warn' : 'badge-model'}`}>
+                      {u.percentage}%
+                    </span>
+                    <span className="overview-session-elapsed">{Math.round(u.tokens / 1000)}k tokens</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Attention needed */}
-        {(pendingApprovals.length > 0 || errorPipelines.length > 0 || blockedTasks.length > 0 || staleSessions.length > 0 || unhealthyEnvs.length > 0 || failedPersonas.length > 0 || (rateLimitState?.utilization != null && rateLimitState.utilization >= 0.70)) && (
+        {(pendingApprovals.length > 0 || errorPipelines.length > 0 || blockedTasks.length > 0 || staleSessions.length > 0 || unhealthyEnvs.length > 0 || failedPersonas.length > 0 || (rateLimitState?.utilization != null && rateLimitState.utilization >= 0.70)) && (() => {
+          const errorCount = errorPipelines.length + unhealthyEnvs.length + failedPersonas.length
+          const attentionCategories = [
+            rateLimitState?.utilization != null && rateLimitState.utilization >= 0.70,
+            errorCount > 0,
+            pendingApprovals.length > 0,
+            blockedTasks.length > 0,
+            staleSessions.length > 0,
+          ].filter(Boolean).length
+          const showLabels = attentionCategories >= 2
+          return (
           <div className="overview-section">
             <h3><AlertCircle size={14} /> Needs Attention</h3>
             <div className="overview-attention-list">
-              {staleSessions.map(inst => (
-                <div key={inst.id} className="overview-attention-item attention-stale" onClick={() => onFocusInstance(inst.id)} title={`No output for ${Math.floor((idleMap.get(inst.id) || 0) / 60000)} minutes`}>
-                  <Clock size={13} />
-                  <span className="attention-label">{inst.name || 'Unnamed'} — stale</span>
-                  <span className="attention-time">{Math.floor((idleMap.get(inst.id) || 0) / 60000)}m idle</span>
-                  {onKill && (actionedIds.has(`stale-${inst.id}`) ? (
-                    <span className="attention-action-btn approve"><CheckCircle2 size={13} /></span>
-                  ) : (
-                    <button className="attention-action-btn dismiss" title="Stop" onClick={(e) => { e.stopPropagation(); onKill(inst.id); markActioned(`stale-${inst.id}`) }}>
-                      <Square size={13} />
-                    </button>
-                  ))}
+              {rateLimitState?.utilization != null && rateLimitState.utilization >= 0.70 && (
+                <div
+                  className={`overview-attention-item ${rateLimitState.paused || rateLimitState.utilization >= 0.90 ? 'attention-error' : 'attention-stale'}`}
+                  onClick={() => onNavigate('instances')}
+                  title={[
+                    `API rate limit: ${(rateLimitState.utilization * 100).toFixed(0)}%`,
+                    rateLimitState.rateLimitType ? rateLimitState.rateLimitType.replace(/_/g, ' ') : null,
+                    rateLimitState.resetAt ? `Resets ${new Date(rateLimitState.resetAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : null,
+                    rateLimitState.source ? `via ${rateLimitState.source}` : null,
+                  ].filter(Boolean).join(' · ')}
+                >
+                  <AlertCircle size={13} />
+                  <span className="attention-label">
+                    {rateLimitState.paused ? 'Rate limited — paused' : `Rate limit ${Math.round(rateLimitState.utilization * 100)}%`}
+                  </span>
+                  {rateLimitState.resetAt && (() => {
+                    const resetMs = rateLimitState.resetAt - Date.now()
+                    const resetMins = Math.max(0, Math.ceil(resetMs / 60000))
+                    return (
+                      <span className="attention-time">
+                        {resetMins > 0 ? `resets in ${resetMins}m` : 'resetting...'}
+                      </span>
+                    )
+                  })()}
                 </div>
-              ))}
-              {pendingApprovals.map(a => (
-                <div key={a.id} className="overview-attention-item attention-approval">
-                  <Zap size={13} style={{ cursor: 'pointer' }} onClick={() => onNavigate('pipelines')} />
-                  <span className="attention-label" onClick={() => onNavigate('pipelines')} style={{ cursor: 'pointer' }}>{a.pipelineName}</span>
-                  {a.summary && <span className="attention-summary">{a.summary}</span>}
-                  <span className="attention-time">{a.expiresAt ? `expires ${timeAgo(a.expiresAt)}` : timeAgo(a.createdAt)}</span>
-                  <button className="attention-action-btn approve" title="Approve" onClick={(e) => { e.stopPropagation(); window.api.pipeline.approve(a.id).then(() => setApprovals(prev => prev.filter(x => x.id !== a.id))) }}>
-                    <CheckCircle2 size={13} />
-                  </button>
-                  <button className="attention-action-btn dismiss" title="Dismiss" onClick={(e) => { e.stopPropagation(); window.api.pipeline.dismiss(a.id).then(() => setApprovals(prev => prev.filter(x => x.id !== a.id))) }}>
-                    <X size={13} />
-                  </button>
-                </div>
-              ))}
+              )}
+              {showLabels && errorCount > 0 && (
+                <div className="attention-category-label">{errorCount} Error{errorCount !== 1 ? 's' : ''}</div>
+              )}
               {errorPipelines.map(p => (
                 <div key={p.name} className="overview-attention-item attention-error" onClick={() => onNavigate('pipelines')} title={p.lastError || undefined}>
                   <AlertCircle size={13} />
@@ -492,12 +535,6 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                       <RotateCcw size={13} />
                     </button>
                   )}
-                </div>
-              ))}
-              {blockedTasks.map(t => (
-                <div key={t.id} className="overview-attention-item attention-blocked" onClick={() => onNavigate('tasks')}>
-                  <Circle size={13} />
-                  <span className="attention-label">{t.title}</span>
                 </div>
               ))}
               {unhealthyEnvs.map(e => (
@@ -540,35 +577,53 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                   <span className="attention-label">and {failedPersonas.length - 5} more failed</span>
                 </div>
               )}
-              {rateLimitState?.utilization != null && rateLimitState.utilization >= 0.70 && (
-                <div
-                  className={`overview-attention-item ${rateLimitState.paused || rateLimitState.utilization >= 0.90 ? 'attention-error' : 'attention-stale'}`}
-                  onClick={() => onNavigate('instances')}
-                  title={[
-                    `API rate limit: ${(rateLimitState.utilization * 100).toFixed(0)}%`,
-                    rateLimitState.rateLimitType ? rateLimitState.rateLimitType.replace(/_/g, ' ') : null,
-                    rateLimitState.resetAt ? `Resets ${new Date(rateLimitState.resetAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : null,
-                    rateLimitState.source ? `via ${rateLimitState.source}` : null,
-                  ].filter(Boolean).join(' · ')}
-                >
-                  <AlertCircle size={13} />
-                  <span className="attention-label">
-                    {rateLimitState.paused ? 'Rate limited — paused' : `Rate limit ${Math.round(rateLimitState.utilization * 100)}%`}
-                  </span>
-                  {rateLimitState.resetAt && (() => {
-                    const resetMs = rateLimitState.resetAt - Date.now()
-                    const resetMins = Math.max(0, Math.ceil(resetMs / 60000))
-                    return (
-                      <span className="attention-time">
-                        {resetMins > 0 ? `resets in ${resetMins}m` : 'resetting...'}
-                      </span>
-                    )
-                  })()}
-                </div>
+              {showLabels && pendingApprovals.length > 0 && (
+                <div className="attention-category-label">{pendingApprovals.length} Pending</div>
               )}
+              {pendingApprovals.map(a => (
+                <div key={a.id} className="overview-attention-item attention-approval">
+                  <Zap size={13} style={{ cursor: 'pointer' }} onClick={() => onNavigate('pipelines')} />
+                  <span className="attention-label" onClick={() => onNavigate('pipelines')} style={{ cursor: 'pointer' }}>{a.pipelineName}</span>
+                  {a.summary && <span className="attention-summary">{a.summary}</span>}
+                  <span className="attention-time">{a.expiresAt ? `expires ${timeAgo(a.expiresAt)}` : timeAgo(a.createdAt)}</span>
+                  <button className="attention-action-btn approve" title="Approve" onClick={(e) => { e.stopPropagation(); window.api.pipeline.approve(a.id).then(() => setApprovals(prev => prev.filter(x => x.id !== a.id))) }}>
+                    <CheckCircle2 size={13} />
+                  </button>
+                  <button className="attention-action-btn dismiss" title="Dismiss" onClick={(e) => { e.stopPropagation(); window.api.pipeline.dismiss(a.id).then(() => setApprovals(prev => prev.filter(x => x.id !== a.id))) }}>
+                    <X size={13} />
+                  </button>
+                </div>
+              ))}
+              {showLabels && blockedTasks.length > 0 && (
+                <div className="attention-category-label">{blockedTasks.length} Blocked</div>
+              )}
+              {blockedTasks.map(t => (
+                <div key={t.id} className="overview-attention-item attention-blocked" onClick={() => onNavigate('tasks')}>
+                  <Circle size={13} />
+                  <span className="attention-label">{t.title}</span>
+                </div>
+              ))}
+              {showLabels && staleSessions.length > 0 && (
+                <div className="attention-category-label">{staleSessions.length} Stale</div>
+              )}
+              {staleSessions.map(inst => (
+                <div key={inst.id} className="overview-attention-item attention-stale" onClick={() => onFocusInstance(inst.id)} title={`No output for ${Math.floor((idleMap.get(inst.id) || 0) / 60000)} minutes`}>
+                  <Clock size={13} />
+                  <span className="attention-label">{inst.name || 'Unnamed'} — stale</span>
+                  <span className="attention-time">{Math.floor((idleMap.get(inst.id) || 0) / 60000)}m idle</span>
+                  {onKill && (actionedIds.has(`stale-${inst.id}`) ? (
+                    <span className="attention-action-btn approve"><CheckCircle2 size={13} /></span>
+                  ) : (
+                    <button className="attention-action-btn dismiss" title="Stop" onClick={(e) => { e.stopPropagation(); onKill(inst.id); markActioned(`stale-${inst.id}`) }}>
+                      <Square size={13} />
+                    </button>
+                  ))}
+                </div>
+              ))}
             </div>
           </div>
-        )}
+          )
+        })()}
 
         {/* Running sessions */}
         {running.length > 0 && (
