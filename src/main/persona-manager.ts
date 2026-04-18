@@ -56,6 +56,9 @@ export interface PersonaState {
 const stateFile = new JsonFile<Record<string, PersonaState>>(STATE_PATH, {})
 let stateCache: Record<string, PersonaState> = {}
 
+/** Instance IDs that were explicitly stopped by the user (not natural exits). */
+const _manuallyStopped = new Set<string>()
+
 function ensureDir(): void {
   if (!existsSync(PERSONAS_DIR)) mkdirSync(PERSONAS_DIR, { recursive: true })
 }
@@ -664,6 +667,7 @@ export async function stopPersona(fileName: string): Promise<boolean> {
 
   const state = getState(fm.name)
   if (state.activeSessionId) {
+    _manuallyStopped.add(state.activeSessionId)
     try {
       await killInstance(state.activeSessionId)
     } catch { /* session may already be gone */ }
@@ -841,6 +845,7 @@ export async function onSessionExit(instanceId: string): Promise<void> {
     if (state.activeSessionId === instanceId) {
       // Capture the session's output buffer before clearing
       let sessionCost = 0
+      let exitCode: number | null = null
       try {
         const buffer = await getDaemonRouter().getInstanceBuffer(instanceId)
         if (buffer) {
@@ -853,7 +858,11 @@ export async function onSessionExit(instanceId: string): Promise<void> {
         const instances = await getAllInstances()
         const inst = instances.find(i => i.id === instanceId)
         sessionCost = inst?.tokenUsage?.cost ?? 0
+        exitCode = inst?.exitCode ?? null
       } catch { /* non-fatal */ }
+
+      const manuallyStopped = _manuallyStopped.has(instanceId)
+      _manuallyStopped.delete(instanceId)
 
       // Compute session outcome stats
       const startedAt = state.sessionStartedAt
@@ -876,19 +885,23 @@ export async function onSessionExit(instanceId: string): Promise<void> {
       }
 
       const commitLabel = commitsCount > 0 ? ` · ${commitsCount} commit${commitsCount !== 1 ? 's' : ''}` : ''
+      const failed = !manuallyStopped && exitCode !== null && exitCode !== 0
+      const exitLabel = manuallyStopped ? 'stopped' : failed ? `failed (exit ${exitCode})` : 'completed'
       state.activeSessionId = null
       state.triggeredBy = null
       changed = true
-      console.log(`[persona] session exited for "${name}"`)
+      console.log(`[persona] session exited for "${name}" (${exitLabel})`)
       appendActivity({
         source: 'persona',
         name,
-        summary: `Persona "${name}" completed session${commitLabel}`,
-        level: 'info',
+        summary: `Persona "${name}" ${exitLabel} session${commitLabel}`,
+        level: failed ? 'warn' : 'info',
         sessionId: instanceId,
-        details: { type: 'session-outcome', duration: durationSec, commitsCount, filesChanged },
+        details: { type: 'session-outcome', duration: durationSec, commitsCount, filesChanged, exitCode },
       })
-      notify(`Colony: ${name} run complete`, `Session finished${commitLabel}`, 'personas')
+      const notifyTitle = failed ? `Colony: ${name} run failed` : `Colony: ${name} run complete`
+      const notifyBody = failed ? `Session failed (exit ${exitCode})${commitLabel}` : `Session finished${commitLabel}`
+      notify(notifyTitle, notifyBody, 'personas')
 
       // Check for new attention requests from this session
       const newAttention = getAttentionRequests(name).filter(a => !a.resolved)
@@ -913,51 +926,64 @@ export async function onSessionExit(instanceId: string): Promise<void> {
         // Record this run in the per-persona ring buffer
         const personaId = personaFile.replace('.md', '')
         const budgetExceeded = wasBudgetStopped(instanceId)
+        const stopReason = manuallyStopped ? 'manual' : budgetExceeded ? 'budget_exceeded' : undefined
         appendRunEntry(personaId, {
           personaId,
           timestamp: new Date().toISOString(),
           durationMs: durationSec !== null ? durationSec * 1000 : 0,
           costUsd: sessionCost,
-          success: true, // budget_exceeded counts as success (session did real work)
-          stopReason: budgetExceeded ? 'budget_exceeded' : undefined,
+          success: !failed, // budget_exceeded counts as success; manual stop does not affect; failed exit = false
+          stopReason,
           sessionId: instanceId,
         })
         checkDailyCostBudget()
-        const overridePath = join(PERSONAS_DIR, `${personaId}.triggers.json`)
-        let dynamicTriggers: Array<{ persona: string; message?: string }> | null = null
 
-        if (existsSync(overridePath)) {
+        if (manuallyStopped) {
+          // Manual stop: skip trigger chain (both dynamic and on_complete_run), but still extract memory
           try {
-            const raw = readFileSync(overridePath, 'utf-8')
-            const parsed = JSON.parse(raw)
-            if (Array.isArray(parsed.triggers)) {
-              dynamicTriggers = parsed.triggers
+            const c = readFileSync(join(PERSONAS_DIR, personaFile), 'utf-8')
+            const fm = parseFrontmatter(c)
+            if (fm && fm.auto_memory_extraction !== false && state.lastRunOutput && durationSec !== null) {
+              extractMemoryInBackground(name, state.lastRunOutput, durationSec)
             }
-          } catch { /* malformed — fall back to on_complete_run */ }
-          try { unlinkSync(overridePath) } catch { /* best effort */ }
+          } catch { /* non-fatal */ }
+        } else {
+          const overridePath = join(PERSONAS_DIR, `${personaId}.triggers.json`)
+          let dynamicTriggers: Array<{ persona: string; message?: string }> | null = null
+
+          if (existsSync(overridePath)) {
+            try {
+              const raw = readFileSync(overridePath, 'utf-8')
+              const parsed = JSON.parse(raw)
+              if (Array.isArray(parsed.triggers)) {
+                dynamicTriggers = parsed.triggers
+              }
+            } catch { /* malformed — fall back to on_complete_run */ }
+            try { unlinkSync(overridePath) } catch { /* best effort */ }
+          }
+
+          try {
+            const c = readFileSync(join(PERSONAS_DIR, personaFile), 'utf-8')
+            const fm = parseFrontmatter(c)
+
+            if (dynamicTriggers !== null) {
+              // Dynamic override: use file contents (empty array = suppress all triggers)
+              console.log(`[persona] trigger: dynamic override for "${name}" — ${dynamicTriggers.length} trigger(s)`)
+              for (const t of dynamicTriggers) {
+                triggerPersonas.push({ id: t.persona, triggeredBy: name, customMessage: t.message })
+              }
+            } else if (fm && fm.on_complete_run.length > 0) {
+              for (const t of fm.on_complete_run) {
+                triggerPersonas.push({ id: t, triggeredBy: name, customMessage: undefined })
+              }
+            }
+
+            // Fire memory extraction (fire-and-forget — never blocks)
+            if (fm && fm.auto_memory_extraction !== false && state.lastRunOutput && durationSec !== null) {
+              extractMemoryInBackground(name, state.lastRunOutput, durationSec)
+            }
+          } catch { /* non-fatal */ }
         }
-
-        try {
-          const c = readFileSync(join(PERSONAS_DIR, personaFile), 'utf-8')
-          const fm = parseFrontmatter(c)
-
-          if (dynamicTriggers !== null) {
-            // Dynamic override: use file contents (empty array = suppress all triggers)
-            console.log(`[persona] trigger: dynamic override for "${name}" — ${dynamicTriggers.length} trigger(s)`)
-            for (const t of dynamicTriggers) {
-              triggerPersonas.push({ id: t.persona, triggeredBy: name, customMessage: t.message })
-            }
-          } else if (fm && fm.on_complete_run.length > 0) {
-            for (const t of fm.on_complete_run) {
-              triggerPersonas.push({ id: t, triggeredBy: name, customMessage: undefined })
-            }
-          }
-
-          // Fire memory extraction (fire-and-forget — never blocks)
-          if (fm && fm.auto_memory_extraction !== false && state.lastRunOutput && durationSec !== null) {
-            extractMemoryInBackground(name, state.lastRunOutput, durationSec)
-          }
-        } catch { /* non-fatal */ }
       }
     }
   }

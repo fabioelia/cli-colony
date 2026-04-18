@@ -398,7 +398,7 @@ export interface PersonaRunEntry {
   success: boolean
   costUsd?: number
   /** Why the session stopped — undefined for normal exit */
-  stopReason?: 'budget_exceeded' | 'timeout'
+  stopReason?: 'budget_exceeded' | 'timeout' | 'manual'
   /** Instance ID of the session that ran — for navigating to the session */
   sessionId?: string
 }
