@@ -1060,6 +1060,11 @@ ${modelLine}  prompt: |
                 <span className="pipeline-card-name">{p.name}</span>
                 {p.running && <span className="pipeline-running-badge">Running</span>}
                 {p.lastRunStoppedBudget && <span className="pipeline-budget-badge" title="Last run stopped: budget limit reached">$ Cap</span>}
+                {p.budget && !p.lastRunStoppedBudget && (
+                  <span className="pipeline-budget-badge" title={`Budget: $${p.budget.maxCostUsd.toFixed(2)}/run (warn at $${p.budget.warnAt.toFixed(2)})`}>
+                    ${p.budget.maxCostUsd < 1 ? p.budget.maxCostUsd.toFixed(2) : p.budget.maxCostUsd.toFixed(0)}
+                  </span>
+                )}
                 {(() => {
                   const stats = pipelineStats.get(p.name)
                   if (!stats) return null
