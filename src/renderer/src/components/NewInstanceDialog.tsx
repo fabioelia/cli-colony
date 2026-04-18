@@ -559,7 +559,8 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
           <label>Model (optional)</label>
           <select value={model} onChange={e => setModel(e.target.value)} className="settings-select" style={{ width: '100%' }}>
             <option value="">Default</option>
-            <option value="claude-opus-4-6">Opus (claude-opus-4-6)</option>
+            <option value="claude-opus-4-7">Opus 4.7 (claude-opus-4-7)</option>
+            <option value="claude-opus-4-6">Opus 4.6 (claude-opus-4-6)</option>
             <option value="claude-sonnet-4-6">Sonnet (claude-sonnet-4-6)</option>
             <option value="claude-haiku-4-5-20251001">Haiku (claude-haiku-4-5)</option>
           </select>

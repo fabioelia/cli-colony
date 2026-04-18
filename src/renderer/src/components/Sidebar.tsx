@@ -75,7 +75,8 @@ function getModelLabel(args: string[]): string | null {
   const idx = args.indexOf('--model')
   if (idx < 0 || !args[idx + 1]) return null
   const raw = args[idx + 1]
-  if (raw.includes('opus')) return 'opus'
+  if (raw.includes('opus-4-7') || raw === 'opus-4-7') return '4.7'
+  if (raw.includes('opus')) return '4.6'
   if (raw.includes('sonnet')) return 'sonnet'
   if (raw.includes('haiku')) return 'haiku'
   return raw.length > 8 ? raw.slice(0, 8) : raw
