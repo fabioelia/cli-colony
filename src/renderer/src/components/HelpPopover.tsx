@@ -31,7 +31,7 @@ const iconMap: Record<string, LucideIcon> = {
   Circle, Users, Layers, CheckSquare, ListChecks, Gavel, ExternalLink, Palette, FileDiff, Send,
   Archive, DollarSign, Swords, Bot, Timer, Unlink, Link, ChevronsUp, ClipboardCopy, Activity,
   Home, Server, GitPullRequest, MoreHorizontal, ArrowLeftRight, ArrowDown, Bookmark,
-  PauseCircle, PanelRight, PanelLeft, FolderTree, HardDrive, Ticket, CheckCircle2,
+  PauseCircle, PanelRight, PanelLeft, FolderTree, HardDrive, Ticket, CheckCircle2, X,
 }
 
 function HelpIcon({ name }: { name?: string }) {
