@@ -21921,6 +21921,11 @@ body:has(.daemon-update-banner) .app-update-banner {
 .badge-stale { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); }
 .badge-role { background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border); }
 .badge-model { background: rgba(107, 107, 128, 0.1); color: var(--text-muted); }
+.badge-pipeline { background: color-mix(in srgb, var(--accent-purple) 15%, transparent); color: var(--accent-purple); }
+.badge-batch { background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning); }
+.badge-child { background: var(--bg-tertiary); color: var(--text-secondary); }
+.batch-progress-bar { flex: 1; height: 4px; background: var(--bg-tertiary); border-radius: 2px; margin: 0 8px; }
+.batch-progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s ease; }
 .attention-stale { cursor: pointer; }
 .attention-stale:hover { background: var(--bg-hover); }
 .overview-exit-ok { color: var(--success); flex-shrink: 0; }

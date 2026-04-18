@@ -159,16 +159,23 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Just Finished',
         position: 'Between Running Sessions and Coming Up',
         items: [
-          { label: 'Recently exited sessions', detail: 'Up to 5 most recently started sessions that have exited, sorted newest first. Each row shows success (green check) or failure (red X) status, session name, first 60 chars of exit summary, time since start, and cost if over $0.01. Click any row to focus that session. Hidden when no exited sessions exist.', icon: 'CheckCircle2' },
+          { label: 'Recently exited sessions', detail: 'Up to 5 most recently started sessions that have exited, sorted newest first. Each row shows success (green check) or failure (red X) status, session name, first 60 chars of exit summary, time since start, and cost if over $0.01. Source badges show how the session was launched: pipeline name (purple), "batch" (amber) for batch task sessions, or "child" for child sessions. Click any row to focus that session. Hidden when no exited sessions exist.', icon: 'CheckCircle2' },
           { label: 'Restart button', detail: 'Play button on each Just Finished row restarts the session (launches a new session in the same working directory). Shows a checkmark for 2 seconds after triggering. Does not navigate — row click still focuses the session.', icon: 'Play' },
           { label: 'Remove button', detail: 'Trash icon removes the session from the sidebar entirely. Shows a checkmark for 2 seconds after triggering. Does not navigate.', icon: 'Trash2' },
+        ],
+      },
+      {
+        name: 'Running Batch',
+        position: 'Between Active Personas and Just Finished',
+        items: [
+          { label: 'Running Batch section', detail: 'Appears when a task queue is executing. Shows progress (N/M tasks) and a live progress bar. Click to navigate to the Task Queues panel. Disappears automatically when the batch completes.', icon: 'Zap' },
         ],
       },
       {
         name: 'Coming Up',
         position: 'Below Active Personas',
         items: [
-          { label: 'Upcoming runs', detail: 'Next 8 scheduled fires across enabled personas and pipelines, sorted by fire time ascending. Each row shows an icon (person = persona, zap = pipeline), name, countdown ("in 5m", "in 1h 30m"), and model badge for personas. Click any row to navigate to the respective panel. Play button triggers a persona or pipeline run immediately without waiting for the schedule. Refreshes every 60 seconds. Hidden when no scheduled items exist.', icon: 'Clock' },
+          { label: 'Upcoming runs', detail: 'Next 8 scheduled fires across enabled personas and pipelines, sorted by fire time ascending. Each row shows an icon (person = persona, zap = pipeline), name, countdown ("in 5m", "in 1h 30m"), model badge for personas, and estimated cost (~$X.XX) based on the 7-day average per run when available. Click any row to navigate to the respective panel. Play button triggers a persona or pipeline run immediately without waiting for the schedule. Refreshes every 60 seconds. Hidden when no scheduled items exist.', icon: 'Clock' },
         ],
       },
       {

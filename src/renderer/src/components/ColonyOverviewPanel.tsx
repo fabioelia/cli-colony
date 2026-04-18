@@ -78,7 +78,8 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const [costTrend, setCostTrend] = useState<{ date: string; cost: number }[]>([])
   const [personaHealth, setPersonaHealth] = useState<PersonaHealthEntry[]>([])
   const [idleMap, setIdleMap] = useState<Map<string, number>>(new Map())
-  const [costLeaderboard, setCostLeaderboard] = useState<Array<{ name: string; id: string; cost: number }>>([])
+  const [costLeaderboard, setCostLeaderboard] = useState<Array<{ name: string; id: string; cost: number; avgCost: number }>>([])
+  const [batchProgress, setBatchProgress] = useState<{ id: string; total: number; completed: number } | null>(null)
   const [environments, setEnvironments] = useState<EnvStatus[]>([])
   const [dailyCostBudget, setDailyCostBudget] = useState(0)
   const [tick, setTick] = useState(0)
@@ -105,7 +106,10 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   useEffect(() => {
     if (personas.length === 0) return
     Promise.all(personas.map(p =>
-      window.api.persona.getAnalytics(p.id).then(a => ({ name: p.name, id: p.id, cost: a.costLast7d })).catch(() => ({ name: p.name, id: p.id, cost: 0 }))
+      window.api.persona.getAnalytics(p.id).then(a => ({
+        name: p.name, id: p.id, cost: a.costLast7d,
+        avgCost: a.recentRuns.length > 0 ? a.costLast7d / a.recentRuns.length : 0
+      })).catch(() => ({ name: p.name, id: p.id, cost: 0, avgCost: 0 }))
     )).then(results => {
       setCostLeaderboard(results.filter(r => r.cost > 0).sort((a, b) => b.cost - a.cost))
     })
@@ -123,6 +127,15 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
       window.api.pipeline.onApprovalNew((request) => {
         setApprovals(prev => [...prev, request])
       }),
+      window.api.batch.onStarted(({ batchId, taskCount }) => {
+        setBatchProgress({ id: batchId, total: taskCount, completed: 0 })
+      }),
+      window.api.batch.onTaskComplete(({ batchId }) => {
+        setBatchProgress(prev => prev && prev.id === batchId ? { ...prev, completed: prev.completed + 1 } : prev)
+      }),
+      window.api.batch.onCompleted(() => {
+        setBatchProgress(null)
+      }),
       window.api.pipeline.onApprovalUpdate(({ id, status }) => {
         if (status === 'approved' || status === 'dismissed' || status === 'expired') {
           setApprovals(prev => prev.filter(a => a.id !== id))
@@ -139,12 +152,13 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   }, [])
 
   const upcomingRuns = useMemo(() => {
-    const items: Array<{ name: string; id: string; type: 'persona' | 'pipeline'; nextAt: Date; model?: string }> = []
+    const items: Array<{ name: string; id: string; type: 'persona' | 'pipeline'; nextAt: Date; model?: string; estCost?: number }> = []
     for (const p of personas) {
       if (!p.enabled || !p.schedule) continue
       const fires = nextRuns(p.schedule, 1)
       if (fires.length > 0 && fires[0].getTime() > Date.now()) {
-        items.push({ name: p.name, id: p.id, type: 'persona', nextAt: fires[0], model: p.model })
+        const leaderEntry = costLeaderboard.find(c => c.id === p.id)
+        items.push({ name: p.name, id: p.id, type: 'persona', nextAt: fires[0], model: p.model, estCost: leaderEntry?.avgCost })
       }
     }
     for (const pl of pipelines) {
@@ -157,7 +171,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
     items.sort((a, b) => a.nextAt.getTime() - b.nextAt.getTime())
     return items.slice(0, 8)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [personas, pipelines, tick])
+  }, [personas, pipelines, costLeaderboard, tick])
 
   const running = useMemo(() => instances.filter(i => i.status === 'running'), [instances])
   const totalCost = useMemo(() => instances.reduce((sum, i) => sum + (i.tokenUsage.cost || 0), 0), [instances])
@@ -648,6 +662,21 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
           </div>
         )}
 
+        {/* Running Batch */}
+        {batchProgress && (
+          <div className="overview-section">
+            <h3><Zap size={14} /> Running Batch</h3>
+            <div className="overview-session-list">
+              <div className="overview-session-tile" onClick={() => onNavigate('task-queues')}>
+                <span className="overview-session-name">{batchProgress.completed}/{batchProgress.total} tasks</span>
+                <div className="batch-progress-bar">
+                  <div className="batch-progress-fill" style={{ width: `${(batchProgress.completed / batchProgress.total) * 100}%` }} />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Just Finished */}
         {recentlyExited.length > 0 && (
           <div className="overview-section">
@@ -665,6 +694,17 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                     </span>
                   )}
                   <span className="overview-badge badge-role">{timeAgo(inst.createdAt)}</span>
+                  {inst.pipelineName && (
+                    <span className="overview-badge badge-pipeline" title={`Pipeline: ${inst.pipelineName}`}>
+                      {inst.pipelineName.length > 12 ? inst.pipelineName.slice(0, 10) + '…' : inst.pipelineName}
+                    </span>
+                  )}
+                  {!inst.pipelineName && inst.name.startsWith('Batch:') && (
+                    <span className="overview-badge badge-batch">batch</span>
+                  )}
+                  {!inst.pipelineName && !inst.name.startsWith('Batch:') && inst.parentId && (
+                    <span className="overview-badge badge-child">child</span>
+                  )}
                   {(inst.tokenUsage.cost || 0) > 0.01 && (
                     <span className="overview-session-cost">{formatCost(inst.tokenUsage.cost || 0)}</span>
                   )}
@@ -723,6 +763,9 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                     <span className="overview-session-name">{item.name}</span>
                     <span className="overview-badge badge-role">in {label}</span>
                     {item.model && <span className="overview-session-cost">{item.model}</span>}
+                    {item.estCost != null && item.estCost > 0.01 && (
+                      <span className="overview-session-cost" title="Estimated based on 7-day average">~{formatCost(item.estCost)}</span>
+                    )}
                     <button
                       className="attention-action-btn"
                       title="Run now"
