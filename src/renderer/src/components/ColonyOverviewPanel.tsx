@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Home, Play, Plus, Zap, Clock, AlertCircle, Layers,
   CheckCircle2, XCircle, Circle, Users, FolderOpen, Activity, GanttChart, BarChart3, X, Eye, Square, Pin, PinOff,
-  ChevronLeft, ChevronRight, Calendar, RotateCcw, Search, MessageSquare, Trash2, Server, Download, Gauge, Terminal, GitCommit
+  ChevronLeft, ChevronRight, Calendar, RotateCcw, Search, MessageSquare, Trash2, Server, Download, Gauge, Terminal, GitCommit, ClipboardCopy
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import SessionTimeline from './SessionTimeline'
@@ -220,6 +220,8 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   }, [todayArtifacts])
 
   const running = useMemo(() => instances.filter(i => i.status === 'running'), [instances])
+  const activeRunning = useMemo(() => running.filter(i => i.activity !== 'waiting'), [running])
+  const waitingSessions = useMemo(() => running.filter(i => i.activity === 'waiting'), [running])
   const modelBreakdown = useMemo(() => {
     const counts = new Map<string, number>()
     for (const inst of running) {
@@ -305,6 +307,23 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
     setTimeout(() => setActionedIds(prev => { const next = new Set(prev); next.delete(id); return next }), 3000)
   }
 
+  const copyDailyDigest = useCallback(() => {
+    if (!todayOutput) return
+    const date = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
+    const lines = [
+      `## Colony Output — ${date}`,
+      `- **${todayOutput.commits} commits** across ${todayOutput.sessions} sessions`,
+      `- +${todayOutput.insertions} insertions / -${todayOutput.deletions} deletions`,
+      '',
+      '### Recent Commits',
+      ...todayOutput.recentCommits.map(c =>
+        `- \`${c.hash.slice(0, 7)}\` ${c.shortMsg}${c.sessionName ? ` (${c.sessionName})` : ''}`
+      ),
+    ]
+    navigator.clipboard.writeText(lines.join('\n'))
+    markActioned('digest-copy')
+  }, [todayOutput])
+
   const [showHealthBreakdown, setShowHealthBreakdown] = useState(false)
 
   const [activitySourceFilter, setActivitySourceFilter] = useState<'all' | 'persona' | 'pipeline' | 'env'>('all')
@@ -385,6 +404,9 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
             <div className="overview-stat-label">Running Sessions</div>
             {instances.length > running.length && (
               <div className="overview-stat-subtitle">{instances.length - running.length} stopped</div>
+            )}
+            {waitingSessions.length > 0 && (
+              <div className="overview-stat-subtitle">{waitingSessions.length} waiting</div>
             )}
             {running.length >= 2 && modelBreakdown && (
               <div className="overview-stat-subtitle">{modelBreakdown}</div>
@@ -680,12 +702,12 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
           )
         })()}
 
-        {/* Running sessions */}
-        {running.length > 0 && (
+        {/* Running sessions (busy) */}
+        {activeRunning.length > 0 && (
           <div className="overview-section">
             <h3><Play size={14} /> Running Sessions</h3>
             <div className="overview-session-list">
-              {running.map(inst => (
+              {activeRunning.map(inst => (
                 <div
                   key={inst.id}
                   className="overview-session-tile"
@@ -697,10 +719,9 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                     style={{ background: inst.color || 'var(--accent)' }}
                   />
                   <span className="overview-session-name">{inst.name || 'Unnamed'}</span>
-                  {inst.activity === 'busy' && (idleMap.get(inst.id) || 0) > 900000 && <span className="overview-badge badge-stale">stale</span>}
-                  {inst.activity === 'busy' && (idleMap.get(inst.id) || 0) > 300000 && (idleMap.get(inst.id) || 0) <= 900000 && <span className="overview-badge badge-idle">quiet</span>}
-                  {inst.activity === 'busy' && (idleMap.get(inst.id) || 0) <= 300000 && <span className="overview-badge badge-busy">busy</span>}
-                  {inst.activity === 'waiting' && <span className="overview-badge badge-waiting">idle</span>}
+                  {(idleMap.get(inst.id) || 0) > 900000 && <span className="overview-badge badge-stale">stale</span>}
+                  {(idleMap.get(inst.id) || 0) > 300000 && (idleMap.get(inst.id) || 0) <= 900000 && <span className="overview-badge badge-idle">quiet</span>}
+                  {(idleMap.get(inst.id) || 0) <= 300000 && <span className="overview-badge badge-busy">busy</span>}
                   {inst.roleTag && <span className="overview-badge badge-role">{inst.roleTag}</span>}
                   {getModelLabel(inst.args) && <span className="overview-badge badge-model" title={inst.args[inst.args.indexOf('--model') + 1]}>{getModelLabel(inst.args)}</span>}
                   <span className="overview-session-elapsed" title={`Running since ${new Date(inst.createdAt).toLocaleTimeString()}`}>
@@ -730,10 +751,75 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
           </div>
         )}
 
+        {/* Waiting sessions */}
+        {waitingSessions.length > 0 && (
+          <div className="overview-section">
+            <h3><MessageSquare size={14} /> Waiting for Input ({waitingSessions.length})</h3>
+            <div className="overview-session-list">
+              {waitingSessions.map(inst => (
+                <div
+                  key={inst.id}
+                  className="overview-session-tile"
+                  onClick={() => onFocusInstance(inst.id)}
+                  onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, inst }) }}
+                >
+                  <span
+                    className="overview-session-dot"
+                    style={{ background: inst.color || 'var(--text-muted)' }}
+                  />
+                  <span className="overview-session-name">{inst.name || 'Unnamed'}</span>
+                  {inst.roleTag && <span className="overview-badge badge-role">{inst.roleTag}</span>}
+                  {getModelLabel(inst.args) && <span className="overview-badge badge-model" title={inst.args[inst.args.indexOf('--model') + 1]}>{getModelLabel(inst.args)}</span>}
+                  <span className="overview-session-elapsed" title={`Running since ${new Date(inst.createdAt).toLocaleTimeString()}`}>
+                    {formatElapsed(inst.createdAt)}
+                  </span>
+                  {inst.tokenUsage.cost ? (
+                    <span className="overview-session-cost">{formatCost(inst.tokenUsage.cost)}</span>
+                  ) : null}
+                  <button
+                    className="attention-action-btn"
+                    title="Send message"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const text = window.prompt('Send message to session:')
+                      if (text?.trim()) {
+                        window.api.session.steer(inst.id, text.trim())
+                        markActioned(`whisper-${inst.id}`)
+                      }
+                    }}
+                  >
+                    {actionedIds.has(`whisper-${inst.id}`) ? <CheckCircle2 size={13} /> : <MessageSquare size={13} />}
+                  </button>
+                  {onKill && (
+                    <button
+                      className="attention-action-btn dismiss"
+                      title="Stop session"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onKill(inst.id)
+                        const key = `stop-${inst.id}`
+                        setTriggeredIds(prev => new Set(prev).add(key))
+                        setTimeout(() => setTriggeredIds(prev => { const n = new Set(prev); n.delete(key); return n }), 2000)
+                      }}
+                    >
+                      {triggeredIds.has(`stop-${inst.id}`) ? <CheckCircle2 size={13} /> : <Square size={13} />}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Today's Output */}
         {todayOutput && (
           <div className="overview-section">
-            <h3><GitCommit size={14} /> Today's Output</h3>
+            <h3>
+              <GitCommit size={14} /> Today's Output
+              <button className="attention-action-btn" title="Copy digest to clipboard" onClick={copyDailyDigest} style={{ marginLeft: 8 }}>
+                {actionedIds.has('digest-copy') ? <CheckCircle2 size={13} /> : <ClipboardCopy size={13} />}
+              </button>
+            </h3>
             <div className="overview-output-summary">
               <span>{todayOutput.commits} commits</span>
               <span className="output-sep">·</span>

@@ -833,6 +833,8 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .sidebar-select-toggle:hover { color: var(--text-secondary); border-color: var(--border-active); }
 .sidebar-select-toggle.active { color: var(--accent); border-color: var(--accent); }
+.sidebar-sort-btn { background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 2px 4px; border-radius: 3px; -webkit-app-region: no-drag; display: flex; align-items: center; }
+.sidebar-sort-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
 .sidebar-bulk-actions-wrap {
   flex-shrink: 0;
 }

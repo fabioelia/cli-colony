@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, GitBranch, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock, RotateCcw, DollarSign } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, GitBranch, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock, RotateCcw, DollarSign, ArrowUpDown } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate, ErrorSummary } from '../../../shared/types'
@@ -641,11 +641,29 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     }
   }, [customOrder])
 
+  const INSTANCE_SORT_MODES = ['recent', 'name', 'cost', 'duration'] as const
+  type InstanceSortMode = typeof INSTANCE_SORT_MODES[number]
+  const [instanceSort, setInstanceSort] = useState<InstanceSortMode>(() =>
+    (localStorage.getItem('colony:instanceSort') as InstanceSortMode) || 'recent'
+  )
+  useEffect(() => { localStorage.setItem('colony:instanceSort', instanceSort) }, [instanceSort])
+
+  const sortInstanceList = useCallback((list: ClaudeInstance[]): ClaudeInstance[] => {
+    if (instanceSort === 'recent') return list
+    const sorted = [...list]
+    switch (instanceSort) {
+      case 'name': sorted.sort((a, b) => (a.name || '').localeCompare(b.name || '')); break
+      case 'cost': sorted.sort((a, b) => (b.tokenUsage.cost || 0) - (a.tokenUsage.cost || 0)); break
+      case 'duration': sorted.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()); break
+    }
+    return sorted
+  }, [instanceSort])
+
   // Instance ordering + grouping — must be declared before callbacks/effects that reference them
   const { pinned, running, exited, orderedInstances } = useMemo(() => {
-    const p = instances.filter((i) => i.pinned)
-    const r = instances.filter((i) => i.status === 'running' && !i.pinned)
-    const e = instances.filter((i) => i.status !== 'running' && !i.pinned)
+    const p = sortInstanceList(instances.filter((i) => i.pinned))
+    const r = sortInstanceList(instances.filter((i) => i.status === 'running' && !i.pinned))
+    const e = sortInstanceList(instances.filter((i) => i.status !== 'running' && !i.pinned))
     let ordered = [...p, ...r, ...e]
     if (customOrder.length > 0 && groupBy === 'none') {
       const orderMap = new Map(customOrder.map((id, idx) => [id, idx]))
@@ -659,7 +677,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
       })
     }
     return { pinned: p, running: r, exited: e, orderedInstances: ordered }
-  }, [instances, customOrder, groupBy])
+  }, [instances, customOrder, groupBy, sortInstanceList])
 
   const groupedSections = useMemo(() => {
     if (groupBy === 'none') return null
@@ -1422,6 +1440,19 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             <Tooltip text="Reset to default session order" position="bottom">
               <button className="sidebar-select-toggle" onClick={handleResetOrder}>
                 <RotateCcw size={12} />
+              </button>
+            </Tooltip>
+          )}
+          {!(customOrder.length > 0 && groupBy === 'none') && (
+            <Tooltip text={`Sort: ${instanceSort}`} position="bottom">
+              <button
+                className="sidebar-sort-btn"
+                onClick={() => {
+                  const idx = INSTANCE_SORT_MODES.indexOf(instanceSort)
+                  setInstanceSort(INSTANCE_SORT_MODES[(idx + 1) % INSTANCE_SORT_MODES.length])
+                }}
+              >
+                <ArrowUpDown size={12} />
               </button>
             </Tooltip>
           )}

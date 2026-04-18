@@ -154,6 +154,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Middle',
         items: [
           { label: 'Session tile', detail: 'Click any session to focus it. Right-click for a context menu with Focus, Whisper (send a follow-up message), Stop, and Pin/Unpin actions. Shows name, activity status (busy/quiet/stale), role tag, model badge (e.g., "4.7", "sonnet", "haiku"), elapsed running time (e.g., "23m", "2h 15m"), and cost. Hover the model badge to see the full model ID. Hover the elapsed time to see the exact start timestamp. Quiet badge (amber, 5+ min no output) and stale badge (red, 15+ min) appear for busy sessions with no recent output. Inline Stop button (square icon) halts the session directly from the overview — red hover indicates it\'s destructive.', icon: 'Play' },
+          { label: 'Waiting for Input section', detail: 'Sessions with activity "waiting" (finished processing, idle, waiting for user input) appear in a separate "Waiting for Input" section below Running Sessions. Each tile shows an inline message button (MessageSquare icon) — click it to send a message without navigating away. The stat card shows "N waiting" subtitle when any sessions are waiting.', icon: 'MessageSquare' },
         ],
       },
       {
@@ -161,6 +162,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Between Running Sessions and Active Personas',
         items: [
           { label: "Today's Output section", detail: "Aggregates all session artifacts from today: total commits, insertions/deletions, and number of sessions that produced output. Shows up to 8 most recent commits (hash + message + session name), newest first. Click any commit row to focus the originating session if it's still loaded. Refreshes every 30 seconds. Hidden when no artifacts have been collected today.", icon: 'GitCommit' },
+          { label: 'Copy digest button', detail: 'Copy button on Today\'s Output copies a formatted markdown digest to clipboard — paste into Slack, standups, or status updates. Includes commit count, insertions/deletions, and the 8 most recent commits with session names.', icon: 'ClipboardCopy' },
         ],
       },
       {
@@ -300,6 +302,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Cost badge', detail: 'Green badge showing the session\'s API cost (e.g. "$0.42"). Only appears when cost exceeds $0.001. Hover for full precision.' },
           { label: 'Group cost badge', detail: 'Group headers show a green cost badge (e.g. "$4.23") next to the session count when the group total exceeds $0.01. Hover for exact total. Works for all group modes.' },
           { label: 'Drag to reorder', detail: 'Drag sessions to rearrange them in the sidebar. Custom order persists across restarts. Only available when group-by is set to "none". A reset button appears to return to the default sort (pinned → running → stopped).' },
+          { label: 'Sort sessions', detail: 'The sort button (ArrowUpDown icon) cycles through sort modes: Recent (default, creation order), Name (alphabetical), Cost (highest first), Duration (longest running first). Sort applies within each group (pinned / running / stopped). Preference persists across restarts. Hidden when custom drag order is active.', icon: 'ArrowUpDown' },
           { label: 'Multi-select', detail: 'Click the checkbox icon (next to group-by) or Cmd+click any session to enter select mode. Shift+click to select a contiguous range from the last-clicked session. A floating action bar appears for bulk Send Prompt, Stop, Restart, or Remove. Send Prompt opens an inline textarea to broadcast a message to all selected running sessions. Cmd+A selects all visible sessions; Escape exits. Remove only affects stopped sessions.', icon: 'CheckSquare' },
           { label: 'Permission mode', detail: 'Choose Autonomous (default — full permissions) or Supervised (Claude asks before risky actions) when creating a session. Supervised sessions show a shield icon in the sidebar.', icon: 'Shield' },
           { label: 'Global Search', detail: 'Search across all sessions\' terminal output. Find which session produced an error or output. Opens a side panel with results grouped by session. Use ↑↓ to navigate results, Enter to jump to the matching session. Hover a match to reveal a copy button for the matched text.', shortcut: '\u2318\u21e7F', icon: 'Search' },
