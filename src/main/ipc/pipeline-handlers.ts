@@ -117,7 +117,7 @@ export function registerPipelineHandlers(): void {
   ipcMain.handle('pipeline:getDir', () => getPipelinesDir())
   ipcMain.handle('pipeline:delete', async (_e, fileName: string) => {
     if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) return false
-    const dir = getPipelinesDir()
+    const dir = await getPipelinesDir()
     const base = fileName.replace(/\.(yaml|yml)$/, '')
     const targets = [
       join(dir, fileName),
@@ -161,7 +161,7 @@ export function registerPipelineHandlers(): void {
       filters: [{ name: 'ZIP', extensions: ['zip'] }],
     })
     if (result.canceled || !result.filePath) return false
-    const dir = getPipelinesDir()
+    const dir = await getPipelinesDir()
     return new Promise<boolean>((resolve) => {
       const output = createWriteStream(result.filePath!)
       const archive = archiver('zip', { zlib: { level: 9 } })
@@ -185,7 +185,7 @@ export function registerPipelineHandlers(): void {
       properties: ['openFile'],
     })
     if (result.canceled || result.filePaths.length === 0) return 0
-    const dir = getPipelinesDir()
+    const dir = await getPipelinesDir()
     await fsp.mkdir(dir, { recursive: true })
     return new Promise<number>((resolve) => {
       let count = 0

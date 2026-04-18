@@ -498,7 +498,7 @@ app.whenReady().then(async () => {
 
   // Set dock icon on macOS
   if (process.platform === 'darwin') {
-    app.dock.setIcon(getIconPath())
+    app.dock?.setIcon(getIconPath())
   }
 
   // Pre-load settings into cache so sync reads (getSettingSync) work everywhere

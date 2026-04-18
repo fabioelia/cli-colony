@@ -420,7 +420,7 @@ export async function createEnvironment(opts: CreateEnvironmentOpts): Promise<In
   }
 
   // Build setup steps from hooks
-  const setupSteps: Array<{ name: string; status: string }> = [{ name: 'Clone repos', status: 'pending' }]
+  const setupSteps: Array<{ name: string; status: 'running' | 'pending' | 'error' | 'done' | 'skipped' }> = [{ name: 'Clone repos', status: 'pending' }]
   if (hooks.postClone) for (const h of hooks.postClone) setupSteps.push({ name: h.name || h.command?.slice(0, 30), status: 'pending' })
   if (hooks.postCreate) for (const h of hooks.postCreate) setupSteps.push({ name: h.name || h.command?.slice(0, 30), status: 'pending' })
 

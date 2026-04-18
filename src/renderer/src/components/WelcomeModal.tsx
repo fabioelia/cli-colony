@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import type { JSX } from 'react'
 import {
   CheckCircle2, XCircle, AlertTriangle, Loader2, X as XIcon,
   TerminalSquare, Server, Bot, Zap, Layers, ChevronDown, ChevronRight,

@@ -26,7 +26,7 @@ import type {
   ServiceStatus,
   ServiceState,
   EnvStatus,
-  EnvState,
+  EnvStatusState,
   EnvRequest,
   EnvResponse,
   EnvEvent,
@@ -868,7 +868,7 @@ function getEnvStatus(env: ManagedEnvironment): EnvStatus {
   const manifest = env.manifest
   const services = Array.from(env.services.values()).map(getServiceStatus)
 
-  let status: EnvState
+  let status: EnvStatusState
   if (manifest.setup?.status === 'creating') {
     status = 'creating'
   } else if (manifest.setup?.status === 'error') {

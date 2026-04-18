@@ -11,7 +11,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 const mockMkdir = vi.hoisted(() => vi.fn(async () => undefined))
 const mockWriteFile = vi.hoisted(() => vi.fn(async () => undefined))
 const mockReadFile = vi.hoisted(() => vi.fn(async () => '{}'))
-const mockReaddir = vi.hoisted(() => vi.fn(async () => []))
+const mockReaddir = vi.hoisted(() => vi.fn(async () => [] as string[]))
 const mockAccess = vi.hoisted(() => vi.fn(async () => undefined))
 const mockRm = vi.hoisted(() => vi.fn(async () => undefined))
 
@@ -96,7 +96,7 @@ describe('createWorktree', () => {
       expect.any(String),
       'utf-8',
     )
-    const manifest = JSON.parse(mockWriteFile.mock.calls[0][1])
+    const manifest = JSON.parse((mockWriteFile.mock.calls[0] as unknown[])[1] as string)
     expect(manifest.id).toBe('test-id-001')
     expect(manifest.repo).toEqual({ owner: 'owner', name: 'repo' })
     expect(manifest.branch).toBe('develop')
@@ -367,8 +367,8 @@ describe('unmountAllForEnv', () => {
 
     // Should write 2 manifests (wt-1 and wt-2) with mountedEnvId: null
     expect(mockWriteFile).toHaveBeenCalledTimes(2)
-    const written1 = JSON.parse(mockWriteFile.mock.calls[0][1])
-    const written2 = JSON.parse(mockWriteFile.mock.calls[1][1])
+    const written1 = JSON.parse((mockWriteFile.mock.calls[0] as unknown[])[1] as string)
+    const written2 = JSON.parse((mockWriteFile.mock.calls[1] as unknown[])[1] as string)
     expect(written1.mountedEnvId).toBeNull()
     expect(written2.mountedEnvId).toBeNull()
 

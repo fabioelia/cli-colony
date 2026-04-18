@@ -19,7 +19,7 @@ const mockNotificationConstructor = vi.fn(() => mockNotificationInstance)
 const mockIsSupported = vi.fn(() => true)
 const mockGetSetting = vi.fn(() => '')
 const mockBroadcast = vi.fn()
-const mockAllWindows = vi.fn(() => [])
+const mockAllWindows = vi.fn(() => [] as object[])
 
 // ─── Setup ────────────────────────────────────────────────────────────────────
 

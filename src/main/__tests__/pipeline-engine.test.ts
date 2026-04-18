@@ -889,8 +889,8 @@ describe('pipeline-engine: auto-pause on consecutive failures', () => {
       (c: any[]) => c[0].level === 'warn',
     )
     expect(warnCall).toBeDefined()
-    expect(warnCall[0].summary).toContain('auto-paused')
-    expect(warnCall[0].summary).toContain('Cron Pipe')
+    expect(warnCall![0].summary).toContain('auto-paused')
+    expect(warnCall![0].summary).toContain('Cron Pipe')
   })
 
   it('resets consecutiveFailures to 0 on successful poll', async () => {
@@ -2994,7 +2994,7 @@ describe('pipeline-engine: wait_for_session behavior', () => {
   /** Read the history entries that were written to the fs mock. */
   function getWrittenHistory(fs: ReturnType<typeof buildFsMock>): Array<{ success: boolean; actionExecuted: boolean }> {
     const calls = (fs.promises.writeFile as ReturnType<typeof vi.fn>).mock.calls
-    const histFile = calls.find(([p]: [string]) => p.endsWith('Wait-Pipe.history.json'))
+    const histFile = calls.find((args: string[]) => args[0].endsWith('Wait-Pipe.history.json'))
     if (!histFile) return []
     return JSON.parse(histFile[1])
   }
@@ -3108,7 +3108,7 @@ describe('pipeline-engine: wait_for_session behavior', () => {
 
     // writeFile should have been called with the artifact path
     const writeCalls = (fs.promises.writeFile as ReturnType<typeof vi.fn>).mock.calls
-    const artifactCall = writeCalls.find(([p]: [string]) => p.includes('wait-result.txt'))
+    const artifactCall = writeCalls.find((args: string[]) => args[0].includes('wait-result.txt'))
     expect(artifactCall).toBeDefined()
     expect(artifactCall![1]).toContain('exited cleanly')
   })
@@ -3303,7 +3303,7 @@ budget:
 
     // Check history written to fs
     const writeCalls = (fs.promises.writeFile as ReturnType<typeof vi.fn>).mock.calls
-    const histCall = writeCalls.find(([p]: [string]) => typeof p === 'string' && p.includes('Budget-Pipe.history.json'))
+    const histCall = writeCalls.find((args: string[]) => typeof args[0] === 'string' && args[0].includes('Budget-Pipe.history.json'))
     expect(histCall).toBeDefined()
     const history = JSON.parse(histCall![1] as string)
     const entry = history[history.length - 1]

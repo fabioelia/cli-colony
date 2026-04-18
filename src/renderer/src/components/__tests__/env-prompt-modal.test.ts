@@ -45,8 +45,8 @@ describe('env-prompt file modal data contract', () => {
       prompt: 'Select .env file',
       promptType: 'file' as const,
     }
-    expect(request.defaultPathValid).toBeUndefined()
-    expect(request.defaultPath).toBeUndefined()
+    expect((request as any).defaultPathValid).toBeUndefined()
+    expect((request as any).defaultPath).toBeUndefined()
   })
 
   it('select-type prompt is unaffected by defaultPathValid', () => {

@@ -9,6 +9,8 @@ export interface HelpItem {
   detail: string
   /** Lucide icon name to show inline (must match a key in the icon map in HelpPopover) */
   icon?: string
+  /** Optional keyboard shortcut hint (e.g. "⌘⇧F") */
+  shortcut?: string
 }
 
 export interface HelpZone {

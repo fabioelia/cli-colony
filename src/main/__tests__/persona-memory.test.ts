@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 // ---- Hoisted mocks ----
-const mockExistsSync = vi.hoisted(() => vi.fn(() => false))
+const mockExistsSync = vi.hoisted(() => vi.fn((_p: string) => false))
 const mockReadFileSync = vi.hoisted(() => vi.fn(() => '{}'))
 const mockWriteFileSync = vi.hoisted(() => vi.fn())
 const mockMkdirSync = vi.hoisted(() => vi.fn())

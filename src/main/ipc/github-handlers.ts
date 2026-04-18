@@ -9,7 +9,7 @@ import {
   fetchChecks, fetchCheckLogs, ensureBareClone,
   getGitHubUser, fetchFeedbackFiles,
 } from '../github'
-import type { GitHubRepo, QuickPrompt, GitHubPR } from '../github'
+import type { GitHubRepo, QuickPrompt, GitHubPR } from '../../shared/types'
 
 export function registerGitHubHandlers(): void {
   ipcMain.handle('github:authStatus', () => checkGhAuth())

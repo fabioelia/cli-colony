@@ -67,6 +67,7 @@ export interface AgentDef {
   filePath: string
   scope: 'personal' | 'project'
   projectName?: string
+  args?: string[]
 }
 
 export interface CliSession {
@@ -357,6 +358,8 @@ export interface PersonaInfo {
   attentionCount: number
   /** First meaningful line of the latest brief (max 120 chars), or null if no brief exists */
   briefPreview: string | null
+  /** Display color (hex), e.g. "#a78bfa" */
+  color?: string
 }
 
 // ---- Persona Memory (structured sidecar) ----

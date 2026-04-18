@@ -27,7 +27,7 @@ import { appendRunEntry, checkDailyCostBudget, getPersonaDailyCost } from './per
 import { getRateLimitState } from './rate-limit-state'
 import { migrateFromMarkdown, readPersonaMemory, extractMemoryInBackground } from './persona-memory'
 import { buildPlanningPrompt, buildKickoff } from './persona-prompt-builder'
-import { getAttentionCount, getAttentionRequests, pruneOldAttention } from './persona-attention'
+import { getAttentionCount, getAttentionRequests, pruneOldAttention, getAllPendingAttention } from './persona-attention'
 
 const PERSONAS_DIR = colonyPaths.personas
 const STATE_PATH = colonyPaths.personaState
@@ -256,6 +256,7 @@ export function getPersonaList(): PersonaInfo[] {
         maxCostUsd: fm.max_cost_usd,
         maxCostPerDayUsd: fm.max_cost_per_day_usd,
         attentionCount: getAttentionCount(personaId),
+        color: fm.color || undefined,
         briefPreview: (() => {
           const bp = join(PERSONAS_DIR, `${personaId}.brief.md`)
           try {

@@ -182,7 +182,7 @@ export interface DiagnoseContext {
     branch: string
     status: string
     paths: Record<string, string>
-    services: Array<{ name: string; status: string; restarts: number; port?: number }>
+    services: Array<{ name: string; status: string; restarts: number; port?: number | null }>
     ports: Record<string, number>
     urls: Record<string, string>
   }

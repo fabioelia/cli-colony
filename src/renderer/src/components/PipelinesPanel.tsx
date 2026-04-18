@@ -73,6 +73,7 @@ interface PipelineInfo {
   consecutiveFailures?: number
   actionShape?: ActionShape
   firstActionPrompt?: string
+  defaultModel?: string
 }
 
 interface Props {
@@ -472,14 +473,15 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   }
 
   const handleRetryFromHistory = async () => {
-    if (!p || retryingFromHistory) return
+    const activePipeline = expandedPipeline ? pipelines.find(pl => pl.name === expandedPipeline) : null
+    if (!activePipeline || retryingFromHistory) return
     setRetryingFromHistory(true)
     try {
-      await window.api.pipeline.triggerNow(p.name)
+      await window.api.pipeline.triggerNow(activePipeline.name)
     } finally {
       setRetryingFromHistory(false)
       setTimeout(async () => {
-        const history = await window.api.pipeline.getHistory(p.name)
+        const history = await window.api.pipeline.getHistory(activePipeline.name)
         setHistoryEntries(history.slice().reverse())
       }, 2000)
     }

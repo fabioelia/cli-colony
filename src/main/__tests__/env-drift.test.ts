@@ -12,7 +12,7 @@ const mockGetManifest = vi.hoisted(() => vi.fn())
 const mockGetTemplate = vi.hoisted(() => vi.fn())
 const mockComputeDriftHash = vi.hoisted(() => vi.fn())
 const mockGetDriftSubset = vi.hoisted(() => vi.fn(() => ({})))
-const mockWriteFile = vi.hoisted(() => vi.fn(async () => undefined))
+const mockWriteFile = vi.hoisted(() => vi.fn(async (_path: string, _data: string) => undefined))
 
 vi.mock('../env-manager', () => ({
   getManifest: mockGetManifest,

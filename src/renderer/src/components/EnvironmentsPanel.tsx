@@ -599,7 +599,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
               <span className="env-badge env-badge-services">{totalServices} svc{totalServices !== 1 ? 's' : ''}</span>
               {crashedServices > 0 && <span className="env-badge env-badge-crashed">{crashedServices} crashed</span>}
               {portConflicts.length > 0 && (
-                <Tooltip content={portConflicts.map(c => `Port ${c.port}: ${c.users.map(u => `${u.envName}/${u.serviceName}`).join(', ')}`).join('\n')}>
+                <Tooltip text={portConflicts.map(c => `Port ${c.port}: ${c.users.map(u => `${u.envName}/${u.serviceName}`).join(', ')}`).join('\n')}>
                   <span className="env-badge env-badge-conflict"><AlertTriangle size={11} /> {portConflicts.length} port conflict{portConflicts.length !== 1 ? 's' : ''}</span>
                 </Tooltip>
               )}

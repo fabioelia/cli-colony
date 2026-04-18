@@ -22,7 +22,7 @@ export default function QuickPromptDialog({ onClose, onLaunch, recentDirs, promp
   const [editingExisting, setEditingExisting] = useState(false)
   const promptRef = useRef<HTMLTextAreaElement>(null)
   const snippetsRef = useRef<HTMLDivElement>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   useEffect(() => {
     requestAnimationFrame(() => promptRef.current?.focus())

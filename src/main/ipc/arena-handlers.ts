@@ -137,7 +137,7 @@ export function registerArenaHandlers(): void {
       instanceIds: string[]
       judgeConfig: { type: 'command'; cmd: string } | { type: 'llm'; prompt: string }
     },
-  ): Promise<{ winnerId: string | null; results: Array<{ instanceId: string; exitCode: number; stdout: string }> }> => {
+  ): Promise<{ winnerId: string | null; results: Array<{ instanceId: string; exitCode: number; stdout: string }>; verdictText?: string | null }> => {
     const { instanceIds, judgeConfig } = opts
 
     if (judgeConfig.type === 'command') {

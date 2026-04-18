@@ -255,7 +255,7 @@ function handleTimeout(id: string): void {
   _pending.delete(id)
   broadcastStatus(entry)
   console.warn(`[pending-session-launches] env '${entry.envName}' did not reach ready within ${READY_TIMEOUT_MS / 1000}s — spawning anyway`)
-  getManifest(entry.envId).then(m => generateEnvClaudeMd(m)).catch(() => {})
+  getManifest(entry.envId).then(m => { if (m) generateEnvClaudeMd(m).catch(() => {}) }).catch(() => {})
   createInstance(entry.spawnOpts).then(inst => {
     broadcast('pendingLaunch:spawned', {
       pendingId: entry.id,

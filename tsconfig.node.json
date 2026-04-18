@@ -16,6 +16,7 @@
     "declarationMap": true
   },
   "include": [
+    "src/daemon/**/*",
     "src/main/**/*",
     "src/preload/**/*",
     "src/shared/**/*",

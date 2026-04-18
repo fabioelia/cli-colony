@@ -285,7 +285,7 @@ export default function App() {
       if (activity === 'waiting' && pendingPromptRef.current?.id === id) {
         const prompt = pendingPromptRef.current.prompt
         pendingPromptRef.current = null
-        window.api.instance.write(id, prompt + '\n').catch(err => console.error('[quick-prompt] write failed:', err))
+        try { window.api.instance.write(id, prompt + '\n') } catch (err) { console.error('[quick-prompt] write failed:', err) }
       }
     })
   }, [])

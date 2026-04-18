@@ -12,7 +12,7 @@ import HelpPopover from './HelpPopover'
 import EmptyStateHook from './EmptyStateHook'
 
 interface TaskDef { prompt: string; directory?: string; name?: string }
-interface QueueDef { name: string; mode: 'parallel' | 'sequential'; tasks: TaskDef[] }
+interface QueueDef { name: string; mode: 'parallel' | 'sequential'; tasks: TaskDef[]; outputs?: string }
 interface TaskStatus { index: number; instanceId: string | null; state: 'pending' | 'running' | 'done' | 'failed'; exitCode: number | null }
 interface QueueFile { name: string; path: string; content: string }
 

@@ -11,10 +11,10 @@ Electron desktop app for managing multiple Claude CLI sessions, with GitHub PR i
 ```bash
 npm run dev          # Development with hot reload
 npm run build        # Production build to out/
-npx tsc --noEmit     # Type-check without emitting
+npm run typecheck    # Type-check without emitting (or: npx tsc -b --noEmit)
 ```
 
-Always run `npx tsc --noEmit` after changes and `npm run build` before testing.
+Always run `npm run typecheck` after changes and `npm run build` before testing.
 
 ## Architecture
 

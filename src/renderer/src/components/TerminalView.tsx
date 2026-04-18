@@ -103,6 +103,8 @@ const SEARCH_DECORATIONS = {
   activeMatchBackground: '#ffb03b80',
   matchBorder: '#ffb03b60',
   activeMatchBorder: '#ffb03bcc',
+  matchOverviewRuler: '',
+  activeMatchColorOverviewRuler: '',
 }
 
 function formatUptime(seconds: number): string {

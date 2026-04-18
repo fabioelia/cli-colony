@@ -34,6 +34,7 @@ describe('CommandPalette — Show Welcome', () => {
     onRunPersona: vi.fn(),
     onLaunchAgent: vi.fn(),
     onOpenQuickPrompt: vi.fn(),
+    onQuickCompare: vi.fn(),
   }
 
   it('renders the Show Welcome command', async () => {

@@ -39,7 +39,7 @@ interface Props {
   onBack: () => void
   onLaunchInstance: (opts: { name?: string; workingDirectory?: string; args?: string[] }) => Promise<string> // returns instance id
   onFocusInstance: (id: string) => void
-  instances: Array<{ id: string; status: string }>
+  instances: Array<{ id: string; name: string; status: string }>
   visible?: boolean
 }
 
@@ -884,7 +884,7 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
               ))}
             </div>
           )}
-          <button className="panel-ask-send" onClick={handleAsk} disabled={!askInput.trim()} title="Ask">
+          <button className="panel-ask-send" onClick={() => handleAsk()} disabled={!askInput.trim()} title="Ask">
             <Send size={14} />
           </button>
         </div>
@@ -2096,7 +2096,8 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                           setCommentsReplyPosting(true)
                           setCommentsReplyError('')
                           try {
-                            const newComment = await window.api.github.postPRComment(commentsViewerSlug, commentsViewerPR!.number, body)
+                            const [cvOwner, cvName] = commentsViewerSlug.split('/')
+                            const newComment = await window.api.github.postPRComment({ owner: cvOwner, name: cvName }, commentsViewerPR!.number, body)
                             commentsViewerPR!.comments = [...commentsViewerPR!.comments, newComment]
                             setCommentsReplyDraft('')
                             setCommentsViewerIndex(commentsViewerPR!.comments.length - 1)

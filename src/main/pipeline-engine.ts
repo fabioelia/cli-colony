@@ -148,6 +148,7 @@ export interface PendingApproval {
 }
 
 interface PipelineState {
+  enabled?: boolean
   lastPollAt: string | null
   lastMatchAt: string | null
   firedKeys: Record<string, number> // dedup key -> timestamp ms

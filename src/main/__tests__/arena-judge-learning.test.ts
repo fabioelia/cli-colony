@@ -3,7 +3,7 @@ import type { ArenaMatchRecord } from '../../shared/types'
 
 // ---- Hoisted mocks ----
 const mockMkdir = vi.hoisted(() => vi.fn(async () => undefined))
-const mockWriteFile = vi.hoisted(() => vi.fn(async () => undefined))
+const mockWriteFile = vi.hoisted(() => vi.fn(async (_path: string, _data: string) => undefined))
 const mockReadFile = vi.hoisted(() => vi.fn(async () => '[]'))
 
 vi.mock('electron', () => ({ app: { getPath: vi.fn().mockReturnValue('/mock/home') } }))

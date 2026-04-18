@@ -132,7 +132,7 @@ export async function notify(
     const end = await getSetting('quietHoursEnd')
     if (start && end && isInQuietHours(start, end)) return
   }
-  const sourceKey = `notify${entry.source.charAt(0).toUpperCase() + entry.source.slice(1)}`
+  const sourceKey = entry.source ? `notify${entry.source.charAt(0).toUpperCase() + entry.source.slice(1)}` : ''
   if (await getSetting(sourceKey) === 'false') return
   if (!Notification.isSupported()) return
 

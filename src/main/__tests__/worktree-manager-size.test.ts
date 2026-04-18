@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 const mockExecFile = vi.hoisted(() => {
   const fn = vi.fn()
-  fn[Symbol.for('nodejs.util.promisify.custom')] = vi.fn(
+  ;(fn as any)[Symbol.for('nodejs.util.promisify.custom')] = vi.fn(
     async (...args: any[]) =>
       new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
         fn(...args, (err: any, stdout: string, stderr: string) => {

@@ -429,7 +429,7 @@ export default function ArtifactsPanel() {
         {loading && <div style={{ padding: 16, opacity: 0.5, fontSize: 13 }}>Loading...</div>}
 
         {!loading && artifacts.length === 0 && (
-          <EmptyStateHook topic="artifacts" />
+          <EmptyStateHook icon={Archive} title="Session Artifacts" hook="No session artifacts yet. Completed sessions appear here with their git commits, cost, and summary." />
         )}
 
         {artifacts.length >= 200 && (

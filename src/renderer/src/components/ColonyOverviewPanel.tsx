@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import {
   Home, Play, Plus, Zap, Clock, AlertCircle,
   CheckCircle2, XCircle, Circle, Users, FolderOpen, Activity, GanttChart, BarChart3, X, Eye, Square, Pin, PinOff,
@@ -293,7 +293,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
 
   return (
     <div className="colony-overview">
-      <div className="panel-header" style={{ WebkitAppRegion: 'drag' as any, paddingTop: 44 }}>
+      <div className="panel-header" style={{ WebkitAppRegion: 'drag', paddingTop: 44 } as React.CSSProperties & { WebkitAppRegion?: string }}>
         <h2><Home size={16} /> Colony Overview</h2>
         <div className="panel-header-tabs">
           <button className={`panel-header-tab${tab === 'dashboard' ? ' active' : ''}`} onClick={() => setTab('dashboard')}>Dashboard</button>

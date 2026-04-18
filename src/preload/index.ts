@@ -61,7 +61,7 @@ export interface ClaudeManagerAPI {
       mcpServers?: string[]
       permissionMode?: 'autonomous' | 'supervised'
       env?: Record<string, string>
-      ticket?: { source: 'jira'; key: string; summary: string }
+      ticket?: { source: 'jira'; key: string; summary: string; url?: string }
     }) => Promise<ClaudeInstance>
     write: (id: string, data: string) => void
     resize: (id: string, cols: number, rows: number) => Promise<boolean>
@@ -255,9 +255,11 @@ export interface ClaudeManagerAPI {
       running: boolean
       outputsDir: string | null
       lastPollAt: string | null
+      lastMatchAt: string | null
       lastFiredAt: string | null
       lastError: string | null
       fireCount: number
+      debugLog: string[]
     }>>
     toggle: (name: string, enabled: boolean) => Promise<boolean>
     triggerNow: (name: string, promptOverride?: string) => Promise<boolean>
