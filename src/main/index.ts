@@ -40,43 +40,86 @@ import { recordWorkerExit } from './team-metrics'
 import { stopTasksBoardWatcher } from './ipc/tasks-board-handlers'
 import { collectSessionArtifact } from './session-artifacts'
 
-const COLONY_CLI_SCRIPT = `#!/bin/bash
-# colony — control Colony environments from the command line.
-# Usage: colony {start|stop|status} [env-id]
-SOCKET="\${HOME}/.claude-colony/envd.sock"
-send() { echo "$1" | nc -U "$SOCKET" -w 5 2>/dev/null | head -1; }
-case "\${1:-}" in
-  start)
-    [ -z "$2" ] && echo "Usage: colony start <env-id>" && exit 1
-    resp=$(send '{"type":"start","reqId":"cli-'$$'","envId":"'"$2"'"}')
-    echo "$resp" | python3 -c "import json,sys; r=json.load(sys.stdin); print('Started' if r.get('type')=='ok' else f'Error: {r.get(\\\"message\\\",\\\"unknown\\\")}')" 2>/dev/null || echo "$resp"
-    ;;
-  stop)
-    [ -z "$2" ] && echo "Usage: colony stop <env-id>" && exit 1
-    resp=$(send '{"type":"stop","reqId":"cli-'$$'","envId":"'"$2"'"}')
-    echo "$resp" | python3 -c "import json,sys; r=json.load(sys.stdin); print('Stopped' if r.get('type')=='ok' else f'Error: {r.get(\\\"message\\\",\\\"unknown\\\")}')" 2>/dev/null || echo "$resp"
-    ;;
-  status)
-    if [ -n "$2" ]; then
-      resp=$(send '{"type":"status-one","reqId":"cli-'$$'","envId":"'"$2"'"}')
-    else
-      resp=$(send '{"type":"status","reqId":"cli-'$$'"}')
-    fi
-    echo "$resp" | python3 -c "
-import json, sys
-r = json.load(sys.stdin)
-if r.get('type') == 'error': print(f'Error: {r.get(\\\"message\\\")}'); sys.exit(1)
-data = r.get('data')
-if not data: print('No environments'); sys.exit(0)
-envs = data if isinstance(data, list) else [data]
-for e in envs:
-    svcs = ', '.join(f'{s[\\\"name\\\"]}={s[\\\"status\\\"]}' for s in e.get('services', []))
-    print(f'{e[\\\"name\\\"]} [{e[\\\"status\\\"]}] id={e[\\\"id\\\"]} — {svcs}')
-" 2>/dev/null || echo "$resp"
-    ;;
-  *) echo "Usage: colony {start|stop|status} [env-id]"; exit 1 ;;
-esac
+// Cross-platform Node.js CLI for controlling Colony environments.
+// Written to ~/.claude-colony/bin/colony-cli.js at app startup.
+// A thin sh/cmd wrapper in the same bin/ directory delegates to it.
+const COLONY_CLI_NODE = `#!/usr/bin/env node
+'use strict'
+const net = require('net')
+const os = require('os')
+const path = require('path')
+
+const ROOT = path.join(os.homedir(), '.claude-colony')
+const SOCKET = process.platform === 'win32'
+  ? '\\\\\\\\.\\\\pipe\\\\claude-colony-envd'
+  : path.join(ROOT, 'envd.sock')
+
+function send(msg) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => { client.destroy(); reject(new Error('timeout')) }, 5000)
+    const client = net.createConnection(SOCKET, () => { client.write(msg + '\\n') })
+    let buf = ''
+    client.on('data', chunk => {
+      buf += chunk
+      const line = buf.split('\\n')[0]
+      if (line) { clearTimeout(timeout); client.destroy(); resolve(line) }
+    })
+    client.on('error', err => { clearTimeout(timeout); reject(err) })
+  })
+}
+
+function parseResponse(resp) {
+  try { return JSON.parse(resp) } catch { return null }
+}
+
+async function main() {
+  const [,, cmd, envId] = process.argv
+  try {
+    switch (cmd) {
+      case 'start': {
+        if (!envId) { console.error('Usage: colony start <env-id>'); process.exit(1) }
+        const r = parseResponse(await send(JSON.stringify({ type: 'start', reqId: 'cli-' + process.pid, envId })))
+        console.log(r && r.type === 'ok' ? 'Started' : 'Error: ' + (r && r.message || 'unknown'))
+        break
+      }
+      case 'stop': {
+        if (!envId) { console.error('Usage: colony stop <env-id>'); process.exit(1) }
+        const r = parseResponse(await send(JSON.stringify({ type: 'stop', reqId: 'cli-' + process.pid, envId })))
+        console.log(r && r.type === 'ok' ? 'Stopped' : 'Error: ' + (r && r.message || 'unknown'))
+        break
+      }
+      case 'status': {
+        const msg = envId
+          ? JSON.stringify({ type: 'status-one', reqId: 'cli-' + process.pid, envId })
+          : JSON.stringify({ type: 'status', reqId: 'cli-' + process.pid })
+        const r = parseResponse(await send(msg))
+        if (!r || r.type === 'error') { console.error('Error: ' + (r && r.message || 'unknown')); process.exit(1) }
+        const envs = Array.isArray(r.data) ? r.data : (r.data ? [r.data] : [])
+        if (!envs.length) { console.log('No environments'); break }
+        for (const e of envs) {
+          const svcs = (e.services || []).map(s => s.name + '=' + s.status).join(', ')
+          console.log(e.name + ' [' + e.status + '] id=' + e.id + ' — ' + svcs)
+        }
+        break
+      }
+      default:
+        console.error('Usage: colony {start|stop|status} [env-id]')
+        process.exit(1)
+    }
+  } catch (err) {
+    console.error('colony: ' + err.message)
+    process.exit(1)
+  }
+}
+
+main()
 `
+
+const COLONY_CLI_SH = `#!/bin/sh
+exec node "$(dirname "$0")/colony-cli.js" "$@"
+`
+
+const COLONY_CLI_CMD = `@echo off\r\nnode "%~dp0colony-cli.js" %*\r\n`
 import { broadcast } from './broadcast'
 import { seedDefaultPipelines, startPipelines, stopPipelines, getPipelineList } from './pipeline-engine'
 import { cleanupStaleForkGroups } from './fork-manager'
@@ -540,13 +583,17 @@ app.whenReady().then(async () => {
     // Generate initial colony context
     await updateColonyContext()
     console.log('[app] colony context initialized')
-    // Install colony CLI script
+    // Install colony CLI (Node.js core + platform wrapper)
     try {
       const binDir = join(app.getPath('home'), '.claude-colony', 'bin')
       fs.mkdirSync(binDir, { recursive: true })
-      const cliDst = join(binDir, 'colony')
-      fs.writeFileSync(cliDst, COLONY_CLI_SCRIPT, 'utf-8')
-      fs.chmodSync(cliDst, 0o755)
+      fs.writeFileSync(join(binDir, 'colony-cli.js'), COLONY_CLI_NODE, 'utf-8')
+      if (process.platform === 'win32') {
+        fs.writeFileSync(join(binDir, 'colony.cmd'), COLONY_CLI_CMD, 'utf-8')
+      } else {
+        fs.writeFileSync(join(binDir, 'colony'), COLONY_CLI_SH, 'utf-8')
+        fs.chmodSync(join(binDir, 'colony'), 0o755)
+      }
     } catch (err) { console.warn('[app] colony CLI install failed:', err) }
     // Ensure all repos have bare clones, then pre-warm .colony/ config cache
     ensureRepoClones().catch(() => { /* ignore */ })

@@ -17,7 +17,8 @@ export function resolveCommand(cmd: string): string {
   const cached = cache.get(cmd)
   if (cached) return cached
   try {
-    const resolved = execSync(`which ${cmd}`, {
+    const whichCmd = process.platform === 'win32' ? 'where' : 'which'
+    const resolved = execSync(`${whichCmd} ${cmd}`, {
       encoding: 'utf-8',
       timeout: 3000,
       env: loadShellEnv(),

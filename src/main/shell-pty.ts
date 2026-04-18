@@ -14,8 +14,11 @@ interface ShellInstance {
 
 const shells = new Map<string, ShellInstance>()
 
-/** Get the user's shell from $SHELL or default to zsh */
+/** Get the user's shell, platform-aware */
 function getShell(): string {
+  if (process.platform === 'win32') {
+    return process.env.COMSPEC || 'cmd.exe'
+  }
   return process.env.SHELL || '/bin/zsh'
 }
 

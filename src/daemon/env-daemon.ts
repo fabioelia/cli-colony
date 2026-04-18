@@ -339,8 +339,8 @@ function spawnService(env: ManagedEnvironment, svc: ManagedService): void {
   }
 
   // Always run through a shell — commands use shell builtins (source, &&, ||, pipes, etc.)
-  const cmd = '/bin/bash'
-  const args = ['-c', resolved.command]
+  const cmd = process.platform === 'win32' ? (process.env.COMSPEC || 'cmd.exe') : '/bin/bash'
+  const args = process.platform === 'win32' ? ['/c', resolved.command] : ['-c', resolved.command]
 
   // Open log stream
   if (svc.logStream) {

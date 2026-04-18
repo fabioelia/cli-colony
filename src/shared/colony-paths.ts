@@ -6,10 +6,18 @@
  *   const dir = colonyPaths.environments   // => /Users/x/.claude-colony/environments
  */
 
+import * as os from 'os'
 import * as path from 'path'
 
-const HOME = process.env.HOME || '/'
+const HOME = os.homedir()
 const ROOT = path.join(HOME, '.claude-colony')
+
+function getDaemonAddress(name: string): string {
+  if (process.platform === 'win32') {
+    return `\\\\.\\pipe\\claude-colony-${name}`
+  }
+  return path.join(ROOT, `${name}.sock`)
+}
 
 export const colonyPaths = {
   root: ROOT,
@@ -21,12 +29,12 @@ export const colonyPaths = {
   schedulerLog: path.join(ROOT, 'scheduler.log'),
   colonyContext: path.join(ROOT, 'colony-context.md'),
 
-  // Daemon sockets / PIDs
-  daemonSock: path.join(ROOT, 'daemon.sock'),
+  // Daemon sockets / PIDs (named pipes on Windows, Unix sockets elsewhere)
+  daemonSock: getDaemonAddress('daemon'),
   daemonPid: path.join(ROOT, 'daemon.pid'),
-  daemonNextSock: path.join(ROOT, 'daemon-next.sock'),
+  daemonNextSock: getDaemonAddress('daemon-next'),
   daemonNextPid: path.join(ROOT, 'daemon-next.pid'),
-  envdSock: path.join(ROOT, 'envd.sock'),
+  envdSock: getDaemonAddress('envd'),
   envdPid: path.join(ROOT, 'envd.pid'),
   envIndex: path.join(ROOT, 'environments.json'),
 

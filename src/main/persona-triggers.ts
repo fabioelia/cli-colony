@@ -135,9 +135,9 @@ async function processTriggerFile(filePath: string): Promise<void> {
   }
 }
 
-// ---- Bash script ----
+// ---- Trigger scripts ----
 
-const TRIGGER_SCRIPT = [
+const TRIGGER_SCRIPT_SH = [
   '#!/bin/bash',
   '# trigger_persona — invoke a colony persona with a context note.',
   '#',
@@ -172,9 +172,35 @@ const TRIGGER_SCRIPT = [
   'PYEOF',
 ].join('\n') + '\n'
 
+const TRIGGER_SCRIPT_BAT = [
+  '@echo off',
+  'setlocal enabledelayedexpansion',
+  '',
+  'if "%~1"=="" goto usage',
+  'if "%~2"=="" goto usage',
+  '',
+  'set FROM_ID=%~1',
+  'set TO_ID=%~2',
+  'set NOTE=%~3',
+  '',
+  'python3 -c "import json,sys,uuid,os;h=os.environ.get(\'USERPROFILE\',os.path.expanduser(\'~\'));d=os.path.join(h,\'.claude-colony\',\'triggers\');os.makedirs(d,exist_ok=True);p=os.path.join(d,str(uuid.uuid4())+\'.json\');open(p,\'w\').write(json.dumps({\'from\':sys.argv[1],\'to\':sys.argv[2],\'note\':sys.argv[3] if len(sys.argv)>3 else \'\'}));print(f\'Colony: queued trigger {sys.argv[1]} -> {sys.argv[2]}\')" "%FROM_ID%" "%TO_ID%" "%NOTE%"',
+  'goto end',
+  '',
+  ':usage',
+  'echo Usage: trigger_persona ^<from-persona-id^> ^<to-persona-id^> [note] 1>&2',
+  'exit /b 1',
+  '',
+  ':end',
+  'endlocal',
+].join('\r\n') + '\r\n'
+
 function installTriggerScript(): void {
   mkdirSync(colonyPaths.bin, { recursive: true })
-  writeFileSync(join(colonyPaths.bin, 'trigger_persona'), TRIGGER_SCRIPT, { mode: 0o755 })
+  if (process.platform === 'win32') {
+    writeFileSync(join(colonyPaths.bin, 'trigger_persona.bat'), TRIGGER_SCRIPT_BAT)
+  } else {
+    writeFileSync(join(colonyPaths.bin, 'trigger_persona'), TRIGGER_SCRIPT_SH, { mode: 0o755 })
+  }
 }
 
 // ---- Pending trigger index (for UI) ----

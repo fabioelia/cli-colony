@@ -43,6 +43,10 @@ function getShellCandidates(): string[] {
     }
   } catch { /* */ }
 
+  if (process.platform === 'win32') {
+    return [process.env.COMSPEC || 'cmd.exe']
+  }
+
   if (shellProfile === 'login') {
     return ['/bin/zsh', '/bin/bash']
   } else if (shellProfile) {
@@ -61,6 +65,12 @@ function getShellCandidates(): string[] {
  */
 export function loadShellEnv(): Record<string, string> {
   if (_cachedEnv) return _cachedEnv
+
+  if (process.platform === 'win32') {
+    _cachedEnv = { ...process.env } as Record<string, string>
+    ensureCriticalVars(_cachedEnv)
+    return _cachedEnv
+  }
 
   const shells = getShellCandidates()
 

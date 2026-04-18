@@ -97,6 +97,9 @@ export function registerIpcHandlers(): void {
   // ---- Settings ----
   ipcMain.handle('settings:getAll', () => getSettings())
   ipcMain.handle('settings:getShells', async () => {
+    if (process.platform === 'win32') {
+      return ['cmd.exe', 'powershell.exe', 'pwsh.exe']
+    }
     try {
       const content = await fsp.readFile('/etc/shells', 'utf-8')
       return content.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'))
