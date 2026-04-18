@@ -59,6 +59,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const [environments, setEnvironments] = useState<EnvStatus[]>([])
   const [dailyCostBudget, setDailyCostBudget] = useState(0)
   const [tick, setTick] = useState(0)
+  const [triggeredIds, setTriggeredIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     window.api.activity.list().then(setActivity)
@@ -115,19 +116,19 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   }, [])
 
   const upcomingRuns = useMemo(() => {
-    const items: Array<{ name: string; type: 'persona' | 'pipeline'; nextAt: Date; model?: string }> = []
+    const items: Array<{ name: string; id: string; type: 'persona' | 'pipeline'; nextAt: Date; model?: string }> = []
     for (const p of personas) {
       if (!p.enabled || !p.schedule) continue
       const fires = nextRuns(p.schedule, 1)
       if (fires.length > 0 && fires[0].getTime() > Date.now()) {
-        items.push({ name: p.name, type: 'persona', nextAt: fires[0], model: p.model })
+        items.push({ name: p.name, id: p.id, type: 'persona', nextAt: fires[0], model: p.model })
       }
     }
     for (const pl of pipelines) {
       if (!pl.enabled || !pl.cron) continue
       const fires = nextRuns(pl.cron, 1)
       if (fires.length > 0 && fires[0].getTime() > Date.now()) {
-        items.push({ name: pl.name, type: 'pipeline', nextAt: fires[0] })
+        items.push({ name: pl.name, id: pl.name, type: 'pipeline', nextAt: fires[0] })
       }
     }
     items.sort((a, b) => a.nextAt.getTime() - b.nextAt.getTime())
@@ -549,6 +550,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                 const mins = Math.floor(diffMs / 60000)
                 const h = Math.floor(mins / 60), m = mins % 60
                 const label = mins < 1 ? '<1m' : mins < 60 ? `${mins}m` : m ? `${h}h ${m}m` : `${h}h`
+                const triggeredKey = `${item.type}-${item.id}`
                 return (
                   <div key={`${item.type}-${item.name}-${i}`} className="overview-session-tile"
                     onClick={() => onNavigate(item.type === 'persona' ? 'personas' : 'pipelines')}>
@@ -557,6 +559,19 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                     <span className="overview-session-name">{item.name}</span>
                     <span className="overview-badge badge-role">in {label}</span>
                     {item.model && <span className="overview-session-cost">{item.model}</span>}
+                    <button
+                      className="attention-action-btn"
+                      title="Run now"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (item.type === 'persona') window.api.persona.run(item.id)
+                        else window.api.pipeline.triggerNow(item.id)
+                        setTriggeredIds(prev => new Set(prev).add(triggeredKey))
+                        setTimeout(() => setTriggeredIds(prev => { const n = new Set(prev); n.delete(triggeredKey); return n }), 2000)
+                      }}
+                    >
+                      {triggeredIds.has(triggeredKey) ? <CheckCircle2 size={13} /> : <Play size={13} />}
+                    </button>
                   </div>
                 )
               })}

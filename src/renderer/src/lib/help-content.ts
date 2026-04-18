@@ -148,7 +148,7 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Coming Up',
         position: 'Below Active Personas',
         items: [
-          { label: 'Upcoming runs', detail: 'Next 8 scheduled fires across enabled personas and pipelines, sorted by fire time ascending. Each row shows an icon (person = persona, zap = pipeline), name, countdown ("in 5m", "in 1h 30m"), and model badge for personas. Click any row to navigate to the respective panel. Refreshes every 60 seconds. Hidden when no scheduled items exist.', icon: 'Clock' },
+          { label: 'Upcoming runs', detail: 'Next 8 scheduled fires across enabled personas and pipelines, sorted by fire time ascending. Each row shows an icon (person = persona, zap = pipeline), name, countdown ("in 5m", "in 1h 30m"), and model badge for personas. Click any row to navigate to the respective panel. Play button triggers a persona or pipeline run immediately without waiting for the schedule. Refreshes every 60 seconds. Hidden when no scheduled items exist.', icon: 'Clock' },
         ],
       },
       {
