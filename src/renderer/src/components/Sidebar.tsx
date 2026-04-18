@@ -276,6 +276,9 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
               const liveCount = inst.childIds.length
               badges.push({ node: <button key="ch" className="instance-children-badge" title={`${liveCount} child session${liveCount > 1 ? 's' : ''} — click to navigate to first child`} onClick={(e) => { e.stopPropagation(); callbacks.onSelect(inst.childIds[0]) }}>⇣{liveCount}</button>, label: `${liveCount} children` })
             }
+            if (inst.pipelineName) {
+              badges.push({ node: <span key="pl" className="instance-pipeline-badge" title={`Spawned by pipeline: ${inst.pipelineName}`}><Zap size={9} /> {inst.pipelineName.length > 16 ? inst.pipelineName.slice(0, 14) + '…' : inst.pipelineName}</span>, label: inst.pipelineName })
+            }
             if (badges.length === 0) return null
             return (
               <div className="instance-badges">

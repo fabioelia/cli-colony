@@ -1172,6 +1172,11 @@ function PersonaCard({
             )}
           </span>
           {isRunning && <span className="persona-list-badge running">Running</span>}
+          {isRunning && persona.triggeredBy && (
+            <span className="persona-list-badge triggered-by" title={`Triggered by ${persona.triggeredBy}`}>
+              ↳ {persona.triggeredBy.length > 18 ? persona.triggeredBy.slice(0, 16) + '…' : persona.triggeredBy}
+            </span>
+          )}
           {!isRunning && persona.pendingTrigger && (
             <span className="persona-list-badge pending" title={`Queued by ${fromName(persona.pendingTrigger.from)}${persona.pendingTrigger.note ? `: ${persona.pendingTrigger.note}` : ''}`}>
               <Hourglass size={9} /> queued

@@ -6952,6 +6952,22 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--danger);
   border-color: color-mix(in srgb, var(--danger) 40%, transparent);
 }
+.instance-pipeline-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+  padding: 0 5px;
+  font-size: 9px;
+  border-radius: 3px;
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--warning);
+  vertical-align: middle;
+  white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* ---- Children Panel ---- */
 .session-children-panel {
@@ -18543,6 +18559,11 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: rgba(245, 158, 11, 0.12);
   color: var(--warning);
   border: 1px solid rgba(245, 158, 11, 0.3);
+}
+.persona-list-badge.triggered-by {
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  color: var(--text-muted);
+  font-style: italic;
 }
 
 .persona-cost-badge {
