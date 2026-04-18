@@ -2051,6 +2051,7 @@ export default function App() {
             onNewSession={() => setShowNewDialog(true)}
             onNavigate={(v) => setView(v as View)}
             onKill={handleKill}
+            onRestart={handleRestart}
           />
         )}
         {view === 'review' && (
@@ -2092,6 +2093,7 @@ export default function App() {
             onNewSession={() => setShowNewDialog(true)}
             onNavigate={(v) => setView(v as View)}
             onKill={handleKill}
+            onRestart={handleRestart}
           />
         )}
 

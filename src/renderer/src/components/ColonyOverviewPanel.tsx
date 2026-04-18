@@ -25,6 +25,7 @@ interface Props {
   onNewSession: () => void
   onNavigate: (view: string) => void
   onKill?: (id: string) => void
+  onRestart?: (id: string) => void
 }
 
 function timeAgo(ts: string): string {
@@ -44,7 +45,7 @@ function formatCost(cost: number): string {
 
 type OverviewTab = 'dashboard' | 'timeline'
 
-export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewSession, onNavigate, onKill }: Props) {
+export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewSession, onNavigate, onKill, onRestart }: Props) {
   const [tab, setTab] = useState<OverviewTab>('dashboard')
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; inst: ClaudeInstance } | null>(null)
   const [activity, setActivity] = useState<ActivityEvent[]>([])
@@ -566,6 +567,21 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                   <span className="overview-badge badge-role">{timeAgo(inst.createdAt)}</span>
                   {(inst.tokenUsage.cost || 0) > 0.01 && (
                     <span className="overview-session-cost">{formatCost(inst.tokenUsage.cost || 0)}</span>
+                  )}
+                  {onRestart && (
+                    <button
+                      className="attention-action-btn"
+                      title="Restart session"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onRestart(inst.id)
+                        const key = `restart-${inst.id}`
+                        setTriggeredIds(prev => new Set(prev).add(key))
+                        setTimeout(() => setTriggeredIds(prev => { const n = new Set(prev); n.delete(key); return n }), 2000)
+                      }}
+                    >
+                      {triggeredIds.has(`restart-${inst.id}`) ? <CheckCircle2 size={13} /> : <Play size={13} />}
+                    </button>
                   )}
                 </div>
               ))}
