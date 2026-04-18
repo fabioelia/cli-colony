@@ -11443,6 +11443,9 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 11px;
   font-weight: 400;
 }
+[data-theme="light"] .filetree-preview-image {
+  background-image: repeating-conic-gradient(#ccc 0% 25%, #e0e0e0 0% 50%);
+}
 
 .filetree-search-bar {
   display: flex;
