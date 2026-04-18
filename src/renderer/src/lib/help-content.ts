@@ -165,8 +165,15 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Environments',
+        position: 'Between Active Personas and Running Batch',
+        items: [
+          { label: 'Environment row', detail: 'Shows each non-stopped environment with a status dot (green = running, amber = partial/creating, red = error), name, status badge, and running service count (e.g. "4/6 services"). Unhealthy environments sort to the top. Click any row to navigate to the Environments panel. Hidden when all environments are stopped.', icon: 'Server' },
+        ],
+      },
+      {
         name: 'Running Batch',
-        position: 'Between Active Personas and Just Finished',
+        position: 'Between Environments and Just Finished',
         items: [
           { label: 'Running Batch section', detail: 'Appears when a task queue is executing. Shows progress (N/M tasks) and a live progress bar. Click to navigate to the Task Queues panel. Disappears automatically when the batch completes.', icon: 'Layers' },
         ],
@@ -189,6 +196,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Level filter chips', detail: 'Filter by severity: All, Info, Warn, or Error. Warn and Error chips show badge counts when events exist. Filters combine with source filter (AND).' },
           { label: 'Show more', detail: 'Expands from 20 events (default) to 50. For today, the live ring buffer holds up to 100 events. Historical days load from daily log files with no cap.' },
           { label: 'Click to navigate', detail: 'Click any activity item to jump to its source — session events focus the session, persona/pipeline/env events navigate to the corresponding panel.' },
+          { label: 'Export button', detail: 'Download icon in the activity section header exports the currently filtered events as a JSON file (colony-activity-YYYY-MM-DD.json). Disabled when no events match the current filter.', icon: 'Download' },
           { label: 'Live updates', detail: 'New events from personas, pipelines, and environments appear at the top in real-time, respecting active filters. Live updates only appear when viewing today.' },
         ],
       },
@@ -1238,6 +1246,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'File content', detail: 'Shows file contents with line numbers. Supports Cmd+F to search within the file.' },
           { label: 'Markdown rendering', detail: '.md / .markdown files render as formatted by default. Code blocks get syntax highlighting. Mermaid diagrams render inline (```mermaid fenced blocks). Toggle Source/Rendered in the preview header. Cmd+F auto-switches to source so search highlights work.', icon: 'Eye' },
           { label: 'Image preview', detail: 'Select PNG, JPG, SVG, GIF, WebP, BMP, or ICO files to see an inline preview on a checkered background. Dimensions appear in the header after load. SVG files have a Source/Rendered toggle to view the raw XML.', icon: 'Eye' },
+          { label: 'HTML preview', detail: 'Select .html or .htm files to see a rendered preview in a sandboxed iframe. Toggle Source/Rendered to switch between rendered view and raw markup. Cmd+F auto-switches to source so in-file search works.', icon: 'Eye' },
           { label: 'Search results', detail: 'When using content search, results appear grouped by directory. Click a match to preview.' },
         ],
       },

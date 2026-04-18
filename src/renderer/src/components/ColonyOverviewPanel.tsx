@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import {
   Home, Play, Plus, Zap, Clock, AlertCircle, Layers,
   CheckCircle2, XCircle, Circle, Users, FolderOpen, Activity, GanttChart, BarChart3, X, Eye, Square, Pin, PinOff,
-  ChevronLeft, ChevronRight, Calendar, RotateCcw, Search, MessageSquare, Trash2
+  ChevronLeft, ChevronRight, Calendar, RotateCcw, Search, MessageSquare, Trash2, Server, Download
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import SessionTimeline from './SessionTimeline'
@@ -662,6 +662,33 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
           </div>
         )}
 
+        {/* Environment Health */}
+        {environments.filter(e => e.status !== 'stopped').length > 0 && (
+          <div className="overview-section">
+            <h3><Server size={14} /> Environments</h3>
+            <div className="overview-session-list">
+              {[...environments]
+                .filter(e => e.status !== 'stopped')
+                .sort((a, b) => {
+                  const order: Record<string, number> = { error: 0, partial: 1, creating: 2, running: 3 }
+                  return (order[a.status] ?? 4) - (order[b.status] ?? 4)
+                })
+                .map(e => (
+                  <div key={e.id} className="overview-session-tile" onClick={() => onNavigate('environments')}>
+                    <span className="overview-session-dot" style={{
+                      background: e.status === 'running' ? 'var(--success)' : e.status === 'partial' ? 'var(--warning)' : 'var(--danger)'
+                    }} />
+                    <span className="overview-session-name">{e.displayName || e.name}</span>
+                    <span className="overview-badge badge-model">{e.status}</span>
+                    <span className="overview-session-elapsed">
+                      {e.services.filter(s => s.status === 'running').length}/{e.services.length} services
+                    </span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
         {/* Running Batch */}
         {batchProgress && (
           <div className="overview-section">
@@ -808,7 +835,24 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
 
         {/* Recent activity */}
         <div className="overview-section">
-          <h3><Activity size={14} /> Recent Activity</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <h3 style={{ margin: 0 }}><Activity size={14} /> Recent Activity</h3>
+            <button
+              className="panel-header-btn"
+              title="Export filtered events as JSON"
+              disabled={filteredActivity.length === 0}
+              onClick={() => {
+                const blob = JSON.stringify(filteredActivity, null, 2)
+                const a = document.createElement('a')
+                a.href = URL.createObjectURL(new Blob([blob], { type: 'application/json' }))
+                a.download = `colony-activity-${selectedDate}.json`
+                a.click()
+                URL.revokeObjectURL(a.href)
+              }}
+            >
+              <Download size={13} />
+            </button>
+          </div>
           <div className="activity-date-nav">
             <button className="activity-date-btn" onClick={() => shiftDate(-1)} title="Previous day">
               <ChevronLeft size={14} />

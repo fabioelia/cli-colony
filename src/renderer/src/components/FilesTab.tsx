@@ -259,13 +259,19 @@ export default function FilesTab({ instance, focused, onSwitchToSession, jumpFil
 
   const isSvg = useMemo(() => selectedFile?.toLowerCase().endsWith('.svg') ?? false, [selectedFile])
 
+  const isHtml = useMemo(() => {
+    if (!selectedFile) return false
+    const lower = selectedFile.toLowerCase()
+    return lower.endsWith('.html') || lower.endsWith('.htm')
+  }, [selectedFile])
+
   // Reset render mode on each new file
   useEffect(() => { setRenderMd(true) }, [selectedFile])
 
-  // Auto-switch to source when in-file search opens on a markdown file
+  // Auto-switch to source when in-file search opens on a markdown or HTML file
   useEffect(() => {
-    if (fileSearchOpen && isMarkdown && renderMd) setRenderMd(false)
-  }, [fileSearchOpen, isMarkdown, renderMd])
+    if (fileSearchOpen && (isMarkdown || isHtml) && renderMd) setRenderMd(false)
+  }, [fileSearchOpen, isMarkdown, isHtml, renderMd])
 
   const fileSearchInputRef = useRef<HTMLInputElement>(null)
   const previewContentRef = useRef<HTMLDivElement>(null)
@@ -764,7 +770,7 @@ export default function FilesTab({ instance, focused, onSwitchToSession, jumpFil
                 >
                   <TerminalSquare size={12} /> Paste Path
                 </button>
-                {(isMarkdown || isSvg) && (
+                {(isMarkdown || isSvg || isHtml) && (
                   <button
                     className={`filetree-preview-wrap filetree-preview-mode-toggle ${renderMd ? 'active' : ''}`}
                     onClick={() => setRenderMd(!renderMd)}
@@ -774,7 +780,7 @@ export default function FilesTab({ instance, focused, onSwitchToSession, jumpFil
                     <span>{renderMd ? 'Rendered' : 'Source'}</span>
                   </button>
                 )}
-                {!(isMarkdown && renderMd) && !(imageDataUrl && renderMd) && (
+                {!(isMarkdown && renderMd) && !(imageDataUrl && renderMd) && !(isHtml && renderMd) && (
                   <button
                     className={`filetree-preview-wrap ${wordWrap ? 'active' : ''}`}
                     onClick={() => setWordWrap(!wordWrap)}
@@ -830,6 +836,15 @@ export default function FilesTab({ instance, focused, onSwitchToSession, jumpFil
                 ) : fileContent !== null && isMarkdown && renderMd && !fileSearchQuery ? (
                   <div className="filetree-preview-markdown">
                     <MarkdownViewer content={fileContent} />
+                  </div>
+                ) : fileContent !== null && isHtml && renderMd && !fileSearchQuery ? (
+                  <div className="filetree-preview-html">
+                    <iframe
+                      srcDoc={fileContent}
+                      sandbox="allow-scripts"
+                      title="HTML preview"
+                      style={{ width: '100%', height: '100%', border: 'none', background: '#fff' }}
+                    />
                   </div>
                 ) : fileContent !== null ? (() => {
                   const raw = fileSearchQuery && highlightedHtml ? highlightedHtml : escapeHtml(fileContent)

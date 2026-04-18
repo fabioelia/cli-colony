@@ -11432,6 +11432,16 @@ body:has(.daemon-update-banner) .app-update-banner {
   overflow: auto;
 }
 
+.filetree-preview-html {
+  flex: 1;
+  overflow: hidden;
+}
+.filetree-preview-html iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
 .filetree-preview-image img {
   max-width: 100%;
   max-height: calc(100vh - 200px);
