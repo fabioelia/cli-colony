@@ -1429,11 +1429,10 @@ function PersonaCard({
                           <span className={`persona-history-status ${entry.success ? 'success' : 'fail'}`} title={entry.stopReason === 'manual' ? 'Manually stopped' : entry.success ? 'Completed successfully' : 'Run failed'}>
                             {entry.success ? <Check size={12} /> : <X size={12} />}
                           </span>
-                          {!entry.success && (
+                          {!entry.success && entry.stopReason !== 'manual' && (
                             <span className="persona-history-reason">
                               {entry.stopReason === 'budget_exceeded' ? 'budget exceeded'
                                 : entry.stopReason === 'timeout' ? 'timed out'
-                                : entry.stopReason === 'manual' ? 'stopped'
                                 : 'failed'}
                             </span>
                           )}
