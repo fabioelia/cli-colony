@@ -1186,8 +1186,8 @@ function PersonaCard({
             <Clock size={9} /> {persona.schedule ? describeCron(persona.schedule) : 'Manual'}
           </span>
           {persona.lastRun ? (
-            <span className="persona-list-lastrun">
-              {new Date(persona.lastRun).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+            <span className="persona-list-lastrun" title={new Date(persona.lastRun).toLocaleString()}>
+              {formatRelativeTime(persona.lastRun)}
             </span>
           ) : (
             <span className="persona-list-lastrun muted">—</span>

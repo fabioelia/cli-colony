@@ -22166,6 +22166,13 @@ body:has(.daemon-update-banner) .app-update-banner {
   min-width: 16px;
   text-align: center;
 }
+.session-group-cost {
+  font-size: 9px;
+  color: var(--success);
+  margin-left: 6px;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
 
 /* ---- Global Search Panel ---- */
 .global-search-panel {

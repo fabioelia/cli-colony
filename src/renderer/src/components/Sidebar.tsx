@@ -1523,6 +1523,15 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                 })()}
                 {label}
                 <span className="session-group-count">{items.length}</span>
+                {(() => {
+                  const totalCost = items.reduce((sum, i) => sum + (i.tokenUsage?.cost || 0), 0)
+                  if (totalCost < 0.01) return null
+                  return (
+                    <span className="session-group-cost" title={`Total cost for ${items.length} sessions: $${totalCost.toFixed(2)}`}>
+                      ${totalCost < 1 ? totalCost.toFixed(2) : totalCost.toFixed(0)}
+                    </span>
+                  )
+                })()}
               </div>
               {!collapsedGroups.has(label) && items.map(renderItem)}
             </React.Fragment>
