@@ -62,12 +62,13 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
   const [commitDiffLoading, setCommitDiffLoading] = useState(false)
   const commitDiffCache = useRef<Record<string, string>>({})
   const [pushing, setPushing] = useState(false)
-  const [pushError, setPushError] = useState(false)
+  const [pushError, setPushError] = useState<string | null>(null)
   const [pushConfirm, setPushConfirm] = useState(false)
   const [branchName, setBranchName] = useState<string>('')
   const [behindCount, setBehindCount] = useState(0)
   const [pulling, setPulling] = useState(false)
   const [fetching, setFetching] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [pullError, setPullError] = useState<string | null>(null)
   const [branches, setBranches] = useState<Array<{ name: string; current: boolean }>>([])
   const [showBranchPicker, setShowBranchPicker] = useState(false)
@@ -261,16 +262,15 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
   const handlePush = useCallback(async () => {
     if (!projectDir) return
     setPushing(true)
-    setPushError(false)
+    setPushError(null)
     try {
       await window.api.git.push(projectDir)
       setUnpushedCommits([])
       setSelectedCommitHash(null)
       setCommitDiffContent(null)
       setPushConfirm(false)
-    } catch {
-      setPushError(true)
-      setTimeout(() => setPushError(false), 4000)
+    } catch (err: unknown) {
+      setPushError(err instanceof Error ? err.message : 'Push failed')
     } finally {
       setPushing(false)
     }
@@ -279,9 +279,12 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
   const handleFetch = useCallback(async () => {
     if (!projectDir) return
     setFetching(true)
+    setFetchError(null)
     try {
       await window.api.git.fetch(projectDir)
       await loadUnpushedCommits()
+    } catch (err: unknown) {
+      setFetchError(err instanceof Error ? err.message : 'Fetch failed')
     } finally {
       setFetching(false)
     }
@@ -299,7 +302,6 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
       const result = await window.api.git.pull(projectDir)
       if (!result.success) {
         setPullError(result.error || 'Pull failed')
-        setTimeout(() => setPullError(null), 5000)
       }
       await Promise.all([loadUnpushedCommits(), loadAllChanges()])
     } finally {
@@ -603,9 +605,10 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
                 className="panel-header-btn"
                 onClick={handleFetch}
                 disabled={fetching}
-                title="Fetch from remote"
+                title={fetchError || 'Fetch from remote'}
+                style={fetchError ? { color: 'var(--danger)' } : undefined}
               >
-                <Download size={13} /> {fetching ? 'Fetching...' : 'Fetch'}
+                {fetchError ? <><AlertTriangle size={13} /> Fetch failed</> : <><Download size={13} /> {fetching ? 'Fetching...' : 'Fetch'}</>}
               </button>
               {behindCount > 0 && (
                 <button
@@ -629,7 +632,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
                 else handlePush()
               }}
               disabled={pushing}
-              title={pushError ? 'Push failed — try again' : `Push ${unpushedCommits.length} commit${unpushedCommits.length !== 1 ? 's' : ''} to origin`}
+              title={pushError || `Push ${unpushedCommits.length} commit${unpushedCommits.length !== 1 ? 's' : ''} to origin`}
               style={pushError ? { color: 'var(--danger)' } : undefined}
             >
               {pushError ? <><AlertTriangle size={13} /> Failed</> : <><Upload size={13} /> {pushing ? 'Pushing...' : 'Push'}</>}
