@@ -1641,7 +1641,8 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Below header',
         items: [
           { label: 'Change totals', detail: 'Total files changed, sessions with changes, and aggregate insertions/deletions across all sessions.' },
-          { label: 'Branch switcher', detail: 'Click the branch name in the commits summary bar to see all local branches and switch between them. Warns if there are uncommitted changes.', icon: 'GitBranch' },
+          { label: 'Branch switcher', detail: 'Click the branch name in the commits summary bar to open the branch picker. Type to filter branches by name (case-insensitive). Current branch always appears first with a divider below. Arrow keys navigate the list, Enter selects, Escape closes. Warns if there are uncommitted changes.', icon: 'GitBranch' },
+          { label: 'Branch search', detail: 'The branch picker includes a search field auto-focused on open. Substring match filters the list as you type. "No matching branches" shown when filter yields zero results. Search clears automatically when you close and reopen the picker.', icon: 'Search' },
           { label: 'Behind indicator', detail: 'Shows how many commits the local branch is behind upstream. Fetch to update, Pull to merge.', icon: 'ArrowDown' },
         ],
       },

@@ -72,6 +72,8 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
   const [branches, setBranches] = useState<Array<{ name: string; current: boolean }>>([])
   const [showBranchPicker, setShowBranchPicker] = useState(false)
   const [switching, setSwitching] = useState(false)
+  const [branchSearch, setBranchSearch] = useState('')
+  const [highlightedBranchIdx, setHighlightedBranchIdx] = useState(0)
   const branchPickerRef = useRef<HTMLDivElement>(null)
 
   const instancesWithDir = instances.filter(i => i.workingDirectory)
@@ -883,7 +885,7 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
               <span style={{ marginLeft: '6px' }}>·</span>
               <span
                 style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', marginLeft: '6px' }}
-                onClick={() => setShowBranchPicker(!showBranchPicker)}
+                onClick={() => { setShowBranchPicker(!showBranchPicker); setBranchSearch(''); setHighlightedBranchIdx(0) }}
                 title="Switch branch"
               >
                 <GitBranch size={11} />
@@ -892,17 +894,43 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
               </span>
               {showBranchPicker && (
                 <div className="branch-picker-dropdown" ref={branchPickerRef}>
-                  {branches.map(b => (
-                    <button
-                      key={b.name}
-                      className={`branch-picker-item${b.current ? ' current' : ''}`}
-                      onClick={() => handleSwitchBranch(b.name)}
-                      disabled={b.current || switching}
-                    >
-                      {b.current && <span style={{ color: 'var(--success)' }}>●</span>}
-                      {b.name}
-                    </button>
-                  ))}
+                  <input
+                    className="branch-picker-search"
+                    placeholder="Search branches..."
+                    value={branchSearch}
+                    onChange={e => { setBranchSearch(e.target.value); setHighlightedBranchIdx(0) }}
+                    onKeyDown={e => {
+                      if (e.key === 'Escape') { setShowBranchPicker(false); return }
+                      const filtered = branches.filter(b => !branchSearch || b.name.toLowerCase().includes(branchSearch.toLowerCase()))
+                      const current = filtered.find(b => b.current)
+                      const rest = filtered.filter(b => !b.current)
+                      const ordered = current ? [current, ...rest] : rest
+                      if (e.key === 'ArrowDown') { e.preventDefault(); setHighlightedBranchIdx(i => Math.min(i + 1, ordered.length - 1)) }
+                      if (e.key === 'ArrowUp') { e.preventDefault(); setHighlightedBranchIdx(i => Math.max(i - 1, 0)) }
+                      if (e.key === 'Enter' && ordered[highlightedBranchIdx]) { handleSwitchBranch(ordered[highlightedBranchIdx].name) }
+                    }}
+                    autoFocus
+                  />
+                  {(() => {
+                    const filtered = branches.filter(b => !branchSearch || b.name.toLowerCase().includes(branchSearch.toLowerCase()))
+                    const current = filtered.find(b => b.current)
+                    const rest = filtered.filter(b => !b.current)
+                    const ordered = current ? [current, ...rest] : rest
+                    if (ordered.length === 0) return <div className="branch-picker-empty">No matching branches</div>
+                    return ordered.map((b, idx) => (
+                      <React.Fragment key={b.name}>
+                        {current && idx === 1 && <div className="branch-picker-divider" />}
+                        <button
+                          className={`branch-picker-item${b.current ? ' current' : ''}${idx === highlightedBranchIdx ? ' highlighted' : ''}`}
+                          onClick={() => handleSwitchBranch(b.name)}
+                          disabled={b.current || switching}
+                        >
+                          {b.current && <span style={{ color: 'var(--success)' }}>●</span>}
+                          {b.name}
+                        </button>
+                      </React.Fragment>
+                    ))
+                  })()}
                 </div>
               )}
             </div>
