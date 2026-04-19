@@ -48,7 +48,18 @@ export function registerGitHandlers(): void {
 
   ipcMain.handle('git:push', async (_e, cwd: string): Promise<void> => {
     await assertGitRepo(cwd)
-    await execFileAsync(resolveCommand('git'), ['push'], { cwd, timeout: 60000 })
+    try {
+      await execFileAsync(resolveCommand('git'), ['push'], { cwd, timeout: 60000 })
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('no upstream branch') || msg.includes('has no upstream') || msg.includes('--set-upstream')) {
+        const { stdout } = await execFileAsync(resolveCommand('git'), ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd, timeout: 5000, encoding: 'utf-8' })
+        const branch = stdout.trim()
+        await execFileAsync(resolveCommand('git'), ['push', '-u', 'origin', branch], { cwd, timeout: 60000 })
+      } else {
+        throw err
+      }
+    }
   })
 
   ipcMain.handle('git:branchInfo', async (_e, cwd: string): Promise<BranchInfo> => {
