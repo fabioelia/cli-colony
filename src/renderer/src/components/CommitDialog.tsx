@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { GitCommit, Upload, AlertCircle, AlertTriangle, Check, Loader, GitBranch } from 'lucide-react'
 import type { GitDiffEntry } from '../../../shared/types'
 import { buildCommitSubject, buildBranchName, buildCommitBody } from '../../../shared/ticket-commit-format'
@@ -13,6 +13,9 @@ interface CommitDialogProps {
 }
 
 type Phase = 'editing' | 'committing' | 'pushing' | 'done' | 'error'
+
+const COMMIT_TYPES = ['feat', 'fix', 'ux', 'chore', 'refactor', 'test', 'docs', 'perf'] as const
+const COMMIT_PREFIX_RE = /^(feat|fix|ux|chore|refactor|test|docs|perf)(!?(\([^)]*\))?:\s?)/
 
 export default function CommitDialog({ dir, entries, onClose, onCommitted, ticket }: CommitDialogProps) {
   const [message, setMessage] = useState('')
@@ -113,6 +116,18 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
     }
   }, [dir, message, selectedFiles, onCommitted, ticket])
 
+  const activeType = useMemo(() => {
+    const match = message.match(COMMIT_PREFIX_RE)
+    return match ? match[1] : null
+  }, [message])
+
+  const handleTypeClick = useCallback((type: string) => {
+    setMessage(prev => {
+      const stripped = prev.replace(COMMIT_PREFIX_RE, '')
+      return activeType === type ? stripped : `${type}: ${stripped}`
+    })
+  }, [activeType])
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault()
@@ -172,6 +187,19 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
         {/* Commit message */}
         <div className="dialog-field">
           <label>Commit message</label>
+          <div className="commit-type-chips">
+            {COMMIT_TYPES.map(t => (
+              <button
+                key={t}
+                className={`commit-type-chip${activeType === t ? ' active' : ''}`}
+                onClick={() => handleTypeClick(t)}
+                type="button"
+                disabled={busy || phase === 'done'}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
           <textarea
             ref={textareaRef}
             className="commit-dialog-textarea"

@@ -3712,6 +3712,12 @@ body:has(.daemon-update-banner) .app-update-banner {
   margin-left: auto;
 }
 
+.commit-type-chips { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; }
+.commit-type-chip { padding: 2px 6px; font-size: 10px; border-radius: 3px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); cursor: pointer; font-family: var(--font-mono, monospace); }
+.commit-type-chip:hover:not(:disabled) { border-color: var(--accent); color: var(--text-primary); }
+.commit-type-chip.active { background: var(--accent); color: var(--bg-primary); border-color: var(--accent); }
+.commit-type-chip:disabled { opacity: 0.4; cursor: default; }
+
 .commit-dialog-textarea {
   width: 100%;
   padding: 8px 12px;
