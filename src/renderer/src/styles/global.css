@@ -22042,6 +22042,15 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-muted);
   white-space: nowrap;
 }
+.overview-stopped-summary {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.overview-stopped-summary:hover {
+  color: var(--accent);
+}
 .overview-badge {
   font-size: 10px;
   padding: 1px 6px;

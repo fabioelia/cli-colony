@@ -887,28 +887,41 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
         )}
 
         {/* Environment Health */}
-        {environments.filter(e => e.status !== 'stopped').length > 0 && (
+        {environments.length > 0 && (
           <div className="overview-section">
             <h3><Server size={14} /> Environments</h3>
             <div className="overview-session-list">
-              {[...environments]
-                .filter(e => e.status !== 'stopped')
-                .sort((a, b) => {
+              {(() => {
+                const active = environments.filter(e => e.status !== 'stopped')
+                const stoppedCount = environments.length - active.length
+                const sorted = [...active].sort((a, b) => {
                   const order: Record<string, number> = { error: 0, partial: 1, creating: 2, running: 3 }
                   return (order[a.status] ?? 4) - (order[b.status] ?? 4)
                 })
-                .map(e => (
-                  <div key={e.id} className="overview-session-tile" onClick={() => onNavigate('environments')}>
-                    <span className="overview-session-dot" style={{
-                      background: e.status === 'running' ? 'var(--success)' : e.status === 'partial' ? 'var(--warning)' : 'var(--danger)'
-                    }} />
-                    <span className="overview-session-name">{e.displayName || e.name}</span>
-                    <span className={`overview-badge ${e.status === 'running' ? 'badge-busy' : e.status === 'error' ? 'badge-stale' : 'badge-idle'}`}>{e.status}</span>
-                    <span className="overview-session-elapsed">
-                      {e.services.filter(s => s.status === 'running').length}/{e.services.length} services
-                    </span>
-                  </div>
-                ))}
+                return (
+                  <>
+                    {sorted.map(e => (
+                      <div key={e.id} className="overview-session-tile" onClick={() => onNavigate('environments')}>
+                        <span className="overview-session-dot" style={{
+                          background: e.status === 'running' ? 'var(--success)' : e.status === 'partial' ? 'var(--warning)' : 'var(--danger)'
+                        }} />
+                        <span className="overview-session-name">{e.displayName || e.name}</span>
+                        <span className={`overview-badge ${e.status === 'running' ? 'badge-busy' : e.status === 'error' ? 'badge-stale' : 'badge-idle'}`}>{e.status}</span>
+                        <span className="overview-session-elapsed">
+                          {e.services.filter(s => s.status === 'running').length}/{e.services.length} services
+                        </span>
+                      </div>
+                    ))}
+                    {stoppedCount > 0 && (
+                      <div className="overview-stopped-summary" onClick={() => onNavigate('environments')}>
+                        {active.length === 0
+                          ? `${stoppedCount} environment${stoppedCount !== 1 ? 's' : ''} (all stopped)`
+                          : `${stoppedCount} stopped environment${stoppedCount !== 1 ? 's' : ''}`}
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
             </div>
           </div>
         )}
