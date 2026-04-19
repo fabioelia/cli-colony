@@ -1206,7 +1206,7 @@ export default function EnvironmentsPanel({ onLaunchInstance, onFocusInstance }:
                           {svc.restarts > 0 && (
                             <Tooltip text={`${svc.restarts} restart${svc.restarts > 1 ? 's' : ''}${isCrashLooping(svc) ? ' — crash loop detected' : ''}`} detail={isCrashLooping(svc) ? `Service is restarting rapidly (up only ${formatUptime(svc.uptime)}). Check logs.` : `Service crashed and was restarted ${svc.restarts} time${svc.restarts > 1 ? 's' : ''}. Check logs for details.`}>
                               <span className={`env-service-restarts${isCrashLooping(svc) ? ' crash-loop' : ''}`}>
-                                <AlertTriangle size={10} /> {svc.restarts}{isCrashLooping(svc) ? ' ⚠' : ''}
+                                <AlertTriangle size={10} /> {svc.restarts}
                               </span>
                             </Tooltip>
                           )}

@@ -1598,7 +1598,7 @@ ${modelLine}  prompt: |
                               filtered = filtered.filter(({ e }) => new Date(e.ts).getTime() >= cutoff)
                             }
                             if (filtered.length === 0) {
-                              return <p className="pipeline-memory-hint">No matching runs{historyFilterFailures ? ' (failures only)' : ''}{historySearch ? ` for "${historySearch}"` : ''}{historyDateRange !== 'all' ? ` in ${historyDateRange}` : ''}.</p>
+                              return <p className="pipeline-memory-hint">No matching runs{historyFilterFailures ? ' (failures only)' : ''}{historySearch ? ` for "${historySearch}"` : ''}{historyDateRange !== 'all' ? historyDateRange === 'today' ? ' today' : ` in the last ${historyDateRange === '7d' ? '7 days' : '30 days'}` : ''}.</p>
                             }
                             return filtered.map(({ e: entry, i }) => {
                             const hasStages = (entry.stages?.length ?? 0) >= 1
