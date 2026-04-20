@@ -8701,20 +8701,20 @@ body:has(.daemon-update-banner) .app-update-banner {
   align-items: center;
   justify-content: center;
 }
-.diff-add-comment-btn:hover { background: var(--accent-hover, var(--accent)); opacity: 0.85; }
+.diff-add-comment-btn:hover { background: var(--accent); opacity: 0.85; }
 /* Inline comment / reply forms */
 .diff-add-comment-form {
   padding: 8px 12px;
-  background: var(--bg-elevated);
+  background: var(--bg-secondary);
   border-left: 3px solid var(--accent);
 }
 .diff-add-comment-input,
 .diff-reply-input {
   width: 100%;
-  background: var(--bg-input);
+  background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: 6px;
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 12px;
   padding: 6px 10px;
   resize: vertical;
@@ -8740,7 +8740,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: transparent;
   color: var(--text-secondary);
 }
-.diff-reply-btn:hover { background: var(--bg-hover); color: var(--text); }
+.diff-reply-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 .diff-reply-btn.diff-reply-btn-primary {
   background: var(--accent);
   border-color: var(--accent);
@@ -22697,13 +22697,13 @@ body:has(.daemon-update-banner) .app-update-banner {
   text-transform: none;
   letter-spacing: 0;
 }
-.overview-broadcast-btn:hover { background: var(--bg-hover); color: var(--text); }
+.overview-broadcast-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 .overview-broadcast-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .overview-broadcast-bar {
   margin-bottom: 10px;
   padding: 10px 12px;
   border-radius: 8px;
-  background: var(--bg-elevated);
+  background: var(--bg-secondary);
   border: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -22711,10 +22711,10 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .overview-broadcast-input {
   width: 100%;
-  background: var(--bg-input);
+  background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: 6px;
-  color: var(--text);
+  color: var(--text-primary);
   font-size: 12px;
   padding: 6px 10px;
   resize: none;
