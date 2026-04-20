@@ -8018,6 +8018,53 @@ body:has(.daemon-update-banner) .app-update-banner {
   margin: 0 0 0 18px;
 }
 
+/* ===== Stash Dropdown ===== */
+.stash-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 260px;
+  max-width: 360px;
+  background: var(--bg-elevated, var(--bg-secondary));
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  z-index: 200;
+  overflow: hidden;
+}
+.stash-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+}
+.stash-row:hover {
+  background: var(--bg-hover);
+}
+.stash-action-btn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.stash-action-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.stash-action-btn.danger:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
 /* ===== Diff Header ===== */
 .changes-diff-header {
   display: flex;

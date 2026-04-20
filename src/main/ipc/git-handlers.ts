@@ -313,4 +313,41 @@ export function registerGitHandlers(): void {
     await assertGitRepo(cwd)
     await execFileAsync(resolveCommand('git'), ['reset', '--soft', 'HEAD~1'], { cwd, timeout: 10000 })
   })
+
+  ipcMain.handle('git:stashPush', async (_e, cwd: string, message?: string): Promise<void> => {
+    await assertGitRepo(cwd)
+    const args = ['stash', 'push', '--include-untracked']
+    if (message) args.push('-m', message)
+    await execFileAsync(resolveCommand('git'), args, { cwd, timeout: 15000 })
+  })
+
+  ipcMain.handle('git:stashList', async (_e, cwd: string): Promise<Array<{ index: number; message: string; date: string }>> => {
+    await assertGitRepo(cwd)
+    try {
+      const { stdout } = await execFileAsync(resolveCommand('git'), [
+        'stash', 'list', '--format=%gd|%s|%ar',
+      ], { cwd, timeout: 5000, encoding: 'utf-8' })
+      if (!stdout.trim()) return []
+      return stdout.trim().split('\n').map(line => {
+        const [ref, message, date] = line.split('|')
+        const index = parseInt(ref.replace('stash@{', '').replace('}', ''), 10)
+        return { index, message, date }
+      })
+    } catch { return [] }
+  })
+
+  ipcMain.handle('git:stashApply', async (_e, cwd: string, index: number): Promise<void> => {
+    await assertGitRepo(cwd)
+    await execFileAsync(resolveCommand('git'), ['stash', 'apply', `stash@{${index}}`], { cwd, timeout: 15000 })
+  })
+
+  ipcMain.handle('git:stashPop', async (_e, cwd: string, index: number): Promise<void> => {
+    await assertGitRepo(cwd)
+    await execFileAsync(resolveCommand('git'), ['stash', 'pop', `stash@{${index}}`], { cwd, timeout: 15000 })
+  })
+
+  ipcMain.handle('git:stashDrop', async (_e, cwd: string, index: number): Promise<void> => {
+    await assertGitRepo(cwd)
+    await execFileAsync(resolveCommand('git'), ['stash', 'drop', `stash@{${index}}`], { cwd, timeout: 5000 })
+  })
 }

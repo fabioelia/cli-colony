@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
-import { ChevronRight, RefreshCw, RotateCw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search, Copy, CheckCircle } from 'lucide-react'
+import { ChevronRight, RefreshCw, RotateCw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search, Copy, CheckCircle, Archive } from 'lucide-react'
 import type { GitDiffEntry, ColonyComment, ScoreCard } from '../../../shared/types'
 import type { ClaudeInstance } from '../types'
 import DiffViewer from './DiffViewer'
@@ -33,6 +33,12 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [fileSearch, setFileSearch] = useState('')
   const [gitError, setGitError] = useState<string | null>(null)
   const [copiedDiffFile, setCopiedDiffFile] = useState<string | null>(null)
+
+  // Stash state
+  const [stashes, setStashes] = useState<Array<{ index: number; message: string; date: string }>>([])
+  const [stashOpen, setStashOpen] = useState(false)
+  const [stashing, setStashing] = useState(false)
+  const [stashError, setStashError] = useState<string | null>(null)
 
   // Checkpoint state
   const [checkpoints, setCheckpoints] = useState<CheckpointTag[]>([])
@@ -170,6 +176,70 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     return () => clearInterval(pollId)
   }, [instance.workingDirectory, loadGitChanges])
 
+  const refreshStashes = useCallback(async () => {
+    if (!instance.workingDirectory) return
+    try {
+      const list = await window.api.git.stashList(instance.workingDirectory)
+      setStashes(list)
+    } catch {
+      setStashes([])
+    }
+  }, [instance.workingDirectory])
+
+  useEffect(() => {
+    refreshStashes()
+  }, [refreshStashes])
+
+  const handleStash = useCallback(async () => {
+    if (!instance.workingDirectory) return
+    setStashing(true)
+    setStashError(null)
+    try {
+      const msg = `WIP: ${new Date().toLocaleString()}`
+      await window.api.git.stashPush(instance.workingDirectory, msg)
+      await refreshStashes()
+      loadGitChanges()
+    } catch (err: any) {
+      setStashError(err?.message ?? 'Stash failed')
+    } finally {
+      setStashing(false)
+    }
+  }, [instance.workingDirectory, refreshStashes, loadGitChanges])
+
+  const handleStashApply = useCallback(async (index: number) => {
+    if (!instance.workingDirectory) return
+    setStashError(null)
+    try {
+      await window.api.git.stashApply(instance.workingDirectory, index)
+      await refreshStashes()
+      loadGitChanges()
+      setStashOpen(false)
+    } catch (err: any) {
+      setStashError(err?.message ?? 'Apply failed — may have merge conflicts')
+    }
+  }, [instance.workingDirectory, refreshStashes, loadGitChanges])
+
+  const handleStashPop = useCallback(async (index: number) => {
+    if (!instance.workingDirectory) return
+    setStashError(null)
+    try {
+      await window.api.git.stashPop(instance.workingDirectory, index)
+      await refreshStashes()
+      loadGitChanges()
+      setStashOpen(false)
+    } catch (err: any) {
+      setStashError(err?.message ?? 'Pop failed — may have merge conflicts')
+    }
+  }, [instance.workingDirectory, refreshStashes, loadGitChanges])
+
+  const handleStashDrop = useCallback(async (index: number) => {
+    if (!instance.workingDirectory) return
+    try {
+      await window.api.git.stashDrop(instance.workingDirectory, index)
+      await refreshStashes()
+    } catch { /* ignore */ }
+  }, [instance.workingDirectory, refreshStashes])
+
   // Load colony comments + subscribe to live push updates
   useEffect(() => {
     if (instance.status !== 'running') return
@@ -266,6 +336,19 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
   }, [visibleFiles, showCommitDialog, selectedDiffFile, selectFile])
+
+  // Close stash dropdown on outside click
+  useEffect(() => {
+    if (!stashOpen) return
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('.stash-dropdown') && !target.closest('.stash-count-btn')) {
+        setStashOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [stashOpen])
 
   // Clear selection if selected file disappears (reverted / committed externally)
   useEffect(() => {
@@ -388,6 +471,54 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
             >
               <RefreshCw size={12} />
             </button>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '2px' }}>
+              <button
+                className="changes-refresh-btn"
+                title="Stash changes"
+                disabled={stashing || gitChanges.length === 0}
+                onClick={handleStash}
+                style={{ color: 'var(--text-muted)' }}
+              >
+                {stashing ? <RotateCw size={12} className="spinning" /> : <Archive size={12} />}
+              </button>
+              {stashes.length > 0 && (
+                <button
+                  className="changes-refresh-btn stash-count-btn"
+                  onClick={() => setStashOpen(!stashOpen)}
+                  title={`${stashes.length} stash${stashes.length === 1 ? '' : 'es'} — click to manage`}
+                  style={{ padding: '2px 4px', fontSize: '9px', fontWeight: 600, color: 'var(--text-muted)' }}
+                >
+                  {stashes.length}
+                </button>
+              )}
+              {stashOpen && stashes.length > 0 && (
+                <div className="stash-dropdown" onClick={(e) => e.stopPropagation()}>
+                  <div style={{ padding: '6px 8px 4px', fontSize: '10px', fontWeight: 600, opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Stashes
+                  </div>
+                  {stashError && (
+                    <div style={{ padding: '4px 8px', fontSize: '10px', color: 'var(--danger)', borderBottom: '1px solid var(--border)' }}>
+                      {stashError}
+                    </div>
+                  )}
+                  {stashes.map((s) => (
+                    <div key={s.index} className="stash-row">
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.message}</div>
+                        <div style={{ fontSize: '9px', opacity: 0.5, marginTop: '1px' }}>{s.date}</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '3px', flexShrink: 0 }}>
+                        <button className="stash-action-btn" onClick={() => handleStashApply(s.index)} title="Apply (keep stash)">Apply</button>
+                        <button className="stash-action-btn" onClick={() => handleStashPop(s.index)} title="Pop (remove stash)">Pop</button>
+                        <button className="stash-action-btn danger" onClick={() => handleStashDrop(s.index)} title="Drop stash">
+                          <Trash2 size={9} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <button
               className="changes-refresh-btn"
               title="Save checkpoint"
