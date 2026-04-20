@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
-import { ChevronRight, RefreshCw, RotateCw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search } from 'lucide-react'
+import { ChevronRight, RefreshCw, RotateCw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search, Copy, CheckCircle } from 'lucide-react'
 import type { GitDiffEntry, ColonyComment, ScoreCard } from '../../../shared/types'
 import type { ClaudeInstance } from '../types'
 import DiffViewer from './DiffViewer'
@@ -32,6 +32,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [diffLoading, setDiffLoading] = useState(false)
   const [fileSearch, setFileSearch] = useState('')
   const [gitError, setGitError] = useState<string | null>(null)
+  const [copiedDiffFile, setCopiedDiffFile] = useState<string | null>(null)
 
   // Checkpoint state
   const [checkpoints, setCheckpoints] = useState<CheckpointTag[]>([])
@@ -299,6 +300,20 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
       })
       return (
         <>
+          <div className="changes-diff-header">
+            <span className="changes-diff-filename">{selectedDiffFile}</span>
+            <button
+              className="changes-refresh-btn"
+              title="Copy diff"
+              onClick={() => {
+                navigator.clipboard.writeText(diffContent!)
+                setCopiedDiffFile(selectedDiffFile)
+                setTimeout(() => setCopiedDiffFile(null), 2000)
+              }}
+            >
+              {copiedDiffFile === selectedDiffFile ? <CheckCircle size={12} /> : <Copy size={12} />}
+            </button>
+          </div>
           <DiffViewer diff={diffContent} filename={selectedDiffFile} />
           {fileComments.map((comment, i) => (
             <div key={i} style={{
@@ -338,7 +353,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
         <span>Select a changed file to view its diff</span>
       </div>
     )
-  }, [selectedDiffFile, diffLoading, diffContent, colonyComments])
+  }, [selectedDiffFile, diffLoading, diffContent, colonyComments, copiedDiffFile])
 
   return (
     <>
