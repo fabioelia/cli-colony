@@ -484,6 +484,8 @@ export interface ClaudeManagerAPI {
     diffRange: (cwd: string, from: string, to?: string) => Promise<{ stat: string; diff: string }>
     createPR: (cwd: string, title: string, body: string, baseBranch?: string) => Promise<{ url: string }>
     defaultBranch: (cwd: string) => Promise<string>
+    fileDiff: (cwd: string, file: string) => Promise<string>
+    undoLastCommit: (cwd: string) => Promise<void>
   }
   ai: {
     suggestPRDescription: (dir: string) => Promise<{ title: string; body: string } | null>
@@ -1145,6 +1147,8 @@ const api: ClaudeManagerAPI = {
     diffRange: (cwd, from, to) => ipcRenderer.invoke('git:diffRange', cwd, from, to),
     createPR: (cwd, title, body, baseBranch) => ipcRenderer.invoke('git:createPR', cwd, title, body, baseBranch),
     defaultBranch: (cwd) => ipcRenderer.invoke('git:defaultBranch', cwd),
+    fileDiff: (cwd, file) => ipcRenderer.invoke('git:fileDiff', cwd, file) as Promise<string>,
+    undoLastCommit: (cwd) => ipcRenderer.invoke('git:undoLastCommit', cwd) as Promise<void>,
   },
   ai: {
     suggestPRDescription: (dir) => ipcRenderer.invoke('ai:suggestPRDescription', dir) as Promise<{ title: string; body: string } | null>,

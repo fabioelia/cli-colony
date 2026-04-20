@@ -296,4 +296,21 @@ export function registerGitHandlers(): void {
       return stdout.trim() || 'main'
     } catch { return 'main' }
   })
+
+  ipcMain.handle('git:fileDiff', async (_e, cwd: string, file: string): Promise<string> => {
+    await assertGitRepo(cwd)
+    const { stdout: staged } = await execFileAsync(resolveCommand('git'), ['diff', '--cached', '--', file], {
+      cwd, timeout: 10000, encoding: 'utf-8', maxBuffer: 2 * 1024 * 1024,
+    })
+    if (staged.trim()) return staged
+    const { stdout: unstaged } = await execFileAsync(resolveCommand('git'), ['diff', '--', file], {
+      cwd, timeout: 10000, encoding: 'utf-8', maxBuffer: 2 * 1024 * 1024,
+    })
+    return unstaged
+  })
+
+  ipcMain.handle('git:undoLastCommit', async (_e, cwd: string): Promise<void> => {
+    await assertGitRepo(cwd)
+    await execFileAsync(resolveCommand('git'), ['reset', '--soft', 'HEAD~1'], { cwd, timeout: 10000 })
+  })
 }

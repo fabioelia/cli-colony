@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { GitCommit, Upload, AlertCircle, AlertTriangle, Check, Loader, GitBranch, Sparkles, GitPullRequest, Copy } from 'lucide-react'
+import { GitCommit, Upload, AlertCircle, AlertTriangle, Check, Loader, GitBranch, Sparkles, GitPullRequest, Copy, ChevronRight, ChevronDown, Undo2 } from 'lucide-react'
 import type { GitDiffEntry } from '../../../shared/types'
+import DiffViewer from './DiffViewer'
 import { buildCommitSubject, buildBranchName, buildCommitBody } from '../../../shared/ticket-commit-format'
 import type { InstanceTicket } from '../../../shared/ticket-commit-format'
 
@@ -40,6 +41,10 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
   const [prError, setPRError] = useState<string | null>(null)
   const [suggestingPR, setSuggestingPR] = useState(false)
   const [amend, setAmend] = useState(false)
+  const [expandedFile, setExpandedFile] = useState<string | null>(null)
+  const [expandedDiff, setExpandedDiff] = useState<string>('')
+  const [diffLoading, setDiffLoading] = useState(false)
+  const [undone, setUndone] = useState(false)
   const amendPrefilled = useRef(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const ticketSeededRef = useRef(false)
@@ -170,6 +175,31 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
     } catch {}
     setSuggestingPR(false)
   }, [dir])
+
+  const handleExpandFile = useCallback(async (file: string) => {
+    if (expandedFile === file) { setExpandedFile(null); return }
+    setExpandedFile(file)
+    setDiffLoading(true)
+    try {
+      const diff = await window.api.git.fileDiff(dir, file)
+      setExpandedDiff(diff)
+    } catch { setExpandedDiff('') }
+    setDiffLoading(false)
+  }, [dir, expandedFile])
+
+  const handleUndo = useCallback(async () => {
+    try {
+      await window.api.git.undoLastCommit(dir)
+      setUndone(true)
+      setPhase('editing')
+      setCommitHash('')
+      setPushed(false)
+      onCommitted()
+      setTimeout(() => setUndone(false), 2000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to undo commit')
+    }
+  }, [dir, onCommitted])
 
   const handleCreatePR = useCallback(async () => {
     if (!prTitle.trim()) return
@@ -330,29 +360,50 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
           </div>
           <div className="commit-dialog-files-list">
             {entries.map(entry => (
-              <label key={entry.file} className="commit-dialog-file-row">
-                <input
-                  type="checkbox"
-                  checked={selectedFiles.has(entry.file)}
-                  onChange={() => toggleFile(entry.file)}
-                  disabled={busy || phase === 'done'}
-                />
-                <span
-                  className="commit-dialog-file-status"
-                  style={{
-                    color: entry.status === 'A' ? 'var(--success)'
-                      : entry.status === 'D' ? 'var(--danger)'
-                      : 'var(--warning)',
-                  }}
-                >
-                  {entry.status}
-                </span>
-                <span className="commit-dialog-file-name">{entry.file}</span>
-                <span className="commit-dialog-file-stats">
-                  {entry.insertions > 0 && <span style={{ color: 'var(--success)' }}>+{entry.insertions}</span>}
-                  {entry.deletions > 0 && <span style={{ color: 'var(--danger)', marginLeft: '3px' }}>-{entry.deletions}</span>}
-                </span>
-              </label>
+              <div key={entry.file} className="commit-dialog-file-item">
+                <label className="commit-dialog-file-row">
+                  <input
+                    type="checkbox"
+                    checked={selectedFiles.has(entry.file)}
+                    onChange={() => toggleFile(entry.file)}
+                    disabled={busy || phase === 'done'}
+                  />
+                  <span
+                    className="commit-dialog-file-status"
+                    style={{
+                      color: entry.status === 'A' ? 'var(--success)'
+                        : entry.status === 'D' ? 'var(--danger)'
+                        : 'var(--warning)',
+                    }}
+                  >
+                    {entry.status}
+                  </span>
+                  <span
+                    className="commit-dialog-file-name commit-dialog-file-expand"
+                    onClick={e => { e.preventDefault(); handleExpandFile(entry.file) }}
+                    title="Click to preview diff"
+                  >
+                    {expandedFile === entry.file
+                      ? <ChevronDown size={11} style={{ opacity: 0.5, flexShrink: 0 }} />
+                      : <ChevronRight size={11} style={{ opacity: 0.5, flexShrink: 0 }} />}
+                    {entry.file}
+                  </span>
+                  <span className="commit-dialog-file-stats">
+                    {entry.insertions > 0 && <span style={{ color: 'var(--success)' }}>+{entry.insertions}</span>}
+                    {entry.deletions > 0 && <span style={{ color: 'var(--danger)', marginLeft: '3px' }}>-{entry.deletions}</span>}
+                  </span>
+                </label>
+                {expandedFile === entry.file && (
+                  <div className="commit-dialog-file-diff">
+                    {diffLoading
+                      ? <Loader size={12} className="spinning" style={{ margin: '8px auto', display: 'block' }} />
+                      : expandedDiff
+                        ? <DiffViewer diff={expandedDiff} filename={entry.file} maxLines={200} />
+                        : <span style={{ opacity: 0.5, fontSize: 11 }}>No diff available</span>
+                    }
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         </div>
@@ -461,9 +512,16 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
         {/* Actions */}
         <div className="commit-dialog-actions">
           {phase === 'done' ? (
-            <button className="dialog-btn dialog-btn-primary" onClick={onClose}>
-              Close
-            </button>
+            <>
+              {!pushed && (
+                <button className="dialog-btn" onClick={handleUndo} title="Undo commit (git reset --soft HEAD~1)">
+                  <Undo2 size={12} /> {undone ? 'Undone!' : 'Undo Commit'}
+                </button>
+              )}
+              <button className="dialog-btn dialog-btn-primary" onClick={onClose}>
+                Close
+              </button>
+            </>
           ) : (
             <>
               <button className="dialog-btn" onClick={onClose} disabled={busy}>
