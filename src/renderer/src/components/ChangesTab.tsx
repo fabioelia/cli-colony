@@ -611,7 +611,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                         disabled={switching || b.current}
                         title={b.name}
                       >
-                        {b.current && <span style={{ color: 'var(--accent)', marginRight: '4px' }}>✓</span>}
+                        {b.current && <CheckCircle size={11} style={{ color: 'var(--accent)', marginRight: '4px', flexShrink: 0 }} />}
                         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.name}</span>
                         {switching && !b.current && <RotateCw size={9} className="spinning" style={{ flexShrink: 0 }} />}
                       </button>
