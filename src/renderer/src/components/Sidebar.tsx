@@ -711,8 +711,13 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     return sorted
   }, [instanceSort])
 
+  const [instanceStatusFilter, setInstanceStatusFilter] = useState<Set<'running' | 'stopped'>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('colony:instanceStatusFilter') || '[]') as ('running' | 'stopped')[]) } catch { return new Set<'running' | 'stopped'>() }
+  })
+  const [instancePersonaFilter, setInstancePersonaFilter] = useState<string | null>(() => localStorage.getItem('colony:instancePersonaFilter') || null)
+
   // Instance ordering + grouping — must be declared before callbacks/effects that reference them
-  const { pinned, running, exited, orderedInstances } = useMemo(() => {
+  const { pinned, running, exited, orderedInstances, filteredCount, totalCount } = useMemo(() => {
     const p = sortInstanceList(instances.filter((i) => i.pinned))
     const r = sortInstanceList(instances.filter((i) => i.status === 'running' && !i.pinned))
     const e = sortInstanceList(instances.filter((i) => i.status !== 'running' && !i.pinned))
@@ -728,8 +733,33 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
         return 0
       })
     }
-    return { pinned: p, running: r, exited: e, orderedInstances: ordered }
-  }, [instances, customOrder, groupBy, sortInstanceList])
+    // Apply instance filters (pinned always show)
+    const hasStatusFilter = instanceStatusFilter.size > 0
+    const hasPersonaFilter = instancePersonaFilter !== null
+    const applyFilter = (inst: ClaudeInstance) => {
+      if (hasStatusFilter) {
+        const status = inst.status === 'running' ? 'running' : 'stopped'
+        if (!instanceStatusFilter.has(status)) return false
+      }
+      if (hasPersonaFilter) {
+        const personaName = inst.name.startsWith('Persona: ') ? inst.name.slice(9) : null
+        if (personaName !== instancePersonaFilter) return false
+      }
+      return true
+    }
+    const filteredR = hasStatusFilter || hasPersonaFilter ? r.filter(applyFilter) : r
+    const filteredE = hasStatusFilter || hasPersonaFilter ? e.filter(applyFilter) : e
+    const totalNonPinned = r.length + e.length
+    const filteredNonPinned = filteredR.length + filteredE.length
+    return {
+      pinned: p,
+      running: filteredR,
+      exited: filteredE,
+      orderedInstances: ordered,
+      filteredCount: filteredNonPinned,
+      totalCount: totalNonPinned,
+    }
+  }, [instances, customOrder, groupBy, sortInstanceList, instanceStatusFilter, instancePersonaFilter])
 
   const groupedSections = useMemo(() => {
     if (groupBy === 'none') return null
@@ -909,6 +939,11 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   }, [instances])
 
   useEffect(() => { localStorage.setItem('colony:sessionSort', sessionSort) }, [sessionSort])
+  useEffect(() => { localStorage.setItem('colony:instanceStatusFilter', JSON.stringify(Array.from(instanceStatusFilter))) }, [instanceStatusFilter])
+  useEffect(() => {
+    if (instancePersonaFilter) localStorage.setItem('colony:instancePersonaFilter', instancePersonaFilter)
+    else localStorage.removeItem('colony:instancePersonaFilter')
+  }, [instancePersonaFilter])
   useEffect(() => { localStorage.setItem('primaryNavSlots', JSON.stringify(primarySlots)) }, [primarySlots])
   useEffect(() => {
     if (sessionProjectFilter) localStorage.setItem('colony:sessionProjectFilter', sessionProjectFilter)
@@ -1541,6 +1576,49 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
         </div>
       )}
 
+      {instances.length > 2 && (() => {
+        const hasAnyFilter = instanceStatusFilter.size > 0 || instancePersonaFilter !== null
+        const personaNames = Array.from(new Set(instances.filter(i => i.name.startsWith('Persona: ') && !i.pinned).map(i => i.name.slice(9))))
+        if (personaNames.length === 0 && !hasAnyFilter) return null
+        return (
+          <div className="sidebar-filter-chips">
+            {(['running', 'stopped'] as const).map(s => {
+              const active = instanceStatusFilter.has(s)
+              return (
+                <button
+                  key={s}
+                  className={`sidebar-filter-chip${active ? ' active' : ''}`}
+                  onClick={() => setInstanceStatusFilter(prev => {
+                    const next = new Set(prev)
+                    if (next.has(s)) next.delete(s)
+                    else next.add(s)
+                    return next
+                  })}
+                >
+                  {s === 'running' ? 'Running' : 'Stopped'}
+                </button>
+              )
+            })}
+            {personaNames.length > 0 && (
+              <select
+                className="sidebar-filter-chip sidebar-filter-persona-select"
+                value={instancePersonaFilter || ''}
+                onChange={(e) => setInstancePersonaFilter(e.target.value || null)}
+              >
+                <option value="">All Personas</option>
+                {personaNames.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            )}
+            {hasAnyFilter && (
+              <>
+                <span className="sidebar-filter-count">{filteredCount} of {totalCount}</span>
+                <button className="sidebar-filter-clear" onClick={() => { setInstanceStatusFilter(new Set()); setInstancePersonaFilter(null) }}>Clear</button>
+              </>
+            )}
+          </div>
+        )
+      })()}
+
       <div className="instance-list">
         {/* Fork Groups section — shown above regular session list */}
         {forkGroups.filter(g => g.status === 'active').length > 0 && (
@@ -1692,6 +1770,12 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
         )}
         {instances.length === 0 && (
           <div className="instance-list-empty">No sessions · press Cmd+T or click New Session to start</div>
+        )}
+        {instances.length > 0 && (instanceStatusFilter.size > 0 || instancePersonaFilter !== null) && running.length === 0 && exited.length === 0 && pinned.length === 0 && (
+          <div className="instance-list-empty">
+            No sessions match filters ·{' '}
+            <button className="instance-list-empty-clear" onClick={() => { setInstanceStatusFilter(new Set()); setInstancePersonaFilter(null) }}>Clear</button>
+          </div>
         )}
       </div>
 
