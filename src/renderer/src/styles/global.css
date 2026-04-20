@@ -13596,7 +13596,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--accent);
   border: 1px solid rgba(59, 130, 246, 0.2);
   font-weight: 600;
-  font-family: var(--font-mono);
+  font-family: var(--font-mono, monospace);
 }
 
 .pipeline-success-badge {

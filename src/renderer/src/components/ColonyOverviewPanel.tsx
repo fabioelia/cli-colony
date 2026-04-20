@@ -839,7 +839,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                   if (inst) onFocusInstance(inst.id)
                 }}>
                   <GitCommit size={11} />
-                  <span className="overview-session-name" style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{c.hash.slice(0, 7)}</span>
+                  <span className="overview-session-name" style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 11 }}>{c.hash.slice(0, 7)}</span>
                   <span className="overview-session-name">{c.shortMsg}</span>
                   <span className="overview-session-elapsed">{c.sessionName}</span>
                 </div>
