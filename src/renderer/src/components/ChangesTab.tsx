@@ -1445,7 +1445,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
         </div>
         <div className="changes-panel-content">
           {conflictState.state !== 'none' && (
-            <div style={{ margin: '6px 8px 2px', padding: '8px 10px', background: 'rgba(234,179,8,0.08)', borderRadius: '6px', border: '1px solid rgba(234,179,8,0.3)', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <div style={{ margin: '6px 8px 2px', padding: '8px 10px', background: 'rgba(245,158,11,0.08)', borderRadius: '6px', border: '1px solid rgba(245,158,11,0.3)', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <AlertTriangle size={13} style={{ color: 'var(--warning)', flexShrink: 0 }} />
               <span style={{ fontSize: '11px', flex: 1, minWidth: 0 }}>
                 <strong>{conflictState.state === 'merge' ? 'Merge' : conflictState.state === 'cherry-pick' ? 'Cherry-pick' : 'Revert'} in progress</strong>
@@ -1626,7 +1626,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                     value={commitSearch}
                     onChange={(e) => handleCommitSearchChange(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Escape') handleCommitSearchChange('') }}
-                    style={{ flex: 1, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '4px', padding: '3px 6px', fontSize: '11px', color: 'var(--text)', outline: 'none' }}
+                    style={{ flex: 1, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '4px', padding: '3px 6px', fontSize: '11px', color: 'var(--text-primary)', outline: 'none' }}
                   />
                   {commitSearch && (
                     <button className="changes-refresh-btn" onClick={() => handleCommitSearchChange('')} style={{ flexShrink: 0 }}><X size={10} /></button>
