@@ -622,6 +622,13 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Schedule Timeline',
+        position: 'Below description',
+        items: [
+          { label: 'Schedule — 24h overview', detail: 'Collapsible 24-hour timeline strip showing when all enabled cron pipelines fire today. Dots are color-coded per pipeline — hover for pipeline name and exact fire time. High-frequency pipelines (fires every hour or more) render as semi-transparent bands. The vertical accent line marks the current time. Git-poll and file-poll pipelines appear below as dashed badges showing their poll interval. Collapsed/expanded state is saved per device.', icon: 'Clock' },
+        ],
+      },
+      {
         name: 'Pipeline List',
         position: 'Main area — expandable cards',
         items: [

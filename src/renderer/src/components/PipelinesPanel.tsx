@@ -14,7 +14,7 @@ import HelpPopover from './HelpPopover'
 import EmptyStateHook from './EmptyStateHook'
 import CronEditor from './CronEditor'
 import PipelineFlowDiagram from './PipelineFlowDiagram'
-import { describeCron, nextRuns } from '../../../shared/cron'
+import { describeCron, nextRuns, cronFireTimesForDay } from '../../../shared/cron'
 import { slugify } from '../../../shared/utils'
 import { firstErrorOf } from '../../../shared/pipeline-stats'
 import { parseYaml } from '../../../shared/yaml-parser'
@@ -167,6 +167,121 @@ function formatDuration(ms: number): string {
   const mins = Math.floor(secs / 60)
   const remainSecs = secs % 60
   return remainSecs > 0 ? `${mins}m ${remainSecs}s` : `${mins}m`
+}
+
+const TL_COLORS = [
+  '#34d399', '#60a5fa', '#f59e0b', '#f87171', '#a78bfa', '#fb923c',
+  '#4ade80', '#38bdf8', '#e879f9', '#facc15',
+]
+
+function pipelineColor(name: string): string {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = ((h << 5) - h + name.charCodeAt(i)) | 0
+  return TL_COLORS[Math.abs(h) % TL_COLORS.length]
+}
+
+function PipelineTimeline({ pipelines }: { pipelines: PipelineInfo[] }) {
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem('pipelines-timeline-collapsed') === '1'
+  )
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60000)
+    return () => clearInterval(id)
+  }, [])
+
+  const cronItems = pipelines.filter(p => p.enabled && p.cron)
+  const pollItems = pipelines.filter(p => p.enabled && !p.cron && (p.triggerType === 'git-poll' || p.triggerType === 'file-poll'))
+
+  if (cronItems.length === 0 && pollItems.length === 0) return null
+
+  const nowPct = ((now.getHours() * 60 + now.getMinutes()) / 1440) * 100
+
+  const rows = cronItems.map(p => {
+    const times = cronFireTimesForDay(p.cron!, now)
+    return { p, times, isBand: times.length > 24, color: pipelineColor(p.name) }
+  })
+
+  const toggle = () => {
+    const next = !collapsed
+    setCollapsed(next)
+    localStorage.setItem('pipelines-timeline-collapsed', next ? '1' : '0')
+  }
+
+  return (
+    <div className="pipeline-timeline-wrap">
+      <button className="pipeline-timeline-toggle" onClick={toggle}>
+        {collapsed ? <ChevronRight size={11} /> : <ChevronDown size={11} />}
+        <Clock size={11} />
+        <span>Schedule — 24h overview</span>
+      </button>
+      {!collapsed && (
+        <div className="pipeline-timeline">
+          <div className="pipeline-tl-strip">
+            <div
+              className="pipeline-tl-now"
+              style={{ left: `${nowPct}%` }}
+              title={`Now — ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`}
+            />
+            {rows.map(({ p, times, isBand, color }) => {
+              if (isBand) {
+                const hours = [...new Set(times.map(t => t.hour))]
+                return hours.map(h => (
+                  <div
+                    key={`${p.name}-b-${h}`}
+                    className="pipeline-tl-band"
+                    style={{ left: `${(h / 24) * 100}%`, width: `${100 / 24}%`, backgroundColor: color }}
+                    title={`${p.name} — fires at ${h}:xx`}
+                  />
+                ))
+              }
+              return times.map((t, i) => {
+                const pct = ((t.hour * 60 + t.minute) / 1440) * 100
+                const ts = `${t.hour.toString().padStart(2, '0')}:${t.minute.toString().padStart(2, '0')}`
+                return (
+                  <div
+                    key={`${p.name}-${i}`}
+                    className="pipeline-tl-dot"
+                    style={{ left: `${pct}%`, backgroundColor: color }}
+                    title={`${p.name} — ${ts}`}
+                  />
+                )
+              })
+            })}
+          </div>
+          <div className="pipeline-tl-axis">
+            {[0, 6, 12, 18].map(h => (
+              <div key={h} className="pipeline-tl-label" style={{ left: `${(h / 24) * 100}%` }}>{h}h</div>
+            ))}
+            <div className="pipeline-tl-label pipeline-tl-label-end">24h</div>
+          </div>
+          <div className="pipeline-tl-legend">
+            {rows.map(({ p, times, isBand, color }) => (
+              <span key={p.name} className="pipeline-tl-legend-item" style={{ color }}>
+                <span className={isBand ? 'pipeline-tl-legend-band' : 'pipeline-tl-legend-dot'} style={{ backgroundColor: color }} />
+                {p.name}
+                <span className="pipeline-tl-legend-count">{times.length}×</span>
+              </span>
+            ))}
+          </div>
+          {pollItems.length > 0 && (
+            <div className="pipeline-tl-polls">
+              {pollItems.map(p => {
+                const color = pipelineColor(p.name)
+                const iv = p.interval >= 3600 ? `${p.interval / 3600}h` : `${Math.round(p.interval / 60)}m`
+                return (
+                  <span key={p.name} className="pipeline-tl-poll-tag" style={{ borderColor: color, color }}>
+                    <Globe size={9} />
+                    {p.name} — polls every {iv}
+                  </span>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function RunWithOverrideDialog({ pipelineName, firstActionPrompt, onRun, onClose }: {
@@ -977,6 +1092,8 @@ ${modelLine}  prompt: |
       <p className="pipelines-description">
         Pipelines automate trigger → action workflows. Define them as YAML files in <code>~/.claude-colony/pipelines/</code>.
       </p>
+
+      <PipelineTimeline pipelines={pipelines} />
 
       <div ref={askBarRef} className={`panel-ask-bar${askBarDragging ? ' dragging' : ''}`}>
         <MessageSquare size={14} className="panel-ask-icon" />
