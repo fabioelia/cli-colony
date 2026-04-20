@@ -140,7 +140,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Below stats (when applicable)',
         items: [
           { label: 'Pending approvals', detail: 'Pipeline approval gates waiting for your decision. Approve or dismiss inline, or click the pipeline name to navigate.', icon: 'Zap' },
-          { label: 'Pipeline errors', detail: 'Pipelines that encountered an error on their last run. Hover to see the error message in a tooltip. Inline Retry button triggers the pipeline immediately.', icon: 'AlertCircle' },
+          { label: 'Pipeline errors', detail: 'Pipelines that encountered an error on their last run. The first line of the error message is shown inline as a muted subtitle below the pipeline name (truncated at 80 chars). Hover for the full error text. Inline Retry button triggers the pipeline immediately.', icon: 'AlertCircle' },
           { label: 'Blocked tasks', detail: 'Task board items marked as blocked. No inline action — unblocking requires manual judgment.', icon: 'Circle' },
           { label: 'Stale sessions', detail: 'Sessions that are marked "busy" but have produced no output for 15+ minutes. May indicate a stuck process or hung PTY. Inline Stop button kills the session. Click to navigate to the session terminal.', icon: 'Clock' },
           { label: 'Unhealthy environments', detail: 'Environments in error or partial state. Inline Restart button retries setup for error state or restarts services for partial state.', icon: 'AlertCircle' },
@@ -207,7 +207,9 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Persona Briefs',
         position: 'Above Recent Activity',
         items: [
-          { label: 'Persona Briefs section', detail: 'Collapsible section showing the most recent brief written by each enabled persona. Each card shows persona name, color dot, last-updated time, and a 200-char preview. Click a card to expand and read the full brief (rendered as markdown). "Expand all / Collapse all" toggle button available in the header when open. Only enabled personas with an existing brief are shown. Sorted by most recently updated. Polls every 60 seconds.', icon: 'FileText' },
+          { label: 'Persona Briefs section', detail: 'Collapsible section showing the most recent brief for each persona that has one. Each card shows persona name, color dot, last-updated time, and a 200-char preview. Click a card to expand the full brief (rendered as markdown). Enabled personas appear first sorted by last-updated time; disabled personas appear grayed out at the bottom. Polls every 60 seconds.', icon: 'FileText' },
+          { label: 'Enable/disable toggle', detail: 'Toggle switch on the right side of each brief card header. Flips the persona enabled/disabled state immediately — same as the toggle in the Personas panel. Disabled cards appear grayed out.', icon: 'Play' },
+          { label: 'Run Now button', detail: 'Play button next to the toggle. Launches a one-off run of the persona immediately. Only shown for enabled personas. Same as Run Now in the Personas panel.', icon: 'Play' },
         ],
       },
       {

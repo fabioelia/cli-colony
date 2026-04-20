@@ -482,6 +482,13 @@ export default function App() {
       effectivePrompt = ticketHeader + effectivePrompt
     }
 
+    // Auto-title from initial prompt when user didn't provide a name
+    if (!createOpts.name && initialPrompt?.trim()) {
+      const first = initialPrompt.split(/[.\n]/)[0].trim()
+      const snippet = first.length <= 50 ? first : (first.slice(0, 50).replace(/\s+\S*$/, '') || first.slice(0, 50))
+      if (snippet) createOpts.name = snippet
+    }
+
     const inst = await window.api.instance.create({
       ...createOpts,
       ticket: jiraTicket ? { source: 'jira', key: jiraTicket.key, summary: jiraTicket.summary, url: jiraTicket.url } : undefined,
@@ -838,8 +845,11 @@ export default function App() {
       window.api.settings.set('quickPromptHistory', JSON.stringify(next))
       return next
     })
+    const first = prompt.split(/[.\n]/)[0].trim()
+    const autoName = first.length <= 50 ? first : (first.slice(0, 50).replace(/\s+\S*$/, '') || first.slice(0, 50))
     const inst = await window.api.instance.create({
       workingDirectory: workingDirectory || undefined,
+      name: autoName || undefined,
     })
     // Queue the prompt to be written once the session signals it's ready
     pendingPromptRef.current = { id: inst.id, prompt }

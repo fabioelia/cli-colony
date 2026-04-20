@@ -271,10 +271,14 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   }, [activePipelines])
   const runningPersonas = useMemo(() => personas.filter(p => p.activeSessionId), [personas])
   const sortedBriefs = useMemo(() => {
-    const enabledIds = new Set(personas.filter(p => p.enabled).map(p => p.id))
     return Array.from(personaBriefs.entries())
-      .filter(([id]) => enabledIds.has(id))
-      .sort((a, b) => (b[1].mtime ?? 0) - (a[1].mtime ?? 0))
+      .sort((a, b) => {
+        const pa = personas.find(p => p.id === a[0])
+        const pb = personas.find(p => p.id === b[0])
+        // enabled first, then by mtime desc
+        if ((pa?.enabled ?? false) !== (pb?.enabled ?? false)) return (pa?.enabled ? 0 : 1) - (pb?.enabled ? 0 : 1)
+        return (b[1].mtime ?? 0) - (a[1].mtime ?? 0)
+      })
       .map(([id, brief]) => ({ id, persona: personas.find(p => p.id === id)!, ...brief }))
       .filter(b => b.persona)
   }, [personaBriefs, personas])
@@ -635,7 +639,10 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
               {errorPipelines.map(p => (
                 <div key={p.name} className="overview-attention-item attention-error" onClick={() => onNavigate('pipelines')} title={p.lastError || undefined}>
                   <AlertCircle size={13} />
-                  <span className="attention-label">{p.name} failed</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+                    <span className="attention-label">{p.name} failed</span>
+                    <span className="attention-error-preview">{(p.lastError || 'Unknown error').split('\n')[0].slice(0, 80)}</span>
+                  </div>
                   {actionedIds.has(`pipe-${p.name}`) ? (
                     <span className="attention-action-btn approve"><CheckCircle2 size={13} /></span>
                   ) : (
@@ -1141,7 +1148,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
             {briefsOpen && (
               <div className="persona-briefs-list">
                 {sortedBriefs.map(b => (
-                  <div key={b.id} className="persona-brief-card">
+                  <div key={b.id} className={`persona-brief-card${b.persona.enabled ? '' : ' persona-brief-card-disabled'}`}>
                     <div
                       className="persona-brief-card-header"
                       onClick={() => setExpandedBriefs(prev => {
@@ -1153,6 +1160,26 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                       <span className="persona-brief-dot" style={{ background: b.persona.color || '#888' }} />
                       <span className="persona-brief-name">{b.persona.name}</span>
                       {b.mtime && <span className="persona-brief-mtime">{timeAgo(new Date(b.mtime).toISOString())}</span>}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }} onClick={e => e.stopPropagation()}>
+                        {b.persona.enabled && (
+                          <button
+                            className="persona-brief-run"
+                            title="Run now"
+                            onClick={() => window.api.persona.run(b.id)}
+                          >
+                            <Play size={10} />
+                          </button>
+                        )}
+                        <button
+                          className="persona-toggle persona-brief-toggle"
+                          title={b.persona.enabled ? 'Disable scheduled runs' : 'Enable scheduled runs'}
+                          onClick={() => window.api.persona.toggle(b.id, !b.persona.enabled)}
+                        >
+                          <div className={`persona-toggle-track${b.persona.enabled ? ' enabled' : ''}`}>
+                            <div className="persona-toggle-thumb" />
+                          </div>
+                        </button>
+                      </div>
                       <ChevronDown size={12} style={{ transform: expandedBriefs.has(b.id) ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.15s' }} />
                     </div>
                     {!expandedBriefs.has(b.id) && (

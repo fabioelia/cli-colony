@@ -22724,7 +22724,8 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .cost-leader-more:hover { color: var(--accent); }
 
-.attention-label { flex: 1; color: var(--text-primary); }
+.attention-label { color: var(--text-primary); }
+.attention-error-preview { font-size: 10px; opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px; }
 .attention-time { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
 .attention-summary { font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
 .attention-action-btn { background: none; border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; transition: all 0.15s; }
@@ -23645,3 +23646,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .persona-brief-mtime { font-size: 11px; color: var(--text-muted); }
 .persona-brief-preview { margin: 0; padding: 0 10px 8px; font-size: 11px; color: var(--text-secondary); line-height: 1.5; }
 .persona-brief-full { padding: 0 10px 8px; font-size: 12px; }
+.persona-brief-card-disabled { opacity: 0.5; }
+.persona-brief-toggle { padding: 2px 4px; }
+.persona-brief-run { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: none; background: transparent; cursor: pointer; border-radius: 4px; color: var(--text-muted); transition: background 0.15s, color 0.15s; }
+.persona-brief-run:hover { background: var(--bg-hover); color: var(--success); }
