@@ -485,6 +485,7 @@ export interface ClaudeManagerAPI {
     defaultBranch: (cwd: string) => Promise<string>
   }
   ai: {
+    suggestPRDescription: (dir: string) => Promise<{ title: string; body: string } | null>
     suggestCommitMessage: (dir: string, files: string[]) => Promise<string | null>
   }
   audit: {
@@ -1144,6 +1145,7 @@ const api: ClaudeManagerAPI = {
     defaultBranch: (cwd) => ipcRenderer.invoke('git:defaultBranch', cwd),
   },
   ai: {
+    suggestPRDescription: (dir) => ipcRenderer.invoke('ai:suggestPRDescription', dir) as Promise<{ title: string; body: string } | null>,
     suggestCommitMessage: (dir: string, files: string[]) => ipcRenderer.invoke('ai:suggestCommitMessage', dir, files) as Promise<string | null>,
   },
   arena: {

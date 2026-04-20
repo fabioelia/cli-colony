@@ -38,6 +38,7 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
   const [prBaseBranch, setPRBaseBranch] = useState('main')
   const [prUrl, setPRUrl] = useState('')
   const [prError, setPRError] = useState<string | null>(null)
+  const [suggestingPR, setSuggestingPR] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const ticketSeededRef = useRef(false)
 
@@ -154,6 +155,19 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
     }
     setSuggesting(false)
   }, [dir, selectedFiles])
+
+  const handleSuggestPR = useCallback(async () => {
+    if (!dir) return
+    setSuggestingPR(true)
+    try {
+      const result = await window.api.ai.suggestPRDescription(dir)
+      if (result) {
+        setPRTitle(result.title)
+        setPRBody(result.body)
+      }
+    } catch {}
+    setSuggestingPR(false)
+  }, [dir])
 
   const handleCreatePR = useCallback(async () => {
     if (!prTitle.trim()) return
@@ -346,13 +360,26 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
             )}
             {(prPhase === 'editing' || prPhase === 'creating') && (
               <div className="commit-dialog-pr-form">
-                <input
-                  className="commit-dialog-branch-input"
-                  value={prTitle}
-                  onChange={e => setPRTitle(e.target.value)}
-                  placeholder="PR title"
-                  autoFocus
-                />
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                  <input
+                    className="commit-dialog-branch-input"
+                    style={{ flex: 1 }}
+                    value={prTitle}
+                    onChange={e => setPRTitle(e.target.value)}
+                    placeholder="PR title"
+                    autoFocus
+                  />
+                  <button
+                    className="dialog-btn"
+                    onClick={handleSuggestPR}
+                    disabled={suggestingPR}
+                    title="AI-suggest PR description"
+                    type="button"
+                    style={{ padding: '3px 6px', flexShrink: 0 }}
+                  >
+                    {suggestingPR ? <Loader size={12} className="spinning" /> : <Sparkles size={12} />}
+                  </button>
+                </div>
                 <textarea
                   className="commit-dialog-pr-body"
                   value={prBody}
