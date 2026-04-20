@@ -1234,7 +1234,6 @@ function PersonaCard({
             return (
               <div className="persona-budget-bar" title={`Monthly budget: $${spent.toFixed(2)} of $${budget.toFixed(2)}`}>
                 <div className="persona-budget-fill" style={{ width: `${pct}%`, background: barColor }} />
-                <span className="persona-budget-label">${spent.toFixed(2)} / ${budget.toFixed(2)}</span>
               </div>
             )
           })()}

@@ -18901,14 +18901,6 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-radius: 2px;
   transition: width 0.3s;
 }
-.persona-budget-label {
-  position: absolute;
-  top: -14px;
-  right: 0;
-  font-size: 9px;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
 
 .persona-list-actions {
   display: flex;
