@@ -5,7 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, X, RotateCcw, GitBranch, TerminalSquare, FolderTree, Columns2, LayoutGrid, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Trophy, GitCompare, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, FileDown, CheckCircle, Copy, Search, PanelRight, GitMerge, Square, Ticket, Pencil } from 'lucide-react'
+import { ChevronUp, ChevronDown, X, RotateCcw, GitBranch, TerminalSquare, FolderTree, Columns2, LayoutGrid, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Trophy, GitCompare, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, FileDown, CheckCircle, Copy, Search, PanelRight, GitMerge, Square, Ticket, Pencil, FileCode } from 'lucide-react'
 import { TeamMetricsPanel } from './TeamMetricsPanel'
 import ServicesTab from './ServicesTab'
 import FilesTab from './FilesTab'
@@ -213,6 +213,14 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
   // Context usage tracking
   const [contextUsage, setContextUsage] = useState<ContextUsage | null>(null)
 
+  // Changed files panel state
+  const [changedFiles, setChangedFiles] = useState<Array<{ file: string; status: string; staged: boolean }>>([])
+  const [changedFilesOpen, setChangedFilesOpen] = useState(() => {
+    try { return localStorage.getItem(`session-files-${instance.id}`) === 'open' } catch { return false }
+  })
+  const [changedFilesDiff, setChangedFilesDiff] = useState<string | null>(null)
+  const [changedFilesDiffFile, setChangedFilesDiffFile] = useState<string | null>(null)
+
   useEffect(() => {
     localStorage.setItem(quickCmdsKey, JSON.stringify(quickCmds))
   }, [quickCmds, quickCmdsKey])
@@ -365,6 +373,20 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
     const interval = setInterval(fetchContextUsage, 5000)
     return () => clearInterval(interval)
   }, [instance.id, instance.status])
+
+  // Poll changed files for running sessions
+  useEffect(() => {
+    if (instance.status !== 'running' || !instance.workingDirectory) return
+    const poll = async () => {
+      try {
+        const files = await window.api.git.changedFiles(instance.workingDirectory!)
+        setChangedFiles(files)
+      } catch { /* ignore */ }
+    }
+    poll()
+    const id = setInterval(poll, 30000)
+    return () => clearInterval(id)
+  }, [instance.id, instance.status, instance.workingDirectory])
 
   // Focus and refit terminal when this pane becomes focused/visible
   useEffect(() => {
@@ -674,6 +696,17 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
   }, [splitRatio, viewTab])
+
+  const handleChangedFileDiff = useCallback(async (file: string) => {
+    if (!instance.workingDirectory) return
+    if (changedFilesDiffFile === file) { setChangedFilesDiffFile(null); setChangedFilesDiff(null); return }
+    setChangedFilesDiffFile(file)
+    setChangedFilesDiff(null)
+    try {
+      const diff = await window.api.git.fileDiff(instance.workingDirectory, file)
+      setChangedFilesDiff(diff)
+    } catch { setChangedFilesDiff('') }
+  }, [instance.workingDirectory, changedFilesDiffFile])
 
   // Paste images — Cmd+Shift+V checks clipboard for image via Electron main process
   useEffect(() => {
@@ -1225,6 +1258,59 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
               <span className={`session-status-dot ${outputBytes >= 600 * 1024 ? 'red' : 'amber'}`} />
               ctx
             </span>
+          )}
+        </div>
+      )}
+      {viewTab === 'session' && instance.status === 'running' && changedFiles.length > 0 && (
+        <div className="session-changed-files">
+          <div
+            className="session-changed-files-header"
+            onClick={() => {
+              const next = !changedFilesOpen
+              setChangedFilesOpen(next)
+              try { localStorage.setItem(`session-files-${instance.id}`, next ? 'open' : 'closed') } catch {}
+              if (!next) { setChangedFilesDiffFile(null); setChangedFilesDiff(null) }
+            }}
+          >
+            <FileCode size={11} />
+            <span>{changedFiles.length} changed file{changedFiles.length !== 1 ? 's' : ''}</span>
+            <span className="session-changed-files-summary">
+              +{changedFiles.filter(f => f.status === 'A' || f.status === '?').length}
+              {' '}M{changedFiles.filter(f => f.status === 'M').length}
+              {' '}-{changedFiles.filter(f => f.status === 'D').length}
+            </span>
+            <span style={{ marginLeft: 'auto', opacity: 0.5, fontSize: '10px' }}>{changedFilesOpen ? '▾' : '▸'}</span>
+          </div>
+          {changedFilesOpen && (
+            <div className="session-changed-files-list">
+              {changedFiles.filter(f => f.staged).length > 0 && (
+                <div className="session-changed-files-group">
+                  <span className="session-changed-files-group-label">Staged</span>
+                  {changedFiles.filter(f => f.staged).map((f, i) => (
+                    <div key={`s-${i}`} className={`session-changed-file-row${changedFilesDiffFile === f.file ? ' active' : ''}`} onClick={() => handleChangedFileDiff(f.file)}>
+                      <span className={`session-changed-file-status ${f.status === 'A' ? 'added' : f.status === 'D' ? 'deleted' : 'modified'}`}>{f.status}</span>
+                      <span className="session-changed-file-name" title={f.file}>{f.file.split('/').pop()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {changedFiles.filter(f => !f.staged).length > 0 && (
+                <div className="session-changed-files-group">
+                  <span className="session-changed-files-group-label">Unstaged</span>
+                  {changedFiles.filter(f => !f.staged).map((f, i) => (
+                    <div key={`u-${i}`} className={`session-changed-file-row${changedFilesDiffFile === f.file ? ' active' : ''}`} onClick={() => handleChangedFileDiff(f.file)}>
+                      <span className={`session-changed-file-status ${f.status === 'A' || f.status === '?' ? 'added' : f.status === 'D' ? 'deleted' : 'modified'}`}>{f.status === '?' ? 'U' : f.status}</span>
+                      <span className="session-changed-file-name" title={f.file}>{f.file.split('/').pop()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {changedFilesDiff !== null && (
+                <div className="session-changed-files-diff">
+                  {changedFilesDiff ? <pre style={{ fontSize: '10px', margin: 0, padding: '6px', overflowX: 'auto', whiteSpace: 'pre-wrap' }}>{changedFilesDiff}</pre> : <span style={{ fontSize: '10px', opacity: 0.5, padding: '4px' }}>No diff available</span>}
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}
