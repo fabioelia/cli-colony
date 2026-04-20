@@ -810,6 +810,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
 
   const handleDiscardHunk = useCallback(async (patch: string) => {
     if (!instance.workingDirectory || !selectedDiffFile) return
+    if (!confirm('Discard this hunk? This cannot be undone.')) return
     const result = await window.api.git.discardHunk(instance.workingDirectory, patch)
     if (result.success) refreshSelectedDiff(selectedDiffFile)
   }, [instance.workingDirectory, selectedDiffFile, refreshSelectedDiff])
