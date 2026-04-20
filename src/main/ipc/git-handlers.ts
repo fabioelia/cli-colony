@@ -558,6 +558,34 @@ export function registerGitHandlers(): void {
     })
   })
 
+  ipcMain.handle('git:addToGitignore', async (_e, cwd: string, filePath: string, tracked: boolean): Promise<{ success: boolean; error?: string }> => {
+    await assertGitRepo(cwd)
+    const gitignorePath = path.join(cwd, '.gitignore')
+    let existing = ''
+    try { existing = await fsp.readFile(gitignorePath, 'utf-8') } catch { /* file not found */ }
+    const patterns = existing.split('\n').map(l => l.trim()).filter(Boolean)
+    let pattern = filePath
+    try {
+      const stat = await fsp.stat(path.join(cwd, filePath))
+      if (stat.isDirectory()) pattern = filePath + '/'
+    } catch { /* file may not exist */ }
+    if (patterns.includes(pattern) || patterns.includes(pattern.replace(/\/$/, ''))) {
+      return { success: true }
+    }
+    try {
+      if (tracked) {
+        await execFileAsync(resolveCommand('git'), ['rm', '--cached', filePath], { cwd, timeout: 10000 })
+      }
+      const newContent = existing.endsWith('\n') || existing === ''
+        ? existing + pattern + '\n'
+        : existing + '\n' + pattern + '\n'
+      await fsp.writeFile(gitignorePath, newContent, 'utf-8')
+      return { success: true }
+    } catch (err: unknown) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
   ipcMain.handle('git:stageHunk', async (_e, cwd: string, patch: string): Promise<{ success: boolean; error?: string }> => {
     await assertGitRepo(cwd)
     const tmpFile = path.join(os.tmpdir(), `colony-hunk-${Date.now()}-${Math.random().toString(36).slice(2)}.patch`)

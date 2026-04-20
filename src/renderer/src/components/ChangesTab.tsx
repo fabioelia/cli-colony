@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
-import { ChevronRight, RefreshCw, RotateCw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search, Copy, CheckCircle, Archive, ArrowDown, Eye, Cloud, History, ArrowLeft, GitMerge, ChevronsRight, AlertTriangle } from 'lucide-react'
+import { ChevronRight, RefreshCw, RotateCw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search, Copy, CheckCircle, Archive, ArrowDown, Eye, Cloud, History, ArrowLeft, GitMerge, ChevronsRight, AlertTriangle, EyeOff } from 'lucide-react'
 import type { GitDiffEntry, ColonyComment, ScoreCard } from '../../../shared/types'
 import type { ClaudeInstance } from '../types'
 import DiffViewer from './DiffViewer'
@@ -117,7 +117,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [abortingMerge, setAbortingMerge] = useState(false)
 
   // Context menu state
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; file: string } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; file: string; status: string } | null>(null)
 
   // Diff mode state
   const [diffMode, setDiffMode] = useState<'working' | 'base'>('working')
@@ -378,6 +378,15 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     await loadBranchInfo()
     setPruning(false)
   }, [instance.workingDirectory, pruning, loadBranchInfo])
+
+  const handleAddToGitignore = useCallback(async (file: string, status: string) => {
+    if (!instance.workingDirectory) return
+    const isTracked = status !== '?' && status !== 'U'
+    if (isTracked && !window.confirm(`Stop tracking "${file}" and add to .gitignore?\n\nThis will run "git rm --cached" — the file stays on disk but git will no longer track it.`)) return
+    setContextMenu(null)
+    const result = await window.api.git.addToGitignore(instance.workingDirectory, file, isTracked)
+    if (result.success) loadGitChanges()
+  }, [instance.workingDirectory, loadGitChanges])
 
   const openBlame = useCallback((file: string) => {
     setBlameFile(file)
@@ -1516,7 +1525,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                       aria-selected={isSelected}
                       onClick={() => diffMode === 'base' ? selectBaseFile(entry.file) : selectFile(entry.file, entry.status)}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); diffMode === 'base' ? selectBaseFile(entry.file) : selectFile(entry.file, entry.status) } }}
-                      onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, file: entry.file }) }}
+                      onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, file: entry.file, status: entry.status }) }}
                     >
                       <div className="changes-event-header" style={{ alignItems: 'center', cursor: 'pointer' }}>
                         <span className="changes-event-tool" title={isConflicted ? 'Conflict' : entry.status === 'A' ? 'Added' : entry.status === 'D' ? 'Deleted' : entry.status === 'R' ? 'Renamed' : 'Modified'} style={{
@@ -1892,6 +1901,22 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
           >
             <GitMerge size={13} style={{ opacity: 0.7 }} />
             Blame
+          </button>
+          <button
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              width: '100%', padding: '6px 10px', background: 'none',
+              border: 'none', cursor: 'pointer', color: 'var(--text-primary)',
+              fontSize: '12px', borderRadius: '4px', textAlign: 'left',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-secondary)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+            onClick={() => handleAddToGitignore(contextMenu.file, contextMenu.status)}
+          >
+            <EyeOff size={13} style={{ opacity: 0.7 }} />
+            {contextMenu.status !== '?' && contextMenu.status !== 'U'
+              ? 'Add to .gitignore (stop tracking)'
+              : 'Add to .gitignore'}
           </button>
         </div>
       )}

@@ -510,6 +510,7 @@ export interface ClaudeManagerAPI {
     searchCommits: (cwd: string, query: string, limit?: number) => Promise<Array<{ hash: string; subject: string; author: string; date: string }>>
     stageHunk: (cwd: string, patch: string) => Promise<{ success: boolean; error?: string }>
     discardHunk: (cwd: string, patch: string) => Promise<{ success: boolean; error?: string }>
+    addToGitignore: (cwd: string, filePath: string, tracked: boolean) => Promise<{ success: boolean; error?: string }>
   }
   ai: {
     suggestPRDescription: (dir: string) => Promise<{ title: string; body: string } | null>
@@ -1197,6 +1198,7 @@ const api: ClaudeManagerAPI = {
     searchCommits: (cwd, query, limit) => ipcRenderer.invoke('git:searchCommits', cwd, query, limit) as Promise<Array<{ hash: string; subject: string; author: string; date: string }>>,
     stageHunk: (cwd, patch) => ipcRenderer.invoke('git:stageHunk', cwd, patch) as Promise<{ success: boolean; error?: string }>,
     discardHunk: (cwd, patch) => ipcRenderer.invoke('git:discardHunk', cwd, patch) as Promise<{ success: boolean; error?: string }>,
+    addToGitignore: (cwd, filePath, tracked) => ipcRenderer.invoke('git:addToGitignore', cwd, filePath, tracked) as Promise<{ success: boolean; error?: string }>,
   },
   ai: {
     suggestPRDescription: (dir) => ipcRenderer.invoke('ai:suggestPRDescription', dir) as Promise<{ title: string; body: string } | null>,
