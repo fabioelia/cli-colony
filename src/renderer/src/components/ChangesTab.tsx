@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
-import { ChevronRight, RefreshCw, RotateCw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search, Copy, CheckCircle, Archive, ArrowDown, Eye, Cloud, History, ArrowLeft, GitMerge, ChevronsRight, AlertTriangle, EyeOff, Pencil } from 'lucide-react'
+import { ChevronRight, RefreshCw, RotateCw, RotateCcw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search, Copy, CheckCircle, Archive, ArrowDown, Eye, Cloud, History, ArrowLeft, GitMerge, ChevronsRight, AlertTriangle, EyeOff, Pencil } from 'lucide-react'
 import type { GitDiffEntry, ColonyComment, ScoreCard } from '../../../shared/types'
 import type { ClaudeInstance } from '../types'
 import DiffViewer from './DiffViewer'
@@ -57,6 +57,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [diffContent, setDiffContent] = useState<string | null>(null)
   const [diffLoading, setDiffLoading] = useState(false)
   const [fileSearch, setFileSearch] = useState('')
+  const [activeExtFilters, setActiveExtFilters] = useState<Set<string>>(new Set())
   const [gitError, setGitError] = useState<string | null>(null)
   const [copiedDiffFile, setCopiedDiffFile] = useState<string | null>(null)
 
@@ -185,6 +186,13 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [squashParentHash, setSquashParentHash] = useState<string | null>(null)
   const [squashInitialMessage, setSquashInitialMessage] = useState<string | null>(null)
 
+  // Reflog state
+  const [reflogOpen, setReflogOpen] = useState(() => localStorage.getItem('changesTab.reflogOpen') === 'true')
+  const [reflogEntries, setReflogEntries] = useState<Array<{ hash: string; ref: string; action: string; relativeTime: string }>>([])
+  const [reflogLoaded, setReflogLoaded] = useState(false)
+  const [reflogSkip, setReflogSkip] = useState(0)
+  const [loadingMoreReflog, setLoadingMoreReflog] = useState(false)
+
   // General tags state
   const [tagsOpen, setTagsOpen] = useState(false)
   const [allTags, setAllTags] = useState<Array<{ tag: string; date: string; hash: string }>>([])
@@ -220,6 +228,23 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
       setAllTags([])
     } finally {
       setTagsLoading(false)
+    }
+  }, [instance.workingDirectory])
+
+  const loadReflog = useCallback(async (skip = 0) => {
+    if (!instance.workingDirectory) return
+    try {
+      const entries = await window.api.git.reflog(instance.workingDirectory, 20, skip)
+      if (skip === 0) {
+        setReflogEntries(entries)
+        setReflogLoaded(true)
+        setReflogSkip(entries.length)
+      } else {
+        setReflogEntries(prev => [...prev, ...entries])
+        setReflogSkip(prev => prev + entries.length)
+      }
+    } catch {
+      if (skip === 0) { setReflogEntries([]); setReflogLoaded(true) }
     }
   }, [instance.workingDirectory])
 
@@ -940,6 +965,11 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   }, [tagsOpen, loadAllTags])
 
   useEffect(() => {
+    localStorage.setItem('changesTab.reflogOpen', String(reflogOpen))
+    if (reflogOpen && !reflogLoaded) loadReflog(0)
+  }, [reflogOpen, reflogLoaded, loadReflog])
+
+  useEffect(() => {
     if (!instance.workingDirectory) return
     window.api.git.defaultBranch(instance.workingDirectory).then(setBaseBranch).catch(() => {})
   }, [instance.workingDirectory])
@@ -971,6 +1001,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     setCompareSelected([])
     setCompareHashes(null)
     setCompareDiff(null)
+    setActiveExtFilters(new Set())
   }, [])
 
   const handleStash = useCallback(async () => {
@@ -1100,11 +1131,28 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     }
   }, [instance.workingDirectory])
 
-  // visibleFiles — filtered by search, structured for keyboard nav
+  const fileExt = (path: string): string => {
+    const base = path.split('/').pop() ?? path
+    if (!base.includes('.')) return base
+    if (base.startsWith('.')) return base
+    return '.' + base.split('.').pop()!
+  }
+
+  const availableExtensions = useMemo(() => {
+    const entries = diffMode === 'base' ? baseDiffEntries : gitChanges
+    if (entries.length < 5) return []
+    const freq = new Map<string, number>()
+    for (const f of entries) { const e = fileExt(f.file); freq.set(e, (freq.get(e) ?? 0) + 1) }
+    return Array.from(freq.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([e]) => e)
+  }, [gitChanges, baseDiffEntries, diffMode])
+
+  // visibleFiles — filtered by search + ext filter, structured for keyboard nav
   const visibleFiles = useMemo(() => {
     const entries = diffMode === 'base' ? baseDiffEntries : gitChanges
-    return fileSearch ? entries.filter(f => f.file.toLowerCase().includes(fileSearch.toLowerCase())) : entries
-  }, [gitChanges, baseDiffEntries, diffMode, fileSearch])
+    let result = fileSearch ? entries.filter(f => f.file.toLowerCase().includes(fileSearch.toLowerCase())) : entries
+    if (activeExtFilters.size > 0) result = result.filter(f => activeExtFilters.has(fileExt(f.file)))
+    return result
+  }, [gitChanges, baseDiffEntries, diffMode, fileSearch, activeExtFilters])
 
   const refreshSelectedDiff = useCallback((file: string) => {
     const entry = visibleFiles.find(f => f.file === file)
@@ -1806,6 +1854,31 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                 )}
               </div>
             )}
+            {availableExtensions.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', padding: '0 2px 2px', alignItems: 'center' }}>
+                {availableExtensions.map(ext => (
+                  <button
+                    key={ext}
+                    onClick={() => setActiveExtFilters(prev => {
+                      const next = new Set(prev)
+                      if (next.has(ext)) next.delete(ext); else next.add(ext)
+                      return next
+                    })}
+                    style={{
+                      fontSize: '9px', padding: '1px 6px', borderRadius: '10px', cursor: 'pointer', border: '1px solid var(--border)',
+                      background: activeExtFilters.has(ext) ? 'var(--accent)' : 'var(--surface-hover)',
+                      color: activeExtFilters.has(ext) ? 'white' : 'var(--text-muted)',
+                      fontFamily: 'monospace', lineHeight: '14px',
+                    }}
+                  >{ext}</button>
+                ))}
+                {activeExtFilters.size > 0 && (
+                  <span style={{ fontSize: '9px', opacity: 0.5, marginLeft: '2px' }}>
+                    {visibleFiles.length} of {(diffMode === 'base' ? baseDiffEntries : gitChanges).length} files
+                  </span>
+                )}
+              </div>
+            )}
             <button
               className="changes-refresh-btn"
               title="Refresh"
@@ -2447,6 +2520,68 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
               </>
             )}
           </div>
+
+          {/* Reflog Section */}
+          <div className="checkpoint-section">
+            <div className="checkpoint-section-header" onClick={() => setReflogOpen(!reflogOpen)}>
+              <ChevronRight size={11} style={{ transition: 'transform 0.15s', transform: reflogOpen ? 'rotate(90deg)' : 'none', opacity: 0.5 }} />
+              <History size={11} style={{ opacity: 0.5 }} />
+              <span>Reflog</span>
+              {reflogEntries.length > 0 && !reflogOpen && (
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 400 }}>({reflogEntries.length}{reflogSkip > reflogEntries.length ? '+' : ''})</span>
+              )}
+            </div>
+            {reflogOpen && (
+              <>
+                {!reflogLoaded && <div className="checkpoint-empty">Loading…</div>}
+                {reflogLoaded && reflogEntries.length === 0 && <div className="checkpoint-empty">No reflog entries found.</div>}
+                {reflogEntries.map((entry) => (
+                  <div key={`${entry.ref}-${entry.hash}`} className="checkpoint-row" style={{ alignItems: 'center' }}>
+                    <code style={{ fontSize: '10px', color: 'var(--accent)', flexShrink: 0, width: '52px', fontFamily: 'monospace' }}>{entry.hash.slice(0, 7)}</code>
+                    <span style={{ fontSize: '10px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.85 }} title={entry.action}>{entry.action}</span>
+                    <span style={{ fontSize: '9px', opacity: 0.4, flexShrink: 0, marginRight: '4px', whiteSpace: 'nowrap' }}>{entry.relativeTime}</span>
+                    <button
+                      className="changes-refresh-btn"
+                      title="Checkout this commit (detached HEAD)"
+                      onClick={async () => {
+                        if (!window.confirm(`Checkout ${entry.hash.slice(0, 7)}?\n\nThis will put you in detached HEAD state. Use a branch picker to get back on a branch.`)) return
+                        try { await window.api.git.switchBranch(instance.workingDirectory!, entry.hash) } catch (e: any) { alert(e.message) }
+                      }}
+                      style={{ flexShrink: 0, opacity: 0.7 }}
+                    >
+                      <GitBranch size={10} />
+                    </button>
+                    <button
+                      className="changes-refresh-btn"
+                      title="Reset to this commit (discards all changes after)"
+                      onClick={async () => {
+                        if (!window.confirm(`Reset to ${entry.hash.slice(0, 7)}?\n\n"${entry.action}"\n\nThis will discard all commits and changes after this point. This cannot be undone.`)) return
+                        try { await window.api.git.resetHard(instance.workingDirectory!, entry.hash); await loadReflog(0) } catch (e: any) { alert(e.message) }
+                      }}
+                      style={{ flexShrink: 0, color: 'var(--danger)', opacity: 0.7 }}
+                    >
+                      <RotateCcw size={10} />
+                    </button>
+                  </div>
+                ))}
+                {reflogLoaded && reflogEntries.length > 0 && reflogEntries.length % 20 === 0 && (
+                  <button
+                    className="checkpoint-empty"
+                    style={{ cursor: 'pointer', color: 'var(--accent)', background: 'none', border: 'none', width: '100%', textAlign: 'left', padding: '6px 12px' }}
+                    disabled={loadingMoreReflog}
+                    onClick={async () => {
+                      setLoadingMoreReflog(true)
+                      await loadReflog(reflogSkip)
+                      setLoadingMoreReflog(false)
+                    }}
+                  >
+                    {loadingMoreReflog ? 'Loading…' : 'Load more'}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+
           {scoreCard && (
             <div style={{
               margin: '8px 8px 4px',

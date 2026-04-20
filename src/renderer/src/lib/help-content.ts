@@ -1577,6 +1577,16 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Reflog',
+        position: 'Below Tags (collapsible)',
+        items: [
+          { label: 'Reflog section', detail: 'Collapsible section showing the last 20 git reflog entries — a complete history of where HEAD has pointed. Each row shows: short hash (7 chars), action description (e.g. "rebase: checkout main"), and relative time. Lazy-loads on first open. Persists expanded/collapsed state.', icon: 'History' },
+          { label: 'Checkout button', detail: 'Git branch icon. Runs `git checkout <hash>` to move HEAD to that commit in detached HEAD state. A confirmation dialog warns you before proceeding. Use this to inspect old state without changing your branch.', icon: 'GitBranch' },
+          { label: 'Reset Here button', detail: 'RotateCcw icon. Runs `git reset --hard <hash>` — discards all commits and changes after that point. This is destructive and cannot be undone. A confirmation dialog shows the action description before proceeding.', icon: 'RotateCcw' },
+          { label: 'Load more', detail: '"Load more" button at the bottom paginates by 20 additional entries when the reflog has more history beyond the current view.' },
+        ],
+      },
+      {
         name: 'File History',
         position: 'Right pane (replaces diff when active)',
         items: [

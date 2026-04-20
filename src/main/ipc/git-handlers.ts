@@ -480,6 +480,27 @@ export function registerGitHandlers(): void {
     await execFileAsync(resolveCommand('git'), ['reset', '--soft', targetHash], { cwd, timeout: 10000 })
   })
 
+  ipcMain.handle('git:reflog', async (_e, cwd: string, limit = 20, skip = 0): Promise<Array<{ hash: string; ref: string; action: string; relativeTime: string }>> => {
+    await assertGitRepo(cwd)
+    try {
+      const { stdout } = await execFileAsync(resolveCommand('git'), [
+        'reflog', `--format=%H\t%gd\t%gs\t%cr`, `-n`, String(limit), `--skip=${skip}`
+      ], { cwd, timeout: 10000 })
+      return stdout.trim().split('\n').filter(Boolean).map(line => {
+        const parts = line.split('\t')
+        return { hash: parts[0] ?? '', ref: parts[1] ?? '', action: parts[2] ?? '', relativeTime: parts[3] ?? '' }
+      })
+    } catch {
+      return []
+    }
+  })
+
+  ipcMain.handle('git:resetHard', async (_e, cwd: string, hash: string): Promise<void> => {
+    await assertGitRepo(cwd)
+    if (!/^[0-9a-f]{4,40}$/i.test(hash)) throw new Error('Invalid commit hash')
+    await execFileAsync(resolveCommand('git'), ['reset', '--hard', hash], { cwd, timeout: 10000 })
+  })
+
   ipcMain.handle('git:stashPush', async (_e, cwd: string, message?: string, files?: string[]): Promise<void> => {
     await assertGitRepo(cwd)
     const args = ['stash', 'push']
