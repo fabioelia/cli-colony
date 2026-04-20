@@ -7855,6 +7855,14 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-primary);
   background: var(--bg-hover);
 }
+.changes-refresh-btn.active {
+  color: var(--accent);
+  background: var(--bg-active);
+}
+.changes-refresh-btn.active:hover {
+  color: var(--accent);
+  background: var(--bg-hover);
+}
 
 .changes-panel-content {
   flex: 1;

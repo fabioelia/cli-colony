@@ -84,6 +84,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [pruning, setPruning] = useState(false)
   const [renamingBranch, setRenamingBranch] = useState(false)
   const [renameValue, setRenameValue] = useState('')
+  const [renameOldName, setRenameOldName] = useState('')
   const [renameError, setRenameError] = useState<string | null>(null)
   const [renameHasUpstream, setRenameHasUpstream] = useState(false)
 
@@ -171,6 +172,19 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [commitSearchResults, setCommitSearchResults] = useState<Array<{ hash: string; subject: string; author: string; date: string }> | null>(null)
   const commitSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // General tags state
+  const [tagsOpen, setTagsOpen] = useState(false)
+  const [allTags, setAllTags] = useState<Array<{ tag: string; date: string; hash: string }>>([])
+  const [tagsLoading, setTagsLoading] = useState(false)
+  const [newTagName, setNewTagName] = useState('')
+  const [newTagMessage, setNewTagMessage] = useState('')
+  const [creatingTag, setCreatingTag] = useState(false)
+  const [tagError, setTagError] = useState<string | null>(null)
+  const [pushingTag, setPushingTag] = useState<string | null>(null)
+  const [deletingTag, setDeletingTag] = useState<string | null>(null)
+  const [tagToDelete, setTagToDelete] = useState<string | null>(null)
+  const [showNewTagForm, setShowNewTagForm] = useState(false)
+
   const tagPrefix = `colony-cp/${instance.id}/`
 
   const loadCheckpoints = useCallback(async () => {
@@ -182,6 +196,19 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
       setCheckpoints([])
     }
   }, [instance.workingDirectory, tagPrefix])
+
+  const loadAllTags = useCallback(async () => {
+    if (!instance.workingDirectory) return
+    setTagsLoading(true)
+    try {
+      const tags = await window.api.git.listAllTags(instance.workingDirectory)
+      setAllTags(tags)
+    } catch {
+      setAllTags([])
+    } finally {
+      setTagsLoading(false)
+    }
+  }, [instance.workingDirectory])
 
   const handleSaveCheckpoint = useCallback(async () => {
     if (!instance.workingDirectory) return
@@ -707,6 +734,10 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   useEffect(() => {
     if (commitsOpen && commits.length === 0) loadCommits(0)
   }, [commitsOpen, commits.length, loadCommits])
+
+  useEffect(() => {
+    if (tagsOpen) loadAllTags()
+  }, [tagsOpen, loadAllTags])
 
   useEffect(() => {
     if (!instance.workingDirectory) return
@@ -1295,7 +1326,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                     )}
                     {renameHasUpstream && (
                       <div style={{ padding: '4px 8px', fontSize: '10px', color: 'var(--warning)', borderBottom: '1px solid var(--border)' }}>
-                        Branch renamed locally. Run <code style={{ fontFamily: 'monospace' }}>git push origin --delete &lt;old-name&gt;</code> to update the remote.
+                        Branch renamed locally. Run <code style={{ fontFamily: 'monospace' }}>git push origin --delete {renameOldName}</code> to update the remote.
                         <button className="changes-refresh-btn" style={{ marginLeft: '6px', fontSize: '9px' }} onClick={() => setRenameHasUpstream(false)}>×</button>
                       </div>
                     )}
@@ -1341,7 +1372,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                           <button
                             className="changes-refresh-btn"
                             title="Rename current branch"
-                            onClick={(e) => { e.stopPropagation(); setRenameValue(b.name); setRenameError(null); setRenameHasUpstream(false); setRenamingBranch(true) }}
+                            onClick={(e) => { e.stopPropagation(); setRenameValue(b.name); setRenameOldName(b.name); setRenameError(null); setRenameHasUpstream(false); setRenamingBranch(true) }}
                             style={{ flexShrink: 0, marginLeft: '2px', opacity: 0.7 }}
                           >
                             <Pencil size={9} />
