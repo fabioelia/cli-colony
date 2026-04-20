@@ -3887,7 +3887,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   padding: 4px 8px;
   font-size: 12px;
   resize: vertical;
-  font-family: var(--font-sans, sans-serif);
+  font-family: var(--font-sans, system-ui);
 }
 .commit-dialog-pr-base {
   display: flex;
