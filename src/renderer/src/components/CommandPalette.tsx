@@ -3,7 +3,7 @@ import {
   Plus, Settings, GitPullRequest, Users, Square, Play, Columns2,
   MonitorPlay, History, Search, ArrowRight, Terminal, Server, User, Bot, Zap, ListChecks, RotateCcw, Keyboard,
   Home, Bell, TerminalSquare, FolderOpen, GitCompare, Archive, Swords,
-  Download, Copy, GitFork, Pin, PinOff, Pencil, Folder,
+  Download, Copy, Clipboard, GitFork, Pin, PinOff, Pencil, Folder,
 } from 'lucide-react'
 import type { ClaudeInstance, CliSession, AgentDef } from '../types'
 import type { PersonaInfo, SessionTemplate } from '../../../shared/types'
@@ -196,7 +196,7 @@ export default function CommandPalette({
         id: 'session-export-clipboard',
         label: 'Export Output to Clipboard',
         detail: active.name,
-        icon: <Copy size={14} />,
+        icon: <Clipboard size={14} />,
         section: 'Current Session',
         keywords: 'export copy transcript output',
         onExecute: () => onExportSession?.(active.id),

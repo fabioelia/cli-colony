@@ -2344,8 +2344,8 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                     <span className="github-batch-merge-pr-title">{pr?.title || prKey}</span>
                     <span className="github-batch-merge-status">
                       {status === 'pending' && <Loader size={12} className="spinning" />}
-                      {status === 'success' && <CheckCircle size={12} style={{ color: 'var(--text-success)' }} />}
-                      {status === 'error' && <span title={batchMergeErrors[prKey]}><XCircle size={12} style={{ color: 'var(--text-danger)' }} /></span>}
+                      {status === 'success' && <CheckCircle size={12} style={{ color: 'var(--success)' }} />}
+                      {status === 'error' && <span title={batchMergeErrors[prKey]}><XCircle size={12} style={{ color: 'var(--danger)' }} /></span>}
                     </span>
                     {batchMergeErrors[prKey] && <span className="github-batch-merge-error">{batchMergeErrors[prKey]}</span>}
                   </div>
