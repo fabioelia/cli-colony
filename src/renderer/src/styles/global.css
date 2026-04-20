@@ -3822,6 +3822,30 @@ body:has(.daemon-update-banner) .app-update-banner {
   flex-shrink: 0;
 }
 
+.commit-dialog-file-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.commit-dialog-file-expand {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+}
+
+.commit-dialog-file-expand:hover {
+  color: var(--accent);
+}
+
+.commit-dialog-file-diff {
+  padding: 4px 10px 6px 24px;
+  max-height: 300px;
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+}
+
 .commit-dialog-error {
   display: flex;
   align-items: center;
@@ -8002,7 +8026,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   padding: 4px 8px;
   border-bottom: 1px solid var(--border);
   font-size: 11px;
-  font-family: var(--font-mono);
+  font-family: var(--font-mono, monospace);
   color: var(--text-secondary);
   position: sticky;
   top: 0;
