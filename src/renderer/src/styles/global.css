@@ -22725,7 +22725,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .cost-leader-more:hover { color: var(--accent); }
 
 .attention-label { color: var(--text-primary); }
-.attention-error-preview { font-size: 10px; opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px; }
+.attention-error-preview { font-size: 11px; opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px; }
 .attention-time { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
 .attention-summary { font-size: 11px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px; }
 .attention-action-btn { background: none; border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; transition: all 0.15s; }
