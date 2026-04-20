@@ -8456,6 +8456,13 @@ body:has(.daemon-update-banner) .app-update-banner {
 .diff-hunk-btn-discard:hover {
   background: color-mix(in srgb, var(--danger) 35%, transparent);
 }
+.diff-hunk-btn-copy {
+  background: color-mix(in srgb, var(--text-muted) 15%, transparent);
+  color: var(--text-muted);
+}
+.diff-hunk-btn-copy:hover {
+  background: color-mix(in srgb, var(--text-muted) 30%, transparent);
+}
 
 /* Inline PR review comments within diff */
 .diff-inline-comments {

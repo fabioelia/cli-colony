@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { ChevronRight, ChevronDown, Plus, Trash2 } from 'lucide-react'
+import { ChevronRight, ChevronDown, Plus, Trash2, Clipboard, Check } from 'lucide-react'
 import { hljs, getLangFromFilename } from '../lib/hljs'
 import type { PRFile } from '../../../shared/types'
 
@@ -292,7 +292,8 @@ function DiffViewerSingle({ diff, filename, maxLines = 500, comments, onStageHun
   const commentMaps = useMemo(() => buildCommentMaps(comments), [comments])
   const totalComments = comments?.filter(c => c.line || c.originalLine).length || 0
   const defaultCollapsed = totalComments > 3
-  const hunkInfo = useMemo(() => (onStageHunk || onDiscardHunk) ? parseHunks(diff) : null, [diff, onStageHunk, onDiscardHunk])
+  const [copiedHunkIdx, setCopiedHunkIdx] = useState<number | null>(null)
+  const hunkInfo = useMemo(() => parseHunks(diff), [diff])
 
   const displayCount = mode === 'split' ? splitRows.length : allLines.length
   const isTruncated = !showFull && displayCount > maxLines
@@ -324,6 +325,15 @@ function DiffViewerSingle({ diff, filename, maxLines = 500, comments, onStageHun
   }
 
   const showHunkActions = !!(hunkInfo?.canApply && (onStageHunk || onDiscardHunk))
+  const showCopyHunk = !!hunkInfo?.canApply
+
+  const handleCopyHunk = (hunkIdx: number) => {
+    const patch = buildHunkPatch(hunkIdx)
+    if (!patch) return
+    navigator.clipboard.writeText(patch)
+    setCopiedHunkIdx(hunkIdx)
+    setTimeout(() => setCopiedHunkIdx(null), 2000)
+  }
 
   return (
     <div className="diff-viewer">
@@ -347,8 +357,17 @@ function DiffViewerSingle({ diff, filename, maxLines = 500, comments, onStageHun
                     <div className="diff-split-row diff-split-hunk">
                       <div className="diff-split-cell diff-hunk" style={{ gridColumn: '1 / -1' }}>
                         <span className="diff-content">{row.left.content}</span>
-                        {showHunkActions && (
+                        {(showCopyHunk || showHunkActions) && (
                           <span className="diff-hunk-actions">
+                            {showCopyHunk && (
+                              <button
+                                className="diff-hunk-btn diff-hunk-btn-copy"
+                                title="Copy hunk to clipboard"
+                                onClick={() => handleCopyHunk(idx)}
+                              >
+                                {copiedHunkIdx === idx ? <Check size={10} /> : <Clipboard size={10} />}
+                              </button>
+                            )}
                             {onStageHunk && (
                               <button
                                 className="diff-hunk-btn diff-hunk-btn-stage"
@@ -429,8 +448,17 @@ function DiffViewerSingle({ diff, filename, maxLines = 500, comments, onStageHun
                       <span className="diff-gutter diff-gutter-old" />
                       <span className="diff-gutter diff-gutter-new" />
                       <span className="diff-content">{line.content}</span>
-                      {showHunkActions && (
+                      {(showCopyHunk || showHunkActions) && (
                         <span className="diff-hunk-actions">
+                          {showCopyHunk && (
+                            <button
+                              className="diff-hunk-btn diff-hunk-btn-copy"
+                              title="Copy hunk to clipboard"
+                              onClick={() => handleCopyHunk(idx)}
+                            >
+                              {copiedHunkIdx === idx ? <Check size={10} /> : <Clipboard size={10} />}
+                            </button>
+                          )}
                           {onStageHunk && (
                             <button
                               className="diff-hunk-btn diff-hunk-btn-stage"
