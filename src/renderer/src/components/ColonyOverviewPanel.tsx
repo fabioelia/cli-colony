@@ -86,6 +86,9 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const [contextPressure, setContextPressure] = useState<ContextUsage[]>([])
   const [tick, setTick] = useState(0)
   const [triggeredIds, setTriggeredIds] = useState<Set<string>>(new Set())
+  const [broadcastOpen, setBroadcastOpen] = useState(false)
+  const [broadcastText, setBroadcastText] = useState('')
+  const [broadcastStatus, setBroadcastStatus] = useState<string | null>(null)
   const [todayArtifacts, setTodayArtifacts] = useState<SessionArtifact[]>([])
   const [personaBriefs, setPersonaBriefs] = useState<Map<string, { content: string; mtime: number | null }>>(new Map())
   const [briefsOpen, setBriefsOpen] = useState(false)
@@ -748,7 +751,53 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
         {/* Running sessions (busy) */}
         {activeRunning.length > 0 && (
           <div className="overview-section">
-            <h3><Play size={14} /> Running Sessions</h3>
+            <h3>
+              <Play size={14} /> Running Sessions
+              <button
+                className="overview-broadcast-btn"
+                title="Broadcast message to all running sessions"
+                disabled={activeRunning.length === 0}
+                onClick={() => { setBroadcastOpen(o => !o); setBroadcastStatus(null) }}
+              >
+                <MessageSquare size={12} /> Broadcast
+              </button>
+            </h3>
+            {broadcastOpen && (
+              <div className="overview-broadcast-bar">
+                <textarea
+                  className="overview-broadcast-input"
+                  placeholder={`Send to all ${activeRunning.length} running session${activeRunning.length > 1 ? 's' : ''}…`}
+                  value={broadcastText}
+                  rows={2}
+                  onChange={e => setBroadcastText(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Escape') { setBroadcastOpen(false); setBroadcastText('') }
+                  }}
+                  autoFocus
+                />
+                <div className="overview-broadcast-actions">
+                  {broadcastStatus && <span className="overview-broadcast-status">{broadcastStatus}</span>}
+                  <button
+                    className="panel-header-btn"
+                    onClick={() => { setBroadcastOpen(false); setBroadcastText(''); setBroadcastStatus(null) }}
+                  >Cancel</button>
+                  <button
+                    className="panel-header-btn primary"
+                    disabled={!broadcastText.trim()}
+                    onClick={async () => {
+                      const text = broadcastText.trim()
+                      if (!text) return
+                      for (const inst of activeRunning) {
+                        window.api.session.steer(inst.id, text)
+                      }
+                      setBroadcastStatus(`Sent to ${activeRunning.length} session${activeRunning.length > 1 ? 's' : ''}`)
+                      setBroadcastText('')
+                      setTimeout(() => { setBroadcastOpen(false); setBroadcastStatus(null) }, 1500)
+                    }}
+                  >Send</button>
+                </div>
+              </div>
+            )}
             <div className="overview-session-list">
               {activeRunning.map(inst => (
                 <div

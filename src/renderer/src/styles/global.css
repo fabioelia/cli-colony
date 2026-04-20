@@ -8678,6 +8678,92 @@ body:has(.daemon-update-banner) .app-update-banner {
 .diff-split-comment-row {
   grid-template-columns: 1fr;
 }
+/* Add-comment gutter button */
+.diff-add-comment-btn {
+  display: none;
+  margin-left: 4px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 3px;
+  width: 14px;
+  height: 14px;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  vertical-align: middle;
+  font-weight: 700;
+}
+.diff-line:hover .diff-add-comment-btn,
+.diff-split-cell:hover .diff-add-comment-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.diff-add-comment-btn:hover { background: var(--accent-hover, var(--accent)); opacity: 0.85; }
+/* Inline comment / reply forms */
+.diff-add-comment-form {
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  border-left: 3px solid var(--accent);
+}
+.diff-add-comment-input,
+.diff-reply-input {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 6px 10px;
+  resize: vertical;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.diff-add-comment-input:focus,
+.diff-reply-input:focus { outline: none; border-color: var(--accent); }
+.diff-add-comment-actions,
+.diff-reply-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+.diff-reply-btn {
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+}
+.diff-reply-btn:hover { background: var(--bg-hover); color: var(--text); }
+.diff-reply-btn.diff-reply-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+.diff-reply-btn.diff-reply-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.diff-reply-btn.diff-reply-btn-primary:hover:not(:disabled) { opacity: 0.85; }
+/* Reply link */
+.diff-reply-link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-top: 2px;
+}
+.diff-reply-link:hover { background: var(--bg-hover); }
+/* Reply form inside inline comment block */
+.diff-reply-form {
+  padding: 6px 0 2px;
+}
 .github-pr-file-comments {
   color: var(--text-muted);
   font-size: 11px;
@@ -22592,6 +22678,60 @@ body:has(.daemon-update-banner) .app-update-banner {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+/* Broadcast bar */
+.overview-broadcast-btn {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.overview-broadcast-btn:hover { background: var(--bg-hover); color: var(--text); }
+.overview-broadcast-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.overview-broadcast-bar {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.overview-broadcast-input {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 6px 10px;
+  resize: none;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.overview-broadcast-input:focus { outline: none; border-color: var(--accent); }
+.overview-broadcast-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.overview-broadcast-status {
+  font-size: 11px;
+  color: var(--success);
+  margin-right: auto;
 }
 /* Attention items */
 .overview-attention-list {
