@@ -26,7 +26,7 @@ async function assertGitRepo(cwd: string): Promise<void> {
   await execFileAsync(resolveCommand('git'), ['rev-parse', '--git-dir'], { cwd, timeout: 5000 })
 }
 
-type CommitEntry = { hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number }
+type CommitEntry = { hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number; parents?: string[]; refs?: string[] }
 
 /** Parse output from `git log --format=%H%x00%s%x00%an%x00%ar --shortstat`. */
 function parseLogWithStats(stdout: string): CommitEntry[] {
@@ -37,6 +37,31 @@ function parseLogWithStats(stdout: string): CommitEntry[] {
     if (trimmed.includes('\0')) {
       const [hash, subject, author, date] = trimmed.split('\0')
       results.push({ hash, subject, author, date })
+    } else if (results.length > 0 && /\d+ files? changed/.test(trimmed)) {
+      const last = results[results.length - 1]
+      const fc = trimmed.match(/(\d+) files? changed/)
+      const ins = trimmed.match(/(\d+) insertion/)
+      const del = trimmed.match(/(\d+) deletion/)
+      if (fc) last.filesChanged = parseInt(fc[1])
+      if (ins) last.insertions = parseInt(ins[1])
+      if (del) last.deletions = parseInt(del[1])
+    }
+  }
+  return results
+}
+
+/** Parse `git log --format=%H%x00%s%x00%an%x00%ar%x00%P%x00%D --shortstat` (with parents + refs). */
+function parseLogWithDecorations(stdout: string): CommitEntry[] {
+  const results: CommitEntry[] = []
+  for (const line of stdout.trim().split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    if (trimmed.includes('\0')) {
+      const parts = trimmed.split('\0')
+      const [hash, subject, author, date, parentsRaw, refsRaw] = parts
+      const parents = parentsRaw ? parentsRaw.trim().split(' ').filter(Boolean) : []
+      const refs = refsRaw ? refsRaw.split(',').map(r => r.trim()).filter(Boolean) : []
+      results.push({ hash, subject, author, date, parents, refs })
     } else if (results.length > 0 && /\d+ files? changed/.test(trimmed)) {
       const last = results[results.length - 1]
       const fc = trimmed.match(/(\d+) files? changed/)
@@ -156,14 +181,14 @@ export function registerGitHandlers(): void {
     }
   })
 
-  ipcMain.handle('git:log', async (_e, cwd: string, limit: number = 20, skip: number = 0): Promise<Array<{ hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number }>> => {
+  ipcMain.handle('git:log', async (_e, cwd: string, limit: number = 20, skip: number = 0): Promise<CommitEntry[]> => {
     await assertGitRepo(cwd)
     try {
       const { stdout } = await execFileAsync(resolveCommand('git'), [
-        'log', `--max-count=${limit}`, `--skip=${skip}`, '--format=%H%x00%s%x00%an%x00%ar', '--shortstat',
+        'log', `--max-count=${limit}`, `--skip=${skip}`, '--format=%H%x00%s%x00%an%x00%ar%x00%P%x00%D', '--shortstat',
       ], { cwd, timeout: 10000, encoding: 'utf-8' })
       if (!stdout.trim()) return []
-      return parseLogWithStats(stdout)
+      return parseLogWithDecorations(stdout)
     } catch { return [] }
   })
 
@@ -938,6 +963,15 @@ export function registerGitHandlers(): void {
       const { stdout } = await execFileAsync(resolveCommand('git'), ['bisect', 'log'], { cwd, timeout: 5000, encoding: 'utf-8' })
       return stdout
     } catch { return '' }
+  })
+
+  ipcMain.handle('git:dirtyFileCount', async (_e, cwd: string): Promise<{ count: number }> => {
+    try {
+      await assertGitRepo(cwd)
+      const { stdout } = await execFileAsync(resolveCommand('git'), ['status', '--porcelain', '-uno'], { cwd, timeout: 5000, encoding: 'utf-8' })
+      const count = stdout.split('\n').filter(l => l.trim().length > 0).length
+      return { count }
+    } catch { return { count: 0 } }
   })
 }
 

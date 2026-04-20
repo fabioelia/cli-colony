@@ -472,7 +472,7 @@ export interface ClaudeManagerAPI {
     push: (cwd: string) => Promise<void>
     branchInfo: (cwd: string) => Promise<{ branch: string; remote: string | null; ahead: number }>
     unpushedCommits: (cwd: string) => Promise<Array<{ hash: string; subject: string; author: string; date: string }>>
-    log: (cwd: string, limit?: number, skip?: number) => Promise<Array<{ hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number }>>
+    log: (cwd: string, limit?: number, skip?: number) => Promise<Array<{ hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number; parents?: string[]; refs?: string[] }>>
     commitDiff: (cwd: string, hash: string) => Promise<string>
     createBranch: (cwd: string, name: string, startPoint?: string) => Promise<string>
     fetch: (cwd: string) => Promise<{ success: boolean; error?: string }>
@@ -528,7 +528,7 @@ export interface ClaudeManagerAPI {
     rebaseAbort: (cwd: string) => Promise<void>
     rebaseContinue: (cwd: string) => Promise<{ success: boolean; error?: string }>
     rebaseInteractive: (cwd: string, base: string, todoItems: Array<{ action: 'pick' | 'reword' | 'squash' | 'fixup' | 'drop'; hash: string; subject: string; message?: string }>) => Promise<{ success: boolean; error?: string; conflicts?: string[] }>
-    searchCommits: (cwd: string, query: string, limit?: number) => Promise<Array<{ hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number }>>
+    searchCommits: (cwd: string, query: string, limit?: number) => Promise<Array<{ hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number; parents?: string[]; refs?: string[] }>>
     stageHunk: (cwd: string, patch: string) => Promise<{ success: boolean; error?: string }>
     discardHunk: (cwd: string, patch: string) => Promise<{ success: boolean; error?: string }>
     addToGitignore: (cwd: string, filePath: string, tracked: boolean) => Promise<{ success: boolean; error?: string }>
@@ -536,6 +536,7 @@ export interface ClaudeManagerAPI {
     bisectMark: (cwd: string, verdict: 'good' | 'bad') => Promise<{ done: boolean; current?: string; remaining?: number; firstBad?: string; firstBadSubject?: string }>
     bisectReset: (cwd: string) => Promise<void>
     bisectLog: (cwd: string) => Promise<string>
+    dirtyFileCount: (cwd: string) => Promise<{ count: number }>
   }
   ai: {
     suggestPRDescription: (dir: string) => Promise<{ title: string; body: string } | null>
@@ -1241,7 +1242,7 @@ const api: ClaudeManagerAPI = {
     rebaseAbort: (cwd) => ipcRenderer.invoke('git:rebaseAbort', cwd) as Promise<void>,
     rebaseContinue: (cwd) => ipcRenderer.invoke('git:rebaseContinue', cwd) as Promise<{ success: boolean; error?: string }>,
     rebaseInteractive: (cwd, base, todoItems) => ipcRenderer.invoke('git:rebaseInteractive', cwd, base, todoItems) as Promise<{ success: boolean; error?: string; conflicts?: string[] }>,
-    searchCommits: (cwd, query, limit) => ipcRenderer.invoke('git:searchCommits', cwd, query, limit) as Promise<Array<{ hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number }>>,
+    searchCommits: (cwd, query, limit) => ipcRenderer.invoke('git:searchCommits', cwd, query, limit) as Promise<Array<{ hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number; parents?: string[]; refs?: string[] }>>,
     stageHunk: (cwd, patch) => ipcRenderer.invoke('git:stageHunk', cwd, patch) as Promise<{ success: boolean; error?: string }>,
     discardHunk: (cwd, patch) => ipcRenderer.invoke('git:discardHunk', cwd, patch) as Promise<{ success: boolean; error?: string }>,
     addToGitignore: (cwd, filePath, tracked) => ipcRenderer.invoke('git:addToGitignore', cwd, filePath, tracked) as Promise<{ success: boolean; error?: string }>,
@@ -1249,6 +1250,7 @@ const api: ClaudeManagerAPI = {
     bisectMark: (cwd, verdict) => ipcRenderer.invoke('git:bisectMark', cwd, verdict) as Promise<{ done: boolean; current?: string; remaining?: number; firstBad?: string; firstBadSubject?: string }>,
     bisectReset: (cwd) => ipcRenderer.invoke('git:bisectReset', cwd) as Promise<void>,
     bisectLog: (cwd) => ipcRenderer.invoke('git:bisectLog', cwd) as Promise<string>,
+    dirtyFileCount: (cwd) => ipcRenderer.invoke('git:dirtyFileCount', cwd) as Promise<{ count: number }>,
   },
   ai: {
     suggestPRDescription: (dir) => ipcRenderer.invoke('ai:suggestPRDescription', dir) as Promise<{ title: string; body: string } | null>,
