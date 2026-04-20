@@ -898,6 +898,16 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     }
   }, [renamingId])
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { id } = (e as CustomEvent<{ id: string }>).detail
+      const inst = instances.find(i => i.id === id)
+      if (inst) { setRenamingId(inst.id); setRenameValue(inst.name) }
+    }
+    window.addEventListener('sidebar-start-rename', handler)
+    return () => window.removeEventListener('sidebar-start-rename', handler)
+  }, [instances])
+
   useEffect(() => { localStorage.setItem('colony:sessionSort', sessionSort) }, [sessionSort])
   useEffect(() => { localStorage.setItem('primaryNavSlots', JSON.stringify(primarySlots)) }, [primarySlots])
   useEffect(() => {

@@ -641,6 +641,47 @@ export default function App() {
     await window.api.instance.unpin(id)
   }, [])
 
+  const handlePaletteExportSession = useCallback(async (id: string) => {
+    const md = await window.api.session.exportMarkdown(id)
+    await navigator.clipboard.writeText(md)
+  }, [])
+
+  const handlePaletteExportSessionToFile = useCallback(async (id: string) => {
+    await window.api.session.exportMarkdownToFile(id)
+  }, [])
+
+  const handlePaletteCloneSession = useCallback((id: string) => {
+    const inst = instancesRef.current.find(i => i.id === id)
+    if (!inst) return
+    agentToLaunchRef.current = null
+    setCloneSource({
+      name: inst.name,
+      workingDirectory: inst.workingDirectory,
+      color: inst.color,
+      cliBackend: inst.cliBackend,
+      permissionMode: inst.permissionMode,
+      mcpServers: inst.mcpServers,
+      args: inst.args,
+    })
+    setCmdPaletteOpen(false)
+    setShowNewDialog(true)
+  }, [])
+
+  const handlePaletteTogglePin = useCallback(async (id: string) => {
+    const inst = instancesRef.current.find(i => i.id === id)
+    if (!inst) return
+    if (inst.pinned) await window.api.instance.unpin(id)
+    else await window.api.instance.pin(id)
+  }, [])
+
+  const handlePaletteRenameSession = useCallback((id: string) => {
+    window.dispatchEvent(new CustomEvent('sidebar-start-rename', { detail: { id } }))
+  }, [])
+
+  const handlePaletteRevealDir = useCallback((dir: string) => {
+    window.api.shell.openExternal(`file://${dir}`)
+  }, [])
+
   const handleRestart = useCallback(async (id: string) => {
     const newInst = await window.api.instance.restart(id)
     if (newInst) setActiveId(newInst.id)
@@ -2212,6 +2253,13 @@ export default function App() {
         onLaunchAgent={handleLaunchAgent}
         onOpenQuickPrompt={() => { setCmdPaletteOpen(false); setQuickPromptOpen(true) }}
         onQuickCompare={handleQuickCompare}
+        onExportSession={handlePaletteExportSession}
+        onExportSessionToFile={handlePaletteExportSessionToFile}
+        onCloneSession={handlePaletteCloneSession}
+        onForkSession={handleForkSession}
+        onPinSession={handlePaletteTogglePin}
+        onRenameSession={handlePaletteRenameSession}
+        onRevealDir={handlePaletteRevealDir}
       />
 
       {showShortcuts && <ShortcutOverlay onClose={() => setShowShortcuts(false)} />}

@@ -3,6 +3,7 @@ import {
   Plus, Settings, GitPullRequest, Users, Square, Play, Columns2,
   MonitorPlay, History, Search, ArrowRight, Terminal, Server, User, Bot, Zap, ListChecks, RotateCcw, Keyboard,
   Home, Bell, TerminalSquare, FolderOpen, GitCompare, Archive, Swords,
+  Download, Copy, GitFork, Pin, PinOff, Pencil, Folder,
 } from 'lucide-react'
 import type { ClaudeInstance, CliSession, AgentDef } from '../types'
 import type { PersonaInfo, SessionTemplate } from '../../../shared/types'
@@ -43,12 +44,21 @@ interface Props {
   onLaunchAgent: (agent: AgentDef) => void
   onOpenQuickPrompt: () => void
   onQuickCompare: () => void
+  onExportSession?: (id: string) => void
+  onExportSessionToFile?: (id: string) => void
+  onCloneSession?: (id: string) => void
+  onForkSession?: (id: string) => void
+  onPinSession?: (id: string) => void
+  onRenameSession?: (id: string) => void
+  onRevealDir?: (dir: string) => void
 }
 
 export default function CommandPalette({
   open, onClose, instances, activeId, onSelect, onNew,
   onKill, onRestart, onViewChange, onToggleSplit, onResumeSession, sessions,
   onRunPersona, onLaunchAgent, onOpenQuickPrompt, onQuickCompare,
+  onExportSession, onExportSessionToFile, onCloneSession, onForkSession,
+  onPinSession, onRenameSession, onRevealDir,
 }: Props) {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -177,6 +187,73 @@ export default function CommandPalette({
         section: 'Actions',
         shortcut: PALETTE_SHORTCUTS['toggle-split'],
         onExecute: onToggleSplit,
+      })
+    }
+
+    // Current session actions
+    if (active) {
+      items.push({
+        id: 'session-export-clipboard',
+        label: 'Export Output to Clipboard',
+        detail: active.name,
+        icon: <Copy size={14} />,
+        section: 'Current Session',
+        keywords: 'export copy transcript output',
+        onExecute: () => onExportSession?.(active.id),
+      })
+      items.push({
+        id: 'session-export-file',
+        label: 'Export Output to File',
+        detail: active.name,
+        icon: <Download size={14} />,
+        section: 'Current Session',
+        keywords: 'export save markdown file',
+        onExecute: () => onExportSessionToFile?.(active.id),
+      })
+      items.push({
+        id: 'session-clone',
+        label: 'Clone Session',
+        detail: active.name,
+        icon: <Copy size={14} />,
+        section: 'Current Session',
+        keywords: 'clone duplicate copy session',
+        onExecute: () => onCloneSession?.(active.id),
+      })
+      items.push({
+        id: 'session-fork',
+        label: 'Fork Session',
+        detail: active.name,
+        icon: <GitFork size={14} />,
+        section: 'Current Session',
+        keywords: 'fork branch session',
+        onExecute: () => onForkSession?.(active.id),
+      })
+      items.push({
+        id: 'session-pin',
+        label: active.pinned ? 'Unpin Session' : 'Pin Session',
+        detail: active.name,
+        icon: active.pinned ? <PinOff size={14} /> : <Pin size={14} />,
+        section: 'Current Session',
+        keywords: 'pin unpin sidebar',
+        onExecute: () => onPinSession?.(active.id),
+      })
+      items.push({
+        id: 'session-rename',
+        label: 'Rename Session',
+        detail: active.name,
+        icon: <Pencil size={14} />,
+        section: 'Current Session',
+        keywords: 'rename session name',
+        onExecute: () => onRenameSession?.(active.id),
+      })
+      items.push({
+        id: 'session-reveal-dir',
+        label: 'Open Working Directory',
+        detail: active.workingDirectory,
+        icon: <Folder size={14} />,
+        section: 'Current Session',
+        keywords: 'finder folder directory open reveal',
+        onExecute: () => onRevealDir?.(active.workingDirectory),
       })
     }
 
@@ -380,7 +457,7 @@ export default function CommandPalette({
     }
 
     return items
-  }, [instances, activeId, sessions, personas, agents, templates, onSelect, onNew, onKill, onRestart, onViewChange, onToggleSplit, onResumeSession, onRunPersona, onLaunchAgent, onOpenQuickPrompt, onQuickCompare])
+  }, [instances, activeId, sessions, personas, agents, templates, onSelect, onNew, onKill, onRestart, onViewChange, onToggleSplit, onResumeSession, onRunPersona, onLaunchAgent, onOpenQuickPrompt, onQuickCompare, onExportSession, onExportSessionToFile, onCloneSession, onForkSession, onPinSession, onRenameSession, onRevealDir])
 
   // Search terminal output buffers when query is 3+ chars
   useEffect(() => {
