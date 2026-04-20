@@ -8025,7 +8025,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   right: 0;
   min-width: 260px;
   max-width: 360px;
-  background: var(--bg-elevated, var(--bg-secondary));
+  background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 6px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.25);

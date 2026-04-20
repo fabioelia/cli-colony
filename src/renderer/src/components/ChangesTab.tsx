@@ -234,6 +234,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
 
   const handleStashDrop = useCallback(async (index: number) => {
     if (!instance.workingDirectory) return
+    if (!window.confirm('Drop this stash? This cannot be undone.')) return
     try {
       await window.api.git.stashDrop(instance.workingDirectory, index)
       await refreshStashes()
