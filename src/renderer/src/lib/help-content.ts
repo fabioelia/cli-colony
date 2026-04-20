@@ -1184,7 +1184,7 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Changed Files Panel',
         position: 'Below status strip (running sessions with uncommitted changes)',
         items: [
-          { label: 'Changed Files panel', detail: 'When a session has uncommitted changes, a collapsible "N changed files" bar appears below the status strip. Click to expand a file list grouped by Staged/Unstaged. Each file row shows a status letter (M/A/D/U) and filename — click a row to see its inline diff. Opens/closes state persists per session.', icon: 'FileCode' },
+          { label: 'Changed Files panel', detail: 'When a session has uncommitted changes, a collapsible "N changed files" bar appears below the status strip. Click to expand a file list grouped by Staged/Unstaged. Each file row shows a status letter (M/A/D/U) and filename — click a row to see a rich diff with syntax highlighting, line numbers, and unified/split view toggle. Click the same file again to close the diff. Copy-to-clipboard button available in the diff header. Opens/closes state persists per session.', icon: 'FileCode' },
         ],
       },
       {

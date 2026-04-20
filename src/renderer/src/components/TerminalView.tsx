@@ -16,6 +16,7 @@ import LogsTab from './LogsTab'
 import BrowserTab from './BrowserTab'
 import TeamTab from './TeamTab'
 import JiraTab from './JiraTab'
+import DiffViewer from './DiffViewer'
 import { extractTicketKey } from '../../../shared/ticket-commit-format'
 import type { EnvStatus, ErrorSummary } from '../../../shared/types'
 import '@xterm/xterm/css/xterm.css'
@@ -1307,7 +1308,9 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
               )}
               {changedFilesDiff !== null && (
                 <div className="session-changed-files-diff">
-                  {changedFilesDiff ? <pre style={{ fontSize: '10px', margin: 0, padding: '6px', overflowX: 'auto', whiteSpace: 'pre-wrap' }}>{changedFilesDiff}</pre> : <span style={{ fontSize: '10px', opacity: 0.5, padding: '4px' }}>No diff available</span>}
+                  {changedFilesDiff
+                    ? <DiffViewer diff={changedFilesDiff} filename={changedFilesDiffFile || undefined} />
+                    : <span style={{ fontSize: '10px', opacity: 0.5, padding: '4px' }}>No diff available</span>}
                 </div>
               )}
             </div>
