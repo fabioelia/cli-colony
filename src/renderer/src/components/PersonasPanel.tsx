@@ -403,16 +403,11 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
   }
 
   const handleDuplicate = async (id: string) => {
-    const { content } = await window.api.persona.getContent(id)
-    if (!content) return
-    let modified = content.replace(/^(name:\s*["']?)(.+?)(["']?\s*)$/m, '$1$2 (copy)$3')
-    modified = modified.replace(/^(enabled:\s*)\S+/m, '$1false')
-    if (!/^enabled:/m.test(modified)) {
-      modified = modified.replace(/^(name:.*)$/m, '$1\nenabled: false')
+    const newSlug = await window.api.persona.duplicate(id)
+    if (newSlug) {
+      await loadPersonas()
+      setExpandedId(newSlug)
     }
-    const newId = id.replace(/\.md$/, '') + '-copy.md'
-    await window.api.persona.saveContent(newId, modified)
-    loadPersonas()
   }
 
   const handleCreate = async () => {

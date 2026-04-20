@@ -442,6 +442,34 @@ color: "#a78bfa"
   return { fileName }
 }
 
+export function duplicatePersona(sourceId: string): string | null {
+  ensureDir()
+  const source = getPersonaList().find(p => p.id === sourceId)
+  if (!source) return null
+  const sourceContent = readFileSync(source.filePath, 'utf-8')
+
+  const newName = `${source.name} (copy)`
+  let slug = slugify(newName)
+  if (!slug) return null
+
+  // Collision avoidance
+  let candidate = slug
+  let suffix = 2
+  while (existsSync(join(PERSONAS_DIR, `${candidate}.md`))) {
+    candidate = `${slug}-${suffix++}`
+  }
+  slug = candidate
+
+  const newContent = sourceContent
+    .replace(/^(name:\s*["']?).*?(["']?\s*)$/m, `$1${newName}$2`)
+    .replace(/^enabled:\s*true/m, 'enabled: false')
+    .replace(/^schedule:\s*.+/m, 'schedule: ""')
+
+  writeFileSync(join(PERSONAS_DIR, `${slug}.md`), newContent, 'utf-8')
+  broadcastStatus()
+  return slug
+}
+
 export function deletePersona(fileName: string): boolean {
   const filePath = resolvedPersonaPath(fileName)
   try {

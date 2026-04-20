@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import {
   getPersonaList, getPersonaContent, savePersonaContent,
-  createPersona, deletePersona, runPersona, stopPersona,
+  createPersona, deletePersona, duplicatePersona, runPersona, stopPersona,
   togglePersona, getPersonasDir, setPersonaSchedule, addWhisper, deleteNote, updateNote,
   updatePersonaMeta, getPersonaArtifacts, readPersonaArtifact, askPersonas,
 } from '../persona-manager'
@@ -19,6 +19,7 @@ export function registerPersonaHandlers(): void {
     return result
   })
   ipcMain.handle('persona:delete', (_e, fileName: string) => deletePersona(fileName))
+  ipcMain.handle('persona:duplicate', (_e, personaId: string) => duplicatePersona(personaId))
   ipcMain.handle('persona:run', (_e, fileName: string) => runPersona(fileName))
   ipcMain.handle('persona:stop', (_e, fileName: string) => stopPersona(fileName))
   ipcMain.handle('persona:toggle', (_e, fileName: string, enabled: boolean) => togglePersona(fileName, enabled))

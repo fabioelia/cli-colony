@@ -306,6 +306,7 @@ export interface ClaudeManagerAPI {
     saveContent: (fileName: string, content: string) => Promise<boolean>
     create: (name: string) => Promise<{ fileName: string } | null>
     delete: (fileName: string) => Promise<boolean>
+    duplicate: (personaId: string) => Promise<string | null>
     run: (fileName: string) => Promise<string>
     stop: (fileName: string) => Promise<boolean>
     toggle: (fileName: string, enabled: boolean) => Promise<boolean>
@@ -961,6 +962,7 @@ const api: ClaudeManagerAPI = {
     saveContent: (fileName, content) => ipcRenderer.invoke('persona:saveContent', fileName, content),
     create: (name) => ipcRenderer.invoke('persona:create', name),
     delete: (fileName) => ipcRenderer.invoke('persona:delete', fileName),
+    duplicate: (personaId) => ipcRenderer.invoke('persona:duplicate', personaId) as Promise<string | null>,
     run: (fileName) => ipcRenderer.invoke('persona:run', fileName),
     stop: (fileName) => ipcRenderer.invoke('persona:stop', fileName),
     toggle: (fileName, enabled) => ipcRenderer.invoke('persona:toggle', fileName, enabled),
