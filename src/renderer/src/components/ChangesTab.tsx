@@ -609,6 +609,51 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     await loadConflictState()
   }, [instance.workingDirectory, conflictState.state, loadGitChanges, loadConflictState])
 
+  const handleCreateTag = useCallback(async () => {
+    if (!instance.workingDirectory || !newTagName.trim() || creatingTag) return
+    setCreatingTag(true)
+    setTagError(null)
+    try {
+      await window.api.git.createGeneralTag(instance.workingDirectory, newTagName.trim(), newTagMessage.trim() || undefined)
+      setNewTagName('')
+      setNewTagMessage('')
+      setShowNewTagForm(false)
+      await loadAllTags()
+    } catch (err: any) {
+      setTagError(err?.message?.split('\n')[0] ?? 'Failed to create tag')
+    } finally {
+      setCreatingTag(false)
+    }
+  }, [instance.workingDirectory, newTagName, newTagMessage, creatingTag, loadAllTags])
+
+  const handleDeleteTag = useCallback(async (tagName: string) => {
+    if (!instance.workingDirectory || deletingTag) return
+    setDeletingTag(tagName)
+    setTagError(null)
+    try {
+      await window.api.git.deleteGeneralTag(instance.workingDirectory, tagName)
+      setTagToDelete(null)
+      await loadAllTags()
+    } catch (err: any) {
+      setTagError(err?.message?.split('\n')[0] ?? 'Failed to delete tag')
+    } finally {
+      setDeletingTag(null)
+    }
+  }, [instance.workingDirectory, deletingTag, loadAllTags])
+
+  const handlePushTag = useCallback(async (tagName: string) => {
+    if (!instance.workingDirectory || pushingTag) return
+    setPushingTag(tagName)
+    setTagError(null)
+    try {
+      await window.api.git.pushTag(instance.workingDirectory, tagName)
+    } catch (err: any) {
+      setTagError(err?.message?.split('\n')[0] ?? 'Failed to push tag')
+    } finally {
+      setPushingTag(null)
+    }
+  }, [instance.workingDirectory, pushingTag])
+
   const handleCommitSearchChange = useCallback((q: string) => {
     setCommitSearch(q)
     if (commitSearchTimerRef.current) clearTimeout(commitSearchTimerRef.current)
@@ -1970,6 +2015,107 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
               ) : null}
             </div>
           )}
+          {/* Tags */}
+          <div className="checkpoint-section">
+            <div className="checkpoint-section-header" onClick={() => setTagsOpen(!tagsOpen)}>
+              <ChevronRight size={11} style={{ transition: 'transform 0.15s', transform: tagsOpen ? 'rotate(90deg)' : 'none', opacity: 0.5 }} />
+              <Bookmark size={12} />
+              Tags
+              {allTags.length > 0 && !tagsOpen && (
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 400 }}>({allTags.length})</span>
+              )}
+            </div>
+            {tagsOpen && (
+              <>
+                <div style={{ padding: '4px 8px 2px', display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                  <button
+                    className="changes-refresh-btn"
+                    title="Refresh tags"
+                    onClick={() => loadAllTags()}
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    <RotateCw size={10} />
+                  </button>
+                  <button
+                    className="stash-action-btn primary"
+                    onClick={() => { setShowNewTagForm(!showNewTagForm); setTagError(null) }}
+                    style={{ fontSize: '10px' }}
+                  >
+                    + New Tag
+                  </button>
+                </div>
+                {showNewTagForm && (
+                  <div style={{ margin: '2px 8px 6px', padding: '8px', background: 'var(--bg-secondary)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                    <input
+                      type="text"
+                      placeholder="Tag name (e.g. v1.0.0)"
+                      value={newTagName}
+                      onChange={(e) => setNewTagName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleCreateTag(); if (e.key === 'Escape') setShowNewTagForm(false) }}
+                      style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: '4px', padding: '4px 6px', fontSize: '11px', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box', marginBottom: '4px' }}
+                      autoFocus
+                    />
+                    <input
+                      type="text"
+                      placeholder="Message (optional — creates annotated tag)"
+                      value={newTagMessage}
+                      onChange={(e) => setNewTagMessage(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleCreateTag(); if (e.key === 'Escape') setShowNewTagForm(false) }}
+                      style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: '4px', padding: '4px 6px', fontSize: '11px', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box', marginBottom: '6px' }}
+                    />
+                    {tagError && <div style={{ fontSize: '10px', color: 'var(--danger)', marginBottom: '4px' }}>{tagError}</div>}
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <button className="stash-action-btn primary" onClick={handleCreateTag} disabled={creatingTag || !newTagName.trim()}>
+                        {creatingTag ? <RotateCw size={9} className="spinning" /> : 'Create'}
+                      </button>
+                      <button className="stash-action-btn" onClick={() => { setShowNewTagForm(false); setTagError(null) }}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+                {tagsLoading && <div className="checkpoint-empty">Loading tags...</div>}
+                {!tagsLoading && allTags.length === 0 && <div className="checkpoint-empty">No tags in this repository.</div>}
+                {!showNewTagForm && tagError && (
+                  <div style={{ padding: '4px 8px', fontSize: '10px', color: 'var(--danger)' }}>{tagError}</div>
+                )}
+                {allTags.map((t) => (
+                  <div key={t.tag} className="checkpoint-row" style={{ alignItems: 'center' }}>
+                    <Bookmark size={10} style={{ flexShrink: 0, opacity: 0.4 }} />
+                    <code style={{ fontSize: '11px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>{t.tag}</code>
+                    <span style={{ fontSize: '9px', opacity: 0.4, flexShrink: 0, marginRight: '4px' }}>{t.hash}</span>
+                    <span style={{ fontSize: '9px', opacity: 0.4, flexShrink: 0, marginRight: '4px' }}>{t.date}</span>
+                    {tagToDelete === t.tag ? (
+                      <>
+                        <button className="stash-action-btn danger" onClick={() => handleDeleteTag(t.tag)} disabled={deletingTag === t.tag} style={{ fontSize: '9px' }}>
+                          {deletingTag === t.tag ? <RotateCw size={9} className="spinning" /> : 'Confirm'}
+                        </button>
+                        <button className="stash-action-btn" onClick={() => setTagToDelete(null)} style={{ fontSize: '9px' }}>Cancel</button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          className="changes-refresh-btn"
+                          title={`Push ${t.tag} to origin`}
+                          onClick={() => handlePushTag(t.tag)}
+                          disabled={pushingTag === t.tag}
+                          style={{ flexShrink: 0, color: 'var(--accent)', opacity: 0.8 }}
+                        >
+                          {pushingTag === t.tag ? <RotateCw size={10} className="spinning" /> : <Cloud size={10} />}
+                        </button>
+                        <button
+                          className="changes-refresh-btn"
+                          title={`Delete ${t.tag}`}
+                          onClick={() => setTagToDelete(t.tag)}
+                          style={{ flexShrink: 0, color: 'var(--danger)', opacity: 0.7 }}
+                        >
+                          <Trash2 size={10} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
           {scoreCard && (
             <div style={{
               margin: '8px 8px 4px',

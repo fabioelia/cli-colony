@@ -1553,6 +1553,17 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Tags',
+        position: 'Below Commits (collapsible)',
+        items: [
+          { label: 'Tags section', detail: 'Collapsible section listing all git tags in the repository sorted by date (newest first). Each row shows the tag name, short hash, and creation date. Lazy-loads on first open.', icon: 'Bookmark' },
+          { label: 'New Tag button', detail: 'Opens an inline form to create a new tag. Enter a tag name (e.g. v1.0.0) and an optional message. With a message, creates an annotated tag (`git tag -a <name> -m <message>`). Without, creates a lightweight tag. Press Enter or click Create. The tag list refreshes on success.', icon: 'Bookmark' },
+          { label: 'Push tag', detail: 'Cloud icon button on each tag row. Pushes that specific tag to origin (`git push origin <tagname>`). Only this tag is pushed — not all tags.', icon: 'Cloud' },
+          { label: 'Delete tag', detail: 'Trash icon button on each tag row. Requires inline confirmation (Confirm/Cancel) before running `git tag -d`. Local delete only — does not push deletion to remote.', icon: 'Trash2' },
+          { label: 'Refresh', detail: 'Refresh button reloads the tag list from git.' },
+        ],
+      },
+      {
         name: 'File History',
         position: 'Right pane (replaces diff when active)',
         items: [

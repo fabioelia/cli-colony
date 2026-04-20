@@ -328,6 +328,46 @@ export function registerGitHandlers(): void {
     }
   })
 
+  // --- General tag operations ---
+
+  ipcMain.handle('git:listAllTags', async (_e, cwd: string): Promise<Array<{ tag: string; date: string; hash: string }>> => {
+    await assertGitRepo(cwd)
+    try {
+      const { stdout } = await execFileAsync(resolveCommand('git'), [
+        'tag', '--sort=-creatordate',
+        '--format=%(refname:short)|%(creatordate:iso-strict)|%(objectname:short)',
+      ], { cwd, timeout: 5000, encoding: 'utf-8' })
+      if (!stdout.trim()) return []
+      return stdout.trim().split('\n').map(line => {
+        const [tag, date, hash] = line.split('|')
+        return { tag, date: date?.slice(0, 10) ?? '', hash: hash?.slice(0, 7) ?? '' }
+      })
+    } catch {
+      return []
+    }
+  })
+
+  ipcMain.handle('git:createGeneralTag', async (_e, cwd: string, tagName: string, message?: string): Promise<void> => {
+    await assertGitRepo(cwd)
+    if (!tagName.trim()) throw new Error('Tag name is required')
+    const args = message?.trim()
+      ? ['tag', '-a', tagName, '-m', message.trim()]
+      : ['tag', tagName]
+    await execFileAsync(resolveCommand('git'), args, { cwd, timeout: 5000 })
+  })
+
+  ipcMain.handle('git:deleteGeneralTag', async (_e, cwd: string, tagName: string): Promise<void> => {
+    await assertGitRepo(cwd)
+    if (!tagName.trim()) throw new Error('Tag name is required')
+    await execFileAsync(resolveCommand('git'), ['tag', '-d', tagName], { cwd, timeout: 5000 })
+  })
+
+  ipcMain.handle('git:pushTag', async (_e, cwd: string, tagName: string): Promise<void> => {
+    await assertGitRepo(cwd)
+    if (!tagName.trim()) throw new Error('Tag name is required')
+    await execFileAsync(resolveCommand('git'), ['push', 'origin', tagName], { cwd, timeout: 30000 })
+  })
+
   ipcMain.handle('git:diffRange', async (_e, cwd: string, from: string, to?: string, ignoreWhitespace?: boolean): Promise<{ stat: string; diff: string }> => {
     await assertGitRepo(cwd)
     // Validate refs — allow tag-like paths and hex hashes
