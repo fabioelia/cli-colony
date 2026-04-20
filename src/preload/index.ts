@@ -466,6 +466,7 @@ export interface ClaudeManagerAPI {
   }
   git: {
     stage: (cwd: string, files: string[]) => Promise<void>
+    unstage: (cwd: string, files: string[]) => Promise<void>
     commit: (cwd: string, message: string, amend?: boolean) => Promise<string>
     lastCommitMessage: (cwd: string) => Promise<string | null>
     push: (cwd: string) => Promise<void>
@@ -1154,6 +1155,7 @@ const api: ClaudeManagerAPI = {
   },
   git: {
     stage: (cwd, files) => ipcRenderer.invoke('git:stage', cwd, files),
+    unstage: (cwd, files) => ipcRenderer.invoke('git:unstage', cwd, files),
     commit: (cwd, message, amend) => ipcRenderer.invoke('git:commit', cwd, message, amend),
     lastCommitMessage: (cwd) => ipcRenderer.invoke('git:lastCommitMessage', cwd) as Promise<string | null>,
     push: (cwd) => ipcRenderer.invoke('git:push', cwd),

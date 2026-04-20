@@ -60,6 +60,10 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [gitError, setGitError] = useState<string | null>(null)
   const [copiedDiffFile, setCopiedDiffFile] = useState<string | null>(null)
 
+  // Multi-select state (working tree only)
+  const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set())
+  const lastClickedIndexRef = useRef<number>(-1)
+
   // Stash state
   const [stashes, setStashes] = useState<Array<{ index: number; message: string; date: string }>>([])
   const [stashOpen, setStashOpen] = useState(false)
@@ -244,6 +248,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     if (!instance.workingDirectory) return
     setGitChangesLoading(true)
     diffCacheRef.current = {}
+    setMultiSelected(new Set())
     setGitError(null)
     window.api.git.conflictState(instance.workingDirectory).then(cs => setConflictState(cs)).catch(() => {})
     window.api.session.gitChanges(instance.workingDirectory).then(async (entries) => {
@@ -388,6 +393,46 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     const result = await window.api.git.addToGitignore(instance.workingDirectory, file, isTracked)
     if (result.success) loadGitChanges()
   }, [instance.workingDirectory, loadGitChanges])
+
+  const handleMultiStage = useCallback(async () => {
+    if (!instance.workingDirectory || multiSelected.size === 0) return
+    await window.api.git.stage(instance.workingDirectory, [...multiSelected])
+    loadGitChanges()
+  }, [instance.workingDirectory, multiSelected, loadGitChanges])
+
+  const handleMultiUnstage = useCallback(async () => {
+    if (!instance.workingDirectory || multiSelected.size === 0) return
+    await window.api.git.unstage(instance.workingDirectory, [...multiSelected])
+    loadGitChanges()
+  }, [instance.workingDirectory, multiSelected, loadGitChanges])
+
+  const handleMultiRevert = useCallback(async () => {
+    if (!instance.workingDirectory || multiSelected.size === 0) return
+    if (!window.confirm(`Revert ${multiSelected.size} file${multiSelected.size === 1 ? '' : 's'}? This cannot be undone.`)) return
+    for (const file of multiSelected) {
+      await window.api.session.gitRevert(instance.workingDirectory, file).catch(() => {})
+    }
+    loadGitChanges()
+  }, [instance.workingDirectory, multiSelected, loadGitChanges])
+
+  const handleCheckboxClick = useCallback((e: React.MouseEvent, file: string, index: number) => {
+    e.stopPropagation()
+    setMultiSelected(prev => {
+      const next = new Set(prev)
+      if (e.shiftKey && lastClickedIndexRef.current >= 0) {
+        const from = Math.min(lastClickedIndexRef.current, index)
+        const to = Math.max(lastClickedIndexRef.current, index)
+        const filesInRange = gitChanges.slice(from, to + 1).map(f => f.file)
+        const adding = !prev.has(file)
+        filesInRange.forEach(f => adding ? next.add(f) : next.delete(f))
+      } else {
+        if (next.has(file)) next.delete(file)
+        else next.add(file)
+      }
+      lastClickedIndexRef.current = index
+      return next
+    })
+  }, [gitChanges])
 
   const openBlame = useCallback((file: string) => {
     setBlameFile(file)
@@ -1532,11 +1577,28 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
             <div className="diff-first-layout">
               {/* Left pane: file list */}
               <div className="diff-first-left">
+                {/* Multi-select bulk action bar */}
+                {diffMode === 'working' && multiSelected.size >= 2 && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap',
+                    padding: '4px 8px', background: 'var(--bg-secondary)',
+                    borderBottom: '1px solid var(--border)', fontSize: '11px',
+                  }}>
+                    <span style={{ opacity: 0.7, flexShrink: 0 }}>{multiSelected.size} selected</span>
+                    <button className="stash-action-btn" onClick={handleMultiStage}>Stage All</button>
+                    <button className="stash-action-btn" onClick={handleMultiUnstage}>Unstage All</button>
+                    <button className="stash-action-btn danger" onClick={handleMultiRevert}>Revert All</button>
+                    <span style={{ flex: 1 }} />
+                    <button className="stash-action-btn" onClick={() => setMultiSelected(new Set(visibleFiles.map(f => f.file)))}>Select All</button>
+                    <button className="stash-action-btn" onClick={() => setMultiSelected(new Set())}>Deselect</button>
+                  </div>
+                )}
                 {fileSearch && visibleFiles.length === 0 && (
                   <div className="changes-empty">No files match &ldquo;{fileSearch}&rdquo;.</div>
                 )}
-                {visibleFiles.map((entry) => {
+                {visibleFiles.map((entry, index) => {
                   const isSelected = selectedDiffFile === entry.file
+                  const isMulti = multiSelected.has(entry.file)
                   const isConflicted = conflictState.conflictedFiles.some(f => f === entry.file || entry.file.endsWith('/' + f) || f.endsWith('/' + entry.file))
                   const fileComments = diffMode === 'working' ? colonyComments.filter(c => {
                     const normalised = c.file.replace(/^b\//, '')
@@ -1545,7 +1607,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                   return (
                     <div
                       key={entry.file}
-                      className={`changes-event${isSelected ? ' selected' : ''}`}
+                      className={`changes-event${isSelected ? ' selected' : ''}${isMulti ? ' multi-selected' : ''}`}
                       role="button"
                       tabIndex={0}
                       aria-selected={isSelected}
@@ -1554,6 +1616,15 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                       onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, file: entry.file, status: entry.status }) }}
                     >
                       <div className="changes-event-header" style={{ alignItems: 'center', cursor: 'pointer' }}>
+                        {diffMode === 'working' && (
+                          <input
+                            type="checkbox"
+                            checked={isMulti}
+                            onChange={() => {}}
+                            onClick={(e) => handleCheckboxClick(e, entry.file, index)}
+                            style={{ marginRight: '4px', cursor: 'pointer', flexShrink: 0, accentColor: 'var(--accent)' }}
+                          />
+                        )}
                         <span className="changes-event-tool" title={isConflicted ? 'Conflict' : entry.status === 'A' ? 'Added' : entry.status === 'D' ? 'Deleted' : entry.status === 'R' ? 'Renamed' : 'Modified'} style={{
                           color: isConflicted ? 'var(--warning)'
                             : entry.status === 'A' ? 'var(--success)'

@@ -37,6 +37,15 @@ export function registerGitHandlers(): void {
     }
   })
 
+  ipcMain.handle('git:unstage', async (_e, cwd: string, files: string[]): Promise<void> => {
+    await assertGitRepo(cwd)
+    const batchSize = 50
+    for (let i = 0; i < files.length; i += batchSize) {
+      const batch = files.slice(i, i + batchSize)
+      await execFileAsync(resolveCommand('git'), ['restore', '--staged', '--', ...batch], { cwd, timeout: 15000 })
+    }
+  })
+
   ipcMain.handle('git:commit', async (_e, cwd: string, message: string, amend?: boolean): Promise<string> => {
     await assertGitRepo(cwd)
     const args = ['commit', '-m', message]

@@ -7887,6 +7887,9 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: color-mix(in srgb, var(--accent) 15%, transparent);
   border-left: 2px solid var(--accent);
 }
+.changes-event.multi-selected {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
 .changes-event.selected .changes-event-header {
   padding-left: 10px;
 }
