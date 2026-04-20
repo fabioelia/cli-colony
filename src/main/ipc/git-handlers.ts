@@ -611,25 +611,64 @@ export function registerGitHandlers(): void {
   })
 
   ipcMain.handle('git:conflictState', async (_e, cwd: string): Promise<{
-    state: 'none' | 'merge' | 'cherry-pick' | 'revert'
+    state: 'none' | 'merge' | 'cherry-pick' | 'revert' | 'rebase'
     conflictedFiles: string[]
   }> => {
     await assertGitRepo(cwd)
     const { stdout: gitDir } = await execFileAsync(resolveCommand('git'), ['rev-parse', '--git-dir'], { cwd, timeout: 5000, encoding: 'utf-8' })
     const dir = gitDir.trim()
     const resolvedDir = path.isAbsolute(dir) ? dir : path.join(cwd, dir)
-    let state: 'none' | 'merge' | 'cherry-pick' | 'revert' = 'none'
-    for (const [file, label] of [['MERGE_HEAD', 'merge'], ['CHERRY_PICK_HEAD', 'cherry-pick'], ['REVERT_HEAD', 'revert']] as const) {
+    // Check rebase first (rebase-merge or rebase-apply directories)
+    let state: 'none' | 'merge' | 'cherry-pick' | 'revert' | 'rebase' = 'none'
+    for (const rebDir of ['rebase-merge', 'rebase-apply']) {
       try {
-        await fsp.access(path.join(resolvedDir, file))
-        state = label
+        await fsp.access(path.join(resolvedDir, rebDir))
+        state = 'rebase'
         break
       } catch { /* not found */ }
+    }
+    if (state === 'none') {
+      for (const [file, label] of [['MERGE_HEAD', 'merge'], ['CHERRY_PICK_HEAD', 'cherry-pick'], ['REVERT_HEAD', 'revert']] as const) {
+        try {
+          await fsp.access(path.join(resolvedDir, file))
+          state = label
+          break
+        } catch { /* not found */ }
+      }
     }
     if (state === 'none') return { state: 'none', conflictedFiles: [] }
     const { stdout } = await execFileAsync(resolveCommand('git'), ['diff', '--name-only', '--diff-filter=U'], { cwd, timeout: 5000, encoding: 'utf-8' })
     const conflictedFiles = stdout.trim() ? stdout.trim().split('\n') : []
     return { state, conflictedFiles }
+  })
+
+  ipcMain.handle('git:rebase', async (_e, cwd: string, ontoBranch: string): Promise<{ success: boolean; error?: string; conflicts?: string[] }> => {
+    await assertGitRepo(cwd)
+    try {
+      await execFileAsync(resolveCommand('git'), ['rebase', ontoBranch], { cwd, timeout: 30000, encoding: 'utf-8' })
+      return { success: true }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      const conflictMatch = msg.match(/CONFLICT[^:]*:\s*(.+)/g)
+      const conflicts = conflictMatch ? conflictMatch.map(l => l.replace(/CONFLICT[^:]*:\s*/, '').trim()) : undefined
+      return { success: false, error: msg.split('\n')[0], conflicts }
+    }
+  })
+
+  ipcMain.handle('git:rebaseAbort', async (_e, cwd: string): Promise<void> => {
+    await assertGitRepo(cwd)
+    await execFileAsync(resolveCommand('git'), ['rebase', '--abort'], { cwd, timeout: 10000 })
+  })
+
+  ipcMain.handle('git:rebaseContinue', async (_e, cwd: string): Promise<{ success: boolean; error?: string }> => {
+    await assertGitRepo(cwd)
+    try {
+      await execFileAsync(resolveCommand('git'), ['rebase', '--continue'], { cwd, timeout: 30000, env: { ...process.env, GIT_EDITOR: 'true' } })
+      return { success: true }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return { success: false, error: msg.split('\n')[0] }
+    }
   })
 
   ipcMain.handle('git:resolveConflict', async (_e, cwd: string, file: string, strategy: 'ours' | 'theirs'): Promise<void> => {

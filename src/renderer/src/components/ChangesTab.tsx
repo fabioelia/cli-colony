@@ -124,6 +124,11 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [mergeNoFf, setMergeNoFf] = useState(false)
   const [mergeResult, setMergeResult] = useState<{ success: boolean; error?: string; conflicts?: string[] } | null>(null)
   const [abortingMerge, setAbortingMerge] = useState(false)
+  const [rebaseTarget, setRebaseTarget] = useState<string | null>(null)
+  const [rebasing, setRebasing] = useState(false)
+  const [rebaseResult, setRebaseResult] = useState<{ success: boolean; error?: string; conflicts?: string[] } | null>(null)
+  const [abortingRebase, setAbortingRebase] = useState(false)
+  const [continuingRebase, setContinuingRebase] = useState(false)
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; file: string; status: string } | null>(null)
@@ -157,7 +162,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [abortingRevert, setAbortingRevert] = useState(false)
 
   // Conflict state banner
-  const [conflictState, setConflictState] = useState<{ state: 'none' | 'merge' | 'cherry-pick' | 'revert'; conflictedFiles: string[] }>({ state: 'none', conflictedFiles: [] })
+  const [conflictState, setConflictState] = useState<{ state: 'none' | 'merge' | 'cherry-pick' | 'revert' | 'rebase'; conflictedFiles: string[] }>({ state: 'none', conflictedFiles: [] })
 
   // Commit history state
   const [commits, setCommits] = useState<Array<{ hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number }>>([])
@@ -610,6 +615,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
       if (conflictState.state === 'merge') await window.api.git.mergeAbort(instance.workingDirectory)
       else if (conflictState.state === 'cherry-pick') await window.api.git.cherryPickAbort(instance.workingDirectory)
       else if (conflictState.state === 'revert') await window.api.git.revertAbort(instance.workingDirectory)
+      else if (conflictState.state === 'rebase') await window.api.git.rebaseAbort(instance.workingDirectory)
     } catch { /* ignore */ }
     loadGitChanges()
     await loadConflictState()
@@ -640,6 +646,49 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     setConflictState({ state: 'none', conflictedFiles: [] })
     loadGitChanges()
   }, [instance.workingDirectory, loadGitChanges])
+
+  const handleRebase = useCallback(async () => {
+    if (!instance.workingDirectory || !rebaseTarget || rebasing) return
+    setRebasing(true)
+    setRebaseResult(null)
+    const result = await window.api.git.rebase(instance.workingDirectory, rebaseTarget)
+    setRebaseResult(result)
+    if (result.success) {
+      setRebaseTarget(null)
+      setBranchDropdownOpen(false)
+      await loadBranchInfo()
+      loadGitChanges()
+      setTimeout(() => setRebaseResult(null), 3000)
+    } else {
+      await loadConflictState()
+    }
+    setRebasing(false)
+  }, [instance.workingDirectory, rebaseTarget, rebasing, loadBranchInfo, loadGitChanges, loadConflictState])
+
+  const handleRebaseAbort = useCallback(async () => {
+    if (!instance.workingDirectory || abortingRebase) return
+    setAbortingRebase(true)
+    await window.api.git.rebaseAbort(instance.workingDirectory).catch(() => {})
+    setRebaseResult(null)
+    setRebaseTarget(null)
+    loadGitChanges()
+    await loadConflictState()
+    setAbortingRebase(false)
+  }, [instance.workingDirectory, abortingRebase, loadGitChanges, loadConflictState])
+
+  const handleRebaseContinue = useCallback(async () => {
+    if (!instance.workingDirectory || continuingRebase) return
+    setContinuingRebase(true)
+    const result = await window.api.git.rebaseContinue(instance.workingDirectory)
+    if (result.success) {
+      await loadBranchInfo()
+      loadGitChanges()
+      await loadConflictState()
+    } else {
+      await loadConflictState()
+    }
+    setContinuingRebase(false)
+  }, [instance.workingDirectory, continuingRebase, loadBranchInfo, loadGitChanges, loadConflictState])
 
   const handleCreateTag = useCallback(async () => {
     if (!instance.workingDirectory || !newTagName.trim() || creatingTag) return
@@ -1529,6 +1578,15 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                           <>
                             <button
                               className="changes-refresh-btn"
+                              title={`Rebase current branch onto ${b.name}`}
+                              disabled={rebasing}
+                              onClick={(e) => { e.stopPropagation(); setRebaseTarget(b.name); setRebaseResult(null) }}
+                              style={{ color: 'var(--text-muted)', flexShrink: 0, marginLeft: '2px', opacity: 0.8 }}
+                            >
+                              <GitCommit size={9} />
+                            </button>
+                            <button
+                              className="changes-refresh-btn"
                               title={`Merge ${b.name} into ${currentBranch}`}
                               disabled={merging}
                               onClick={(e) => { e.stopPropagation(); setMergeTarget(b.name); setMergeNoFf(false); setMergeResult(null) }}
@@ -1577,6 +1635,23 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                         </div>
                       </div>
                     )}
+                    {/* Rebase confirmation inline */}
+                    {rebaseTarget && branches.some(b => b.name === rebaseTarget && !b.remote) && (
+                      <div style={{ padding: '6px 8px', borderTop: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
+                        <div style={{ fontSize: '11px', marginBottom: '4px' }}>Rebase <strong>{currentBranch}</strong> onto <strong>{rebaseTarget}</strong>?</div>
+                        {rebaseResult && !rebaseResult.success && (
+                          <div style={{ fontSize: '10px', color: 'var(--danger)', marginBottom: '4px', maxHeight: '60px', overflow: 'auto' }}>
+                            {rebaseResult.error}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button className="stash-action-btn primary" onClick={handleRebase} disabled={rebasing}>
+                            {rebasing ? <RotateCw size={9} className="spinning" /> : 'Rebase'}
+                          </button>
+                          <button className="stash-action-btn" onClick={() => { setRebaseTarget(null); setRebaseResult(null) }}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
                     {branches.filter(b => b.remote).length > 0 && (
                       <div style={{ padding: '3px 8px 2px', fontSize: '9px', fontWeight: 600, opacity: 0.4, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px', borderTop: '1px solid var(--border)' }}>Remote</div>
                     )}
@@ -1594,6 +1669,15 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                         </button>
                         <button
                           className="changes-refresh-btn"
+                          title={`Rebase current branch onto origin/${b.name}`}
+                          disabled={rebasing}
+                          onClick={(e) => { e.stopPropagation(); setRebaseTarget(`origin/${b.name}`); setRebaseResult(null) }}
+                          style={{ color: 'var(--text-muted)', flexShrink: 0, marginLeft: '2px', opacity: 0.8 }}
+                        >
+                          <GitCommit size={9} />
+                        </button>
+                        <button
+                          className="changes-refresh-btn"
                           title={`Merge origin/${b.name} into ${currentBranch}`}
                           disabled={merging}
                           onClick={(e) => { e.stopPropagation(); setMergeTarget(`origin/${b.name}`); setMergeNoFf(false); setMergeResult(null) }}
@@ -1603,6 +1687,23 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                         </button>
                       </div>
                     ))}
+                    {/* Rebase confirmation for remote branches */}
+                    {rebaseTarget && branches.some(b => b.remote && (`origin/${b.name}` === rebaseTarget)) && (
+                      <div style={{ padding: '6px 8px', borderTop: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
+                        <div style={{ fontSize: '11px', marginBottom: '4px' }}>Rebase <strong>{currentBranch}</strong> onto <strong>{rebaseTarget}</strong>?</div>
+                        {rebaseResult && !rebaseResult.success && (
+                          <div style={{ fontSize: '10px', color: 'var(--danger)', marginBottom: '4px', maxHeight: '60px', overflow: 'auto' }}>
+                            {rebaseResult.error}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button className="stash-action-btn primary" onClick={handleRebase} disabled={rebasing}>
+                            {rebasing ? <RotateCw size={9} className="spinning" /> : 'Rebase'}
+                          </button>
+                          <button className="stash-action-btn" onClick={() => { setRebaseTarget(null); setRebaseResult(null) }}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
                     {/* Merge confirmation for remote branches */}
                     {mergeTarget && branches.some(b => b.remote && (`origin/${b.name}` === mergeTarget)) && (
                       <div style={{ padding: '6px 8px', borderTop: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
@@ -1779,11 +1880,16 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
             <div style={{ margin: '6px 8px 2px', padding: '8px 10px', background: 'rgba(245,158,11,0.08)', borderRadius: '6px', border: '1px solid rgba(245,158,11,0.3)', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <AlertTriangle size={13} style={{ color: 'var(--warning)', flexShrink: 0 }} />
               <span style={{ fontSize: '11px', flex: 1, minWidth: 0 }}>
-                <strong>{conflictState.state === 'merge' ? 'Merge' : conflictState.state === 'cherry-pick' ? 'Cherry-pick' : 'Revert'} in progress</strong>
+                <strong>{conflictState.state === 'merge' ? 'Merge' : conflictState.state === 'cherry-pick' ? 'Cherry-pick' : conflictState.state === 'rebase' ? 'Rebase' : 'Revert'} in progress</strong>
                 {conflictState.conflictedFiles.length > 0 && ` — ${conflictState.conflictedFiles.length} file${conflictState.conflictedFiles.length === 1 ? '' : 's'} with conflicts`}
                 {conflictState.conflictedFiles.length === 0 && ' — all conflicts resolved'}
               </span>
-              {conflictState.conflictedFiles.length === 0 && (
+              {conflictState.conflictedFiles.length === 0 && conflictState.state === 'rebase' && (
+                <button className="stash-action-btn primary" onClick={handleRebaseContinue} disabled={continuingRebase} style={{ flexShrink: 0 }}>
+                  {continuingRebase ? <RotateCw size={9} className="spinning" /> : 'Continue Rebase'}
+                </button>
+              )}
+              {conflictState.conflictedFiles.length === 0 && conflictState.state !== 'rebase' && (
                 <button className="stash-action-btn primary" onClick={handleCompleteConflictOp} style={{ flexShrink: 0 }}>Complete</button>
               )}
               <button className="stash-action-btn danger" onClick={handleConflictAbort} style={{ flexShrink: 0 }}>Abort</button>
