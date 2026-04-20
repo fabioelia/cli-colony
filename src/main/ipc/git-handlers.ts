@@ -1,5 +1,7 @@
 import { ipcMain } from 'electron'
 import { execFile } from 'child_process'
+import { promises as fsp } from 'fs'
+import path from 'path'
 import { promisify } from 'util'
 import { resolveCommand } from '../resolve-command'
 
@@ -278,14 +280,31 @@ export function registerGitHandlers(): void {
     return { stat: statResult.stdout, diff: diffResult.stdout }
   })
 
-  ipcMain.handle('git:createPR', async (_e, cwd: string, title: string, body: string, baseBranch?: string): Promise<{ url: string }> => {
+  ipcMain.handle('git:createPR', async (_e, cwd: string, title: string, body: string, baseBranch?: string, draft?: boolean): Promise<{ url: string }> => {
     await assertGitRepo(cwd)
     const args = ['pr', 'create', '--title', title, '--body', body]
     if (baseBranch) args.push('--base', baseBranch)
+    if (draft) args.push('--draft')
     const { stdout } = await execFileAsync(resolveCommand('gh'), args, {
       cwd, timeout: 30000, encoding: 'utf-8',
     })
     return { url: stdout.trim() }
+  })
+
+  ipcMain.handle('git:prTemplate', async (_e, cwd: string): Promise<string | null> => {
+    const candidates = [
+      '.github/pull_request_template.md',
+      '.github/PULL_REQUEST_TEMPLATE.md',
+      'pull_request_template.md',
+      'PULL_REQUEST_TEMPLATE.md',
+      'docs/pull_request_template.md',
+    ]
+    for (const candidate of candidates) {
+      try {
+        return await fsp.readFile(path.join(cwd, candidate), 'utf-8')
+      } catch { /* try next */ }
+    }
+    return null
   })
 
   ipcMain.handle('git:defaultBranch', async (_e, cwd: string): Promise<string> => {

@@ -40,6 +40,8 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
   const [prUrl, setPRUrl] = useState('')
   const [prError, setPRError] = useState<string | null>(null)
   const [suggestingPR, setSuggestingPR] = useState(false)
+  const [prDraft, setPRDraft] = useState(false)
+  const [prTemplateLoaded, setPRTemplateLoaded] = useState(false)
   const [amend, setAmend] = useState(false)
   const [expandedFile, setExpandedFile] = useState<string | null>(null)
   const [expandedDiff, setExpandedDiff] = useState<string>('')
@@ -206,7 +208,7 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
     setPRPhase('creating')
     setPRError(null)
     try {
-      const { url } = await window.api.git.createPR(dir, prTitle.trim(), prBody, prBaseBranch || undefined)
+      const { url } = await window.api.git.createPR(dir, prTitle.trim(), prBody, prBaseBranch || undefined, prDraft)
       setPRUrl(url)
       setPRPhase('created')
     } catch (err) {
@@ -218,9 +220,9 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
         : msg.slice(0, 120))
       setPRPhase('editing')
     }
-  }, [dir, prTitle, prBody, prBaseBranch])
+  }, [dir, prTitle, prBody, prBaseBranch, prDraft])
 
-  const ghCommand = `gh pr create --title "${prTitle}" --body "" --base ${prBaseBranch}`
+  const ghCommand = `gh pr create --title "${prTitle}" --body "" --base ${prBaseBranch}${prDraft ? ' --draft' : ''}`
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -240,6 +242,17 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
     }
     if (!amend) amendPrefilled.current = false
   }, [amend, dir])
+
+  useEffect(() => {
+    if (prPhase === 'editing' && !prBody && !prTemplateLoaded) {
+      window.api.git.prTemplate(dir).then(template => {
+        if (template && !prBody) {
+          setPRBody(template)
+          setPRTemplateLoaded(true)
+        }
+      }).catch(() => {})
+    }
+  }, [prPhase, dir, prBody, prTemplateLoaded])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -469,7 +482,16 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
                     onChange={e => setPRBaseBranch(e.target.value)}
                     placeholder="main"
                   />
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: 11, opacity: 0.75, cursor: 'pointer', flexShrink: 0 }}>
+                    <input type="checkbox" checked={prDraft} onChange={() => setPRDraft(!prDraft)} style={{ margin: 0 }} />
+                    Draft
+                  </label>
                 </div>
+                {prTemplateLoaded && (
+                  <div style={{ fontSize: '9px', opacity: 0.5, fontStyle: 'italic', marginTop: '-2px' }}>
+                    (body pre-filled from repository template)
+                  </div>
+                )}
                 {prError && (
                   <div className="commit-dialog-error" style={{ marginTop: 4 }}>
                     <AlertCircle size={12} /> {prError}
