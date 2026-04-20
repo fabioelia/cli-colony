@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
-import { ChevronRight, RefreshCw, RotateCw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search, Copy, CheckCircle, Archive, ArrowDown } from 'lucide-react'
+import { ChevronRight, RefreshCw, RotateCw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search, Copy, CheckCircle, Archive, ArrowDown, Eye, Cloud, History, ArrowLeft } from 'lucide-react'
 import type { GitDiffEntry, ColonyComment, ScoreCard } from '../../../shared/types'
 import type { ClaudeInstance } from '../types'
 import DiffViewer from './DiffViewer'
@@ -67,13 +67,35 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [stashError, setStashError] = useState<string | null>(null)
 
   // Branch switcher state
-  const [branches, setBranches] = useState<Array<{ name: string; current: boolean }>>([])
+  const [branches, setBranches] = useState<Array<{ name: string; current: boolean; remote: boolean }>>([])
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false)
   const [currentBranch, setCurrentBranch] = useState('')
   const [behindCount, setBehindCount] = useState(0)
   const [switching, setSwitching] = useState(false)
   const [fetchingBranches, setFetchingBranches] = useState(false)
   const [switchError, setSwitchError] = useState<string | null>(null)
+  const [deletingBranch, setDeletingBranch] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [forceDeleteConfirm, setForceDeleteConfirm] = useState<string | null>(null)
+  const [pruning, setPruning] = useState(false)
+
+  // Stash preview state
+  const [stashPreviewIndex, setStashPreviewIndex] = useState<number | null>(null)
+  const [stashPreviewDiff, setStashPreviewDiff] = useState<{ stat: string; diff: string } | null>(null)
+  const [stashPreviewLoading, setStashPreviewLoading] = useState(false)
+
+  // File history state
+  const [fileHistoryFile, setFileHistoryFile] = useState<string | null>(null)
+  const [fileHistoryCommits, setFileHistoryCommits] = useState<Array<{ hash: string; subject: string; author: string; date: string }>>([])
+  const [fileHistoryLoading, setFileHistoryLoading] = useState(false)
+  const [fileHistorySkip, setFileHistorySkip] = useState(0)
+  const [hasMoreFileHistory, setHasMoreFileHistory] = useState(true)
+  const [expandedFileHistoryHash, setExpandedFileHistoryHash] = useState<string | null>(null)
+  const [fileHistoryDiff, setFileHistoryDiff] = useState<string | null>(null)
+  const [fileHistoryDiffLoading, setFileHistoryDiffLoading] = useState(false)
+
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; file: string } | null>(null)
 
   // Diff mode state
   const [diffMode, setDiffMode] = useState<'working' | 'base'>('working')
@@ -249,11 +271,11 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const loadBranchInfo = useCallback(async () => {
     if (!instance.workingDirectory) return
     const [branchList, info, behind] = await Promise.all([
-      window.api.git.listBranches(instance.workingDirectory),
+      window.api.git.listBranches(instance.workingDirectory, true),
       window.api.git.branchInfo(instance.workingDirectory),
       window.api.git.behindCount(instance.workingDirectory),
     ]).catch(() => [[], { branch: '', remote: null, ahead: 0 }, 0] as const)
-    setBranches(branchList as Array<{ name: string; current: boolean }>)
+    setBranches(branchList as Array<{ name: string; current: boolean; remote: boolean }>)
     setCurrentBranch((info as { branch: string }).branch)
     setBehindCount(behind as number)
   }, [instance.workingDirectory])
@@ -294,6 +316,100 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     await loadBranchInfo()
     setFetchingBranches(false)
   }, [instance.workingDirectory, loadBranchInfo])
+
+  const handleDeleteBranch = useCallback(async (branch: string, force = false) => {
+    if (!instance.workingDirectory || deletingBranch) return
+    setDeletingBranch(branch)
+    setDeleteError(null)
+    setForceDeleteConfirm(null)
+    const result = await window.api.git.deleteBranch(instance.workingDirectory, branch, force)
+    if (result.success) {
+      await loadBranchInfo()
+    } else {
+      if (!force && result.error?.includes('not fully merged')) {
+        setForceDeleteConfirm(branch)
+      } else {
+        setDeleteError(result.error ?? 'Delete failed')
+      }
+    }
+    setDeletingBranch(null)
+  }, [instance.workingDirectory, deletingBranch, loadBranchInfo])
+
+  const handlePruneRemote = useCallback(async () => {
+    if (!instance.workingDirectory || pruning) return
+    setPruning(true)
+    await window.api.git.pruneRemote(instance.workingDirectory).catch(() => {})
+    await loadBranchInfo()
+    setPruning(false)
+  }, [instance.workingDirectory, pruning, loadBranchInfo])
+
+  const handleStashPreview = useCallback(async (index: number) => {
+    if (!instance.workingDirectory) return
+    if (stashPreviewIndex === index) {
+      setStashPreviewIndex(null)
+      setStashPreviewDiff(null)
+      return
+    }
+    setStashPreviewIndex(index)
+    setStashPreviewLoading(true)
+    setStashPreviewDiff(null)
+    setStashOpen(false)
+    try {
+      const result = await window.api.git.stashShow(instance.workingDirectory, index)
+      setStashPreviewDiff(result)
+    } catch {
+      setStashPreviewDiff({ stat: '', diff: '' })
+    } finally {
+      setStashPreviewLoading(false)
+    }
+  }, [instance.workingDirectory, stashPreviewIndex])
+
+  const loadFileHistory = useCallback(async (file: string, skip = 0) => {
+    if (!instance.workingDirectory) return
+    setFileHistoryLoading(true)
+    const batch = await window.api.git.fileLog(instance.workingDirectory, file, 20, skip).catch(() => [])
+    if (skip === 0) {
+      setFileHistoryCommits(batch)
+    } else {
+      setFileHistoryCommits(prev => [...prev, ...batch])
+    }
+    setHasMoreFileHistory(batch.length === 20)
+    setFileHistorySkip(skip + batch.length)
+    setFileHistoryLoading(false)
+  }, [instance.workingDirectory])
+
+  const openFileHistory = useCallback((file: string) => {
+    setFileHistoryFile(file)
+    setFileHistoryCommits([])
+    setFileHistorySkip(0)
+    setHasMoreFileHistory(true)
+    setExpandedFileHistoryHash(null)
+    setFileHistoryDiff(null)
+    setContextMenu(null)
+    loadFileHistory(file, 0)
+  }, [loadFileHistory])
+
+  const closeFileHistory = useCallback(() => {
+    setFileHistoryFile(null)
+    setFileHistoryCommits([])
+    setExpandedFileHistoryHash(null)
+    setFileHistoryDiff(null)
+  }, [])
+
+  const handleExpandFileHistoryCommit = useCallback(async (hash: string) => {
+    if (!instance.workingDirectory || !fileHistoryFile) return
+    if (expandedFileHistoryHash === hash) {
+      setExpandedFileHistoryHash(null)
+      setFileHistoryDiff(null)
+      return
+    }
+    setExpandedFileHistoryHash(hash)
+    setFileHistoryDiffLoading(true)
+    setFileHistoryDiff(null)
+    const diff = await window.api.git.fileCommitDiff(instance.workingDirectory, hash, fileHistoryFile).catch(() => '')
+    setFileHistoryDiff(diff)
+    setFileHistoryDiffLoading(false)
+  }, [instance.workingDirectory, fileHistoryFile, expandedFileHistoryHash])
 
   const handlePull = useCallback(async () => {
     if (!instance.workingDirectory || pulling) return
@@ -535,6 +651,21 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     return () => document.removeEventListener('mousedown', handler)
   }, [stashOpen])
 
+  // Close context menu on outside click or Escape
+  useEffect(() => {
+    if (!contextMenu) return
+    const handler = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.file-context-menu')) setContextMenu(null)
+    }
+    const keyHandler = (e: KeyboardEvent) => { if (e.key === 'Escape') setContextMenu(null) }
+    document.addEventListener('mousedown', handler)
+    document.addEventListener('keydown', keyHandler)
+    return () => {
+      document.removeEventListener('mousedown', handler)
+      document.removeEventListener('keydown', keyHandler)
+    }
+  }, [contextMenu])
+
   // Clear selection if selected file disappears (reverted / committed externally)
   useEffect(() => {
     if (!selectedDiffFile) return
@@ -547,6 +678,104 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
 
   // Memoized right pane — only re-renders DiffViewer when selection/content changes
   const rightPane = useMemo(() => {
+    // File history view
+    if (fileHistoryFile !== null) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+            <button className="changes-refresh-btn" onClick={closeFileHistory} title="Back to diff view">
+              <ArrowLeft size={12} />
+            </button>
+            <History size={12} style={{ opacity: 0.5 }} />
+            <span style={{ fontSize: '11px', fontFamily: 'monospace', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.8 }}>{fileHistoryFile}</span>
+          </div>
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            {fileHistoryLoading && fileHistoryCommits.length === 0 && (
+              <div className="diff-first-pane-empty"><span>Loading history…</span></div>
+            )}
+            {!fileHistoryLoading && fileHistoryCommits.length === 0 && (
+              <div className="diff-first-pane-empty"><span>No commit history found.</span></div>
+            )}
+            {fileHistoryCommits.map(c => {
+              const isExpanded = expandedFileHistoryHash === c.hash
+              return (
+                <div key={c.hash}>
+                  <div
+                    className={`checkpoint-row${isExpanded ? ' expanded' : ''}`}
+                    onClick={() => handleExpandFileHistoryCommit(c.hash)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <ChevronRight size={10} style={{ flexShrink: 0, transition: 'transform 0.15s', transform: isExpanded ? 'rotate(90deg)' : 'none', opacity: 0.4 }} />
+                    <code style={{ fontSize: '9px', fontFamily: 'monospace', opacity: 0.6, flexShrink: 0, width: '48px' }}>{c.hash.slice(0, 7)}</code>
+                    <span style={{ flex: 1, fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
+                    <span style={{ fontSize: '9px', opacity: 0.4, flexShrink: 0, marginLeft: '4px' }}>{c.date}</span>
+                    <span style={{ fontSize: '9px', opacity: 0.4, flexShrink: 0, marginLeft: '4px' }}>{c.author}</span>
+                  </div>
+                  {isExpanded && (
+                    <div className="checkpoint-diff-container">
+                      {fileHistoryDiffLoading ? (
+                        <div className="diff-viewer-empty">Loading diff…</div>
+                      ) : fileHistoryDiff !== null ? (
+                        fileHistoryDiff ? (
+                          <DiffViewer diff={fileHistoryDiff} filename={`${fileHistoryFile}@${c.hash.slice(0, 7)}`} />
+                        ) : (
+                          <div className="diff-viewer-empty">No changes to this file in this commit.</div>
+                        )
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+            {hasMoreFileHistory && fileHistoryCommits.length > 0 && (
+              <button
+                className="checkpoint-empty"
+                style={{ cursor: 'pointer', color: 'var(--accent)', background: 'none', border: 'none', width: '100%', textAlign: 'left', padding: '6px 12px' }}
+                onClick={() => loadFileHistory(fileHistoryFile, fileHistorySkip)}
+              >
+                {fileHistoryLoading ? 'Loading…' : 'Load more...'}
+              </button>
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    // Stash preview view
+    if (stashPreviewIndex !== null) {
+      const stash = stashes.find(s => s.index === stashPreviewIndex)
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+            <button className="changes-refresh-btn" onClick={() => { setStashPreviewIndex(null); setStashPreviewDiff(null) }} title="Back to diff view">
+              <ArrowLeft size={12} />
+            </button>
+            <Archive size={12} style={{ opacity: 0.5 }} />
+            <span style={{ fontSize: '11px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.8 }}>
+              stash@{`{${stashPreviewIndex}}`}{stash ? `: ${stash.message}` : ''}
+            </span>
+          </div>
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            {stashPreviewLoading && <div className="diff-first-pane-empty"><span>Loading stash diff…</span></div>}
+            {!stashPreviewLoading && stashPreviewDiff && (
+              <>
+                {stashPreviewDiff.stat && (
+                  <pre style={{ fontSize: '10px', opacity: 0.6, padding: '6px 10px', margin: 0, borderBottom: '1px solid var(--border)', overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
+                    {stashPreviewDiff.stat}
+                  </pre>
+                )}
+                {stashPreviewDiff.diff ? (
+                  <DiffViewer diff={stashPreviewDiff.diff} filename="stash" />
+                ) : (
+                  <div className="diff-first-pane-empty"><span>Empty stash.</span></div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )
+    }
+
     if (selectedDiffFile === null) {
       return (
         <div className="diff-first-pane-empty">
@@ -621,7 +850,11 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
         <span>Select a changed file to view its diff</span>
       </div>
     )
-  }, [selectedDiffFile, diffLoading, diffContent, colonyComments, copiedDiffFile])
+  }, [selectedDiffFile, diffLoading, diffContent, colonyComments, copiedDiffFile,
+      fileHistoryFile, fileHistoryCommits, fileHistoryLoading, fileHistorySkip, hasMoreFileHistory,
+      expandedFileHistoryHash, fileHistoryDiff, fileHistoryDiffLoading,
+      stashPreviewIndex, stashPreviewDiff, stashPreviewLoading, stashes,
+      closeFileHistory, handleExpandFileHistoryCommit, loadFileHistory])
 
   return (
     <>
@@ -650,31 +883,83 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                   <div className="branch-dropdown">
                     <div className="branch-dropdown-header">
                       <span>Branches</span>
-                      <button
-                        className="changes-refresh-btn"
-                        onClick={handleFetchBranches}
-                        disabled={fetchingBranches}
-                        title="Fetch remote"
-                      >
-                        {fetchingBranches ? <RotateCw size={11} className="spinning" /> : <RefreshCw size={11} />}
-                      </button>
+                      <div style={{ display: 'flex', gap: '3px' }}>
+                        <button
+                          className="changes-refresh-btn"
+                          onClick={handlePruneRemote}
+                          disabled={pruning}
+                          title="Prune stale remote refs"
+                          style={{ fontSize: '9px', padding: '1px 4px' }}
+                        >
+                          {pruning ? <RotateCw size={9} className="spinning" /> : 'Prune'}
+                        </button>
+                        <button
+                          className="changes-refresh-btn"
+                          onClick={handleFetchBranches}
+                          disabled={fetchingBranches}
+                          title="Fetch remote"
+                        >
+                          {fetchingBranches ? <RotateCw size={11} className="spinning" /> : <RefreshCw size={11} />}
+                        </button>
+                      </div>
                     </div>
-                    {switchError && (
+                    {(switchError || deleteError) && (
                       <div style={{ padding: '4px 8px', fontSize: '10px', color: 'var(--danger)', borderBottom: '1px solid var(--border)' }}>
-                        {switchError}
+                        {switchError || deleteError}
                       </div>
                     )}
-                    {branches.map(b => (
+                    {forceDeleteConfirm && (
+                      <div style={{ padding: '4px 8px', fontSize: '10px', borderBottom: '1px solid var(--border)', background: 'rgba(239,68,68,0.08)' }}>
+                        <span style={{ color: 'var(--warning)' }}>Branch not fully merged. Force delete?</span>
+                        <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                          <button className="stash-action-btn danger" onClick={() => handleDeleteBranch(forceDeleteConfirm, true)}>Force Delete</button>
+                          <button className="stash-action-btn" onClick={() => setForceDeleteConfirm(null)}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
+                    {branches.filter(b => !b.remote).length > 0 && (
+                      <div style={{ padding: '3px 8px 2px', fontSize: '9px', fontWeight: 600, opacity: 0.4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Local</div>
+                    )}
+                    {branches.filter(b => !b.remote).map(b => (
+                      <div key={b.name} className={`branch-list-item${b.current ? ' active' : ''}`} style={{ display: 'flex', alignItems: 'center' }}>
+                        <button
+                          style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', cursor: b.current ? 'default' : 'pointer', padding: '4px 0', color: 'inherit', textAlign: 'left', minWidth: 0 }}
+                          onClick={() => !b.current && handleSwitchBranch(b.name)}
+                          disabled={switching || b.current}
+                          title={b.name}
+                        >
+                          {b.current && <CheckCircle size={11} style={{ color: 'var(--accent)', flexShrink: 0 }} />}
+                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px' }}>{b.name}</span>
+                          {switching && !b.current && <RotateCw size={9} className="spinning" style={{ flexShrink: 0 }} />}
+                        </button>
+                        {!b.current && (
+                          <button
+                            className="changes-refresh-btn"
+                            title={`Delete branch ${b.name}`}
+                            disabled={!!deletingBranch}
+                            onClick={(e) => { e.stopPropagation(); setDeleteError(null); setForceDeleteConfirm(null); handleDeleteBranch(b.name) }}
+                            style={{ color: 'var(--danger)', flexShrink: 0, marginLeft: '2px' }}
+                          >
+                            {deletingBranch === b.name ? <RotateCw size={9} className="spinning" /> : <Trash2 size={9} />}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {branches.filter(b => b.remote).length > 0 && (
+                      <div style={{ padding: '3px 8px 2px', fontSize: '9px', fontWeight: 600, opacity: 0.4, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px', borderTop: '1px solid var(--border)' }}>Remote</div>
+                    )}
+                    {branches.filter(b => b.remote).map(b => (
                       <button
-                        key={b.name}
-                        className={`branch-list-item${b.current ? ' active' : ''}`}
-                        onClick={() => !b.current && handleSwitchBranch(b.name)}
-                        disabled={switching || b.current}
-                        title={b.name}
+                        key={`remote-${b.name}`}
+                        className="branch-list-item"
+                        onClick={() => handleSwitchBranch(b.name)}
+                        disabled={switching}
+                        title={`origin/${b.name}`}
+                        style={{ opacity: 0.7 }}
                       >
-                        {b.current && <CheckCircle size={11} style={{ color: 'var(--accent)', marginRight: '4px', flexShrink: 0 }} />}
-                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.name}</span>
-                        {switching && !b.current && <RotateCw size={9} className="spinning" style={{ flexShrink: 0 }} />}
+                        <Cloud size={10} style={{ flexShrink: 0, opacity: 0.6 }} />
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px' }}>{b.name}</span>
+                        {switching && <RotateCw size={9} className="spinning" style={{ flexShrink: 0 }} />}
                       </button>
                     ))}
                   </div>
@@ -760,6 +1045,14 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                         <div style={{ fontSize: '9px', opacity: 0.5, marginTop: '1px' }}>{s.date}</div>
                       </div>
                       <div style={{ display: 'flex', gap: '3px', flexShrink: 0 }}>
+                        <button
+                          className="stash-action-btn"
+                          onClick={() => handleStashPreview(s.index)}
+                          title="Preview diff"
+                          style={{ color: stashPreviewIndex === s.index ? 'var(--accent)' : undefined }}
+                        >
+                          <Eye size={9} />
+                        </button>
                         <button className="stash-action-btn" onClick={() => handleStashApply(s.index)} title="Apply (keep stash)">Apply</button>
                         <button className="stash-action-btn" onClick={() => handleStashPop(s.index)} title="Pop (remove stash)">Pop</button>
                         <button className="stash-action-btn danger" onClick={() => handleStashDrop(s.index)} title="Drop stash">
@@ -847,6 +1140,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                       aria-selected={isSelected}
                       onClick={() => diffMode === 'base' ? selectBaseFile(entry.file) : selectFile(entry.file, entry.status)}
                       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); diffMode === 'base' ? selectBaseFile(entry.file) : selectFile(entry.file, entry.status) } }}
+                      onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, file: entry.file }) }}
                     >
                       <div className="changes-event-header" style={{ alignItems: 'center', cursor: 'pointer' }}>
                         <span className="changes-event-tool" title={entry.status === 'A' ? 'Added' : entry.status === 'D' ? 'Deleted' : entry.status === 'R' ? 'Renamed' : 'Modified'} style={{
@@ -1083,6 +1377,38 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
           onCommitted={loadGitChanges}
           ticket={instance.ticket}
         />
+      )}
+      {contextMenu && (
+        <div
+          className="file-context-menu"
+          style={{
+            position: 'fixed',
+            top: contextMenu.y,
+            left: contextMenu.x,
+            background: 'var(--bg-elevated)',
+            border: '1px solid var(--border)',
+            borderRadius: '6px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+            zIndex: 9999,
+            minWidth: '160px',
+            padding: '4px',
+          }}
+        >
+          <button
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              width: '100%', padding: '6px 10px', background: 'none',
+              border: 'none', cursor: 'pointer', color: 'var(--text)',
+              fontSize: '12px', borderRadius: '4px', textAlign: 'left',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-secondary)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+            onClick={() => openFileHistory(contextMenu.file)}
+          >
+            <History size={13} style={{ opacity: 0.7 }} />
+            File History
+          </button>
+        </div>
       )}
     </>
   )
