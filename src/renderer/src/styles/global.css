@@ -6890,6 +6890,76 @@ body:has(.daemon-update-banner) .app-update-banner {
   50% { opacity: 0.4; }
 }
 
+/* ---- Session Changed Files Panel ---- */
+.session-changed-files {
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+.session-changed-files-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  user-select: none;
+}
+.session-changed-files-header:hover {
+  background: var(--bg-hover);
+}
+.session-changed-files-summary {
+  opacity: 0.5;
+  font-size: 10px;
+}
+.session-changed-files-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+.session-changed-files-group {
+  display: flex;
+  flex-direction: column;
+}
+.session-changed-files-group-label {
+  font-size: 9px;
+  opacity: 0.4;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+}
+.session-changed-file-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: 10px;
+}
+.session-changed-file-row:hover, .session-changed-file-row.active {
+  background: var(--bg-hover);
+}
+.session-changed-file-status {
+  font-family: monospace;
+  font-size: 10px;
+  font-weight: 600;
+  width: 12px;
+  flex-shrink: 0;
+}
+.session-changed-file-status.added { color: var(--success); }
+.session-changed-file-status.deleted { color: var(--danger); }
+.session-changed-file-status.modified { color: var(--warning, #f59e0b); }
+.session-changed-file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: monospace;
+  opacity: 0.8;
+}
+.session-changed-files-diff {
+  border-top: 1px solid var(--border);
+  max-height: 150px;
+  overflow: auto;
+}
+
 /* Exited Session Action Bar */
 .session-exited-bar {
   display: flex;

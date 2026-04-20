@@ -628,6 +628,16 @@ export function registerGitHandlers(): void {
     return { stat: statResult.stdout, diff: diffResult.stdout }
   })
 
+  ipcMain.handle('git:stashFileDiff', async (_e, cwd: string, index: number, file: string): Promise<string> => {
+    await assertGitRepo(cwd)
+    if (!Number.isInteger(index) || index < 0) throw new Error('Invalid stash index')
+    if (/[;&|`$]/.test(file)) throw new Error('Invalid file path')
+    try {
+      const { stdout } = await execFileAsync(resolveCommand('git'), ['stash', 'show', '-p', `stash@{${index}}`, '--', file], { cwd, timeout: 10000, encoding: 'utf-8', maxBuffer: 5 * 1024 * 1024 })
+      return stdout
+    } catch { return '' }
+  })
+
   ipcMain.handle('git:fileLog', async (_e, cwd: string, filePath: string, limit: number = 20, skip: number = 0): Promise<CommitEntry[]> => {
     await assertGitRepo(cwd)
     if (/[;&|`$]/.test(filePath)) throw new Error('Invalid file path')
@@ -683,6 +693,49 @@ export function registerGitHandlers(): void {
   ipcMain.handle('git:cherryPickAbort', async (_e, cwd: string): Promise<void> => {
     await assertGitRepo(cwd)
     await execFileAsync(resolveCommand('git'), ['cherry-pick', '--abort'], { cwd, timeout: 5000 })
+  })
+
+  ipcMain.handle('git:mergePreview', async (_e, cwd: string, branch: string): Promise<{
+    files: Array<{ file: string; insertions: number; deletions: number }>;
+    totalInsertions: number;
+    totalDeletions: number;
+    fastForward: boolean;
+  }> => {
+    await assertGitRepo(cwd)
+    try {
+      // Fast-forward check
+      let fastForward = false
+      try {
+        await execFileAsync(resolveCommand('git'), ['merge-base', '--is-ancestor', 'HEAD', branch], { cwd, timeout: 5000 })
+        fastForward = true
+      } catch { /* not FF */ }
+
+      // Get diff stats
+      const { stdout } = await execFileAsync(resolveCommand('git'), ['diff', '--stat', `HEAD...${branch}`], { cwd, timeout: 10000, encoding: 'utf-8' })
+      const lines = stdout.split('\n').filter(Boolean)
+      const files: Array<{ file: string; insertions: number; deletions: number }> = []
+      let totalInsertions = 0
+      let totalDeletions = 0
+
+      for (const line of lines) {
+        // Skip summary line like "3 files changed, 42 insertions(+), 18 deletions(-)"
+        if (/\d+ files? changed/.test(line)) {
+          const insM = line.match(/(\d+) insertion/)
+          const delM = line.match(/(\d+) deletion/)
+          if (insM) totalInsertions = parseInt(insM[1])
+          if (delM) totalDeletions = parseInt(delM[1])
+          continue
+        }
+        // File lines: " filename | N +++--"
+        const m = line.match(/^\s+(.+?)\s+\|\s+(\d+)/)
+        if (m) {
+          const plusCount = (line.match(/\+/g) || []).length
+          const minusCount = (line.match(/-/g) || []).length
+          files.push({ file: m[1].trim(), insertions: plusCount, deletions: minusCount })
+        }
+      }
+      return { files, totalInsertions, totalDeletions, fastForward }
+    } catch { return { files: [], totalInsertions: 0, totalDeletions: 0, fastForward: false } }
   })
 
   ipcMain.handle('git:merge', async (_e, cwd: string, branch: string, noFf?: boolean): Promise<{ success: boolean; error?: string; conflicts?: string[] }> => {
@@ -972,6 +1025,81 @@ export function registerGitHandlers(): void {
       const count = stdout.split('\n').filter(l => l.trim().length > 0).length
       return { count }
     } catch { return { count: 0 } }
+  })
+
+  ipcMain.handle('git:changedFiles', async (_e, cwd: string): Promise<Array<{ file: string; status: string; staged: boolean }>> => {
+    try {
+      await assertGitRepo(cwd)
+      const { stdout } = await execFileAsync(resolveCommand('git'), ['status', '--porcelain'], { cwd, timeout: 5000, encoding: 'utf-8' })
+      const files: Array<{ file: string; status: string; staged: boolean }> = []
+      for (const line of stdout.split('\n')) {
+        if (line.length < 3) continue
+        const x = line[0]  // index status
+        const y = line[1]  // worktree status
+        let file = line.slice(3)
+        // Handle renamed: "R100 old -> new" or "R old\tnew"
+        if (x === 'R' || y === 'R') {
+          const tabIdx = file.indexOf('\t')
+          if (tabIdx >= 0) file = file.slice(tabIdx + 1) // use new name
+        }
+        if (x !== ' ' && x !== '?') {
+          files.push({ file, status: x, staged: true })
+        }
+        if (y !== ' ' && y !== '?') {
+          files.push({ file, status: y, staged: false })
+        }
+        if (x === '?' && y === '?') {
+          files.push({ file, status: '?', staged: false })
+        }
+      }
+      return files
+    } catch { return [] }
+  })
+
+  ipcMain.handle('git:aheadBehindCommits', async (_e, cwd: string, branch: string): Promise<{ ahead: Array<{ hash: string; subject: string }>; behind: Array<{ hash: string; subject: string }> }> => {
+    await assertGitRepo(cwd)
+    const parseOneline = (stdout: string) => stdout.trim().split('\n').filter(Boolean).map(line => {
+      const sp = line.indexOf(' ')
+      return { hash: sp > 0 ? line.slice(0, sp) : line, subject: sp > 0 ? line.slice(sp + 1) : '' }
+    })
+    try {
+      const [aheadOut, behindOut] = await Promise.all([
+        execFileAsync(resolveCommand('git'), ['log', '--oneline', `--max-count=50`, `origin/${branch}..${branch}`], { cwd, timeout: 5000, encoding: 'utf-8' }).catch(() => ({ stdout: '' })),
+        execFileAsync(resolveCommand('git'), ['log', '--oneline', `--max-count=50`, `${branch}..origin/${branch}`], { cwd, timeout: 5000, encoding: 'utf-8' }).catch(() => ({ stdout: '' })),
+      ])
+      return { ahead: parseOneline(aheadOut.stdout), behind: parseOneline(behindOut.stdout) }
+    } catch { return { ahead: [], behind: [] } }
+  })
+
+  ipcMain.handle('git:exportPatch', async (_e, cwd: string, mode: 'working' | 'base' | 'commit', options?: { baseBranch?: string; hash?: string; file?: string }): Promise<string> => {
+    await assertGitRepo(cwd)
+    const fileArg = options?.file ? ['--', options.file] : []
+    try {
+      if (mode === 'commit' && options?.hash) {
+        const { stdout } = await execFileAsync(resolveCommand('git'), ['format-patch', '-1', options.hash, '--stdout', ...fileArg], { cwd, timeout: 10000, encoding: 'utf-8' })
+        return stdout
+      } else if (mode === 'base' && options?.baseBranch) {
+        const { stdout } = await execFileAsync(resolveCommand('git'), ['diff', `${options.baseBranch}...HEAD`, ...fileArg], { cwd, timeout: 10000, encoding: 'utf-8' })
+        return stdout
+      } else {
+        const [staged, unstaged] = await Promise.all([
+          execFileAsync(resolveCommand('git'), ['diff', '--cached', ...fileArg], { cwd, timeout: 10000, encoding: 'utf-8' }).catch(() => ({ stdout: '' })),
+          execFileAsync(resolveCommand('git'), ['diff', ...fileArg], { cwd, timeout: 10000, encoding: 'utf-8' }).catch(() => ({ stdout: '' })),
+        ])
+        return staged.stdout + unstaged.stdout
+      }
+    } catch (err: any) { throw new Error(err?.message ?? 'Failed to export patch') }
+  })
+
+  ipcMain.handle('git:savePatch', async (_e, content: string, defaultFilename: string): Promise<{ saved: boolean; path?: string }> => {
+    const { dialog } = await import('electron')
+    const result = await dialog.showSaveDialog({
+      defaultPath: defaultFilename,
+      filters: [{ name: 'Patch files', extensions: ['patch'] }, { name: 'All files', extensions: ['*'] }],
+    })
+    if (result.canceled || !result.filePath) return { saved: false }
+    await fsp.writeFile(result.filePath, content, 'utf-8')
+    return { saved: true, path: result.filePath }
   })
 }
 

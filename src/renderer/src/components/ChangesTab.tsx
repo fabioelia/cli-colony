@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
-import { ChevronRight, RefreshCw, RotateCw, RotateCcw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search, Copy, CheckCircle, Archive, ArrowDown, Eye, Cloud, History, ArrowLeft, GitMerge, ChevronsRight, AlertTriangle, EyeOff, Pencil, GripVertical, ListOrdered, Crosshair } from 'lucide-react'
+import { ChevronRight, RefreshCw, RotateCw, RotateCcw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search, Copy, CheckCircle, Archive, ArrowDown, Eye, Cloud, History, ArrowLeft, GitMerge, ChevronsRight, AlertTriangle, EyeOff, Pencil, GripVertical, ListOrdered, Crosshair, FileDown } from 'lucide-react'
 import type { GitDiffEntry, ColonyComment, ScoreCard } from '../../../shared/types'
 import type { ClaudeInstance } from '../types'
 import DiffViewer from './DiffViewer'
@@ -95,6 +95,9 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [stashPreviewIndex, setStashPreviewIndex] = useState<number | null>(null)
   const [stashPreviewDiff, setStashPreviewDiff] = useState<{ stat: string; diff: string } | null>(null)
   const [stashPreviewLoading, setStashPreviewLoading] = useState(false)
+  const [stashFileSelected, setStashFileSelected] = useState<string | null>(null)
+  const [stashFileDiff, setStashFileDiffContent] = useState<string | null>(null)
+  const [stashFileDiffLoading, setStashFileDiffLoading] = useState(false)
 
   // File history state
   const [fileHistoryFile, setFileHistoryFile] = useState<string | null>(null)
@@ -127,6 +130,8 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [mergeNoFf, setMergeNoFf] = useState(false)
   const [mergeResult, setMergeResult] = useState<{ success: boolean; error?: string; conflicts?: string[] } | null>(null)
   const [abortingMerge, setAbortingMerge] = useState(false)
+  const [mergePreviewData, setMergePreviewData] = useState<{ files: Array<{ file: string; insertions: number; deletions: number }>; totalInsertions: number; totalDeletions: number; fastForward: boolean } | null>(null)
+  const [mergePreviewLoading, setMergePreviewLoading] = useState(false)
   const [rebaseTarget, setRebaseTarget] = useState<string | null>(null)
   const [rebasing, setRebasing] = useState(false)
   const [rebaseResult, setRebaseResult] = useState<{ success: boolean; error?: string; conflicts?: string[] } | null>(null)
@@ -135,6 +140,12 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; file: string; status: string } | null>(null)
+
+  // Ahead/behind drill-down popover
+  const [aheadBehindPopover, setAheadBehindPopover] = useState<{ branch: string; type: 'ahead' | 'behind'; commits: Array<{ hash: string; subject: string }>; loading: boolean } | null>(null)
+
+  // Patch export state
+  const [exportingPatch, setExportingPatch] = useState(false)
 
   // Diff mode state
   const [ignoreWhitespace, setIgnoreWhitespace] = useState(() => localStorage.getItem('diff-ignore-whitespace') === 'true')
@@ -168,7 +179,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [conflictState, setConflictState] = useState<{ state: 'none' | 'merge' | 'cherry-pick' | 'revert' | 'rebase'; conflictedFiles: string[] }>({ state: 'none', conflictedFiles: [] })
 
   // Commit history state
-  const [commits, setCommits] = useState<Array<{ hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number }>>([])
+  const [commits, setCommits] = useState<Array<{ hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number; parents?: string[]; refs?: string[] }>>([])
   const [commitsOpen, setCommitsOpen] = useState(false)
   const [unpushedHashes, setUnpushedHashes] = useState<Set<string>>(new Set())
   const [expandedCommit, setExpandedCommit] = useState<string | null>(null)
@@ -177,7 +188,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [commitSkip, setCommitSkip] = useState(0)
   const [hasMoreCommits, setHasMoreCommits] = useState(true)
   const [commitSearch, setCommitSearch] = useState('')
-  const [commitSearchResults, setCommitSearchResults] = useState<Array<{ hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number }> | null>(null)
+  const [commitSearchResults, setCommitSearchResults] = useState<Array<{ hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number; parents?: string[]; refs?: string[] }> | null>(null)
   const commitSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [compareSelected, setCompareSelected] = useState<string[]>([])
   const [compareHashes, setCompareHashes] = useState<[string, string] | null>(null)
@@ -624,6 +635,17 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     setAbortingCherryPick(false)
   }, [instance.workingDirectory, abortingCherryPick, loadGitChanges])
 
+  const fetchMergePreview = useCallback(async (branch: string) => {
+    if (!instance.workingDirectory) return
+    setMergePreviewLoading(true)
+    setMergePreviewData(null)
+    try {
+      const data = await window.api.git.mergePreview(instance.workingDirectory, branch)
+      setMergePreviewData(data)
+    } catch { /* ignore */ }
+    setMergePreviewLoading(false)
+  }, [instance.workingDirectory])
+
   const handleMerge = useCallback(async () => {
     if (!instance.workingDirectory || !mergeTarget || merging) return
     setMerging(true)
@@ -835,11 +857,15 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     if (stashPreviewIndex === index) {
       setStashPreviewIndex(null)
       setStashPreviewDiff(null)
+      setStashFileSelected(null)
+      setStashFileDiffContent(null)
       return
     }
     setStashPreviewIndex(index)
     setStashPreviewLoading(true)
     setStashPreviewDiff(null)
+    setStashFileSelected(null)
+    setStashFileDiffContent(null)
     setStashOpen(false)
     try {
       const result = await window.api.git.stashShow(instance.workingDirectory, index)
@@ -1538,10 +1564,17 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     // Stash preview view
     if (stashPreviewIndex !== null) {
       const stash = stashes.find(s => s.index === stashPreviewIndex)
+      // Parse stat lines to get clickable file list
+      const statFiles: string[] = stashPreviewDiff?.stat
+        ? stashPreviewDiff.stat.split('\n')
+            .filter(l => l.includes('|'))
+            .map(l => l.split('|')[0].trim())
+            .filter(Boolean)
+        : []
       return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-            <button className="changes-refresh-btn" onClick={() => { setStashPreviewIndex(null); setStashPreviewDiff(null) }} title="Back to diff view">
+            <button className="changes-refresh-btn" onClick={() => { setStashPreviewIndex(null); setStashPreviewDiff(null); setStashFileSelected(null); setStashFileDiffContent(null) }} title="Back to diff view">
               <ArrowLeft size={12} />
             </button>
             <Archive size={12} style={{ opacity: 0.5 }} />
@@ -1553,15 +1586,56 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
             {stashPreviewLoading && <div className="diff-first-pane-empty"><span>Loading stash diff…</span></div>}
             {!stashPreviewLoading && stashPreviewDiff && (
               <>
-                {stashPreviewDiff.stat && (
-                  <pre style={{ fontSize: '10px', opacity: 0.6, padding: '6px 10px', margin: 0, borderBottom: '1px solid var(--border)', overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
-                    {stashPreviewDiff.stat}
-                  </pre>
+                {statFiles.length > 0 && (
+                  <div style={{ borderBottom: '1px solid var(--border)', padding: '4px 0' }}>
+                    {statFiles.map((file, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          padding: '2px 10px',
+                          fontSize: '11px',
+                          cursor: 'pointer',
+                          fontFamily: 'monospace',
+                          background: stashFileSelected === file ? 'var(--bg-hover)' : undefined,
+                          opacity: 0.8,
+                        }}
+                        onClick={async () => {
+                          if (stashFileSelected === file) {
+                            setStashFileSelected(null)
+                            setStashFileDiffContent(null)
+                            return
+                          }
+                          setStashFileSelected(file)
+                          setStashFileDiffLoading(true)
+                          setStashFileDiffContent(null)
+                          try {
+                            const d = await window.api.git.stashFileDiff(instance.workingDirectory!, stashPreviewIndex, file)
+                            setStashFileDiffContent(d)
+                          } catch { setStashFileDiffContent('') }
+                          setStashFileDiffLoading(false)
+                        }}
+                      >
+                        {file}
+                      </div>
+                    ))}
+                  </div>
                 )}
-                {stashPreviewDiff.diff ? (
-                  <DiffViewer diff={stashPreviewDiff.diff} filename="stash" />
-                ) : (
-                  <div className="diff-first-pane-empty"><span>Empty stash.</span></div>
+                {stashFileSelected && stashFileDiffLoading && (
+                  <div className="diff-first-pane-empty"><span>Loading file diff…</span></div>
+                )}
+                {stashFileSelected && !stashFileDiffLoading && stashFileDiff !== null && (
+                  stashFileDiff ? (
+                    <DiffViewer diff={stashFileDiff} filename={stashFileSelected} />
+                  ) : (
+                    <div className="diff-first-pane-empty"><span>No diff available</span></div>
+                  )
+                )}
+                {!stashFileSelected && (
+                  stashPreviewDiff.diff ? (
+                    <DiffViewer diff={stashPreviewDiff.diff} filename="stash" />
+                  ) : (
+                    <div className="diff-first-pane-empty"><span>Empty stash.</span></div>
+                  )
                 )}
               </>
             )}
@@ -1764,9 +1838,21 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                             <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px' }}>{b.name}</span>
                             {!b.current && branchCountsLoading && <span style={{ fontSize: '9px', opacity: 0.4 }}>···</span>}
                             {!b.current && !branchCountsLoading && branchCounts[b.name] && (branchCounts[b.name].ahead > 0 || branchCounts[b.name].behind > 0) && (
-                              <span style={{ fontSize: '9px', opacity: 0.6, flexShrink: 0, display: 'flex', gap: '2px' }}>
-                                {branchCounts[b.name].ahead > 0 && <span style={{ color: 'var(--success)' }}>↑{branchCounts[b.name].ahead}</span>}
-                                {branchCounts[b.name].behind > 0 && <span style={{ color: 'var(--text-muted)' }}>↓{branchCounts[b.name].behind}</span>}
+                              <span style={{ fontSize: '9px', flexShrink: 0, display: 'flex', gap: '2px' }}>
+                                {branchCounts[b.name].ahead > 0 && (
+                                  <button
+                                    title={`${branchCounts[b.name].ahead} commit${branchCounts[b.name].ahead !== 1 ? 's' : ''} ahead of remote — click to see`}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--success)', padding: 0, fontSize: '9px' }}
+                                    onClick={(e) => { e.stopPropagation(); if (!instance.workingDirectory) return; setAheadBehindPopover({ branch: b.name, type: 'ahead', commits: [], loading: true }); window.api.git.aheadBehindCommits(instance.workingDirectory, b.name).then(r => setAheadBehindPopover(p => p?.branch === b.name ? { ...p, commits: r.ahead, loading: false } : p)).catch(() => setAheadBehindPopover(null)) }}
+                                  >↑{branchCounts[b.name].ahead}</button>
+                                )}
+                                {branchCounts[b.name].behind > 0 && (
+                                  <button
+                                    title={`${branchCounts[b.name].behind} commit${branchCounts[b.name].behind !== 1 ? 's' : ''} behind remote — click to see`}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, fontSize: '9px' }}
+                                    onClick={(e) => { e.stopPropagation(); if (!instance.workingDirectory) return; setAheadBehindPopover({ branch: b.name, type: 'behind', commits: [], loading: true }); window.api.git.aheadBehindCommits(instance.workingDirectory, b.name).then(r => setAheadBehindPopover(p => p?.branch === b.name ? { ...p, commits: r.behind, loading: false } : p)).catch(() => setAheadBehindPopover(null)) }}
+                                  >↓{branchCounts[b.name].behind}</button>
+                                )}
                               </span>
                             )}
                             {switching && !b.current && <RotateCw size={9} className="spinning" style={{ flexShrink: 0 }} />}
@@ -1797,7 +1883,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                               className="changes-refresh-btn"
                               title={`Merge ${b.name} into ${currentBranch}`}
                               disabled={merging}
-                              onClick={(e) => { e.stopPropagation(); setMergeTarget(b.name); setMergeNoFf(false); setMergeResult(null) }}
+                              onClick={(e) => { e.stopPropagation(); setMergeTarget(b.name); setMergeNoFf(false); setMergeResult(null); fetchMergePreview(b.name) }}
                               style={{ color: 'var(--accent)', flexShrink: 0, marginLeft: '2px', opacity: 0.8 }}
                             >
                               <GitMerge size={9} />
@@ -1819,6 +1905,27 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                     {mergeTarget && branches.some(b => b.name === mergeTarget && !b.remote) && (
                       <div style={{ padding: '6px 8px', borderTop: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
                         <div style={{ fontSize: '11px', marginBottom: '4px' }}>Merge <strong>{mergeTarget}</strong> → <strong>{currentBranch}</strong>?</div>
+                        {mergePreviewLoading && <div style={{ fontSize: '10px', opacity: 0.5, marginBottom: '4px' }}>Loading preview…</div>}
+                        {mergePreviewData && !mergePreviewLoading && (
+                          <div style={{ marginBottom: '6px' }}>
+                            {mergePreviewData.fastForward && (
+                              <div style={{ fontSize: '10px', color: 'var(--success)', marginBottom: '3px' }}>⚡ Fast-forward merge</div>
+                            )}
+                            <div style={{ fontSize: '10px', opacity: 0.7, marginBottom: '3px' }}>
+                              {mergePreviewData.files.length} file{mergePreviewData.files.length !== 1 ? 's' : ''}
+                              {' '}{mergePreviewData.totalInsertions > 0 && <span style={{ color: 'var(--success)' }}>+{mergePreviewData.totalInsertions}</span>}
+                              {' '}{mergePreviewData.totalDeletions > 0 && <span style={{ color: 'var(--danger)' }}>-{mergePreviewData.totalDeletions}</span>}
+                            </div>
+                            {mergePreviewData.files.slice(0, 8).map((f, i) => (
+                              <div key={i} style={{ fontSize: '10px', opacity: 0.6, padding: '1px 0', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {f.file}
+                              </div>
+                            ))}
+                            {mergePreviewData.files.length > 8 && (
+                              <div style={{ fontSize: '10px', opacity: 0.4 }}>…and {mergePreviewData.files.length - 8} more</div>
+                            )}
+                          </div>
+                        )}
                         <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10px', opacity: 0.7, marginBottom: '6px', cursor: 'pointer' }}>
                           <input type="checkbox" checked={mergeNoFf} onChange={e => setMergeNoFf(e.target.checked)} style={{ margin: 0 }} />
                           --no-ff (always create merge commit)
@@ -1839,7 +1946,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                               {abortingMerge ? <RotateCw size={9} className="spinning" /> : 'Abort'}
                             </button>
                           )}
-                          <button className="stash-action-btn" onClick={() => { setMergeTarget(null); setMergeResult(null) }}>Cancel</button>
+                          <button className="stash-action-btn" onClick={() => { setMergeTarget(null); setMergeResult(null); setMergePreviewData(null) }}>Cancel</button>
                         </div>
                       </div>
                     )}
@@ -1888,7 +1995,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                           className="changes-refresh-btn"
                           title={`Merge origin/${b.name} into ${currentBranch}`}
                           disabled={merging}
-                          onClick={(e) => { e.stopPropagation(); setMergeTarget(`origin/${b.name}`); setMergeNoFf(false); setMergeResult(null) }}
+                          onClick={(e) => { e.stopPropagation(); setMergeTarget(`origin/${b.name}`); setMergeNoFf(false); setMergeResult(null); fetchMergePreview(`origin/${b.name}`) }}
                           style={{ color: 'var(--accent)', flexShrink: 0, marginLeft: '2px', opacity: 0.8 }}
                         >
                           <GitMerge size={9} />
@@ -1916,6 +2023,27 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                     {mergeTarget && branches.some(b => b.remote && (`origin/${b.name}` === mergeTarget)) && (
                       <div style={{ padding: '6px 8px', borderTop: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
                         <div style={{ fontSize: '11px', marginBottom: '4px' }}>Merge <strong>{mergeTarget}</strong> → <strong>{currentBranch}</strong>?</div>
+                        {mergePreviewLoading && <div style={{ fontSize: '10px', opacity: 0.5, marginBottom: '4px' }}>Loading preview…</div>}
+                        {mergePreviewData && !mergePreviewLoading && (
+                          <div style={{ marginBottom: '6px' }}>
+                            {mergePreviewData.fastForward && (
+                              <div style={{ fontSize: '10px', color: 'var(--success)', marginBottom: '3px' }}>⚡ Fast-forward merge</div>
+                            )}
+                            <div style={{ fontSize: '10px', opacity: 0.7, marginBottom: '3px' }}>
+                              {mergePreviewData.files.length} file{mergePreviewData.files.length !== 1 ? 's' : ''}
+                              {' '}{mergePreviewData.totalInsertions > 0 && <span style={{ color: 'var(--success)' }}>+{mergePreviewData.totalInsertions}</span>}
+                              {' '}{mergePreviewData.totalDeletions > 0 && <span style={{ color: 'var(--danger)' }}>-{mergePreviewData.totalDeletions}</span>}
+                            </div>
+                            {mergePreviewData.files.slice(0, 8).map((f, i) => (
+                              <div key={i} style={{ fontSize: '10px', opacity: 0.6, padding: '1px 0', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {f.file}
+                              </div>
+                            ))}
+                            {mergePreviewData.files.length > 8 && (
+                              <div style={{ fontSize: '10px', opacity: 0.4 }}>…and {mergePreviewData.files.length - 8} more</div>
+                            )}
+                          </div>
+                        )}
                         <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10px', opacity: 0.7, marginBottom: '6px', cursor: 'pointer' }}>
                           <input type="checkbox" checked={mergeNoFf} onChange={e => setMergeNoFf(e.target.checked)} style={{ margin: 0 }} />
                           --no-ff (always create merge commit)
@@ -1936,7 +2064,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                               {abortingMerge ? <RotateCw size={9} className="spinning" /> : 'Abort'}
                             </button>
                           )}
-                          <button className="stash-action-btn" onClick={() => { setMergeTarget(null); setMergeResult(null) }}>Cancel</button>
+                          <button className="stash-action-btn" onClick={() => { setMergeTarget(null); setMergeResult(null); setMergePreviewData(null) }}>Cancel</button>
                         </div>
                       </div>
                     )}
@@ -2590,8 +2718,10 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                 {(commitSearch.length >= 2 ? (commitSearchResults ?? []) : commits).map(c => {
                   const isUnpushed = unpushedHashes.has(c.hash)
                   const isExpanded = expandedCommit === c.hash
-                  const isMergeCommit = c.subject.startsWith('Merge ')
+                  const isMergeCommit = (c.parents?.length ?? 0) > 1 || c.subject.startsWith('Merge ')
                   const isCompareSelected = compareSelected.includes(c.hash)
+                  const refBadges = (c.refs ?? []).slice(0, 3)
+                  const extraRefs = (c.refs ?? []).length - 3
                   return (
                     <div key={c.hash}>
                       <div
@@ -2609,7 +2739,20 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                         />
                         <ChevronRight size={10} style={{ flexShrink: 0, transition: 'transform 0.15s', transform: isExpanded ? 'rotate(90deg)' : 'none', opacity: 0.4 }} />
                         <code className="commit-hash" style={{ fontSize: '9px', fontFamily: 'monospace', opacity: 0.6, flexShrink: 0, width: '48px' }}>{c.hash.slice(0, 7)}</code>
+                        {isMergeCommit && <GitMerge size={9} style={{ flexShrink: 0, opacity: 0.45, marginRight: '2px' }} />}
                         <span style={{ flex: 1, fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
+                        {refBadges.length > 0 && refBadges.map(ref => {
+                          const isHead = ref.startsWith('HEAD ->')
+                          const isTag = ref.startsWith('tag:')
+                          const isRemote = !isHead && !isTag && ref.includes('/')
+                          const label = isHead ? ref.replace('HEAD -> ', '') : isTag ? ref.replace('tag: ', '') : ref
+                          return (
+                            <span key={ref} style={{ fontSize: '9px', padding: '1px 4px', borderRadius: '3px', flexShrink: 0, marginLeft: '2px', background: isHead ? 'rgba(59,130,246,0.2)' : isTag ? 'rgba(245,158,11,0.2)' : isRemote ? 'rgba(107,114,128,0.15)' : 'rgba(59,130,246,0.12)', color: isHead ? 'var(--accent)' : isTag ? 'var(--warning)' : 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {label}
+                            </span>
+                          )
+                        })}
+                        {extraRefs > 0 && <span style={{ fontSize: '9px', color: 'var(--text-muted)', flexShrink: 0, marginLeft: '2px' }}>+{extraRefs}</span>}
                         {(c.insertions !== undefined || c.deletions !== undefined) && (
                           <span style={{ fontSize: '9px', opacity: 0.5, flexShrink: 0, marginLeft: '4px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>
                             {c.insertions ? <span style={{ color: 'var(--success)' }}>+{c.insertions}</span> : null}
