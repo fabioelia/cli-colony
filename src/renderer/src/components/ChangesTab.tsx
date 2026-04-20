@@ -1385,7 +1385,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
             position: 'fixed',
             top: contextMenu.y,
             left: contextMenu.x,
-            background: 'var(--bg-elevated)',
+            background: 'var(--bg-secondary)',
             border: '1px solid var(--border)',
             borderRadius: '6px',
             boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
@@ -1398,7 +1398,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
             style={{
               display: 'flex', alignItems: 'center', gap: '8px',
               width: '100%', padding: '6px 10px', background: 'none',
-              border: 'none', cursor: 'pointer', color: 'var(--text)',
+              border: 'none', cursor: 'pointer', color: 'var(--text-primary)',
               fontSize: '12px', borderRadius: '4px', textAlign: 'left',
             }}
             onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-secondary)')}
