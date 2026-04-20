@@ -183,16 +183,42 @@ export function registerGitHandlers(): void {
     }
   })
 
-  ipcMain.handle('git:listBranches', async (_e, cwd: string): Promise<Array<{ name: string; current: boolean }>> => {
+  ipcMain.handle('git:listBranches', async (_e, cwd: string, includeRemote?: boolean): Promise<Array<{ name: string; current: boolean; remote: boolean }>> => {
     await assertGitRepo(cwd)
-    const { stdout } = await execFileAsync(resolveCommand('git'), ['branch', '--format=%(refname:short)|%(HEAD)'], {
+    const args = ['branch', '--format=%(refname:short)|%(HEAD)']
+    if (includeRemote) args.push('-a')
+    const { stdout } = await execFileAsync(resolveCommand('git'), args, {
       cwd, timeout: 5000, encoding: 'utf-8',
     })
     if (!stdout.trim()) return []
     return stdout.trim().split('\n').map(line => {
       const [name, head] = line.split('|')
-      return { name: name.trim(), current: head.trim() === '*' }
-    })
+      const trimName = name.trim()
+      const isRemote = trimName.startsWith('remotes/')
+      return {
+        name: isRemote ? trimName.replace(/^remotes\/origin\//, '') : trimName,
+        current: head.trim() === '*',
+        remote: isRemote,
+      }
+    }).filter(b => !b.name.includes('HEAD'))
+  })
+
+  ipcMain.handle('git:deleteBranch', async (_e, cwd: string, branch: string, force?: boolean): Promise<{ success: boolean; error?: string }> => {
+    await assertGitRepo(cwd)
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9._/-]*$/.test(branch)) {
+      return { success: false, error: 'Invalid branch name' }
+    }
+    try {
+      await execFileAsync(resolveCommand('git'), ['branch', force ? '-D' : '-d', branch], { cwd, timeout: 5000 })
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.stderr || err.message }
+    }
+  })
+
+  ipcMain.handle('git:pruneRemote', async (_e, cwd: string): Promise<void> => {
+    await assertGitRepo(cwd)
+    await execFileAsync(resolveCommand('git'), ['remote', 'prune', 'origin'], { cwd, timeout: 15000 })
   })
 
   ipcMain.handle('git:switchBranch', async (_e, cwd: string, branch: string): Promise<{ success: boolean; error?: string }> => {
@@ -382,5 +408,48 @@ export function registerGitHandlers(): void {
   ipcMain.handle('git:stashDrop', async (_e, cwd: string, index: number): Promise<void> => {
     await assertGitRepo(cwd)
     await execFileAsync(resolveCommand('git'), ['stash', 'drop', `stash@{${index}}`], { cwd, timeout: 5000 })
+  })
+
+  ipcMain.handle('git:stashShow', async (_e, cwd: string, index: number): Promise<{ stat: string; diff: string }> => {
+    await assertGitRepo(cwd)
+    if (!Number.isInteger(index) || index < 0) throw new Error('Invalid stash index')
+    const [statResult, diffResult] = await Promise.all([
+      execFileAsync(resolveCommand('git'), ['stash', 'show', `stash@{${index}}`], { cwd, timeout: 10000, encoding: 'utf-8' }),
+      execFileAsync(resolveCommand('git'), ['stash', 'show', '-p', `stash@{${index}}`], { cwd, timeout: 10000, encoding: 'utf-8', maxBuffer: 5 * 1024 * 1024 }),
+    ])
+    return { stat: statResult.stdout, diff: diffResult.stdout }
+  })
+
+  ipcMain.handle('git:fileLog', async (_e, cwd: string, filePath: string, limit: number = 20, skip: number = 0): Promise<Array<{ hash: string; subject: string; author: string; date: string }>> => {
+    await assertGitRepo(cwd)
+    if (/[;&|`$]/.test(filePath)) throw new Error('Invalid file path')
+    try {
+      const { stdout } = await execFileAsync(resolveCommand('git'), [
+        'log', '--follow', `--max-count=${limit}`, `--skip=${skip}`, '--format=%H%x00%s%x00%an%x00%ar', '--', filePath,
+      ], { cwd, timeout: 10000, encoding: 'utf-8' })
+      if (!stdout.trim()) return []
+      return stdout.trim().split('\n').map(line => {
+        const [hash, subject, author, date] = line.split('\0')
+        return { hash, subject, author, date }
+      })
+    } catch { return [] }
+  })
+
+  ipcMain.handle('git:fileCommitDiff', async (_e, cwd: string, hash: string, filePath: string): Promise<string> => {
+    await assertGitRepo(cwd)
+    if (!/^[0-9a-f]{7,40}$/i.test(hash)) throw new Error('Invalid commit hash')
+    if (/[;&|`$]/.test(filePath)) throw new Error('Invalid file path')
+    try {
+      const { stdout } = await execFileAsync(resolveCommand('git'), [
+        'diff', `${hash}~1`, hash, '--', filePath,
+      ], { cwd, timeout: 10000, encoding: 'utf-8', maxBuffer: 5 * 1024 * 1024 })
+      return stdout
+    } catch {
+      // First commit has no parent — use git show
+      const { stdout } = await execFileAsync(resolveCommand('git'), [
+        'show', hash, '--', filePath,
+      ], { cwd, timeout: 10000, encoding: 'utf-8', maxBuffer: 5 * 1024 * 1024 })
+      return stdout
+    }
   })
 }

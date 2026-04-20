@@ -477,7 +477,7 @@ export interface ClaudeManagerAPI {
     fetch: (cwd: string) => Promise<{ success: boolean; error?: string }>
     pull: (cwd: string) => Promise<{ success: boolean; error?: string }>
     behindCount: (cwd: string) => Promise<number>
-    listBranches: (cwd: string) => Promise<Array<{ name: string; current: boolean }>>
+    listBranches: (cwd: string, includeRemote?: boolean) => Promise<Array<{ name: string; current: boolean; remote: boolean }>>
     switchBranch: (cwd: string, branch: string) => Promise<{ success: boolean; error?: string }>
     createTag: (cwd: string, tagName: string) => Promise<void>
     listTags: (cwd: string, prefix: string) => Promise<Array<{ tag: string; date: string; hash: string }>>
@@ -494,6 +494,11 @@ export interface ClaudeManagerAPI {
     stashApply: (cwd: string, index: number) => Promise<void>
     stashPop: (cwd: string, index: number) => Promise<void>
     stashDrop: (cwd: string, index: number) => Promise<void>
+    stashShow: (cwd: string, index: number) => Promise<{ stat: string; diff: string }>
+    deleteBranch: (cwd: string, branch: string, force?: boolean) => Promise<{ success: boolean; error?: string }>
+    pruneRemote: (cwd: string) => Promise<void>
+    fileLog: (cwd: string, filePath: string, limit?: number, skip?: number) => Promise<Array<{ hash: string; subject: string; author: string; date: string }>>
+    fileCommitDiff: (cwd: string, hash: string, filePath: string) => Promise<string>
   }
   ai: {
     suggestPRDescription: (dir: string) => Promise<{ title: string; body: string } | null>
@@ -1148,7 +1153,7 @@ const api: ClaudeManagerAPI = {
     fetch: (cwd) => ipcRenderer.invoke('git:fetch', cwd),
     pull: (cwd) => ipcRenderer.invoke('git:pull', cwd),
     behindCount: (cwd) => ipcRenderer.invoke('git:behindCount', cwd),
-    listBranches: (cwd) => ipcRenderer.invoke('git:listBranches', cwd),
+    listBranches: (cwd, includeRemote) => ipcRenderer.invoke('git:listBranches', cwd, includeRemote),
     switchBranch: (cwd, branch) => ipcRenderer.invoke('git:switchBranch', cwd, branch),
     createTag: (cwd, tagName) => ipcRenderer.invoke('git:createTag', cwd, tagName),
     listTags: (cwd, prefix) => ipcRenderer.invoke('git:listTags', cwd, prefix),
@@ -1165,6 +1170,11 @@ const api: ClaudeManagerAPI = {
     stashApply: (cwd, index) => ipcRenderer.invoke('git:stashApply', cwd, index) as Promise<void>,
     stashPop: (cwd, index) => ipcRenderer.invoke('git:stashPop', cwd, index) as Promise<void>,
     stashDrop: (cwd, index) => ipcRenderer.invoke('git:stashDrop', cwd, index) as Promise<void>,
+    stashShow: (cwd, index) => ipcRenderer.invoke('git:stashShow', cwd, index) as Promise<{ stat: string; diff: string }>,
+    deleteBranch: (cwd, branch, force) => ipcRenderer.invoke('git:deleteBranch', cwd, branch, force) as Promise<{ success: boolean; error?: string }>,
+    pruneRemote: (cwd) => ipcRenderer.invoke('git:pruneRemote', cwd) as Promise<void>,
+    fileLog: (cwd, filePath, limit, skip) => ipcRenderer.invoke('git:fileLog', cwd, filePath, limit, skip),
+    fileCommitDiff: (cwd, hash, filePath) => ipcRenderer.invoke('git:fileCommitDiff', cwd, hash, filePath) as Promise<string>,
   },
   ai: {
     suggestPRDescription: (dir) => ipcRenderer.invoke('ai:suggestPRDescription', dir) as Promise<{ title: string; body: string } | null>,
