@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { GitCommit, Upload, AlertCircle, AlertTriangle, Check, Loader, GitBranch, Sparkles } from 'lucide-react'
+import { GitCommit, Upload, AlertCircle, AlertTriangle, Check, Loader, GitBranch, Sparkles, GitPullRequest, Copy } from 'lucide-react'
 import type { GitDiffEntry } from '../../../shared/types'
 import { buildCommitSubject, buildBranchName, buildCommitBody } from '../../../shared/ticket-commit-format'
 import type { InstanceTicket } from '../../../shared/ticket-commit-format'
@@ -13,6 +13,7 @@ interface CommitDialogProps {
 }
 
 type Phase = 'editing' | 'committing' | 'pushing' | 'done' | 'error'
+type PRPhase = 'idle' | 'editing' | 'creating' | 'created'
 
 const COMMIT_TYPES = ['feat', 'fix', 'ux', 'chore', 'refactor', 'test', 'docs', 'perf'] as const
 const COMMIT_PREFIX_RE = /^(feat|fix|ux|chore|refactor|test|docs|perf)(!?(\([^)]*\))?:\s?)/
@@ -30,6 +31,13 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
   const [branchError, setBranchError] = useState<string | null>(null)
   const [suggesting, setSuggesting] = useState(false)
   const [suggestError, setSuggestError] = useState<string | null>(null)
+  const [pushed, setPushed] = useState(false)
+  const [prPhase, setPRPhase] = useState<PRPhase>('idle')
+  const [prTitle, setPRTitle] = useState('')
+  const [prBody, setPRBody] = useState('')
+  const [prBaseBranch, setPRBaseBranch] = useState('main')
+  const [prUrl, setPRUrl] = useState('')
+  const [prError, setPRError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const ticketSeededRef = useRef(false)
 
@@ -46,6 +54,7 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
 
   useEffect(() => {
     window.api.git.branchInfo(dir).then(setBranchInfo).catch(() => {})
+    window.api.git.defaultBranch(dir).then(setPRBaseBranch).catch(() => {})
   }, [dir])
 
   useEffect(() => {
@@ -101,6 +110,8 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
       if (andPush) {
         setPhase('pushing')
         await window.api.git.push(dir)
+        setPushed(true)
+        setPRTitle(message.trim().split('\n')[0])
       }
       setPhase('done')
       onCommitted()
@@ -143,6 +154,27 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
     }
     setSuggesting(false)
   }, [dir, selectedFiles])
+
+  const handleCreatePR = useCallback(async () => {
+    if (!prTitle.trim()) return
+    setPRPhase('creating')
+    setPRError(null)
+    try {
+      const { url } = await window.api.git.createPR(dir, prTitle.trim(), prBody, prBaseBranch || undefined)
+      setPRUrl(url)
+      setPRPhase('created')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setPRError(msg.includes('not found') || msg.includes('not installed') || msg.includes('executable')
+        ? 'gh CLI not found — install it and run `gh auth login`'
+        : msg.includes('Unauthorized') || msg.includes('authentication')
+        ? 'gh not authenticated — run `gh auth login`'
+        : msg.slice(0, 120))
+      setPRPhase('editing')
+    }
+  }, [dir, prTitle, prBody, prBaseBranch])
+
+  const ghCommand = `gh pr create --title "${prTitle}" --body "" --base ${prBaseBranch}`
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
@@ -301,6 +333,79 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
           <div className="commit-dialog-success">
             <Check size={13} /> Committed{commitHash ? ` (${commitHash})` : ''}
             {transitionToast && <span style={{ marginLeft: 8, opacity: 0.7 }}> · {transitionToast}</span>}
+          </div>
+        )}
+
+        {/* Create PR section — shown after a successful push on non-default branch */}
+        {phase === 'done' && pushed && branchInfo && !['main', 'master'].includes(branchInfo.branch) && (
+          <div className="commit-dialog-pr">
+            {prPhase === 'idle' && (
+              <button className="dialog-btn" onClick={() => setPRPhase('editing')}>
+                <GitPullRequest size={12} /> Create PR
+              </button>
+            )}
+            {(prPhase === 'editing' || prPhase === 'creating') && (
+              <div className="commit-dialog-pr-form">
+                <input
+                  className="commit-dialog-branch-input"
+                  value={prTitle}
+                  onChange={e => setPRTitle(e.target.value)}
+                  placeholder="PR title"
+                  autoFocus
+                />
+                <textarea
+                  className="commit-dialog-pr-body"
+                  value={prBody}
+                  onChange={e => setPRBody(e.target.value)}
+                  placeholder="Description (optional)"
+                  rows={3}
+                />
+                <div className="commit-dialog-pr-base">
+                  <span style={{ opacity: 0.6, fontSize: 11 }}>Base:</span>
+                  <input
+                    className="commit-dialog-branch-input"
+                    style={{ flex: 1 }}
+                    value={prBaseBranch}
+                    onChange={e => setPRBaseBranch(e.target.value)}
+                    placeholder="main"
+                  />
+                </div>
+                {prError && (
+                  <div className="commit-dialog-error" style={{ marginTop: 4 }}>
+                    <AlertCircle size={12} /> {prError}
+                    <button
+                      className="dialog-btn"
+                      style={{ marginLeft: 8, padding: '1px 6px', fontSize: 11 }}
+                      onClick={() => { navigator.clipboard.writeText(ghCommand) }}
+                      title="Copy gh command to clipboard"
+                    >
+                      <Copy size={10} /> Copy command
+                    </button>
+                  </div>
+                )}
+                <div className="commit-dialog-pr-actions">
+                  <button className="dialog-btn" onClick={() => { setPRPhase('idle'); setPRError(null) }} disabled={prPhase === 'creating'}>
+                    Cancel
+                  </button>
+                  <button
+                    className="dialog-btn dialog-btn-primary"
+                    onClick={handleCreatePR}
+                    disabled={prPhase === 'creating' || !prTitle.trim()}
+                  >
+                    {prPhase === 'creating' ? <><Loader size={12} className="spinning" /> Creating...</> : 'Create PR'}
+                  </button>
+                </div>
+              </div>
+            )}
+            {prPhase === 'created' && (
+              <div className="commit-dialog-success">
+                <Check size={13} />
+                {' '}PR created —{' '}
+                <a href="#" onClick={e => { e.preventDefault(); window.api.shell.openExternal(prUrl) }}>
+                  Open PR
+                </a>
+              </div>
+            )}
           </div>
         )}
 

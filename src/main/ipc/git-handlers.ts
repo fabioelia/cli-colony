@@ -266,4 +266,23 @@ export function registerGitHandlers(): void {
     ])
     return { stat: statResult.stdout, diff: diffResult.stdout }
   })
+
+  ipcMain.handle('git:createPR', async (_e, cwd: string, title: string, body: string, baseBranch?: string): Promise<{ url: string }> => {
+    await assertGitRepo(cwd)
+    const args = ['pr', 'create', '--title', title, '--body', body]
+    if (baseBranch) args.push('--base', baseBranch)
+    const { stdout } = await execFileAsync(resolveCommand('gh'), args, {
+      cwd, timeout: 30000, encoding: 'utf-8',
+    })
+    return { url: stdout.trim() }
+  })
+
+  ipcMain.handle('git:defaultBranch', async (_e, cwd: string): Promise<string> => {
+    try {
+      const { stdout } = await execFileAsync(resolveCommand('gh'), [
+        'repo', 'view', '--json', 'defaultBranchRef', '-q', '.defaultBranchRef.name',
+      ], { cwd, timeout: 10000, encoding: 'utf-8' })
+      return stdout.trim() || 'main'
+    } catch { return 'main' }
+  })
 }

@@ -3867,6 +3867,38 @@ body:has(.daemon-update-banner) .app-update-banner {
   margin-bottom: 12px;
 }
 
+.commit-dialog-pr {
+  margin-bottom: 12px;
+}
+.commit-dialog-pr-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.commit-dialog-pr-body {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  resize: vertical;
+  font-family: var(--font-sans, sans-serif);
+}
+.commit-dialog-pr-base {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.commit-dialog-pr-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
 .commit-dialog-actions {
   display: flex;
   justify-content: flex-end;

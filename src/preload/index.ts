@@ -481,6 +481,8 @@ export interface ClaudeManagerAPI {
     deleteTag: (cwd: string, tagName: string) => Promise<void>
     deleteTags: (cwd: string, prefix: string) => Promise<number>
     diffRange: (cwd: string, from: string, to?: string) => Promise<{ stat: string; diff: string }>
+    createPR: (cwd: string, title: string, body: string, baseBranch?: string) => Promise<{ url: string }>
+    defaultBranch: (cwd: string) => Promise<string>
   }
   ai: {
     suggestCommitMessage: (dir: string, files: string[]) => Promise<string | null>
@@ -1138,6 +1140,8 @@ const api: ClaudeManagerAPI = {
     deleteTag: (cwd, tagName) => ipcRenderer.invoke('git:deleteTag', cwd, tagName),
     deleteTags: (cwd, prefix) => ipcRenderer.invoke('git:deleteTags', cwd, prefix),
     diffRange: (cwd, from, to) => ipcRenderer.invoke('git:diffRange', cwd, from, to),
+    createPR: (cwd, title, body, baseBranch) => ipcRenderer.invoke('git:createPR', cwd, title, body, baseBranch),
+    defaultBranch: (cwd) => ipcRenderer.invoke('git:defaultBranch', cwd),
   },
   ai: {
     suggestCommitMessage: (dir: string, files: string[]) => ipcRenderer.invoke('ai:suggestCommitMessage', dir, files) as Promise<string | null>,
