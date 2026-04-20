@@ -171,6 +171,10 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [commitSearch, setCommitSearch] = useState('')
   const [commitSearchResults, setCommitSearchResults] = useState<Array<{ hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number }> | null>(null)
   const commitSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [compareSelected, setCompareSelected] = useState<string[]>([])
+  const [compareHashes, setCompareHashes] = useState<[string, string] | null>(null)
+  const [compareDiff, setCompareDiff] = useState<{ stat: string; diff: string } | null>(null)
+  const [compareDiffLoading, setCompareDiffLoading] = useState(false)
 
   // General tags state
   const [tagsOpen, setTagsOpen] = useState(false)
@@ -776,6 +780,35 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     setCommitDiffLoading(false)
   }, [instance.workingDirectory, expandedCommit])
 
+  const handleToggleCompareSelect = useCallback((hash: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setCompareSelected(prev => {
+      if (prev.includes(hash)) return prev.filter(h => h !== hash)
+      if (prev.length >= 2) return [prev[1], hash]
+      return [...prev, hash]
+    })
+  }, [])
+
+  const handleCompare = useCallback(async () => {
+    if (compareSelected.length !== 2 || !instance.workingDirectory) return
+    const allCommits = commitSearch.length >= 2 ? (commitSearchResults ?? []) : commits
+    const idxA = allCommits.findIndex(c => c.hash === compareSelected[0])
+    const idxB = allCommits.findIndex(c => c.hash === compareSelected[1])
+    // Higher index = older (git log is newest-first); older is `from`
+    let from = compareSelected[0], to = compareSelected[1]
+    if (idxA !== -1 && idxB !== -1 && idxA < idxB) { from = compareSelected[0]; to = compareSelected[1] }
+    else if (idxA !== -1 && idxB !== -1) { from = compareSelected[1]; to = compareSelected[0] }
+    setCompareHashes([from, to])
+    setCompareDiff(null)
+    setCompareDiffLoading(true)
+    try {
+      const result = await window.api.git.diffRange(instance.workingDirectory, from, to)
+      setCompareDiff(result)
+    } finally {
+      setCompareDiffLoading(false)
+    }
+  }, [compareSelected, commits, commitSearchResults, commitSearch, instance.workingDirectory])
+
   useEffect(() => {
     if (commitsOpen && commits.length === 0) loadCommits(0)
   }, [commitsOpen, commits.length, loadCommits])
@@ -813,6 +846,9 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     setDiffMode(mode)
     setSelectedDiffFile(null)
     setDiffContent(null)
+    setCompareSelected([])
+    setCompareHashes(null)
+    setCompareDiff(null)
   }, [])
 
   const handleStash = useCallback(async () => {
@@ -1894,6 +1930,41 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                     <button className="changes-refresh-btn" onClick={() => handleCommitSearchChange('')} style={{ flexShrink: 0 }}><X size={10} /></button>
                   )}
                 </div>
+                {compareSelected.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', background: 'rgba(59,130,246,0.08)', borderBottom: '1px solid rgba(59,130,246,0.2)' }}>
+                    <span style={{ fontSize: '10px', color: 'var(--accent)', flex: 1 }}>{compareSelected.length} commit{compareSelected.length > 1 ? 's' : ''} selected</span>
+                    {compareSelected.length === 2 && (
+                      <button
+                        className="panel-header-btn primary"
+                        style={{ fontSize: '10px', padding: '2px 7px', height: 'auto' }}
+                        onClick={handleCompare}
+                      >
+                        <GitCompare size={10} /> Compare
+                      </button>
+                    )}
+                    <button className="changes-refresh-btn" title="Clear selection" onClick={() => { setCompareSelected([]); setCompareHashes(null); setCompareDiff(null) }}><X size={10} /></button>
+                  </div>
+                )}
+                {compareHashes && (
+                  <div style={{ borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', background: 'var(--bg-secondary)', fontSize: '10px' }}>
+                      <GitCompare size={11} style={{ opacity: 0.6 }} />
+                      <code style={{ opacity: 0.7 }}>{compareHashes[0].slice(0, 7)}</code>
+                      <span style={{ opacity: 0.4 }}>..{compareHashes[1].slice(0, 7)}</span>
+                      <div style={{ flex: 1 }} />
+                      <button className="changes-refresh-btn" title="Close compare" onClick={() => { setCompareHashes(null); setCompareDiff(null); setCompareSelected([]) }}><X size={10} /></button>
+                    </div>
+                    <div className="checkpoint-diff-container" style={{ maxHeight: '40vh' }}>
+                      {compareDiffLoading ? (
+                        <div className="diff-viewer-empty">Loading diff…</div>
+                      ) : compareDiff?.diff ? (
+                        <DiffViewer diff={compareDiff.diff} filename={`${compareHashes[0].slice(0, 7)}..${compareHashes[1].slice(0, 7)}`} />
+                      ) : (
+                        <div className="diff-viewer-empty">No differences between these commits.</div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 {commitSearch.length >= 2 && commitSearchResults !== null && commitSearchResults.length === 0 && (
                   <div className="checkpoint-empty">No commits matching &ldquo;{commitSearch}&rdquo;</div>
                 )}
@@ -1904,6 +1975,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                   const isUnpushed = unpushedHashes.has(c.hash)
                   const isExpanded = expandedCommit === c.hash
                   const isMergeCommit = c.subject.startsWith('Merge ')
+                  const isCompareSelected = compareSelected.includes(c.hash)
                   return (
                     <div key={c.hash}>
                       <div
@@ -1911,6 +1983,14 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                         onClick={() => handleExpandCommit(c.hash)}
                         style={{ cursor: 'pointer' }}
                       >
+                        <input
+                          type="checkbox"
+                          checked={isCompareSelected}
+                          onChange={() => {}}
+                          onClick={(e) => handleToggleCompareSelect(c.hash, e)}
+                          style={{ flexShrink: 0, cursor: 'pointer', accentColor: 'var(--accent)', width: '11px', height: '11px' }}
+                          title="Select for comparison"
+                        />
                         <ChevronRight size={10} style={{ flexShrink: 0, transition: 'transform 0.15s', transform: isExpanded ? 'rotate(90deg)' : 'none', opacity: 0.4 }} />
                         <code className="commit-hash" style={{ fontSize: '9px', fontFamily: 'monospace', opacity: 0.6, flexShrink: 0, width: '48px' }}>{c.hash.slice(0, 7)}</code>
                         <span style={{ flex: 1, fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
