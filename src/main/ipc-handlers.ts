@@ -48,6 +48,7 @@ import { registerFsHandlers } from './ipc/fs-handlers'
 import { registerResourceHandlers } from './ipc/resource-handlers'
 import { registerSpecHandlers } from './ipc/spec-handlers'
 import { registerJiraHandlers } from './ipc/jira-handlers'
+import { registerAiHandlers } from './ipc/ai-handlers'
 
 export function registerIpcHandlers(): void {
   // Delegated handler modules
@@ -83,6 +84,7 @@ export function registerIpcHandlers(): void {
   registerResourceHandlers()
   registerSpecHandlers()
   registerJiraHandlers()
+  registerAiHandlers()
 
   // ---- Temp files ----
   ipcMain.handle('fs:writeTempFile', async (_e, prefix: string, content: string) => {

@@ -482,6 +482,9 @@ export interface ClaudeManagerAPI {
     deleteTags: (cwd: string, prefix: string) => Promise<number>
     diffRange: (cwd: string, from: string, to?: string) => Promise<{ stat: string; diff: string }>
   }
+  ai: {
+    suggestCommitMessage: (dir: string, files: string[]) => Promise<string | null>
+  }
   audit: {
     runPanel: (panel: string, context: object) => Promise<AuditResult[]>
     getLastRun: (panel: string) => Promise<{ ts: number; issueCount: number } | null>
@@ -1135,6 +1138,9 @@ const api: ClaudeManagerAPI = {
     deleteTag: (cwd, tagName) => ipcRenderer.invoke('git:deleteTag', cwd, tagName),
     deleteTags: (cwd, prefix) => ipcRenderer.invoke('git:deleteTags', cwd, prefix),
     diffRange: (cwd, from, to) => ipcRenderer.invoke('git:diffRange', cwd, from, to),
+  },
+  ai: {
+    suggestCommitMessage: (dir: string, files: string[]) => ipcRenderer.invoke('ai:suggestCommitMessage', dir, files) as Promise<string | null>,
   },
   arena: {
     recordWinner: (winnerKey, loserKey, matchCtx) => ipcRenderer.invoke('arena:recordWinner', winnerKey, loserKey, matchCtx),

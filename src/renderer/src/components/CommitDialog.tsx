@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { GitCommit, Upload, AlertCircle, AlertTriangle, Check, Loader, GitBranch } from 'lucide-react'
+import { GitCommit, Upload, AlertCircle, AlertTriangle, Check, Loader, GitBranch, Sparkles } from 'lucide-react'
 import type { GitDiffEntry } from '../../../shared/types'
 import { buildCommitSubject, buildBranchName, buildCommitBody } from '../../../shared/ticket-commit-format'
 import type { InstanceTicket } from '../../../shared/ticket-commit-format'
@@ -28,6 +28,8 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
   const [newBranchName, setNewBranchName] = useState('')
   const [creatingBranch, setCreatingBranch] = useState(false)
   const [branchError, setBranchError] = useState<string | null>(null)
+  const [suggesting, setSuggesting] = useState(false)
+  const [suggestError, setSuggestError] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const ticketSeededRef = useRef(false)
 
@@ -128,6 +130,20 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
     })
   }, [activeType])
 
+  const handleSuggest = useCallback(async () => {
+    if (!dir || selectedFiles.size === 0) return
+    setSuggesting(true)
+    setSuggestError(null)
+    try {
+      const suggested = await window.api.ai.suggestCommitMessage(dir, [...selectedFiles])
+      if (suggested) setMessage(suggested)
+    } catch {
+      setSuggestError('Suggestion failed')
+      setTimeout(() => setSuggestError(null), 3000)
+    }
+    setSuggesting(false)
+  }, [dir, selectedFiles])
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault()
@@ -186,7 +202,20 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
 
         {/* Commit message */}
         <div className="dialog-field">
-          <label>Commit message</label>
+          <div className="commit-message-label-row">
+            <label>Commit message</label>
+            <button
+              className="panel-header-btn"
+              onClick={handleSuggest}
+              disabled={suggesting || selectedFiles.size === 0 || busy || phase === 'done'}
+              title="AI-suggest commit message from diff"
+              type="button"
+            >
+              {suggesting ? <Loader size={11} className="spinning" /> : <Sparkles size={11} />}
+              {suggesting ? 'Suggesting…' : 'Suggest'}
+            </button>
+            {suggestError && <span className="commit-suggest-error">{suggestError}</span>}
+          </div>
           <div className="commit-type-chips">
             {COMMIT_TYPES.map(t => (
               <button
