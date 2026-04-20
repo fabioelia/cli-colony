@@ -615,6 +615,32 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     await loadConflictState()
   }, [instance.workingDirectory, conflictState.state, loadGitChanges, loadConflictState])
 
+  const handleResolveConflict = useCallback(async (file: string, strategy: 'ours' | 'theirs') => {
+    if (!instance.workingDirectory) return
+    try {
+      await window.api.git.resolveConflict(instance.workingDirectory, file, strategy)
+    } catch { /* ignore */ }
+    loadGitChanges()
+    await loadConflictState()
+  }, [instance.workingDirectory, loadGitChanges, loadConflictState])
+
+  const handleMarkResolved = useCallback(async (file: string) => {
+    if (!instance.workingDirectory) return
+    try {
+      await window.api.git.markResolved(instance.workingDirectory, file)
+    } catch { /* ignore */ }
+    loadGitChanges()
+    await loadConflictState()
+  }, [instance.workingDirectory, loadGitChanges, loadConflictState])
+
+  const handleCompleteConflictOp = useCallback(async () => {
+    if (!instance.workingDirectory) return
+    const result = await window.api.git.completeConflictOp(instance.workingDirectory)
+    if (!result.success) { alert(result.error ?? 'Failed to complete operation'); return }
+    setConflictState({ state: 'none', conflictedFiles: [] })
+    loadGitChanges()
+  }, [instance.workingDirectory, loadGitChanges])
+
   const handleCreateTag = useCallback(async () => {
     if (!instance.workingDirectory || !newTagName.trim() || creatingTag) return
     setCreatingTag(true)
@@ -1755,8 +1781,11 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
               <span style={{ fontSize: '11px', flex: 1, minWidth: 0 }}>
                 <strong>{conflictState.state === 'merge' ? 'Merge' : conflictState.state === 'cherry-pick' ? 'Cherry-pick' : 'Revert'} in progress</strong>
                 {conflictState.conflictedFiles.length > 0 && ` — ${conflictState.conflictedFiles.length} file${conflictState.conflictedFiles.length === 1 ? '' : 's'} with conflicts`}
-                {conflictState.conflictedFiles.length === 0 && ' — resolve conflicts and commit'}
+                {conflictState.conflictedFiles.length === 0 && ' — all conflicts resolved'}
               </span>
+              {conflictState.conflictedFiles.length === 0 && (
+                <button className="stash-action-btn primary" onClick={handleCompleteConflictOp} style={{ flexShrink: 0 }}>Complete</button>
+              )}
               <button className="stash-action-btn danger" onClick={handleConflictAbort} style={{ flexShrink: 0 }}>Abort</button>
             </div>
           )}
@@ -1847,6 +1876,28 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                             <MessageCircleWarning size={11} />
                             {fileComments.length > 1 && fileComments.length}
                           </span>
+                        )}
+                        {diffMode === 'working' && isConflicted && (
+                          <>
+                            <button
+                              className="stash-action-btn"
+                              title="Accept ours (keep our version)"
+                              onClick={(e) => { e.stopPropagation(); handleResolveConflict(entry.file, 'ours') }}
+                              style={{ marginLeft: '4px', fontSize: '9px', padding: '1px 4px' }}
+                            >Ours</button>
+                            <button
+                              className="stash-action-btn"
+                              title="Accept theirs (use incoming version)"
+                              onClick={(e) => { e.stopPropagation(); handleResolveConflict(entry.file, 'theirs') }}
+                              style={{ fontSize: '9px', padding: '1px 4px' }}
+                            >Theirs</button>
+                            <button
+                              className="stash-action-btn"
+                              title="Mark as resolved (already edited manually)"
+                              onClick={(e) => { e.stopPropagation(); handleMarkResolved(entry.file) }}
+                              style={{ fontSize: '9px', padding: '1px 4px' }}
+                            >Resolved</button>
+                          </>
                         )}
                         {diffMode === 'working' && (
                           <button

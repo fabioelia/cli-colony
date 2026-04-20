@@ -632,6 +632,28 @@ export function registerGitHandlers(): void {
     return { state, conflictedFiles }
   })
 
+  ipcMain.handle('git:resolveConflict', async (_e, cwd: string, file: string, strategy: 'ours' | 'theirs'): Promise<void> => {
+    await assertGitRepo(cwd)
+    await execFileAsync(resolveCommand('git'), ['checkout', `--${strategy}`, '--', file], { cwd, timeout: 10000 })
+    await execFileAsync(resolveCommand('git'), ['add', '--', file], { cwd, timeout: 10000 })
+  })
+
+  ipcMain.handle('git:markResolved', async (_e, cwd: string, file: string): Promise<void> => {
+    await assertGitRepo(cwd)
+    await execFileAsync(resolveCommand('git'), ['add', '--', file], { cwd, timeout: 10000 })
+  })
+
+  ipcMain.handle('git:completeConflictOp', async (_e, cwd: string): Promise<{ success: boolean; error?: string }> => {
+    await assertGitRepo(cwd)
+    try {
+      await execFileAsync(resolveCommand('git'), ['commit', '--no-edit'], { cwd, timeout: 30000 })
+      return { success: true }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      return { success: false, error: msg }
+    }
+  })
+
   ipcMain.handle('git:searchCommits', async (_e, cwd: string, query: string, limit: number = 20): Promise<CommitEntry[]> => {
     await assertGitRepo(cwd)
     if (!query.trim()) return []
