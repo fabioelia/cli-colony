@@ -532,6 +532,10 @@ export interface ClaudeManagerAPI {
     stageHunk: (cwd: string, patch: string) => Promise<{ success: boolean; error?: string }>
     discardHunk: (cwd: string, patch: string) => Promise<{ success: boolean; error?: string }>
     addToGitignore: (cwd: string, filePath: string, tracked: boolean) => Promise<{ success: boolean; error?: string }>
+    bisectStart: (cwd: string, badHash: string, goodHash: string) => Promise<{ success: boolean; current?: string; remaining?: number; error?: string }>
+    bisectMark: (cwd: string, verdict: 'good' | 'bad') => Promise<{ done: boolean; current?: string; remaining?: number; firstBad?: string; firstBadSubject?: string }>
+    bisectReset: (cwd: string) => Promise<void>
+    bisectLog: (cwd: string) => Promise<string>
   }
   ai: {
     suggestPRDescription: (dir: string) => Promise<{ title: string; body: string } | null>
@@ -1241,6 +1245,10 @@ const api: ClaudeManagerAPI = {
     stageHunk: (cwd, patch) => ipcRenderer.invoke('git:stageHunk', cwd, patch) as Promise<{ success: boolean; error?: string }>,
     discardHunk: (cwd, patch) => ipcRenderer.invoke('git:discardHunk', cwd, patch) as Promise<{ success: boolean; error?: string }>,
     addToGitignore: (cwd, filePath, tracked) => ipcRenderer.invoke('git:addToGitignore', cwd, filePath, tracked) as Promise<{ success: boolean; error?: string }>,
+    bisectStart: (cwd, badHash, goodHash) => ipcRenderer.invoke('git:bisectStart', cwd, badHash, goodHash) as Promise<{ success: boolean; current?: string; remaining?: number; error?: string }>,
+    bisectMark: (cwd, verdict) => ipcRenderer.invoke('git:bisectMark', cwd, verdict) as Promise<{ done: boolean; current?: string; remaining?: number; firstBad?: string; firstBadSubject?: string }>,
+    bisectReset: (cwd) => ipcRenderer.invoke('git:bisectReset', cwd) as Promise<void>,
+    bisectLog: (cwd) => ipcRenderer.invoke('git:bisectLog', cwd) as Promise<string>,
   },
   ai: {
     suggestPRDescription: (dir) => ipcRenderer.invoke('ai:suggestPRDescription', dir) as Promise<{ title: string; body: string } | null>,

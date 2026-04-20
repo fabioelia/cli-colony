@@ -894,6 +894,51 @@ export function registerGitHandlers(): void {
       await fsp.unlink(tmpFile).catch(() => {})
     }
   })
+
+  ipcMain.handle('git:bisectStart', async (_e, cwd: string, badHash: string, goodHash: string): Promise<{ success: boolean; current?: string; remaining?: number; error?: string }> => {
+    await assertGitRepo(cwd)
+    try {
+      const { stdout } = await execFileAsync(resolveCommand('git'), ['bisect', 'start', badHash, goodHash], { cwd, timeout: 15000, encoding: 'utf-8' })
+      const remaining = parseInt((stdout.match(/Bisecting:\s*(\d+)\s*revision/) ?? [])[1] ?? '0', 10)
+      const { stdout: cur } = await execFileAsync(resolveCommand('git'), ['rev-parse', 'HEAD'], { cwd, timeout: 5000, encoding: 'utf-8' })
+      return { success: true, current: cur.trim(), remaining }
+    } catch (err: unknown) {
+      await execFileAsync(resolveCommand('git'), ['bisect', 'reset'], { cwd, timeout: 5000 }).catch(() => {})
+      return { success: false, error: err instanceof Error ? err.message.split('\n')[0] : String(err) }
+    }
+  })
+
+  ipcMain.handle('git:bisectMark', async (_e, cwd: string, verdict: 'good' | 'bad'): Promise<{ done: boolean; current?: string; remaining?: number; firstBad?: string; firstBadSubject?: string }> => {
+    await assertGitRepo(cwd)
+    try {
+      const { stdout } = await execFileAsync(resolveCommand('git'), ['bisect', verdict], { cwd, timeout: 15000, encoding: 'utf-8' })
+      // Done if output contains "first bad commit"
+      const firstBadMatch = stdout.match(/^([0-9a-f]{40})\s/m)
+      if (firstBadMatch && stdout.includes('first bad commit')) {
+        const firstBad = firstBadMatch[1]
+        const { stdout: subj } = await execFileAsync(resolveCommand('git'), ['log', '-1', '--format=%s', firstBad], { cwd, timeout: 5000, encoding: 'utf-8' }).catch(() => ({ stdout: '' }))
+        return { done: true, firstBad, firstBadSubject: subj.trim() }
+      }
+      const remaining = parseInt((stdout.match(/Bisecting:\s*(\d+)\s*revision/) ?? [])[1] ?? '0', 10)
+      const { stdout: cur } = await execFileAsync(resolveCommand('git'), ['rev-parse', 'HEAD'], { cwd, timeout: 5000, encoding: 'utf-8' })
+      return { done: false, current: cur.trim(), remaining }
+    } catch (err: unknown) {
+      return { done: false, remaining: 0, current: undefined }
+    }
+  })
+
+  ipcMain.handle('git:bisectReset', async (_e, cwd: string): Promise<void> => {
+    await assertGitRepo(cwd)
+    await execFileAsync(resolveCommand('git'), ['bisect', 'reset'], { cwd, timeout: 10000 }).catch(() => {})
+  })
+
+  ipcMain.handle('git:bisectLog', async (_e, cwd: string): Promise<string> => {
+    await assertGitRepo(cwd)
+    try {
+      const { stdout } = await execFileAsync(resolveCommand('git'), ['bisect', 'log'], { cwd, timeout: 5000, encoding: 'utf-8' })
+      return stdout
+    } catch { return '' }
+  })
 }
 
 function parsePorcelainBlame(output: string): Array<{

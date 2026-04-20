@@ -194,6 +194,18 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [startingInteractiveRebase, setStartingInteractiveRebase] = useState(false)
   const [interactiveRebaseError, setInteractiveRebaseError] = useState<string | null>(null)
 
+  // Bisect state
+  type BisectPhase = 'setup' | 'testing' | 'complete'
+  const [bisectPhase, setBisectPhase] = useState<BisectPhase | null>(null)
+  const [bisectBadHash, setBisectBadHash] = useState('')
+  const [bisectGoodHash, setBisectGoodHash] = useState('')
+  const [bisectCurrent, setBisectCurrent] = useState('')
+  const [bisectRemaining, setBisectRemaining] = useState(0)
+  const [bisectFirstBad, setBisectFirstBad] = useState('')
+  const [bisectFirstBadSubject, setBisectFirstBadSubject] = useState('')
+  const [bisectRunning, setBisectRunning] = useState(false)
+  const [bisectError, setBisectError] = useState<string | null>(null)
+
   // Remotes state
   const [remotesOpen, setRemotesOpen] = useState(false)
   const [remotes, setRemotes] = useState<Array<{ name: string; fetchUrl: string; pushUrl: string }>>([])
@@ -1024,6 +1036,46 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
       }
     }
   }, [instance.workingDirectory, rebaseTodoItems, startingInteractiveRebase, loadCommits, loadBranchInfo, loadConflictState, loadGitChanges])
+
+  const handleBisectStart = useCallback(async () => {
+    if (!instance.workingDirectory || bisectRunning) return
+    setBisectRunning(true)
+    setBisectError(null)
+    const result = await window.api.git.bisectStart(instance.workingDirectory, bisectBadHash, bisectGoodHash)
+    setBisectRunning(false)
+    if (result.success) {
+      setBisectCurrent(result.current ?? '')
+      setBisectRemaining(result.remaining ?? 0)
+      setBisectPhase('testing')
+    } else {
+      setBisectError(result.error ?? 'Bisect start failed')
+    }
+  }, [instance.workingDirectory, bisectBadHash, bisectGoodHash, bisectRunning])
+
+  const handleBisectMark = useCallback(async (verdict: 'good' | 'bad') => {
+    if (!instance.workingDirectory || bisectRunning) return
+    setBisectRunning(true)
+    const result = await window.api.git.bisectMark(instance.workingDirectory, verdict)
+    setBisectRunning(false)
+    if (result.done) {
+      setBisectFirstBad(result.firstBad ?? '')
+      setBisectFirstBadSubject(result.firstBadSubject ?? '')
+      setBisectPhase('complete')
+    } else {
+      setBisectCurrent(result.current ?? '')
+      setBisectRemaining(result.remaining ?? 0)
+    }
+  }, [instance.workingDirectory, bisectRunning])
+
+  const handleBisectAbort = useCallback(async () => {
+    if (!instance.workingDirectory) return
+    await window.api.git.bisectReset(instance.workingDirectory).catch(() => {})
+    setBisectPhase(null)
+    setBisectBadHash('')
+    setBisectGoodHash('')
+    setBisectError(null)
+    await loadBranchInfo()
+  }, [instance.workingDirectory, loadBranchInfo])
 
   useEffect(() => {
     if (commitsOpen && commits.length === 0) loadCommits(0)
@@ -2286,15 +2338,25 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                 <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 400 }}>({unpushedHashes.size} unpushed)</span>
               )}
               <div style={{ flex: 1 }} />
-              {commitsOpen && commits.length > 0 && !showInteractiveRebase && (
-                <button
-                  className="changes-refresh-btn"
-                  title="Interactive rebase — reorder, squash, drop, or reword commits"
-                  onClick={(e) => { e.stopPropagation(); handleOpenInteractiveRebase() }}
-                  style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', padding: '1px 5px', borderRadius: '3px', opacity: 0.7 }}
-                >
-                  <ListOrdered size={10} /> Rebase…
-                </button>
+              {commitsOpen && commits.length > 0 && !showInteractiveRebase && !bisectPhase && (
+                <>
+                  <button
+                    className="changes-refresh-btn"
+                    title="Git bisect — binary search for the commit that introduced a bug"
+                    onClick={(e) => { e.stopPropagation(); setBisectPhase('setup'); setBisectBadHash('HEAD'); setBisectGoodHash('') }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', padding: '1px 5px', borderRadius: '3px', opacity: 0.7 }}
+                  >
+                    <Search size={10} /> Bisect
+                  </button>
+                  <button
+                    className="changes-refresh-btn"
+                    title="Interactive rebase — reorder, squash, drop, or reword commits"
+                    onClick={(e) => { e.stopPropagation(); handleOpenInteractiveRebase() }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', padding: '1px 5px', borderRadius: '3px', opacity: 0.7 }}
+                  >
+                    <ListOrdered size={10} /> Rebase…
+                  </button>
+                </>
               )}
             </div>
             {commitsOpen && (
@@ -2395,7 +2457,71 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                     </div>
                   </div>
                 )}
-                {!showInteractiveRebase && (<>
+                {bisectPhase && (
+                  <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {bisectPhase === 'setup' && (
+                      <>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Find which commit introduced a bug via binary search.</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Bad commit (has the bug):</label>
+                          <input
+                            type="text"
+                            value={bisectBadHash}
+                            onChange={(e) => setBisectBadHash(e.target.value)}
+                            placeholder="hash or HEAD"
+                            style={{ fontSize: '11px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '4px', padding: '3px 6px', color: 'var(--text-primary)', outline: 'none' }}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <label style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Good commit (no bug):</label>
+                          <input
+                            type="text"
+                            value={bisectGoodHash}
+                            onChange={(e) => setBisectGoodHash(e.target.value)}
+                            placeholder="hash, tag, or branch"
+                            style={{ fontSize: '11px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '4px', padding: '3px 6px', color: 'var(--text-primary)', outline: 'none' }}
+                          />
+                        </div>
+                        {bisectError && <div style={{ fontSize: '10px', color: 'var(--danger)' }}>{bisectError}</div>}
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button className="panel-header-btn primary" style={{ fontSize: '10px', padding: '3px 10px', height: 'auto' }} onClick={handleBisectStart} disabled={bisectRunning || !bisectBadHash || !bisectGoodHash}>
+                            {bisectRunning ? <RotateCw size={10} className="spinning" /> : <Search size={10} />} Start Bisect
+                          </button>
+                          <button className="panel-header-btn" style={{ fontSize: '10px', padding: '3px 8px', height: 'auto' }} onClick={() => { setBisectPhase(null); setBisectError(null) }} disabled={bisectRunning}>Cancel</button>
+                        </div>
+                      </>
+                    )}
+                    {bisectPhase === 'testing' && (
+                      <>
+                        <div style={{ fontSize: '11px' }}>
+                          Testing <code style={{ fontFamily: 'monospace', color: 'var(--accent)', fontSize: '10px' }}>{bisectCurrent.slice(0, 7)}</code>
+                          {bisectRemaining > 0 && <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginLeft: '6px' }}>~{bisectRemaining} steps remaining</span>}
+                        </div>
+                        <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Does this commit have the bug?</div>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button className="panel-header-btn" style={{ fontSize: '10px', padding: '3px 10px', height: 'auto', color: 'var(--danger)', borderColor: 'rgba(239,68,68,0.4)' }} onClick={() => handleBisectMark('bad')} disabled={bisectRunning}>
+                            {bisectRunning ? <RotateCw size={10} className="spinning" /> : null} Bad
+                          </button>
+                          <button className="panel-header-btn" style={{ fontSize: '10px', padding: '3px 10px', height: 'auto', color: 'var(--success)', borderColor: 'rgba(16,185,129,0.4)' }} onClick={() => handleBisectMark('good')} disabled={bisectRunning}>
+                            Good
+                          </button>
+                          <button className="panel-header-btn" style={{ fontSize: '10px', padding: '3px 8px', height: 'auto' }} onClick={handleBisectAbort} disabled={bisectRunning}>Abort</button>
+                        </div>
+                      </>
+                    )}
+                    {bisectPhase === 'complete' && (
+                      <>
+                        <div style={{ fontSize: '11px', color: 'var(--success)' }}>First bad commit found:</div>
+                        <div style={{ padding: '6px 8px', background: 'rgba(239,68,68,0.08)', borderRadius: '4px', border: '1px solid rgba(239,68,68,0.2)' }}>
+                          <code style={{ fontSize: '10px', fontFamily: 'monospace', display: 'block' }}>{bisectFirstBad.slice(0, 7)}</code>
+                          <div style={{ fontSize: '11px', marginTop: '2px' }}>{bisectFirstBadSubject}</div>
+                        </div>
+                        <button className="panel-header-btn primary" style={{ fontSize: '10px', padding: '3px 10px', height: 'auto', alignSelf: 'flex-start' }} onClick={handleBisectAbort}>End Bisect</button>
+                      </>
+                    )}
+                  </div>
+                )}
+                {!showInteractiveRebase && !bisectPhase && (<>
                 <div style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <Search size={10} style={{ opacity: 0.4, flexShrink: 0 }} />
                   <input
