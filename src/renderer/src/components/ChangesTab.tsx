@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
-import { ChevronRight, RefreshCw, RotateCw, RotateCcw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search, Copy, CheckCircle, Archive, ArrowDown, Eye, Cloud, History, ArrowLeft, GitMerge, ChevronsRight, AlertTriangle, EyeOff, Pencil, GripVertical, ListOrdered } from 'lucide-react'
+import { ChevronRight, RefreshCw, RotateCw, RotateCcw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search, Copy, CheckCircle, Archive, ArrowDown, Eye, Cloud, History, ArrowLeft, GitMerge, ChevronsRight, AlertTriangle, EyeOff, Pencil, GripVertical, ListOrdered, Crosshair } from 'lucide-react'
 import type { GitDiffEntry, ColonyComment, ScoreCard } from '../../../shared/types'
 import type { ClaudeInstance } from '../types'
 import DiffViewer from './DiffViewer'
@@ -2346,7 +2346,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                     onClick={(e) => { e.stopPropagation(); setBisectPhase('setup'); setBisectBadHash('HEAD'); setBisectGoodHash('') }}
                     style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', padding: '1px 5px', borderRadius: '3px', opacity: 0.7 }}
                   >
-                    <Search size={10} /> Bisect
+                    <Crosshair size={10} /> Bisect
                   </button>
                   <button
                     className="changes-refresh-btn"
@@ -2404,7 +2404,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                           </select>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <code style={{ fontSize: '10px', opacity: 0.5, flexShrink: 0 }}>{item.hash.slice(0, 7)}</code>
+                              <code style={{ fontSize: '10px', fontFamily: 'monospace', opacity: 0.5, flexShrink: 0 }}>{item.hash.slice(0, 7)}</code>
                               {isPushed && <span style={{ fontSize: '9px', color: 'var(--warning)', opacity: 0.7 }}>pushed</span>}
                               <span style={{ fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.subject}</span>
                             </div>
@@ -2485,7 +2485,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                         {bisectError && <div style={{ fontSize: '10px', color: 'var(--danger)' }}>{bisectError}</div>}
                         <div style={{ display: 'flex', gap: '6px' }}>
                           <button className="panel-header-btn primary" style={{ fontSize: '10px', padding: '3px 10px', height: 'auto' }} onClick={handleBisectStart} disabled={bisectRunning || !bisectBadHash || !bisectGoodHash}>
-                            {bisectRunning ? <RotateCw size={10} className="spinning" /> : <Search size={10} />} Start Bisect
+                            {bisectRunning ? <RotateCw size={10} className="spinning" /> : <Crosshair size={10} />} Start Bisect
                           </button>
                           <button className="panel-header-btn" style={{ fontSize: '10px', padding: '3px 8px', height: 'auto' }} onClick={() => { setBisectPhase(null); setBisectError(null) }} disabled={bisectRunning}>Cancel</button>
                         </div>

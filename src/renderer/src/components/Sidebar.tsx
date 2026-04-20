@@ -83,6 +83,8 @@ interface InstanceItemProps {
   idleMs: number | null
   exitSummary?: string
   exitDuration?: number
+  dirtyFileCount?: number
+  dirtyFileGrowing?: boolean
 }
 
 function dirName(path: string) {
@@ -164,7 +166,7 @@ function buildTriggerChain(inst: ClaudeInstance, allInstances: ClaudeInstance[])
   return result
 }
 
-const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcutIndex, isUnread, ctxLevel, splitBadge, focusedPane, isRenaming, renameValue, renameRef, isEditingNote, noteValue, noteRef, onCommitNote, onCancelNote, onNoteChange, callbacks, selectMode, isSelected, onToggleSelect, conflictFiles, errorMessage, idleMs, exitSummary, exitDuration }: InstanceItemProps) {
+const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcutIndex, isUnread, ctxLevel, splitBadge, focusedPane, isRenaming, renameValue, renameRef, isEditingNote, noteValue, noteRef, onCommitNote, onCancelNote, onNoteChange, callbacks, selectMode, isSelected, onToggleSelect, conflictFiles, errorMessage, idleMs, exitSummary, exitDuration, dirtyFileCount, dirtyFileGrowing }: InstanceItemProps) {
   return (
     <div
       className={`instance-item ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''}`}
@@ -283,6 +285,10 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
               badges.push({ node: <span key="be" className="instance-budget-badge" title="Budget exceeded — session stopped">$cap</span>, label: 'Budget exceeded' })
             if ((inst.tokenUsage?.cost ?? 0) >= 0.005)
               badges.push({ node: <span key="co" className="instance-cost-badge" title={`API cost: $${inst.tokenUsage!.cost!.toFixed(4)}`}>${inst.tokenUsage!.cost!.toFixed(2)}</span>, label: `$${inst.tokenUsage!.cost!.toFixed(2)}` })
+            if (dirtyFileCount && dirtyFileCount > 0 && inst.status === 'running') {
+              const label = dirtyFileCount > 50 ? '50+ files' : `${dirtyFileCount} files`
+              badges.push({ node: <span key="df" className={`instance-files-badge${dirtyFileGrowing ? ' growing' : ''}`} title={`${dirtyFileCount} uncommitted file change${dirtyFileCount !== 1 ? 's' : ''}`}>{label}</span>, label })
+            }
             if (idleMs !== null && inst.activity === 'busy' && idleMs > 300000) {
               const isStale = idleMs > 900000
               const mins = Math.floor(idleMs / 60000)
@@ -421,7 +427,9 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
     prev.onToggleSelect === next.onToggleSelect &&
     prev.conflictFiles === next.conflictFiles &&
     prev.exitDuration === next.exitDuration &&
-    prev.errorMessage === next.errorMessage
+    prev.errorMessage === next.errorMessage &&
+    prev.dirtyFileCount === next.dirtyFileCount &&
+    prev.dirtyFileGrowing === next.dirtyFileGrowing
 })
 
 interface Props {
@@ -546,6 +554,50 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const [fileOverlaps, setFileOverlaps] = useState<Record<string, { file: string; otherSessions: { id: string; name: string }[] }[]>>({})
   useEffect(() => {
     const poll = () => window.api.instance.fileOverlaps().then(setFileOverlaps).catch(() => {})
+    poll()
+    const id = setInterval(poll, 30000)
+    return () => clearInterval(id)
+  }, [])
+
+  // Dirty file counts — poll running sessions with workingDirectory every 30s
+  const [dirtyFileCounts, setDirtyFileCounts] = useState<Map<string, { count: number; growing: boolean }>>(new Map())
+  const prevDirtyCounts = useRef<Map<string, number>>(new Map())
+  const instancesRef = useRef(instances)
+  instancesRef.current = instances
+  useEffect(() => {
+    const poll = async () => {
+      const running = instancesRef.current.filter(i => i.status === 'running' && i.workingDirectory)
+      const cwdToIds = new Map<string, string[]>()
+      for (const inst of running) {
+        const ids = cwdToIds.get(inst.workingDirectory) ?? []
+        ids.push(inst.id)
+        cwdToIds.set(inst.workingDirectory, ids)
+      }
+      const results = new Map<string, number>()
+      for (const [cwd] of cwdToIds) {
+        try {
+          const { count } = await window.api.git.dirtyFileCount(cwd)
+          results.set(cwd, count)
+        } catch { results.set(cwd, 0) }
+        await new Promise(r => setTimeout(r, 100))
+      }
+      setDirtyFileCounts(prev => {
+        const next = new Map<string, { count: number; growing: boolean }>()
+        for (const [cwd, ids] of cwdToIds) {
+          const count = results.get(cwd) ?? 0
+          for (const id of ids) {
+            const prevCount = prevDirtyCounts.current.get(id) ?? 0
+            next.set(id, { count, growing: count > prevCount })
+            prevDirtyCounts.current.set(id, count)
+          }
+        }
+        // Preserve stopped sessions at 0 to clear badges
+        for (const [id, v] of prev) {
+          if (!next.has(id)) next.set(id, { count: 0, growing: false })
+        }
+        return next
+      })
+    }
     poll()
     const id = setInterval(poll, 30000)
     return () => clearInterval(id)
@@ -1237,6 +1289,8 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
         idleMs={idleMap.get(inst.id) ?? null}
         exitSummary={artifactSummaries.get(inst.id)}
         exitDuration={artifactDurations.get(inst.id)}
+        dirtyFileCount={dirtyFileCounts.get(inst.id)?.count}
+        dirtyFileGrowing={dirtyFileCounts.get(inst.id)?.growing}
       />
     )
     if (!isDraggable) return item

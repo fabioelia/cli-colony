@@ -7076,6 +7076,25 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: color-mix(in srgb, var(--success) 12%, transparent);
 }
 
+/* Dirty file count badge — muted default, accent when growing */
+.instance-files-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+}
+.instance-files-badge.growing {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  animation: files-badge-pulse 0.5s ease-out;
+}
+@keyframes files-badge-pulse {
+  0% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
 /* Idle / stale session badge — amber idle, red stale */
 .instance-idle-badge {
   font-size: 9px;
