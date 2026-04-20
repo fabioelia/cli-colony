@@ -49,6 +49,8 @@ export interface HookStep {
   name: string
   interactive?: boolean
   continueOnError?: boolean    // If true, failure doesn't block subsequent hooks
+  retries?: number             // Number of times to retry on failure (default: 0, max: 5)
+  retryDelayMs?: number        // Delay between retries in ms (default: 5000, max: 30000)
 }
 
 export interface SetupStep {

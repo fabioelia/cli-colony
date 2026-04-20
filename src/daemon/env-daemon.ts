@@ -156,6 +156,9 @@ interface ManagedEnvironment {
 
 const environments = new Map<string, ManagedEnvironment>()
 
+/** Per-environment operation locks to prevent concurrent start/stop races. */
+const envLocks = new Map<string, Promise<void>>()
+
 /** Write current service state to the environment's state.json */
 function persistState(env: ManagedEnvironment): void {
   const envDir = env.manifest.paths?.root
@@ -701,7 +704,74 @@ function unregisterEnvironment(envId: string): boolean {
   return true
 }
 
+/**
+ * Check if any assigned ports are already in use — by another Colony
+ * environment or by any other process on the machine.
+ * Logs warnings so the user knows why services may fail or why preStart
+ * hooks will kill existing processes.
+ */
+async function checkPortConflicts(envId: string, manifest: InstanceManifest): Promise<void> {
+  const ports = manifest.ports
+  if (!ports) return
+
+  for (const [slot, port] of Object.entries(ports)) {
+    if (port == null) continue
+    const portNum = typeof port === 'string' ? parseInt(port, 10) : port
+    if (!portNum || isNaN(portNum)) continue
+
+    // First check: is it owned by another Colony environment?
+    let isColonyConflict = false
+    for (const [otherId, otherEnv] of environments) {
+      if (otherId === envId) continue
+      for (const [svcName, svc] of otherEnv.services) {
+        const svcPort = svc.resolved?.port != null ? parseInt(String(svc.resolved.port), 10) : null
+        if (svcPort === portNum && svc.pid != null && svc.status === 'running') {
+          log(`[${manifest.name}] ⚠ PORT CONFLICT: port ${portNum} (${slot}) is in use by Colony environment ${otherEnv.manifest.name}/${svcName} (pid ${svc.pid}). The preStart hook may kill it.`)
+          isColonyConflict = true
+        }
+      }
+    }
+
+    // Second check: is anything listening on the port? (catches non-Colony processes)
+    if (!isColonyConflict) {
+      const inUse = await checkPortTcp(portNum)
+      if (inUse) {
+        log(`[${manifest.name}] ⚠ PORT CONFLICT: port ${portNum} (${slot}) is in use by a non-Colony process. The preStart hook may kill it.`)
+      }
+    }
+  }
+}
+
+/** Re-read instance.json from disk and update in-memory state so edits are picked up. */
+function reloadManifestFromDisk(envId: string): void {
+  const env = environments.get(envId)
+  if (!env) return
+  const envDir = env.manifest.paths?.root
+  if (!envDir) return
+  const manifestPath = path.join(envDir, 'instance.json')
+  try {
+    const fresh = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as InstanceManifest
+    registerEnvironment(fresh)
+    log(`[${fresh.name}] reloaded manifest from disk`)
+  } catch (err) {
+    log(`[${envId}] failed to reload manifest from disk: ${err}`)
+  }
+}
+
 async function startEnvironment(envId: string, serviceNames?: string[]): Promise<void> {
+  // Serialize per-environment to prevent concurrent start/stop races
+  const prev = envLocks.get(envId) ?? Promise.resolve()
+  const current = prev.then(() => startEnvironmentImpl(envId, serviceNames)).finally(() => {
+    if (envLocks.get(envId) === current) envLocks.delete(envId)
+  })
+  envLocks.set(envId, current.catch(() => {}))
+  return current
+}
+
+async function startEnvironmentImpl(envId: string, serviceNames?: string[]): Promise<void> {
+  // Re-read manifest from disk so any edits to instance.json are picked up
+  reloadManifestFromDisk(envId)
+
   const env = environments.get(envId)
   if (!env) throw new Error(`environment ${envId} not found`)
 
@@ -717,6 +787,10 @@ async function startEnvironment(envId: string, serviceNames?: string[]): Promise
     allServices[name] = env.services.get(name)!.def
   }
   const waves = topoSort(allServices)
+
+  // Detect port conflicts with other Colony environments before preStart hooks
+  // (preStart hooks may blindly kill processes on assigned ports)
+  await checkPortConflicts(envId, manifest)
 
   // Run preStart hooks before spawning any services
   await runHooks(manifest, 'preStart')
