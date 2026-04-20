@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
-import { ChevronRight, RefreshCw, RotateCw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search, Copy, CheckCircle, Archive, ArrowDown, Eye, Cloud, History, ArrowLeft, GitMerge, ChevronsRight } from 'lucide-react'
+import { ChevronRight, RefreshCw, RotateCw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search, Copy, CheckCircle, Archive, ArrowDown, Eye, Cloud, History, ArrowLeft, GitMerge, ChevronsRight, AlertTriangle } from 'lucide-react'
 import type { GitDiffEntry, ColonyComment, ScoreCard } from '../../../shared/types'
 import type { ClaudeInstance } from '../types'
 import DiffViewer from './DiffViewer'
@@ -139,6 +139,16 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [pulling, setPulling] = useState(false)
   const [pullResult, setPullResult] = useState<{ success: boolean; error?: string } | null>(null)
 
+  // Revert commit state
+  const [revertHash, setRevertHash] = useState<string | null>(null)
+  const [revertSubject, setRevertSubject] = useState('')
+  const [revertingCommit, setRevertingCommit] = useState(false)
+  const [revertResult, setRevertResult] = useState<{ success: boolean; error?: string } | null>(null)
+  const [abortingRevert, setAbortingRevert] = useState(false)
+
+  // Conflict state banner
+  const [conflictState, setConflictState] = useState<{ state: 'none' | 'merge' | 'cherry-pick' | 'revert'; conflictedFiles: string[] }>({ state: 'none', conflictedFiles: [] })
+
   // Commit history state
   const [commits, setCommits] = useState<Array<{ hash: string; subject: string; author: string; date: string }>>([])
   const [commitsOpen, setCommitsOpen] = useState(false)
@@ -148,6 +158,9 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [commitDiffLoading, setCommitDiffLoading] = useState(false)
   const [commitSkip, setCommitSkip] = useState(0)
   const [hasMoreCommits, setHasMoreCommits] = useState(true)
+  const [commitSearch, setCommitSearch] = useState('')
+  const [commitSearchResults, setCommitSearchResults] = useState<Array<{ hash: string; subject: string; author: string; date: string }> | null>(null)
+  const commitSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const tagPrefix = `colony-cp/${instance.id}/`
 
@@ -231,6 +244,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     setGitChangesLoading(true)
     diffCacheRef.current = {}
     setGitError(null)
+    window.api.git.conflictState(instance.workingDirectory).then(cs => setConflictState(cs)).catch(() => {})
     window.api.session.gitChanges(instance.workingDirectory).then(async (entries) => {
       setGitChanges(entries)
       onChangeCount?.(entries.length)
@@ -443,6 +457,69 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     loadGitChanges()
     setAbortingMerge(false)
   }, [instance.workingDirectory, abortingMerge, loadGitChanges])
+
+  const loadConflictState = useCallback(async () => {
+    if (!instance.workingDirectory) return
+    try {
+      const cs = await window.api.git.conflictState(instance.workingDirectory)
+      setConflictState(cs)
+    } catch {
+      setConflictState({ state: 'none', conflictedFiles: [] })
+    }
+  }, [instance.workingDirectory])
+
+  useEffect(() => { loadConflictState() }, [loadConflictState])
+
+  const handleRevertCommit = useCallback(async () => {
+    if (!instance.workingDirectory || !revertHash || revertingCommit) return
+    setRevertingCommit(true)
+    setRevertResult(null)
+    const result = await window.api.git.revert(instance.workingDirectory, revertHash)
+    setRevertResult(result)
+    if (result.success) {
+      setRevertHash(null)
+      loadGitChanges()
+      setCommits([])
+      setCommitSkip(0)
+      setTimeout(() => setRevertResult(null), 3000)
+    } else {
+      await loadConflictState()
+    }
+    setRevertingCommit(false)
+  }, [instance.workingDirectory, revertHash, revertingCommit, loadGitChanges, loadConflictState])
+
+  const handleRevertAbort = useCallback(async () => {
+    if (!instance.workingDirectory || abortingRevert) return
+    setAbortingRevert(true)
+    await window.api.git.revertAbort(instance.workingDirectory).catch(() => {})
+    setRevertResult(null)
+    setRevertHash(null)
+    loadGitChanges()
+    await loadConflictState()
+    setAbortingRevert(false)
+  }, [instance.workingDirectory, abortingRevert, loadGitChanges, loadConflictState])
+
+  const handleConflictAbort = useCallback(async () => {
+    if (!instance.workingDirectory) return
+    try {
+      if (conflictState.state === 'merge') await window.api.git.mergeAbort(instance.workingDirectory)
+      else if (conflictState.state === 'cherry-pick') await window.api.git.cherryPickAbort(instance.workingDirectory)
+      else if (conflictState.state === 'revert') await window.api.git.revertAbort(instance.workingDirectory)
+    } catch { /* ignore */ }
+    loadGitChanges()
+    await loadConflictState()
+  }, [instance.workingDirectory, conflictState.state, loadGitChanges, loadConflictState])
+
+  const handleCommitSearchChange = useCallback((q: string) => {
+    setCommitSearch(q)
+    if (commitSearchTimerRef.current) clearTimeout(commitSearchTimerRef.current)
+    if (!q.trim() || q.length < 2) { setCommitSearchResults(null); return }
+    commitSearchTimerRef.current = setTimeout(async () => {
+      if (!instance.workingDirectory) return
+      const results = await window.api.git.searchCommits(instance.workingDirectory, q).catch(() => [])
+      setCommitSearchResults(results)
+    }, 300)
+  }, [instance.workingDirectory])
 
   const handleStashPreview = useCallback(async (index: number) => {
     if (!instance.workingDirectory) return
@@ -1367,6 +1444,17 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
           </div>
         </div>
         <div className="changes-panel-content">
+          {conflictState.state !== 'none' && (
+            <div style={{ margin: '6px 8px 2px', padding: '8px 10px', background: 'rgba(234,179,8,0.08)', borderRadius: '6px', border: '1px solid rgba(234,179,8,0.3)', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <AlertTriangle size={13} style={{ color: 'var(--warning)', flexShrink: 0 }} />
+              <span style={{ fontSize: '11px', flex: 1, minWidth: 0 }}>
+                <strong>{conflictState.state === 'merge' ? 'Merge' : conflictState.state === 'cherry-pick' ? 'Cherry-pick' : 'Revert'} in progress</strong>
+                {conflictState.conflictedFiles.length > 0 && ` — ${conflictState.conflictedFiles.length} file${conflictState.conflictedFiles.length === 1 ? '' : 's'} with conflicts`}
+                {conflictState.conflictedFiles.length === 0 && ' — resolve conflicts and commit'}
+              </span>
+              <button className="stash-action-btn danger" onClick={handleConflictAbort} style={{ flexShrink: 0 }}>Abort</button>
+            </div>
+          )}
           {diffMode === 'working' && gitChangesLoading && <div className="changes-empty">Loading...</div>}
           {diffMode === 'working' && !gitChangesLoading && gitError && (
             <div className="changes-empty">{gitError}</div>
@@ -1388,6 +1476,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                 )}
                 {visibleFiles.map((entry) => {
                   const isSelected = selectedDiffFile === entry.file
+                  const isConflicted = conflictState.conflictedFiles.some(f => f === entry.file || entry.file.endsWith('/' + f) || f.endsWith('/' + entry.file))
                   const fileComments = diffMode === 'working' ? colonyComments.filter(c => {
                     const normalised = c.file.replace(/^b\//, '')
                     return normalised === entry.file || normalised.endsWith('/' + entry.file) || entry.file.endsWith('/' + normalised)
@@ -1404,13 +1493,15 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                       onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, file: entry.file }) }}
                     >
                       <div className="changes-event-header" style={{ alignItems: 'center', cursor: 'pointer' }}>
-                        <span className="changes-event-tool" title={entry.status === 'A' ? 'Added' : entry.status === 'D' ? 'Deleted' : entry.status === 'R' ? 'Renamed' : 'Modified'} style={{
-                          color: entry.status === 'A' ? 'var(--success)'
+                        <span className="changes-event-tool" title={isConflicted ? 'Conflict' : entry.status === 'A' ? 'Added' : entry.status === 'D' ? 'Deleted' : entry.status === 'R' ? 'Renamed' : 'Modified'} style={{
+                          color: isConflicted ? 'var(--warning)'
+                            : entry.status === 'A' ? 'var(--success)'
                             : entry.status === 'D' ? 'var(--danger)'
                             : 'var(--warning)',
                           minWidth: '12px',
+                          display: 'flex', alignItems: 'center',
                         }}>
-                          {entry.status}
+                          {isConflicted ? <AlertTriangle size={10} /> : entry.status}
                         </span>
                         <span className="changes-event-input" style={{ flex: 1, fontFamily: 'monospace', fontSize: '11px' }}>
                           {entry.file}
@@ -1527,12 +1618,30 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
             </div>
             {commitsOpen && (
               <>
-                {commits.length === 0 && (
+                <div style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Search size={10} style={{ opacity: 0.4, flexShrink: 0 }} />
+                  <input
+                    type="text"
+                    placeholder="Search commits…"
+                    value={commitSearch}
+                    onChange={(e) => handleCommitSearchChange(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Escape') handleCommitSearchChange('') }}
+                    style={{ flex: 1, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '4px', padding: '3px 6px', fontSize: '11px', color: 'var(--text)', outline: 'none' }}
+                  />
+                  {commitSearch && (
+                    <button className="changes-refresh-btn" onClick={() => handleCommitSearchChange('')} style={{ flexShrink: 0 }}><X size={10} /></button>
+                  )}
+                </div>
+                {commitSearch.length >= 2 && commitSearchResults !== null && commitSearchResults.length === 0 && (
+                  <div className="checkpoint-empty">No commits matching &ldquo;{commitSearch}&rdquo;</div>
+                )}
+                {(commitSearch.length < 2 ? commits : commitSearchResults ?? []).length === 0 && !commitSearch && (
                   <div className="checkpoint-empty">Loading commits...</div>
                 )}
-                {commits.map(c => {
+                {(commitSearch.length >= 2 ? (commitSearchResults ?? []) : commits).map(c => {
                   const isUnpushed = unpushedHashes.has(c.hash)
                   const isExpanded = expandedCommit === c.hash
+                  const isMergeCommit = c.subject.startsWith('Merge ')
                   return (
                     <div key={c.hash}>
                       <div
@@ -1549,9 +1658,18 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                         <span style={{ fontSize: '9px', opacity: 0.4, flexShrink: 0, marginLeft: '4px' }}>{c.date}</span>
                         <button
                           className="changes-refresh-btn"
+                          title={isMergeCommit ? 'Cannot revert merge commits' : `Revert ${c.hash.slice(0, 7)}`}
+                          onClick={(e) => { e.stopPropagation(); if (!isMergeCommit) { setRevertHash(c.hash); setRevertSubject(c.subject); setRevertResult(null) } }}
+                          disabled={isMergeCommit}
+                          style={{ flexShrink: 0, marginLeft: '2px', color: 'var(--text-muted)', opacity: isMergeCommit ? 0.3 : 0.7 }}
+                        >
+                          <Undo2 size={10} />
+                        </button>
+                        <button
+                          className="changes-refresh-btn"
                           title={`Cherry-pick ${c.hash.slice(0, 7)} into ${currentBranch}`}
                           onClick={(e) => { e.stopPropagation(); setCherryPickHash(c.hash); setCherryPickSubject(c.subject); setCherryPickResult(null) }}
-                          style={{ flexShrink: 0, marginLeft: '4px', color: 'var(--accent)', opacity: 0.7 }}
+                          style={{ flexShrink: 0, marginLeft: '2px', color: 'var(--accent)', opacity: 0.7 }}
                         >
                           <ChevronsRight size={10} />
                         </button>
@@ -1572,7 +1690,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                     </div>
                   )
                 })}
-                {hasMoreCommits && commits.length > 0 && (
+                {!commitSearch && hasMoreCommits && commits.length > 0 && (
                   <button
                     className="checkpoint-empty"
                     style={{ cursor: 'pointer', color: 'var(--accent)', background: 'none', border: 'none', width: '100%', textAlign: 'left', padding: '6px 12px' }}
@@ -1608,6 +1726,35 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                       {cherryPicking ? <RotateCw size={9} className="spinning" /> : 'Confirm'}
                     </button>
                     <button className="stash-action-btn" onClick={() => setCherryPickHash(null)}>Cancel</button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          )}
+          {/* Revert confirmation / result */}
+          {(revertHash || revertResult) && (
+            <div style={{ margin: '4px 8px', padding: '8px 10px', background: revertResult?.success ? 'rgba(16,185,129,0.08)' : revertResult ? 'rgba(239,68,68,0.08)' : 'var(--bg-secondary)', borderRadius: '6px', border: `1px solid ${revertResult?.success ? 'rgba(16,185,129,0.3)' : revertResult ? 'rgba(239,68,68,0.3)' : 'var(--border)'}` }}>
+              {revertResult?.success ? (
+                <span style={{ fontSize: '11px', color: 'var(--success)' }}>Reverted {revertHash?.slice(0, 7) ?? ''} successfully.</span>
+              ) : revertResult ? (
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--danger)', marginBottom: '4px' }}>{revertResult.error?.split('\n')[0]}</div>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button className="stash-action-btn danger" onClick={handleRevertAbort} disabled={abortingRevert}>
+                      {abortingRevert ? <RotateCw size={9} className="spinning" /> : 'Abort revert'}
+                    </button>
+                    <button className="stash-action-btn" onClick={() => setRevertResult(null)}>Dismiss</button>
+                  </div>
+                </div>
+              ) : revertHash ? (
+                <div>
+                  <div style={{ fontSize: '11px', marginBottom: '6px' }}>Revert <code style={{ fontFamily: 'monospace', color: 'var(--accent)' }}>{revertHash.slice(0, 7)}</code>? This creates a new commit that undoes the changes.</div>
+                  <div style={{ fontSize: '10px', opacity: 0.6, marginBottom: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{revertSubject}</div>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button className="stash-action-btn primary" onClick={handleRevertCommit} disabled={revertingCommit}>
+                      {revertingCommit ? <RotateCw size={9} className="spinning" /> : 'Confirm'}
+                    </button>
+                    <button className="stash-action-btn" onClick={() => setRevertHash(null)}>Cancel</button>
                   </div>
                 </div>
               ) : null}

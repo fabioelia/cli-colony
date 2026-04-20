@@ -1544,7 +1544,10 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Unpushed badge', detail: 'Commits ahead of the upstream remote are marked with a purple "unpushed" chip. The section header also shows the count: "Commits (3 unpushed)". Unpushed detection uses `git log origin/<branch>..HEAD`.' },
           { label: 'Commit diff', detail: 'Clicking a commit row expands the full diff for that commit using the same color-coded viewer as the file list. Only one commit diff is shown at a time — clicking another row collapses the previous one.' },
           { label: 'Cherry-pick', detail: 'Each commit row has a cherry-pick button (⇒ icon). Clicking it shows an inline confirmation: "Cherry-pick <hash> into <branch>?" with the commit subject. On success, the change list and commit history refresh. On conflict, shows the git error with an "Abort cherry-pick" button to run `git cherry-pick --abort`.', icon: 'ChevronsRight' },
-          { label: 'Load more', detail: 'After the initial 20 commits, a "Load more..." button appends the next 20. Pagination uses `git log --skip=N`.' },
+          { label: 'Revert commit', detail: 'Each commit row has a revert button (↩ icon) that creates a new commit undoing the selected change. Shows an inline confirmation with the commit hash and subject. Disabled on merge commits. On conflict, shows an "Abort revert" button.', icon: 'Undo2' },
+          { label: 'Commit search', detail: 'Search bar at the top of the Commits section. Enter 2+ characters to search commit messages via `git log --grep` (case-insensitive, all branches). Results replace the normal paginated view. Clear with the ✕ button or Escape.', icon: 'Search' },
+          { label: 'Load more', detail: 'After the initial 20 commits, a "Load more..." button appends the next 20. Pagination uses `git log --skip=N`. Hidden when search is active.' },
+          { label: 'Conflict banner', detail: 'When a merge, cherry-pick, or revert encounters conflicts, an amber banner appears at the top of the changes panel showing the operation type and count of conflicted files. Includes an "Abort" button to cancel the in-progress operation. Conflicted files in the file list show an ⚠ icon.', icon: 'AlertTriangle' },
         ],
       },
       {

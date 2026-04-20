@@ -502,6 +502,60 @@ export function registerGitHandlers(): void {
     await assertGitRepo(cwd)
     await execFileAsync(resolveCommand('git'), ['merge', '--abort'], { cwd, timeout: 5000 })
   })
+
+  ipcMain.handle('git:revert', async (_e, cwd: string, hash: string): Promise<{ success: boolean; error?: string }> => {
+    await assertGitRepo(cwd)
+    if (!/^[0-9a-f]{7,40}$/i.test(hash)) throw new Error('Invalid commit hash')
+    try {
+      await execFileAsync(resolveCommand('git'), ['revert', '--no-edit', hash], { cwd, timeout: 30000 })
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.stderr || err.message }
+    }
+  })
+
+  ipcMain.handle('git:revertAbort', async (_e, cwd: string): Promise<void> => {
+    await assertGitRepo(cwd)
+    await execFileAsync(resolveCommand('git'), ['revert', '--abort'], { cwd, timeout: 5000 })
+  })
+
+  ipcMain.handle('git:conflictState', async (_e, cwd: string): Promise<{
+    state: 'none' | 'merge' | 'cherry-pick' | 'revert'
+    conflictedFiles: string[]
+  }> => {
+    await assertGitRepo(cwd)
+    const { stdout: gitDir } = await execFileAsync(resolveCommand('git'), ['rev-parse', '--git-dir'], { cwd, timeout: 5000, encoding: 'utf-8' })
+    const dir = gitDir.trim()
+    const resolvedDir = path.isAbsolute(dir) ? dir : path.join(cwd, dir)
+    let state: 'none' | 'merge' | 'cherry-pick' | 'revert' = 'none'
+    for (const [file, label] of [['MERGE_HEAD', 'merge'], ['CHERRY_PICK_HEAD', 'cherry-pick'], ['REVERT_HEAD', 'revert']] as const) {
+      try {
+        await fsp.access(path.join(resolvedDir, file))
+        state = label
+        break
+      } catch { /* not found */ }
+    }
+    if (state === 'none') return { state: 'none', conflictedFiles: [] }
+    const { stdout } = await execFileAsync(resolveCommand('git'), ['diff', '--name-only', '--diff-filter=U'], { cwd, timeout: 5000, encoding: 'utf-8' })
+    const conflictedFiles = stdout.trim() ? stdout.trim().split('\n') : []
+    return { state, conflictedFiles }
+  })
+
+  ipcMain.handle('git:searchCommits', async (_e, cwd: string, query: string, limit: number = 20): Promise<Array<{
+    hash: string; subject: string; author: string; date: string
+  }>> => {
+    await assertGitRepo(cwd)
+    if (!query.trim()) return []
+    const { stdout } = await execFileAsync(resolveCommand('git'), [
+      'log', '--all', `--grep=${query}`, '-i', `--max-count=${limit}`,
+      '--format=%H%x00%s%x00%an%x00%ar',
+    ], { cwd, timeout: 10000, encoding: 'utf-8' })
+    if (!stdout.trim()) return []
+    return stdout.trim().split('\n').map(line => {
+      const [hash, subject, author, date] = line.split('\0')
+      return { hash, subject, author, date }
+    })
+  })
 }
 
 function parsePorcelainBlame(output: string): Array<{

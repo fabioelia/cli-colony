@@ -504,6 +504,10 @@ export interface ClaudeManagerAPI {
     cherryPickAbort: (cwd: string) => Promise<void>
     merge: (cwd: string, branch: string, noFf?: boolean) => Promise<{ success: boolean; error?: string; conflicts?: string[] }>
     mergeAbort: (cwd: string) => Promise<void>
+    revert: (cwd: string, hash: string) => Promise<{ success: boolean; error?: string }>
+    revertAbort: (cwd: string) => Promise<void>
+    conflictState: (cwd: string) => Promise<{ state: 'none' | 'merge' | 'cherry-pick' | 'revert'; conflictedFiles: string[] }>
+    searchCommits: (cwd: string, query: string, limit?: number) => Promise<Array<{ hash: string; subject: string; author: string; date: string }>>
   }
   ai: {
     suggestPRDescription: (dir: string) => Promise<{ title: string; body: string } | null>
@@ -1185,6 +1189,10 @@ const api: ClaudeManagerAPI = {
     cherryPickAbort: (cwd) => ipcRenderer.invoke('git:cherryPickAbort', cwd) as Promise<void>,
     merge: (cwd, branch, noFf) => ipcRenderer.invoke('git:merge', cwd, branch, noFf) as Promise<{ success: boolean; error?: string; conflicts?: string[] }>,
     mergeAbort: (cwd) => ipcRenderer.invoke('git:mergeAbort', cwd) as Promise<void>,
+    revert: (cwd, hash) => ipcRenderer.invoke('git:revert', cwd, hash) as Promise<{ success: boolean; error?: string }>,
+    revertAbort: (cwd) => ipcRenderer.invoke('git:revertAbort', cwd) as Promise<void>,
+    conflictState: (cwd) => ipcRenderer.invoke('git:conflictState', cwd) as Promise<{ state: 'none' | 'merge' | 'cherry-pick' | 'revert'; conflictedFiles: string[] }>,
+    searchCommits: (cwd, query, limit) => ipcRenderer.invoke('git:searchCommits', cwd, query, limit) as Promise<Array<{ hash: string; subject: string; author: string; date: string }>>,
   },
   ai: {
     suggestPRDescription: (dir) => ipcRenderer.invoke('ai:suggestPRDescription', dir) as Promise<{ title: string; body: string } | null>,
