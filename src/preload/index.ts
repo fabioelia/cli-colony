@@ -497,6 +497,7 @@ export interface ClaudeManagerAPI {
     stashDrop: (cwd: string, index: number) => Promise<void>
     stashShow: (cwd: string, index: number) => Promise<{ stat: string; diff: string }>
     deleteBranch: (cwd: string, branch: string, force?: boolean) => Promise<{ success: boolean; error?: string }>
+    renameBranch: (cwd: string, newName: string) => Promise<{ success: boolean; error?: string; hasUpstream: boolean }>
     pruneRemote: (cwd: string) => Promise<void>
     fileLog: (cwd: string, filePath: string, limit?: number, skip?: number) => Promise<Array<{ hash: string; subject: string; author: string; date: string }>>
     fileCommitDiff: (cwd: string, hash: string, filePath: string) => Promise<string>
@@ -1186,6 +1187,7 @@ const api: ClaudeManagerAPI = {
     stashDrop: (cwd, index) => ipcRenderer.invoke('git:stashDrop', cwd, index) as Promise<void>,
     stashShow: (cwd, index) => ipcRenderer.invoke('git:stashShow', cwd, index) as Promise<{ stat: string; diff: string }>,
     deleteBranch: (cwd, branch, force) => ipcRenderer.invoke('git:deleteBranch', cwd, branch, force) as Promise<{ success: boolean; error?: string }>,
+    renameBranch: (cwd, newName) => ipcRenderer.invoke('git:renameBranch', cwd, newName) as Promise<{ success: boolean; error?: string; hasUpstream: boolean }>,
     pruneRemote: (cwd) => ipcRenderer.invoke('git:pruneRemote', cwd) as Promise<void>,
     fileLog: (cwd, filePath, limit, skip) => ipcRenderer.invoke('git:fileLog', cwd, filePath, limit, skip),
     fileCommitDiff: (cwd, hash, filePath) => ipcRenderer.invoke('git:fileCommitDiff', cwd, hash, filePath) as Promise<string>,

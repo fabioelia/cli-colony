@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
-import { ChevronRight, RefreshCw, RotateCw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search, Copy, CheckCircle, Archive, ArrowDown, Eye, Cloud, History, ArrowLeft, GitMerge, ChevronsRight, AlertTriangle, EyeOff } from 'lucide-react'
+import { ChevronRight, RefreshCw, RotateCw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search, Copy, CheckCircle, Archive, ArrowDown, Eye, Cloud, History, ArrowLeft, GitMerge, ChevronsRight, AlertTriangle, EyeOff, Pencil } from 'lucide-react'
 import type { GitDiffEntry, ColonyComment, ScoreCard } from '../../../shared/types'
 import type { ClaudeInstance } from '../types'
 import DiffViewer from './DiffViewer'
@@ -82,6 +82,10 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [forceDeleteConfirm, setForceDeleteConfirm] = useState<string | null>(null)
   const [pruning, setPruning] = useState(false)
+  const [renamingBranch, setRenamingBranch] = useState(false)
+  const [renameValue, setRenameValue] = useState('')
+  const [renameError, setRenameError] = useState<string | null>(null)
+  const [renameHasUpstream, setRenameHasUpstream] = useState(false)
 
   // Stash preview state
   const [stashPreviewIndex, setStashPreviewIndex] = useState<number | null>(null)
@@ -384,6 +388,19 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     await loadBranchInfo()
     setPruning(false)
   }, [instance.workingDirectory, pruning, loadBranchInfo])
+
+  const handleRenameBranch = useCallback(async () => {
+    if (!instance.workingDirectory || !renameValue.trim()) return
+    setRenameError(null)
+    const result = await window.api.git.renameBranch(instance.workingDirectory, renameValue.trim())
+    if (result.success) {
+      setRenamingBranch(false)
+      setRenameHasUpstream(result.hasUpstream)
+      await loadBranchInfo()
+    } else {
+      setRenameError(result.error ?? 'Rename failed')
+    }
+  }, [instance.workingDirectory, renameValue, loadBranchInfo])
 
   const handleAddToGitignore = useCallback(async (file: string, status: string) => {
     if (!instance.workingDirectory) return
@@ -1271,9 +1288,15 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                         </button>
                       </div>
                     </div>
-                    {(switchError || deleteError) && (
+                    {(switchError || deleteError || renameError) && (
                       <div style={{ padding: '4px 8px', fontSize: '10px', color: 'var(--danger)', borderBottom: '1px solid var(--border)' }}>
-                        {switchError || deleteError}
+                        {switchError || deleteError || renameError}
+                      </div>
+                    )}
+                    {renameHasUpstream && (
+                      <div style={{ padding: '4px 8px', fontSize: '10px', color: 'var(--warning)', borderBottom: '1px solid var(--border)' }}>
+                        Branch renamed locally. Run <code style={{ fontFamily: 'monospace' }}>git push origin --delete &lt;old-name&gt;</code> to update the remote.
+                        <button className="changes-refresh-btn" style={{ marginLeft: '6px', fontSize: '9px' }} onClick={() => setRenameHasUpstream(false)}>×</button>
                       </div>
                     )}
                     {forceDeleteConfirm && (
@@ -1290,16 +1313,40 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                     )}
                     {branches.filter(b => !b.remote).map(b => (
                       <div key={b.name} className={`branch-list-item${b.current ? ' active' : ''}`} style={{ display: 'flex', alignItems: 'center' }}>
-                        <button
-                          style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', cursor: b.current ? 'default' : 'pointer', padding: '4px 0', color: 'inherit', textAlign: 'left', minWidth: 0 }}
-                          onClick={() => !b.current && handleSwitchBranch(b.name)}
-                          disabled={switching || b.current}
-                          title={b.name}
-                        >
-                          {b.current && <CheckCircle size={11} style={{ color: 'var(--accent)', flexShrink: 0 }} />}
-                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px' }}>{b.name}</span>
-                          {switching && !b.current && <RotateCw size={9} className="spinning" style={{ flexShrink: 0 }} />}
-                        </button>
+                        {b.current && renamingBranch ? (
+                          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '4px', padding: '2px 0' }} onClick={e => e.stopPropagation()}>
+                            <input
+                              autoFocus
+                              value={renameValue}
+                              onChange={e => { setRenameValue(e.target.value); setRenameError(null) }}
+                              onKeyDown={e => { if (e.key === 'Enter') handleRenameBranch(); if (e.key === 'Escape') { setRenamingBranch(false); setRenameError(null) } }}
+                              style={{ flex: 1, fontSize: '11px', fontFamily: 'monospace', padding: '1px 4px', background: 'var(--bg-secondary)', border: '1px solid var(--accent)', borderRadius: '3px', color: 'inherit', outline: 'none', minWidth: 0 }}
+                            />
+                            <button className="stash-action-btn" onClick={handleRenameBranch} style={{ flexShrink: 0 }}>Save</button>
+                            <button className="stash-action-btn" onClick={() => { setRenamingBranch(false); setRenameError(null) }} style={{ flexShrink: 0 }}>×</button>
+                          </div>
+                        ) : (
+                          <button
+                            style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', cursor: b.current ? 'default' : 'pointer', padding: '4px 0', color: 'inherit', textAlign: 'left', minWidth: 0 }}
+                            onClick={() => !b.current && handleSwitchBranch(b.name)}
+                            disabled={switching || b.current}
+                            title={b.name}
+                          >
+                            {b.current && <CheckCircle size={11} style={{ color: 'var(--accent)', flexShrink: 0 }} />}
+                            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px' }}>{b.name}</span>
+                            {switching && !b.current && <RotateCw size={9} className="spinning" style={{ flexShrink: 0 }} />}
+                          </button>
+                        )}
+                        {b.current && !renamingBranch && (
+                          <button
+                            className="changes-refresh-btn"
+                            title="Rename current branch"
+                            onClick={(e) => { e.stopPropagation(); setRenameValue(b.name); setRenameError(null); setRenameHasUpstream(false); setRenamingBranch(true) }}
+                            style={{ flexShrink: 0, marginLeft: '2px', opacity: 0.7 }}
+                          >
+                            <Pencil size={9} />
+                          </button>
+                        )}
                         {!b.current && (
                           <>
                             <button

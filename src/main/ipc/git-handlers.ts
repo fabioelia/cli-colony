@@ -226,6 +226,22 @@ export function registerGitHandlers(): void {
     }
   })
 
+  ipcMain.handle('git:renameBranch', async (_e, cwd: string, newName: string): Promise<{ success: boolean; error?: string; hasUpstream: boolean }> => {
+    await assertGitRepo(cwd)
+    try {
+      await execFileAsync(resolveCommand('git'), ['branch', '-m', newName], { cwd, timeout: 5000 })
+      // Check if the old branch had a remote tracking branch
+      let hasUpstream = false
+      try {
+        const { stdout } = await execFileAsync(resolveCommand('git'), ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], { cwd, timeout: 3000 })
+        hasUpstream = stdout.trim().length > 0
+      } catch { /* no upstream */ }
+      return { success: true, hasUpstream }
+    } catch (err: any) {
+      return { success: false, error: err.stderr || err.message, hasUpstream: false }
+    }
+  })
+
   ipcMain.handle('git:pruneRemote', async (_e, cwd: string): Promise<void> => {
     await assertGitRepo(cwd)
     await execFileAsync(resolveCommand('git'), ['remote', 'prune', 'origin'], { cwd, timeout: 15000 })
