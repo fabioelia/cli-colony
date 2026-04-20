@@ -177,6 +177,25 @@ export default function CommandPalette({
         section: 'Actions',
         onExecute: () => onRestart(activeId!),
       })
+      if (active.args.length > 0 || active.workingDirectory) {
+        items.push({
+          id: 'retry-active',
+          label: 'Retry Session',
+          detail: `New session: ${active.name} (retry)`,
+          icon: <RotateCcw size={14} />,
+          section: 'Actions',
+          keywords: 'retry repeat rerun session',
+          onExecute: () => window.api.instance.create({
+            name: `${active.name} (retry)`,
+            workingDirectory: active.workingDirectory,
+            color: active.color,
+            args: active.args,
+            cliBackend: active.cliBackend,
+            permissionMode: active.permissionMode,
+            mcpServers: active.mcpServers,
+          }).catch(() => {}),
+        })
+      }
     }
     if (instances.length >= 2) {
       items.push({

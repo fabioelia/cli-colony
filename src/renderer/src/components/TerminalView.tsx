@@ -1410,6 +1410,23 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
             </span>
           )}
           <div className="session-exited-spacer" />
+          {(instance.args.length > 0 || instance.workingDirectory) && (
+            <button
+              className="session-exited-btn"
+              onClick={() => window.api.instance.create({
+                name: `${instance.name} (retry)`,
+                workingDirectory: instance.workingDirectory,
+                color: instance.color,
+                args: instance.args,
+                cliBackend: instance.cliBackend,
+                permissionMode: instance.permissionMode,
+                mcpServers: instance.mcpServers,
+              }).catch(() => {})}
+              title="Create a new session with the same configuration"
+            >
+              <Play size={12} /> Retry
+            </button>
+          )}
           <button
             className="session-exited-btn"
             onClick={() => onRestart(instance.id)}

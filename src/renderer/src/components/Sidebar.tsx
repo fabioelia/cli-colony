@@ -2328,6 +2328,29 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             >
               <Copy size={12} /> Clone
             </button>
+            {(() => {
+              const inst = instances.find(i => i.id === contextMenu.id)
+              return inst?.status === 'exited' && (inst.args.length > 0 || inst.workingDirectory) ? (
+                <button
+                  className="context-menu-item"
+                  onClick={() => {
+                    window.api.instance.create({
+                      name: `${inst.name} (retry)`,
+                      workingDirectory: inst.workingDirectory,
+                      color: inst.color,
+                      args: inst.args,
+                      cliBackend: inst.cliBackend,
+                      permissionMode: inst.permissionMode,
+                      mcpServers: inst.mcpServers,
+                    }).catch(() => {})
+                    setContextMenu(null)
+                  }}
+                  title="Create a new session with the same configuration"
+                >
+                  <RotateCcw size={12} /> Retry
+                </button>
+              ) : null
+            })()}
             <button
               className="context-menu-item"
               onClick={async (e) => {
