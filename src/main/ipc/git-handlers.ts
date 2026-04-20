@@ -452,4 +452,89 @@ export function registerGitHandlers(): void {
       return stdout
     }
   })
+
+  ipcMain.handle('git:blame', async (_e, cwd: string, filePath: string): Promise<Array<{
+    hash: string; author: string; date: string; lineNumber: number; content: string
+  }>> => {
+    await assertGitRepo(cwd)
+    if (/[;&|`$]/.test(filePath)) throw new Error('Invalid file path')
+    const { stdout } = await execFileAsync(resolveCommand('git'), [
+      'blame', '--porcelain', '--', filePath,
+    ], { cwd, timeout: 15000, encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 })
+    return parsePorcelainBlame(stdout)
+  })
+
+  ipcMain.handle('git:cherryPick', async (_e, cwd: string, hash: string): Promise<{ success: boolean; error?: string }> => {
+    await assertGitRepo(cwd)
+    if (!/^[0-9a-f]{7,40}$/i.test(hash)) throw new Error('Invalid commit hash')
+    try {
+      await execFileAsync(resolveCommand('git'), ['cherry-pick', hash], { cwd, timeout: 30000 })
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.stderr || err.message }
+    }
+  })
+
+  ipcMain.handle('git:cherryPickAbort', async (_e, cwd: string): Promise<void> => {
+    await assertGitRepo(cwd)
+    await execFileAsync(resolveCommand('git'), ['cherry-pick', '--abort'], { cwd, timeout: 5000 })
+  })
+
+  ipcMain.handle('git:merge', async (_e, cwd: string, branch: string, noFf?: boolean): Promise<{ success: boolean; error?: string; conflicts?: string[] }> => {
+    await assertGitRepo(cwd)
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9._/-]*$/.test(branch)) {
+      return { success: false, error: 'Invalid branch name' }
+    }
+    try {
+      const args = ['merge', branch]
+      if (noFf) args.splice(1, 0, '--no-ff')
+      await execFileAsync(resolveCommand('git'), args, { cwd, timeout: 60000 })
+      return { success: true }
+    } catch (err: any) {
+      const stderr: string = err.stderr || err.message
+      const conflicts = (stderr.match(/CONFLICT \(content\): Merge conflict in (.+)/g) ?? [])
+        .map((line: string) => line.replace('CONFLICT (content): Merge conflict in ', ''))
+      return { success: false, error: stderr, conflicts }
+    }
+  })
+
+  ipcMain.handle('git:mergeAbort', async (_e, cwd: string): Promise<void> => {
+    await assertGitRepo(cwd)
+    await execFileAsync(resolveCommand('git'), ['merge', '--abort'], { cwd, timeout: 5000 })
+  })
+}
+
+function parsePorcelainBlame(output: string): Array<{
+  hash: string; author: string; date: string; lineNumber: number; content: string
+}> {
+  const lines = output.split('\n')
+  const result: Array<{ hash: string; author: string; date: string; lineNumber: number; content: string }> = []
+  const commitInfo = new Map<string, { author: string; date: string }>()
+  let i = 0
+  while (i < lines.length) {
+    const line = lines[i]
+    if (!line) { i++; continue }
+    const hashMatch = line.match(/^([0-9a-f]{40}) \d+ (\d+)/)
+    if (!hashMatch) { i++; continue }
+    const hash = hashMatch[1]
+    const lineNumber = parseInt(hashMatch[2], 10)
+    i++
+    let author = ''
+    let date = ''
+    while (i < lines.length && !lines[i].startsWith('\t')) {
+      const hdr = lines[i]
+      if (hdr.startsWith('author ') && !hdr.startsWith('author-')) author = hdr.slice(7)
+      else if (hdr.startsWith('author-time ')) {
+        const ts = parseInt(hdr.slice(12), 10)
+        if (!isNaN(ts)) date = new Date(ts * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+      }
+      i++
+    }
+    const content = i < lines.length ? lines[i].slice(1) : ''
+    i++
+    if (author) commitInfo.set(hash, { author, date })
+    const info = commitInfo.get(hash) ?? { author: 'Unknown', date: '' }
+    result.push({ hash, author: info.author, date: info.date, lineNumber, content })
+  }
+  return result
 }

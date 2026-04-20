@@ -499,6 +499,11 @@ export interface ClaudeManagerAPI {
     pruneRemote: (cwd: string) => Promise<void>
     fileLog: (cwd: string, filePath: string, limit?: number, skip?: number) => Promise<Array<{ hash: string; subject: string; author: string; date: string }>>
     fileCommitDiff: (cwd: string, hash: string, filePath: string) => Promise<string>
+    blame: (cwd: string, filePath: string) => Promise<Array<{ hash: string; author: string; date: string; lineNumber: number; content: string }>>
+    cherryPick: (cwd: string, hash: string) => Promise<{ success: boolean; error?: string }>
+    cherryPickAbort: (cwd: string) => Promise<void>
+    merge: (cwd: string, branch: string, noFf?: boolean) => Promise<{ success: boolean; error?: string; conflicts?: string[] }>
+    mergeAbort: (cwd: string) => Promise<void>
   }
   ai: {
     suggestPRDescription: (dir: string) => Promise<{ title: string; body: string } | null>
@@ -1175,6 +1180,11 @@ const api: ClaudeManagerAPI = {
     pruneRemote: (cwd) => ipcRenderer.invoke('git:pruneRemote', cwd) as Promise<void>,
     fileLog: (cwd, filePath, limit, skip) => ipcRenderer.invoke('git:fileLog', cwd, filePath, limit, skip),
     fileCommitDiff: (cwd, hash, filePath) => ipcRenderer.invoke('git:fileCommitDiff', cwd, hash, filePath) as Promise<string>,
+    blame: (cwd, filePath) => ipcRenderer.invoke('git:blame', cwd, filePath),
+    cherryPick: (cwd, hash) => ipcRenderer.invoke('git:cherryPick', cwd, hash) as Promise<{ success: boolean; error?: string }>,
+    cherryPickAbort: (cwd) => ipcRenderer.invoke('git:cherryPickAbort', cwd) as Promise<void>,
+    merge: (cwd, branch, noFf) => ipcRenderer.invoke('git:merge', cwd, branch, noFf) as Promise<{ success: boolean; error?: string; conflicts?: string[] }>,
+    mergeAbort: (cwd) => ipcRenderer.invoke('git:mergeAbort', cwd) as Promise<void>,
   },
   ai: {
     suggestPRDescription: (dir) => ipcRenderer.invoke('ai:suggestPRDescription', dir) as Promise<{ title: string; body: string } | null>,

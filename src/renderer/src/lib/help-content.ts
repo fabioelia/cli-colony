@@ -1502,7 +1502,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Top bar',
         items: [
           { label: 'Diff mode toggle', detail: '"Working Tree" shows uncommitted changes in the current working directory (default). "vs <branch>" shows all files changed between the base branch (auto-detected) and HEAD — the same view as a GitHub PR diff. Switching modes clears the current file selection. The base branch is fetched via `gh repo view` at load time, defaulting to "main".' },
-          { label: 'Branch chip', detail: 'Shows the current git branch. Click to open the branch switcher dropdown. Lists local branches (with delete button) and remote branches (cloud icon). Click any branch to switch via `git checkout` — remote branches auto-create a local tracking branch. A "↓N" behind-count badge appears when behind upstream. Delete (trash) removes unmerged-safe; prompts for force-delete if not fully merged. Prune button removes stale remote refs. Fetch button updates remote refs.', icon: 'GitBranch' },
+          { label: 'Branch chip', detail: 'Shows the current git branch. Click to open the branch switcher dropdown. Lists local branches (with merge+delete buttons) and remote branches (merge button + cloud icon). Click any branch to switch via `git checkout` — remote branches auto-create a local tracking branch. A "↓N" behind-count badge appears when behind upstream. Delete (trash) removes unmerged-safe; prompts for force-delete if not fully merged. Merge (git-merge icon) shows an inline confirm with optional --no-ff checkbox; conflict detection shows affected files + Abort button. Prune button removes stale remote refs. Fetch button updates remote refs.', icon: 'GitBranch' },
           { label: 'Pull button', detail: 'Appears next to the branch chip when the current branch is behind its upstream (e.g., "Pull 3"). Runs `git pull --ff-only`. On success, refreshes the branch info, file list, stashes, and checkpoints — behind count drops to 0. On failure (diverged history, merge conflict), shows the first line of the git error inline. Spinner shown during pull (can take 30s on large repos).', icon: 'ArrowDown' },
           { label: 'Refresh', detail: 'Reload the change list from git.', icon: 'RefreshCw' },
           { label: 'Stash', detail: 'Stash all uncommitted changes (including untracked files) using `git stash push --include-untracked`. Only visible when there are changes. A numbered badge appears when stashes exist — click it to open a dropdown listing each stash with its message and relative date. Eye (👁) button previews the stash diff in the main right pane without applying. Each entry also has Apply (restore without removing), Pop (restore and remove), and Drop (delete) actions.', icon: 'Archive' },
@@ -1519,7 +1519,7 @@ export const helpContent: Record<string, HelpEntry> = {
         position: 'Main area',
         items: [
           { label: 'Status letter', detail: 'M = modified, A = added, D = deleted, R = renamed. Color-coded: amber for M, green for A, red for D.' },
-          { label: 'File path', detail: 'Relative path of the changed file within the working directory. Click to select — diff renders in the right pane. `j`/`k` navigate files, `Escape` clears selection. Right-click a file to open a context menu with "File History" — shows the last 20 commits that touched that file, with expandable per-commit diffs.' },
+          { label: 'File path', detail: 'Relative path of the changed file within the working directory. Click to select — diff renders in the right pane. `j`/`k` navigate files, `Escape` clears selection. Right-click a file to open a context menu with "File History" (commit log for that file) and "Blame" (line-by-line authorship view).' },
           { label: '+/- counts', detail: 'Number of inserted lines (green) and deleted lines (red) in the diff.' },
           { label: 'Diff pane', detail: 'Selecting a file loads a color-coded diff in the right pane with syntax highlighting (language auto-detected from file extension). Toggle between Unified (interleaved) and Split (side-by-side) view using the button in the top-right. Split view aligns old code on the left and new code on the right, with empty padding rows for unmatched lines. Mode preference persists in localStorage. Large diffs (500+ lines) are truncated with a "Show full diff" button. Binary files show a placeholder. Review agent annotations appear below the diff.' },
           { label: 'Revert button', detail: 'Reverts that single file to HEAD via `git checkout HEAD -- <file>`. Confirmation required.', icon: 'Undo2' },
@@ -1543,6 +1543,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Commit history', detail: 'Collapsible section listing the last 20 commits on the current branch. Shows short hash, subject, and relative date per row. Lazy-loads on first open. Click any row to expand it and view the full commit diff.', icon: 'GitCommit' },
           { label: 'Unpushed badge', detail: 'Commits ahead of the upstream remote are marked with a purple "unpushed" chip. The section header also shows the count: "Commits (3 unpushed)". Unpushed detection uses `git log origin/<branch>..HEAD`.' },
           { label: 'Commit diff', detail: 'Clicking a commit row expands the full diff for that commit using the same color-coded viewer as the file list. Only one commit diff is shown at a time — clicking another row collapses the previous one.' },
+          { label: 'Cherry-pick', detail: 'Each commit row has a cherry-pick button (⇒ icon). Clicking it shows an inline confirmation: "Cherry-pick <hash> into <branch>?" with the commit subject. On success, the change list and commit history refresh. On conflict, shows the git error with an "Abort cherry-pick" button to run `git cherry-pick --abort`.', icon: 'ChevronsRight' },
           { label: 'Load more', detail: 'After the initial 20 commits, a "Load more..." button appends the next 20. Pagination uses `git log --skip=N`.' },
         ],
       },
@@ -1553,6 +1554,16 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'File History panel', detail: 'Right-click any file in the file list and select "File History" to view commits that touched that file. Uses `git log --follow` to track across renames. Shows last 20 commits — click any row to expand and view the file-scoped diff for that commit. "Load more" paginates.', icon: 'History' },
           { label: 'Back button', detail: 'ArrowLeft button returns to the normal diff view, restoring the previously selected file diff.', icon: 'ArrowLeft' },
           { label: 'File-scoped diff', detail: 'Expanding a commit row shows only the changes to that specific file in that commit (`git diff hash~1 hash -- file`). First-commit diffs use `git show` since there is no parent.' },
+        ],
+      },
+      {
+        name: 'Blame View',
+        position: 'Right pane (replaces diff when active)',
+        items: [
+          { label: 'Blame panel', detail: 'Right-click any file in the file list and select "Blame" to view line-by-line authorship. Uses `git blame --porcelain`. Shows: line number, short hash (7 chars), author name, date, and line content. Lines from the same commit share a subtle background — only the first line of each group shows the hash/author/date.', icon: 'GitMerge' },
+          { label: 'Uncommitted lines', detail: 'Lines with uncommitted changes show "WIP" instead of a hash, in a distinct color.' },
+          { label: 'Commit diff panel', detail: 'Click any commit hash in the blame view to expand the full diff for that commit in a split panel below. Click again or the X button to close. Only one diff shown at a time.' },
+          { label: 'Back button', detail: 'ArrowLeft button closes the blame view and returns to the normal diff view.', icon: 'ArrowLeft' },
         ],
       },
       {

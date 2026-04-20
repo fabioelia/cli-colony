@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
-import { ChevronRight, RefreshCw, RotateCw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search, Copy, CheckCircle, Archive, ArrowDown, Eye, Cloud, History, ArrowLeft } from 'lucide-react'
+import { ChevronRight, RefreshCw, RotateCw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search, Copy, CheckCircle, Archive, ArrowDown, Eye, Cloud, History, ArrowLeft, GitMerge, ChevronsRight } from 'lucide-react'
 import type { GitDiffEntry, ColonyComment, ScoreCard } from '../../../shared/types'
 import type { ClaudeInstance } from '../types'
 import DiffViewer from './DiffViewer'
@@ -93,6 +93,28 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [expandedFileHistoryHash, setExpandedFileHistoryHash] = useState<string | null>(null)
   const [fileHistoryDiff, setFileHistoryDiff] = useState<string | null>(null)
   const [fileHistoryDiffLoading, setFileHistoryDiffLoading] = useState(false)
+
+  // Blame state
+  const [blameFile, setBlameFile] = useState<string | null>(null)
+  const [blameLines, setBlameLines] = useState<Array<{ hash: string; author: string; date: string; lineNumber: number; content: string }>>([])
+  const [blameLoading, setBlameLoading] = useState(false)
+  const [blameExpandedHash, setBlameExpandedHash] = useState<string | null>(null)
+  const [blameDiff, setBlameDiff] = useState<string | null>(null)
+  const [blameDiffLoading, setBlameDiffLoading] = useState(false)
+
+  // Cherry-pick state
+  const [cherryPickHash, setCherryPickHash] = useState<string | null>(null)
+  const [cherryPickSubject, setCherryPickSubject] = useState('')
+  const [cherryPicking, setCherryPicking] = useState(false)
+  const [cherryPickResult, setCherryPickResult] = useState<{ success: boolean; error?: string } | null>(null)
+  const [abortingCherryPick, setAbortingCherryPick] = useState(false)
+
+  // Merge state
+  const [mergeTarget, setMergeTarget] = useState<string | null>(null)
+  const [merging, setMerging] = useState(false)
+  const [mergeNoFf, setMergeNoFf] = useState(false)
+  const [mergeResult, setMergeResult] = useState<{ success: boolean; error?: string; conflicts?: string[] } | null>(null)
+  const [abortingMerge, setAbortingMerge] = useState(false)
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; file: string } | null>(null)
@@ -342,6 +364,85 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     await loadBranchInfo()
     setPruning(false)
   }, [instance.workingDirectory, pruning, loadBranchInfo])
+
+  const openBlame = useCallback((file: string) => {
+    setBlameFile(file)
+    setBlameLines([])
+    setBlameLoading(true)
+    setBlameExpandedHash(null)
+    setBlameDiff(null)
+    setContextMenu(null)
+    if (!instance.workingDirectory) return
+    window.api.git.blame(instance.workingDirectory, file)
+      .then(setBlameLines)
+      .catch(() => setBlameLines([]))
+      .finally(() => setBlameLoading(false))
+  }, [instance.workingDirectory])
+
+  const handleBlameHashClick = useCallback(async (hash: string) => {
+    if (!instance.workingDirectory || hash.startsWith('00000000')) return
+    if (blameExpandedHash === hash) { setBlameExpandedHash(null); setBlameDiff(null); return }
+    setBlameExpandedHash(hash)
+    setBlameDiffLoading(true)
+    setBlameDiff(null)
+    const diff = await window.api.git.commitDiff(instance.workingDirectory, hash).catch(() => '')
+    setBlameDiff(diff)
+    setBlameDiffLoading(false)
+  }, [instance.workingDirectory, blameExpandedHash])
+
+  const handleCherryPick = useCallback(async () => {
+    if (!instance.workingDirectory || !cherryPickHash || cherryPicking) return
+    setCherryPicking(true)
+    setCherryPickResult(null)
+    const result = await window.api.git.cherryPick(instance.workingDirectory, cherryPickHash)
+    setCherryPickResult(result)
+    if (result.success) {
+      setCherryPickHash(null)
+      loadGitChanges()
+      setCommits([])
+      setCommitSkip(0)
+      setTimeout(() => setCherryPickResult(null), 3000)
+    }
+    setCherryPicking(false)
+  }, [instance.workingDirectory, cherryPickHash, cherryPicking, loadGitChanges])
+
+  const handleCherryPickAbort = useCallback(async () => {
+    if (!instance.workingDirectory || abortingCherryPick) return
+    setAbortingCherryPick(true)
+    await window.api.git.cherryPickAbort(instance.workingDirectory).catch(() => {})
+    setCherryPickResult(null)
+    setCherryPickHash(null)
+    loadGitChanges()
+    setAbortingCherryPick(false)
+  }, [instance.workingDirectory, abortingCherryPick, loadGitChanges])
+
+  const handleMerge = useCallback(async () => {
+    if (!instance.workingDirectory || !mergeTarget || merging) return
+    setMerging(true)
+    setMergeResult(null)
+    const result = await window.api.git.merge(instance.workingDirectory, mergeTarget, mergeNoFf)
+    setMergeResult(result)
+    if (result.success) {
+      setMergeTarget(null)
+      setBranchDropdownOpen(false)
+      await loadBranchInfo()
+      loadGitChanges()
+      setCommits([])
+      setCommitSkip(0)
+      setTimeout(() => setMergeResult(null), 3000)
+    }
+    setMerging(false)
+  }, [instance.workingDirectory, mergeTarget, merging, mergeNoFf, loadBranchInfo, loadGitChanges])
+
+  const handleMergeAbort = useCallback(async () => {
+    if (!instance.workingDirectory || abortingMerge) return
+    setAbortingMerge(true)
+    await window.api.git.mergeAbort(instance.workingDirectory).catch(() => {})
+    setMergeResult(null)
+    setMergeTarget(null)
+    loadGitChanges()
+    setAbortingMerge(false)
+  }, [instance.workingDirectory, abortingMerge, loadGitChanges])
 
   const handleStashPreview = useCallback(async (index: number) => {
     if (!instance.workingDirectory) return
@@ -678,6 +779,88 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
 
   // Memoized right pane — only re-renders DiffViewer when selection/content changes
   const rightPane = useMemo(() => {
+    // Blame view
+    if (blameFile !== null) {
+      const commitColors = new Map<string, boolean>()
+      let colorToggle = false
+      let prevHash = ''
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+            <button className="changes-refresh-btn" onClick={() => { setBlameFile(null); setBlameLines([]) }} title="Back to diff view">
+              <ArrowLeft size={12} />
+            </button>
+            <GitMerge size={12} style={{ opacity: 0.5 }} />
+            <span style={{ fontSize: '11px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.8 }}>
+              blame: {blameFile}
+            </span>
+          </div>
+          <div style={{ flex: blameExpandedHash ? '0 0 55%' : 1, overflow: 'auto', fontFamily: 'monospace', fontSize: '11px' }}>
+            {blameLoading && <div className="diff-first-pane-empty"><span>Loading blame…</span></div>}
+            {!blameLoading && blameLines.length === 0 && <div className="diff-first-pane-empty"><span>No blame data available.</span></div>}
+            {blameLines.map((blameLine, idx) => {
+              const isUncommitted = blameLine.hash.startsWith('00000000')
+              const isSameBlock = blameLine.hash === prevHash
+              if (!isSameBlock) {
+                if (!commitColors.has(blameLine.hash)) {
+                  colorToggle = !colorToggle
+                  commitColors.set(blameLine.hash, colorToggle)
+                }
+              }
+              prevHash = blameLine.hash
+              const altBg = commitColors.get(blameLine.hash) ?? false
+              return (
+                <div
+                  key={idx}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '1px 0',
+                    background: altBg ? 'rgba(255,255,255,0.025)' : 'transparent',
+                    borderTop: !isSameBlock && idx > 0 ? '1px solid rgba(255,255,255,0.04)' : undefined,
+                  }}
+                >
+                  <span style={{ width: '32px', textAlign: 'right', paddingRight: '6px', flexShrink: 0, opacity: 0.3, fontSize: '9px' }}>{blameLine.lineNumber}</span>
+                  {!isSameBlock ? (
+                    <button
+                      style={{ width: '52px', flexShrink: 0, padding: '0 4px', background: 'none', border: 'none', cursor: isUncommitted ? 'default' : 'pointer', textAlign: 'left', fontFamily: 'monospace', fontSize: '9px', color: blameExpandedHash === blameLine.hash ? 'var(--success)' : isUncommitted ? 'var(--text-muted)' : 'var(--accent)', opacity: 0.85 }}
+                      onClick={() => !isUncommitted && handleBlameHashClick(blameLine.hash)}
+                      title={isUncommitted ? 'Uncommitted changes' : blameLine.hash}
+                    >
+                      {isUncommitted ? 'WIP' : blameLine.hash.slice(0, 7)}
+                    </button>
+                  ) : <span style={{ width: '52px', flexShrink: 0 }} />}
+                  {!isSameBlock ? (
+                    <span style={{ width: '72px', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '9px', opacity: 0.45, paddingRight: '4px' }}>{blameLine.author}</span>
+                  ) : <span style={{ width: '72px', flexShrink: 0 }} />}
+                  {!isSameBlock ? (
+                    <span style={{ width: '72px', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '9px', opacity: 0.35, paddingRight: '6px' }}>{blameLine.date}</span>
+                  ) : <span style={{ width: '72px', flexShrink: 0 }} />}
+                  <span style={{ flex: 1, whiteSpace: 'pre', overflow: 'hidden', paddingRight: '8px', opacity: 0.85 }}>{blameLine.content}</span>
+                </div>
+              )
+            })}
+          </div>
+          {blameExpandedHash && (
+            <div style={{ flex: '0 0 45%', borderTop: '1px solid var(--border)', overflow: 'auto' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)', flexShrink: 0 }}>
+                <code style={{ fontSize: '9px', fontFamily: 'monospace', opacity: 0.7, color: 'var(--accent)' }}>{blameExpandedHash.slice(0, 7)}</code>
+                <span style={{ fontSize: '10px', opacity: 0.5 }}>commit diff</span>
+                <button className="changes-refresh-btn" style={{ marginLeft: 'auto' }} onClick={() => { setBlameExpandedHash(null); setBlameDiff(null) }} title="Close diff">
+                  <X size={10} />
+                </button>
+              </div>
+              {blameDiffLoading ? (
+                <div className="diff-viewer-empty">Loading diff…</div>
+              ) : blameDiff !== null ? (
+                blameDiff ? <DiffViewer diff={blameDiff} filename={`commit-${blameExpandedHash.slice(0, 7)}`} /> : <div className="diff-viewer-empty">No changes in this commit.</div>
+              ) : null}
+            </div>
+          )}
+        </div>
+      )
+    }
+
     // File history view
     if (fileHistoryFile !== null) {
       return (
@@ -854,7 +1037,9 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
       fileHistoryFile, fileHistoryCommits, fileHistoryLoading, fileHistorySkip, hasMoreFileHistory,
       expandedFileHistoryHash, fileHistoryDiff, fileHistoryDiffLoading,
       stashPreviewIndex, stashPreviewDiff, stashPreviewLoading, stashes,
-      closeFileHistory, handleExpandFileHistoryCommit, loadFileHistory])
+      closeFileHistory, handleExpandFileHistoryCommit, loadFileHistory,
+      blameFile, blameLines, blameLoading, blameExpandedHash, blameDiff, blameDiffLoading,
+      handleBlameHashClick])
 
   return (
     <>
@@ -933,35 +1118,111 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                           {switching && !b.current && <RotateCw size={9} className="spinning" style={{ flexShrink: 0 }} />}
                         </button>
                         {!b.current && (
-                          <button
-                            className="changes-refresh-btn"
-                            title={`Delete branch ${b.name}`}
-                            disabled={!!deletingBranch}
-                            onClick={(e) => { e.stopPropagation(); setDeleteError(null); setForceDeleteConfirm(null); handleDeleteBranch(b.name) }}
-                            style={{ color: 'var(--danger)', flexShrink: 0, marginLeft: '2px' }}
-                          >
-                            {deletingBranch === b.name ? <RotateCw size={9} className="spinning" /> : <Trash2 size={9} />}
-                          </button>
+                          <>
+                            <button
+                              className="changes-refresh-btn"
+                              title={`Merge ${b.name} into ${currentBranch}`}
+                              disabled={merging}
+                              onClick={(e) => { e.stopPropagation(); setMergeTarget(b.name); setMergeNoFf(false); setMergeResult(null) }}
+                              style={{ color: 'var(--accent)', flexShrink: 0, marginLeft: '2px', opacity: 0.8 }}
+                            >
+                              <GitMerge size={9} />
+                            </button>
+                            <button
+                              className="changes-refresh-btn"
+                              title={`Delete branch ${b.name}`}
+                              disabled={!!deletingBranch}
+                              onClick={(e) => { e.stopPropagation(); setDeleteError(null); setForceDeleteConfirm(null); handleDeleteBranch(b.name) }}
+                              style={{ color: 'var(--danger)', flexShrink: 0, marginLeft: '2px' }}
+                            >
+                              {deletingBranch === b.name ? <RotateCw size={9} className="spinning" /> : <Trash2 size={9} />}
+                            </button>
+                          </>
                         )}
                       </div>
                     ))}
+                    {/* Merge confirmation inline */}
+                    {mergeTarget && branches.some(b => b.name === mergeTarget && !b.remote) && (
+                      <div style={{ padding: '6px 8px', borderTop: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
+                        <div style={{ fontSize: '11px', marginBottom: '4px' }}>Merge <strong>{mergeTarget}</strong> → <strong>{currentBranch}</strong>?</div>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10px', opacity: 0.7, marginBottom: '6px', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={mergeNoFf} onChange={e => setMergeNoFf(e.target.checked)} style={{ margin: 0 }} />
+                          --no-ff (always create merge commit)
+                        </label>
+                        {mergeResult && !mergeResult.success && (
+                          <div style={{ fontSize: '10px', color: 'var(--danger)', marginBottom: '4px', maxHeight: '60px', overflow: 'auto' }}>
+                            {mergeResult.conflicts && mergeResult.conflicts.length > 0
+                              ? `Conflicts: ${mergeResult.conflicts.join(', ')}`
+                              : mergeResult.error?.split('\n')[0]}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button className="stash-action-btn primary" onClick={handleMerge} disabled={merging}>
+                            {merging ? <RotateCw size={9} className="spinning" /> : 'Merge'}
+                          </button>
+                          {mergeResult && !mergeResult.success && mergeResult.conflicts && mergeResult.conflicts.length > 0 && (
+                            <button className="stash-action-btn danger" onClick={handleMergeAbort} disabled={abortingMerge}>
+                              {abortingMerge ? <RotateCw size={9} className="spinning" /> : 'Abort'}
+                            </button>
+                          )}
+                          <button className="stash-action-btn" onClick={() => { setMergeTarget(null); setMergeResult(null) }}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
                     {branches.filter(b => b.remote).length > 0 && (
                       <div style={{ padding: '3px 8px 2px', fontSize: '9px', fontWeight: 600, opacity: 0.4, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px', borderTop: '1px solid var(--border)' }}>Remote</div>
                     )}
                     {branches.filter(b => b.remote).map(b => (
-                      <button
-                        key={`remote-${b.name}`}
-                        className="branch-list-item"
-                        onClick={() => handleSwitchBranch(b.name)}
-                        disabled={switching}
-                        title={`origin/${b.name}`}
-                        style={{ opacity: 0.7 }}
-                      >
-                        <Cloud size={10} style={{ flexShrink: 0, opacity: 0.6 }} />
-                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px' }}>{b.name}</span>
-                        {switching && <RotateCw size={9} className="spinning" style={{ flexShrink: 0 }} />}
-                      </button>
+                      <div key={`remote-${b.name}`} className="branch-list-item" style={{ display: 'flex', alignItems: 'center', opacity: 0.7 }}>
+                        <button
+                          style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', color: 'inherit', textAlign: 'left', minWidth: 0 }}
+                          onClick={() => handleSwitchBranch(b.name)}
+                          disabled={switching}
+                          title={`origin/${b.name} — click to checkout`}
+                        >
+                          <Cloud size={10} style={{ flexShrink: 0, opacity: 0.6 }} />
+                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px' }}>{b.name}</span>
+                          {switching && <RotateCw size={9} className="spinning" style={{ flexShrink: 0 }} />}
+                        </button>
+                        <button
+                          className="changes-refresh-btn"
+                          title={`Merge origin/${b.name} into ${currentBranch}`}
+                          disabled={merging}
+                          onClick={(e) => { e.stopPropagation(); setMergeTarget(`origin/${b.name}`); setMergeNoFf(false); setMergeResult(null) }}
+                          style={{ color: 'var(--accent)', flexShrink: 0, marginLeft: '2px', opacity: 0.8 }}
+                        >
+                          <GitMerge size={9} />
+                        </button>
+                      </div>
                     ))}
+                    {/* Merge confirmation for remote branches */}
+                    {mergeTarget && branches.some(b => b.remote && (`origin/${b.name}` === mergeTarget)) && (
+                      <div style={{ padding: '6px 8px', borderTop: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
+                        <div style={{ fontSize: '11px', marginBottom: '4px' }}>Merge <strong>{mergeTarget}</strong> → <strong>{currentBranch}</strong>?</div>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10px', opacity: 0.7, marginBottom: '6px', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={mergeNoFf} onChange={e => setMergeNoFf(e.target.checked)} style={{ margin: 0 }} />
+                          --no-ff (always create merge commit)
+                        </label>
+                        {mergeResult && !mergeResult.success && (
+                          <div style={{ fontSize: '10px', color: 'var(--danger)', marginBottom: '4px', maxHeight: '60px', overflow: 'auto' }}>
+                            {mergeResult.conflicts && mergeResult.conflicts.length > 0
+                              ? `Conflicts: ${mergeResult.conflicts.join(', ')}`
+                              : mergeResult.error?.split('\n')[0]}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button className="stash-action-btn primary" onClick={handleMerge} disabled={merging}>
+                            {merging ? <RotateCw size={9} className="spinning" /> : 'Merge'}
+                          </button>
+                          {mergeResult && !mergeResult.success && mergeResult.conflicts && mergeResult.conflicts.length > 0 && (
+                            <button className="stash-action-btn danger" onClick={handleMergeAbort} disabled={abortingMerge}>
+                              {abortingMerge ? <RotateCw size={9} className="spinning" /> : 'Abort'}
+                            </button>
+                          )}
+                          <button className="stash-action-btn" onClick={() => { setMergeTarget(null); setMergeResult(null) }}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1286,6 +1547,14 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                           <span style={{ fontSize: '8px', fontWeight: 600, padding: '1px 4px', borderRadius: '3px', background: 'rgba(59,130,246,0.15)', color: 'var(--accent)', border: '1px solid rgba(59,130,246,0.3)', flexShrink: 0 }}>unpushed</span>
                         )}
                         <span style={{ fontSize: '9px', opacity: 0.4, flexShrink: 0, marginLeft: '4px' }}>{c.date}</span>
+                        <button
+                          className="changes-refresh-btn"
+                          title={`Cherry-pick ${c.hash.slice(0, 7)} into ${currentBranch}`}
+                          onClick={(e) => { e.stopPropagation(); setCherryPickHash(c.hash); setCherryPickSubject(c.subject); setCherryPickResult(null) }}
+                          style={{ flexShrink: 0, marginLeft: '4px', color: 'var(--accent)', opacity: 0.7 }}
+                        >
+                          <ChevronsRight size={10} />
+                        </button>
                       </div>
                       {isExpanded && (
                         <div className="checkpoint-diff-container">
@@ -1315,6 +1584,35 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
               </>
             )}
           </div>
+          {/* Cherry-pick confirmation / result */}
+          {(cherryPickHash || cherryPickResult) && (
+            <div style={{ margin: '4px 8px', padding: '8px 10px', background: cherryPickResult?.success ? 'rgba(16,185,129,0.08)' : cherryPickResult ? 'rgba(239,68,68,0.08)' : 'var(--bg-secondary)', borderRadius: '6px', border: `1px solid ${cherryPickResult?.success ? 'rgba(16,185,129,0.3)' : cherryPickResult ? 'rgba(239,68,68,0.3)' : 'var(--border)'}` }}>
+              {cherryPickResult?.success ? (
+                <span style={{ fontSize: '11px', color: 'var(--success)' }}>Cherry-picked {cherryPickHash?.slice(0, 7) ?? ''} successfully.</span>
+              ) : cherryPickResult ? (
+                <div>
+                  <div style={{ fontSize: '11px', color: 'var(--danger)', marginBottom: '4px' }}>{cherryPickResult.error?.split('\n')[0]}</div>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button className="stash-action-btn danger" onClick={handleCherryPickAbort} disabled={abortingCherryPick}>
+                      {abortingCherryPick ? <RotateCw size={9} className="spinning" /> : 'Abort cherry-pick'}
+                    </button>
+                    <button className="stash-action-btn" onClick={() => setCherryPickResult(null)}>Dismiss</button>
+                  </div>
+                </div>
+              ) : cherryPickHash ? (
+                <div>
+                  <div style={{ fontSize: '11px', marginBottom: '6px' }}>Cherry-pick <code style={{ fontFamily: 'monospace', color: 'var(--accent)' }}>{cherryPickHash.slice(0, 7)}</code> into <strong>{currentBranch}</strong>?</div>
+                  <div style={{ fontSize: '10px', opacity: 0.6, marginBottom: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cherryPickSubject}</div>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button className="stash-action-btn primary" onClick={handleCherryPick} disabled={cherryPicking}>
+                      {cherryPicking ? <RotateCw size={9} className="spinning" /> : 'Confirm'}
+                    </button>
+                    <button className="stash-action-btn" onClick={() => setCherryPickHash(null)}>Cancel</button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          )}
           {scoreCard && (
             <div style={{
               margin: '8px 8px 4px',
@@ -1407,6 +1705,20 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
           >
             <History size={13} style={{ opacity: 0.7 }} />
             File History
+          </button>
+          <button
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              width: '100%', padding: '6px 10px', background: 'none',
+              border: 'none', cursor: 'pointer', color: 'var(--text-primary)',
+              fontSize: '12px', borderRadius: '4px', textAlign: 'left',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-secondary)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+            onClick={() => openBlame(contextMenu.file)}
+          >
+            <GitMerge size={13} style={{ opacity: 0.7 }} />
+            Blame
           </button>
         </div>
       )}
