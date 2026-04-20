@@ -1143,7 +1143,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                     ))}
                     {/* Merge confirmation inline */}
                     {mergeTarget && branches.some(b => b.name === mergeTarget && !b.remote) && (
-                      <div style={{ padding: '6px 8px', borderTop: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
+                      <div style={{ padding: '6px 8px', borderTop: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
                         <div style={{ fontSize: '11px', marginBottom: '4px' }}>Merge <strong>{mergeTarget}</strong> → <strong>{currentBranch}</strong>?</div>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10px', opacity: 0.7, marginBottom: '6px', cursor: 'pointer' }}>
                           <input type="checkbox" checked={mergeNoFf} onChange={e => setMergeNoFf(e.target.checked)} style={{ margin: 0 }} />
@@ -1197,7 +1197,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                     ))}
                     {/* Merge confirmation for remote branches */}
                     {mergeTarget && branches.some(b => b.remote && (`origin/${b.name}` === mergeTarget)) && (
-                      <div style={{ padding: '6px 8px', borderTop: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
+                      <div style={{ padding: '6px 8px', borderTop: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
                         <div style={{ fontSize: '11px', marginBottom: '4px' }}>Merge <strong>{mergeTarget}</strong> → <strong>{currentBranch}</strong>?</div>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10px', opacity: 0.7, marginBottom: '6px', cursor: 'pointer' }}>
                           <input type="checkbox" checked={mergeNoFf} onChange={e => setMergeNoFf(e.target.checked)} style={{ margin: 0 }} />

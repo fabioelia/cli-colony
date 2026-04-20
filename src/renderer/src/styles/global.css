@@ -8060,6 +8060,15 @@ body:has(.daemon-update-banner) .app-update-banner {
   background: var(--bg-hover);
   color: var(--text-primary);
 }
+.stash-action-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.stash-action-btn.primary:hover {
+  opacity: 0.85;
+  color: #fff;
+}
 .stash-action-btn.danger:hover {
   color: var(--danger);
   border-color: var(--danger);
