@@ -26,6 +26,30 @@ async function assertGitRepo(cwd: string): Promise<void> {
   await execFileAsync(resolveCommand('git'), ['rev-parse', '--git-dir'], { cwd, timeout: 5000 })
 }
 
+type CommitEntry = { hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number }
+
+/** Parse output from `git log --format=%H%x00%s%x00%an%x00%ar --shortstat`. */
+function parseLogWithStats(stdout: string): CommitEntry[] {
+  const results: CommitEntry[] = []
+  for (const line of stdout.trim().split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    if (trimmed.includes('\0')) {
+      const [hash, subject, author, date] = trimmed.split('\0')
+      results.push({ hash, subject, author, date })
+    } else if (results.length > 0 && /\d+ files? changed/.test(trimmed)) {
+      const last = results[results.length - 1]
+      const fc = trimmed.match(/(\d+) files? changed/)
+      const ins = trimmed.match(/(\d+) insertion/)
+      const del = trimmed.match(/(\d+) deletion/)
+      if (fc) last.filesChanged = parseInt(fc[1])
+      if (ins) last.insertions = parseInt(ins[1])
+      if (del) last.deletions = parseInt(del[1])
+    }
+  }
+  return results
+}
+
 export function registerGitHandlers(): void {
   ipcMain.handle('git:stage', async (_e, cwd: string, files: string[]): Promise<void> => {
     await assertGitRepo(cwd)
@@ -132,17 +156,14 @@ export function registerGitHandlers(): void {
     }
   })
 
-  ipcMain.handle('git:log', async (_e, cwd: string, limit: number = 20, skip: number = 0): Promise<Array<{ hash: string; subject: string; author: string; date: string }>> => {
+  ipcMain.handle('git:log', async (_e, cwd: string, limit: number = 20, skip: number = 0): Promise<Array<{ hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number }>> => {
     await assertGitRepo(cwd)
     try {
       const { stdout } = await execFileAsync(resolveCommand('git'), [
-        'log', `--max-count=${limit}`, `--skip=${skip}`, '--format=%H%x00%s%x00%an%x00%ar',
+        'log', `--max-count=${limit}`, `--skip=${skip}`, '--format=%H%x00%s%x00%an%x00%ar', '--shortstat',
       ], { cwd, timeout: 10000, encoding: 'utf-8' })
       if (!stdout.trim()) return []
-      return stdout.trim().split('\n').map(line => {
-        const [hash, subject, author, date] = line.split('\0')
-        return { hash, subject, author, date }
-      })
+      return parseLogWithStats(stdout)
     } catch { return [] }
   })
 
@@ -487,18 +508,15 @@ export function registerGitHandlers(): void {
     return { stat: statResult.stdout, diff: diffResult.stdout }
   })
 
-  ipcMain.handle('git:fileLog', async (_e, cwd: string, filePath: string, limit: number = 20, skip: number = 0): Promise<Array<{ hash: string; subject: string; author: string; date: string }>> => {
+  ipcMain.handle('git:fileLog', async (_e, cwd: string, filePath: string, limit: number = 20, skip: number = 0): Promise<CommitEntry[]> => {
     await assertGitRepo(cwd)
     if (/[;&|`$]/.test(filePath)) throw new Error('Invalid file path')
     try {
       const { stdout } = await execFileAsync(resolveCommand('git'), [
-        'log', '--follow', `--max-count=${limit}`, `--skip=${skip}`, '--format=%H%x00%s%x00%an%x00%ar', '--', filePath,
+        'log', '--follow', `--max-count=${limit}`, `--skip=${skip}`, '--format=%H%x00%s%x00%an%x00%ar', '--shortstat', '--', filePath,
       ], { cwd, timeout: 10000, encoding: 'utf-8' })
       if (!stdout.trim()) return []
-      return stdout.trim().split('\n').map(line => {
-        const [hash, subject, author, date] = line.split('\0')
-        return { hash, subject, author, date }
-      })
+      return parseLogWithStats(stdout)
     } catch { return [] }
   })
 
@@ -608,20 +626,15 @@ export function registerGitHandlers(): void {
     return { state, conflictedFiles }
   })
 
-  ipcMain.handle('git:searchCommits', async (_e, cwd: string, query: string, limit: number = 20): Promise<Array<{
-    hash: string; subject: string; author: string; date: string
-  }>> => {
+  ipcMain.handle('git:searchCommits', async (_e, cwd: string, query: string, limit: number = 20): Promise<CommitEntry[]> => {
     await assertGitRepo(cwd)
     if (!query.trim()) return []
     const { stdout } = await execFileAsync(resolveCommand('git'), [
       'log', '--all', `--grep=${query}`, '-i', `--max-count=${limit}`,
-      '--format=%H%x00%s%x00%an%x00%ar',
+      '--format=%H%x00%s%x00%an%x00%ar', '--shortstat',
     ], { cwd, timeout: 10000, encoding: 'utf-8' })
     if (!stdout.trim()) return []
-    return stdout.trim().split('\n').map(line => {
-      const [hash, subject, author, date] = line.split('\0')
-      return { hash, subject, author, date }
-    })
+    return parseLogWithStats(stdout)
   })
 
   ipcMain.handle('git:addToGitignore', async (_e, cwd: string, filePath: string, tracked: boolean): Promise<{ success: boolean; error?: string }> => {

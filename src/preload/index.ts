@@ -472,7 +472,7 @@ export interface ClaudeManagerAPI {
     push: (cwd: string) => Promise<void>
     branchInfo: (cwd: string) => Promise<{ branch: string; remote: string | null; ahead: number }>
     unpushedCommits: (cwd: string) => Promise<Array<{ hash: string; subject: string; author: string; date: string }>>
-    log: (cwd: string, limit?: number, skip?: number) => Promise<Array<{ hash: string; subject: string; author: string; date: string }>>
+    log: (cwd: string, limit?: number, skip?: number) => Promise<Array<{ hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number }>>
     commitDiff: (cwd: string, hash: string) => Promise<string>
     createBranch: (cwd: string, name: string, startPoint?: string) => Promise<string>
     fetch: (cwd: string) => Promise<{ success: boolean; error?: string }>
@@ -503,7 +503,7 @@ export interface ClaudeManagerAPI {
     deleteBranch: (cwd: string, branch: string, force?: boolean) => Promise<{ success: boolean; error?: string }>
     renameBranch: (cwd: string, newName: string) => Promise<{ success: boolean; error?: string; hasUpstream: boolean }>
     pruneRemote: (cwd: string) => Promise<void>
-    fileLog: (cwd: string, filePath: string, limit?: number, skip?: number) => Promise<Array<{ hash: string; subject: string; author: string; date: string }>>
+    fileLog: (cwd: string, filePath: string, limit?: number, skip?: number) => Promise<Array<{ hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number }>>
     fileCommitDiff: (cwd: string, hash: string, filePath: string) => Promise<string>
     blame: (cwd: string, filePath: string) => Promise<Array<{ hash: string; author: string; date: string; lineNumber: number; content: string }>>
     cherryPick: (cwd: string, hash: string) => Promise<{ success: boolean; error?: string }>
@@ -513,7 +513,7 @@ export interface ClaudeManagerAPI {
     revert: (cwd: string, hash: string) => Promise<{ success: boolean; error?: string }>
     revertAbort: (cwd: string) => Promise<void>
     conflictState: (cwd: string) => Promise<{ state: 'none' | 'merge' | 'cherry-pick' | 'revert'; conflictedFiles: string[] }>
-    searchCommits: (cwd: string, query: string, limit?: number) => Promise<Array<{ hash: string; subject: string; author: string; date: string }>>
+    searchCommits: (cwd: string, query: string, limit?: number) => Promise<Array<{ hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number }>>
     stageHunk: (cwd: string, patch: string) => Promise<{ success: boolean; error?: string }>
     discardHunk: (cwd: string, patch: string) => Promise<{ success: boolean; error?: string }>
     addToGitignore: (cwd: string, filePath: string, tracked: boolean) => Promise<{ success: boolean; error?: string }>
@@ -1207,7 +1207,7 @@ const api: ClaudeManagerAPI = {
     revert: (cwd, hash) => ipcRenderer.invoke('git:revert', cwd, hash) as Promise<{ success: boolean; error?: string }>,
     revertAbort: (cwd) => ipcRenderer.invoke('git:revertAbort', cwd) as Promise<void>,
     conflictState: (cwd) => ipcRenderer.invoke('git:conflictState', cwd) as Promise<{ state: 'none' | 'merge' | 'cherry-pick' | 'revert'; conflictedFiles: string[] }>,
-    searchCommits: (cwd, query, limit) => ipcRenderer.invoke('git:searchCommits', cwd, query, limit) as Promise<Array<{ hash: string; subject: string; author: string; date: string }>>,
+    searchCommits: (cwd, query, limit) => ipcRenderer.invoke('git:searchCommits', cwd, query, limit) as Promise<Array<{ hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number }>>,
     stageHunk: (cwd, patch) => ipcRenderer.invoke('git:stageHunk', cwd, patch) as Promise<{ success: boolean; error?: string }>,
     discardHunk: (cwd, patch) => ipcRenderer.invoke('git:discardHunk', cwd, patch) as Promise<{ success: boolean; error?: string }>,
     addToGitignore: (cwd, filePath, tracked) => ipcRenderer.invoke('git:addToGitignore', cwd, filePath, tracked) as Promise<{ success: boolean; error?: string }>,

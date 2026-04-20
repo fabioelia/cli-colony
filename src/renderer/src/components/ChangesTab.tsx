@@ -95,7 +95,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
 
   // File history state
   const [fileHistoryFile, setFileHistoryFile] = useState<string | null>(null)
-  const [fileHistoryCommits, setFileHistoryCommits] = useState<Array<{ hash: string; subject: string; author: string; date: string }>>([])
+  const [fileHistoryCommits, setFileHistoryCommits] = useState<Array<{ hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number }>>([])
   const [fileHistoryLoading, setFileHistoryLoading] = useState(false)
   const [fileHistorySkip, setFileHistorySkip] = useState(0)
   const [hasMoreFileHistory, setHasMoreFileHistory] = useState(true)
@@ -160,7 +160,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [conflictState, setConflictState] = useState<{ state: 'none' | 'merge' | 'cherry-pick' | 'revert'; conflictedFiles: string[] }>({ state: 'none', conflictedFiles: [] })
 
   // Commit history state
-  const [commits, setCommits] = useState<Array<{ hash: string; subject: string; author: string; date: string }>>([])
+  const [commits, setCommits] = useState<Array<{ hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number }>>([])
   const [commitsOpen, setCommitsOpen] = useState(false)
   const [unpushedHashes, setUnpushedHashes] = useState<Set<string>>(new Set())
   const [expandedCommit, setExpandedCommit] = useState<string | null>(null)
@@ -169,7 +169,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [commitSkip, setCommitSkip] = useState(0)
   const [hasMoreCommits, setHasMoreCommits] = useState(true)
   const [commitSearch, setCommitSearch] = useState('')
-  const [commitSearchResults, setCommitSearchResults] = useState<Array<{ hash: string; subject: string; author: string; date: string }> | null>(null)
+  const [commitSearchResults, setCommitSearchResults] = useState<Array<{ hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number }> | null>(null)
   const commitSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // General tags state
@@ -1150,6 +1150,13 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                     <ChevronRight size={10} style={{ flexShrink: 0, transition: 'transform 0.15s', transform: isExpanded ? 'rotate(90deg)' : 'none', opacity: 0.4 }} />
                     <code style={{ fontSize: '9px', fontFamily: 'monospace', opacity: 0.6, flexShrink: 0, width: '48px' }}>{c.hash.slice(0, 7)}</code>
                     <span style={{ flex: 1, fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
+                    {(c.insertions !== undefined || c.deletions !== undefined) && (
+                      <span style={{ fontSize: '9px', opacity: 0.5, flexShrink: 0, marginLeft: '4px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>
+                        {c.insertions ? <span style={{ color: 'var(--green, #4ade80)' }}>+{c.insertions}</span> : null}
+                        {c.insertions && c.deletions ? ' ' : null}
+                        {c.deletions ? <span style={{ color: 'var(--red, #f87171)' }}>-{c.deletions}</span> : null}
+                      </span>
+                    )}
                     <span style={{ fontSize: '9px', opacity: 0.4, flexShrink: 0, marginLeft: '4px' }}>{c.date}</span>
                     <span style={{ fontSize: '9px', opacity: 0.4, flexShrink: 0, marginLeft: '4px' }}>{c.author}</span>
                   </div>
@@ -1907,6 +1914,14 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                         <ChevronRight size={10} style={{ flexShrink: 0, transition: 'transform 0.15s', transform: isExpanded ? 'rotate(90deg)' : 'none', opacity: 0.4 }} />
                         <code className="commit-hash" style={{ fontSize: '9px', fontFamily: 'monospace', opacity: 0.6, flexShrink: 0, width: '48px' }}>{c.hash.slice(0, 7)}</code>
                         <span style={{ flex: 1, fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
+                        {(c.insertions !== undefined || c.deletions !== undefined) && (
+                          <span style={{ fontSize: '9px', opacity: 0.5, flexShrink: 0, marginLeft: '4px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>
+                            {c.insertions ? <span style={{ color: 'var(--green, #4ade80)' }}>+{c.insertions}</span> : null}
+                            {c.insertions && c.deletions ? ' ' : null}
+                            {c.deletions ? <span style={{ color: 'var(--red, #f87171)' }}>-{c.deletions}</span> : null}
+                            {c.filesChanged ? <span style={{ opacity: 0.6 }}>{' '}({c.filesChanged}f)</span> : null}
+                          </span>
+                        )}
                         {isUnpushed && (
                           <span style={{ fontSize: '8px', fontWeight: 600, padding: '1px 4px', borderRadius: '3px', background: 'rgba(59,130,246,0.15)', color: 'var(--accent)', border: '1px solid rgba(59,130,246,0.3)', flexShrink: 0 }}>unpushed</span>
                         )}
