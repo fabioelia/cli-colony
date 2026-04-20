@@ -1225,6 +1225,19 @@ function PersonaCard({
             const cls = pct >= 100 ? 'persona-list-daily-cap danger' : pct >= 75 ? 'persona-list-daily-cap warn' : 'persona-list-daily-cap'
             return <span className={cls} title={`Daily cap (trailing 24h): $${analytics.dailyCostUsd.toFixed(2)} of $${persona.maxCostPerDayUsd!.toFixed(2)}`}>${analytics.dailyCostUsd.toFixed(2)} / ${persona.maxCostPerDayUsd!.toFixed(2)} today</span>
           })()}
+          {persona.monthlyBudgetUsd != null && persona.monthlyCostUsd != null && (() => {
+            const spent = persona.monthlyCostUsd!
+            const budget = persona.monthlyBudgetUsd!
+            const ratio = spent / budget
+            const pct = Math.min(100, ratio * 100)
+            const barColor = ratio >= 0.95 ? 'var(--danger)' : ratio >= 0.8 ? 'var(--warning)' : 'var(--success)'
+            return (
+              <div className="persona-budget-bar" title={`Monthly budget: $${spent.toFixed(2)} of $${budget.toFixed(2)}`}>
+                <div className="persona-budget-fill" style={{ width: `${pct}%`, background: barColor }} />
+                <span className="persona-budget-label">${spent.toFixed(2)} / ${budget.toFixed(2)}</span>
+              </div>
+            )
+          })()}
           {analytics && analytics.totalRuns > 0 && (
             <span className="persona-list-stats">
               <span className={`persona-stat-chip ${analytics.successRate >= 80 ? 'good' : analytics.successRate >= 50 ? 'warn' : 'bad'}`} title={`Success rate: ${analytics.successRate}%`}>
@@ -1883,6 +1896,7 @@ function EditPersonaModal({ persona, allPersonaIds, onClose, onSaved }: {
   const [maxSessions, setMaxSessions] = useState(persona.maxSessions ?? 1)
   const [maxCostUsd, setMaxCostUsd] = useState(persona.maxCostUsd?.toString() ?? '')
   const [maxCostPerDayUsd, setMaxCostPerDayUsd] = useState(persona.maxCostPerDayUsd?.toString() ?? '')
+  const [monthlyBudgetUsd, setMonthlyBudgetUsd] = useState(persona.monthlyBudgetUsd?.toString() ?? '')
   const [onCompleteRun, setOnCompleteRun] = useState<string[]>(persona.onCompleteRun ?? [])
   const [canInvoke, setCanInvoke] = useState<string[]>(persona.canInvoke ?? [])
   const [saving, setSaving] = useState(false)
@@ -1916,6 +1930,12 @@ function EditPersonaModal({ persona, allPersonaIds, onClose, onSaved }: {
         updates.max_cost_per_day_usd = parsedDailyCost
       } else if (persona.maxCostPerDayUsd != null) {
         updates.max_cost_per_day_usd = 0
+      }
+      const parsedMonthlyBudget = parseFloat(monthlyBudgetUsd)
+      if (parsedMonthlyBudget > 0) {
+        updates.monthly_budget_usd = parsedMonthlyBudget
+      } else if (persona.monthlyBudgetUsd != null) {
+        updates.monthly_budget_usd = 0
       }
       const ok = await window.api.persona.updateMeta(persona.id, updates)
       if (ok) {
@@ -1993,6 +2013,18 @@ function EditPersonaModal({ persona, allPersonaIds, onClose, onSaved }: {
               value={maxCostPerDayUsd}
               onChange={(e) => setMaxCostPerDayUsd(e.target.value)}
               placeholder="No limit (trailing 24h)"
+            />
+          </label>
+          <label className="persona-edit-meta-field">
+            <span>Monthly Budget (USD)</span>
+            <input
+              className="persona-edit-meta-input"
+              type="number"
+              min={0}
+              step={1}
+              value={monthlyBudgetUsd}
+              onChange={(e) => setMonthlyBudgetUsd(e.target.value)}
+              placeholder="No limit (auto-pauses when exceeded)"
             />
           </label>
           <div className="persona-edit-meta-field">

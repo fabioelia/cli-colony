@@ -40,10 +40,23 @@ export function readPersonaMemory(personaId: string): PersonaMemory {
         activeSituations: Array.isArray(raw.activeSituations) ? raw.activeSituations : [],
         learnings: Array.isArray(raw.learnings) ? raw.learnings : [],
         sessionLog: Array.isArray(raw.sessionLog) ? raw.sessionLog : [],
+        costTracking: raw.costTracking && typeof raw.costTracking === 'object' ? raw.costTracking : undefined,
       }
     }
   } catch { /* corrupt or missing */ }
   return emptyMemory()
+}
+
+export function trackMonthlyCost(personaId: string, costUsd: number): { month: string; totalUsd: number } {
+  const mem = readPersonaMemory(personaId)
+  const now = new Date()
+  const monthKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
+  if (!mem.costTracking || mem.costTracking.month !== monthKey) {
+    mem.costTracking = { month: monthKey, totalUsd: 0 }
+  }
+  mem.costTracking.totalUsd += costUsd
+  writePersonaMemory(personaId, mem)
+  return mem.costTracking
 }
 
 function writePersonaMemory(personaId: string, memory: PersonaMemory): void {

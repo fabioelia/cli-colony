@@ -25,7 +25,7 @@ import { JsonFile } from '../shared/json-file'
 import { appendActivity } from './activity-manager'
 import { appendRunEntry, checkDailyCostBudget, getPersonaDailyCost } from './persona-run-history'
 import { getRateLimitState } from './rate-limit-state'
-import { migrateFromMarkdown, readPersonaMemory, extractMemoryInBackground } from './persona-memory'
+import { migrateFromMarkdown, readPersonaMemory, extractMemoryInBackground, trackMonthlyCost } from './persona-memory'
 import { buildPlanningPrompt, buildKickoff } from './persona-prompt-builder'
 import { getAttentionCount, getAttentionRequests, pruneOldAttention, getAllPendingAttention } from './persona-attention'
 
@@ -114,6 +114,8 @@ export interface PersonaFrontmatter {
   max_cost_usd?: number
   /** Per-persona daily cost cap in USD — trailing 24h window. Skips launch when exceeded. */
   max_cost_per_day_usd?: number
+  /** Monthly budget in USD. Auto-pauses persona when cumulative monthly cost exceeds this. */
+  monthly_budget_usd?: number
   /**
    * Optional run condition. Currently supports 'new_commits' — skip run if no
    * commits have been made since the last run in the persona's working_directory.
@@ -145,6 +147,7 @@ function parseFrontmatter(content: string): PersonaFrontmatter | null {
     stable_waiting_seconds: parseInt(val('stable_waiting_seconds')) || undefined,
     max_cost_usd: parseFloat(val('max_cost_usd')) || undefined,
     max_cost_per_day_usd: parseFloat(val('max_cost_per_day_usd')) || undefined,
+    monthly_budget_usd: parseFloat(val('monthly_budget_usd')) || undefined,
     conflict_group: val('conflict_group') || undefined,
     run_condition: val('run_condition') || undefined,
   }
@@ -255,6 +258,10 @@ export function getPersonaList(): PersonaInfo[] {
         lastSkipped: state.lastSkipped ?? null,
         maxCostUsd: fm.max_cost_usd,
         maxCostPerDayUsd: fm.max_cost_per_day_usd,
+        monthlyBudgetUsd: fm.monthly_budget_usd,
+        monthlyCostUsd: fm.monthly_budget_usd ? (() => {
+          try { return readPersonaMemory(personaId).costTracking?.totalUsd ?? 0 } catch { return 0 }
+        })() : undefined,
         attentionCount: getAttentionCount(personaId),
         color: fm.color || undefined,
         briefPreview: (() => {
@@ -938,6 +945,29 @@ export async function onSessionExit(instanceId: string): Promise<void> {
           sessionId: instanceId,
         })
         checkDailyCostBudget()
+
+        // Track monthly cost and auto-pause if budget exceeded
+        if (sessionCost > 0) {
+          const tracking = trackMonthlyCost(personaId, sessionCost)
+          try {
+            const c = readFileSync(join(PERSONAS_DIR, personaFile), 'utf-8')
+            const fm = parseFrontmatter(c)
+            if (fm?.monthly_budget_usd && tracking.totalUsd >= fm.monthly_budget_usd) {
+              state.enabled = false
+              appendActivity({
+                source: 'persona',
+                name,
+                summary: `Monthly budget exceeded ($${tracking.totalUsd.toFixed(2)} / $${fm.monthly_budget_usd}) — auto-paused`,
+                level: 'warn',
+              })
+              notify(
+                `Colony: ${name} paused — monthly budget exceeded`,
+                `Spent $${tracking.totalUsd.toFixed(2)} of $${fm.monthly_budget_usd} this month`,
+                'personas'
+              ).catch(() => {})
+            }
+          } catch { /* non-fatal */ }
+        }
 
         if (manuallyStopped) {
           // Manual stop: skip trigger chain (both dynamic and on_complete_run), but still extract memory

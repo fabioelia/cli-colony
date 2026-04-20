@@ -354,6 +354,10 @@ export interface PersonaInfo {
   maxCostUsd?: number
   /** Per-persona daily cost cap in USD — trailing 24h window (optional, from frontmatter) */
   maxCostPerDayUsd?: number
+  /** Monthly cost budget in USD (optional, from frontmatter) */
+  monthlyBudgetUsd?: number
+  /** Cost accumulated this UTC calendar month (only present when monthlyBudgetUsd is set) */
+  monthlyCostUsd?: number
   /** Count of unresolved attention requests from this persona */
   attentionCount: number
   /** First meaningful line of the latest brief (max 120 chars), or null if no brief exists */
@@ -385,6 +389,7 @@ export interface PersonaMemory {
   activeSituations: PersonaMemorySituation[]
   learnings: PersonaMemoryLearning[]
   sessionLog: PersonaMemoryLogEntry[]
+  costTracking?: { month: string; totalUsd: number }
 }
 
 export interface PersonaArtifact {
