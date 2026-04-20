@@ -303,18 +303,19 @@ export function registerGitHandlers(): void {
     }
   })
 
-  ipcMain.handle('git:diffRange', async (_e, cwd: string, from: string, to?: string): Promise<{ stat: string; diff: string }> => {
+  ipcMain.handle('git:diffRange', async (_e, cwd: string, from: string, to?: string, ignoreWhitespace?: boolean): Promise<{ stat: string; diff: string }> => {
     await assertGitRepo(cwd)
     // Validate refs — allow tag-like paths and hex hashes
     const refPattern = /^[a-zA-Z0-9_./:Z-]+$/
     if (!refPattern.test(from)) throw new Error('Invalid "from" ref')
     if (to && !refPattern.test(to)) throw new Error('Invalid "to" ref')
     const range = to ? `${from}..${to}` : `${from}..HEAD`
+    const wsFlag = ignoreWhitespace ? ['-w'] : []
     const [statResult, diffResult] = await Promise.all([
       execFileAsync(resolveCommand('git'), ['diff', range, '--stat'], {
         cwd, timeout: 15000, encoding: 'utf-8', maxBuffer: 5 * 1024 * 1024,
       }),
-      execFileAsync(resolveCommand('git'), ['diff', range], {
+      execFileAsync(resolveCommand('git'), ['diff', range, ...wsFlag], {
         cwd, timeout: 15000, encoding: 'utf-8', maxBuffer: 5 * 1024 * 1024,
       }),
     ])

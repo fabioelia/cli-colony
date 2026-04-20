@@ -252,17 +252,18 @@ export function registerInstanceHandlers(): void {
     }
   })
 
-  ipcMain.handle('session:getFileDiff', async (_e, dir: string, filePath: string, fileStatus?: string): Promise<string> => {
+  ipcMain.handle('session:getFileDiff', async (_e, dir: string, filePath: string, fileStatus?: string, ignoreWhitespace?: boolean): Promise<string> => {
     try {
       if (fileStatus === '?') {
         // Untracked file — show all content as additions
         const { stdout } = await execFileAsync(resolveCommand('cat'), [filePath], { encoding: 'utf-8', timeout: 5000, cwd: dir })
         return stdout.split('\n').map(l => '+' + l).join('\n')
       }
+      const wsFlag = ignoreWhitespace ? ['-w'] : []
       // Try staged diff first, fall back to unstaged
-      const { stdout: staged } = await execFileAsync(resolveCommand('git'), ['diff', '--cached', '--', filePath], { encoding: 'utf-8', timeout: 5000, cwd: dir })
+      const { stdout: staged } = await execFileAsync(resolveCommand('git'), ['diff', '--cached', ...wsFlag, '--', filePath], { encoding: 'utf-8', timeout: 5000, cwd: dir })
       if (staged.trim()) return staged
-      const { stdout } = await execFileAsync(resolveCommand('git'), ['diff', 'HEAD', '--', filePath], { encoding: 'utf-8', timeout: 5000, cwd: dir })
+      const { stdout } = await execFileAsync(resolveCommand('git'), ['diff', 'HEAD', ...wsFlag, '--', filePath], { encoding: 'utf-8', timeout: 5000, cwd: dir })
       return stdout
     } catch {
       return ''

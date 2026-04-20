@@ -120,6 +120,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; file: string; status: string } | null>(null)
 
   // Diff mode state
+  const [ignoreWhitespace, setIgnoreWhitespace] = useState(() => localStorage.getItem('diff-ignore-whitespace') === 'true')
   const [diffMode, setDiffMode] = useState<'working' | 'base'>('working')
   const [baseBranch, setBaseBranch] = useState('main')
   const [baseDiffEntries, setBaseDiffEntries] = useState<GitDiffEntry[]>([])
@@ -655,7 +656,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     setBaseDiffLoading(true)
     setSelectedDiffFile(null)
     setDiffContent(null)
-    window.api.git.diffRange(instance.workingDirectory, baseBranch)
+    window.api.git.diffRange(instance.workingDirectory, baseBranch, undefined, ignoreWhitespace)
       .then(({ diff }) => {
         const { entries, sections } = parseFullDiff(diff)
         setBaseDiffEntries(entries)
@@ -663,7 +664,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
       })
       .catch(() => setBaseDiffEntries([]))
       .finally(() => setBaseDiffLoading(false))
-  }, [diffMode, instance.workingDirectory, baseBranch, currentBranch])
+  }, [diffMode, instance.workingDirectory, baseBranch, currentBranch, ignoreWhitespace])
 
   const selectBaseFile = useCallback((file: string) => {
     setSelectedDiffFile(file)
@@ -769,17 +770,18 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     }
   }, [instance.id, instance.workingDirectory, gitChanges.length])
 
-  const selectFile = useCallback(async (file: string, status: string) => {
+  const selectFile = useCallback(async (file: string, status: string, ws?: boolean) => {
     setSelectedDiffFile(file)
-    if (diffCacheRef.current[file]) {
-      setDiffContent(diffCacheRef.current[file])
+    const cacheKey = ws ? `${file}\x00ws` : file
+    if (diffCacheRef.current[cacheKey]) {
+      setDiffContent(diffCacheRef.current[cacheKey])
       return
     }
     setDiffLoading(true)
     setDiffContent(null)
     try {
-      const raw = await window.api.session.getFileDiff(instance.workingDirectory!, file, status)
-      diffCacheRef.current[file] = raw
+      const raw = await window.api.session.getFileDiff(instance.workingDirectory!, file, status, ws)
+      diffCacheRef.current[cacheKey] = raw
       setDiffContent(raw)
     } catch {
       setDiffContent('')
@@ -798,9 +800,10 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     const entry = visibleFiles.find(f => f.file === file)
     if (!entry) return
     delete diffCacheRef.current[file]
-    selectFile(file, entry.status)
+    delete diffCacheRef.current[`${file}\x00ws`]
+    selectFile(file, entry.status, ignoreWhitespace)
     loadGitChanges()
-  }, [visibleFiles, selectFile, loadGitChanges])
+  }, [visibleFiles, selectFile, loadGitChanges, ignoreWhitespace])
 
   const handleStageHunk = useCallback(async (patch: string) => {
     if (!instance.workingDirectory || !selectedDiffFile) return
@@ -833,7 +836,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
       const currentIndex = selectedDiffFile
         ? visibleFiles.findIndex(f => f.file === selectedDiffFile)
         : -1
-      const activate = (f: GitDiffEntry) => diffMode === 'base' ? selectBaseFile(f.file) : selectFile(f.file, f.status)
+      const activate = (f: GitDiffEntry) => diffMode === 'base' ? selectBaseFile(f.file) : selectFile(f.file, f.status, ignoreWhitespace)
       if (e.key === 'ArrowDown' || e.key === 'j') {
         const next = currentIndex < visibleFiles.length - 1 ? currentIndex + 1 : 0
         activate(visibleFiles[next])
@@ -883,6 +886,17 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
       setDiffContent(null)
     }
   }, [gitChanges, baseDiffEntries, diffMode, selectedDiffFile])
+
+  // Re-fetch current working-tree diff when ignoreWhitespace toggles
+  useEffect(() => {
+    if (diffMode !== 'working' || !selectedDiffFile) return
+    const entry = gitChanges.find(f => f.file === selectedDiffFile)
+    if (!entry) return
+    delete diffCacheRef.current[selectedDiffFile]
+    delete diffCacheRef.current[`${selectedDiffFile}\x00ws`]
+    selectFile(selectedDiffFile, entry.status, ignoreWhitespace)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ignoreWhitespace])
 
   // Memoized right pane — only re-renders DiffViewer when selection/content changes
   const rightPane = useMemo(() => {
@@ -1090,6 +1104,17 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
           <div className="changes-diff-header">
             <span className="changes-diff-filename">{selectedDiffFile}</span>
             <button
+              className={`changes-refresh-btn${ignoreWhitespace ? ' active' : ''}`}
+              title={ignoreWhitespace ? 'Showing diff without whitespace — click to show all' : 'Hide whitespace changes'}
+              onClick={() => {
+                const next = !ignoreWhitespace
+                localStorage.setItem('diff-ignore-whitespace', String(next))
+                setIgnoreWhitespace(next)
+              }}
+            >
+              <EyeOff size={12} />
+            </button>
+            <button
               className="changes-refresh-btn"
               title="Copy diff"
               onClick={() => {
@@ -1146,7 +1171,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
       </div>
     )
   }, [selectedDiffFile, diffLoading, diffContent, colonyComments, copiedDiffFile,
-      diffMode, handleStageHunk, handleDiscardHunk,
+      ignoreWhitespace, diffMode, handleStageHunk, handleDiscardHunk,
       fileHistoryFile, fileHistoryCommits, fileHistoryLoading, fileHistorySkip, hasMoreFileHistory,
       expandedFileHistoryHash, fileHistoryDiff, fileHistoryDiffLoading,
       stashPreviewIndex, stashPreviewDiff, stashPreviewLoading, stashes,
@@ -1524,8 +1549,8 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                       role="button"
                       tabIndex={0}
                       aria-selected={isSelected}
-                      onClick={() => diffMode === 'base' ? selectBaseFile(entry.file) : selectFile(entry.file, entry.status)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); diffMode === 'base' ? selectBaseFile(entry.file) : selectFile(entry.file, entry.status) } }}
+                      onClick={() => diffMode === 'base' ? selectBaseFile(entry.file) : selectFile(entry.file, entry.status, ignoreWhitespace)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); diffMode === 'base' ? selectBaseFile(entry.file) : selectFile(entry.file, entry.status, ignoreWhitespace) } }}
                       onContextMenu={(e) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, file: entry.file, status: entry.status }) }}
                     >
                       <div className="changes-event-header" style={{ alignItems: 'center', cursor: 'pointer' }}>
