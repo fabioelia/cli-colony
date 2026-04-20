@@ -1188,9 +1188,9 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                     <span style={{ flex: 1, fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
                     {(c.insertions !== undefined || c.deletions !== undefined) && (
                       <span style={{ fontSize: '9px', opacity: 0.5, flexShrink: 0, marginLeft: '4px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>
-                        {c.insertions ? <span style={{ color: 'var(--green, #4ade80)' }}>+{c.insertions}</span> : null}
+                        {c.insertions ? <span style={{ color: 'var(--success)' }}>+{c.insertions}</span> : null}
                         {c.insertions && c.deletions ? ' ' : null}
-                        {c.deletions ? <span style={{ color: 'var(--red, #f87171)' }}>-{c.deletions}</span> : null}
+                        {c.deletions ? <span style={{ color: 'var(--danger)' }}>-{c.deletions}</span> : null}
                       </span>
                     )}
                     <span style={{ fontSize: '9px', opacity: 0.4, flexShrink: 0, marginLeft: '4px' }}>{c.date}</span>
@@ -1996,9 +1996,9 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                         <span style={{ flex: 1, fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
                         {(c.insertions !== undefined || c.deletions !== undefined) && (
                           <span style={{ fontSize: '9px', opacity: 0.5, flexShrink: 0, marginLeft: '4px', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>
-                            {c.insertions ? <span style={{ color: 'var(--green, #4ade80)' }}>+{c.insertions}</span> : null}
+                            {c.insertions ? <span style={{ color: 'var(--success)' }}>+{c.insertions}</span> : null}
                             {c.insertions && c.deletions ? ' ' : null}
-                            {c.deletions ? <span style={{ color: 'var(--red, #f87171)' }}>-{c.deletions}</span> : null}
+                            {c.deletions ? <span style={{ color: 'var(--danger)' }}>-{c.deletions}</span> : null}
                             {c.filesChanged ? <span style={{ opacity: 0.6 }}>{' '}({c.filesChanged}f)</span> : null}
                           </span>
                         )}
