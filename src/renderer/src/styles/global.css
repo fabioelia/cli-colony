@@ -8065,6 +8065,82 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-color: var(--danger);
 }
 
+/* ===== Branch Switcher ===== */
+.changes-branch-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  cursor: pointer;
+  max-width: 130px;
+}
+.changes-branch-chip:hover {
+  color: var(--text-primary);
+  border-color: var(--border-active);
+}
+.branch-behind-badge {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--warning);
+  flex-shrink: 0;
+}
+.branch-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 180px;
+  max-width: 260px;
+  background: var(--bg-elevated, var(--bg-panel));
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  z-index: 200;
+  overflow: hidden;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.branch-dropdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+}
+.branch-list-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 11px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+  border-top: 1px solid var(--border);
+  font-family: var(--font-mono, monospace);
+}
+.branch-list-item:first-of-type { border-top: none; }
+.branch-list-item:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.branch-list-item.active {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.branch-list-item:disabled { cursor: default; }
+
 /* ===== Diff Mode Toggle ===== */
 .changes-diff-mode-toggle {
   display: flex;

@@ -66,6 +66,15 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [stashing, setStashing] = useState(false)
   const [stashError, setStashError] = useState<string | null>(null)
 
+  // Branch switcher state
+  const [branches, setBranches] = useState<Array<{ name: string; current: boolean }>>([])
+  const [branchDropdownOpen, setBranchDropdownOpen] = useState(false)
+  const [currentBranch, setCurrentBranch] = useState('')
+  const [behindCount, setBehindCount] = useState(0)
+  const [switching, setSwitching] = useState(false)
+  const [fetchingBranches, setFetchingBranches] = useState(false)
+  const [switchError, setSwitchError] = useState<string | null>(null)
+
   // Diff mode state
   const [diffMode, setDiffMode] = useState<'working' | 'base'>('working')
   const [baseBranch, setBaseBranch] = useState('main')
@@ -223,6 +232,55 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     refreshStashes()
   }, [refreshStashes])
 
+  const loadBranchInfo = useCallback(async () => {
+    if (!instance.workingDirectory) return
+    const [branchList, info, behind] = await Promise.all([
+      window.api.git.listBranches(instance.workingDirectory),
+      window.api.git.branchInfo(instance.workingDirectory),
+      window.api.git.behindCount(instance.workingDirectory),
+    ]).catch(() => [[], { branch: '', remote: null, ahead: 0 }, 0] as const)
+    setBranches(branchList as Array<{ name: string; current: boolean }>)
+    setCurrentBranch((info as { branch: string }).branch)
+    setBehindCount(behind as number)
+  }, [instance.workingDirectory])
+
+  useEffect(() => { loadBranchInfo() }, [loadBranchInfo])
+
+  // Close branch dropdown on outside click
+  useEffect(() => {
+    if (!branchDropdownOpen) return
+    const handler = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.branch-switcher')) setBranchDropdownOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [branchDropdownOpen])
+
+  const handleSwitchBranch = useCallback(async (branch: string) => {
+    if (!instance.workingDirectory || switching) return
+    setSwitching(true)
+    setSwitchError(null)
+    const result = await window.api.git.switchBranch(instance.workingDirectory, branch)
+    if (result.success) {
+      setBranchDropdownOpen(false)
+      await loadBranchInfo()
+      loadGitChanges()
+      refreshStashes()
+      loadCheckpoints()
+    } else {
+      setSwitchError(result.error ?? 'Switch failed')
+    }
+    setSwitching(false)
+  }, [instance.workingDirectory, switching, loadBranchInfo, loadGitChanges, refreshStashes, loadCheckpoints])
+
+  const handleFetchBranches = useCallback(async () => {
+    if (!instance.workingDirectory) return
+    setFetchingBranches(true)
+    await window.api.git.fetch(instance.workingDirectory).catch(() => {})
+    await loadBranchInfo()
+    setFetchingBranches(false)
+  }, [instance.workingDirectory, loadBranchInfo])
+
   useEffect(() => {
     if (!instance.workingDirectory) return
     window.api.git.defaultBranch(instance.workingDirectory).then(setBaseBranch).catch(() => {})
@@ -241,7 +299,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
       })
       .catch(() => setBaseDiffEntries([]))
       .finally(() => setBaseDiffLoading(false))
-  }, [diffMode, instance.workingDirectory, baseBranch])
+  }, [diffMode, instance.workingDirectory, baseBranch, currentBranch])
 
   const selectBaseFile = useCallback((file: string) => {
     setSelectedDiffFile(file)
@@ -516,6 +574,52 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
               <button className={diffMode === 'working' ? 'active' : ''} onClick={() => handleModeSwitch('working')}>Working Tree</button>
               <button className={diffMode === 'base' ? 'active' : ''} onClick={() => handleModeSwitch('base')}>vs {baseBranch}</button>
             </div>
+            {currentBranch && (
+              <div className="branch-switcher" style={{ position: 'relative' }}>
+                <button
+                  className="changes-branch-chip"
+                  onClick={() => { setBranchDropdownOpen(!branchDropdownOpen); setSwitchError(null) }}
+                  title="Switch branch"
+                >
+                  <GitBranch size={11} />
+                  <span style={{ maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentBranch}</span>
+                  {behindCount > 0 && <span className="branch-behind-badge">↓{behindCount}</span>}
+                </button>
+                {branchDropdownOpen && (
+                  <div className="branch-dropdown">
+                    <div className="branch-dropdown-header">
+                      <span>Branches</span>
+                      <button
+                        className="changes-refresh-btn"
+                        onClick={handleFetchBranches}
+                        disabled={fetchingBranches}
+                        title="Fetch remote"
+                      >
+                        {fetchingBranches ? <RotateCw size={11} className="spinning" /> : <RefreshCw size={11} />}
+                      </button>
+                    </div>
+                    {switchError && (
+                      <div style={{ padding: '4px 8px', fontSize: '10px', color: 'var(--danger)', borderBottom: '1px solid var(--border)' }}>
+                        {switchError}
+                      </div>
+                    )}
+                    {branches.map(b => (
+                      <button
+                        key={b.name}
+                        className={`branch-list-item${b.current ? ' active' : ''}`}
+                        onClick={() => !b.current && handleSwitchBranch(b.name)}
+                        disabled={switching || b.current}
+                        title={b.name}
+                      >
+                        {b.current && <span style={{ color: 'var(--accent)', marginRight: '4px' }}>✓</span>}
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.name}</span>
+                        {switching && !b.current && <RotateCw size={9} className="spinning" style={{ flexShrink: 0 }} />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             {(visibleFiles.length > 0 || !!fileSearch) && (
               <div className="review-search-wrapper">
                 <Search size={12} className="review-search-icon" />
