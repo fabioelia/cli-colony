@@ -39,6 +39,8 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
   const [prUrl, setPRUrl] = useState('')
   const [prError, setPRError] = useState<string | null>(null)
   const [suggestingPR, setSuggestingPR] = useState(false)
+  const [amend, setAmend] = useState(false)
+  const amendPrefilled = useRef(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const ticketSeededRef = useRef(false)
 
@@ -106,7 +108,7 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
     try {
       await window.api.git.stage(dir, [...selectedFiles])
       const finalMessage = ticket ? buildCommitBody(message.trim(), ticket) : message.trim()
-      const hash = await window.api.git.commit(dir, finalMessage)
+      const hash = await window.api.git.commit(dir, finalMessage, amend || undefined)
       setCommitHash(hash)
       if (andPush) {
         setPhase('pushing')
@@ -200,6 +202,16 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
   const busy = phase === 'committing' || phase === 'pushing'
 
   useEffect(() => {
+    if (amend && !amendPrefilled.current && dir) {
+      amendPrefilled.current = true
+      window.api.git.lastCommitMessage(dir).then(msg => {
+        if (msg) setMessage(msg)
+      })
+    }
+    if (!amend) amendPrefilled.current = false
+  }, [amend, dir])
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !busy) onClose()
     }
@@ -275,6 +287,16 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
               </button>
             ))}
           </div>
+          <label className="commit-dialog-amend">
+            <input
+              type="checkbox"
+              checked={amend}
+              onChange={e => setAmend(e.target.checked)}
+              disabled={busy || phase === 'done'}
+            />
+            <span>Amend last commit</span>
+            {amend && <span className="commit-dialog-amend-warn">Modifies the previous commit</span>}
+          </label>
           <textarea
             ref={textareaRef}
             className="commit-dialog-textarea"

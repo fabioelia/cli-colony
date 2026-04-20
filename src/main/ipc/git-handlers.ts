@@ -34,9 +34,11 @@ export function registerGitHandlers(): void {
     }
   })
 
-  ipcMain.handle('git:commit', async (_e, cwd: string, message: string): Promise<string> => {
+  ipcMain.handle('git:commit', async (_e, cwd: string, message: string, amend?: boolean): Promise<string> => {
     await assertGitRepo(cwd)
-    const { stdout } = await execFileAsync(resolveCommand('git'), ['commit', '-m', message], {
+    const args = ['commit', '-m', message]
+    if (amend) args.push('--amend')
+    const { stdout } = await execFileAsync(resolveCommand('git'), args, {
       cwd,
       timeout: 30000,
       encoding: 'utf-8',
@@ -44,6 +46,15 @@ export function registerGitHandlers(): void {
     // Extract commit hash from output (e.g. "[main abc1234] message")
     const match = stdout.match(/\[[\w/.-]+ ([0-9a-f]+)\]/)
     return match ? match[1] : ''
+  })
+
+  ipcMain.handle('git:lastCommitMessage', async (_e, cwd: string): Promise<string | null> => {
+    try {
+      const { stdout } = await execFileAsync(resolveCommand('git'), ['log', '-1', '--format=%B'], {
+        cwd, timeout: 5000, encoding: 'utf-8',
+      })
+      return stdout.trim() || null
+    } catch { return null }
   })
 
   ipcMain.handle('git:push', async (_e, cwd: string): Promise<void> => {

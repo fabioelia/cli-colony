@@ -3723,6 +3723,23 @@ body:has(.daemon-update-banner) .app-update-banner {
 .commit-type-chip.active { background: var(--accent); color: var(--bg-primary); border-color: var(--accent); }
 .commit-type-chip:disabled { opacity: 0.4; cursor: default; }
 
+.commit-dialog-amend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  margin-bottom: 6px;
+  user-select: none;
+}
+.commit-dialog-amend input[type="checkbox"] { cursor: pointer; }
+.commit-dialog-amend-warn {
+  color: var(--warning);
+  font-size: 10px;
+  opacity: 0.85;
+}
+
 .commit-dialog-textarea {
   width: 100%;
   padding: 8px 12px;
