@@ -461,6 +461,12 @@ export function registerGitHandlers(): void {
     await execFileAsync(resolveCommand('git'), ['reset', '--soft', 'HEAD~1'], { cwd, timeout: 10000 })
   })
 
+  ipcMain.handle('git:resetSoft', async (_e, cwd: string, targetHash: string): Promise<void> => {
+    await assertGitRepo(cwd)
+    if (!/^[0-9a-f]{4,40}$/i.test(targetHash)) throw new Error('Invalid commit hash')
+    await execFileAsync(resolveCommand('git'), ['reset', '--soft', targetHash], { cwd, timeout: 10000 })
+  })
+
   ipcMain.handle('git:stashPush', async (_e, cwd: string, message?: string): Promise<void> => {
     await assertGitRepo(cwd)
     const args = ['stash', 'push', '--include-untracked']

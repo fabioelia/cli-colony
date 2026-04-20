@@ -175,6 +175,8 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [compareHashes, setCompareHashes] = useState<[string, string] | null>(null)
   const [compareDiff, setCompareDiff] = useState<{ stat: string; diff: string } | null>(null)
   const [compareDiffLoading, setCompareDiffLoading] = useState(false)
+  const [squashParentHash, setSquashParentHash] = useState<string | null>(null)
+  const [squashInitialMessage, setSquashInitialMessage] = useState<string | null>(null)
 
   // General tags state
   const [tagsOpen, setTagsOpen] = useState(false)
@@ -808,6 +810,37 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
       setCompareDiffLoading(false)
     }
   }, [compareSelected, commits, commitSearchResults, commitSearch, instance.workingDirectory])
+
+  // Squash is eligible when 2+ consecutive commits from HEAD are selected and all are unpushed
+  const squashEligible = useMemo(() => {
+    if (compareSelected.length < 2) return false
+    if (!compareSelected.every(h => unpushedHashes.has(h))) return false
+    const sortedIdxs = compareSelected
+      .map(h => commits.findIndex(c => c.hash === h))
+      .filter(i => i >= 0)
+      .sort((a, b) => a - b)
+    if (sortedIdxs.length !== compareSelected.length) return false
+    if (sortedIdxs[0] !== 0) return false // HEAD must be included
+    for (let i = 1; i < sortedIdxs.length; i++) {
+      if (sortedIdxs[i] !== sortedIdxs[i - 1] + 1) return false
+    }
+    // Need a parent commit to reset to
+    return commits[sortedIdxs[sortedIdxs.length - 1] + 1] !== undefined
+  }, [compareSelected, commits, unpushedHashes])
+
+  const handleSquash = useCallback(() => {
+    if (!squashEligible) return
+    const sortedIdxs = compareSelected
+      .map(h => commits.findIndex(c => c.hash === h))
+      .sort((a, b) => a - b)
+    const oldestIdx = sortedIdxs[sortedIdxs.length - 1]
+    const parentHash = commits[oldestIdx + 1].hash
+    // Combine messages oldest-first (highest index = oldest in newest-first log)
+    const combined = sortedIdxs.slice().reverse().map(i => commits[i].subject).join('\n\n')
+    setSquashParentHash(parentHash)
+    setSquashInitialMessage(combined)
+    setShowCommitDialog(true)
+  }, [squashEligible, compareSelected, commits])
 
   useEffect(() => {
     if (commitsOpen && commits.length === 0) loadCommits(0)
@@ -1933,6 +1966,16 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                 {compareSelected.length > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', background: 'rgba(59,130,246,0.08)', borderBottom: '1px solid rgba(59,130,246,0.2)' }}>
                     <span style={{ fontSize: '10px', color: 'var(--accent)', flex: 1 }}>{compareSelected.length} commit{compareSelected.length > 1 ? 's' : ''} selected</span>
+                    {squashEligible && (
+                      <button
+                        className="panel-header-btn primary"
+                        style={{ fontSize: '10px', padding: '2px 7px', height: 'auto' }}
+                        onClick={handleSquash}
+                        title="Squash selected commits into one"
+                      >
+                        <GitMerge size={10} /> Squash {compareSelected.length}
+                      </button>
+                    )}
                     {compareSelected.length === 2 && (
                       <button
                         className="panel-header-btn primary"
@@ -1942,7 +1985,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                         <GitCompare size={10} /> Compare
                       </button>
                     )}
-                    <button className="changes-refresh-btn" title="Clear selection" onClick={() => { setCompareSelected([]); setCompareHashes(null); setCompareDiff(null) }}><X size={10} /></button>
+                    <button className="changes-refresh-btn" title="Clear selection" onClick={() => { setCompareSelected([]); setCompareHashes(null); setCompareDiff(null); setSquashParentHash(null); setSquashInitialMessage(null) }}><X size={10} /></button>
                   </div>
                 )}
                 {compareHashes && (
@@ -2268,10 +2311,22 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
       {showCommitDialog && instance.workingDirectory && (
         <CommitDialog
           dir={instance.workingDirectory}
-          entries={gitChanges}
-          onClose={() => setShowCommitDialog(false)}
-          onCommitted={loadGitChanges}
+          entries={squashParentHash ? [] : gitChanges}
+          onClose={() => {
+            setShowCommitDialog(false)
+            setSquashParentHash(null)
+            setSquashInitialMessage(null)
+          }}
+          onCommitted={() => {
+            loadGitChanges()
+            setCompareSelected([])
+            setCompareHashes(null)
+            setCompareDiff(null)
+            loadCommits(0)
+          }}
           ticket={instance.ticket}
+          initialMessage={squashInitialMessage ?? undefined}
+          squashParentHash={squashParentHash ?? undefined}
         />
       )}
       {contextMenu && (

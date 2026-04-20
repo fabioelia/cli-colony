@@ -11,6 +11,8 @@ interface CommitDialogProps {
   onClose: () => void
   onCommitted: () => void
   ticket?: InstanceTicket
+  initialMessage?: string
+  squashParentHash?: string
 }
 
 type Phase = 'editing' | 'committing' | 'pushing' | 'done' | 'error'
@@ -19,8 +21,8 @@ type PRPhase = 'idle' | 'editing' | 'creating' | 'created'
 const COMMIT_TYPES = ['feat', 'fix', 'ux', 'chore', 'refactor', 'test', 'docs', 'perf'] as const
 const COMMIT_PREFIX_RE = /^(feat|fix|ux|chore|refactor|test|docs|perf)(!?(\([^)]*\))?:\s?)/
 
-export default function CommitDialog({ dir, entries, onClose, onCommitted, ticket }: CommitDialogProps) {
-  const [message, setMessage] = useState('')
+export default function CommitDialog({ dir, entries, onClose, onCommitted, ticket, initialMessage, squashParentHash }: CommitDialogProps) {
+  const [message, setMessage] = useState(initialMessage ?? '')
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(() => new Set(entries.map(e => e.file)))
   const [phase, setPhase] = useState<Phase>('editing')
   const [error, setError] = useState<string | null>(null)
@@ -109,11 +111,16 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
   }, [dir, newBranchName])
 
   const handleCommit = useCallback(async (andPush: boolean) => {
-    if (!message.trim() || selectedFiles.size === 0) return
+    if (!message.trim()) return
+    if (!squashParentHash && selectedFiles.size === 0) return
     setError(null)
     setPhase('committing')
     try {
-      await window.api.git.stage(dir, [...selectedFiles])
+      if (squashParentHash) {
+        await window.api.git.resetSoft(dir, squashParentHash)
+      } else {
+        await window.api.git.stage(dir, [...selectedFiles])
+      }
       const finalMessage = ticket ? buildCommitBody(message.trim(), ticket) : message.trim()
       const hash = await window.api.git.commit(dir, finalMessage, amend || undefined)
       setCommitHash(hash)
@@ -308,7 +315,7 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
             <button
               className="panel-header-btn"
               onClick={handleSuggest}
-              disabled={suggesting || selectedFiles.size === 0 || busy || phase === 'done'}
+              disabled={suggesting || (!squashParentHash && selectedFiles.size === 0) || busy || phase === 'done' || !!squashParentHash}
               title="AI-suggest commit message from diff"
               type="button"
             >
@@ -351,15 +358,19 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
             disabled={busy || phase === 'done'}
           />
           <div className="dialog-field-hint">
-            {selectedFiles.size} file{selectedFiles.size !== 1 ? 's' : ''} selected
-            {insertions > 0 && <span style={{ color: 'var(--success)', marginLeft: '6px' }}>+{insertions}</span>}
-            {deletions > 0 && <span style={{ color: 'var(--danger)', marginLeft: '4px' }}>-{deletions}</span>}
+            {squashParentHash
+              ? <span style={{ color: 'var(--accent)' }}>Squash — all changes combined</span>
+              : <>{selectedFiles.size} file{selectedFiles.size !== 1 ? 's' : ''} selected
+                  {insertions > 0 && <span style={{ color: 'var(--success)', marginLeft: '6px' }}>+{insertions}</span>}
+                  {deletions > 0 && <span style={{ color: 'var(--danger)', marginLeft: '4px' }}>-{deletions}</span>}
+                </>
+            }
             <span style={{ marginLeft: 'auto', opacity: 0.5 }}>{navigator.platform.includes('Mac') ? '\u2318' : 'Ctrl'}+Enter to commit</span>
           </div>
         </div>
 
-        {/* File checklist */}
-        <div className="commit-dialog-files">
+        {/* File checklist — hidden in squash mode */}
+        <div className="commit-dialog-files" style={squashParentHash ? { display: 'none' } : undefined}>
           <div className="commit-dialog-files-header">
             <label>
               <input
@@ -552,11 +563,11 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
               <button
                 className="dialog-btn dialog-btn-primary"
                 onClick={() => handleCommit(false)}
-                disabled={busy || !message.trim() || selectedFiles.size === 0}
+                disabled={busy || !message.trim() || (!squashParentHash && selectedFiles.size === 0)}
               >
-                {phase === 'committing' ? <><Loader size={12} className="spinning" /> Committing...</> : 'Commit'}
+                {phase === 'committing' ? <><Loader size={12} className="spinning" /> Committing...</> : squashParentHash ? 'Squash' : 'Commit'}
               </button>
-              {branchInfo?.remote && (
+              {!squashParentHash && branchInfo?.remote && (
                 <button
                   className="dialog-btn dialog-btn-primary"
                   onClick={() => handleCommit(true)}

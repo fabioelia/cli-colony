@@ -494,6 +494,7 @@ export interface ClaudeManagerAPI {
     defaultBranch: (cwd: string) => Promise<string>
     fileDiff: (cwd: string, file: string) => Promise<string>
     undoLastCommit: (cwd: string) => Promise<void>
+    resetSoft: (cwd: string, targetHash: string) => Promise<void>
     stashPush: (cwd: string, message?: string) => Promise<void>
     stashList: (cwd: string) => Promise<Array<{ index: number; message: string; date: string }>>
     stashApply: (cwd: string, index: number) => Promise<void>
@@ -1188,6 +1189,7 @@ const api: ClaudeManagerAPI = {
     defaultBranch: (cwd) => ipcRenderer.invoke('git:defaultBranch', cwd),
     fileDiff: (cwd, file) => ipcRenderer.invoke('git:fileDiff', cwd, file) as Promise<string>,
     undoLastCommit: (cwd) => ipcRenderer.invoke('git:undoLastCommit', cwd) as Promise<void>,
+    resetSoft: (cwd, targetHash) => ipcRenderer.invoke('git:resetSoft', cwd, targetHash) as Promise<void>,
     stashPush: (cwd, message) => ipcRenderer.invoke('git:stashPush', cwd, message) as Promise<void>,
     stashList: (cwd) => ipcRenderer.invoke('git:stashList', cwd) as Promise<Array<{ index: number; message: string; date: string }>>,
     stashApply: (cwd, index) => ipcRenderer.invoke('git:stashApply', cwd, index) as Promise<void>,
