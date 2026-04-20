@@ -195,6 +195,14 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [compareDiff, setCompareDiff] = useState<{ stat: string; diff: string } | null>(null)
   const [compareDiffLoading, setCompareDiffLoading] = useState(false)
   const [squashParentHash, setSquashParentHash] = useState<string | null>(null)
+  const [logAuthor, setLogAuthor] = useState('')
+  const [knownAuthors, setKnownAuthors] = useState<string[]>([])
+  const [authorDropdownOpen, setAuthorDropdownOpen] = useState(false)
+  const [commitFileList, setCommitFileList] = useState<Array<{ file: string; status: string; insertions: number; deletions: number }> | null>(null)
+  const [commitFileListOpen, setCommitFileListOpen] = useState(false)
+  const [createBranchFromHash, setCreateBranchFromHash] = useState<string | null>(null)
+  const [newBranchName, setNewBranchName] = useState('')
+  const [createBranchResult, setCreateBranchResult] = useState<string | null>(null)
   const [squashInitialMessage, setSquashInitialMessage] = useState<string | null>(null)
 
   // Interactive rebase state
@@ -841,16 +849,18 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     }
   }, [instance.workingDirectory, pushingTag])
 
-  const handleCommitSearchChange = useCallback((q: string) => {
+  const handleCommitSearchChange = useCallback((q: string, author?: string) => {
     setCommitSearch(q)
     if (commitSearchTimerRef.current) clearTimeout(commitSearchTimerRef.current)
-    if (!q.trim() || q.length < 2) { setCommitSearchResults(null); return }
+    const activeAuthor = author !== undefined ? author : logAuthor
+    if (!q.trim() && !activeAuthor) { setCommitSearchResults(null); return }
+    if (q.trim() && q.length < 2 && !activeAuthor) { setCommitSearchResults(null); return }
     commitSearchTimerRef.current = setTimeout(async () => {
       if (!instance.workingDirectory) return
-      const results = await window.api.git.searchCommits(instance.workingDirectory, q).catch(() => [])
+      const results = await window.api.git.searchCommits(instance.workingDirectory, q, 20, activeAuthor || undefined).catch(() => [])
       setCommitSearchResults(results)
     }, 300)
-  }, [instance.workingDirectory])
+  }, [instance.workingDirectory, logAuthor])
 
   const handleStashPreview = useCallback(async (index: number) => {
     if (!instance.workingDirectory) return
@@ -942,11 +952,16 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     setPulling(false)
   }, [instance.workingDirectory, pulling, loadBranchInfo, loadGitChanges, refreshStashes, loadCheckpoints])
 
-  const loadCommits = useCallback(async (skip = 0) => {
+  const loadCommits = useCallback(async (skip = 0, author?: string) => {
     if (!instance.workingDirectory) return
-    const batch = await window.api.git.log(instance.workingDirectory, 20, skip).catch(() => [])
+    const batch = await window.api.git.log(instance.workingDirectory, 20, skip, author || undefined).catch(() => [])
     if (skip === 0) {
       setCommits(batch)
+      const allAuthors = [...new Set(batch.map((c: { author: string }) => c.author).filter(Boolean))]
+      setKnownAuthors(prev => {
+        const merged = [...new Set([...prev, ...allAuthors])]
+        return merged.sort()
+      })
       const unpushed = await window.api.git.unpushedCommits(instance.workingDirectory).catch(() => [])
       setUnpushedHashes(new Set(unpushed.map((c: { hash: string }) => c.hash)))
     } else {
@@ -958,12 +973,18 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
 
   const handleExpandCommit = useCallback(async (hash: string) => {
     if (!instance.workingDirectory) return
-    if (expandedCommit === hash) { setExpandedCommit(null); setCommitDiff(null); return }
+    if (expandedCommit === hash) { setExpandedCommit(null); setCommitDiff(null); setCommitFileList(null); return }
     setExpandedCommit(hash)
     setCommitDiffLoading(true)
     setCommitDiff(null)
-    const diff = await window.api.git.commitDiff(instance.workingDirectory, hash).catch(() => '')
+    setCommitFileList(null)
+    const [diff, files] = await Promise.all([
+      window.api.git.commitDiff(instance.workingDirectory, hash).catch(() => ''),
+      window.api.git.commitFiles(instance.workingDirectory, hash).catch(() => []),
+    ])
     setCommitDiff(diff)
+    setCommitFileList(files)
+    setCommitFileListOpen(files.length > 3)
     setCommitDiffLoading(false)
   }, [instance.workingDirectory, expandedCommit])
 
@@ -2663,6 +2684,35 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                   {commitSearch && (
                     <button className="changes-refresh-btn" onClick={() => handleCommitSearchChange('')} style={{ flexShrink: 0 }}><X size={10} /></button>
                   )}
+                  {knownAuthors.length > 0 && (
+                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                      <button
+                        className="changes-refresh-btn"
+                        title="Filter by author"
+                        onClick={() => setAuthorDropdownOpen(p => !p)}
+                        style={{ fontSize: '9px', padding: '2px 5px', borderRadius: '3px', background: logAuthor ? 'rgba(59,130,246,0.15)' : undefined, color: logAuthor ? 'var(--accent)' : undefined, border: logAuthor ? '1px solid rgba(59,130,246,0.3)' : undefined, display: 'flex', alignItems: 'center', gap: '3px' }}
+                      >
+                        {logAuthor ? logAuthor.split(' ')[0] : 'Author'}
+                        {logAuthor && <span onClick={(e) => { e.stopPropagation(); setLogAuthor(''); loadCommits(0); handleCommitSearchChange(commitSearch, '') }} style={{ marginLeft: '2px', opacity: 0.7 }}>✕</span>}
+                      </button>
+                      {authorDropdownOpen && (
+                        <div style={{ position: 'absolute', right: 0, top: '100%', zIndex: 50, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: '4px', minWidth: '140px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', marginTop: '2px' }}
+                          onBlur={() => setAuthorDropdownOpen(false)}>
+                          <div
+                            style={{ padding: '5px 8px', fontSize: '10px', cursor: 'pointer', color: !logAuthor ? 'var(--accent)' : 'var(--text-primary)' }}
+                            onClick={() => { setLogAuthor(''); setAuthorDropdownOpen(false); loadCommits(0); handleCommitSearchChange(commitSearch, '') }}
+                          >All Authors</div>
+                          {knownAuthors.map(a => (
+                            <div
+                              key={a}
+                              style={{ padding: '5px 8px', fontSize: '10px', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: logAuthor === a ? 'var(--accent)' : 'var(--text-primary)', background: logAuthor === a ? 'rgba(59,130,246,0.08)' : undefined }}
+                              onClick={() => { setLogAuthor(a); setAuthorDropdownOpen(false); loadCommits(0, a); handleCommitSearchChange(commitSearch, a) }}
+                            >{a}</div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 {compareSelected.length > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', background: 'rgba(59,130,246,0.08)', borderBottom: '1px solid rgba(59,130,246,0.2)' }}>
@@ -2782,9 +2832,69 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                         >
                           <ChevronsRight size={10} />
                         </button>
+                        <button
+                          className="changes-refresh-btn"
+                          title={`Create branch from ${c.hash.slice(0, 7)}`}
+                          onClick={(e) => { e.stopPropagation(); setCreateBranchFromHash(c.hash); setNewBranchName(c.subject.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || c.hash.slice(0, 7) + '-branch'); setCreateBranchResult(null) }}
+                          style={{ flexShrink: 0, marginLeft: '2px', color: 'var(--text-muted)', opacity: 0.7 }}
+                        >
+                          <GitBranch size={10} />
+                        </button>
                       </div>
+                      {createBranchFromHash === c.hash && (
+                        <div style={{ margin: '0 8px 4px', padding: '6px 8px', background: 'var(--bg-secondary)', borderRadius: '4px', border: '1px solid var(--border)', display: 'flex', gap: '4px', alignItems: 'center' }}>
+                          <input
+                            type="text"
+                            value={newBranchName}
+                            onChange={(e) => setNewBranchName(e.target.value)}
+                            onKeyDown={async (e) => {
+                              if (e.key === 'Enter' && newBranchName.trim() && instance.workingDirectory) {
+                                const r = await window.api.git.createBranch(instance.workingDirectory, newBranchName.trim(), c.hash).catch((err: Error) => err.message)
+                                if (typeof r === 'string' && r) { setCreateBranchResult('err:' + r) } else { setCreateBranchResult('ok'); loadBranchInfo(); setTimeout(() => { setCreateBranchFromHash(null); setCreateBranchResult(null) }, 1500) }
+                              } else if (e.key === 'Escape') { setCreateBranchFromHash(null); setCreateBranchResult(null) }
+                            }}
+                            placeholder="Branch name"
+                            autoFocus
+                            style={{ flex: 1, fontSize: '10px', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: '3px', padding: '2px 6px', color: 'var(--text-primary)', outline: 'none' }}
+                          />
+                          <button className="stash-action-btn primary" style={{ fontSize: '9px' }} onClick={async () => {
+                            if (!newBranchName.trim() || !instance.workingDirectory) return
+                            const r = await window.api.git.createBranch(instance.workingDirectory, newBranchName.trim(), c.hash).catch((err: Error) => err.message)
+                            if (typeof r === 'string' && r && !r.startsWith('Switched')) { setCreateBranchResult('err:' + r) } else { setCreateBranchResult('ok'); loadBranchInfo(); setTimeout(() => { setCreateBranchFromHash(null); setCreateBranchResult(null) }, 1500) }
+                          }}>Create</button>
+                          <button className="stash-action-btn" style={{ fontSize: '9px' }} onClick={() => { setCreateBranchFromHash(null); setCreateBranchResult(null) }}>Cancel</button>
+                          {createBranchResult === 'ok' && <span style={{ fontSize: '9px', color: 'var(--success)' }}>Created!</span>}
+                          {createBranchResult?.startsWith('err:') && <span style={{ fontSize: '9px', color: 'var(--danger)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{createBranchResult.slice(4)}</span>}
+                        </div>
+                      )}
                       {isExpanded && (
                         <div className="checkpoint-diff-container">
+                          {commitFileList && commitFileList.length > 0 && (
+                            <div style={{ borderBottom: '1px solid var(--border)' }}>
+                              <div
+                                style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px', cursor: 'pointer', userSelect: 'none' }}
+                                onClick={() => setCommitFileListOpen(p => !p)}
+                              >
+                                <ChevronRight size={9} style={{ opacity: 0.4, transition: 'transform 0.15s', transform: commitFileListOpen ? 'rotate(90deg)' : 'none', flexShrink: 0 }} />
+                                <span style={{ fontSize: '9px', opacity: 0.6 }}>{commitFileList.length} file{commitFileList.length !== 1 ? 's' : ''} changed</span>
+                              </div>
+                              {commitFileListOpen && (
+                                <div style={{ paddingBottom: '4px' }}>
+                                  {commitFileList.map((f, i) => (
+                                    <div key={i} className="commit-file-list-row">
+                                      <span className={`commit-file-status ${f.status === 'A' ? 'added' : f.status === 'D' ? 'deleted' : 'modified'}`}>{f.status}</span>
+                                      <span className="commit-file-name">{f.file}</span>
+                                      <span style={{ fontSize: '9px', marginLeft: 'auto', opacity: 0.5, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+                                        {f.insertions > 0 && <span style={{ color: 'var(--success)' }}>+{f.insertions}</span>}
+                                        {f.insertions > 0 && f.deletions > 0 && ' '}
+                                        {f.deletions > 0 && <span style={{ color: 'var(--danger)' }}>-{f.deletions}</span>}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
                           {commitDiffLoading ? (
                             <div className="diff-viewer-empty">Loading diff...</div>
                           ) : commitDiff !== null ? (

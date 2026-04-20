@@ -181,12 +181,12 @@ export function registerGitHandlers(): void {
     }
   })
 
-  ipcMain.handle('git:log', async (_e, cwd: string, limit: number = 20, skip: number = 0): Promise<CommitEntry[]> => {
+  ipcMain.handle('git:log', async (_e, cwd: string, limit: number = 20, skip: number = 0, author?: string): Promise<CommitEntry[]> => {
     await assertGitRepo(cwd)
     try {
-      const { stdout } = await execFileAsync(resolveCommand('git'), [
-        'log', `--max-count=${limit}`, `--skip=${skip}`, '--format=%H%x00%s%x00%an%x00%ar%x00%P%x00%D', '--shortstat',
-      ], { cwd, timeout: 10000, encoding: 'utf-8' })
+      const args = ['log', `--max-count=${limit}`, `--skip=${skip}`, '--format=%H%x00%s%x00%an%x00%ar%x00%P%x00%D', '--shortstat']
+      if (author) args.push(`--author=${author}`)
+      const { stdout } = await execFileAsync(resolveCommand('git'), args, { cwd, timeout: 10000, encoding: 'utf-8' })
       if (!stdout.trim()) return []
       return parseLogWithDecorations(stdout)
     } catch { return [] }
@@ -906,15 +906,52 @@ export function registerGitHandlers(): void {
     }
   })
 
-  ipcMain.handle('git:searchCommits', async (_e, cwd: string, query: string, limit: number = 20): Promise<CommitEntry[]> => {
+  ipcMain.handle('git:searchCommits', async (_e, cwd: string, query: string, limit: number = 20, author?: string): Promise<CommitEntry[]> => {
     await assertGitRepo(cwd)
-    if (!query.trim()) return []
-    const { stdout } = await execFileAsync(resolveCommand('git'), [
-      'log', '--all', `--grep=${query}`, '-i', `--max-count=${limit}`,
-      '--format=%H%x00%s%x00%an%x00%ar', '--shortstat',
-    ], { cwd, timeout: 10000, encoding: 'utf-8' })
+    if (!query.trim() && !author) return []
+    const args = ['log', '--all', `--max-count=${limit}`, '--format=%H%x00%s%x00%an%x00%ar', '--shortstat']
+    if (query.trim()) args.push(`--grep=${query}`, '-i')
+    if (author) args.push(`--author=${author}`)
+    const { stdout } = await execFileAsync(resolveCommand('git'), args, { cwd, timeout: 10000, encoding: 'utf-8' })
     if (!stdout.trim()) return []
     return parseLogWithStats(stdout)
+  })
+
+  ipcMain.handle('git:commitFiles', async (_e, cwd: string, hash: string): Promise<Array<{ file: string; status: string; insertions: number; deletions: number }>> => {
+    await assertGitRepo(cwd)
+    if (!/^[a-f0-9]{4,40}$/.test(hash)) throw new Error('Invalid hash')
+    try {
+      const parentArg = hash + '^1'
+      const [nameStatus, numStat] = await Promise.all([
+        execFileAsync(resolveCommand('git'), ['diff', '--name-status', parentArg, hash], { cwd, timeout: 5000, encoding: 'utf-8' }).catch(() =>
+          execFileAsync(resolveCommand('git'), ['diff-tree', '--root', '--no-commit-id', '-r', '--name-status', hash], { cwd, timeout: 5000, encoding: 'utf-8' })
+        ),
+        execFileAsync(resolveCommand('git'), ['diff', '--numstat', parentArg, hash], { cwd, timeout: 5000, encoding: 'utf-8' }).catch(() =>
+          execFileAsync(resolveCommand('git'), ['diff-tree', '--root', '--no-commit-id', '-r', '--numstat', hash], { cwd, timeout: 5000, encoding: 'utf-8' })
+        ),
+      ])
+      const statsMap = new Map<string, { ins: number; del: number }>()
+      for (const line of numStat.stdout.split('\n')) {
+        const parts = line.split('\t')
+        if (parts.length >= 3) {
+          const ins = parseInt(parts[0]) || 0
+          const del = parseInt(parts[1]) || 0
+          const file = parts[2].trim()
+          if (file) statsMap.set(file, { ins, del })
+        }
+      }
+      const result: Array<{ file: string; status: string; insertions: number; deletions: number }> = []
+      for (const line of nameStatus.stdout.split('\n')) {
+        if (!line.trim()) continue
+        const parts = line.split('\t')
+        const status = parts[0].charAt(0)
+        const file = parts[parts.length - 1].trim()
+        if (!file) continue
+        const stats = statsMap.get(file) ?? { ins: 0, del: 0 }
+        result.push({ file, status, insertions: stats.ins, deletions: stats.del })
+      }
+      return result
+    } catch { return [] }
   })
 
   ipcMain.handle('git:addToGitignore', async (_e, cwd: string, filePath: string, tracked: boolean): Promise<{ success: boolean; error?: string }> => {
