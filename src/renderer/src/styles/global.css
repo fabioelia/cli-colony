@@ -23631,3 +23631,17 @@ body:has(.daemon-update-banner) .app-update-banner {
 .attention-send-btn { display: flex; align-items: center; gap: 4px; align-self: flex-end; font-size: 11px; padding: 3px 10px; background: var(--accent); color: white; border: none; border-radius: 3px; cursor: pointer; }
 .attention-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .attention-send-btn:not(:disabled):hover { filter: brightness(1.1); }
+
+/* Persona Briefs section on Colony Overview */
+.overview-collapsible-header { display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; margin-bottom: 4px; }
+.overview-collapsible-header:hover h3 { color: var(--text-primary); }
+.overview-collapsible-header h3 { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+.persona-briefs-list { display: flex; flex-direction: column; gap: 6px; }
+.persona-brief-card { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.persona-brief-card-header { display: flex; align-items: center; gap: 6px; padding: 6px 10px; cursor: pointer; }
+.persona-brief-card-header:hover { background: var(--bg-hover); }
+.persona-brief-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.persona-brief-name { font-size: 12px; font-weight: 600; color: var(--text-primary); flex: 1; }
+.persona-brief-mtime { font-size: 11px; color: var(--text-muted); }
+.persona-brief-preview { margin: 0; padding: 0 10px 8px; font-size: 11px; color: var(--text-secondary); line-height: 1.5; }
+.persona-brief-full { padding: 0 10px 8px; font-size: 12px; }

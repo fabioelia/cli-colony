@@ -2,9 +2,10 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Home, Play, Plus, Zap, Clock, AlertCircle, Layers,
   CheckCircle2, XCircle, Circle, Users, FolderOpen, Activity, GanttChart, BarChart3, X, Eye, Square, Pin, PinOff,
-  ChevronLeft, ChevronRight, Calendar, RotateCcw, Search, MessageSquare, Trash2, Server, Download, Gauge, Terminal, GitCommit, ClipboardCopy
+  ChevronLeft, ChevronRight, Calendar, RotateCcw, Search, MessageSquare, Trash2, Server, Download, Gauge, Terminal, GitCommit, ClipboardCopy, FileText, ChevronDown, ChevronsUpDown
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
+import MarkdownViewer from './MarkdownViewer'
 import SessionTimeline from './SessionTimeline'
 import { nextRuns } from '../../../shared/cron'
 import type { ClaudeInstance, ActivityEvent, PersonaInfo, ApprovalRequest, TaskBoardItem, PersonaHealthEntry, EnvStatus, ContextUsage, SessionArtifact } from '../../../preload'
@@ -86,6 +87,9 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const [tick, setTick] = useState(0)
   const [triggeredIds, setTriggeredIds] = useState<Set<string>>(new Set())
   const [todayArtifacts, setTodayArtifacts] = useState<SessionArtifact[]>([])
+  const [personaBriefs, setPersonaBriefs] = useState<Map<string, { content: string; mtime: number | null }>>(new Map())
+  const [briefsOpen, setBriefsOpen] = useState(false)
+  const [expandedBriefs, setExpandedBriefs] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     window.api.activity.list().then(setActivity)
@@ -115,6 +119,26 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
     )).then(results => {
       setCostLeaderboard(results.filter(r => r.cost > 0).sort((a, b) => b.cost - a.cost))
     })
+  }, [personas])
+
+  // Fetch persona briefs (poll every 60s)
+  useEffect(() => {
+    const enabledPersonas = personas.filter(p => p.enabled)
+    if (enabledPersonas.length === 0) return
+    const fetchBriefs = () => {
+      Promise.all(enabledPersonas.map(p =>
+        window.api.persona.getContent(p.id + '.brief').then(({ content, mtime }) =>
+          content ? [p.id, { content, mtime }] as const : null
+        ).catch(() => null)
+      )).then(results => {
+        const m = new Map<string, { content: string; mtime: number | null }>()
+        for (const r of results) if (r) m.set(r[0], r[1])
+        setPersonaBriefs(m)
+      })
+    }
+    fetchBriefs()
+    const t = setInterval(fetchBriefs, 60000)
+    return () => clearInterval(t)
   }, [personas])
 
   // Listen for live updates
@@ -246,6 +270,14 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
     return latest ? timeAgo(latest) : null
   }, [activePipelines])
   const runningPersonas = useMemo(() => personas.filter(p => p.activeSessionId), [personas])
+  const sortedBriefs = useMemo(() => {
+    const enabledIds = new Set(personas.filter(p => p.enabled).map(p => p.id))
+    return Array.from(personaBriefs.entries())
+      .filter(([id]) => enabledIds.has(id))
+      .sort((a, b) => (b[1].mtime ?? 0) - (a[1].mtime ?? 0))
+      .map(([id, brief]) => ({ id, persona: personas.find(p => p.id === id)!, ...brief }))
+      .filter(b => b.persona)
+  }, [personaBriefs, personas])
   const pendingApprovals = approvals
   const inProgressTasks = useMemo(() => tasks.filter(t => t.status === 'in_progress'), [tasks])
   const blockedTasks = useMemo(() => tasks.filter(t => t.status === 'blocked'), [tasks])
@@ -1079,6 +1111,62 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Persona Briefs */}
+        {sortedBriefs.length > 0 && (
+          <div className="overview-section">
+            <div
+              className="overview-collapsible-header"
+              onClick={() => setBriefsOpen(o => !o)}
+            >
+              <h3 style={{ margin: 0 }}><FileText size={14} /> Persona Briefs ({sortedBriefs.length})</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                {briefsOpen && (
+                  <button
+                    className="panel-header-btn"
+                    title="Toggle all"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setExpandedBriefs(prev => prev.size > 0 ? new Set() : new Set(sortedBriefs.map(b => b.id)))
+                    }}
+                  >
+                    <ChevronsUpDown size={12} />
+                  </button>
+                )}
+                <ChevronDown size={14} style={{ transform: briefsOpen ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.15s' }} />
+              </div>
+            </div>
+            {briefsOpen && (
+              <div className="persona-briefs-list">
+                {sortedBriefs.map(b => (
+                  <div key={b.id} className="persona-brief-card">
+                    <div
+                      className="persona-brief-card-header"
+                      onClick={() => setExpandedBriefs(prev => {
+                        const next = new Set(prev)
+                        next.has(b.id) ? next.delete(b.id) : next.add(b.id)
+                        return next
+                      })}
+                    >
+                      <span className="persona-brief-dot" style={{ background: b.persona.color || '#888' }} />
+                      <span className="persona-brief-name">{b.persona.name}</span>
+                      {b.mtime && <span className="persona-brief-mtime">{timeAgo(new Date(b.mtime).toISOString())}</span>}
+                      <ChevronDown size={12} style={{ transform: expandedBriefs.has(b.id) ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.15s' }} />
+                    </div>
+                    {!expandedBriefs.has(b.id) && (
+                      <p className="persona-brief-preview">{b.content.replace(/^#[^\n]+\n/, '').replace(/\n+/g, ' ').slice(0, 200)}</p>
+                    )}
+                    {expandedBriefs.has(b.id) && (
+                      <div className="persona-brief-full">
+                        <MarkdownViewer content={b.content} />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

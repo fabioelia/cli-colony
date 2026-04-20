@@ -204,6 +204,13 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Persona Briefs',
+        position: 'Above Recent Activity',
+        items: [
+          { label: 'Persona Briefs section', detail: 'Collapsible section showing the most recent brief written by each enabled persona. Each card shows persona name, color dot, last-updated time, and a 200-char preview. Click a card to expand and read the full brief (rendered as markdown). "Expand all / Collapse all" toggle button available in the header when open. Only enabled personas with an existing brief are shown. Sorted by most recently updated. Polls every 60 seconds.', icon: 'FileText' },
+        ],
+      },
+      {
         name: 'Recent Activity',
         position: 'Below running sessions',
         items: [
