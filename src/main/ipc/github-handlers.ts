@@ -7,7 +7,7 @@ import {
   updateRepoPath, getPrompts, savePrompts, resolvePrompt, writePrContext,
   getPrMemory, savePrMemory, getPrMemoryPath, getPrWorkspacePath,
   fetchChecks, fetchCheckLogs, ensureBareClone,
-  getGitHubUser, fetchFeedbackFiles,
+  getGitHubUser, fetchFeedbackFiles, createPRReviewComment, replyToPRComment,
 } from '../github'
 import type { GitHubRepo, QuickPrompt, GitHubPR } from '../../shared/types'
 
@@ -48,4 +48,8 @@ export function registerGitHubHandlers(): void {
   ipcMain.handle('github:mergePR', (_e, repo: GitHubRepo, prNumber: number, method: 'merge' | 'squash' | 'rebase') => mergePR(repo, prNumber, method))
   ipcMain.handle('github:fetchIssues', (_e, repo: GitHubRepo) => fetchIssues(repo))
   ipcMain.handle('github:createIssue', (_e, repo: GitHubRepo, title: string, body: string, labels: string[]) => createIssue(repo, title, body, labels))
+  ipcMain.handle('github:createReviewComment', (_e, repo: GitHubRepo, prNumber: number, body: string, commitId: string, path: string, line: number, side: 'LEFT' | 'RIGHT') =>
+    createPRReviewComment(repo, prNumber, body, commitId, path, line, side))
+  ipcMain.handle('github:replyToComment', (_e, repo: GitHubRepo, prNumber: number, commentId: number, body: string) =>
+    replyToPRComment(repo, prNumber, commentId, body))
 }

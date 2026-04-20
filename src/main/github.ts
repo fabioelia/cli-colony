@@ -160,7 +160,7 @@ export async function fetchPRs(repo: GitHubRepo): Promise<GitHubPR[]> {
       try {
         const reviewJson = await gh([
           'api', `repos/${repoSlug}/pulls/${pr.number}/comments`,
-          '--jq', '.[].{author: .user.login, body: .body, createdAt: .created_at, path: .path, line: .line, originalLine: .original_line}',
+          '--jq', '.[].{id: .id, author: .user.login, body: .body, createdAt: .created_at, path: .path, line: .line, originalLine: .original_line}',
         ])
         if (!reviewJson.trim()) return
         const reviewComments: PRComment[] = reviewJson.trim().split('\n')
@@ -168,7 +168,7 @@ export async function fetchPRs(repo: GitHubRepo): Promise<GitHubPR[]> {
           .map((l) => {
             try {
               const c = JSON.parse(l)
-              return { author: c.author, body: c.body, createdAt: c.createdAt, path: c.path, line: c.line || undefined, originalLine: c.originalLine || undefined }
+              return { id: c.id || undefined, author: c.author, body: c.body, createdAt: c.createdAt, path: c.path, line: c.line || undefined, originalLine: c.originalLine || undefined }
             } catch { return null }
           })
           .filter(Boolean) as PRComment[]
@@ -217,6 +217,40 @@ export async function submitPRReview(
   else args.push('--comment')
   if (body) { args.push('--body', body) }
   await gh(args)
+}
+
+/** Post an inline review comment on a specific diff line. */
+export async function createPRReviewComment(
+  repo: GitHubRepo, prNumber: number, body: string,
+  commitId: string, path: string, line: number, side: 'LEFT' | 'RIGHT'
+): Promise<PRComment> {
+  const slug = `${repo.owner}/${repo.name}`
+  const raw = await gh([
+    'api', `repos/${slug}/pulls/${prNumber}/comments`,
+    '--method', 'POST',
+    '-f', `body=${body}`,
+    '-f', `commit_id=${commitId}`,
+    '-f', `path=${path}`,
+    '-F', `line=${line}`,
+    '-f', `side=${side}`,
+    '-f', 'subject_type=line',
+    '--jq', '{id: .id, author: .user.login, body: .body, createdAt: .created_at, path: .path, line: .line, originalLine: .original_line}',
+  ])
+  return JSON.parse(raw.trim())
+}
+
+/** Reply to an existing PR review comment thread. */
+export async function replyToPRComment(
+  repo: GitHubRepo, prNumber: number, commentId: number, body: string
+): Promise<PRComment> {
+  const slug = `${repo.owner}/${repo.name}`
+  const raw = await gh([
+    'api', `repos/${slug}/pulls/${prNumber}/comments/${commentId}/replies`,
+    '--method', 'POST',
+    '-f', `body=${body}`,
+    '--jq', '{id: .id, author: .user.login, body: .body, createdAt: .created_at, path: .path, line: .line, originalLine: .original_line}',
+  ])
+  return JSON.parse(raw.trim())
 }
 
 /** Fetch the list of changed files for a PR, including unified diff patches. */

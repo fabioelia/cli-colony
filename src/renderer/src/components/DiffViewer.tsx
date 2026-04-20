@@ -21,6 +21,7 @@ interface SplitRow {
 }
 
 interface InlineComment {
+  id?: number
   author: string
   body: string
   createdAt: string
@@ -33,7 +34,11 @@ interface DiffViewerSingleProps {
   /** Max lines to show before truncation (default 500) */
   maxLines?: number
   /** PR review comments to render inline at matching line positions */
-  comments?: Array<{ author: string; body: string; createdAt: string; line?: number; originalLine?: number }>
+  comments?: Array<{ id?: number; author: string; body: string; createdAt: string; line?: number; originalLine?: number }>
+  /** Called when user submits a new inline review comment */
+  onAddComment?: (line: number, side: 'LEFT' | 'RIGHT', body: string) => void
+  /** Called when user replies to an existing comment thread */
+  onReplyComment?: (commentId: number, body: string) => void
   /** Called with full patch string when user clicks "stage this hunk" */
   onStageHunk?: (patch: string) => void
   /** Called with full patch string when user clicks "discard this hunk" */
@@ -43,6 +48,10 @@ interface DiffViewerSingleProps {
 interface DiffViewerProps extends DiffViewerSingleProps {
   /** When provided, render a multi-file collapsible list instead of a single diff */
   files?: PRFile[]
+  /** Per-file callback for creating inline review comments (used with files prop) */
+  onAddCommentForFile?: (filename: string, line: number, side: 'LEFT' | 'RIGHT', body: string) => void
+  /** Per-file callback for replying to inline comments (used with files prop) */
+  onReplyCommentForFile?: (filename: string, commentId: number, body: string) => void
 }
 
 function parseDiff(raw: string): DiffLine[] {
@@ -236,7 +245,7 @@ function buildCommentMaps(comments?: DiffViewerProps['comments']): {
   const byOldLine = new Map<number, InlineComment[]>()
   if (!comments) return { byNewLine, byOldLine }
   for (const c of comments) {
-    const entry: InlineComment = { author: c.author, body: c.body, createdAt: c.createdAt }
+    const entry: InlineComment = { id: c.id, author: c.author, body: c.body, createdAt: c.createdAt }
     if (c.line) {
       const arr = byNewLine.get(c.line) || []
       arr.push(entry)
@@ -251,8 +260,11 @@ function buildCommentMaps(comments?: DiffViewerProps['comments']): {
   return { byNewLine, byOldLine }
 }
 
-function InlineCommentCards({ comments, defaultCollapsed }: { comments: InlineComment[]; defaultCollapsed: boolean }) {
+function InlineCommentCards({ comments, defaultCollapsed, onReply }: { comments: InlineComment[]; defaultCollapsed: boolean; onReply?: (commentId: number, body: string) => void }) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
+  const [replyText, setReplyText] = useState('')
+  const [replyOpen, setReplyOpen] = useState(false)
+  const lastComment = comments[comments.length - 1]
   return (
     <div className="diff-inline-comments">
       {collapsed ? (
@@ -275,17 +287,49 @@ function InlineCommentCards({ comments, defaultCollapsed }: { comments: InlineCo
               <div className="diff-inline-comment-body">{c.body}</div>
             </div>
           ))}
+          {onReply && lastComment?.id && !replyOpen && (
+            <button className="diff-reply-link" onClick={() => setReplyOpen(true)}>Reply</button>
+          )}
+          {onReply && replyOpen && (
+            <div className="diff-reply-form">
+              <textarea
+                className="diff-reply-input"
+                placeholder="Write a reply…"
+                value={replyText}
+                rows={2}
+                onChange={e => setReplyText(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Escape') { setReplyOpen(false); setReplyText('') } }}
+                autoFocus
+              />
+              <div className="diff-reply-actions">
+                <button className="diff-reply-btn" onClick={() => { setReplyOpen(false); setReplyText('') }}>Cancel</button>
+                <button
+                  className="diff-reply-btn diff-reply-btn-primary"
+                  disabled={!replyText.trim()}
+                  onClick={() => {
+                    if (lastComment?.id && replyText.trim()) {
+                      onReply(lastComment.id, replyText.trim())
+                      setReplyText('')
+                      setReplyOpen(false)
+                    }
+                  }}
+                >Reply</button>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
   )
 }
 
-function DiffViewerSingle({ diff, filename, maxLines = 500, comments, onStageHunk, onDiscardHunk }: DiffViewerSingleProps) {
+function DiffViewerSingle({ diff, filename, maxLines = 500, comments, onAddComment, onReplyComment, onStageHunk, onDiscardHunk }: DiffViewerSingleProps) {
   const [showFull, setShowFull] = useState(false)
   const [mode, setMode] = useState<'unified' | 'split'>(() =>
     (localStorage.getItem('diff-view-mode') as 'unified' | 'split') || 'unified'
   )
+  const [addingAt, setAddingAt] = useState<{ lineNum: number; side: 'LEFT' | 'RIGHT' } | null>(null)
+  const [addCommentText, setAddCommentText] = useState('')
 
   const allLines = useMemo(() => parseDiff(diff), [diff])
   const splitRows = useMemo(() => mode === 'split' ? buildSplitRows(allLines) : [], [allLines, mode])
@@ -393,11 +437,23 @@ function DiffViewerSingle({ diff, filename, maxLines = 500, comments, onStageHun
                   </React.Fragment>
                 )
               }
+              const splitIsAddingLeft = addingAt?.lineNum === row.left.line && addingAt?.side === 'LEFT'
+              const splitIsAddingRight = addingAt?.lineNum === row.right.line && addingAt?.side === 'RIGHT'
+              const splitIsAdding = splitIsAddingLeft || splitIsAddingRight
               return (
                 <React.Fragment key={i}>
                   <div className="diff-split-row">
                     <div className={`diff-split-cell diff-split-left diff-${row.left.type}`}>
-                      <span className="diff-gutter">{row.left.line ?? ''}</span>
+                      <span className="diff-gutter">
+                        {row.left.line ?? ''}
+                        {onAddComment && row.left.line != null && (
+                          <button
+                            className="diff-add-comment-btn"
+                            title="Add comment"
+                            onClick={() => { setAddingAt({ lineNum: row.left.line!, side: 'LEFT' }); setAddCommentText('') }}
+                          >+</button>
+                        )}
+                      </span>
                       <span className="diff-content">
                         {row.left.segments
                           ? row.left.segments.map((seg, si) => seg.changed
@@ -407,7 +463,16 @@ function DiffViewerSingle({ diff, filename, maxLines = 500, comments, onStageHun
                       </span>
                     </div>
                     <div className={`diff-split-cell diff-split-right diff-${row.right.type}`}>
-                      <span className="diff-gutter">{row.right.line ?? ''}</span>
+                      <span className="diff-gutter">
+                        {row.right.line ?? ''}
+                        {onAddComment && row.right.line != null && (
+                          <button
+                            className="diff-add-comment-btn"
+                            title="Add comment"
+                            onClick={() => { setAddingAt({ lineNum: row.right.line!, side: 'RIGHT' }); setAddCommentText('') }}
+                          >+</button>
+                        )}
+                      </span>
                       <span className="diff-content">
                         {row.right.segments
                           ? row.right.segments.map((seg, si) => seg.changed
@@ -417,10 +482,41 @@ function DiffViewerSingle({ diff, filename, maxLines = 500, comments, onStageHun
                       </span>
                     </div>
                   </div>
+                  {splitIsAdding && (
+                    <div className="diff-split-row diff-split-comment-row">
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <div className="diff-add-comment-form">
+                          <textarea
+                            className="diff-add-comment-input"
+                            placeholder="Leave a comment…"
+                            value={addCommentText}
+                            rows={3}
+                            onChange={e => setAddCommentText(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Escape') { setAddingAt(null); setAddCommentText('') } }}
+                            autoFocus
+                          />
+                          <div className="diff-add-comment-actions">
+                            <button className="diff-reply-btn" onClick={() => { setAddingAt(null); setAddCommentText('') }}>Cancel</button>
+                            <button
+                              className="diff-reply-btn diff-reply-btn-primary"
+                              disabled={!addCommentText.trim()}
+                              onClick={() => {
+                                if (addingAt && addCommentText.trim()) {
+                                  onAddComment!(addingAt.lineNum, addingAt.side, addCommentText.trim())
+                                  setAddingAt(null)
+                                  setAddCommentText('')
+                                }
+                              }}
+                            >Comment</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   {lineComments && (
                     <div className="diff-split-row diff-split-comment-row">
                       <div style={{ gridColumn: '1 / -1' }}>
-                        <InlineCommentCards comments={lineComments} defaultCollapsed={defaultCollapsed} />
+                        <InlineCommentCards comments={lineComments} defaultCollapsed={defaultCollapsed} onReply={onReplyComment} />
                       </div>
                     </div>
                   )}
@@ -483,6 +579,7 @@ function DiffViewerSingle({ diff, filename, maxLines = 500, comments, onStageHun
                   </React.Fragment>
                 )
               }
+              const isAddingHere = addingAt?.lineNum === (line.newLine ?? line.oldLine ?? -1) && addingAt?.side === (line.type === 'del' ? 'LEFT' : 'RIGHT')
               return (
                 <React.Fragment key={i}>
                   <div className={`diff-line diff-${line.type}`}>
@@ -491,6 +588,18 @@ function DiffViewerSingle({ diff, filename, maxLines = 500, comments, onStageHun
                     </span>
                     <span className="diff-gutter diff-gutter-new">
                       {line.newLine ?? ''}
+                      {onAddComment && (line.newLine != null || line.oldLine != null) && (
+                        <button
+                          className="diff-add-comment-btn"
+                          title="Add comment"
+                          onClick={() => {
+                            const lineNum = line.newLine ?? line.oldLine ?? 0
+                            const side: 'LEFT' | 'RIGHT' = line.type === 'del' ? 'LEFT' : 'RIGHT'
+                            setAddingAt({ lineNum, side })
+                            setAddCommentText('')
+                          }}
+                        >+</button>
+                      )}
                     </span>
                     {highlighted ? (
                       <span
@@ -503,8 +612,35 @@ function DiffViewerSingle({ diff, filename, maxLines = 500, comments, onStageHun
                       </span>
                     )}
                   </div>
+                  {isAddingHere && (
+                    <div className="diff-add-comment-form">
+                      <textarea
+                        className="diff-add-comment-input"
+                        placeholder="Leave a comment…"
+                        value={addCommentText}
+                        rows={3}
+                        onChange={e => setAddCommentText(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Escape') { setAddingAt(null); setAddCommentText('') } }}
+                        autoFocus
+                      />
+                      <div className="diff-add-comment-actions">
+                        <button className="diff-reply-btn" onClick={() => { setAddingAt(null); setAddCommentText('') }}>Cancel</button>
+                        <button
+                          className="diff-reply-btn diff-reply-btn-primary"
+                          disabled={!addCommentText.trim()}
+                          onClick={() => {
+                            if (addingAt && addCommentText.trim()) {
+                              onAddComment!(addingAt.lineNum, addingAt.side, addCommentText.trim())
+                              setAddingAt(null)
+                              setAddCommentText('')
+                            }
+                          }}
+                        >Comment</button>
+                      </div>
+                    </div>
+                  )}
                   {lineComments && (
-                    <InlineCommentCards comments={lineComments} defaultCollapsed={defaultCollapsed} />
+                    <InlineCommentCards comments={lineComments} defaultCollapsed={defaultCollapsed} onReply={onReplyComment} />
                   )}
                 </React.Fragment>
               )
@@ -523,7 +659,7 @@ function DiffViewerSingle({ diff, filename, maxLines = 500, comments, onStageHun
   )
 }
 
-function DiffViewerMultiFile({ files }: { files: PRFile[] }) {
+function DiffViewerMultiFile({ files, onAddCommentForFile, onReplyCommentForFile }: { files: PRFile[]; onAddCommentForFile?: (filename: string, line: number, side: 'LEFT' | 'RIGHT', body: string) => void; onReplyCommentForFile?: (filename: string, commentId: number, body: string) => void }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
 
   const toggle = (filename: string) => {
@@ -555,7 +691,12 @@ function DiffViewerMultiFile({ files }: { files: PRFile[] }) {
             </button>
             {!isCollapsed && (
               file.patch
-                ? <DiffViewerSingle diff={file.patch} filename={file.filename} />
+                ? <DiffViewerSingle
+                    diff={file.patch}
+                    filename={file.filename}
+                    onAddComment={onAddCommentForFile ? (line, side, body) => onAddCommentForFile(file.filename, line, side, body) : undefined}
+                    onReplyComment={onReplyCommentForFile ? (commentId, body) => onReplyCommentForFile(file.filename, commentId, body) : undefined}
+                  />
                 : <div className="diff-viewer-empty">{file.filename} (no diff)</div>
             )}
           </div>
@@ -565,11 +706,11 @@ function DiffViewerMultiFile({ files }: { files: PRFile[] }) {
   )
 }
 
-function DiffViewer({ files, diff, filename, maxLines, comments, onStageHunk, onDiscardHunk }: DiffViewerProps) {
+function DiffViewer({ files, diff, filename, maxLines, comments, onAddComment, onReplyComment, onAddCommentForFile, onReplyCommentForFile, onStageHunk, onDiscardHunk }: DiffViewerProps) {
   if (files && files.length > 0) {
-    return <DiffViewerMultiFile files={files} />
+    return <DiffViewerMultiFile files={files} onAddCommentForFile={onAddCommentForFile} onReplyCommentForFile={onReplyCommentForFile} />
   }
-  return <DiffViewerSingle diff={diff} filename={filename} maxLines={maxLines} comments={comments} onStageHunk={onStageHunk} onDiscardHunk={onDiscardHunk} />
+  return <DiffViewerSingle diff={diff} filename={filename} maxLines={maxLines} comments={comments} onAddComment={onAddComment} onReplyComment={onReplyComment} onStageHunk={onStageHunk} onDiscardHunk={onDiscardHunk} />
 }
 
 export default DiffViewer

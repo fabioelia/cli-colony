@@ -95,6 +95,7 @@ export interface PRChecks {
 }
 
 export interface PRComment {
+  id?: number
   author: string
   body: string
   createdAt: string

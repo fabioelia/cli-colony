@@ -1814,6 +1814,24 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                                             diff={file.patch}
                                             filename={file.filename}
                                             comments={pr.comments.filter(c => c.path === file.filename)}
+                                            onAddComment={async (line, side, body) => {
+                                              try {
+                                                const comment = await window.api.github.createReviewComment(repo, pr.number, body, pr.headSha, file.filename, line, side)
+                                                setPrsByRepo(prev => {
+                                                  const prs = prev[slug] || []
+                                                  return { ...prev, [slug]: prs.map(p => p.number === pr.number ? { ...p, comments: [...p.comments, comment] } : p) }
+                                                })
+                                              } catch { /* ignore */ }
+                                            }}
+                                            onReplyComment={async (commentId, body) => {
+                                              try {
+                                                const comment = await window.api.github.replyToComment(repo, pr.number, commentId, body)
+                                                setPrsByRepo(prev => {
+                                                  const prs = prev[slug] || []
+                                                  return { ...prev, [slug]: prs.map(p => p.number === pr.number ? { ...p, comments: [...p.comments, comment] } : p) }
+                                                })
+                                              } catch { /* ignore */ }
+                                            }}
                                           />
                                         )}
                                         {expandedFiles.has(fileKey) && !file.patch && (

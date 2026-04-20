@@ -219,6 +219,8 @@ export interface ClaudeManagerAPI {
     mergePR: (repo: GitHubRepo, prNumber: number, method: 'merge' | 'squash' | 'rebase') => Promise<void>
     fetchIssues: (repo: GitHubRepo) => Promise<GitHubIssue[]>
     createIssue: (repo: GitHubRepo, title: string, body: string, labels: string[]) => Promise<GitHubIssue>
+    createReviewComment: (repo: GitHubRepo, prNumber: number, body: string, commitId: string, path: string, line: number, side: 'LEFT' | 'RIGHT') => Promise<import('../shared/types').PRComment>
+    replyToComment: (repo: GitHubRepo, prNumber: number, commentId: number, body: string) => Promise<import('../shared/types').PRComment>
   }
   jira: {
     fetchTicket: (key: string) => Promise<{ ok: true; ticket: import('../shared/types').JiraTicket } | { ok: false; error: string }>
@@ -905,6 +907,8 @@ const api: ClaudeManagerAPI = {
     mergePR: (repo, prNumber, method) => ipcRenderer.invoke('github:mergePR', repo, prNumber, method),
     fetchIssues: (repo) => ipcRenderer.invoke('github:fetchIssues', repo),
     createIssue: (repo, title, body, labels) => ipcRenderer.invoke('github:createIssue', repo, title, body, labels),
+    createReviewComment: (repo, prNumber, body, commitId, path, line, side) => ipcRenderer.invoke('github:createReviewComment', repo, prNumber, body, commitId, path, line, side),
+    replyToComment: (repo, prNumber, commentId, body) => ipcRenderer.invoke('github:replyToComment', repo, prNumber, commentId, body),
   },
   jira: {
     fetchTicket: (key) => ipcRenderer.invoke('jira:fetchTicket', key),
