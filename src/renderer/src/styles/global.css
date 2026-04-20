@@ -6946,7 +6946,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .session-changed-file-status.added { color: var(--success); }
 .session-changed-file-status.deleted { color: var(--danger); }
-.session-changed-file-status.modified { color: var(--warning, #f59e0b); }
+.session-changed-file-status.modified { color: var(--warning); }
 .session-changed-file-name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -8133,7 +8133,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-weight: 600;
   width: 11px;
   flex-shrink: 0;
-  color: var(--warning, #f59e0b);
+  color: var(--warning);
 }
 .commit-file-status.added { color: var(--success); }
 .commit-file-status.deleted { color: var(--danger); }

@@ -5,7 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, X, RotateCcw, GitBranch, TerminalSquare, FolderTree, Columns2, LayoutGrid, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Trophy, GitCompare, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, FileDown, CheckCircle, Copy, Search, PanelRight, GitMerge, Square, Ticket, Pencil, FileCode } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronRight, X, RotateCcw, GitBranch, TerminalSquare, FolderTree, Columns2, LayoutGrid, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Trophy, GitCompare, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, FileDown, CheckCircle, Copy, Search, PanelRight, GitMerge, Square, Ticket, Pencil, FileCode } from 'lucide-react'
 import { TeamMetricsPanel } from './TeamMetricsPanel'
 import ServicesTab from './ServicesTab'
 import FilesTab from './FilesTab'
@@ -1276,10 +1276,10 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
             <span>{changedFiles.length} changed file{changedFiles.length !== 1 ? 's' : ''}</span>
             <span className="session-changed-files-summary">
               +{changedFiles.filter(f => f.status === 'A' || f.status === '?').length}
-              {' '}M{changedFiles.filter(f => f.status === 'M').length}
+              {' '}~{changedFiles.filter(f => f.status === 'M').length}
               {' '}-{changedFiles.filter(f => f.status === 'D').length}
             </span>
-            <span style={{ marginLeft: 'auto', opacity: 0.5, fontSize: '10px' }}>{changedFilesOpen ? '▾' : '▸'}</span>
+            <span style={{ marginLeft: 'auto', opacity: 0.5 }}>{changedFilesOpen ? <ChevronDown size={10} /> : <ChevronRight size={10} />}</span>
           </div>
           {changedFilesOpen && (
             <div className="session-changed-files-list">

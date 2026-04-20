@@ -1930,7 +1930,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                         {mergePreviewData && !mergePreviewLoading && (
                           <div style={{ marginBottom: '6px' }}>
                             {mergePreviewData.fastForward && (
-                              <div style={{ fontSize: '10px', color: 'var(--success)', marginBottom: '3px' }}>⚡ Fast-forward merge</div>
+                              <div style={{ fontSize: '10px', color: 'var(--success)', marginBottom: '3px' }}>Fast-forward merge</div>
                             )}
                             <div style={{ fontSize: '10px', opacity: 0.7, marginBottom: '3px' }}>
                               {mergePreviewData.files.length} file{mergePreviewData.files.length !== 1 ? 's' : ''}
@@ -2048,7 +2048,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                         {mergePreviewData && !mergePreviewLoading && (
                           <div style={{ marginBottom: '6px' }}>
                             {mergePreviewData.fastForward && (
-                              <div style={{ fontSize: '10px', color: 'var(--success)', marginBottom: '3px' }}>⚡ Fast-forward merge</div>
+                              <div style={{ fontSize: '10px', color: 'var(--success)', marginBottom: '3px' }}>Fast-forward merge</div>
                             )}
                             <div style={{ fontSize: '10px', opacity: 0.7, marginBottom: '3px' }}>
                               {mergePreviewData.files.length} file{mergePreviewData.files.length !== 1 ? 's' : ''}
