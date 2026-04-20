@@ -975,6 +975,20 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     }
   }, [instance.workingDirectory, refreshStashes, loadGitChanges])
 
+  const handleMultiStash = useCallback(async () => {
+    if (!instance.workingDirectory || multiSelected.size === 0) return
+    const files = Array.from(multiSelected)
+    try {
+      const msg = `WIP (${files.length} file${files.length === 1 ? '' : 's'}): ${new Date().toLocaleString()}`
+      await window.api.git.stashPush(instance.workingDirectory, msg, files)
+      setMultiSelected(new Set())
+      await refreshStashes()
+      loadGitChanges()
+    } catch (err: any) {
+      setStashError(err?.message ?? 'Stash failed')
+    }
+  }, [instance.workingDirectory, multiSelected, refreshStashes, loadGitChanges])
+
   const handleStashApply = useCallback(async (index: number) => {
     if (!instance.workingDirectory) return
     setStashError(null)
@@ -1921,6 +1935,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                     <span style={{ opacity: 0.7, flexShrink: 0 }}>{multiSelected.size} selected</span>
                     <button className="stash-action-btn" onClick={handleMultiStage}>Stage All</button>
                     <button className="stash-action-btn" onClick={handleMultiUnstage}>Unstage All</button>
+                    <button className="stash-action-btn" onClick={handleMultiStash}>Stash</button>
                     <button className="stash-action-btn danger" onClick={handleMultiRevert}>Revert All</button>
                     <span style={{ flex: 1 }} />
                     <button className="stash-action-btn" onClick={() => setMultiSelected(new Set(visibleFiles.map(f => f.file)))}>Select All</button>

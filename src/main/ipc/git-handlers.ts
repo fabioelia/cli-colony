@@ -467,10 +467,12 @@ export function registerGitHandlers(): void {
     await execFileAsync(resolveCommand('git'), ['reset', '--soft', targetHash], { cwd, timeout: 10000 })
   })
 
-  ipcMain.handle('git:stashPush', async (_e, cwd: string, message?: string): Promise<void> => {
+  ipcMain.handle('git:stashPush', async (_e, cwd: string, message?: string, files?: string[]): Promise<void> => {
     await assertGitRepo(cwd)
-    const args = ['stash', 'push', '--include-untracked']
+    const args = ['stash', 'push']
+    if (!files || files.length === 0) args.push('--include-untracked')
     if (message) args.push('-m', message)
+    if (files && files.length > 0) args.push('--', ...files)
     await execFileAsync(resolveCommand('git'), args, { cwd, timeout: 15000 })
   })
 
