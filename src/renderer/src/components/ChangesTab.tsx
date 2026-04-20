@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
-import { ChevronRight, RefreshCw, RotateCw, RotateCcw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search, Copy, CheckCircle, Archive, ArrowDown, Eye, Cloud, History, ArrowLeft, GitMerge, ChevronsRight, AlertTriangle, EyeOff, Pencil } from 'lucide-react'
+import { ChevronRight, RefreshCw, RotateCw, RotateCcw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search, Copy, CheckCircle, Archive, ArrowDown, Eye, Cloud, History, ArrowLeft, GitMerge, ChevronsRight, AlertTriangle, EyeOff, Pencil, GripVertical, ListOrdered } from 'lucide-react'
 import type { GitDiffEntry, ColonyComment, ScoreCard } from '../../../shared/types'
 import type { ClaudeInstance } from '../types'
 import DiffViewer from './DiffViewer'
@@ -185,6 +185,14 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [compareDiffLoading, setCompareDiffLoading] = useState(false)
   const [squashParentHash, setSquashParentHash] = useState<string | null>(null)
   const [squashInitialMessage, setSquashInitialMessage] = useState<string | null>(null)
+
+  // Interactive rebase state
+  const [showInteractiveRebase, setShowInteractiveRebase] = useState(false)
+  type RebaseTodoItem = { action: 'pick' | 'reword' | 'squash' | 'fixup' | 'drop'; hash: string; subject: string; message?: string }
+  const [rebaseTodoItems, setRebaseTodoItems] = useState<RebaseTodoItem[]>([])
+  const [rebaseDragIdx, setRebaseDragIdx] = useState<number | null>(null)
+  const [startingInteractiveRebase, setStartingInteractiveRebase] = useState(false)
+  const [interactiveRebaseError, setInteractiveRebaseError] = useState<string | null>(null)
 
   // Remotes state
   const [remotesOpen, setRemotesOpen] = useState(false)
@@ -980,6 +988,42 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     setSquashInitialMessage(combined)
     setShowCommitDialog(true)
   }, [squashEligible, compareSelected, commits])
+
+  const handleOpenInteractiveRebase = useCallback(() => {
+    if (commits.length === 0) return
+    // Show commits oldest-first (rebase-todo format)
+    const items = [...commits].reverse().map(c => ({ action: 'pick' as const, hash: c.hash, subject: c.subject }))
+    setRebaseTodoItems(items)
+    setInteractiveRebaseError(null)
+    setShowInteractiveRebase(true)
+  }, [commits])
+
+  const handleInteractiveRebaseStart = useCallback(async () => {
+    if (!instance.workingDirectory || rebaseTodoItems.length === 0 || startingInteractiveRebase) return
+    setStartingInteractiveRebase(true)
+    setInteractiveRebaseError(null)
+    // base = parent of the oldest commit (last item in oldest-first list)
+    const oldestHash = rebaseTodoItems[rebaseTodoItems.length - 1].hash
+    const base = `${oldestHash}~1`
+    const result = await window.api.git.rebaseInteractive(instance.workingDirectory, base, rebaseTodoItems).catch(e => ({ success: false, error: String(e) }))
+    setStartingInteractiveRebase(false)
+    if (result.success) {
+      setShowInteractiveRebase(false)
+      setRebaseTodoItems([])
+      setCommits([])
+      await loadCommits(0)
+      await loadBranchInfo()
+    } else {
+      if ('conflicts' in result && result.conflicts && result.conflicts.length > 0) {
+        setShowInteractiveRebase(false)
+        setRebaseTodoItems([])
+        await loadConflictState()
+        await loadGitChanges()
+      } else {
+        setInteractiveRebaseError(result.error ?? 'Rebase failed')
+      }
+    }
+  }, [instance.workingDirectory, rebaseTodoItems, startingInteractiveRebase, loadCommits, loadBranchInfo, loadConflictState, loadGitChanges])
 
   useEffect(() => {
     if (commitsOpen && commits.length === 0) loadCommits(0)
@@ -2241,9 +2285,117 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
               {unpushedHashes.size > 0 && (
                 <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 400 }}>({unpushedHashes.size} unpushed)</span>
               )}
+              <div style={{ flex: 1 }} />
+              {commitsOpen && commits.length > 0 && !showInteractiveRebase && (
+                <button
+                  className="changes-refresh-btn"
+                  title="Interactive rebase — reorder, squash, drop, or reword commits"
+                  onClick={(e) => { e.stopPropagation(); handleOpenInteractiveRebase() }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', padding: '1px 5px', borderRadius: '3px', opacity: 0.7 }}
+                >
+                  <ListOrdered size={10} /> Rebase…
+                </button>
+              )}
             </div>
             {commitsOpen && (
               <>
+                {showInteractiveRebase && (
+                  <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '2px' }}>
+                      Drag to reorder · change action · <strong style={{ color: 'var(--text-primary)' }}>oldest first</strong>
+                    </div>
+                    {rebaseTodoItems.map((item, idx) => {
+                      const isPushed = !unpushedHashes.has(item.hash)
+                      return (
+                        <div
+                          key={item.hash}
+                          draggable
+                          onDragStart={() => setRebaseDragIdx(idx)}
+                          onDragOver={(e) => { e.preventDefault() }}
+                          onDrop={(e) => {
+                            e.preventDefault()
+                            if (rebaseDragIdx === null || rebaseDragIdx === idx) return
+                            const next = [...rebaseTodoItems]
+                            const [moved] = next.splice(rebaseDragIdx, 1)
+                            next.splice(idx, 0, moved)
+                            setRebaseTodoItems(next)
+                            setRebaseDragIdx(null)
+                          }}
+                          style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', padding: '4px 6px', background: item.action === 'drop' ? 'rgba(239,68,68,0.08)' : 'var(--bg-secondary)', borderRadius: '4px', border: `1px solid ${item.action === 'drop' ? 'rgba(239,68,68,0.2)' : 'var(--border)'}`, opacity: item.action === 'drop' ? 0.6 : 1, cursor: 'grab' }}
+                        >
+                          <GripVertical size={12} style={{ opacity: 0.3, flexShrink: 0, marginTop: '2px' }} />
+                          <select
+                            value={item.action}
+                            onChange={(e) => {
+                              const next = [...rebaseTodoItems]
+                              next[idx] = { ...next[idx], action: e.target.value as RebaseTodoItem['action'] }
+                              setRebaseTodoItems(next)
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ fontSize: '10px', padding: '1px 3px', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: '3px', color: 'var(--text-primary)', flexShrink: 0, cursor: 'pointer' }}
+                          >
+                            <option value="pick">pick</option>
+                            <option value="reword">reword</option>
+                            <option value="squash">squash</option>
+                            <option value="fixup">fixup</option>
+                            <option value="drop">drop</option>
+                          </select>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <code style={{ fontSize: '10px', opacity: 0.5, flexShrink: 0 }}>{item.hash.slice(0, 7)}</code>
+                              {isPushed && <span style={{ fontSize: '9px', color: 'var(--warning)', opacity: 0.7 }}>pushed</span>}
+                              <span style={{ fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.subject}</span>
+                            </div>
+                            {item.action === 'reword' && (
+                              <textarea
+                                value={item.message ?? item.subject}
+                                onChange={(e) => {
+                                  const next = [...rebaseTodoItems]
+                                  next[idx] = { ...next[idx], message: e.target.value }
+                                  setRebaseTodoItems(next)
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                rows={2}
+                                style={{ marginTop: '4px', width: '100%', fontSize: '11px', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: '3px', padding: '3px 5px', color: 'var(--text-primary)', resize: 'vertical', boxSizing: 'border-box' }}
+                                placeholder="New commit message…"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {rebaseTodoItems.some(i => !unpushedHashes.has(i.hash) && i.action !== 'pick') && (
+                      <div style={{ fontSize: '10px', color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <AlertTriangle size={10} /> Pushed commits will require force-push after rebase
+                      </div>
+                    )}
+                    {interactiveRebaseError && (
+                      <div style={{ fontSize: '10px', color: 'var(--danger)', padding: '4px 6px', background: 'rgba(239,68,68,0.08)', borderRadius: '3px', border: '1px solid rgba(239,68,68,0.2)' }}>
+                        {interactiveRebaseError}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: '6px', paddingTop: '2px' }}>
+                      <button
+                        className="panel-header-btn primary"
+                        style={{ fontSize: '10px', padding: '3px 10px', height: 'auto' }}
+                        onClick={handleInteractiveRebaseStart}
+                        disabled={startingInteractiveRebase || rebaseTodoItems.every(i => i.action === 'pick')}
+                      >
+                        {startingInteractiveRebase ? <RotateCw size={10} className="spinning" /> : <ListOrdered size={10} />}
+                        {startingInteractiveRebase ? ' Running…' : ' Start Rebase'}
+                      </button>
+                      <button
+                        className="panel-header-btn"
+                        style={{ fontSize: '10px', padding: '3px 8px', height: 'auto' }}
+                        onClick={() => { setShowInteractiveRebase(false); setInteractiveRebaseError(null) }}
+                        disabled={startingInteractiveRebase}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {!showInteractiveRebase && (<>
                 <div style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <Search size={10} style={{ opacity: 0.4, flexShrink: 0 }} />
                   <input
@@ -2387,6 +2539,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                     Load more...
                   </button>
                 )}
+                </>)}
               </>
             )}
           </div>

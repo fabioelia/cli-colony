@@ -760,6 +760,52 @@ export function registerGitHandlers(): void {
     }
   })
 
+  ipcMain.handle('git:rebaseInteractive', async (_e, cwd: string, base: string, todoItems: Array<{ action: 'pick' | 'reword' | 'squash' | 'fixup' | 'drop'; hash: string; subject: string; message?: string }>): Promise<{ success: boolean; error?: string; conflicts?: string[] }> => {
+    await assertGitRepo(cwd)
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const tmpDir = os.tmpdir()
+    const todoFile = path.join(tmpDir, `colony-rebase-todo-${id}`)
+    const seqScript = path.join(tmpDir, `colony-seq-editor-${id}.sh`)
+    const counterFile = path.join(tmpDir, `colony-reword-counter-${id}`)
+    const msgFiles: string[] = []
+    const cleanupFiles: string[] = [todoFile, seqScript, counterFile]
+
+    try {
+      const todoLines = todoItems.map(item => `${item.action} ${item.hash.slice(0, 7)} ${item.subject}`).join('\n')
+      await fsp.writeFile(todoFile, todoLines + '\n', 'utf-8')
+      await fsp.writeFile(seqScript, `#!/bin/sh\ncp "${todoFile}" "$1"\n`, 'utf-8')
+      await fsp.chmod(seqScript, 0o755)
+
+      const rewordItems = todoItems.filter(i => i.action === 'reword' && i.message)
+      let editorScript: string | undefined
+      if (rewordItems.length > 0) {
+        for (let i = 0; i < rewordItems.length; i++) {
+          const msgFile = path.join(tmpDir, `colony-reword-msg-${id}-${i}`)
+          await fsp.writeFile(msgFile, rewordItems[i].message!, 'utf-8')
+          msgFiles.push(msgFile)
+          cleanupFiles.push(msgFile)
+        }
+        editorScript = path.join(tmpDir, `colony-editor-${id}.sh`)
+        cleanupFiles.push(editorScript)
+        await fsp.writeFile(editorScript, `#!/bin/sh\nN=$(cat "${counterFile}" 2>/dev/null || echo 0)\ncp "${path.join(tmpDir, `colony-reword-msg-${id}-`)}\${N}" "$1"\necho $((N+1)) > "${counterFile}"\n`, 'utf-8')
+        await fsp.chmod(editorScript, 0o755)
+      }
+
+      const env: Record<string, string> = { ...process.env as Record<string, string>, GIT_SEQUENCE_EDITOR: seqScript }
+      if (editorScript) env.GIT_EDITOR = editorScript
+
+      await execFileAsync(resolveCommand('git'), ['rebase', '-i', base], { cwd, timeout: 60000, encoding: 'utf-8', env })
+      return { success: true }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      const conflictMatch = msg.match(/CONFLICT[^:]*:\s*(.+)/g)
+      const conflicts = conflictMatch ? conflictMatch.map(l => l.replace(/CONFLICT[^:]*:\s*/, '').trim()) : undefined
+      return { success: false, error: msg.split('\n')[0], conflicts }
+    } finally {
+      await Promise.all(cleanupFiles.map(f => fsp.unlink(f).catch(() => {})))
+    }
+  })
+
   ipcMain.handle('git:resolveConflict', async (_e, cwd: string, file: string, strategy: 'ours' | 'theirs'): Promise<void> => {
     await assertGitRepo(cwd)
     await execFileAsync(resolveCommand('git'), ['checkout', `--${strategy}`, '--', file], { cwd, timeout: 10000 })

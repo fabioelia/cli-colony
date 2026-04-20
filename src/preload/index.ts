@@ -527,6 +527,7 @@ export interface ClaudeManagerAPI {
     rebase: (cwd: string, ontoBranch: string) => Promise<{ success: boolean; error?: string; conflicts?: string[] }>
     rebaseAbort: (cwd: string) => Promise<void>
     rebaseContinue: (cwd: string) => Promise<{ success: boolean; error?: string }>
+    rebaseInteractive: (cwd: string, base: string, todoItems: Array<{ action: 'pick' | 'reword' | 'squash' | 'fixup' | 'drop'; hash: string; subject: string; message?: string }>) => Promise<{ success: boolean; error?: string; conflicts?: string[] }>
     searchCommits: (cwd: string, query: string, limit?: number) => Promise<Array<{ hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number }>>
     stageHunk: (cwd: string, patch: string) => Promise<{ success: boolean; error?: string }>
     discardHunk: (cwd: string, patch: string) => Promise<{ success: boolean; error?: string }>
@@ -1235,6 +1236,7 @@ const api: ClaudeManagerAPI = {
     rebase: (cwd, ontoBranch) => ipcRenderer.invoke('git:rebase', cwd, ontoBranch) as Promise<{ success: boolean; error?: string; conflicts?: string[] }>,
     rebaseAbort: (cwd) => ipcRenderer.invoke('git:rebaseAbort', cwd) as Promise<void>,
     rebaseContinue: (cwd) => ipcRenderer.invoke('git:rebaseContinue', cwd) as Promise<{ success: boolean; error?: string }>,
+    rebaseInteractive: (cwd, base, todoItems) => ipcRenderer.invoke('git:rebaseInteractive', cwd, base, todoItems) as Promise<{ success: boolean; error?: string; conflicts?: string[] }>,
     searchCommits: (cwd, query, limit) => ipcRenderer.invoke('git:searchCommits', cwd, query, limit) as Promise<Array<{ hash: string; subject: string; author: string; date: string; filesChanged?: number; insertions?: number; deletions?: number }>>,
     stageHunk: (cwd, patch) => ipcRenderer.invoke('git:stageHunk', cwd, patch) as Promise<{ success: boolean; error?: string }>,
     discardHunk: (cwd, patch) => ipcRenderer.invoke('git:discardHunk', cwd, patch) as Promise<{ success: boolean; error?: string }>,
