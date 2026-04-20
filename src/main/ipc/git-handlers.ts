@@ -234,6 +234,19 @@ export function registerGitHandlers(): void {
     }).filter(b => !b.name.includes('HEAD'))
   })
 
+  ipcMain.handle('git:branchAheadBehind', async (_e, cwd: string, branchNames: string[]): Promise<Record<string, { ahead: number; behind: number }>> => {
+    await assertGitRepo(cwd)
+    const result: Record<string, { ahead: number; behind: number }> = {}
+    await Promise.all(branchNames.slice(0, 20).map(async (branch) => {
+      try {
+        const { stdout } = await execFileAsync(resolveCommand('git'), ['rev-list', '--left-right', '--count', `HEAD...${branch}`], { cwd, timeout: 5000, encoding: 'utf-8' })
+        const [left, right] = stdout.trim().split('\t').map(Number)
+        if (!isNaN(left) && !isNaN(right)) result[branch] = { ahead: right, behind: left }
+      } catch { result[branch] = { ahead: 0, behind: 0 } }
+    }))
+    return result
+  })
+
   ipcMain.handle('git:deleteBranch', async (_e, cwd: string, branch: string, force?: boolean): Promise<{ success: boolean; error?: string }> => {
     await assertGitRepo(cwd)
     if (!/^[a-zA-Z0-9][a-zA-Z0-9._/-]*$/.test(branch)) {

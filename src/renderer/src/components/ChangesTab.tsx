@@ -74,6 +74,8 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [branches, setBranches] = useState<Array<{ name: string; current: boolean; remote: boolean }>>([])
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false)
   const [currentBranch, setCurrentBranch] = useState('')
+  const [branchCounts, setBranchCounts] = useState<Record<string, { ahead: number; behind: number }>>({})
+  const [branchCountsLoading, setBranchCountsLoading] = useState(false)
   const [behindCount, setBehindCount] = useState(0)
   const [switching, setSwitching] = useState(false)
   const [fetchingBranches, setFetchingBranches] = useState(false)
@@ -375,6 +377,18 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [branchDropdownOpen])
+
+  // Load ahead/behind counts when branch picker opens
+  useEffect(() => {
+    if (!branchDropdownOpen || !instance.workingDirectory) return
+    const localBranches = branches.filter(b => !b.remote && !b.current).map(b => b.name)
+    if (localBranches.length === 0) return
+    setBranchCountsLoading(true)
+    window.api.git.branchAheadBehind(instance.workingDirectory, localBranches)
+      .then(counts => setBranchCounts(counts))
+      .catch(() => {})
+      .finally(() => setBranchCountsLoading(false))
+  }, [branchDropdownOpen, instance.workingDirectory, branches])
 
   const handleSwitchBranch = useCallback(async (branch: string) => {
     if (!instance.workingDirectory || switching) return
@@ -1575,6 +1589,13 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                           >
                             {b.current && <CheckCircle size={11} style={{ color: 'var(--accent)', flexShrink: 0 }} />}
                             <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '11px' }}>{b.name}</span>
+                            {!b.current && branchCountsLoading && <span style={{ fontSize: '9px', opacity: 0.4 }}>···</span>}
+                            {!b.current && !branchCountsLoading && branchCounts[b.name] && (branchCounts[b.name].ahead > 0 || branchCounts[b.name].behind > 0) && (
+                              <span style={{ fontSize: '9px', opacity: 0.6, flexShrink: 0, display: 'flex', gap: '2px' }}>
+                                {branchCounts[b.name].ahead > 0 && <span style={{ color: 'var(--success)' }}>↑{branchCounts[b.name].ahead}</span>}
+                                {branchCounts[b.name].behind > 0 && <span style={{ color: 'var(--text-muted)' }}>↓{branchCounts[b.name].behind}</span>}
+                              </span>
+                            )}
                             {switching && !b.current && <RotateCw size={9} className="spinning" style={{ flexShrink: 0 }} />}
                           </button>
                         )}
