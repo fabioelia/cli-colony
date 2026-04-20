@@ -1577,8 +1577,18 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
-        name: 'Reflog',
+        name: 'Remotes',
         position: 'Below Tags (collapsible)',
+        items: [
+          { label: 'Remotes section', detail: 'Collapsible section listing all configured git remotes with their name and fetch URL. Lazy-loads on first open. Remote count badge shown when collapsed.', icon: 'Cloud' },
+          { label: 'Fetch button', detail: 'RefreshCw icon on each remote row. Runs `git fetch <remote>` to download refs from that specific remote. Shows a spinner during fetch.', icon: 'RefreshCw' },
+          { label: 'Remove button', detail: 'Trash icon (non-origin remotes only). Runs `git remote remove <name>` after inline confirm/cancel. After removal the remote branch list updates automatically.', icon: 'Trash2' },
+          { label: 'Add Remote (+)', detail: '+ button in the section header opens an inline form with name and URL inputs. Validates name (letters/digits/underscores/hyphens/dots only). After adding, auto-fetches the new remote. Shows inline error if the name already exists or URL is unreachable.', icon: 'Plus' },
+        ],
+      },
+      {
+        name: 'Reflog',
+        position: 'Below Remotes (collapsible)',
         items: [
           { label: 'Reflog section', detail: 'Collapsible section showing the last 20 git reflog entries — a complete history of where HEAD has pointed. Each row shows: short hash (7 chars), action description (e.g. "rebase: checkout main"), and relative time. Lazy-loads on first open. Persists expanded/collapsed state.', icon: 'History' },
           { label: 'Checkout button', detail: 'Git branch icon. Runs `git checkout <hash>` to move HEAD to that commit in detached HEAD state. A confirmation dialog warns you before proceeding. Use this to inspect old state without changing your branch.', icon: 'GitBranch' },

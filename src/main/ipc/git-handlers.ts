@@ -191,6 +191,17 @@ export function registerGitHandlers(): void {
     }
   })
 
+  ipcMain.handle('git:fetchRemote', async (_e, cwd: string, remote: string): Promise<{ success: boolean; error?: string }> => {
+    await assertGitRepo(cwd)
+    if (!/^[a-zA-Z0-9_.-]+$/.test(remote)) return { success: false, error: 'Invalid remote name' }
+    try {
+      await execFileAsync(resolveCommand('git'), ['fetch', remote], { cwd, timeout: 30000 })
+      return { success: true }
+    } catch (err: any) {
+      return { success: false, error: err.stderr || err.message }
+    }
+  })
+
   ipcMain.handle('git:pull', async (_e, cwd: string): Promise<{ success: boolean; error?: string }> => {
     await assertGitRepo(cwd)
     try {
@@ -499,6 +510,48 @@ export function registerGitHandlers(): void {
     await assertGitRepo(cwd)
     if (!/^[0-9a-f]{4,40}$/i.test(hash)) throw new Error('Invalid commit hash')
     await execFileAsync(resolveCommand('git'), ['reset', '--hard', hash], { cwd, timeout: 10000 })
+  })
+
+  ipcMain.handle('git:remoteList', async (_e, cwd: string): Promise<Array<{ name: string; fetchUrl: string; pushUrl: string }>> => {
+    await assertGitRepo(cwd)
+    try {
+      const { stdout } = await execFileAsync(resolveCommand('git'), ['remote', '-v'], { cwd, timeout: 10000 })
+      const map = new Map<string, { fetchUrl: string; pushUrl: string }>()
+      for (const line of stdout.trim().split('\n').filter(Boolean)) {
+        const m = line.match(/^(\S+)\s+(\S+)\s+\((fetch|push)\)$/)
+        if (!m) continue
+        const [, name, url, type] = m
+        const entry = map.get(name) ?? { fetchUrl: '', pushUrl: '' }
+        if (type === 'fetch') entry.fetchUrl = url; else entry.pushUrl = url
+        map.set(name, entry)
+      }
+      return Array.from(map.entries()).map(([name, urls]) => ({ name, ...urls }))
+    } catch {
+      return []
+    }
+  })
+
+  ipcMain.handle('git:remoteAdd', async (_e, cwd: string, name: string, url: string): Promise<{ success: boolean; error?: string }> => {
+    await assertGitRepo(cwd)
+    if (!/^[a-zA-Z0-9_.-]+$/.test(name)) return { success: false, error: 'Invalid remote name' }
+    try {
+      await execFileAsync(resolveCommand('git'), ['remote', 'add', name, url], { cwd, timeout: 10000 })
+      try { await execFileAsync(resolveCommand('git'), ['fetch', name], { cwd, timeout: 30000 }) } catch {}
+      return { success: true }
+    } catch (e: any) {
+      return { success: false, error: e.message?.split('\n')[0] ?? 'Failed to add remote' }
+    }
+  })
+
+  ipcMain.handle('git:remoteRemove', async (_e, cwd: string, name: string): Promise<{ success: boolean; error?: string }> => {
+    await assertGitRepo(cwd)
+    if (!/^[a-zA-Z0-9_.-]+$/.test(name)) return { success: false, error: 'Invalid remote name' }
+    try {
+      await execFileAsync(resolveCommand('git'), ['remote', 'remove', name], { cwd, timeout: 10000 })
+      return { success: true }
+    } catch (e: any) {
+      return { success: false, error: e.message?.split('\n')[0] ?? 'Failed to remove remote' }
+    }
   })
 
   ipcMain.handle('git:stashPush', async (_e, cwd: string, message?: string, files?: string[]): Promise<void> => {

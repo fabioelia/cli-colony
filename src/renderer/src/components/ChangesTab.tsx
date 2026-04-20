@@ -186,6 +186,19 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [squashParentHash, setSquashParentHash] = useState<string | null>(null)
   const [squashInitialMessage, setSquashInitialMessage] = useState<string | null>(null)
 
+  // Remotes state
+  const [remotesOpen, setRemotesOpen] = useState(false)
+  const [remotes, setRemotes] = useState<Array<{ name: string; fetchUrl: string; pushUrl: string }>>([])
+  const [remotesLoaded, setRemotesLoaded] = useState(false)
+  const [showAddRemote, setShowAddRemote] = useState(false)
+  const [newRemoteName, setNewRemoteName] = useState('')
+  const [newRemoteUrl, setNewRemoteUrl] = useState('')
+  const [addingRemote, setAddingRemote] = useState(false)
+  const [remoteAddError, setRemoteAddError] = useState<string | null>(null)
+  const [fetchingRemote, setFetchingRemote] = useState<string | null>(null)
+  const [remoteToRemove, setRemoteToRemove] = useState<string | null>(null)
+  const [removingRemote, setRemovingRemote] = useState<string | null>(null)
+
   // Reflog state
   const [reflogOpen, setReflogOpen] = useState(() => localStorage.getItem('changesTab.reflogOpen') === 'true')
   const [reflogEntries, setReflogEntries] = useState<Array<{ hash: string; ref: string; action: string; relativeTime: string }>>([])
@@ -228,6 +241,18 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
       setAllTags([])
     } finally {
       setTagsLoading(false)
+    }
+  }, [instance.workingDirectory])
+
+  const loadRemotes = useCallback(async () => {
+    if (!instance.workingDirectory) return
+    try {
+      const list = await window.api.git.remoteList(instance.workingDirectory)
+      setRemotes(list)
+      setRemotesLoaded(true)
+    } catch {
+      setRemotes([])
+      setRemotesLoaded(true)
     }
   }, [instance.workingDirectory])
 
@@ -963,6 +988,10 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   useEffect(() => {
     if (tagsOpen) loadAllTags()
   }, [tagsOpen, loadAllTags])
+
+  useEffect(() => {
+    if (remotesOpen && !remotesLoaded) loadRemotes()
+  }, [remotesOpen, remotesLoaded, loadRemotes])
 
   useEffect(() => {
     localStorage.setItem('changesTab.reflogOpen', String(reflogOpen))
@@ -2517,6 +2546,100 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                     )}
                   </div>
                 ))}
+              </>
+            )}
+          </div>
+
+          {/* Remotes Section */}
+          <div className="checkpoint-section">
+            <div className="checkpoint-section-header" onClick={() => setRemotesOpen(!remotesOpen)}>
+              <ChevronRight size={11} style={{ transition: 'transform 0.15s', transform: remotesOpen ? 'rotate(90deg)' : 'none', opacity: 0.5 }} />
+              <Cloud size={11} style={{ opacity: 0.5 }} />
+              <span>Remotes</span>
+              {remotes.length > 0 && !remotesOpen && (
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 400 }}>({remotes.length})</span>
+              )}
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: '2px' }} onClick={e => e.stopPropagation()}>
+                <button className="changes-refresh-btn" title="Add remote" onClick={() => { setRemotesOpen(true); setShowAddRemote(v => !v) }} style={{ opacity: 0.6 }}>+</button>
+              </div>
+            </div>
+            {remotesOpen && (
+              <>
+                {!remotesLoaded && <div className="checkpoint-empty">Loading…</div>}
+                {remotesLoaded && remotes.length === 0 && !showAddRemote && <div className="checkpoint-empty">No remotes configured.</div>}
+                {remotes.map(r => (
+                  <div key={r.name} className="checkpoint-row" style={{ alignItems: 'center' }}>
+                    <code style={{ fontSize: '10px', fontWeight: 600, flexShrink: 0, minWidth: '44px', fontFamily: 'monospace' }}>{r.name}</code>
+                    <span style={{ fontSize: '10px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.6 }} title={r.fetchUrl}>{r.fetchUrl}</span>
+                    {remoteToRemove === r.name ? (
+                      <>
+                        <button className="stash-action-btn danger" disabled={removingRemote === r.name} style={{ fontSize: '9px' }} onClick={async () => {
+                          setRemovingRemote(r.name)
+                          const res = await window.api.git.remoteRemove(instance.workingDirectory!, r.name)
+                          setRemovingRemote(null)
+                          setRemoteToRemove(null)
+                          if (res.success) { await loadRemotes() } else { alert(res.error) }
+                        }}>
+                          {removingRemote === r.name ? <RotateCw size={9} className="spinning" /> : 'Confirm'}
+                        </button>
+                        <button className="stash-action-btn" style={{ fontSize: '9px' }} onClick={() => setRemoteToRemove(null)}>Cancel</button>
+                      </>
+                    ) : (
+                      <>
+                        <button className="changes-refresh-btn" title={`Fetch ${r.name}`} disabled={fetchingRemote === r.name} style={{ flexShrink: 0, opacity: 0.7 }}
+                          onClick={async () => {
+                            setFetchingRemote(r.name)
+                            const fr = await window.api.git.fetchRemote(instance.workingDirectory!, r.name)
+                            if (!fr.success) alert(fr.error)
+                            setFetchingRemote(null)
+                            await loadRemotes()
+                          }}
+                        >
+                          {fetchingRemote === r.name ? <RotateCw size={10} className="spinning" /> : <RefreshCw size={10} />}
+                        </button>
+                        {r.name !== 'origin' && (
+                          <button className="changes-refresh-btn" title={`Remove ${r.name}`} style={{ flexShrink: 0, color: 'var(--danger)', opacity: 0.7 }} onClick={() => setRemoteToRemove(r.name)}>
+                            <Trash2 size={10} />
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                ))}
+                {showAddRemote && (
+                  <div style={{ padding: '4px 8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <input
+                      type="text"
+                      placeholder="Remote name (e.g. upstream)"
+                      value={newRemoteName}
+                      onChange={e => { setNewRemoteName(e.target.value); setRemoteAddError(null) }}
+                      style={{ fontSize: '11px', padding: '3px 6px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text)', width: '100%', boxSizing: 'border-box' }}
+                    />
+                    <input
+                      type="text"
+                      placeholder="URL"
+                      value={newRemoteUrl}
+                      onChange={e => { setNewRemoteUrl(e.target.value); setRemoteAddError(null) }}
+                      style={{ fontSize: '11px', padding: '3px 6px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text)', width: '100%', boxSizing: 'border-box' }}
+                    />
+                    {remoteAddError && <div style={{ fontSize: '10px', color: 'var(--danger)' }}>{remoteAddError}</div>}
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <button className="stash-action-btn primary" disabled={addingRemote || !newRemoteName || !newRemoteUrl} onClick={async () => {
+                        setAddingRemote(true)
+                        const res = await window.api.git.remoteAdd(instance.workingDirectory!, newRemoteName.trim(), newRemoteUrl.trim())
+                        setAddingRemote(false)
+                        if (res.success) {
+                          setShowAddRemote(false); setNewRemoteName(''); setNewRemoteUrl(''); await loadRemotes()
+                        } else {
+                          setRemoteAddError(res.error ?? 'Failed to add remote')
+                        }
+                      }}>
+                        {addingRemote ? <RotateCw size={9} className="spinning" /> : 'Add'}
+                      </button>
+                      <button className="stash-action-btn" onClick={() => { setShowAddRemote(false); setNewRemoteName(''); setNewRemoteUrl(''); setRemoteAddError(null) }}>Cancel</button>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
