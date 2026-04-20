@@ -169,6 +169,15 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const [mergeConfirm, setMergeConfirm] = useState<string | null>(null) // prKey showing method picker
   const [mergeError, setMergeError] = useState<Record<string, string>>({})
 
+  // Batch merge state
+  const [selectedPRs, setSelectedPRs] = useState<Set<string>>(new Set())
+  const [showBatchMerge, setShowBatchMerge] = useState(false)
+  const [batchMergeMethod, setBatchMergeMethod] = useState<'squash' | 'merge' | 'rebase'>('squash')
+  const [batchMergeRunning, setBatchMergeRunning] = useState(false)
+  const [batchMergeStatuses, setBatchMergeStatuses] = useState<Record<string, 'pending' | 'success' | 'error'>>({})
+  const [batchMergeErrors, setBatchMergeErrors] = useState<Record<string, string>>({})
+  const [batchMergeDone, setBatchMergeDone] = useState(false)
+
   // Prompt Environment Selector modal
   const [showEnvSelector, setShowEnvSelector] = useState(false)
   const [pendingPromptAction, setPendingPromptAction] = useState<{ prompt: QuickPrompt; pr: GitHubPR; repo: GitHubRepo } | null>(null)
@@ -924,6 +933,17 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
       )}
 
       {/* Filters */}
+      {selectedPRs.size >= 2 && (
+        <div className="github-batch-bar">
+          <GitMerge size={13} />
+          <span>{selectedPRs.size} PRs selected</span>
+          <button className="github-batch-merge-btn" onClick={() => setShowBatchMerge(true)}>
+            Merge {selectedPRs.size} PRs
+          </button>
+          <button className="github-batch-clear-btn" onClick={() => setSelectedPRs(new Set())}>Clear</button>
+        </div>
+      )}
+
       {allPRs.length > 0 && (
         <div className="github-filters">
           <div className="github-filters-search">
@@ -1136,12 +1156,57 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                   {!isLoading && prs.length === 0 && (
                     <div className="github-pr-empty">No open PRs</div>
                   )}
+                  {(() => {
+                    const mergeablePRs = prs.filter(p => !p.draft)
+                    const repoSelectedKeys = mergeablePRs.map(p => `${slug}#${p.number}`).filter(k => selectedPRs.has(k))
+                    const allSelected = mergeablePRs.length > 0 && repoSelectedKeys.length === mergeablePRs.length
+                    return mergeablePRs.length > 1 ? (
+                      <div className="github-batch-select-bar">
+                        <input
+                          type="checkbox"
+                          className="github-pr-checkbox"
+                          checked={allSelected}
+                          onChange={(e) => {
+                            const keys = mergeablePRs.map(p => `${slug}#${p.number}`)
+                            setSelectedPRs(prev => {
+                              const next = new Set(prev)
+                              if (e.target.checked) keys.forEach(k => next.add(k))
+                              else keys.forEach(k => next.delete(k))
+                              return next
+                            })
+                          }}
+                          title="Select all merge-ready PRs"
+                        />
+                        <span className="github-batch-select-label">
+                          {repoSelectedKeys.length > 0 ? `${repoSelectedKeys.length} of ${mergeablePRs.length} selected` : `Select all (${mergeablePRs.length})`}
+                        </span>
+                      </div>
+                    ) : null
+                  })()}
                   {prs.map((pr) => {
                     const prKey = `${slug}#${pr.number}`
                     const isOpen = expandedPR === prKey
                     return (
                       <div key={pr.number} className="github-pr-item">
                         <div className="github-pr-row" onClick={() => setExpandedPR(isOpen ? null : prKey)}>
+                          {!pr.draft && (
+                            <input
+                              type="checkbox"
+                              className="github-pr-checkbox"
+                              checked={selectedPRs.has(prKey)}
+                              onChange={(e) => {
+                                e.stopPropagation()
+                                setSelectedPRs(prev => {
+                                  const next = new Set(prev)
+                                  if (e.target.checked) next.add(prKey)
+                                  else next.delete(prKey)
+                                  return next
+                                })
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              title="Select for batch merge"
+                            />
+                          )}
                           <span className="github-pr-number">
                             #{pr.number}
                             {(() => {
@@ -2260,6 +2325,98 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
           onLaunchInstance={onLaunchInstance}
           onFocusInstance={onFocusInstance}
         />
+      )}
+
+      {/* Batch merge modal */}
+      {showBatchMerge && (
+        <div className="dialog-overlay" onClick={() => { if (!batchMergeRunning) { setShowBatchMerge(false); if (batchMergeDone) { setSelectedPRs(new Set()); setBatchMergeDone(false); setBatchMergeStatuses({}) } } }}>
+          <div className="dialog github-batch-merge-dialog" onClick={(e) => e.stopPropagation()}>
+            <h2><GitMerge size={16} /> Batch Merge {selectedPRs.size} PRs</h2>
+            <div className="github-batch-merge-list">
+              {Array.from(selectedPRs).map(prKey => {
+                const [slug, numStr] = prKey.split('#')
+                const num = parseInt(numStr, 10)
+                const pr = (prsByRepo[slug] || []).find(p => p.number === num)
+                const status = batchMergeStatuses[prKey]
+                return (
+                  <div key={prKey} className={`github-batch-merge-row ${status || ''}`}>
+                    <span className="github-batch-merge-pr-num">#{num}</span>
+                    <span className="github-batch-merge-pr-title">{pr?.title || prKey}</span>
+                    <span className="github-batch-merge-status">
+                      {status === 'pending' && <Loader size={12} className="spinning" />}
+                      {status === 'success' && <CheckCircle size={12} style={{ color: 'var(--text-success)' }} />}
+                      {status === 'error' && <span title={batchMergeErrors[prKey]}><XCircle size={12} style={{ color: 'var(--text-danger)' }} /></span>}
+                    </span>
+                    {batchMergeErrors[prKey] && <span className="github-batch-merge-error">{batchMergeErrors[prKey]}</span>}
+                  </div>
+                )
+              })}
+            </div>
+            {!batchMergeDone && (
+              <div className="github-batch-merge-method">
+                <label>Merge method:</label>
+                <div className="github-merge-methods">
+                  {(['squash', 'merge', 'rebase'] as const).map(m => (
+                    <button
+                      key={m}
+                      className={`github-merge-method-btn${batchMergeMethod === m ? ' active' : ''}`}
+                      disabled={batchMergeRunning}
+                      onClick={() => setBatchMergeMethod(m)}
+                    >
+                      {m === 'squash' ? 'Squash & merge' : m === 'merge' ? 'Merge commit' : 'Rebase & merge'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="dialog-actions">
+              {!batchMergeDone ? (
+                <>
+                  <button
+                    className="primary"
+                    disabled={batchMergeRunning}
+                    onClick={async () => {
+                      setBatchMergeRunning(true)
+                      const keys = Array.from(selectedPRs)
+                      const statuses: Record<string, 'pending' | 'success' | 'error'> = {}
+                      const errors: Record<string, string> = {}
+                      for (const prKey of keys) statuses[prKey] = 'pending'
+                      setBatchMergeStatuses({ ...statuses })
+                      setBatchMergeErrors({})
+                      for (const prKey of keys) {
+                        const [slug, numStr] = prKey.split('#')
+                        const num = parseInt(numStr, 10)
+                        const repo = repos.find(r => `${r.owner}/${r.name}` === slug)
+                        if (!repo) { statuses[prKey] = 'error'; errors[prKey] = 'Repo not found'; setBatchMergeStatuses({ ...statuses }); continue }
+                        try {
+                          await window.api.github.mergePR(repo, num, batchMergeMethod)
+                          statuses[prKey] = 'success'
+                        } catch (err: any) {
+                          statuses[prKey] = 'error'
+                          errors[prKey] = err.message || 'Merge failed'
+                        }
+                        setBatchMergeStatuses({ ...statuses })
+                        setBatchMergeErrors({ ...errors })
+                      }
+                      setBatchMergeRunning(false)
+                      setBatchMergeDone(true)
+                      const successSlugs = new Set(keys.filter(k => statuses[k] === 'success').map(k => k.split('#')[0]))
+                      for (const slug of successSlugs) {
+                        const repo = repos.find(r => `${r.owner}/${r.name}` === slug)
+                        if (repo) fetchPRsForRepo(repo)
+                      }
+                    }}
+                  >
+                    {batchMergeRunning ? <><Loader size={12} className="spinning" /> Merging…</> : `Merge ${selectedPRs.size} PRs`}
+                  </button>
+                  <button className="cancel" disabled={batchMergeRunning} onClick={() => setShowBatchMerge(false)}>Cancel</button>
+                </>
+              ) : (
+                <button className="cancel" onClick={() => { setShowBatchMerge(false); setSelectedPRs(new Set()); setBatchMergeDone(false); setBatchMergeStatuses({}) }}>Done</button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

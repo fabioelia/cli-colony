@@ -12600,6 +12600,92 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--danger);
 }
 
+/* Batch merge */
+.github-batch-select-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+.github-batch-select-label {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.github-pr-checkbox {
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+.github-batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-secondary));
+  border-top: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.github-batch-merge-btn {
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+}
+.github-batch-merge-btn:hover { opacity: 0.85; }
+.github-batch-clear-btn {
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  margin-left: auto;
+}
+.github-batch-clear-btn:hover { color: var(--text-primary); }
+.github-batch-merge-dialog {
+  min-width: 420px;
+  max-width: 560px;
+}
+.github-batch-merge-list {
+  margin: 8px 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.github-batch-merge-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  font-size: 11px;
+}
+.github-batch-merge-row.success { background: color-mix(in srgb, #22c55e 8%, var(--bg-secondary)); }
+.github-batch-merge-row.error { background: color-mix(in srgb, #ef4444 8%, var(--bg-secondary)); }
+.github-batch-merge-pr-num { color: var(--text-muted); flex-shrink: 0; font-size: 11px; }
+.github-batch-merge-pr-title { flex: 1; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.github-batch-merge-status { flex-shrink: 0; }
+.github-batch-merge-error { font-size: 10px; color: var(--text-danger, var(--danger)); }
+.github-batch-merge-method { margin: 8px 0; }
+.github-batch-merge-method label { font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 5px; }
+.github-merge-method-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 .github-pr-merge-blocked {
   display: inline-flex;
   align-items: center;
