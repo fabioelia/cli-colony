@@ -316,7 +316,7 @@ export default function CommitDialog({ dir, entries, onClose, onCommitted, ticke
               className="panel-header-btn"
               onClick={handleSuggest}
               disabled={suggesting || (!squashParentHash && selectedFiles.size === 0) || busy || phase === 'done' || !!squashParentHash}
-              title="AI-suggest commit message from diff"
+              title={squashParentHash ? 'AI-suggest not available in squash mode' : 'AI-suggest commit message from diff'}
               type="button"
             >
               {suggesting ? <Loader size={11} className="spinning" /> : <Sparkles size={11} />}
