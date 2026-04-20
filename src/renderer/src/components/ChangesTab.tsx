@@ -3,6 +3,32 @@ import { ChevronRight, RefreshCw, RotateCw, Undo2, Sparkles, X, MessageCircleWar
 import type { GitDiffEntry, ColonyComment, ScoreCard } from '../../../shared/types'
 import type { ClaudeInstance } from '../types'
 import DiffViewer from './DiffViewer'
+
+function parseFullDiff(diff: string): { entries: GitDiffEntry[]; sections: Map<string, string> } {
+  const entries: GitDiffEntry[] = []
+  const sections = new Map<string, string>()
+  if (!diff.trim()) return { entries, sections }
+  const parts = diff.split(/(?=^diff --git )/m)
+  for (const part of parts) {
+    if (!part.startsWith('diff --git ')) continue
+    const fileMatch = part.match(/^diff --git a\/.+ b\/(.+)/)
+    if (!fileMatch) continue
+    const file = fileMatch[1].trim()
+    let status: GitDiffEntry['status'] = 'M'
+    if (/^new file mode/m.test(part)) status = 'A'
+    else if (/^deleted file mode/m.test(part)) status = 'D'
+    else if (/^rename from /m.test(part)) status = 'R'
+    let insertions = 0
+    let deletions = 0
+    for (const line of part.split('\n')) {
+      if (line.startsWith('+') && !line.startsWith('+++')) insertions++
+      else if (line.startsWith('-') && !line.startsWith('---')) deletions++
+    }
+    entries.push({ file, insertions, deletions, status })
+    sections.set(file, part)
+  }
+  return { entries, sections }
+}
 import CommitDialog from './CommitDialog'
 
 interface CheckpointTag {
@@ -39,6 +65,13 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [stashOpen, setStashOpen] = useState(false)
   const [stashing, setStashing] = useState(false)
   const [stashError, setStashError] = useState<string | null>(null)
+
+  // Diff mode state
+  const [diffMode, setDiffMode] = useState<'working' | 'base'>('working')
+  const [baseBranch, setBaseBranch] = useState('main')
+  const [baseDiffEntries, setBaseDiffEntries] = useState<GitDiffEntry[]>([])
+  const [baseDiffLoading, setBaseDiffLoading] = useState(false)
+  const baseDiffSectionsRef = useRef<Map<string, string>>(new Map())
 
   // Checkpoint state
   const [checkpoints, setCheckpoints] = useState<CheckpointTag[]>([])
@@ -190,6 +223,37 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     refreshStashes()
   }, [refreshStashes])
 
+  useEffect(() => {
+    if (!instance.workingDirectory) return
+    window.api.git.defaultBranch(instance.workingDirectory).then(setBaseBranch).catch(() => {})
+  }, [instance.workingDirectory])
+
+  useEffect(() => {
+    if (diffMode !== 'base' || !instance.workingDirectory) return
+    setBaseDiffLoading(true)
+    setSelectedDiffFile(null)
+    setDiffContent(null)
+    window.api.git.diffRange(instance.workingDirectory, baseBranch)
+      .then(({ diff }) => {
+        const { entries, sections } = parseFullDiff(diff)
+        setBaseDiffEntries(entries)
+        baseDiffSectionsRef.current = sections
+      })
+      .catch(() => setBaseDiffEntries([]))
+      .finally(() => setBaseDiffLoading(false))
+  }, [diffMode, instance.workingDirectory, baseBranch])
+
+  const selectBaseFile = useCallback((file: string) => {
+    setSelectedDiffFile(file)
+    setDiffContent(baseDiffSectionsRef.current.get(file) ?? '')
+  }, [])
+
+  const handleModeSwitch = useCallback((mode: 'working' | 'base') => {
+    setDiffMode(mode)
+    setSelectedDiffFile(null)
+    setDiffContent(null)
+  }, [])
+
   const handleStash = useCallback(async () => {
     if (!instance.workingDirectory) return
     setStashing(true)
@@ -303,10 +367,10 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   }, [instance.workingDirectory])
 
   // visibleFiles — filtered by search, structured for keyboard nav
-  const visibleFiles = useMemo(
-    () => fileSearch ? gitChanges.filter(f => f.file.toLowerCase().includes(fileSearch.toLowerCase())) : gitChanges,
-    [gitChanges, fileSearch]
-  )
+  const visibleFiles = useMemo(() => {
+    const entries = diffMode === 'base' ? baseDiffEntries : gitChanges
+    return fileSearch ? entries.filter(f => f.file.toLowerCase().includes(fileSearch.toLowerCase())) : entries
+  }, [gitChanges, baseDiffEntries, diffMode, fileSearch])
 
   // Keyboard nav: j/k or ArrowDown/ArrowUp to navigate files, Escape to clear
   useEffect(() => {
@@ -326,12 +390,13 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
       const currentIndex = selectedDiffFile
         ? visibleFiles.findIndex(f => f.file === selectedDiffFile)
         : -1
+      const activate = (f: GitDiffEntry) => diffMode === 'base' ? selectBaseFile(f.file) : selectFile(f.file, f.status)
       if (e.key === 'ArrowDown' || e.key === 'j') {
         const next = currentIndex < visibleFiles.length - 1 ? currentIndex + 1 : 0
-        selectFile(visibleFiles[next].file, visibleFiles[next].status)
+        activate(visibleFiles[next])
       } else {
         const next = currentIndex > 0 ? currentIndex - 1 : visibleFiles.length - 1
-        selectFile(visibleFiles[next].file, visibleFiles[next].status)
+        activate(visibleFiles[next])
       }
     }
     document.addEventListener('keydown', handler)
@@ -354,12 +419,12 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   // Clear selection if selected file disappears (reverted / committed externally)
   useEffect(() => {
     if (!selectedDiffFile) return
-    const exists = gitChanges.some(f => f.file === selectedDiffFile)
-    if (!exists) {
+    const entries = diffMode === 'base' ? baseDiffEntries : gitChanges
+    if (!entries.some(f => f.file === selectedDiffFile)) {
       setSelectedDiffFile(null)
       setDiffContent(null)
     }
-  }, [gitChanges, selectedDiffFile])
+  }, [gitChanges, baseDiffEntries, diffMode, selectedDiffFile])
 
   // Memoized right pane — only re-renders DiffViewer when selection/content changes
   const rightPane = useMemo(() => {
@@ -447,7 +512,11 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
             <GitCompare size={13} /> Git Changes
           </span>
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-            {gitChanges.length > 0 && (
+            <div className="changes-diff-mode-toggle">
+              <button className={diffMode === 'working' ? 'active' : ''} onClick={() => handleModeSwitch('working')}>Working Tree</button>
+              <button className={diffMode === 'base' ? 'active' : ''} onClick={() => handleModeSwitch('base')}>vs {baseBranch}</button>
+            </div>
+            {(visibleFiles.length > 0 || !!fileSearch) && (
               <div className="review-search-wrapper">
                 <Search size={12} className="review-search-icon" />
                 <input
@@ -562,14 +631,19 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
           </div>
         </div>
         <div className="changes-panel-content">
-          {gitChangesLoading && <div className="changes-empty">Loading...</div>}
-          {!gitChangesLoading && gitError && (
+          {diffMode === 'working' && gitChangesLoading && <div className="changes-empty">Loading...</div>}
+          {diffMode === 'working' && !gitChangesLoading && gitError && (
             <div className="changes-empty">{gitError}</div>
           )}
-          {!gitChangesLoading && !gitError && gitChanges.length === 0 && (
+          {diffMode === 'working' && !gitChangesLoading && !gitError && gitChanges.length === 0 && (
             <div className="changes-empty">No uncommitted changes.</div>
           )}
-          {!gitChangesLoading && gitChanges.length > 0 && (
+          {diffMode === 'base' && baseDiffLoading && <div className="changes-empty">Loading branch diff…</div>}
+          {diffMode === 'base' && !baseDiffLoading && baseDiffEntries.length === 0 && (
+            <div className="changes-empty">On {baseBranch} — no branch diff.</div>
+          )}
+          {((diffMode === 'working' && !gitChangesLoading && gitChanges.length > 0) ||
+            (diffMode === 'base' && !baseDiffLoading && baseDiffEntries.length > 0)) && (
             <div className="diff-first-layout">
               {/* Left pane: file list */}
               <div className="diff-first-left">
@@ -578,10 +652,10 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                 )}
                 {visibleFiles.map((entry) => {
                   const isSelected = selectedDiffFile === entry.file
-                  const fileComments = colonyComments.filter(c => {
+                  const fileComments = diffMode === 'working' ? colonyComments.filter(c => {
                     const normalised = c.file.replace(/^b\//, '')
                     return normalised === entry.file || normalised.endsWith('/' + entry.file) || entry.file.endsWith('/' + normalised)
-                  })
+                  }) : []
                   return (
                     <div
                       key={entry.file}
@@ -589,8 +663,8 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                       role="button"
                       tabIndex={0}
                       aria-selected={isSelected}
-                      onClick={() => selectFile(entry.file, entry.status)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectFile(entry.file, entry.status) } }}
+                      onClick={() => diffMode === 'base' ? selectBaseFile(entry.file) : selectFile(entry.file, entry.status)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); diffMode === 'base' ? selectBaseFile(entry.file) : selectFile(entry.file, entry.status) } }}
                     >
                       <div className="changes-event-header" style={{ alignItems: 'center', cursor: 'pointer' }}>
                         <span className="changes-event-tool" title={entry.status === 'A' ? 'Added' : entry.status === 'D' ? 'Deleted' : entry.status === 'R' ? 'Renamed' : 'Modified'} style={{
@@ -615,15 +689,17 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                             {fileComments.length > 1 && fileComments.length}
                           </span>
                         )}
-                        <button
-                          className="changes-refresh-btn"
-                          title={`Revert ${entry.file}`}
-                          disabled={reverting.has(entry.file)}
-                          onClick={(e) => { e.stopPropagation(); handleRevert(entry.file) }}
-                          style={{ marginLeft: '4px', color: 'var(--danger)' }}
-                        >
-                          {reverting.has(entry.file) ? <RotateCw size={11} className="spinning" /> : <Undo2 size={11} />}
-                        </button>
+                        {diffMode === 'working' && (
+                          <button
+                            className="changes-refresh-btn"
+                            title={`Revert ${entry.file}`}
+                            disabled={reverting.has(entry.file)}
+                            onClick={(e) => { e.stopPropagation(); handleRevert(entry.file) }}
+                            style={{ marginLeft: '4px', color: 'var(--danger)' }}
+                          >
+                            {reverting.has(entry.file) ? <RotateCw size={11} className="spinning" /> : <Undo2 size={11} />}
+                          </button>
+                        )}
                       </div>
                     </div>
                   )
