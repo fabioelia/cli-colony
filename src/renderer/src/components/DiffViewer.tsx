@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { ChevronRight, ChevronDown } from 'lucide-react'
+import { ChevronRight, ChevronDown, Plus, Trash2 } from 'lucide-react'
 import { hljs, getLangFromFilename } from '../lib/hljs'
 import type { PRFile } from '../../../shared/types'
 
@@ -34,6 +34,10 @@ interface DiffViewerSingleProps {
   maxLines?: number
   /** PR review comments to render inline at matching line positions */
   comments?: Array<{ author: string; body: string; createdAt: string; line?: number; originalLine?: number }>
+  /** Called with full patch string when user clicks "stage this hunk" */
+  onStageHunk?: (patch: string) => void
+  /** Called with full patch string when user clicks "discard this hunk" */
+  onDiscardHunk?: (patch: string) => void
 }
 
 interface DiffViewerProps extends DiffViewerSingleProps {
@@ -69,6 +73,37 @@ function parseDiff(raw: string): DiffLine[] {
     // Skip diff headers (diff --git, index, ---, +++)
   }
   return lines
+}
+
+function parseHunks(rawDiff: string): { fileHeader: string; hunks: string[]; canApply: boolean } {
+  const lines = rawDiff.split('\n')
+  const headerLines: string[] = []
+  const hunks: string[] = []
+  let currentHunk: string[] = []
+  let inHunk = false
+
+  for (const line of lines) {
+    if (!inHunk) {
+      if (line.startsWith('@@')) {
+        inHunk = true
+        currentHunk = [line]
+      } else {
+        headerLines.push(line)
+      }
+    } else {
+      if (line.startsWith('@@')) {
+        hunks.push(currentHunk.join('\n'))
+        currentHunk = [line]
+      } else {
+        currentHunk.push(line)
+      }
+    }
+  }
+  if (inHunk && currentHunk.length > 0) hunks.push(currentHunk.join('\n'))
+
+  const header = headerLines.join('\n')
+  const canApply = header.includes('--- ') && header.includes('+++ ')
+  return { fileHeader: header, hunks, canApply }
 }
 
 function computeWordDiff(oldStr: string, newStr: string): { left: WordSegment[]; right: WordSegment[] } | null {
@@ -246,7 +281,7 @@ function InlineCommentCards({ comments, defaultCollapsed }: { comments: InlineCo
   )
 }
 
-function DiffViewerSingle({ diff, filename, maxLines = 500, comments }: DiffViewerSingleProps) {
+function DiffViewerSingle({ diff, filename, maxLines = 500, comments, onStageHunk, onDiscardHunk }: DiffViewerSingleProps) {
   const [showFull, setShowFull] = useState(false)
   const [mode, setMode] = useState<'unified' | 'split'>(() =>
     (localStorage.getItem('diff-view-mode') as 'unified' | 'split') || 'unified'
@@ -257,6 +292,7 @@ function DiffViewerSingle({ diff, filename, maxLines = 500, comments }: DiffView
   const commentMaps = useMemo(() => buildCommentMaps(comments), [comments])
   const totalComments = comments?.filter(c => c.line || c.originalLine).length || 0
   const defaultCollapsed = totalComments > 3
+  const hunkInfo = useMemo(() => (onStageHunk || onDiscardHunk) ? parseHunks(diff) : null, [diff, onStageHunk, onDiscardHunk])
 
   const displayCount = mode === 'split' ? splitRows.length : allLines.length
   const isTruncated = !showFull && displayCount > maxLines
@@ -271,6 +307,13 @@ function DiffViewerSingle({ diff, filename, maxLines = 500, comments }: DiffView
     localStorage.setItem('diff-view-mode', next)
   }
 
+  const buildHunkPatch = (hunkIdx: number): string => {
+    if (!hunkInfo) return ''
+    const hunk = hunkInfo.hunks[hunkIdx]
+    if (!hunk) return ''
+    return hunkInfo.fileHeader + '\n' + hunk + '\n'
+  }
+
   if (!diff.trim()) {
     return <div className="diff-viewer-empty">No diff content.</div>
   }
@@ -280,6 +323,8 @@ function DiffViewerSingle({ diff, filename, maxLines = 500, comments }: DiffView
     return <div className="diff-viewer-empty">Binary file — diff not available.</div>
   }
 
+  const showHunkActions = !!(hunkInfo?.canApply && (onStageHunk || onDiscardHunk))
+
   return (
     <div className="diff-viewer">
       <div className="diff-toolbar">
@@ -287,21 +332,50 @@ function DiffViewerSingle({ diff, filename, maxLines = 500, comments }: DiffView
           {mode === 'unified' ? 'Split' : 'Unified'}
         </button>
       </div>
-      {mode === 'split' ? (
-        <div className="diff-split">
-          {visibleSplitRows.map((row, i) => {
-            const newLineComments = row.right.line != null ? commentMaps.byNewLine.get(row.right.line) : undefined
-            const oldLineComments = row.left.line != null && !newLineComments ? commentMaps.byOldLine.get(row.left.line) : undefined
-            const lineComments = newLineComments || oldLineComments
-            return (
-              <React.Fragment key={i}>
-                {row.left.type === 'hunk' ? (
-                  <div className="diff-split-row diff-split-hunk">
-                    <div className="diff-split-cell diff-hunk" style={{ gridColumn: '1 / -1' }}>
-                      <span className="diff-content">{row.left.content}</span>
+      {mode === 'split' ? (() => {
+        let hunkIdx = 0
+        return (
+          <div className="diff-split">
+            {visibleSplitRows.map((row, i) => {
+              const newLineComments = row.right.line != null ? commentMaps.byNewLine.get(row.right.line) : undefined
+              const oldLineComments = row.left.line != null && !newLineComments ? commentMaps.byOldLine.get(row.left.line) : undefined
+              const lineComments = newLineComments || oldLineComments
+              if (row.left.type === 'hunk') {
+                const idx = hunkIdx++
+                return (
+                  <React.Fragment key={i}>
+                    <div className="diff-split-row diff-split-hunk">
+                      <div className="diff-split-cell diff-hunk" style={{ gridColumn: '1 / -1' }}>
+                        <span className="diff-content">{row.left.content}</span>
+                        {showHunkActions && (
+                          <span className="diff-hunk-actions">
+                            {onStageHunk && (
+                              <button
+                                className="diff-hunk-btn diff-hunk-btn-stage"
+                                title="Stage this hunk"
+                                onClick={() => onStageHunk(buildHunkPatch(idx))}
+                              >
+                                <Plus size={10} />
+                              </button>
+                            )}
+                            {onDiscardHunk && (
+                              <button
+                                className="diff-hunk-btn diff-hunk-btn-discard"
+                                title="Discard this hunk"
+                                onClick={() => onDiscardHunk(buildHunkPatch(idx))}
+                              >
+                                <Trash2 size={10} />
+                              </button>
+                            )}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ) : (
+                  </React.Fragment>
+                )
+              }
+              return (
+                <React.Fragment key={i}>
                   <div className="diff-split-row">
                     <div className={`diff-split-cell diff-split-left diff-${row.left.type}`}>
                       <span className="diff-gutter">{row.left.line ?? ''}</span>
@@ -324,53 +398,92 @@ function DiffViewerSingle({ diff, filename, maxLines = 500, comments }: DiffView
                       </span>
                     </div>
                   </div>
-                )}
-                {lineComments && (
-                  <div className="diff-split-row diff-split-comment-row">
-                    <div style={{ gridColumn: '1 / -1' }}>
-                      <InlineCommentCards comments={lineComments} defaultCollapsed={defaultCollapsed} />
+                  {lineComments && (
+                    <div className="diff-split-row diff-split-comment-row">
+                      <div style={{ gridColumn: '1 / -1' }}>
+                        <InlineCommentCards comments={lineComments} defaultCollapsed={defaultCollapsed} />
+                      </div>
                     </div>
+                  )}
+                </React.Fragment>
+              )
+            })}
+          </div>
+        )
+      })() : (() => {
+        let hunkIdx = 0
+        return (
+          <>
+            {lines.map((line, i) => {
+              const highlighted = lang && line.type !== 'hunk'
+                ? hljs.highlight(line.content, { language: lang }).value
+                : null
+              const newLineComments = line.newLine != null ? commentMaps.byNewLine.get(line.newLine) : undefined
+              const oldLineComments = line.oldLine != null && !newLineComments ? commentMaps.byOldLine.get(line.oldLine) : undefined
+              const lineComments = newLineComments || oldLineComments
+              if (line.type === 'hunk') {
+                const idx = hunkIdx++
+                return (
+                  <React.Fragment key={i}>
+                    <div className="diff-line diff-hunk">
+                      <span className="diff-gutter diff-gutter-old" />
+                      <span className="diff-gutter diff-gutter-new" />
+                      <span className="diff-content">{line.content}</span>
+                      {showHunkActions && (
+                        <span className="diff-hunk-actions">
+                          {onStageHunk && (
+                            <button
+                              className="diff-hunk-btn diff-hunk-btn-stage"
+                              title="Stage this hunk"
+                              onClick={() => onStageHunk(buildHunkPatch(idx))}
+                            >
+                              <Plus size={10} />
+                            </button>
+                          )}
+                          {onDiscardHunk && (
+                            <button
+                              className="diff-hunk-btn diff-hunk-btn-discard"
+                              title="Discard this hunk"
+                              onClick={() => onDiscardHunk(buildHunkPatch(idx))}
+                            >
+                              <Trash2 size={10} />
+                            </button>
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  </React.Fragment>
+                )
+              }
+              return (
+                <React.Fragment key={i}>
+                  <div className={`diff-line diff-${line.type}`}>
+                    <span className="diff-gutter diff-gutter-old">
+                      {line.oldLine ?? ''}
+                    </span>
+                    <span className="diff-gutter diff-gutter-new">
+                      {line.newLine ?? ''}
+                    </span>
+                    {highlighted ? (
+                      <span
+                        className="diff-content"
+                        dangerouslySetInnerHTML={{ __html: highlighted }}
+                      />
+                    ) : (
+                      <span className="diff-content">
+                        {line.content}
+                      </span>
+                    )}
                   </div>
-                )}
-              </React.Fragment>
-            )
-          })}
-        </div>
-      ) : (
-        lines.map((line, i) => {
-          const highlighted = lang && line.type !== 'hunk'
-            ? hljs.highlight(line.content, { language: lang }).value
-            : null
-          const newLineComments = line.newLine != null ? commentMaps.byNewLine.get(line.newLine) : undefined
-          const oldLineComments = line.oldLine != null && !newLineComments ? commentMaps.byOldLine.get(line.oldLine) : undefined
-          const lineComments = newLineComments || oldLineComments
-          return (
-            <React.Fragment key={i}>
-              <div className={`diff-line diff-${line.type}`}>
-                <span className="diff-gutter diff-gutter-old">
-                  {line.oldLine ?? ''}
-                </span>
-                <span className="diff-gutter diff-gutter-new">
-                  {line.newLine ?? ''}
-                </span>
-                {highlighted ? (
-                  <span
-                    className="diff-content"
-                    dangerouslySetInnerHTML={{ __html: highlighted }}
-                  />
-                ) : (
-                  <span className="diff-content">
-                    {line.content}
-                  </span>
-                )}
-              </div>
-              {lineComments && (
-                <InlineCommentCards comments={lineComments} defaultCollapsed={defaultCollapsed} />
-              )}
-            </React.Fragment>
-          )
-        })
-      )}
+                  {lineComments && (
+                    <InlineCommentCards comments={lineComments} defaultCollapsed={defaultCollapsed} />
+                  )}
+                </React.Fragment>
+              )
+            })}
+          </>
+        )
+      })()}
       {isTruncated && (
         <div className="diff-truncated">
           <button onClick={() => setShowFull(true)}>
@@ -424,11 +537,11 @@ function DiffViewerMultiFile({ files }: { files: PRFile[] }) {
   )
 }
 
-function DiffViewer({ files, diff, filename, maxLines, comments }: DiffViewerProps) {
+function DiffViewer({ files, diff, filename, maxLines, comments, onStageHunk, onDiscardHunk }: DiffViewerProps) {
   if (files && files.length > 0) {
     return <DiffViewerMultiFile files={files} />
   }
-  return <DiffViewerSingle diff={diff} filename={filename} maxLines={maxLines} comments={comments} />
+  return <DiffViewerSingle diff={diff} filename={filename} maxLines={maxLines} comments={comments} onStageHunk={onStageHunk} onDiscardHunk={onDiscardHunk} />
 }
 
 export default DiffViewer

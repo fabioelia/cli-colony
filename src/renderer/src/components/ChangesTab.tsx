@@ -785,6 +785,26 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     return fileSearch ? entries.filter(f => f.file.toLowerCase().includes(fileSearch.toLowerCase())) : entries
   }, [gitChanges, baseDiffEntries, diffMode, fileSearch])
 
+  const refreshSelectedDiff = useCallback((file: string) => {
+    const entry = visibleFiles.find(f => f.file === file)
+    if (!entry) return
+    delete diffCacheRef.current[file]
+    selectFile(file, entry.status)
+    loadGitChanges()
+  }, [visibleFiles, selectFile, loadGitChanges])
+
+  const handleStageHunk = useCallback(async (patch: string) => {
+    if (!instance.workingDirectory || !selectedDiffFile) return
+    const result = await window.api.git.stageHunk(instance.workingDirectory, patch)
+    if (result.success) refreshSelectedDiff(selectedDiffFile)
+  }, [instance.workingDirectory, selectedDiffFile, refreshSelectedDiff])
+
+  const handleDiscardHunk = useCallback(async (patch: string) => {
+    if (!instance.workingDirectory || !selectedDiffFile) return
+    const result = await window.api.git.discardHunk(instance.workingDirectory, patch)
+    if (result.success) refreshSelectedDiff(selectedDiffFile)
+  }, [instance.workingDirectory, selectedDiffFile, refreshSelectedDiff])
+
   // Keyboard nav: j/k or ArrowDown/ArrowUp to navigate files, Escape to clear
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -1071,7 +1091,12 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
               {copiedDiffFile === selectedDiffFile ? <CheckCircle size={12} /> : <Copy size={12} />}
             </button>
           </div>
-          <DiffViewer diff={diffContent} filename={selectedDiffFile} />
+          <DiffViewer
+            diff={diffContent}
+            filename={selectedDiffFile}
+            onStageHunk={diffMode === 'working' ? handleStageHunk : undefined}
+            onDiscardHunk={diffMode === 'working' ? handleDiscardHunk : undefined}
+          />
           {fileComments.map((comment, i) => (
             <div key={i} style={{
               display: 'flex',
@@ -1111,6 +1136,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
       </div>
     )
   }, [selectedDiffFile, diffLoading, diffContent, colonyComments, copiedDiffFile,
+      diffMode, handleStageHunk, handleDiscardHunk,
       fileHistoryFile, fileHistoryCommits, fileHistoryLoading, fileHistorySkip, hasMoreFileHistory,
       expandedFileHistoryHash, fileHistoryDiff, fileHistoryDiffLoading,
       stashPreviewIndex, stashPreviewDiff, stashPreviewLoading, stashes,

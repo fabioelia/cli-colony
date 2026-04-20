@@ -508,6 +508,8 @@ export interface ClaudeManagerAPI {
     revertAbort: (cwd: string) => Promise<void>
     conflictState: (cwd: string) => Promise<{ state: 'none' | 'merge' | 'cherry-pick' | 'revert'; conflictedFiles: string[] }>
     searchCommits: (cwd: string, query: string, limit?: number) => Promise<Array<{ hash: string; subject: string; author: string; date: string }>>
+    stageHunk: (cwd: string, patch: string) => Promise<{ success: boolean; error?: string }>
+    discardHunk: (cwd: string, patch: string) => Promise<{ success: boolean; error?: string }>
   }
   ai: {
     suggestPRDescription: (dir: string) => Promise<{ title: string; body: string } | null>
@@ -1193,6 +1195,8 @@ const api: ClaudeManagerAPI = {
     revertAbort: (cwd) => ipcRenderer.invoke('git:revertAbort', cwd) as Promise<void>,
     conflictState: (cwd) => ipcRenderer.invoke('git:conflictState', cwd) as Promise<{ state: 'none' | 'merge' | 'cherry-pick' | 'revert'; conflictedFiles: string[] }>,
     searchCommits: (cwd, query, limit) => ipcRenderer.invoke('git:searchCommits', cwd, query, limit) as Promise<Array<{ hash: string; subject: string; author: string; date: string }>>,
+    stageHunk: (cwd, patch) => ipcRenderer.invoke('git:stageHunk', cwd, patch) as Promise<{ success: boolean; error?: string }>,
+    discardHunk: (cwd, patch) => ipcRenderer.invoke('git:discardHunk', cwd, patch) as Promise<{ success: boolean; error?: string }>,
   },
   ai: {
     suggestPRDescription: (dir) => ipcRenderer.invoke('ai:suggestPRDescription', dir) as Promise<{ title: string; body: string } | null>,

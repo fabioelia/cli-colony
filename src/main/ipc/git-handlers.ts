@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { execFile } from 'child_process'
 import { promises as fsp } from 'fs'
 import path from 'path'
+import os from 'os'
 import { promisify } from 'util'
 import { resolveCommand } from '../resolve-command'
 
@@ -555,6 +556,34 @@ export function registerGitHandlers(): void {
       const [hash, subject, author, date] = line.split('\0')
       return { hash, subject, author, date }
     })
+  })
+
+  ipcMain.handle('git:stageHunk', async (_e, cwd: string, patch: string): Promise<{ success: boolean; error?: string }> => {
+    await assertGitRepo(cwd)
+    const tmpFile = path.join(os.tmpdir(), `colony-hunk-${Date.now()}-${Math.random().toString(36).slice(2)}.patch`)
+    try {
+      await fsp.writeFile(tmpFile, patch, 'utf-8')
+      await execFileAsync(resolveCommand('git'), ['apply', '--cached', tmpFile], { cwd, timeout: 10000 })
+      return { success: true }
+    } catch (err: unknown) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
+    } finally {
+      await fsp.unlink(tmpFile).catch(() => {})
+    }
+  })
+
+  ipcMain.handle('git:discardHunk', async (_e, cwd: string, patch: string): Promise<{ success: boolean; error?: string }> => {
+    await assertGitRepo(cwd)
+    const tmpFile = path.join(os.tmpdir(), `colony-hunk-${Date.now()}-${Math.random().toString(36).slice(2)}.patch`)
+    try {
+      await fsp.writeFile(tmpFile, patch, 'utf-8')
+      await execFileAsync(resolveCommand('git'), ['apply', '--reverse', tmpFile], { cwd, timeout: 10000 })
+      return { success: true }
+    } catch (err: unknown) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
+    } finally {
+      await fsp.unlink(tmpFile).catch(() => {})
+    }
   })
 }
 
