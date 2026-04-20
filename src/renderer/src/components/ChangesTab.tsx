@@ -1895,7 +1895,7 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                     })}
                     style={{
                       fontSize: '9px', padding: '1px 6px', borderRadius: '10px', cursor: 'pointer', border: '1px solid var(--border)',
-                      background: activeExtFilters.has(ext) ? 'var(--accent)' : 'var(--surface-hover)',
+                      background: activeExtFilters.has(ext) ? 'var(--accent)' : 'var(--bg-hover)',
                       color: activeExtFilters.has(ext) ? 'white' : 'var(--text-muted)',
                       fontFamily: 'monospace', lineHeight: '14px',
                     }}
@@ -2613,14 +2613,14 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                       placeholder="Remote name (e.g. upstream)"
                       value={newRemoteName}
                       onChange={e => { setNewRemoteName(e.target.value); setRemoteAddError(null) }}
-                      style={{ fontSize: '11px', padding: '3px 6px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text)', width: '100%', boxSizing: 'border-box' }}
+                      style={{ fontSize: '11px', padding: '3px 6px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text-primary)', width: '100%', boxSizing: 'border-box' }}
                     />
                     <input
                       type="text"
                       placeholder="URL"
                       value={newRemoteUrl}
                       onChange={e => { setNewRemoteUrl(e.target.value); setRemoteAddError(null) }}
-                      style={{ fontSize: '11px', padding: '3px 6px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text)', width: '100%', boxSizing: 'border-box' }}
+                      style={{ fontSize: '11px', padding: '3px 6px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text-primary)', width: '100%', boxSizing: 'border-box' }}
                     />
                     {remoteAddError && <div style={{ fontSize: '10px', color: 'var(--danger)' }}>{remoteAddError}</div>}
                     <div style={{ display: 'flex', gap: '4px' }}>
