@@ -471,6 +471,7 @@ export interface ClaudeManagerAPI {
     push: (cwd: string) => Promise<void>
     branchInfo: (cwd: string) => Promise<{ branch: string; remote: string | null; ahead: number }>
     unpushedCommits: (cwd: string) => Promise<Array<{ hash: string; subject: string; author: string; date: string }>>
+    log: (cwd: string, limit?: number, skip?: number) => Promise<Array<{ hash: string; subject: string; author: string; date: string }>>
     commitDiff: (cwd: string, hash: string) => Promise<string>
     createBranch: (cwd: string, name: string, startPoint?: string) => Promise<string>
     fetch: (cwd: string) => Promise<{ success: boolean; error?: string }>
@@ -1141,6 +1142,7 @@ const api: ClaudeManagerAPI = {
     push: (cwd) => ipcRenderer.invoke('git:push', cwd),
     branchInfo: (cwd) => ipcRenderer.invoke('git:branchInfo', cwd),
     unpushedCommits: (cwd) => ipcRenderer.invoke('git:unpushedCommits', cwd),
+    log: (cwd, limit, skip) => ipcRenderer.invoke('git:log', cwd, limit, skip),
     commitDiff: (cwd, hash) => ipcRenderer.invoke('git:commitDiff', cwd, hash),
     createBranch: (cwd, name, startPoint) => ipcRenderer.invoke('git:createBranch', cwd, name, startPoint),
     fetch: (cwd) => ipcRenderer.invoke('git:fetch', cwd),

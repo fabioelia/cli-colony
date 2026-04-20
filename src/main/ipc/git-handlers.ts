@@ -122,6 +122,20 @@ export function registerGitHandlers(): void {
     }
   })
 
+  ipcMain.handle('git:log', async (_e, cwd: string, limit: number = 20, skip: number = 0): Promise<Array<{ hash: string; subject: string; author: string; date: string }>> => {
+    await assertGitRepo(cwd)
+    try {
+      const { stdout } = await execFileAsync(resolveCommand('git'), [
+        'log', `--max-count=${limit}`, `--skip=${skip}`, '--format=%H%x00%s%x00%an%x00%ar',
+      ], { cwd, timeout: 10000, encoding: 'utf-8' })
+      if (!stdout.trim()) return []
+      return stdout.trim().split('\n').map(line => {
+        const [hash, subject, author, date] = line.split('\0')
+        return { hash, subject, author, date }
+      })
+    } catch { return [] }
+  })
+
   ipcMain.handle('git:createBranch', async (_e, cwd: string, name: string, startPoint?: string): Promise<string> => {
     await assertGitRepo(cwd)
     if (!/^[a-zA-Z0-9][a-zA-Z0-9._/-]*$/.test(name)) {

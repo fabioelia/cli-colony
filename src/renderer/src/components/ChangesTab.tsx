@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react'
-import { ChevronRight, RefreshCw, RotateCw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search, Copy, CheckCircle, Archive } from 'lucide-react'
+import { ChevronRight, RefreshCw, RotateCw, Undo2, Sparkles, X, MessageCircleWarning, GitCompare, GitCommit, Bookmark, Trash2, GitBranch, Search, Copy, CheckCircle, Archive, ArrowDown } from 'lucide-react'
 import type { GitDiffEntry, ColonyComment, ScoreCard } from '../../../shared/types'
 import type { ClaudeInstance } from '../types'
 import DiffViewer from './DiffViewer'
@@ -90,6 +90,20 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
   const [checkpointDiff, setCheckpointDiff] = useState<string | null>(null)
   const [checkpointDiffLoading, setCheckpointDiffLoading] = useState(false)
   const [restoringCheckpoint, setRestoringCheckpoint] = useState<string | null>(null)
+
+  // Pull state
+  const [pulling, setPulling] = useState(false)
+  const [pullResult, setPullResult] = useState<{ success: boolean; error?: string } | null>(null)
+
+  // Commit history state
+  const [commits, setCommits] = useState<Array<{ hash: string; subject: string; author: string; date: string }>>([])
+  const [commitsOpen, setCommitsOpen] = useState(false)
+  const [unpushedHashes, setUnpushedHashes] = useState<Set<string>>(new Set())
+  const [expandedCommit, setExpandedCommit] = useState<string | null>(null)
+  const [commitDiff, setCommitDiff] = useState<string | null>(null)
+  const [commitDiffLoading, setCommitDiffLoading] = useState(false)
+  const [commitSkip, setCommitSkip] = useState(0)
+  const [hasMoreCommits, setHasMoreCommits] = useState(true)
 
   const tagPrefix = `colony-cp/${instance.id}/`
 
@@ -280,6 +294,53 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
     await loadBranchInfo()
     setFetchingBranches(false)
   }, [instance.workingDirectory, loadBranchInfo])
+
+  const handlePull = useCallback(async () => {
+    if (!instance.workingDirectory || pulling) return
+    setPulling(true)
+    setPullResult(null)
+    const result = await window.api.git.pull(instance.workingDirectory).catch((e: any) => ({ success: false, error: e?.message ?? 'Pull failed' }))
+    setPullResult(result)
+    if (result.success) {
+      await loadBranchInfo()
+      loadGitChanges()
+      refreshStashes()
+      loadCheckpoints()
+      setCommits([])
+      setCommitSkip(0)
+      setTimeout(() => setPullResult(null), 3000)
+    }
+    setPulling(false)
+  }, [instance.workingDirectory, pulling, loadBranchInfo, loadGitChanges, refreshStashes, loadCheckpoints])
+
+  const loadCommits = useCallback(async (skip = 0) => {
+    if (!instance.workingDirectory) return
+    const batch = await window.api.git.log(instance.workingDirectory, 20, skip).catch(() => [])
+    if (skip === 0) {
+      setCommits(batch)
+      const unpushed = await window.api.git.unpushedCommits(instance.workingDirectory).catch(() => [])
+      setUnpushedHashes(new Set(unpushed.map((c: { hash: string }) => c.hash)))
+    } else {
+      setCommits(prev => [...prev, ...batch])
+    }
+    setHasMoreCommits(batch.length === 20)
+    setCommitSkip(skip + batch.length)
+  }, [instance.workingDirectory])
+
+  const handleExpandCommit = useCallback(async (hash: string) => {
+    if (!instance.workingDirectory) return
+    if (expandedCommit === hash) { setExpandedCommit(null); setCommitDiff(null); return }
+    setExpandedCommit(hash)
+    setCommitDiffLoading(true)
+    setCommitDiff(null)
+    const diff = await window.api.git.commitDiff(instance.workingDirectory, hash).catch(() => '')
+    setCommitDiff(diff)
+    setCommitDiffLoading(false)
+  }, [instance.workingDirectory, expandedCommit])
+
+  useEffect(() => {
+    if (commitsOpen && commits.length === 0) loadCommits(0)
+  }, [commitsOpen, commits.length, loadCommits])
 
   useEffect(() => {
     if (!instance.workingDirectory) return
@@ -620,6 +681,23 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                 )}
               </div>
             )}
+            {behindCount > 0 && (
+              <button
+                className="changes-refresh-btn"
+                title={`Pull ${behindCount} commit(s) from remote`}
+                onClick={handlePull}
+                disabled={pulling}
+                style={{ color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '3px', padding: '2px 5px', fontSize: '10px' }}
+              >
+                {pulling ? <RotateCw size={11} className="spinning" /> : <ArrowDown size={11} />}
+                {!pulling && `Pull ${behindCount}`}
+              </button>
+            )}
+            {pullResult && !pullResult.success && (
+              <span style={{ fontSize: '10px', color: 'var(--danger)', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={pullResult.error}>
+                {pullResult.error?.split('\n')[0]}
+              </span>
+            )}
             {(visibleFiles.length > 0 || !!fileSearch) && (
               <div className="review-search-wrapper">
                 <Search size={12} className="review-search-icon" />
@@ -879,6 +957,67 @@ export default function ChangesTab({ instance, onChangeCount }: ChangesTabProps)
                     </div>
                   )
                 })}
+              </>
+            )}
+          </div>
+          {/* Commit History */}
+          <div className="checkpoint-section">
+            <div className="checkpoint-section-header" onClick={() => setCommitsOpen(!commitsOpen)}>
+              <ChevronRight size={11} style={{ transition: 'transform 0.15s', transform: commitsOpen ? 'rotate(90deg)' : 'none', opacity: 0.5 }} />
+              <GitCommit size={12} />
+              Commits
+              {unpushedHashes.size > 0 && (
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 400 }}>({unpushedHashes.size} unpushed)</span>
+              )}
+            </div>
+            {commitsOpen && (
+              <>
+                {commits.length === 0 && (
+                  <div className="checkpoint-empty">Loading commits...</div>
+                )}
+                {commits.map(c => {
+                  const isUnpushed = unpushedHashes.has(c.hash)
+                  const isExpanded = expandedCommit === c.hash
+                  return (
+                    <div key={c.hash}>
+                      <div
+                        className={`checkpoint-row${isExpanded ? ' expanded' : ''}`}
+                        onClick={() => handleExpandCommit(c.hash)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <ChevronRight size={10} style={{ flexShrink: 0, transition: 'transform 0.15s', transform: isExpanded ? 'rotate(90deg)' : 'none', opacity: 0.4 }} />
+                        <code className="commit-hash" style={{ fontSize: '9px', fontFamily: 'monospace', opacity: 0.6, flexShrink: 0, width: '48px' }}>{c.hash.slice(0, 7)}</code>
+                        <span style={{ flex: 1, fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</span>
+                        {isUnpushed && (
+                          <span style={{ fontSize: '8px', fontWeight: 600, padding: '1px 4px', borderRadius: '3px', background: 'rgba(99,102,241,0.15)', color: 'var(--accent)', border: '1px solid rgba(99,102,241,0.3)', flexShrink: 0 }}>unpushed</span>
+                        )}
+                        <span style={{ fontSize: '9px', opacity: 0.4, flexShrink: 0, marginLeft: '4px' }}>{c.date}</span>
+                      </div>
+                      {isExpanded && (
+                        <div className="checkpoint-diff-container">
+                          {commitDiffLoading ? (
+                            <div className="diff-viewer-empty">Loading diff...</div>
+                          ) : commitDiff !== null ? (
+                            commitDiff ? (
+                              <DiffViewer diff={commitDiff} filename={`commit-${c.hash.slice(0, 7)}`} />
+                            ) : (
+                              <div className="diff-viewer-empty">No changes in this commit.</div>
+                            )
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+                {hasMoreCommits && commits.length > 0 && (
+                  <button
+                    className="checkpoint-empty"
+                    style={{ cursor: 'pointer', color: 'var(--accent)', background: 'none', border: 'none', width: '100%', textAlign: 'left', padding: '6px 12px' }}
+                    onClick={() => loadCommits(commitSkip)}
+                  >
+                    Load more...
+                  </button>
+                )}
               </>
             )}
           </div>
