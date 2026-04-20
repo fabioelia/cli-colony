@@ -8080,9 +8080,12 @@ body:has(.daemon-update-banner) .app-update-banner {
   opacity: 0.85;
   color: #fff;
 }
-.stash-action-btn.danger:hover {
+.stash-action-btn.danger {
   color: var(--danger);
   border-color: var(--danger);
+}
+.stash-action-btn.danger:hover {
+  background: var(--bg-hover);
 }
 
 /* ===== Branch Switcher ===== */
