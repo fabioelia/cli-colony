@@ -1639,6 +1639,7 @@ export default function App() {
                 onArenaWin={instanceCallbacksRef.current.get(inst.id)!.onArenaWin}
                 terminalsRef={terminalsRef}
                 childInstances={instances.filter(i => i.parentId === inst.id)}
+                allInstances={instances}
                 searchOpen={isFocused && searchOpen}
                 onSearchClose={handleSearchClose}
                 onSearchToggle={() => setSearchOpen(prev => !prev)}

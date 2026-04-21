@@ -361,6 +361,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Token estimate', detail: 'Uses a fast approximation (1 token ≈ 4 characters) for performance. Real token counts via Claude API are more accurate but expensive. This estimate is a guide, not a contract.' },
           { label: 'When to take action', detail: 'At 80% (amber), consider exporting a handoff doc or starting a fresh session to avoid context truncation. At 95% (red), the model is operating near its limit — quality may degrade.' },
           { label: 'Token tracking', detail: 'System prompt is fixed at session create. History grows with each message. Artifacts (handoff outputs) also accumulate. Reload the page or start a fresh session to reset.' },
+          { label: 'Trigger chain breadcrumb', detail: 'When a session was triggered by another persona (e.g., Colony Product → Colony Developer), a compact breadcrumb appears on the right side of the status strip showing the full chain. Each ancestor persona name is separated by an arrow (→). Hover for the full chain tooltip. Hidden for manually-started sessions.', icon: 'ArrowRight' },
         ],
       },
       {

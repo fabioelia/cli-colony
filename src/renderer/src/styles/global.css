@@ -6946,6 +6946,41 @@ body:has(.daemon-update-banner) .app-update-banner {
   50% { opacity: 0.4; }
 }
 
+/* Trigger chain breadcrumb in status strip */
+.session-trigger-chain {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.session-trigger-chain-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.session-trigger-chain-name {
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-trigger-chain-name.session-trigger-chain-current {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.session-trigger-chain-arrow {
+  color: var(--text-muted);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
 /* ---- Session Changed Files Panel ---- */
 .session-changed-files {
   border-top: 1px solid var(--border);

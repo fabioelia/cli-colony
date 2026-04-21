@@ -5,7 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronRight, X, RotateCcw, GitBranch, TerminalSquare, FolderTree, Columns2, LayoutGrid, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Trophy, GitCompare, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, FileDown, CheckCircle, Copy, Search, PanelRight, GitMerge, Square, Ticket, Pencil, FileCode } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronRight, X, RotateCcw, GitBranch, TerminalSquare, FolderTree, Columns2, LayoutGrid, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Trophy, GitCompare, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, FileDown, CheckCircle, Copy, Search, PanelRight, GitMerge, Square, Ticket, Pencil, FileCode, ArrowRight } from 'lucide-react'
 import { TeamMetricsPanel } from './TeamMetricsPanel'
 import ServicesTab from './ServicesTab'
 import FilesTab from './FilesTab'
@@ -97,6 +97,7 @@ interface Props {
   onNavigateToSession?: (id: string) => void
   errorSummary?: ErrorSummary
   childInstances?: ClaudeInstance[]
+  allInstances?: ClaudeInstance[]
 }
 
 const SEARCH_DECORATIONS = {
@@ -118,7 +119,7 @@ function formatUptime(seconds: number): string {
 
 type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'changes' | 'artifacts' | 'team' | 'metrics' | 'browser' | 'jira'
 
-export default memo(function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, onSearchToggle, fontSize = 13, fontFamily = 'Menlo, Monaco, Consolas, "Courier New", monospace', cursorStyle = 'underline', cursorBlink = false, scrollback = 10000, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid, onNavigateToSession, errorSummary, childInstances = [] }: Props) {
+export default memo(function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, onSearchToggle, fontSize = 13, fontFamily = 'Menlo, Monaco, Consolas, "Courier New", monospace', cursorStyle = 'underline', cursorBlink = false, scrollback = 10000, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid, onNavigateToSession, errorSummary, childInstances = [], allInstances = [] }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const initializedRef = useRef(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -143,6 +144,25 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
   const [shellResetKey, setShellResetKey] = useState(0)
   const [childrenOpen, setChildrenOpen] = useState(true)
   const sortedChildren = useMemo(() => [...childInstances].sort(compareChildren), [childInstances])
+
+  // Trigger chain: walk up the triggeredBy chain to build root→...→current breadcrumb
+  const triggerChain = useMemo<string[]>(() => {
+    if (!instance.triggeredBy) return []
+    const chain: string[] = []
+    let currentTriggeredBy: string | undefined = instance.triggeredBy
+    let depth = 0
+    while (currentTriggeredBy && depth < 5) {
+      chain.unshift(currentTriggeredBy)
+      if (allInstances.length === 0) break
+      const parent = allInstances
+        .filter(i => i.name === currentTriggeredBy && i.id !== instance.id)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+      if (!parent) break
+      currentTriggeredBy = parent.triggeredBy
+      depth++
+    }
+    return chain
+  }, [instance.triggeredBy, instance.id, allInstances])
 
   // Environment detection: match by colony path OR by environment paths.root
   const envName = (() => {
@@ -1263,6 +1283,18 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
             <span className={`session-status-item session-status-ctx ${outputBytes >= 600 * 1024 ? 'red' : 'amber'}`} tabIndex={-1} title="Context window pressure — terminal output is large, approaching context limit">
               <span className={`session-status-dot ${outputBytes >= 600 * 1024 ? 'red' : 'amber'}`} />
               ctx
+            </span>
+          )}
+          {triggerChain.length > 0 && (
+            <span className="session-status-item session-trigger-chain" title={`Trigger chain: ${triggerChain.join(' → ')} → ${instance.name}`}>
+              {triggerChain.map((name, i) => (
+                <span key={i} className="session-trigger-chain-node">
+                  {i > 0 && <ArrowRight size={9} className="session-trigger-chain-arrow" />}
+                  <span className="session-trigger-chain-name">{name.length > 14 ? name.slice(0, 12) + '…' : name}</span>
+                </span>
+              ))}
+              <ArrowRight size={9} className="session-trigger-chain-arrow" />
+              <span className="session-trigger-chain-name session-trigger-chain-current">me</span>
             </span>
           )}
         </div>
