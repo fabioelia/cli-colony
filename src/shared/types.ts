@@ -55,6 +55,7 @@ export interface ClaudeInstance {
   exitedAt?: number
   exitSummary?: string
   ticket?: { source: 'jira'; key: string; summary: string; url?: string }
+  triggeredBy?: string
 }
 
 export interface AgentDef {

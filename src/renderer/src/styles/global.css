@@ -7253,6 +7253,28 @@ body:has(.daemon-update-banner) .app-update-banner {
   text-overflow: ellipsis;
 }
 
+.instance-trigger-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 5px;
+  font-size: 9px;
+  border-radius: 3px;
+  background: rgba(139, 92, 246, 0.12);
+  color: #a78bfa;
+  vertical-align: middle;
+  white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: none;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.instance-trigger-badge:hover {
+  background: rgba(139, 92, 246, 0.25);
+}
+
 /* ---- Children Panel ---- */
 .session-children-panel {
   border-bottom: 1px solid var(--border);
@@ -9752,6 +9774,156 @@ body:has(.daemon-update-banner) .app-update-banner {
 .github-pr-dispatch.active {
   background: var(--bg-tertiary);
   color: var(--accent);
+}
+
+/* Close PR button — hover-visible, same dimensions as dispatch */
+.github-pr-close-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  color: var(--text-muted);
+  transition: all 0.15s;
+  opacity: 0;
+}
+.github-pr-row:hover .github-pr-close-btn,
+.github-pr-close-btn.active {
+  opacity: 1;
+}
+.github-pr-close-btn:hover,
+.github-pr-close-btn.active {
+  background: var(--bg-tertiary);
+  color: var(--danger);
+}
+.github-pr-close-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* Add reviewer button — same pattern */
+.github-pr-add-reviewer-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  color: var(--text-muted);
+  transition: all 0.15s;
+  opacity: 0;
+}
+.github-pr-row:hover .github-pr-add-reviewer-btn,
+.github-pr-add-reviewer-btn.active {
+  opacity: 1;
+}
+.github-pr-add-reviewer-btn:hover,
+.github-pr-add-reviewer-btn.active {
+  background: var(--bg-tertiary);
+  color: var(--accent);
+}
+
+/* Reviewer list in request-reviewer popover */
+.github-reviewer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+.github-reviewer-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+.github-reviewer-item:hover { background: var(--bg-tertiary); }
+.github-reviewer-item:disabled { opacity: 0.5; cursor: default; }
+
+/* Danger merge method variant */
+.github-merge-method-btn.danger:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+/* Close PR confirm: delete-branch checkbox */
+.github-close-delete-branch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+/* PR title edit mode */
+.github-pr-title-input {
+  width: 100%;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 2px 6px;
+  outline: none;
+}
+.github-pr-title-edit-hint {
+  opacity: 0;
+  margin-left: 4px;
+  vertical-align: middle;
+  transition: opacity 0.15s;
+}
+.github-pr-title:hover .github-pr-title-edit-hint {
+  opacity: 0.5;
+}
+
+/* PR description edit mode */
+.github-pr-body-wrap { position: relative; }
+.github-pr-edit-desc-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 3px 8px;
+  font-size: 10px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.github-pr-edit-desc-btn:hover { color: var(--accent); border-color: var(--accent); }
+.github-pr-desc-edit { margin-bottom: 8px; }
+.github-pr-desc-textarea {
+  width: 100%;
+  font-size: 11px;
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+}
+.github-pr-desc-textarea:focus { border-color: var(--accent); }
+.github-pr-desc-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
 }
 
 /* Dispatch popover */

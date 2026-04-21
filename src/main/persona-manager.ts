@@ -664,6 +664,7 @@ export async function runPersona(fileName: string, trigger: TriggerSource = { ty
     model: fm.model,
     args: ['--append-system-prompt-file', promptFile],
     parentId,
+    triggeredBy: trigger.type === 'handoff' ? (trigger.from ?? undefined) : undefined,
   })
 
   const kickoff = buildKickoff(filePath, trigger, customMessage)

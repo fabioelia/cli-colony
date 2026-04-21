@@ -178,6 +178,24 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const [batchMergeErrors, setBatchMergeErrors] = useState<Record<string, string>>({})
   const [batchMergeDone, setBatchMergeDone] = useState(false)
 
+  // Request reviewer state
+  const [addingReviewerPR, setAddingReviewerPR] = useState<string | null>(null)
+  const [requestingReviewer, setRequestingReviewer] = useState<Set<string>>(new Set())
+  const [requestReviewerError, setRequestReviewerError] = useState<Record<string, string>>({})
+
+  // Close PR state
+  const [closeConfirm, setCloseConfirm] = useState<string | null>(null)
+  const [closingPR, setClosingPR] = useState<Set<string>>(new Set())
+  const [closeDeleteBranch, setCloseDeleteBranch] = useState(false)
+  const [closeError, setCloseError] = useState<Record<string, string>>({})
+
+  // Edit PR title/desc state
+  const [editingPRTitle, setEditingPRTitle] = useState<string | null>(null)
+  const [editingPRTitleDraft, setEditingPRTitleDraft] = useState<Record<string, string>>({})
+  const [editingPRDesc, setEditingPRDesc] = useState<string | null>(null)
+  const [editingPRDescDraft, setEditingPRDescDraft] = useState<Record<string, string>>({})
+  const [savingPREdit, setSavingPREdit] = useState<Set<string>>(new Set())
+
   // Prompt Environment Selector modal
   const [showEnvSelector, setShowEnvSelector] = useState(false)
   const [pendingPromptAction, setPendingPromptAction] = useState<{ prompt: QuickPrompt; pr: GitHubPR; repo: GitHubRepo } | null>(null)
@@ -615,6 +633,60 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
     setEditingPrompts(editingPrompts.map((p) =>
       p.id === id ? { ...p, [field]: value } : p
     ))
+  }
+
+  const handleRequestReviewer = async (reviewer: string, pr: GitHubPR, repo: GitHubRepo, prKey: string) => {
+    setRequestingReviewer(prev => new Set(prev).add(prKey))
+    setRequestReviewerError(prev => { const n = { ...prev }; delete n[prKey]; return n })
+    try {
+      await window.api.github.requestReviewers(repo, pr.number, [reviewer])
+      setAddingReviewerPR(null)
+      fetchPRsForRepo(repo)
+    } catch (err: any) {
+      setRequestReviewerError(prev => ({ ...prev, [prKey]: err.message || 'Failed to request reviewer' }))
+    } finally {
+      setRequestingReviewer(prev => { const n = new Set(prev); n.delete(prKey); return n })
+    }
+  }
+
+  const handleClosePR = async (pr: GitHubPR, repo: GitHubRepo, prKey: string) => {
+    setClosingPR(prev => new Set(prev).add(prKey))
+    setCloseError(prev => { const n = { ...prev }; delete n[prKey]; return n })
+    try {
+      await window.api.github.closePR(repo, pr.number, closeDeleteBranch)
+      setCloseConfirm(null)
+      fetchPRsForRepo(repo)
+    } catch (err: any) {
+      setCloseError(prev => ({ ...prev, [prKey]: err.message || 'Failed to close PR' }))
+    } finally {
+      setClosingPR(prev => { const n = new Set(prev); n.delete(prKey); return n })
+    }
+  }
+
+  const handleSavePRTitle = async (pr: GitHubPR, repo: GitHubRepo, prKey: string) => {
+    const title = editingPRTitleDraft[prKey]
+    if (!title || title === pr.title) { setEditingPRTitle(null); return }
+    setSavingPREdit(prev => new Set(prev).add(prKey))
+    try {
+      await window.api.github.updatePR(repo, pr.number, { title })
+      setEditingPRTitle(null)
+      fetchPRsForRepo(repo)
+    } catch { /* API error is non-fatal — keep edit mode open */ } finally {
+      setSavingPREdit(prev => { const n = new Set(prev); n.delete(prKey); return n })
+    }
+  }
+
+  const handleSavePRDesc = async (pr: GitHubPR, repo: GitHubRepo, prKey: string) => {
+    const body = editingPRDescDraft[prKey] ?? ''
+    if (body === (pr.body || '')) { setEditingPRDesc(null); return }
+    setSavingPREdit(prev => new Set(prev).add(prKey))
+    try {
+      await window.api.github.updatePR(repo, pr.number, { body })
+      setEditingPRDesc(null)
+      fetchPRsForRepo(repo)
+    } catch { /* API error is non-fatal — keep edit mode open */ } finally {
+      setSavingPREdit(prev => { const n = new Set(prev); n.delete(prKey); return n })
+    }
   }
 
   // Collect all unique filter options from loaded PRs
@@ -1216,9 +1288,35 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                             })()}
                           </span>
                           <div className="github-pr-info">
-                            <div className="github-pr-title">
-                              {pr.draft && <span className="github-pr-draft">draft</span>}
-                              {pr.title}
+                            <div
+                              className="github-pr-title"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setEditingPRTitle(prKey)
+                                setEditingPRTitleDraft(d => ({ ...d, [prKey]: d[prKey] ?? pr.title }))
+                              }}
+                              title="Click to edit title"
+                            >
+                              {editingPRTitle === prKey ? (
+                                <input
+                                  className="github-pr-title-input"
+                                  value={editingPRTitleDraft[prKey] ?? pr.title}
+                                  onChange={(e) => setEditingPRTitleDraft(d => ({ ...d, [prKey]: e.target.value }))}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') { e.preventDefault(); handleSavePRTitle(pr, repo, prKey) }
+                                    if (e.key === 'Escape') setEditingPRTitle(null)
+                                  }}
+                                  onBlur={() => handleSavePRTitle(pr, repo, prKey)}
+                                  autoFocus
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              ) : (
+                                <>
+                                  {pr.draft && <span className="github-pr-draft">draft</span>}
+                                  {pr.title}
+                                  <Pencil size={9} className="github-pr-title-edit-hint" />
+                                </>
+                              )}
                             </div>
                             {prTicketData[prKey] && (
                               <div className="github-pr-ticket">
@@ -1353,6 +1451,31 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                             </button>
                           )}
                           <button
+                            className={`github-pr-close-btn${closeConfirm === prKey ? ' active' : ''}`}
+                            title="Close PR without merging"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setCloseConfirm(closeConfirm === prKey ? null : prKey)
+                              setCloseDeleteBranch(false)
+                              setCloseError(prev => { const n = { ...prev }; delete n[prKey]; return n })
+                            }}
+                            disabled={closingPR.has(prKey)}
+                          >
+                            {closingPR.has(prKey) ? <Loader size={11} className="spin" /> : <X size={11} />}
+                          </button>
+                          {allReviewersList.filter(r => r !== ghUser && !(pr.reviewers || []).includes(r)).length > 0 && (
+                            <button
+                              className={`github-pr-add-reviewer-btn${addingReviewerPR === prKey ? ' active' : ''}`}
+                              title="Request reviewer"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setAddingReviewerPR(addingReviewerPR === prKey ? null : prKey)
+                              }}
+                            >
+                              <UserPlus size={12} />
+                            </button>
+                          )}
+                          <button
                             className="github-pr-link"
                             title="Open on GitHub"
                             onClick={(e) => { e.stopPropagation(); window.api.shell.openExternal(pr.url) }}
@@ -1435,14 +1558,95 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                             </div>
                           </div>
                         )}
+                        {closeConfirm === prKey && (
+                          <div className="github-merge-popover" onClick={(e) => e.stopPropagation()}>
+                            <div className="github-merge-header">
+                              <X size={11} /> Close PR #{pr.number}?
+                              <button className="github-dispatch-close" onClick={() => setCloseConfirm(null)} title="Cancel"><X size={12} /></button>
+                            </div>
+                            <label className="github-close-delete-branch">
+                              <input type="checkbox" checked={closeDeleteBranch} onChange={(e) => setCloseDeleteBranch(e.target.checked)} />
+                              Also delete branch
+                            </label>
+                            <div className="github-merge-methods">
+                              <button
+                                className="github-merge-method-btn danger"
+                                disabled={closingPR.has(prKey)}
+                                onClick={() => handleClosePR(pr, repo, prKey)}
+                              >
+                                {closingPR.has(prKey) ? <Loader size={11} className="spin" /> : null}
+                                Close PR
+                              </button>
+                            </div>
+                            {closeError[prKey] && <div className="github-merge-error"><AlertCircle size={11} /> {closeError[prKey]}</div>}
+                          </div>
+                        )}
+                        {addingReviewerPR === prKey && (
+                          <div className="github-merge-popover" onClick={(e) => e.stopPropagation()}>
+                            <div className="github-merge-header">
+                              <UserPlus size={11} /> Request reviewer
+                              <button className="github-dispatch-close" onClick={() => setAddingReviewerPR(null)} title="Close"><X size={12} /></button>
+                            </div>
+                            <div className="github-reviewer-list">
+                              {allReviewersList
+                                .filter(r => r !== ghUser && !(pr.reviewers || []).includes(r))
+                                .map(reviewer => (
+                                  <button
+                                    key={reviewer}
+                                    className="github-reviewer-item"
+                                    disabled={requestingReviewer.has(prKey)}
+                                    onClick={() => handleRequestReviewer(reviewer, pr, repo, prKey)}
+                                  >
+                                    {requestingReviewer.has(prKey) ? <Loader size={11} className="spin" /> : <UserPlus size={11} />}
+                                    {' '}{reviewer}
+                                  </button>
+                                ))}
+                            </div>
+                            {requestReviewerError[prKey] && <div className="github-merge-error"><AlertCircle size={11} /> {requestReviewerError[prKey]}</div>}
+                          </div>
+                        )}
                         {isOpen && (
                           <div className="github-pr-actions">
-                            {pr.body && (
-                              <MarkdownViewer
-                                content={pr.body}
-                                className="github-pr-body"
-                                preprocessor={(md) => preprocessGitHubUrls(md, slug, pr.branch || 'main')}
-                              />
+                            {editingPRDesc === prKey ? (
+                              <div className="github-pr-desc-edit">
+                                <textarea
+                                  className="github-pr-desc-textarea"
+                                  value={editingPRDescDraft[prKey] ?? (pr.body || '')}
+                                  onChange={(e) => setEditingPRDescDraft(d => ({ ...d, [prKey]: e.target.value }))}
+                                  rows={6}
+                                />
+                                <div className="github-pr-desc-actions">
+                                  <button
+                                    className="panel-header-btn primary"
+                                    disabled={savingPREdit.has(prKey)}
+                                    onClick={() => handleSavePRDesc(pr, repo, prKey)}
+                                  >
+                                    {savingPREdit.has(prKey) ? <Loader size={11} className="spin" /> : <Save size={11} />} Save
+                                  </button>
+                                  <button className="panel-header-btn" onClick={() => setEditingPRDesc(null)}>Cancel</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="github-pr-body-wrap">
+                                {pr.body && (
+                                  <MarkdownViewer
+                                    content={pr.body}
+                                    className="github-pr-body"
+                                    preprocessor={(md) => preprocessGitHubUrls(md, slug, pr.branch || 'main')}
+                                  />
+                                )}
+                                <button
+                                  className="github-pr-edit-desc-btn"
+                                  title="Edit description"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setEditingPRDesc(prKey)
+                                    setEditingPRDescDraft(d => ({ ...d, [prKey]: d[prKey] ?? (pr.body || '') }))
+                                  }}
+                                >
+                                  <Pencil size={11} /> Edit description
+                                </button>
+                              </div>
                             )}
                             {colonyNotesByPR[prKey] && (
                               <div className="github-pr-colony-notes">

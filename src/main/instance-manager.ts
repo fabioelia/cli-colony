@@ -34,6 +34,9 @@ const _mcpConfigPaths = new Map<string, string>()
 // Track Jira ticket attached at creation time — overlaid onto ClaudeInstance for the renderer
 const _instanceTickets = new Map<string, { source: 'jira'; key: string; summary: string }>()
 
+// Track triggeredBy (persona name) for overlay onto ClaudeInstance — not stored in daemon
+const _instanceTriggeredBy = new Map<string, string>()
+
 // Track last output timestamp per instance for idle detection
 const _lastOutputAt = new Map<string, number>()
 // Track last stale notification threshold per instance (ms) to avoid repeat fires
@@ -101,11 +104,15 @@ export function setOnSessionExit(cb: (instanceId: string) => void): void {
   onSessionExitCallback = cb
 }
 
-/** Overlay ticket metadata onto instances from the in-memory map. */
+/** Overlay ticket metadata and triggeredBy onto instances from the in-memory maps. */
 function applyTickets(instances: ClaudeInstance[]): ClaudeInstance[] {
   return instances.map(inst => {
     const ticket = _instanceTickets.get(inst.id)
-    return ticket ? { ...inst, ticket } : inst
+    const triggeredBy = _instanceTriggeredBy.get(inst.id)
+    const extra: Partial<ClaudeInstance> = {}
+    if (ticket) extra.ticket = ticket
+    if (triggeredBy) extra.triggeredBy = triggeredBy
+    return Object.keys(extra).length > 0 ? { ...inst, ...extra } : inst
   })
 }
 
@@ -258,6 +265,7 @@ export function wireDaemonEvents(): void {
     _lastCostCheckAt.delete(instanceId)
     _budgetStopped.delete(instanceId)
     _instanceTickets.delete(instanceId)
+    _instanceTriggeredBy.delete(instanceId)
     onSessionExitCallback?.(instanceId)
 
     // Parse error summary from PTY buffer on non-zero exit
@@ -455,6 +463,7 @@ export async function createInstance(opts: {
   pipelineName?: string
   pipelineRunId?: string
   ticket?: { source: 'jira'; key: string; summary: string }
+  triggeredBy?: string
 }): Promise<ClaudeInstance> {
   const defaultArgs = await getDefaultArgs()
   const home = app.getPath('home')
@@ -486,6 +495,9 @@ export async function createInstance(opts: {
 
   if (mcpConfigPath) {
     _mcpConfigPaths.set(inst.id, mcpConfigPath)
+  }
+  if (opts.triggeredBy) {
+    _instanceTriggeredBy.set(inst.id, opts.triggeredBy)
   }
   if (opts.ticket) {
     _instanceTickets.set(inst.id, opts.ticket)
@@ -524,7 +536,10 @@ export async function createInstance(opts: {
     ticket: opts.ticket,
   })
 
-  return opts.ticket ? { ...inst, ticket: opts.ticket } : inst
+  const extra: Record<string, unknown> = {}
+  if (opts.ticket) extra.ticket = opts.ticket
+  if (opts.triggeredBy) extra.triggeredBy = opts.triggeredBy
+  return Object.keys(extra).length > 0 ? { ...inst, ...extra } : inst
 }
 
 export async function killInstance(id: string): Promise<boolean> {

@@ -253,6 +253,29 @@ export async function replyToPRComment(
   return JSON.parse(raw.trim())
 }
 
+/** Request reviewers on a pull request. */
+export async function requestReviewers(repo: GitHubRepo, prNumber: number, usernames: string[]): Promise<void> {
+  const slug = `${repo.owner}/${repo.name}`
+  const args = ['api', `repos/${slug}/pulls/${prNumber}/requested_reviewers`, '--method', 'POST']
+  for (const u of usernames) args.push('-f', `reviewers[]=${u}`)
+  await gh(args)
+}
+
+/** Close a pull request without merging. */
+export async function closePR(repo: GitHubRepo, prNumber: number, deleteBranch: boolean): Promise<void> {
+  const args = ['pr', 'close', String(prNumber), '--repo', `${repo.owner}/${repo.name}`]
+  if (deleteBranch) args.push('--delete-branch')
+  await gh(args)
+}
+
+/** Edit PR title and/or description. */
+export async function updatePR(repo: GitHubRepo, prNumber: number, fields: { title?: string; body?: string }): Promise<void> {
+  const args = ['pr', 'edit', String(prNumber), '--repo', `${repo.owner}/${repo.name}`]
+  if (fields.title !== undefined) { args.push('--title', fields.title) }
+  if (fields.body !== undefined) { args.push('--body', fields.body) }
+  await gh(args)
+}
+
 /** Fetch the list of changed files for a PR, including unified diff patches. */
 export async function fetchPRFiles(repo: GitHubRepo, prNumber: number): Promise<PRFile[]> {
   const slug = `${repo.owner}/${repo.name}`

@@ -8,6 +8,7 @@ import {
   getPrMemory, savePrMemory, getPrMemoryPath, getPrWorkspacePath,
   fetchChecks, fetchCheckLogs, ensureBareClone,
   getGitHubUser, fetchFeedbackFiles, createPRReviewComment, replyToPRComment,
+  requestReviewers, closePR, updatePR,
 } from '../github'
 import type { GitHubRepo, QuickPrompt, GitHubPR } from '../../shared/types'
 
@@ -52,4 +53,10 @@ export function registerGitHubHandlers(): void {
     createPRReviewComment(repo, prNumber, body, commitId, path, line, side))
   ipcMain.handle('github:replyToComment', (_e, repo: GitHubRepo, prNumber: number, commentId: number, body: string) =>
     replyToPRComment(repo, prNumber, commentId, body))
+  ipcMain.handle('github:requestReviewers', (_e, repo: GitHubRepo, prNumber: number, usernames: string[]) =>
+    requestReviewers(repo, prNumber, usernames))
+  ipcMain.handle('github:closePR', (_e, repo: GitHubRepo, prNumber: number, deleteBranch: boolean) =>
+    closePR(repo, prNumber, deleteBranch))
+  ipcMain.handle('github:updatePR', (_e, repo: GitHubRepo, prNumber: number, fields: { title?: string; body?: string }) =>
+    updatePR(repo, prNumber, fields))
 }

@@ -221,6 +221,9 @@ export interface ClaudeManagerAPI {
     createIssue: (repo: GitHubRepo, title: string, body: string, labels: string[]) => Promise<GitHubIssue>
     createReviewComment: (repo: GitHubRepo, prNumber: number, body: string, commitId: string, path: string, line: number, side: 'LEFT' | 'RIGHT') => Promise<import('../shared/types').PRComment>
     replyToComment: (repo: GitHubRepo, prNumber: number, commentId: number, body: string) => Promise<import('../shared/types').PRComment>
+    requestReviewers: (repo: GitHubRepo, prNumber: number, usernames: string[]) => Promise<void>
+    closePR: (repo: GitHubRepo, prNumber: number, deleteBranch: boolean) => Promise<void>
+    updatePR: (repo: GitHubRepo, prNumber: number, fields: { title?: string; body?: string }) => Promise<void>
   }
   jira: {
     fetchTicket: (key: string) => Promise<{ ok: true; ticket: import('../shared/types').JiraTicket } | { ok: false; error: string }>
@@ -909,6 +912,9 @@ const api: ClaudeManagerAPI = {
     createIssue: (repo, title, body, labels) => ipcRenderer.invoke('github:createIssue', repo, title, body, labels),
     createReviewComment: (repo, prNumber, body, commitId, path, line, side) => ipcRenderer.invoke('github:createReviewComment', repo, prNumber, body, commitId, path, line, side),
     replyToComment: (repo, prNumber, commentId, body) => ipcRenderer.invoke('github:replyToComment', repo, prNumber, commentId, body),
+    requestReviewers: (repo, prNumber, usernames) => ipcRenderer.invoke('github:requestReviewers', repo, prNumber, usernames),
+    closePR: (repo, prNumber, deleteBranch) => ipcRenderer.invoke('github:closePR', repo, prNumber, deleteBranch),
+    updatePR: (repo, prNumber, fields) => ipcRenderer.invoke('github:updatePR', repo, prNumber, fields),
   },
   jira: {
     fetchTicket: (key) => ipcRenderer.invoke('jira:fetchTicket', key),

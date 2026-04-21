@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, GitBranch, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock, RotateCcw, DollarSign, ArrowUpDown } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, GitBranch, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock, RotateCcw, DollarSign, ArrowUpDown, ArrowLeft } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate, ErrorSummary } from '../../../shared/types'
@@ -55,6 +55,7 @@ interface InstanceItemCallbacks {
   onCancelRename: () => void
   onRenameChange: (v: string) => void
   onHandoff: (inst: ClaudeInstance) => void
+  onSetPersonaFilter: (name: string | null) => void
 }
 
 interface InstanceItemProps {
@@ -304,6 +305,10 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
             }
             if (inst.pipelineName) {
               badges.push({ node: <span key="pl" className="instance-pipeline-badge" title={`Spawned by pipeline: ${inst.pipelineName}`}><Zap size={9} /> {inst.pipelineName.length > 16 ? inst.pipelineName.slice(0, 14) + '…' : inst.pipelineName}</span>, label: inst.pipelineName })
+            }
+            if (inst.triggeredBy) {
+              const label = inst.triggeredBy.length > 15 ? inst.triggeredBy.slice(0, 13) + '…' : inst.triggeredBy
+              badges.push({ node: <button key="tb" className="instance-trigger-badge" title={`Triggered by: ${inst.triggeredBy} — click to filter`} onClick={(e) => { e.stopPropagation(); callbacks.onSetPersonaFilter(inst.triggeredBy ?? null) }}><ArrowLeft size={9} />{' '}{label}</button>, label: inst.triggeredBy })
             }
             if (badges.length === 0) return null
             return (
@@ -1253,6 +1258,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     onCancelRename: () => setRenamingId(null),
     onRenameChange: setRenameValue,
     onHandoff: (inst: ClaudeInstance) => { setHandoffInst(inst); setHandoffCopied(false) },
+    onSetPersonaFilter: (name: string | null) => setInstancePersonaFilter(name),
   } satisfies InstanceItemCallbacks)
 
   // Drag-to-reorder handlers
