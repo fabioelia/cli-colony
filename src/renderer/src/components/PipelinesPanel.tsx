@@ -1786,7 +1786,7 @@ ${modelLine}  prompt: |
                                     </span>
                                   )}
                                   {entry.dedupAttempt != null && entry.dedupMaxRetries != null && (
-                                    <span className="pipeline-history-retry-badge" title="Dedup retry attempt">
+                                    <span className="pipeline-history-retry-badge" title={`Auto-retry: attempt ${entry.dedupAttempt! + 1} of ${entry.dedupMaxRetries! + 1}`}>
                                       {entry.dedupAttempt + 1}/{entry.dedupMaxRetries + 1}
                                     </span>
                                   )}

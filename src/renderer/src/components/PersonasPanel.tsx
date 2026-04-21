@@ -445,9 +445,13 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
       if (result) {
         setShowTemplateDialog(false)
         loadPersonas()
+      } else {
+        setShowTemplateDialog(false)
+        setError('Failed to create persona from template.')
       }
     } catch (err) {
-      console.error('Failed to create from template:', err)
+      setShowTemplateDialog(false)
+      setError('Failed to create persona from template.')
     } finally {
       setTemplateCreating(null)
     }
@@ -719,7 +723,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
                   {templates.map(t => (
                     <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 6 }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 500 }}>{t.name}{t.builtIn && <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--accent)', background: 'rgba(var(--accent-rgb),0.12)', borderRadius: 3, padding: '1px 5px' }}>built-in</span>}</div>
+                        <div style={{ fontSize: 13, fontWeight: 500 }}>{t.name}{t.builtIn && <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--accent)', background: 'rgba(59, 130, 246, 0.12)', borderRadius: 3, padding: '1px 5px' }}>built-in</span>}</div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{t.description}</div>
                       </div>
                       <button

@@ -678,7 +678,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'YAML definition', detail: 'Trigger (when), conditions (if), and actions (then). Edit the file directly.' },
           { label: 'Cron expression', detail: 'e.g., "0 9-17 * * 1-5" for hourly during work hours on weekdays.' },
           { label: 'Session routing', detail: 'route-to-session finds existing sessions by branch, repo, PR, or name. Falls back to launching new.' },
-          { label: 'Content-hash dedup', detail: 'Tracks Git SHA — only re-fires when matched file content actually changes.' },
+          { label: 'Content-hash dedup', detail: 'Tracks Git SHA — only re-fires when matched file content actually changes. Set dedup.maxRetries (default 0) to auto-retry: when the same content SHA fires again and the prior fix session has exited, the pipeline re-runs up to maxRetries times with a [RETRY N/M] prefix injected into the prompt. After exhaustion an attention alert is broadcast. Retry runs show an amber N/M badge in the History tab.' },
           { label: 'Poll Now', detail: 'Run a full poll cycle immediately. Evaluates conditions and fires actions if matched. Use Preview first to check before committing.', icon: 'Play' },
           { label: 'Delete', detail: 'Right-click a pipeline card to delete it. Removes the YAML file and associated sidecar files (memory, readme, debug, state). Requires confirmation.', icon: 'Trash2' },
           { label: 'Preview', detail: 'Dry-run the pipeline — evaluates trigger and conditions without firing any actions. Shows which PRs/contexts would match, resolved template variables, and whether dedup would suppress the fire.', icon: 'Eye' },
