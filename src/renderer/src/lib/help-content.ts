@@ -683,8 +683,9 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Next-run countdown', detail: 'For cron-triggered pipelines, shows when the next fire will happen. Updates every 60 seconds. Shows "Paused" when the pipeline is disabled.', icon: 'Timer' },
           { label: 'Duplicate', detail: 'Create a copy of this pipeline with "(copy)" appended to the name. The copy starts disabled so it won\'t fire until you review and enable it.', icon: 'Copy' },
           { label: 'Notes button', detail: 'Queue a one-shot note for the pipeline\'s next fire. Notes are injected into the session prompt then automatically cleared — they won\'t appear on subsequent runs. Use for run-specific steering like "focus on the auth test failure" or "skip frontend lint this time." Hover a queued note for edit (pencil) and delete (×) buttons. Click the pencil to edit inline — Enter saves, Escape cancels.', icon: 'StickyNote' },
-          { label: 'Right-click menu', detail: 'Right-click any pipeline card for quick actions: enable/disable, trigger now, duplicate, or preview next run — without expanding the detail panel.' },
-          { label: 'Run with override', detail: 'Click Run Now to open a dialog pre-filled with the pipeline\'s first action prompt. Edit it for a one-shot run with a custom prompt — does not modify the YAML. Click "Run as configured" to fire without changes.', icon: 'Play' },
+          { label: 'Right-click menu', detail: 'Right-click any pipeline card for quick actions: enable/disable, trigger now, run with options, duplicate, or preview next run — without expanding the detail panel.' },
+          { label: 'Trigger Now', detail: 'Fires the pipeline immediately with its YAML defaults — no dialog. Use this for quick re-runs when no overrides are needed.', icon: 'Play' },
+          { label: 'Run with Options...', detail: 'Opens a dialog pre-filled from the pipeline YAML where you can override prompt, model, working directory, and budget cap for this run only — YAML is never modified. Submit with Cmd+Enter or the Run button.', icon: 'Play' },
         ],
       },
       {

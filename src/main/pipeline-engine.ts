@@ -54,6 +54,13 @@ export interface ConditionDef {
   exclude?: string[] // check names to ignore (substring match)
 }
 
+export interface RunOverrides {
+  prompt?: string
+  model?: string
+  workingDirectory?: string
+  maxBudget?: number
+}
+
 export interface ActionDef {
   type: 'launch-session' | 'route-to-session' | 'maker-checker' | 'diff_review' | 'parallel' | 'plan' | 'wait_for_session' | 'best-of-n' // route-to-session is deprecated, normalized to launch-session + reuse:true
   reuse?: boolean // try to find/resume a matching session before launching new
@@ -196,6 +203,10 @@ export interface PipelineInfo {
   actionShape?: ActionShape
   /** Raw (unresolved) prompt of the first action — used to pre-fill the run-with-override dialog */
   firstActionPrompt?: string
+  /** Raw working directory of the first action — used to pre-fill the run-with-options dialog */
+  firstActionWorkingDirectory?: string
+  /** Effective model for the first action (action.model ?? default_model) — used to pre-fill the run-with-options dialog */
+  firstActionModel?: string
   /** Pipeline-level fallback model applied to stages that don't set their own model override */
   defaultModel?: string
 }
@@ -806,7 +817,7 @@ async function fireActionWithRetry(
   action: ActionDef,
   ctx: TriggerContext,
   pipelineName: string,
-  promptOverride?: string,
+  overrides?: RunOverrides,
 ): Promise<{ cost: number; responseSnippet?: string; subStages?: PipelineStageTrace[]; retryCount: number; sessionId?: string }> {
   // wait_for_session is a polling action — never retry it
   const maxRetries = action.type === 'wait_for_session' ? 0 : (action.max_retries ?? 0)
@@ -819,7 +830,7 @@ async function fireActionWithRetry(
         plog(pipelineName, `retry ${attempt}/${maxRetries} after ${delay}ms`)
         await new Promise(r => setTimeout(r, delay))
       }
-      const result = await fireAction(action, ctx, pipelineName, undefined, promptOverride)
+      const result = await fireAction(action, ctx, pipelineName, undefined, overrides)
       return { ...result, retryCount: attempt }
     } catch (err) {
       lastError = err
@@ -831,7 +842,7 @@ async function fireActionWithRetry(
   throw lastError
 }
 
-async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: string, runId?: string, promptOverride?: string): Promise<{ cost: number; responseSnippet?: string; subStages?: PipelineStageTrace[]; sessionId?: string }> {
+async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: string, runId?: string, overrides?: RunOverrides): Promise<{ cost: number; responseSnippet?: string; subStages?: PipelineStageTrace[]; sessionId?: string }> {
   markChecklistItem('ranPipeline')
   const effectiveRunId = runId || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const pipelineMeta = { pipelineName, pipelineRunId: effectiveRunId }
@@ -858,9 +869,9 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
   const rawName = resolveTemplate(action.name || 'Pipeline Session', ctx)
   // Prefix with "Pipe" so pipeline-launched sessions are identifiable
   const name = rawName.startsWith('Pipe') ? rawName : `Pipe (${rawName})`
-  const cwd = resolveTemplate(action.workingDirectory || '', ctx) || undefined
-  // Use promptOverride if provided (one-shot manual override); otherwise resolve from action config
-  let prompt = (promptOverride && promptOverride.trim()) ? promptOverride : resolveTemplate(action.prompt || '', ctx)
+  const cwd = overrides?.workingDirectory?.trim() || resolveTemplate(action.workingDirectory || '', ctx) || undefined
+  // Use overrides.prompt if provided (one-shot manual override); otherwise resolve from action config
+  let prompt = (overrides?.prompt?.trim()) ? overrides.prompt : resolveTemplate(action.prompt || '', ctx)
 
   // Inject configured repos context so sessions know which repos Colony tracks
   if (ctx.repoSlugs?.length) {
@@ -1017,7 +1028,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
     color: action.color,
     args: ['--append-system-prompt-file', promptFile],
     mcpServers: action.mcpServers,
-    model: action.model,
+    model: overrides?.model || action.model,
     ...pipelineMeta,
   })
 
@@ -1176,7 +1187,7 @@ export async function previewPipeline(fileNameOrName: string): Promise<PreviewRe
 
 // ---- Poll Loop ----
 
-async function runPoll(pipelineName: string, promptOverride?: string): Promise<void> {
+async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<void> {
   const p = pipelines.get(pipelineName)
   if (!p || !p.def.enabled) return
   if (runningPolls.has(pipelineName)) return // prevent overlapping polls
@@ -1385,20 +1396,20 @@ async function runPoll(pipelineName: string, promptOverride?: string): Promise<v
         continue
       }
 
-      if (promptOverride && promptOverride.trim()) {
-        plog(pipelineName, `→ using prompt override (${promptOverride.length} chars)`)
+      if (overrides?.prompt?.trim()) {
+        plog(pipelineName, `→ using prompt override (${overrides.prompt.length} chars)`)
         appendActivity({ source: 'pipeline', name: pipelineName, summary: `Pipeline "${pipelineName}" manually triggered with custom prompt`, level: 'info' })
       }
 
       // Build retry-aware prompt prefix for dedup retries
-      let effectivePromptOverride = promptOverride
+      let effectiveOverrides: RunOverrides | undefined = overrides
       if (dedupRetryAttempt !== null) {
         const maxRetries = dedup.maxRetries ?? 0
         const failedNames = ctx.checks?.checks
           .filter(c => c.conclusion === 'failure' || c.conclusion === 'error')
           .map(c => c.name).join(', ') || 'unknown'
         const retryPrefix = `[RETRY ${dedupRetryAttempt + 1}/${maxRetries}] Previous fix attempt did not resolve CI failures. Still failing: ${failedNames}.\n\n`
-        effectivePromptOverride = retryPrefix + (promptOverride || '')
+        effectiveOverrides = { ...overrides, prompt: retryPrefix + (overrides?.prompt || '') }
       }
 
       plog(pipelineName, `→ firing action: ${p.def.action.type} for ${prLabel}${dedupRetryAttempt !== null ? ` (retry ${dedupRetryAttempt + 1})` : ''}`)
@@ -1412,7 +1423,7 @@ async function runPoll(pipelineName: string, promptOverride?: string): Promise<v
       let stageRetryCount = 0
       let stageSessionId: string | undefined
       try {
-        const result = await fireActionWithRetry(resolvedAction, ctx, p.def.name, effectivePromptOverride || undefined)
+        const result = await fireActionWithRetry(resolvedAction, ctx, p.def.name, effectiveOverrides)
         stageCost = result.cost
         stageResponseSnippet = result.responseSnippet
         stageSubStages = result.subStages
@@ -1443,14 +1454,15 @@ async function runPoll(pipelineName: string, promptOverride?: string): Promise<v
       totalCost += stageCost
 
       // Budget check
-      if (p.def.budget) {
-        const warnAt = p.def.budget.warn_at ?? p.def.budget.max_cost_usd * 0.75
+      const effectiveMaxBudget = overrides?.maxBudget ?? p.def.budget?.max_cost_usd
+      if (effectiveMaxBudget) {
+        const warnAt = p.def.budget?.warn_at ?? effectiveMaxBudget * 0.75
         if (!budgetWarnSent && totalCost >= warnAt) {
           budgetWarnSent = true
           notify(`Colony: Budget warning`, `Pipeline "${pipelineName}" has spent $${totalCost.toFixed(2)} (warn threshold: $${warnAt.toFixed(2)})`, 'pipelines')
         }
-        if (totalCost >= p.def.budget.max_cost_usd) {
-          plog(pipelineName, `⚠ budget limit reached ($${totalCost.toFixed(2)} >= $${p.def.budget.max_cost_usd.toFixed(2)}) — stopping run`)
+        if (totalCost >= effectiveMaxBudget) {
+          plog(pipelineName, `⚠ budget limit reached ($${totalCost.toFixed(2)} >= $${effectiveMaxBudget.toFixed(2)}) — stopping run`)
           notify(`Colony: Budget limit reached`, `Pipeline "${pipelineName}" stopped after spending $${totalCost.toFixed(2)}`, 'pipelines')
           stoppedBudget = true
           break
@@ -1817,6 +1829,8 @@ export function getPipelineList(): PipelineInfo[] {
       lastRunStoppedBudget: p.state.lastRunStoppedBudget ?? false,
       actionShape: toActionShape(p.def.action),
       firstActionPrompt: p.def.action.prompt || undefined,
+      firstActionWorkingDirectory: p.def.action.workingDirectory || undefined,
+      firstActionModel: p.def.action.model || p.def.default_model || undefined,
       defaultModel: p.def.default_model || undefined,
     })
   }
@@ -1853,10 +1867,11 @@ export async function togglePipeline(name: string, enabled: boolean): Promise<bo
   return true
 }
 
-export function triggerPollNow(name: string, promptOverride?: string): boolean {
+export function triggerPollNow(name: string, overrides?: RunOverrides | string): boolean {
   const p = pipelines.get(name)
   if (!p) return false
-  runPoll(name, promptOverride)
+  const normalised: RunOverrides | undefined = typeof overrides === 'string' ? { prompt: overrides } : overrides
+  runPoll(name, normalised)
   return true
 }
 

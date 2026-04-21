@@ -75,6 +75,8 @@ interface PipelineInfo {
   consecutiveFailures?: number
   actionShape?: ActionShape
   firstActionPrompt?: string
+  firstActionWorkingDirectory?: string
+  firstActionModel?: string
   defaultModel?: string
 }
 
@@ -284,35 +286,98 @@ function PipelineTimeline({ pipelines }: { pipelines: PipelineInfo[] }) {
   )
 }
 
-function RunWithOverrideDialog({ pipelineName, firstActionPrompt, onRun, onClose }: {
+const RUN_MODELS = [
+  { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6' },
+  { id: 'claude-opus-4-6', label: 'Opus 4.6' },
+  { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
+]
+
+function RunWithOptionsDialog({ pipelineName, firstActionPrompt, firstActionModel, firstActionWorkingDirectory, budgetMaxCostUsd, onRun, onClose }: {
   pipelineName: string
   firstActionPrompt: string
-  onRun: (name: string, promptOverride?: string) => void
+  firstActionModel?: string
+  firstActionWorkingDirectory?: string
+  budgetMaxCostUsd?: number
+  onRun: (name: string, overrides: { prompt?: string; model?: string; workingDirectory?: string; maxBudget?: number }) => void
   onClose: () => void
 }) {
   const [prompt, setPrompt] = useState(firstActionPrompt)
+  const [model, setModel] = useState(firstActionModel || '')
+  const [workingDirectory, setWorkingDirectory] = useState(firstActionWorkingDirectory || '')
+  const [maxBudget, setMaxBudget] = useState(budgetMaxCostUsd != null ? String(budgetMaxCostUsd) : '')
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleRun()
+    }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [onClose])
+  }, [onClose, prompt, model, workingDirectory, maxBudget])
+
+  const handleRun = () => {
+    const budget = parseFloat(maxBudget)
+    onRun(pipelineName, {
+      prompt: prompt.trim() || undefined,
+      model: model || undefined,
+      workingDirectory: workingDirectory.trim() || undefined,
+      maxBudget: !isNaN(budget) && budget > 0 ? budget : undefined,
+    })
+  }
+
+  const fieldStyle: React.CSSProperties = { marginBottom: 12 }
+  const labelStyle: React.CSSProperties = { display: 'block', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }
+  const inputStyle: React.CSSProperties = { width: '100%', background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 4, padding: '5px 8px', fontSize: 12, boxSizing: 'border-box' }
+
   return (
     <>
-      <textarea
-        value={prompt}
-        onChange={e => setPrompt(e.target.value)}
-        rows={6}
-        style={{ width: '100%', fontFamily: 'monospace', fontSize: 12, background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 4, padding: '6px 8px', resize: 'vertical' }}
-        placeholder="Session prompt..."
-        autoFocus
-      />
-      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, marginBottom: 12 }}>
-        Mustache variables ({"{{...}}"}) will be resolved at runtime.
+      <div style={fieldStyle}>
+        <label style={labelStyle}>Prompt</label>
+        <textarea
+          value={prompt}
+          onChange={e => setPrompt(e.target.value)}
+          rows={6}
+          style={{ ...inputStyle, fontFamily: 'monospace', resize: 'vertical' }}
+          placeholder="Session prompt — Mustache {{...}} vars resolved at runtime"
+          autoFocus
+        />
+      </div>
+      <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+        <div style={{ flex: 1 }}>
+          <label style={labelStyle}>Model</label>
+          <select value={model} onChange={e => setModel(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+            <option value="">(pipeline default)</option>
+            {RUN_MODELS.map(m => <option key={m.id} value={m.id}>{m.label} ({m.id})</option>)}
+          </select>
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={labelStyle}>Budget cap ($)</label>
+          <input
+            type="number"
+            value={maxBudget}
+            onChange={e => setMaxBudget(e.target.value)}
+            style={inputStyle}
+            placeholder="e.g. 2.50"
+            min={0}
+            step={0.5}
+          />
+        </div>
+      </div>
+      <div style={fieldStyle}>
+        <label style={labelStyle}>Working directory</label>
+        <input
+          type="text"
+          value={workingDirectory}
+          onChange={e => setWorkingDirectory(e.target.value)}
+          style={inputStyle}
+          placeholder="e.g. ~/projects/my-repo"
+        />
+      </div>
+      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 0, marginBottom: 12 }}>
+        Changes apply to this run only — YAML is not modified. Cmd+Enter to run.
       </p>
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <button onClick={onClose} style={{ padding: '5px 12px' }}>Cancel</button>
-        <button onClick={() => onRun(pipelineName, undefined)} style={{ padding: '5px 12px' }}>Run as configured</button>
-        <button className="panel-header-btn primary" onClick={() => onRun(pipelineName, prompt || undefined)} style={{ padding: '5px 12px' }}>Run with changes</button>
+        <button className="panel-header-btn primary" onClick={handleRun} style={{ padding: '5px 12px' }}>Run</button>
       </div>
     </>
   )
@@ -345,7 +410,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
 
   const [triggeringPipelines, setTriggeringPipelines] = useState<Set<string>>(new Set())
   const [retryingFromHistory, setRetryingFromHistory] = useState(false)
-  const [runOverrideDialog, setRunOverrideDialog] = useState<{ name: string; firstActionPrompt: string } | null>(null)
+  const [runOverrideDialog, setRunOverrideDialog] = useState<{ name: string; firstActionPrompt: string; firstActionModel?: string; firstActionWorkingDirectory?: string; budgetMaxCostUsd?: number } | null>(null)
   const [listMode, setListMode] = useState(() => localStorage.getItem('pipelines-list-mode') !== '0')
   const [sortBy, setSortBy] = useState<'name' | 'lastFired' | 'fireCount' | 'enabled' | 'successRate'>(() =>
     (localStorage.getItem('pipelines-sort') as 'name' | 'lastFired' | 'fireCount' | 'enabled' | 'successRate') || 'name'
@@ -576,18 +641,34 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     loadPipelines()
   }
 
-  const handleTriggerNow = (name: string) => {
+  const handleTriggerNow = async (name: string) => {
     if (triggeringPipelines.has(name)) return
-    const pipeline = pipelines.find(p => p.name === name)
-    setRunOverrideDialog({ name, firstActionPrompt: pipeline?.firstActionPrompt || '' })
+    setTriggeringPipelines(prev => new Set(prev).add(name))
+    try {
+      await window.api.pipeline.triggerNow(name)
+    } finally {
+      setTriggeringPipelines(prev => { const next = new Set(prev); next.delete(name); return next })
+    }
   }
 
-  const handleRunWithOverride = async (name: string, promptOverride?: string) => {
+  const handleRunWithOptions = (name: string) => {
+    if (triggeringPipelines.has(name)) return
+    const pipeline = pipelines.find(p => p.name === name)
+    setRunOverrideDialog({
+      name,
+      firstActionPrompt: pipeline?.firstActionPrompt || '',
+      firstActionModel: pipeline?.firstActionModel,
+      firstActionWorkingDirectory: pipeline?.firstActionWorkingDirectory,
+      budgetMaxCostUsd: pipeline?.budget?.maxCostUsd ?? undefined,
+    })
+  }
+
+  const handleRunWithOverride = async (name: string, overrides: { prompt?: string; model?: string; workingDirectory?: string; maxBudget?: number }) => {
     setRunOverrideDialog(null)
     if (triggeringPipelines.has(name)) return
     setTriggeringPipelines(prev => new Set(prev).add(name))
     try {
-      await window.api.pipeline.triggerNow(name, promptOverride)
+      await window.api.pipeline.triggerNow(name, overrides)
     } finally {
       setTriggeringPipelines(prev => { const next = new Set(prev); next.delete(name); return next })
     }
@@ -948,18 +1029,21 @@ ${modelLine}  prompt: |
     <div className="pipelines-panel">
       {runOverrideDialog && (
         <div className="pipeline-preview-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setRunOverrideDialog(null) }}>
-          <div className="pipeline-preview-modal" style={{ maxWidth: 500 }}>
+          <div className="pipeline-preview-modal" style={{ maxWidth: 520 }}>
             <div className="pipeline-preview-header">
               <Play size={14} />
-              <span>Run Pipeline: {runOverrideDialog.name}</span>
+              <span>Run with Options: {runOverrideDialog.name}</span>
               <button className="pipeline-preview-close" onClick={() => setRunOverrideDialog(null)}>
                 <X size={14} />
               </button>
             </div>
             <div style={{ padding: '14px 16px' }}>
-              <RunWithOverrideDialog
+              <RunWithOptionsDialog
                 pipelineName={runOverrideDialog.name}
                 firstActionPrompt={runOverrideDialog.firstActionPrompt}
+                firstActionModel={runOverrideDialog.firstActionModel}
+                firstActionWorkingDirectory={runOverrideDialog.firstActionWorkingDirectory}
+                budgetMaxCostUsd={runOverrideDialog.budgetMaxCostUsd}
                 onRun={handleRunWithOverride}
                 onClose={() => setRunOverrideDialog(null)}
               />
@@ -2533,6 +2617,11 @@ ${modelLine}  prompt: |
             {pipelineCtx.enabled && (
               <div className="context-menu-item" onClick={() => { handleTriggerNow(pipelineCtx.name); setPipelineCtx(null) }}>
                 Trigger Now
+              </div>
+            )}
+            {pipelineCtx.enabled && (
+              <div className="context-menu-item" onClick={() => { handleRunWithOptions(pipelineCtx.name); setPipelineCtx(null) }}>
+                Run with Options...
               </div>
             )}
             <div className="context-menu-item" onClick={() => { const p = pipelines.find(pp => pp.name === pipelineCtx.name); if (p) handleDuplicate(p); setPipelineCtx(null) }}>
