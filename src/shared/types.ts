@@ -377,6 +377,8 @@ export interface PersonaInfo {
   color?: string
   /** Number of pending queued runs waiting to start when this persona's current session exits */
   pendingRunCount: number
+  /** If true, persona fires on app startup */
+  runOnStartup: boolean
 }
 
 // ---- Persona Memory (structured sidecar) ----

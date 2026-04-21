@@ -1415,6 +1415,7 @@ function PersonaCard({
             )
           })()}
           {isRunning && <span className="persona-list-badge running">Running</span>}
+          {persona.runOnStartup && <span className="persona-list-badge" style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }} title="Fires on app startup">startup</span>}
           {persona.draining && <span className="persona-list-badge draining" title="Draining — will disable after current session and triggers complete">Draining</span>}
           {!isRunning && (persona.retryCount ?? 0) > 0 && (
             <span className="persona-list-badge retry" title={`Auto-retrying: attempt ${persona.retryCount}`}>
@@ -2147,6 +2148,7 @@ function EditPersonaModal({ persona, allPersonaIds, onClose, onSaved }: {
   const [maxCostUsd, setMaxCostUsd] = useState(persona.maxCostUsd?.toString() ?? '')
   const [maxCostPerDayUsd, setMaxCostPerDayUsd] = useState(persona.maxCostPerDayUsd?.toString() ?? '')
   const [monthlyBudgetUsd, setMonthlyBudgetUsd] = useState(persona.monthlyBudgetUsd?.toString() ?? '')
+  const [runOnStartup, setRunOnStartup] = useState(persona.runOnStartup ?? false)
   const [onCompleteRun, setOnCompleteRun] = useState<string[]>(persona.onCompleteRun ?? [])
   const [onCompleteRunIf, setOnCompleteRunIf] = useState(persona.onCompleteRunIf ?? '')
   const [canInvoke, setCanInvoke] = useState<string[]>(persona.canInvoke ?? [])
@@ -2164,6 +2166,7 @@ function EditPersonaModal({ persona, allPersonaIds, onClose, onSaved }: {
         on_complete_run: onCompleteRun,
         on_complete_run_if: onCompleteRunIf || '',
         can_invoke: canInvoke,
+        run_on_startup: runOnStartup,
       }
       if (schedule.trim()) {
         updates.schedule = schedule.trim()
@@ -2225,6 +2228,15 @@ function EditPersonaModal({ persona, allPersonaIds, onClose, onSaved }: {
                 <span className="persona-edit-meta-cron-hint">{describeCron(schedule.trim())}</span>
               )}
             </div>
+          </label>
+          <label className="persona-edit-meta-field" style={{ cursor: 'pointer' }}>
+            <span>Run on Startup</span>
+            <input
+              type="checkbox"
+              checked={runOnStartup}
+              onChange={(e) => setRunOnStartup(e.target.checked)}
+              style={{ width: 'auto', cursor: 'pointer' }}
+            />
           </label>
           <label className="persona-edit-meta-field">
             <span>Model</span>

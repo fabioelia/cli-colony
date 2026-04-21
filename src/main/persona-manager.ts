@@ -128,6 +128,8 @@ export interface PersonaFrontmatter {
   retry_on_failure?: number
   /** Condition that must be met for on_complete_run triggers to fire. Options: 'success', 'has_commits', 'has_changes'. Absent = always trigger. */
   on_complete_run_if?: string
+  /** If true, persona fires once on app startup (staggered 2s apart from other startup personas). */
+  run_on_startup?: boolean
 }
 
 function parseFrontmatter(content: string): PersonaFrontmatter | null {
@@ -159,6 +161,7 @@ function parseFrontmatter(content: string): PersonaFrontmatter | null {
     run_condition: val('run_condition') || undefined,
     retry_on_failure: parseInt(val('retry_on_failure')) || undefined,
     on_complete_run_if: val('on_complete_run_if') || undefined,
+    run_on_startup: val('run_on_startup') === 'true',
   }
 
   if (!result.name) return null
@@ -306,6 +309,7 @@ export function getPersonaList(): PersonaInfo[] {
         attentionCount: getAttentionCount(personaId),
         color: fm.color || undefined,
         pendingRunCount: (state.pendingRuns || []).length,
+        runOnStartup: fm.run_on_startup || false,
         briefPreview: (() => {
           const bp = join(PERSONAS_DIR, `${personaId}.brief.md`)
           try {
@@ -605,6 +609,7 @@ export type TriggerSource =
   | { type: 'cron'; schedule: string }
   | { type: 'handoff'; from: string }
   | { type: 'retry' }
+  | { type: 'startup' }
 
 export interface PersonaRunOverrides {
   model?: string
@@ -818,6 +823,22 @@ export function getPersonaCostCap(instanceId: string): number | undefined {
     }
   }
   return undefined
+}
+
+/** Fire enabled personas with run_on_startup: true, staggered 2s apart. */
+export async function runStartupPersonas(): Promise<void> {
+  const personas = getPersonaList()
+  let delay = 0
+  for (const p of personas) {
+    if (!p.runOnStartup || !p.enabled) continue
+    const d = delay
+    setTimeout(() => {
+      runPersona(p.id, { type: 'startup' }).catch(err => {
+        console.log(`[persona] startup run failed for "${p.name}": ${err.message}`)
+      })
+    }, d)
+    delay += 2000
+  }
 }
 
 /** Surgically update one or more frontmatter fields without touching section content. */

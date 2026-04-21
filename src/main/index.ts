@@ -32,7 +32,7 @@ import { updateColonyContext } from './colony-context'
 import { killAllShells } from './shell-pty'
 import { snapshotRunningSync } from './recent-sessions'
 import { ensureRepoClones } from './github'
-import { loadPersonas, startWatcher as startPersonaWatcher, stopWatcher as stopPersonaWatcher, onSessionExit as onPersonaSessionExit, runPersona, getPersonaList, addWhisper } from './persona-manager'
+import { loadPersonas, startWatcher as startPersonaWatcher, stopWatcher as stopPersonaWatcher, onSessionExit as onPersonaSessionExit, runPersona, getPersonaList, addWhisper, runStartupPersonas } from './persona-manager'
 import { startScheduler as startPersonaScheduler, stopScheduler as stopPersonaScheduler } from './persona-scheduler'
 import { startProbe as startRateLimitProbe, stopProbe as stopRateLimitProbe } from './rate-limit-probe'
 import { initTriggerWatcher } from './persona-triggers'
@@ -639,6 +639,7 @@ app.whenReady().then(async () => {
       startPersonaWatcher()
       startPersonaScheduler()
       initTriggerWatcher(runPersona, getPersonaList, addWhisper)
+      runStartupPersonas().catch(err => console.warn('[app] startup personas failed:', err))
     } catch (err) { console.warn('[app] persona/scheduler init failed:', err) }
     startWakeWatcher().catch(err => console.warn('[app] wake watcher init failed:', err))
     startRateLimitProbe().catch(err => console.warn('[app] rate-limit probe init failed:', err))
