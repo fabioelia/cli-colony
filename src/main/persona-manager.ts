@@ -936,6 +936,22 @@ export async function askPersonas(query: string): Promise<string> {
 
 // ---- Session Exit Tracking ----
 
+function extractErrorSummary(output: string): string | null {
+  const lines = output.split('\n').map(l => l.trim()).filter(Boolean)
+  for (let i = lines.length - 1; i >= Math.max(0, lines.length - 30); i--) {
+    const l = lines[i].toLowerCase()
+    if (l.includes('error') || l.includes('exception') || l.includes('traceback') || l.includes('failed') || l.includes('fatal') || l.includes('panic')) {
+      return lines[i].slice(0, 120)
+    }
+  }
+  return null
+}
+
+function extractOutputTail(output: string): string | null {
+  const lines = output.split('\n').map(l => l.trim()).filter(Boolean)
+  return lines.length > 0 ? lines[lines.length - 1].slice(0, 80) : null
+}
+
 /** Called by instance-manager when any session exits — captures output and clears active session */
 export async function onSessionExit(instanceId: string): Promise<void> {
   let changed = false
@@ -988,6 +1004,9 @@ export async function onSessionExit(instanceId: string): Promise<void> {
       const commitLabel = commitsCount > 0 ? ` · ${commitsCount} commit${commitsCount !== 1 ? 's' : ''}` : ''
       const failed = !manuallyStopped && exitCode !== null && exitCode !== 0
       const exitLabel = manuallyStopped ? 'stopped' : failed ? `failed (exit ${exitCode})` : 'completed'
+      const errorSummary = failed && state.lastRunOutput ? extractErrorSummary(state.lastRunOutput) : null
+      const outputTail = !failed && !manuallyStopped && state.lastRunOutput ? extractOutputTail(state.lastRunOutput) : null
+      const contextSuffix = errorSummary ? ` — ${errorSummary}` : outputTail ? ` — ${outputTail}` : ''
       state.activeSessionId = null
       state.triggeredBy = null
       changed = true
@@ -995,14 +1014,14 @@ export async function onSessionExit(instanceId: string): Promise<void> {
       appendActivity({
         source: 'persona',
         name,
-        summary: `Persona "${name}" ${exitLabel} session${commitLabel}`,
+        summary: `Persona "${name}" ${exitLabel} session${commitLabel}${contextSuffix}`,
         level: failed ? 'warn' : 'info',
         sessionId: instanceId,
         project: workingDir ? basename(workingDir) : undefined,
         details: { type: 'session-outcome', duration: durationSec, commitsCount, filesChanged, exitCode, costUsd: sessionCost },
       })
       const notifyTitle = failed ? `Colony: ${name} run failed` : `Colony: ${name} run complete`
-      const notifyBody = failed ? `Session failed (exit ${exitCode})${commitLabel}` : `Session finished${commitLabel}`
+      const notifyBody = failed ? `Session failed (exit ${exitCode})${commitLabel}${errorSummary ? `: ${errorSummary}` : ''}` : `Session finished${commitLabel}`
       notify(notifyTitle, notifyBody, 'personas')
 
       // Check for new attention requests from this session
