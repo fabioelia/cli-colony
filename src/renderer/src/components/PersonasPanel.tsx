@@ -1286,7 +1286,7 @@ function PersonaCard({
           )}
           {(persona.pendingRunCount ?? 0) > 0 && (
             <span className="persona-list-badge queued-runs" title={`${persona.pendingRunCount} run(s) queued — will start after current session exits`}>
-              <Hourglass size={9} /> {persona.pendingRunCount} queued
+              <Hourglass size={9} /> {persona.pendingRunCount} in queue
             </span>
           )}
           <span className="persona-list-schedule">
