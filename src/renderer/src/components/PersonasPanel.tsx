@@ -1969,6 +1969,7 @@ function EditPersonaModal({ persona, allPersonaIds, onClose, onSaved }: {
   const [maxCostPerDayUsd, setMaxCostPerDayUsd] = useState(persona.maxCostPerDayUsd?.toString() ?? '')
   const [monthlyBudgetUsd, setMonthlyBudgetUsd] = useState(persona.monthlyBudgetUsd?.toString() ?? '')
   const [onCompleteRun, setOnCompleteRun] = useState<string[]>(persona.onCompleteRun ?? [])
+  const [onCompleteRunIf, setOnCompleteRunIf] = useState(persona.onCompleteRunIf ?? '')
   const [canInvoke, setCanInvoke] = useState<string[]>(persona.canInvoke ?? [])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -1982,6 +1983,7 @@ function EditPersonaModal({ persona, allPersonaIds, onClose, onSaved }: {
         enabled,
         max_sessions: maxSessions,
         on_complete_run: onCompleteRun,
+        on_complete_run_if: onCompleteRunIf || '',
         can_invoke: canInvoke,
       }
       if (schedule.trim()) {
@@ -2126,6 +2128,19 @@ function EditPersonaModal({ persona, allPersonaIds, onClose, onSaved }: {
               </select>
             </div>
           </div>
+          <label className="persona-edit-meta-field">
+            <span>Fire Triggers When</span>
+            <select
+              className="persona-edit-meta-select"
+              value={onCompleteRunIf}
+              onChange={(e) => setOnCompleteRunIf(e.target.value)}
+            >
+              <option value="">Always (default)</option>
+              <option value="success">Success only (exit 0)</option>
+              <option value="has_commits">Has commits</option>
+              <option value="has_changes">Has changes</option>
+            </select>
+          </label>
           <div className="persona-edit-meta-field">
             <span>Can Invoke</span>
             <div className="persona-chain-chips">

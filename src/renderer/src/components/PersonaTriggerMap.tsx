@@ -30,6 +30,8 @@ interface TriggerEdge {
   type: 'always' | 'may-trigger'
   /** True if this edge participates in a cycle */
   cyclic: boolean
+  /** on_complete_run_if condition, if set */
+  condition?: string
 }
 
 /** Detect cycles in the onCompleteRun (always-fire) directed graph using DFS */
@@ -173,6 +175,7 @@ function buildGraph(personas: PersonaInfo[]): {
           to: target,
           type: 'always',
           cyclic: cyclicEdges.has(`${p.id}->${target}`),
+          condition: p.onCompleteRunIf,
         })
       }
     }
@@ -298,7 +301,9 @@ export default function PersonaTriggerMap({ personas, onSelectPersona }: Props) 
             const marker = isCyclic ? 'url(#trigger-arrow-cycle)' : isDashed ? 'url(#trigger-arrow-dashed)' : 'url(#trigger-arrow)'
 
             // Label
-            const label = e.type === 'always' ? 'always' : 'may trigger'
+            const label = e.type === 'always'
+              ? (e.condition ? `if ${e.condition}` : 'always')
+              : 'may trigger'
             const labelX = fromCx + dx / 2
             const labelY = fromBy + dy / 2 - 6
 

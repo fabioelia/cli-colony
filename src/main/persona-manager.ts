@@ -124,6 +124,8 @@ export interface PersonaFrontmatter {
   run_condition?: string
   /** Auto-retry on non-zero exit: max retry attempts before firing trigger chain. 0 = disabled. */
   retry_on_failure?: number
+  /** Condition that must be met for on_complete_run triggers to fire. Options: 'success', 'has_commits', 'has_changes'. Absent = always trigger. */
+  on_complete_run_if?: string
 }
 
 function parseFrontmatter(content: string): PersonaFrontmatter | null {
@@ -154,6 +156,7 @@ function parseFrontmatter(content: string): PersonaFrontmatter | null {
     conflict_group: val('conflict_group') || undefined,
     run_condition: val('run_condition') || undefined,
     retry_on_failure: parseInt(val('retry_on_failure')) || undefined,
+    on_complete_run_if: val('on_complete_run_if') || undefined,
   }
 
   if (!result.name) return null
@@ -255,6 +258,7 @@ export function getPersonaList(): PersonaInfo[] {
         lastRunOutput: state.lastRunOutput || null,
         whispers: parseWhispers(content),
         onCompleteRun: fm.on_complete_run,
+        onCompleteRunIf: fm.on_complete_run_if,
         canInvoke: fm.can_invoke,
         triggeredBy: state.triggeredBy ?? null,
         pendingTrigger: pending.get(personaId) ? { from: pending.get(personaId)!.from, note: pending.get(personaId)!.note } : null,
@@ -1079,15 +1083,34 @@ export async function onSessionExit(instanceId: string): Promise<void> {
             const c = readFileSync(join(PERSONAS_DIR, personaFile), 'utf-8')
             const fm = parseFrontmatter(c)
 
-            if (dynamicTriggers !== null) {
-              // Dynamic override: use file contents (empty array = suppress all triggers)
-              console.log(`[persona] trigger: dynamic override for "${name}" — ${dynamicTriggers.length} trigger(s)`)
-              for (const t of dynamicTriggers) {
-                triggerPersonas.push({ id: t.persona, triggeredBy: name, customMessage: t.message })
-              }
-            } else if (fm && fm.on_complete_run.length > 0) {
-              for (const t of fm.on_complete_run) {
-                triggerPersonas.push({ id: t, triggeredBy: name, customMessage: undefined })
+            // Evaluate on_complete_run_if condition before dispatching triggers
+            const triggerCondition = fm?.on_complete_run_if
+            let shouldTrigger = true
+            if (triggerCondition === 'success') shouldTrigger = !failed
+            else if (triggerCondition === 'has_commits') shouldTrigger = commitsCount > 0
+            else if (triggerCondition === 'has_changes') shouldTrigger = filesChanged > 0
+
+            if (!shouldTrigger) {
+              appendActivity({
+                source: 'persona',
+                name,
+                summary: `Skipping triggers — condition '${triggerCondition}' not met (${commitsCount} commit${commitsCount !== 1 ? 's' : ''}, ${failed ? 'failed' : 'success'})`,
+                level: 'info',
+                project: workingDir ? basename(workingDir) : undefined,
+              })
+            }
+
+            if (shouldTrigger) {
+              if (dynamicTriggers !== null) {
+                // Dynamic override: use file contents (empty array = suppress all triggers)
+                console.log(`[persona] trigger: dynamic override for "${name}" — ${dynamicTriggers.length} trigger(s)`)
+                for (const t of dynamicTriggers) {
+                  triggerPersonas.push({ id: t.persona, triggeredBy: name, customMessage: t.message })
+                }
+              } else if (fm && fm.on_complete_run.length > 0) {
+                for (const t of fm.on_complete_run) {
+                  triggerPersonas.push({ id: t, triggeredBy: name, customMessage: undefined })
+                }
               }
             }
 
