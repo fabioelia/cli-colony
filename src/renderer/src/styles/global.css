@@ -15883,6 +15883,43 @@ button.session-trigger-chain-btn:hover {
   cursor: default;
 }
 
+.pipeline-history-replay-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  margin-left: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.pipeline-history-row:hover .pipeline-history-replay-btn {
+  opacity: 1;
+}
+.pipeline-history-replay-btn:hover {
+  color: var(--accent);
+  background: var(--bg-tertiary);
+}
+.pipeline-history-replay-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.pipeline-replay-toast {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-secondary));
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-radius: 4px;
+  padding: 5px 10px;
+  margin-bottom: 6px;
+}
+
 .pipeline-comparison-toolbar {
   display: flex;
   align-items: center;

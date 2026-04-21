@@ -418,6 +418,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
 
   const [triggeringPipelines, setTriggeringPipelines] = useState<Set<string>>(new Set())
   const [retryingFromHistory, setRetryingFromHistory] = useState(false)
+  const [replayToast, setReplayToast] = useState<{ name: string; ts: string } | null>(null)
   const [runOverrideDialog, setRunOverrideDialog] = useState<{ name: string; firstActionPrompt: string; firstActionModel?: string; firstActionWorkingDirectory?: string; budgetMaxCostUsd?: number } | null>(null)
   const [listMode, setListMode] = useState(() => localStorage.getItem('pipelines-list-mode') !== '0')
   const [sortBy, setSortBy] = useState<'name' | 'lastFired' | 'fireCount' | 'enabled' | 'successRate'>(() =>
@@ -697,6 +698,13 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
         setHistoryEntries(history.slice().reverse())
       }, 2000)
     }
+  }
+
+  const handleReplay = async (pipelineName: string, entryTs: string) => {
+    if (triggeringPipelines.has(pipelineName)) return
+    await handleTriggerNow(pipelineName)
+    setReplayToast({ name: pipelineName, ts: entryTs })
+    setTimeout(() => setReplayToast(t => t?.ts === entryTs ? null : t), 3000)
   }
 
   const handlePreview = async (p: PipelineInfo) => {
@@ -1789,6 +1797,11 @@ ${modelLine}  prompt: |
                   </div>
                 ) : expandedTab === 'history' ? (
                   <div className="pipeline-history">
+                    {replayToast && replayToast.name === p.name && (
+                      <div className="pipeline-replay-toast">
+                        <RotateCw size={11} /> Replaying run from {new Date(replayToast.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {new Date(replayToast.ts).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                      </div>
+                    )}
                     {historyEntries.length === 0 ? (
                       <p className="pipeline-memory-hint">No runs recorded yet. History is captured after each poll.</p>
                     ) : (
@@ -1948,6 +1961,14 @@ ${modelLine}  prompt: |
                                       <RefreshCw size={11} className={retryingFromHistory ? 'spin' : ''} />
                                     </button>
                                   )}
+                                  <button
+                                    className="pipeline-history-replay-btn"
+                                    title={`Replay run from ${new Date(entry.ts).toLocaleString()}`}
+                                    onClick={(e) => { e.stopPropagation(); handleReplay(p.name, entry.ts) }}
+                                    disabled={triggeringPipelines.has(p.name)}
+                                  >
+                                    <RotateCw size={11} />
+                                  </button>
                                 </div>
                                 {!entry.success && !isExpanded && entry.actionExecuted && (
                                   firstErr
