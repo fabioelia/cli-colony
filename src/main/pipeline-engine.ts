@@ -185,6 +185,7 @@ interface PipelineState {
 export interface ActionShape {
   type: string
   name?: string
+  target?: string
   stages?: ActionShape[]
 }
 
@@ -1848,6 +1849,7 @@ function toActionShape(action: ActionDef): ActionShape {
   return {
     type: action.type,
     name: action.name || undefined,
+    target: action.target || undefined,
     stages: action.stages?.map(toActionShape),
   }
 }
