@@ -16,7 +16,7 @@ import { createInstance, getAllInstances, killInstance, setApprovalCountGetter, 
 import { markChecklistItem } from './onboarding-state'
 import { getDaemonRouter } from './daemon-router'
 import { sendPromptWhenReady } from './send-prompt-when-ready'
-import { getRepos, fetchPRs, fetchChecks, fetchPRFiles, gh } from './github'
+import { getRepos, fetchPRs, fetchChecks, fetchPRFiles, gh, writePrContext } from './github'
 import { findBestRoute } from './session-router'
 import { getAllRepoConfigs } from './repo-config-loader'
 import { cronMatches } from '../shared/cron'
@@ -150,6 +150,7 @@ export interface PipelineDef {
   dedup: DedupDef
   budget?: BudgetDef
   run_condition?: string
+  pre_run?: Array<{ type: string }>
 }
 
 export interface PendingApproval {
@@ -490,6 +491,30 @@ async function saveDebugLogs(): Promise<void> {
 
 function freshState(): PipelineState {
   return { lastPollAt: null, lastMatchAt: null, firedKeys: {}, contentHashes: {}, fireCount: 0, lastFiredAt: null, lastError: null, consecutiveFailures: 0, debugLog: [] }
+}
+
+// ---- Pre-Run Hooks ----
+
+async function executePreRunHooks(hooks: Array<{ type: string }>, pipelineName: string): Promise<void> {
+  for (const hook of hooks) {
+    const start = Date.now()
+    try {
+      if (hook.type === 'refresh-prs') {
+        const repos = await getRepos()
+        const prsByRepo: Record<string, GitHubPR[]> = {}
+        for (const repo of repos) {
+          prsByRepo[`${repo.owner}/${repo.name}`] = await fetchPRs(repo)
+        }
+        await writePrContext(prsByRepo)
+        broadcast('pipeline:status', {})
+        plog(pipelineName, `pre_run: refresh-prs completed in ${Date.now() - start}ms (${repos.length} repos)`)
+      } else {
+        plog(pipelineName, `pre_run: unknown hook type "${hook.type}" — skipping`)
+      }
+    } catch (err) {
+      plog(pipelineName, `pre_run: hook "${hook.type}" failed (${Date.now() - start}ms): ${(err as Error).message}`)
+    }
+  }
 }
 
 // ---- Template Resolution ----
@@ -1455,6 +1480,10 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
           .map(c => c.name).join(', ') || 'unknown'
         const retryPrefix = `[RETRY ${dedupRetryAttempt + 1}/${maxRetries}] Previous fix attempt did not resolve CI failures. Still failing: ${failedNames}.\n\n`
         effectiveOverrides = { ...overrides, prompt: retryPrefix + (overrides?.prompt || '') }
+      }
+
+      if (p.def.pre_run?.length) {
+        await executePreRunHooks(p.def.pre_run, pipelineName)
       }
 
       plog(pipelineName, `→ firing action: ${p.def.action.type} for ${prLabel}${dedupRetryAttempt !== null ? ` (retry ${dedupRetryAttempt + 1})` : ''}`)
