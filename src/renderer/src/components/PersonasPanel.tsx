@@ -147,6 +147,40 @@ Personas can create/update pipelines and task queues by writing YAML files direc
 
 When the user describes what they want, write the persona .md file directly to ~/.claude-colony/personas/. Ask clarifying questions about the role, objectives, and permissions if the user's request is ambiguous.`
 
+function makePersonaConfigDiff(pair: { a: { name: string; content: string }; b: { name: string; content: string } }): string {
+  const linesA = pair.a.content.split('\n')
+  const linesB = pair.b.content.split('\n')
+  const header = `--- ${pair.a.name}\n+++ ${pair.b.name}\n`
+  const maxLen = Math.max(linesA.length, linesB.length)
+  const hunks: string[] = []
+  let i = 0
+  while (i < maxLen) {
+    const la = linesA[i] ?? ''
+    const lb = linesB[i] ?? ''
+    if (la !== lb) {
+      const start = Math.max(0, i - 3)
+      const end = Math.min(maxLen, i + 4)
+      let hunk = `@@ -${start + 1} +${start + 1} @@\n`
+      for (let j = start; j < end; j++) {
+        const a = linesA[j] ?? ''
+        const b = linesB[j] ?? ''
+        if (a === b) {
+          hunk += ` ${a}\n`
+        } else {
+          if (j < linesA.length) hunk += `-${a}\n`
+          if (j < linesB.length) hunk += `+${b}\n`
+        }
+      }
+      hunks.push(hunk)
+      i = end
+    } else {
+      i++
+    }
+  }
+  if (hunks.length === 0) return `${header}@@ -1 +1 @@\n (no differences)\n`
+  return header + hunks.join('')
+}
+
 /** Parse `## Section` blocks from persona markdown content */
 function parseSections(content: string): Record<string, string> {
   const sections: Record<string, string> = {}
@@ -200,6 +234,12 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
 
   // Batch selection
   const [selectedPersonas, setSelectedPersonas] = useState<Set<string>>(new Set())
+
+  // Compare mode
+  const [compareMode, setCompareMode] = useState(false)
+  const [compareSelection, setCompareSelection] = useState<string[]>([])
+  const [comparePair, setComparePair] = useState<{ a: { name: string; content: string }; b: { name: string; content: string } } | null>(null)
+  const [compareLoading, setCompareLoading] = useState(false)
 
   // Audit
   const [auditResults, setAuditResults] = useState<AuditResult[] | null>(null)
@@ -545,6 +585,23 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
     return () => document.removeEventListener('keydown', handleKey)
   }, [selectedPersonas.size])
 
+  useEffect(() => {
+    if (!compareMode) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setCompareMode(false); setCompareSelection([]); setComparePair(null) }
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [compareMode])
+
+  useEffect(() => {
+    if (compareSelection.length !== 2) return
+    setCompareLoading(true)
+    window.api.persona.compareConfig(compareSelection[0], compareSelection[1])
+      .then(pair => { setComparePair(pair); setCompareLoading(false) })
+      .catch(() => setCompareLoading(false))
+  }, [compareSelection])
+
   return (
     <div className="personas-panel">
       <div className="panel-header">
@@ -582,6 +639,15 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
               </select>
             </div>
           </>
+        )}
+        {panelView === 'list' && (
+          <button
+            className={`panel-header-btn${compareMode ? ' active' : ''}`}
+            onClick={() => { setCompareMode(m => !m); setCompareSelection([]); setComparePair(null) }}
+            title="Compare two persona configs side-by-side"
+          >
+            <GitCompare size={12} /> Compare
+          </button>
         )}
         <HelpPopover topic="personas" align="right" />
         <div className="panel-header-actions">
@@ -660,6 +726,24 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
             <button className="persona-bulk-btn primary" onClick={handleBatchRun} title="Run selected personas (2s stagger)"><Play size={11} /> Run Now</button>
             <button className="persona-bulk-btn danger" onClick={handleBatchStop} title="Stop selected personas"><Square size={11} /> Stop</button>
           </div>
+        </div>
+      )}
+
+      {/* Compare mode banner */}
+      {compareMode && (
+        <div className="persona-compare-bar">
+          <GitCompare size={13} />
+          {compareSelection.length === 0 && <span>Select 2 personas to compare their configs</span>}
+          {compareSelection.length === 1 && <span>Select one more persona to compare</span>}
+          {compareSelection.length === 2 && compareLoading && <span>Loading diff…</span>}
+          {compareSelection.length === 2 && !compareLoading && <span>{visiblePersonas.find(p => p.id === compareSelection[0])?.name} vs {visiblePersonas.find(p => p.id === compareSelection[1])?.name}</span>}
+          <button className="persona-compare-clear" onClick={() => { setCompareSelection([]); setComparePair(null) }} title="Clear selection"><X size={11} /></button>
+          <button className="persona-compare-exit" onClick={() => { setCompareMode(false); setCompareSelection([]); setComparePair(null) }} title="Exit compare mode (Esc)"><X size={11} /> Exit</button>
+        </div>
+      )}
+      {compareMode && comparePair && (
+        <div className="persona-compare-diff">
+          <DiffViewer diff={makePersonaConfigDiff(comparePair)} filename="persona-config.md" />
         </div>
       )}
 
@@ -799,6 +883,16 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
             analytics={analyticsCache[persona.id] ?? null}
             selected={selectedPersonas.has(persona.id)}
             onToggleSelect={() => handleToggleSelect(persona.id)}
+            compareMode={compareMode}
+            compareSelected={compareSelection.includes(persona.id)}
+            onCompareToggle={() => {
+              setCompareSelection(prev => {
+                if (prev.includes(persona.id)) return prev.filter(id => id !== persona.id)
+                if (prev.length >= 2) return prev
+                return [...prev, persona.id]
+              })
+              setComparePair(null)
+            }}
             onToggleExpand={() => setExpandedId(expandedId === persona.id ? null : persona.id)}
             onRun={() => handleRun(persona.id)}
             onStop={() => handleStop(persona.id)}
@@ -1284,6 +1378,9 @@ interface PersonaCardProps {
   analytics: PersonaAnalytics | null
   selected: boolean
   onToggleSelect: () => void
+  compareMode?: boolean
+  compareSelected?: boolean
+  onCompareToggle?: () => void
   onToggleExpand: () => void
   onRun: () => void
   onStop: () => void
@@ -1305,6 +1402,7 @@ interface PersonaCardProps {
 
 function PersonaCard({
   persona, expanded, instances, allPersonas, analytics, selected, onToggleSelect,
+  compareMode, compareSelected, onCompareToggle,
   onToggleExpand, onRun, onStop, onToggle, onDrain, onDelete, onDuplicate, onFocusInstance, onViewFile, onEditFile, onEditMeta, onScheduleSave, onWhisper, onDeleteNote, onUpdateNote, cronsPaused, onContextMenu
 }: PersonaCardProps) {
   const [editingSchedule, setEditingSchedule] = useState(false)
@@ -1386,9 +1484,13 @@ function PersonaCard({
   const sections = expanded ? allSections : {}
 
   return (
-    <div className={`persona-list-row ${isRunning ? 'running' : persona.enabled ? 'enabled' : 'disabled'}`}>
+    <div className={`persona-list-row ${isRunning ? 'running' : persona.enabled ? 'enabled' : 'disabled'}${compareSelected ? ' compare-selected' : ''}`}>
       {/* List mode — compact single-line row */}
-      <div className="persona-list-row-main" onClick={onToggleExpand} onContextMenu={onContextMenu}>
+      <div
+        className="persona-list-row-main"
+        onClick={compareMode ? (e) => { e.stopPropagation(); onCompareToggle?.() } : onToggleExpand}
+        onContextMenu={onContextMenu}
+      >
           <input
             type="checkbox"
             className="persona-select-checkbox"

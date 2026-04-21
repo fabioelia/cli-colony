@@ -1065,6 +1065,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Audit', detail: 'Run an AI-powered audit of all persona configurations. Detects broken cron schedules, impossible permission combos, stale model names, and other misconfigurations. Results show severity (HIGH/MEDIUM/LOW) and actionable fix suggestions.', icon: 'ShieldCheck' },
           { label: 'List / Schedule / Triggers tabs', detail: 'List shows persona cards. Schedule shows a 24-hour heatmap of when each persona fires. Triggers shows a directed graph of cross-persona trigger chains.', icon: 'CalendarClock' },
           { label: 'Search', detail: 'Filter the persona list by name or ID. Case-insensitive substring match. Clear with the ✕ button.', icon: 'Search' },
+          { label: 'Compare', detail: 'Enter compare mode to diff two persona configs side-by-side. Click the Compare button (GitCompare icon) to toggle. In compare mode, click any two persona cards to select them — a unified diff of their full config files (frontmatter + body) appears below the list. Clear selection with the ✕ button, exit compare mode with Escape or the Exit button.', icon: 'GitCompare' },
         ],
       },
       {

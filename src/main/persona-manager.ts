@@ -1399,3 +1399,17 @@ export function stopWatcher(): void {
     watcher = null
   }
 }
+
+export function getPersonaConfigPair(
+  idA: string,
+  idB: string,
+): { a: { name: string; content: string }; b: { name: string; content: string } } | null {
+  const personas = getPersonaList()
+  const pA = personas.find(p => p.id === idA)
+  const pB = personas.find(p => p.id === idB)
+  if (!pA || !pB) return null
+  const { content: contentA } = getPersonaContent(pA.id)
+  const { content: contentB } = getPersonaContent(pB.id)
+  if (!contentA || !contentB) return null
+  return { a: { name: pA.name, content: contentA }, b: { name: pB.name, content: contentB } }
+}

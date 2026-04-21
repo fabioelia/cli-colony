@@ -19998,6 +19998,20 @@ button.session-trigger-chain-btn:hover {
   background: var(--bg-hover);
 }
 
+/* Compare mode */
+.persona-compare-bar {
+  display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-secondary));
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  font-size: 12px; color: var(--text-secondary);
+}
+.persona-compare-clear { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: transparent; border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; display: flex; align-items: center; }
+.persona-compare-clear:hover { color: var(--text-primary); border-color: var(--text-muted); }
+.persona-compare-exit { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: var(--bg-active); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; gap: 3px; margin-left: auto; }
+.persona-compare-exit:hover { color: var(--text-primary); }
+.persona-list-row.compare-selected { outline: 1px solid var(--accent); outline-offset: -1px; }
+.persona-compare-diff { border-top: 1px solid var(--border); overflow: auto; max-height: 500px; }
+
 .persona-list-expand {
   flex-shrink: 0;
   color: var(--text-muted);
