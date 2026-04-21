@@ -499,6 +499,7 @@ export interface ClaudeManagerAPI {
     deleteGeneralTag: (cwd: string, tagName: string) => Promise<void>
     pushTag: (cwd: string, tagName: string) => Promise<void>
     diffRange: (cwd: string, from: string, to?: string, ignoreWhitespace?: boolean) => Promise<{ stat: string; diff: string }>
+    diffRangeFile: (cwd: string, from: string, to: string, file: string) => Promise<string>
     createPR: (cwd: string, title: string, body: string, baseBranch?: string, draft?: boolean) => Promise<{ url: string }>
     prTemplate: (cwd: string) => Promise<string | null>
     defaultBranch: (cwd: string) => Promise<string>
@@ -1228,6 +1229,7 @@ const api: ClaudeManagerAPI = {
     deleteGeneralTag: (cwd, tagName) => ipcRenderer.invoke('git:deleteGeneralTag', cwd, tagName),
     pushTag: (cwd, tagName) => ipcRenderer.invoke('git:pushTag', cwd, tagName),
     diffRange: (cwd, from, to, ignoreWhitespace) => ipcRenderer.invoke('git:diffRange', cwd, from, to, ignoreWhitespace),
+    diffRangeFile: (cwd, from, to, file) => ipcRenderer.invoke('git:diffRangeFile', cwd, from, to, file) as Promise<string>,
     createPR: (cwd, title, body, baseBranch, draft) => ipcRenderer.invoke('git:createPR', cwd, title, body, baseBranch, draft),
     prTemplate: (cwd) => ipcRenderer.invoke('git:prTemplate', cwd) as Promise<string | null>,
     defaultBranch: (cwd) => ipcRenderer.invoke('git:defaultBranch', cwd),

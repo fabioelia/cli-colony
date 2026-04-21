@@ -255,6 +255,19 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Click to focus', detail: 'Click any session bar to focus that session in the sidebar (if still alive).' },
         ],
       },
+      {
+        name: 'Changes Tab',
+        position: 'Tab bar — "Changes"',
+        items: [
+          { label: 'Cross-session diff view', detail: 'Aggregates all file changes committed by sessions within the selected timeframe. Lets you see what Colony actually changed across all sessions without clicking into each one individually.', icon: 'GitCompareArrows' },
+          { label: 'Timeframe selector', detail: 'Filter by last 4h, 12h, 24h, or 7d. Default is 24h. Artifacts are filtered by their collection timestamp.', icon: 'Clock' },
+          { label: 'Summary bar', detail: 'Shows total files changed, number of contributing sessions, and aggregate +additions / -deletions across the selected timeframe.' },
+          { label: 'File rows', detail: 'Each row shows the file path, net +additions/-deletions, and attribution chips for the sessions that touched it. Click to expand and see the inline diff.' },
+          { label: 'Multi-touch badge', detail: 'Files touched by more than one session show an amber "N sessions" badge. Useful for spotting coordination or conflicts.', icon: 'Users' },
+          { label: 'Inline diff', detail: 'Expanding a file row fetches and renders the actual git diff for that file across the contributing commits. Uses the same DiffViewer as the Review and Changes panels — supports unified/split view toggle.' },
+          { label: 'Project grouping', detail: 'When sessions span multiple projects (different working directories), files are grouped by project with a subtle header.' },
+        ],
+      },
     ],
   },
   sessions: {

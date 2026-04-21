@@ -2,11 +2,12 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Home, Play, Plus, Zap, Clock, AlertCircle, Layers,
   CheckCircle2, XCircle, Circle, Users, FolderOpen, Activity, GanttChart, BarChart3, X, Eye, Square, Pin, PinOff,
-  ChevronLeft, ChevronRight, Calendar, RotateCcw, Search, MessageSquare, Trash2, Server, Download, Gauge, Terminal, GitCommit, ClipboardCopy, FileText, ChevronDown, ChevronsUpDown
+  ChevronLeft, ChevronRight, Calendar, RotateCcw, Search, MessageSquare, Trash2, Server, Download, Gauge, Terminal, GitCommit, ClipboardCopy, FileText, ChevronDown, ChevronsUpDown, GitCompareArrows
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import MarkdownViewer from './MarkdownViewer'
 import SessionTimeline from './SessionTimeline'
+import OverviewChangesTab from './OverviewChangesTab'
 import { nextRuns } from '../../../shared/cron'
 import type { ClaudeInstance, ActivityEvent, PersonaInfo, ApprovalRequest, TaskBoardItem, PersonaHealthEntry, EnvStatus, ContextUsage, SessionArtifact } from '../../../preload'
 
@@ -66,7 +67,7 @@ function getModelLabel(args: string[]): string | null {
   return raw.length > 8 ? raw.slice(0, 8) : raw
 }
 
-type OverviewTab = 'dashboard' | 'timeline'
+type OverviewTab = 'dashboard' | 'timeline' | 'changes'
 
 export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewSession, onNavigate, onKill, onRestart, onRemove, rateLimitState }: Props) {
   const [tab, setTab] = useState<OverviewTab>('dashboard')
@@ -435,6 +436,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
         <div className="panel-header-tabs">
           <button className={`panel-header-tab${tab === 'dashboard' ? ' active' : ''}`} onClick={() => setTab('dashboard')}>Dashboard</button>
           <button className={`panel-header-tab${tab === 'timeline' ? ' active' : ''}`} onClick={() => setTab('timeline')}><GanttChart size={11} /> Timeline</button>
+          <button className={`panel-header-tab${tab === 'changes' ? ' active' : ''}`} onClick={() => setTab('changes')}><GitCompareArrows size={11} /> Changes</button>
         </div>
         <div className="panel-header-spacer" />
         <HelpPopover topic="overview" align="right" />
@@ -442,6 +444,8 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
 
       {tab === 'timeline' ? (
         <SessionTimeline instances={instances} onFocusInstance={onFocusInstance} />
+      ) : tab === 'changes' ? (
+        <OverviewChangesTab />
       ) : (
       <div className="colony-overview-content">
         {/* Stats row */}

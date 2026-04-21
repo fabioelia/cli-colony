@@ -493,6 +493,17 @@ export function registerGitHandlers(): void {
     } catch { return 'main' }
   })
 
+  ipcMain.handle('git:diffRangeFile', async (_e, cwd: string, from: string, to: string, file: string): Promise<string> => {
+    await assertGitRepo(cwd)
+    const refPattern = /^[a-zA-Z0-9_./:Z^-]+$/
+    if (!refPattern.test(from)) throw new Error('Invalid "from" ref')
+    if (!refPattern.test(to)) throw new Error('Invalid "to" ref')
+    const { stdout } = await execFileAsync(resolveCommand('git'), [
+      'diff', `${from}..${to}`, '--', file,
+    ], { cwd, timeout: 15000, encoding: 'utf-8', maxBuffer: 5 * 1024 * 1024 })
+    return stdout
+  })
+
   ipcMain.handle('git:fileDiff', async (_e, cwd: string, file: string): Promise<string> => {
     await assertGitRepo(cwd)
     const { stdout: staged } = await execFileAsync(resolveCommand('git'), ['diff', '--cached', '--', file], {
