@@ -332,7 +332,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [outputPreview, setOutputPreview] = useState<{ name: string; content: string } | null>(null)
   const [expandedTab, setExpandedTab] = useState<'yaml' | 'flow' | 'docs' | 'memory' | 'outputs' | 'history' | 'debug'>('yaml')
   type StageTrace = { index: number; actionType: string; sessionName?: string; sessionId?: string; model?: string; autoResolved?: boolean; durationMs: number; startedAt?: number; completedAt?: number; success: boolean; error?: string; responseSnippet?: string; subStages?: StageTrace[] }
-  const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; sessionIds?: string[]; stages?: StageTrace[] }>>([])
+  const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; sessionIds?: string[]; stages?: StageTrace[]; dedupAttempt?: number; dedupMaxRetries?: number }>>([])
   const [expandedHistoryRows, setExpandedHistoryRows] = useState<Set<number>>(new Set())
   const [comparedRuns, setComparedRuns] = useState<Set<number>>(new Set())
   const [showComparison, setShowComparison] = useState(false)
@@ -1783,6 +1783,11 @@ ${modelLine}  prompt: |
                                   {entry.sessionIds && entry.sessionIds.length > 0 && (
                                     <span className="pipeline-history-sessions">
                                       {entry.sessionIds.length} sess
+                                    </span>
+                                  )}
+                                  {entry.dedupAttempt != null && entry.dedupMaxRetries != null && (
+                                    <span className="pipeline-history-retry-badge" title="Dedup retry attempt">
+                                      {entry.dedupAttempt + 1}/{entry.dedupMaxRetries + 1}
                                     </span>
                                   )}
                                   {p.budget && entry.totalCost != null && (

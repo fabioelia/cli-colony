@@ -15603,6 +15603,16 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-muted);
 }
 
+.pipeline-history-retry-badge {
+  font-size: 10px;
+  color: var(--warning);
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+
 .pipeline-history-row.has-stages {
   cursor: pointer;
 }

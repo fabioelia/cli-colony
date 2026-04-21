@@ -115,6 +115,7 @@ export interface ActionDef {
 export interface DedupDef {
   key: string
   ttl?: number // seconds
+  maxRetries?: number // re-fire up to N times when same content SHA but spawned session has exited
 }
 
 export interface BudgetDef {
@@ -147,11 +148,17 @@ export interface PendingApproval {
   reject?: (reason: string) => void
 }
 
+interface FiredKeyEntry {
+  timestamp: number
+  sessionId?: string
+  retryCount: number // 0 = initial fire, 1 = first retry, etc.
+}
+
 interface PipelineState {
   enabled?: boolean
   lastPollAt: string | null
   lastMatchAt: string | null
-  firedKeys: Record<string, number> // dedup key -> timestamp ms
+  firedKeys: Record<string, FiredKeyEntry | number> // dedup key -> entry (or legacy timestamp)
   contentHashes: Record<string, string> // dedup key -> last seen content SHA
   fireCount: number
   lastFiredAt: string | null
@@ -367,6 +374,10 @@ export interface PipelineRunEntry {
   sessionIds?: string[] // all session IDs created during this run
   totalCost?: number
   stoppedBudget?: boolean
+  /** 0 = initial attempt, 1 = first retry, etc. Only set when maxRetries > 0 */
+  dedupAttempt?: number
+  /** Mirrors pipeline dedup.maxRetries — for "Attempt N/M" display */
+  dedupMaxRetries?: number
 }
 
 const MAX_HISTORY_ENTRIES = 20
@@ -480,6 +491,12 @@ export function resolveTemplate(template: string, ctx: TriggerContext): string {
 
 // ---- Dedup ----
 
+function normalizeFiredEntry(val: FiredKeyEntry | number | undefined): FiredKeyEntry | null {
+  if (val === undefined || val === null) return null
+  if (typeof val === 'number') return { timestamp: val, retryCount: 0 }
+  return val
+}
+
 function isDuplicate(pipelineName: string, key: string, ttlSeconds: number, contentSha?: string): boolean {
   const p = pipelines.get(pipelineName)
   if (!p) return false
@@ -489,7 +506,7 @@ function isDuplicate(pipelineName: string, key: string, ttlSeconds: number, cont
     if (!p.state.contentHashes) p.state.contentHashes = {}
     const lastSha = p.state.contentHashes[key]
     if (lastSha === contentSha) {
-      // Content hasn't changed — skip regardless of TTL
+      // Content hasn't changed — skip regardless of TTL (retry check happens at call site)
       return true
     }
     // Content is new or changed — allow firing even within TTL
@@ -497,15 +514,51 @@ function isDuplicate(pipelineName: string, key: string, ttlSeconds: number, cont
   }
 
   // No content SHA — fall back to time-based dedup
-  const lastFired = p.state.firedKeys[key]
-  if (!lastFired) return false
-  return Date.now() - lastFired < ttlSeconds * 1000
+  const entry = normalizeFiredEntry(p.state.firedKeys[key])
+  if (!entry) return false
+  return Date.now() - entry.timestamp < ttlSeconds * 1000
 }
 
-async function recordFired(pipelineName: string, key: string, contentSha?: string): Promise<void> {
+async function getRetryAttempt(pipelineName: string, key: string, maxRetries: number): Promise<number | null> {
+  const p = pipelines.get(pipelineName)
+  if (!p) return null
+  const entry = normalizeFiredEntry(p.state.firedKeys[key])
+  if (!entry) return null
+
+  if (entry.retryCount >= maxRetries) {
+    // Exhausted — emit attention event (fire once per exhaustion by checking flag)
+    const exhaustedKey = `${key}:exhausted:${entry.retryCount}`
+    if (!p.state.contentHashes?.[exhaustedKey]) {
+      if (!p.state.contentHashes) p.state.contentHashes = {}
+      p.state.contentHashes[exhaustedKey] = '1'
+      const label = p.def.name
+      appendActivity({
+        source: 'pipeline',
+        name: pipelineName,
+        summary: `CI unfixable after ${maxRetries + 1} attempts — pipeline "${label}"`,
+        level: 'error',
+      })
+    }
+    return null
+  }
+
+  if (!entry.sessionId) return null
+  const instances = await getAllInstances()
+  const sess = instances.find(i => i.id === entry.sessionId)
+  if (sess && sess.status === 'running') return null // still running — wait
+  return entry.retryCount // eligible for retry; caller uses this as the current attempt index
+}
+
+async function recordFired(pipelineName: string, key: string, contentSha?: string, sessionId?: string): Promise<void> {
   const p = pipelines.get(pipelineName)
   if (!p) return
-  p.state.firedKeys[key] = Date.now()
+
+  const existing = normalizeFiredEntry(p.state.firedKeys[key])
+  const sameContent = contentSha && p.state.contentHashes?.[key] === contentSha
+  const newRetryCount = sameContent && existing ? existing.retryCount + 1 : 0
+
+  p.state.firedKeys[key] = { timestamp: Date.now(), sessionId, retryCount: newRetryCount }
+
   if (contentSha) {
     if (!p.state.contentHashes) p.state.contentHashes = {}
     p.state.contentHashes[key] = contentSha
@@ -516,8 +569,9 @@ async function recordFired(pipelineName: string, key: string, contentSha?: strin
   // Clean expired keys
   const now = Date.now()
   const ttl = (p.def.dedup?.ttl || 3600) * 1000
-  for (const [k, ts] of Object.entries(p.state.firedKeys)) {
-    if (now - ts > ttl * 2) {
+  for (const [k, entryVal] of Object.entries(p.state.firedKeys)) {
+    const e = normalizeFiredEntry(entryVal)
+    if (e && now - e.timestamp > ttl * 2) {
       delete p.state.firedKeys[k]
       if (p.state.contentHashes) delete p.state.contentHashes[k]
     }
@@ -1140,6 +1194,8 @@ async function runPoll(pipelineName: string, promptOverride?: string): Promise<v
   let totalCost = 0
   let stoppedBudget = false
   let budgetWarnSent = false
+  let runDedupAttempt: number | undefined
+  let runDedupMaxRetries: number | undefined
 
   try {
     // Fetch configured repo slugs once for template resolution
@@ -1201,9 +1257,19 @@ async function runPoll(pipelineName: string, promptOverride?: string): Promise<v
 
       const dedup = p.def.dedup || { key: '{{timestamp}}', ttl: 3600 }
       const dedupKey = resolveTemplate(dedup.key, ctx)
+      let dedupRetryAttempt: number | null = null
       if (isDuplicate(pipelineName, dedupKey, dedup.ttl || 3600, ctx.contentSha)) {
-        plog(pipelineName, `⊘ dedup: already processed ${dedupKey} with same content`)
-        continue
+        const maxRetries = dedup.maxRetries ?? 0
+        if (maxRetries > 0 && ctx.contentSha) {
+          dedupRetryAttempt = await getRetryAttempt(pipelineName, dedupKey, maxRetries)
+        }
+        if (dedupRetryAttempt === null) {
+          plog(pipelineName, `⊘ dedup: already processed ${dedupKey} with same content`)
+          continue
+        }
+        plog(pipelineName, `↻ dedup retry ${dedupRetryAttempt + 1}/${maxRetries} for ${dedupKey} (session exited)`)
+        runDedupAttempt = dedupRetryAttempt + 1
+        runDedupMaxRetries = maxRetries
       }
       if (pendingApprovalKeys.has(dedupKey)) {
         plog(pipelineName, `⊘ approval already queued for ${dedupKey}`)
@@ -1323,7 +1389,19 @@ async function runPoll(pipelineName: string, promptOverride?: string): Promise<v
         plog(pipelineName, `→ using prompt override (${promptOverride.length} chars)`)
         appendActivity({ source: 'pipeline', name: pipelineName, summary: `Pipeline "${pipelineName}" manually triggered with custom prompt`, level: 'info' })
       }
-      plog(pipelineName, `→ firing action: ${p.def.action.type} for ${prLabel}`)
+
+      // Build retry-aware prompt prefix for dedup retries
+      let effectivePromptOverride = promptOverride
+      if (dedupRetryAttempt !== null) {
+        const maxRetries = dedup.maxRetries ?? 0
+        const failedNames = ctx.checks?.checks
+          .filter(c => c.conclusion === 'failure' || c.conclusion === 'error')
+          .map(c => c.name).join(', ') || 'unknown'
+        const retryPrefix = `[RETRY ${dedupRetryAttempt + 1}/${maxRetries}] Previous fix attempt did not resolve CI failures. Still failing: ${failedNames}.\n\n`
+        effectivePromptOverride = retryPrefix + (promptOverride || '')
+      }
+
+      plog(pipelineName, `→ firing action: ${p.def.action.type} for ${prLabel}${dedupRetryAttempt !== null ? ` (retry ${dedupRetryAttempt + 1})` : ''}`)
       const stageStart = Date.now()
       const resolvedAction = applyDefaultModel(p.def.action, p.def.default_model)
       const stageSessionName = resolveTemplate(resolvedAction.name || 'Pipeline Session', ctx)
@@ -1334,7 +1412,7 @@ async function runPoll(pipelineName: string, promptOverride?: string): Promise<v
       let stageRetryCount = 0
       let stageSessionId: string | undefined
       try {
-        const result = await fireActionWithRetry(resolvedAction, ctx, p.def.name, promptOverride)
+        const result = await fireActionWithRetry(resolvedAction, ctx, p.def.name, effectivePromptOverride || undefined)
         stageCost = result.cost
         stageResponseSnippet = result.responseSnippet
         stageSubStages = result.subStages
@@ -1379,7 +1457,7 @@ async function runPoll(pipelineName: string, promptOverride?: string): Promise<v
         }
       }
 
-      await recordFired(pipelineName, dedupKey, ctx.contentSha)
+      await recordFired(pipelineName, dedupKey, ctx.contentSha, stageSessionId)
       fired = true
       plog(pipelineName, `✓ action fired successfully`)
       const firedSummary = ctx.pr
@@ -1450,6 +1528,8 @@ async function runPoll(pipelineName: string, promptOverride?: string): Promise<v
       sessionIds: allSessionIds.length > 0 ? allSessionIds : undefined,
       totalCost: totalCost > 0 ? totalCost : undefined,
       stoppedBudget: stoppedBudget || undefined,
+      dedupAttempt: runDedupAttempt,
+      dedupMaxRetries: runDedupMaxRetries,
     })
 
     // Trim debug log to the last N iterations
