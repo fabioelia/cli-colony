@@ -363,6 +363,8 @@ export interface PersonaInfo {
   monthlyCostUsd?: number
   /** Count of unresolved attention requests from this persona */
   attentionCount: number
+  /** Current auto-retry attempt count (0 = not retrying) */
+  retryCount: number
   /** First meaningful line of the latest brief (max 120 chars), or null if no brief exists */
   briefPreview: string | null
   /** Display color (hex), e.g. "#a78bfa" */

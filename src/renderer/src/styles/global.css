@@ -20001,6 +20001,11 @@ button.session-trigger-chain-btn:hover {
   color: var(--text-muted);
   font-style: italic;
 }
+.persona-list-badge.retry {
+  background: rgba(249, 115, 22, 0.12);
+  color: #f97316;
+  border: 1px solid rgba(249, 115, 22, 0.3);
+}
 
 .persona-cost-badge {
   font-size: 9px;

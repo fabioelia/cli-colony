@@ -51,6 +51,7 @@ export interface PersonaState {
   triggeredBy: string | null
   triggerType: string | null
   lastSkipped: number | null
+  retryCount: number
 }
 
 const stateFile = new JsonFile<Record<string, PersonaState>>(STATE_PATH, {})
@@ -74,7 +75,7 @@ export function saveState(): void {
 
 export function getState(name: string): PersonaState {
   if (!stateCache[name]) {
-    stateCache[name] = { lastRunAt: null, runCount: 0, activeSessionId: null, enabled: false, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null, triggeredBy: null, triggerType: null, lastSkipped: null }
+    stateCache[name] = { lastRunAt: null, runCount: 0, activeSessionId: null, enabled: false, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null, triggeredBy: null, triggerType: null, lastSkipped: null, retryCount: 0 }
   }
   return stateCache[name]
 }
@@ -121,6 +122,8 @@ export interface PersonaFrontmatter {
    * commits have been made since the last run in the persona's working_directory.
    */
   run_condition?: string
+  /** Auto-retry on non-zero exit: max retry attempts before firing trigger chain. 0 = disabled. */
+  retry_on_failure?: number
 }
 
 function parseFrontmatter(content: string): PersonaFrontmatter | null {
@@ -150,6 +153,7 @@ function parseFrontmatter(content: string): PersonaFrontmatter | null {
     monthly_budget_usd: parseFloat(val('monthly_budget_usd')) || undefined,
     conflict_group: val('conflict_group') || undefined,
     run_condition: val('run_condition') || undefined,
+    retry_on_failure: parseInt(val('retry_on_failure')) || undefined,
   }
 
   if (!result.name) return null
@@ -262,6 +266,7 @@ export function getPersonaList(): PersonaInfo[] {
         monthlyCostUsd: fm.monthly_budget_usd ? (() => {
           try { return readPersonaMemory(personaId).costTracking?.totalUsd ?? 0 } catch { return 0 }
         })() : undefined,
+        retryCount: state.retryCount ?? 0,
         attentionCount: getAttentionCount(personaId),
         color: fm.color || undefined,
         briefPreview: (() => {
@@ -545,6 +550,7 @@ export type TriggerSource =
   | { type: 'manual' }
   | { type: 'cron'; schedule: string }
   | { type: 'handoff'; from: string }
+  | { type: 'retry' }
 
 export async function runPersona(fileName: string, trigger: TriggerSource = { type: 'manual' }, customMessage?: string, parentId?: string): Promise<string> {
   const filePath = resolvedPersonaPath(fileName)
@@ -555,6 +561,11 @@ export async function runPersona(fileName: string, trigger: TriggerSource = { ty
   if (!fm) throw new Error(`Invalid persona file: ${fileName}`)
 
   const state = getState(fm.name)
+
+  // Reset retry count on any non-retry start (manual, cron, handoff)
+  if (trigger.type !== 'retry') {
+    state.retryCount = 0
+  }
 
   // Check self-duplicate (max_sessions: 1 enforcement — applies to all personas)
   if (state.activeSessionId) {
@@ -975,6 +986,46 @@ export async function onSessionExit(instanceId: string): Promise<void> {
           sessionId: instanceId,
         })
         checkDailyCostBudget()
+
+        // Auto-retry on failure
+        if (failed && !budgetExceeded) {
+          try {
+            const c = readFileSync(join(PERSONAS_DIR, personaFile), 'utf-8')
+            const fm = parseFrontmatter(c)
+            const retryMax = fm?.retry_on_failure ?? 0
+            const currentRetry = state.retryCount ?? 0
+            if (retryMax > 0 && currentRetry < retryMax) {
+              state.retryCount = currentRetry + 1
+              const attempt = state.retryCount
+              const errorContext = (state.lastRunOutput || '').slice(-500)
+              const retryMessage = `Previous attempt failed (exit code ${exitCode}). Error context:\n${errorContext}\n\nRetry attempt ${attempt} of ${retryMax}.`
+              appendActivity({
+                source: 'persona',
+                name,
+                summary: `Persona "${name}" auto-retrying (attempt ${attempt} of ${retryMax})`,
+                level: 'info',
+                project: workingDir ? basename(workingDir) : undefined,
+              })
+              const retryFile = personaFile
+              setTimeout(() => {
+                runPersona(retryFile, { type: 'retry' }, retryMessage).catch(err => {
+                  console.log(`[persona] retry launch failed for "${name}": ${err.message}`)
+                })
+              }, 30_000)
+              continue  // Skip trigger chain — retry takes priority
+            } else if (retryMax > 0) {
+              // All retries exhausted — reset count and notify
+              state.retryCount = 0
+              notify(
+                `Colony: ${name} failed after ${retryMax} retries`,
+                `All ${retryMax} retry attempt${retryMax !== 1 ? 's' : ''} exhausted`,
+                'personas'
+              ).catch(() => {})
+            }
+          } catch { /* non-fatal */ }
+        } else if (!failed) {
+          state.retryCount = 0  // Reset on success
+        }
 
         // Track monthly cost and auto-pause if budget exceeded
         if (sessionCost > 0) {

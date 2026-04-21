@@ -1247,6 +1247,11 @@ function PersonaCard({
             )}
           </span>
           {isRunning && <span className="persona-list-badge running">Running</span>}
+          {!isRunning && (persona.retryCount ?? 0) > 0 && (
+            <span className="persona-list-badge retry" title={`Auto-retrying: attempt ${persona.retryCount}`}>
+              ↺ {persona.retryCount}
+            </span>
+          )}
           {isRunning && persona.triggeredBy && (
             <span className="persona-list-badge triggered-by" title={`Triggered by ${persona.triggeredBy}`}>
               ↳ {persona.triggeredBy.length > 18 ? persona.triggeredBy.slice(0, 16) + '…' : persona.triggeredBy}
