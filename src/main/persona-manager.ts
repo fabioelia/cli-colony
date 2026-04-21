@@ -934,6 +934,7 @@ export async function onSessionExit(instanceId: string): Promise<void> {
         summary: `Persona "${name}" ${exitLabel} session${commitLabel}`,
         level: failed ? 'warn' : 'info',
         sessionId: instanceId,
+        project: workingDir ? basename(workingDir) : undefined,
         details: { type: 'session-outcome', duration: durationSec, commitsCount, filesChanged, exitCode, costUsd: sessionCost },
       })
       const notifyTitle = failed ? `Colony: ${name} run failed` : `Colony: ${name} run complete`
@@ -988,6 +989,7 @@ export async function onSessionExit(instanceId: string): Promise<void> {
                 name,
                 summary: `Monthly budget exceeded ($${tracking.totalUsd.toFixed(2)} / $${fm.monthly_budget_usd}) — auto-paused`,
                 level: 'warn',
+                project: workingDir ? basename(workingDir) : undefined,
               })
               notify(
                 `Colony: ${name} paused — monthly budget exceeded`,

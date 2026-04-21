@@ -1463,7 +1463,7 @@ async function runPoll(pipelineName: string, promptOverride?: string): Promise<v
       const firedSummary = ctx.pr
         ? `Pipeline "${pipelineName}" fired for PR #${ctx.pr.number} (${ctx.pr.branch})`
         : `Pipeline "${pipelineName}" fired`
-      appendActivity({ source: 'pipeline', name: pipelineName, summary: firedSummary, level: 'info' })
+      appendActivity({ source: 'pipeline', name: pipelineName, summary: firedSummary, level: 'info', project: ctx.repo?.name || (p.def.action.workingDirectory ? basename(resolveTemplate(p.def.action.workingDirectory, ctx)) : undefined) })
       notify(`Colony: Pipeline fired`, firedSummary, 'pipelines')
     }
 

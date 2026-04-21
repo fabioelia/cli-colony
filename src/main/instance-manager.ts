@@ -7,7 +7,7 @@
 
 import { app, BrowserWindow, shell } from 'electron'
 import { exec, execFile } from 'child_process'
-import { join } from 'path'
+import { join, basename } from 'path'
 import { existsSync, statSync } from 'fs'
 import { getDaemonRouter } from './daemon-router'
 import type { UpgradeState } from './daemon-router'
@@ -200,6 +200,7 @@ export function wireDaemonEvents(): void {
                 summary: `Budget exceeded — session stopped ($${cost.toFixed(2)} / $${cap.toFixed(2)})`,
                 level: 'warn',
                 sessionId: instanceId,
+                project: basename(inst.workingDirectory || '') || undefined,
               }).catch(() => {})
             }
           }).catch(() => {})
@@ -291,6 +292,7 @@ export function wireDaemonEvents(): void {
           : `Session exited with code ${exitCode}`,
         level: exitCode === 0 ? 'info' : 'warn',
         sessionId: instanceId,
+        project: basename(inst.workingDirectory || '') || undefined,
       }).catch(() => {})
 
       if (exitCode !== 0 && !inst.name.startsWith('Persona: ')) {
@@ -518,6 +520,7 @@ export async function createInstance(opts: {
     summary: `Session started in ${(cwd || '').split('/').pop() || cwd}`,
     level: 'info',
     sessionId: inst.id,
+    project: basename(cwd || '') || undefined,
   }).catch(() => {})
 
   // Track in recent sessions

@@ -87,6 +87,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Source chips', detail: 'Toggle visibility of events by source: Persona, Pipeline, Environment, or Session. At least one must be active.' },
           { label: 'Level chips', detail: 'Toggle by severity: Info (normal), Warn (attention needed), Error (failures). Badges show counts.' },
+          { label: 'Project chips', detail: 'When events span 2+ projects, a Project filter row appears. Click a chip to show only events from that project. Old events without project data appear under "unknown".' },
           { label: 'Search', detail: 'Free-text filter — matches against event name and summary.' },
           { label: 'Clear all', detail: 'Remove all activity events and reset the feed. Requires confirmation.', icon: 'Trash2' },
         ],
@@ -222,6 +223,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Text search', detail: 'Free-text search across event names and summaries. Case-insensitive substring match. Combines with source and level filters (AND logic). Shows "No matching events" when results are empty.', icon: 'Search' },
           { label: 'Source filter chips', detail: 'Filter events by source: All, Persona, Pipeline, or Env. Chips are toggles — click to select one.' },
           { label: 'Level filter chips', detail: 'Filter by severity: All, Info, Warn, or Error. Warn and Error chips show badge counts when events exist. Filters combine with source filter (AND).' },
+          { label: 'Project filter chips', detail: 'When activity events span 2 or more projects (e.g., newton, claude-electron), a project filter row appears. Click a chip to show only events from that project. Old events without project data appear under "unknown".' },
           { label: 'Show more', detail: 'Expands from 20 events (default) to 50. For today, the live ring buffer holds up to 100 events. Historical days load from daily log files with no cap.' },
           { label: 'Source icons', detail: 'Each activity item shows a source-specific icon: person icon for persona events, lightning for pipelines, terminal for sessions, server for environments. Icons use level-based coloring (default for info, amber for warn, red for error).', icon: 'Activity' },
           { label: 'Click to navigate', detail: 'Click any activity item to jump to its source — session events focus the session, persona/pipeline/env events navigate to the corresponding panel.' },

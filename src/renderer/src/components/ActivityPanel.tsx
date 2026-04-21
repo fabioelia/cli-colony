@@ -42,6 +42,7 @@ export default function ActivityPanel({ onFocusSession, onNavigate }: Props) {
   const [pendingApprovals, setPendingApprovals] = useState<ApprovalRequest[]>([])
   const [sourceFilters, setSourceFilters] = useState<Set<SourceFilter>>(new Set(['persona', 'pipeline', 'env', 'session']))
   const [levelFilters, setLevelFilters] = useState<Set<LevelFilter>>(new Set(['info', 'warn', 'error']))
+  const [projectFilter, setProjectFilter] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [showAll, setShowAll] = useState(false)
   const [typeChip, setTypeChip] = useState<TypeChip>('all')
@@ -84,15 +85,20 @@ export default function ActivityPanel({ onFocusSession, onNavigate }: Props) {
   }
 
   const query = searchQuery.toLowerCase().trim()
+  const projectChips = useMemo(() => {
+    const projects = [...new Set(events.map(e => e.project || 'unknown'))]
+    return projects.length >= 2 ? projects : []
+  }, [events])
   const filteredAll = useMemo(() => {
     return events.filter(ev => {
       if (!sourceFilters.has(ev.source)) return false
       if (!levelFilters.has(ev.level)) return false
       if (typeChip !== 'all' && typeChip !== 'approval' && ev.source !== typeChip) return false
+      if (projectFilter !== 'all' && (ev.project || 'unknown') !== projectFilter) return false
       if (query && !ev.name.toLowerCase().includes(query) && !ev.summary.toLowerCase().includes(query)) return false
       return true
     })
-  }, [events, sourceFilters, levelFilters, typeChip, query])
+  }, [events, sourceFilters, levelFilters, typeChip, projectFilter, query])
   const filtered = useMemo(() => showAll ? filteredAll : filteredAll.slice(0, 20), [filteredAll, showAll])
 
   const typeCounts = useMemo(() => ({
@@ -177,6 +183,15 @@ export default function ActivityPanel({ onFocusSession, onNavigate }: Props) {
               </button>
             ))}
           </div>
+          {projectChips.length >= 2 && (
+            <div className="activity-filter-row">
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 4, alignSelf: 'center' }}>Project:</span>
+              <button className={`activity-filter-chip${projectFilter === 'all' ? ' active' : ''}`} onClick={() => setProjectFilter('all')}>All</button>
+              {projectChips.map(p => (
+                <button key={p} className={`activity-filter-chip${projectFilter === p ? ' active' : ''}`} onClick={() => setProjectFilter(p)}>{p}</button>
+              ))}
+            </div>
+          )}
           <div className="activity-panel-search">
             <Search size={12} />
             <input

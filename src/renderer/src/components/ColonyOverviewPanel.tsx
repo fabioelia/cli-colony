@@ -368,6 +368,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
 
   const [activitySourceFilter, setActivitySourceFilter] = useState<'all' | 'persona' | 'pipeline' | 'env'>('all')
   const [activityLevelFilter, setActivityLevelFilter] = useState<'all' | 'info' | 'warn' | 'error'>('all')
+  const [activityProjectFilter, setActivityProjectFilter] = useState<string>('all')
   const [activityExpanded, setActivityExpanded] = useState(false)
   const [activityTextSearch, setActivityTextSearch] = useState('')
 
@@ -402,16 +403,22 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
     return new Date(date + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
   }
 
+  const activityProjectChips = useMemo(() => {
+    const projects = [...new Set(displayActivity.map(e => e.project || 'unknown'))]
+    return projects.length >= 2 ? projects : []
+  }, [displayActivity])
+
   const filteredActivity = useMemo(() => {
     let items = displayActivity
     if (activitySourceFilter !== 'all') items = items.filter(e => e.source === activitySourceFilter)
     if (activityLevelFilter !== 'all') items = items.filter(e => e.level === activityLevelFilter)
+    if (activityProjectFilter !== 'all') items = items.filter(e => (e.project || 'unknown') === activityProjectFilter)
     if (activityTextSearch.trim()) {
       const q = activityTextSearch.toLowerCase()
       items = items.filter(e => e.name.toLowerCase().includes(q) || e.summary.toLowerCase().includes(q))
     }
     return items.slice(0, activityExpanded ? 100 : 20)
-  }, [displayActivity, activitySourceFilter, activityLevelFilter, activityTextSearch, activityExpanded])
+  }, [displayActivity, activitySourceFilter, activityLevelFilter, activityProjectFilter, activityTextSearch, activityExpanded])
 
   const warnCount = useMemo(() => displayActivity.filter(e => e.level === 'warn').length, [displayActivity])
   const errorCount = useMemo(() => displayActivity.filter(e => e.level === 'error').length, [displayActivity])
@@ -1315,10 +1322,18 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                 </button>
               ))}
             </div>
+            {activityProjectChips.length >= 2 && (
+              <div className="activity-filter-row">
+                <button className={`activity-filter-chip${activityProjectFilter === 'all' ? ' active' : ''}`} onClick={() => setActivityProjectFilter('all')}>All</button>
+                {activityProjectChips.map(p => (
+                  <button key={p} className={`activity-filter-chip${activityProjectFilter === p ? ' active' : ''}`} onClick={() => setActivityProjectFilter(p)}>{p}</button>
+                ))}
+              </div>
+            )}
           </div>
           {filteredActivity.length === 0 ? (
             <div className="overview-empty-hint">{
-              (activityTextSearch.trim() || activitySourceFilter !== 'all' || activityLevelFilter !== 'all')
+              (activityTextSearch.trim() || activitySourceFilter !== 'all' || activityLevelFilter !== 'all' || activityProjectFilter !== 'all')
                 ? 'No matching events'
                 : isToday ? 'No activity recorded yet' : `No activity on ${formatDateLabel(selectedDate)}`
             }</div>

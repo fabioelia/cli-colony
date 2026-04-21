@@ -247,6 +247,7 @@ export interface ActivityEvent {
   summary: string
   level: 'info' | 'warn' | 'error'
   sessionId?: string
+  project?: string
   details?: Record<string, unknown>
 }
 
