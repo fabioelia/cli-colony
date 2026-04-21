@@ -1095,6 +1095,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Enable/Disable', detail: 'Toggle scheduled runs on or off without deleting the persona.' },
           { label: 'Duplicate', detail: 'Clone this persona with a new name. The copy starts disabled so you can edit it before enabling scheduled runs.', icon: 'Copy' },
           { label: 'Delete', detail: 'Remove the persona file.', icon: 'Trash2' },
+          { label: 'Run with Options', detail: 'Right-click any persona card to open "Run with Options...". Override Prompt Prefix (additional context prepended to the planning prompt), Model (use a different Claude model tier for this one run), and Budget Cap ($). All overrides are ephemeral — the persona file is not modified. Use for one-off tests: try a new model, inject extra context for a specific task, or cap spend on an exploratory run. Cmd+Enter to fire.' },
         ],
       },
       {

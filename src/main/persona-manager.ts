@@ -606,7 +606,16 @@ export type TriggerSource =
   | { type: 'handoff'; from: string }
   | { type: 'retry' }
 
-export async function runPersona(fileName: string, trigger: TriggerSource = { type: 'manual' }, customMessage?: string, parentId?: string): Promise<string> {
+export interface PersonaRunOverrides {
+  model?: string
+  maxCostUsd?: number
+  promptPrefix?: string
+}
+
+/** Per-instance cost cap overrides — used for "Run with Options" one-shot budget. */
+const _sessionCostOverrides = new Map<string, number>()
+
+export async function runPersona(fileName: string, trigger: TriggerSource = { type: 'manual' }, customMessage?: string, parentId?: string, overrides?: PersonaRunOverrides): Promise<string> {
   const filePath = resolvedPersonaPath(fileName)
   if (!existsSync(filePath)) throw new Error(`Persona file not found: ${fileName}`)
 
@@ -726,13 +735,18 @@ export async function runPersona(fileName: string, trigger: TriggerSource = { ty
     name: `Persona: ${fm.name}`,
     workingDirectory: cwd,
     color: fm.color,
-    model: fm.model,
+    model: overrides?.model || fm.model,
     args: ['--append-system-prompt-file', promptFile],
     parentId,
     triggeredBy: trigger.type === 'handoff' ? (trigger.from ?? undefined) : undefined,
   })
 
-  const kickoff = buildKickoff(filePath, trigger, customMessage)
+  if (overrides?.maxCostUsd != null) {
+    _sessionCostOverrides.set(inst.id, overrides.maxCostUsd)
+  }
+
+  const rawKickoff = buildKickoff(filePath, trigger, customMessage)
+  const kickoff = overrides?.promptPrefix ? `${overrides.promptPrefix.trim()}\n\n${rawKickoff}` : rawKickoff
   // Only apply auto-close timeout for non-manual triggers
   const timeoutMinutes = trigger.type !== 'manual' ? (fm.session_timeout_minutes || 10) : undefined
   sendTriggerWhenReady(inst.id, kickoff, timeoutMinutes, () => {
@@ -788,6 +802,7 @@ export function getPersonasDir(): string {
 
 /** Reverse-lookup: given an instance ID, return the persona's max_cost_usd if any. */
 export function getPersonaCostCap(instanceId: string): number | undefined {
+  if (_sessionCostOverrides.has(instanceId)) return _sessionCostOverrides.get(instanceId)!
   for (const [name, state] of Object.entries(stateCache)) {
     if (state.activeSessionId === instanceId) {
       // Find the persona file to read frontmatter
@@ -1011,6 +1026,7 @@ export async function onSessionExit(instanceId: string): Promise<void> {
       const contextSuffix = errorSummary ? ` — ${errorSummary}` : outputTail ? ` — ${outputTail}` : ''
       state.activeSessionId = null
       state.triggeredBy = null
+      _sessionCostOverrides.delete(instanceId)
       changed = true
       console.log(`[persona] session exited for "${name}" (${exitLabel})`)
       appendActivity({

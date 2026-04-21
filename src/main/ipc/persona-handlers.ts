@@ -4,6 +4,7 @@ import {
   createPersona, deletePersona, duplicatePersona, runPersona, stopPersona,
   togglePersona, drainPersona, getPersonasDir, setPersonaSchedule, addWhisper, deleteNote, updateNote,
   updatePersonaMeta, getPersonaArtifacts, readPersonaArtifact, askPersonas,
+  PersonaRunOverrides,
 } from '../persona-manager'
 import { getRunHistory, getPersonaAnalytics, getColonyCostTrend, getPersonaHealthSummary } from '../persona-run-history'
 import { markChecklistItem } from '../onboarding-state'
@@ -22,6 +23,7 @@ export function registerPersonaHandlers(): void {
   ipcMain.handle('persona:delete', (_e, fileName: string) => deletePersona(fileName))
   ipcMain.handle('persona:duplicate', (_e, personaId: string) => duplicatePersona(personaId))
   ipcMain.handle('persona:run', (_e, fileName: string) => runPersona(fileName))
+  ipcMain.handle('persona:runWithOptions', (_e, fileName: string, overrides: PersonaRunOverrides) => runPersona(fileName, { type: 'manual' }, undefined, undefined, overrides))
   ipcMain.handle('persona:stop', (_e, fileName: string) => stopPersona(fileName))
   ipcMain.handle('persona:toggle', (_e, fileName: string, enabled: boolean) => togglePersona(fileName, enabled))
   ipcMain.handle('persona:drain', (_e, fileName: string) => drainPersona(fileName))

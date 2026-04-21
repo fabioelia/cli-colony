@@ -203,6 +203,17 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
   // Audit
   const [auditResults, setAuditResults] = useState<AuditResult[] | null>(null)
   const [auditRunning, setAuditRunning] = useState(false)
+
+  // Right-click context menu
+  const [personaCtx, setPersonaCtx] = useState<{ persona: PersonaInfo; x: number; y: number } | null>(null)
+  const [runWithOptionsPersona, setRunWithOptionsPersona] = useState<PersonaInfo | null>(null)
+
+  useEffect(() => {
+    if (!personaCtx) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setPersonaCtx(null) }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [personaCtx])
   const [auditOpen, setAuditOpen] = useState(false)
   const [auditLastRun, setAuditLastRun] = useState<{ ts: number; issueCount: number } | null>(null)
 
@@ -362,6 +373,16 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
       }
     } catch (err) {
       console.error('Failed to run persona:', err)
+    }
+  }
+
+  const handleRunWithOptions = async (personaId: string, overrides: { model?: string; maxCostUsd?: number; promptPrefix?: string }) => {
+    setRunWithOptionsPersona(null)
+    try {
+      const instanceId = await window.api.persona.runWithOptions(personaId, overrides)
+      if (instanceId) onFocusInstance(instanceId)
+    } catch (err) {
+      console.error('Failed to run persona with options:', err)
     }
   }
 
@@ -801,9 +822,52 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
               await window.api.persona.updateNote(persona.id, index, newText)
             }}
             cronsPaused={cronsPaused}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setPersonaCtx({ persona, x: Math.min(e.clientX, window.innerWidth - 200), y: Math.min(e.clientY, window.innerHeight - 220) })
+            }}
           />
         ))}
       </div>
+
+      {/* Right-click context menu */}
+      {personaCtx && (
+        <div className="context-menu-overlay" onClick={() => setPersonaCtx(null)}>
+          <div className="context-menu" style={{ top: personaCtx.y, left: personaCtx.x }} onClick={(e) => e.stopPropagation()}>
+            <div className="context-menu-item" onClick={() => { handleRun(personaCtx.persona.id); setPersonaCtx(null) }}>Run Now</div>
+            {personaCtx.persona.enabled && (
+              <div className="context-menu-item" onClick={() => { setRunWithOptionsPersona(personaCtx.persona); setPersonaCtx(null) }}>Run with Options...</div>
+            )}
+            <div className="context-menu-divider" />
+            <div className="context-menu-item" onClick={() => { handleToggle(personaCtx.persona.id, !personaCtx.persona.enabled); setPersonaCtx(null) }}>
+              {personaCtx.persona.enabled ? 'Disable' : 'Enable'}
+            </div>
+            <div className="context-menu-item" onClick={() => { handleDrain(personaCtx.persona.id); setPersonaCtx(null) }}>Drain</div>
+            <div className="context-menu-item" onClick={() => { handleDuplicate(personaCtx.persona.id); setPersonaCtx(null) }}>Duplicate</div>
+            <div className="context-menu-item" onClick={() => { setEditingPersona(personaCtx.persona); setEditContent(personaCtx.persona.content); setPersonaCtx(null) }}>Edit</div>
+          </div>
+        </div>
+      )}
+
+      {/* Run with Options dialog */}
+      {runWithOptionsPersona && (
+        <div className="modal-overlay" onClick={() => setRunWithOptionsPersona(null)}>
+          <div className="cmd-palette" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ padding: '12px 16px 0', borderBottom: '1px solid var(--border)', marginBottom: 12 }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>Run with Options — {runWithOptionsPersona.name}</span>
+            </div>
+            <div style={{ padding: '0 16px 16px' }}>
+              <PersonaRunWithOptionsDialog
+                persona={runWithOptionsPersona}
+                onRun={(overrides) => handleRunWithOptions(runWithOptionsPersona.id, overrides)}
+                onClose={() => setRunWithOptionsPersona(null)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       </>}
 
       {/* Markdown viewer modal */}
@@ -1129,6 +1193,88 @@ function PersonaAnalyticsTab({ analytics, personaName, onRun, instances, onFocus
   )
 }
 
+const PERSONA_RUN_MODELS = [
+  { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6' },
+  { id: 'claude-opus-4-6', label: 'Opus 4.6' },
+  { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
+]
+
+function PersonaRunWithOptionsDialog({ persona, onRun, onClose }: {
+  persona: PersonaInfo
+  onRun: (overrides: { model?: string; maxCostUsd?: number; promptPrefix?: string }) => void
+  onClose: () => void
+}) {
+  const [promptPrefix, setPromptPrefix] = useState('')
+  const [model, setModel] = useState('')
+  const [maxCostUsd, setMaxCostUsd] = useState('')
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleRun()
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [onClose, promptPrefix, model, maxCostUsd])
+
+  const handleRun = () => {
+    const budget = parseFloat(maxCostUsd)
+    onRun({
+      promptPrefix: promptPrefix.trim() || undefined,
+      model: model || undefined,
+      maxCostUsd: !isNaN(budget) && budget > 0 ? budget : undefined,
+    })
+  }
+
+  const fieldStyle: React.CSSProperties = { marginBottom: 12 }
+  const labelStyle: React.CSSProperties = { display: 'block', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }
+  const inputStyle: React.CSSProperties = { width: '100%', background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 4, padding: '5px 8px', fontSize: 12, boxSizing: 'border-box' }
+
+  return (
+    <>
+      <div style={fieldStyle}>
+        <label style={labelStyle}>Prompt prefix</label>
+        <textarea
+          value={promptPrefix}
+          onChange={e => setPromptPrefix(e.target.value)}
+          rows={4}
+          style={{ ...inputStyle, fontFamily: 'monospace', resize: 'vertical' }}
+          placeholder="Additional context prepended to the persona prompt for this run only"
+          autoFocus
+        />
+      </div>
+      <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+        <div style={{ flex: 1 }}>
+          <label style={labelStyle}>Model override</label>
+          <select value={model} onChange={e => setModel(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+            <option value="">(persona default: {persona.model || 'CLI default'})</option>
+            {PERSONA_RUN_MODELS.map(m => <option key={m.id} value={m.id} title={m.id}>{m.label}</option>)}
+          </select>
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={labelStyle}>Budget cap ($)</label>
+          <input
+            type="number"
+            value={maxCostUsd}
+            onChange={e => setMaxCostUsd(e.target.value)}
+            style={inputStyle}
+            placeholder="e.g. 2.50"
+            min={0}
+            step={0.5}
+          />
+        </div>
+      </div>
+      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 0, marginBottom: 12 }}>
+        Overrides apply to this run only — persona file is not modified. Cmd+Enter to run.
+      </p>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <button onClick={onClose} style={{ padding: '5px 12px' }}>Cancel</button>
+        <button className="panel-header-btn primary" onClick={handleRun} style={{ padding: '5px 12px' }}>Run</button>
+      </div>
+    </>
+  )
+}
+
 interface PersonaCardProps {
   persona: PersonaInfo
   expanded: boolean
@@ -1153,11 +1299,12 @@ interface PersonaCardProps {
   onDeleteNote: (index: number) => Promise<void>
   onUpdateNote: (index: number, newText: string) => Promise<void>
   cronsPaused: boolean
+  onContextMenu?: (e: React.MouseEvent) => void
 }
 
 function PersonaCard({
   persona, expanded, instances, allPersonas, analytics, selected, onToggleSelect,
-  onToggleExpand, onRun, onStop, onToggle, onDrain, onDelete, onDuplicate, onFocusInstance, onViewFile, onEditFile, onEditMeta, onScheduleSave, onWhisper, onDeleteNote, onUpdateNote, cronsPaused
+  onToggleExpand, onRun, onStop, onToggle, onDrain, onDelete, onDuplicate, onFocusInstance, onViewFile, onEditFile, onEditMeta, onScheduleSave, onWhisper, onDeleteNote, onUpdateNote, cronsPaused, onContextMenu
 }: PersonaCardProps) {
   const [editingSchedule, setEditingSchedule] = useState(false)
   const [whisperOpen, setWhisperOpen] = useState(false)
@@ -1238,7 +1385,7 @@ function PersonaCard({
   return (
     <div className={`persona-list-row ${isRunning ? 'running' : persona.enabled ? 'enabled' : 'disabled'}`}>
       {/* List mode — compact single-line row */}
-      <div className="persona-list-row-main" onClick={onToggleExpand}>
+      <div className="persona-list-row-main" onClick={onToggleExpand} onContextMenu={onContextMenu}>
           <input
             type="checkbox"
             className="persona-select-checkbox"

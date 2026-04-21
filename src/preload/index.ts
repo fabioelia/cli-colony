@@ -314,6 +314,7 @@ export interface ClaudeManagerAPI {
     delete: (fileName: string) => Promise<boolean>
     duplicate: (personaId: string) => Promise<string | null>
     run: (fileName: string) => Promise<string>
+    runWithOptions: (fileName: string, overrides: { model?: string; maxCostUsd?: number; promptPrefix?: string }) => Promise<string>
     stop: (fileName: string) => Promise<boolean>
     toggle: (fileName: string, enabled: boolean) => Promise<boolean>
     drain: (fileName: string) => Promise<boolean>
@@ -1037,6 +1038,7 @@ const api: ClaudeManagerAPI = {
     delete: (fileName) => ipcRenderer.invoke('persona:delete', fileName),
     duplicate: (personaId) => ipcRenderer.invoke('persona:duplicate', personaId) as Promise<string | null>,
     run: (fileName) => ipcRenderer.invoke('persona:run', fileName),
+    runWithOptions: (fileName, overrides) => ipcRenderer.invoke('persona:runWithOptions', fileName, overrides) as Promise<string>,
     stop: (fileName) => ipcRenderer.invoke('persona:stop', fileName),
     toggle: (fileName, enabled) => ipcRenderer.invoke('persona:toggle', fileName, enabled),
     drain: (fileName) => ipcRenderer.invoke('persona:drain', fileName),
