@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import {
   HelpCircle, X, ChevronDown, ChevronRight,
-  Plus, RotateCcw, Pin, Columns2, Settings, RefreshCw, Play, Pencil,
+  Plus, RotateCcw, RotateCw, Pin, Columns2, Settings, RefreshCw, Play, Pencil,
   Download, Upload, ArrowLeft, Brain, FileText, MessageSquare, Search,
   Filter, Zap, Square, Terminal, FolderOpen, Stethoscope, Trash2,
   GitBranch, GitMerge, Info, GitFork, User, Bell, BellRing, Eye, FileDown, StickyNote, Clock, Network, ArrowUpDown,
@@ -21,7 +21,7 @@ import { helpContent, type HelpEntry, type HelpZone } from '../lib/help-content'
 
 /** Map icon name strings to actual Lucide components */
 const iconMap: Record<string, LucideIcon> = {
-  Plus, RotateCcw, Pin, Columns2, Settings, RefreshCw, Play, Pencil,
+  Plus, RotateCcw, RotateCw, Pin, Columns2, Settings, RefreshCw, Play, Pencil,
   Download, Upload, ArrowLeft, Brain, FileText, MessageSquare, Search,
   Filter, Zap, Square, Terminal, FolderOpen, Stethoscope, Trash2,
   GitBranch, GitMerge, Info, GitFork, HelpCircle, ChevronDown, ChevronRight, User, Bell, BellRing, Eye, FileDown,
