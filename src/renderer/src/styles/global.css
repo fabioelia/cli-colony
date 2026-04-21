@@ -21900,6 +21900,15 @@ button.session-trigger-chain-btn:hover {
 .schedule-run-dot.late {
   fill: var(--warning);
 }
+.schedule-run-dot.fail {
+  fill: var(--danger);
+}
+.schedule-now-line {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+  opacity: 0.7;
+}
 .schedule-overlap-band {
   fill: rgba(239,68,68,0.12);
 }
@@ -21931,6 +21940,7 @@ button.session-trigger-chain-btn:hover {
 }
 .schedule-legend-dot.green { background: var(--success); }
 .schedule-legend-dot.amber { background: var(--warning); }
+.schedule-legend-dot.red { background: var(--danger); }
 .schedule-legend-overlap {
   display: inline-block;
   width: 12px;

@@ -7,7 +7,7 @@ import {
   MessageSquare, Send, Plus, Search, Pencil, Eye, X, LayoutList, LayoutGrid,
   ShieldCheck, List, Globe, Wand2, ArrowRight, ArrowLeft, Hourglass, ArrowUpDown,
   GitPullRequest, GitMerge, GitBranch, Sparkles, RotateCw, Copy, Timer, Activity,
-  Download, Upload, PauseCircle, PlayCircle, Check, StickyNote, Network, Archive,
+  Download, Upload, PauseCircle, PlayCircle, Check, StickyNote, Network, Archive, CalendarDays,
 } from 'lucide-react'
 import type { AuditResult, GitHubRepo, SessionArtifact } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
@@ -15,6 +15,7 @@ import EmptyStateHook from './EmptyStateHook'
 import CronEditor from './CronEditor'
 import PipelineFlowDiagram from './PipelineFlowDiagram'
 import PipelineTriggerMap from './PipelineTriggerMap'
+import PipelineScheduleHeatmap from './PipelineScheduleHeatmap'
 import { describeCron, nextRuns, cronFireTimesForDay } from '../../../shared/cron'
 import { slugify } from '../../../shared/utils'
 import { firstErrorOf } from '../../../shared/pipeline-stats'
@@ -424,6 +425,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   )
   const [healthView, setHealthView] = useState(() => localStorage.getItem('pipelines-health-view') === '1')
   const [showTopologyMap, setShowTopologyMap] = useState(() => localStorage.getItem('pipelines-topology-map') === '1')
+  const [showScheduleHeatmap, setShowScheduleHeatmap] = useState(() => localStorage.getItem('pipelines-schedule-heatmap') === '1')
   const [pipelineSearch, setPipelineSearch] = useState('')
   const [pipelineStats, setPipelineStats] = useState<Map<string, PipelineStats | null>>(new Map())
   const [cronsPaused, setCronsPaused] = useState(false)
@@ -1067,7 +1069,7 @@ ${modelLine}  prompt: |
       <div className="panel-header">
         <h2><Zap size={16} /> Pipelines</h2>
         <div className="panel-header-spacer" />
-        {!healthView && !showTopologyMap && (
+        {!healthView && !showTopologyMap && !showScheduleHeatmap && (
           <div className="persona-sort-dropdown">
             <ArrowUpDown size={11} />
             <select value={sortBy} onChange={(e) => { setSortBy(e.target.value as typeof sortBy); localStorage.setItem('pipelines-sort', e.target.value) }}>
@@ -1112,18 +1114,25 @@ ${modelLine}  prompt: |
           <button
             className={`panel-header-btn${healthView ? ' active' : ''}`}
             title={healthView ? 'Switch to pipeline list' : 'Show health dashboard'}
-            onClick={() => { const next = !healthView; setHealthView(next); localStorage.setItem('pipelines-health-view', next ? '1' : '0') }}
+            onClick={() => { const next = !healthView; setHealthView(next); if (next) { setShowTopologyMap(false); setShowScheduleHeatmap(false); localStorage.setItem('pipelines-topology-map', '0'); localStorage.setItem('pipelines-schedule-heatmap', '0') }; localStorage.setItem('pipelines-health-view', next ? '1' : '0') }}
           >
             <Activity size={13} />
           </button>
           <button
             className={`panel-header-btn${showTopologyMap ? ' active' : ''}`}
             title={showTopologyMap ? 'Switch to pipeline list' : 'Show topology map'}
-            onClick={() => { const next = !showTopologyMap; setShowTopologyMap(next); localStorage.setItem('pipelines-topology-map', next ? '1' : '0') }}
+            onClick={() => { const next = !showTopologyMap; setShowTopologyMap(next); if (next) { setHealthView(false); setShowScheduleHeatmap(false); localStorage.setItem('pipelines-health-view', '0'); localStorage.setItem('pipelines-schedule-heatmap', '0') }; localStorage.setItem('pipelines-topology-map', next ? '1' : '0') }}
           >
             <Network size={13} />
           </button>
-          {!healthView && !showTopologyMap && (
+          <button
+            className={`panel-header-btn${showScheduleHeatmap ? ' active' : ''}`}
+            title={showScheduleHeatmap ? 'Switch to pipeline list' : 'Show schedule heatmap'}
+            onClick={() => { const next = !showScheduleHeatmap; setShowScheduleHeatmap(next); if (next) { setHealthView(false); setShowTopologyMap(false); localStorage.setItem('pipelines-health-view', '0'); localStorage.setItem('pipelines-topology-map', '0') }; localStorage.setItem('pipelines-schedule-heatmap', next ? '1' : '0') }}
+          >
+            <CalendarDays size={13} />
+          </button>
+          {!healthView && !showTopologyMap && !showScheduleHeatmap && (
             <button
               className={`panel-header-btn${listMode ? ' active' : ''}`}
               title={listMode ? 'Switch to card view' : 'Switch to list view'}
@@ -1199,7 +1208,7 @@ ${modelLine}  prompt: |
 
       <PipelineTimeline pipelines={pipelines} />
 
-      {showTopologyMap && !healthView && (
+      {showTopologyMap && !healthView && !showScheduleHeatmap && (
         <PipelineTriggerMap
           pipelines={pipelines}
           onSelectPipeline={(name) => {
@@ -1208,6 +1217,10 @@ ${modelLine}  prompt: |
             setExpandedPipeline(name)
           }}
         />
+      )}
+
+      {showScheduleHeatmap && !healthView && !showTopologyMap && (
+        <PipelineScheduleHeatmap pipelines={pipelines} />
       )}
 
       <div ref={askBarRef} className={`panel-ask-bar${askBarDragging ? ' dragging' : ''}`}>
@@ -1300,7 +1313,7 @@ ${modelLine}  prompt: |
         </div>
       )}
 
-      {!healthView && !showTopologyMap && <div className={`pipelines-list${listMode ? ' list-mode' : ''}`}>
+      {!healthView && !showTopologyMap && !showScheduleHeatmap && <div className={`pipelines-list${listMode ? ' list-mode' : ''}`}>
         {pipelineSearch && sortedPipelines.length > 0 && sortedPipelines.filter(p => p.name.toLowerCase().includes(pipelineSearch.toLowerCase())).length === 0 && (
           <div className="panel-search-empty">No pipelines matching &ldquo;{pipelineSearch}&rdquo;</div>
         )}
