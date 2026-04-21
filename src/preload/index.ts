@@ -332,6 +332,8 @@ export interface ClaudeManagerAPI {
     getAllAttention: () => Promise<PersonaAttentionRequest[]>
     resolveAttention: (personaId: string, attnId: string, response?: string) => Promise<boolean>
     dismissAttention: (personaId: string, attnId: string) => Promise<boolean>
+    getTemplates: () => Promise<{ id: string; name: string; description: string; builtIn: boolean }[]>
+    createFromTemplate: (templateId: string) => Promise<{ fileName: string } | null>
     onStatus: (cb: (personas: PersonaInfo[]) => void) => () => void
     onRun: (cb: (data: { persona: string; instanceId: string }) => void) => () => void
   }
@@ -1051,6 +1053,8 @@ const api: ClaudeManagerAPI = {
     getAllAttention: () => ipcRenderer.invoke('persona:getAllAttention'),
     resolveAttention: (personaId, attnId, response?) => ipcRenderer.invoke('persona:resolveAttention', personaId, attnId, response),
     dismissAttention: (personaId, attnId) => ipcRenderer.invoke('persona:dismissAttention', personaId, attnId),
+    getTemplates: () => ipcRenderer.invoke('persona:getTemplates'),
+    createFromTemplate: (templateId) => ipcRenderer.invoke('persona:createFromTemplate', templateId),
     onStatus: (cb) => {
       const l = (_e: any, data: PersonaInfo[]) => cb(data)
       ipcRenderer.on('persona:status', l)

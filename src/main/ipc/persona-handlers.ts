@@ -8,6 +8,7 @@ import {
 import { getRunHistory, getPersonaAnalytics, getColonyCostTrend, getPersonaHealthSummary } from '../persona-run-history'
 import { markChecklistItem } from '../onboarding-state'
 import { getAllPendingAttention, resolveAttention, dismissAttention } from '../persona-attention'
+import { getAllTemplates, createPersonaFromTemplate } from '../persona-templates'
 
 export function registerPersonaHandlers(): void {
   ipcMain.handle('persona:list', () => getPersonaList())
@@ -39,4 +40,6 @@ export function registerPersonaHandlers(): void {
   ipcMain.handle('persona:getAllAttention', () => getAllPendingAttention())
   ipcMain.handle('persona:resolveAttention', (_e, personaId: string, attnId: string, response?: string) => resolveAttention(personaId, attnId, response))
   ipcMain.handle('persona:dismissAttention', (_e, personaId: string, attnId: string) => dismissAttention(personaId, attnId))
+  ipcMain.handle('persona:getTemplates', () => getAllTemplates())
+  ipcMain.handle('persona:createFromTemplate', (_e, templateId: string) => createPersonaFromTemplate(templateId))
 }

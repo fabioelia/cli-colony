@@ -168,6 +168,9 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
   const [showNewDialog, setShowNewDialog] = useState(false)
   const [newName, setNewName] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false)
+  const [templates, setTemplates] = useState<{ id: string; name: string; description: string; builtIn: boolean }[]>([])
+  const [templateCreating, setTemplateCreating] = useState<string | null>(null)
   const [viewingPersona, setViewingPersona] = useState<PersonaInfo | null>(null)
   const [editingPersona, setEditingPersona] = useState<PersonaInfo | null>(null)
   const [editContent, setEditContent] = useState('')
@@ -425,6 +428,31 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
     }
   }
 
+  const handleOpenTemplateDialog = async () => {
+    try {
+      const list = await window.api.persona.getTemplates()
+      setTemplates(list)
+      setShowTemplateDialog(true)
+    } catch (err) {
+      console.error('Failed to load templates:', err)
+    }
+  }
+
+  const handleCreateFromTemplate = async (templateId: string) => {
+    setTemplateCreating(templateId)
+    try {
+      const result = await window.api.persona.createFromTemplate(templateId)
+      if (result) {
+        setShowTemplateDialog(false)
+        loadPersonas()
+      }
+    } catch (err) {
+      console.error('Failed to create from template:', err)
+    } finally {
+      setTemplateCreating(null)
+    }
+  }
+
   // Batch operations
   const handleToggleSelect = useCallback((id: string) => {
     setSelectedPersonas(prev => {
@@ -536,6 +564,9 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
             {auditResults && auditResults.length > 0 && (
               <span className="audit-badge">{auditResults.length}</span>
             )}
+          </button>
+          <button className="panel-header-btn" onClick={handleOpenTemplateDialog} title="Create persona from a built-in or custom template">
+            <Copy size={12} /> From Template
           </button>
           <button className="panel-header-btn primary" onClick={() => setShowNewDialog(true)}>
             <Plus size={13} /> New Persona
@@ -672,7 +703,44 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
         </div>
       )}
 
-      {personas.length === 0 && !showNewDialog && (
+      {showTemplateDialog && (
+        <div className="persona-modal-overlay" onClick={() => setShowTemplateDialog(false)}>
+          <div className="persona-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
+            <div className="persona-modal-header">
+              <h3>Create from Template</h3>
+              <div style={{ flex: 1 }} />
+              <button className="panel-header-btn" onClick={() => setShowTemplateDialog(false)}><X size={14} /></button>
+            </div>
+            <div style={{ padding: '14px 18px' }}>
+              {templates.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No templates available.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {templates.map(t => (
+                    <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 6 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500 }}>{t.name}{t.builtIn && <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--accent)', background: 'rgba(var(--accent-rgb),0.12)', borderRadius: 3, padding: '1px 5px' }}>built-in</span>}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{t.description}</div>
+                      </div>
+                      <button
+                        className="panel-header-btn primary"
+                        onClick={() => handleCreateFromTemplate(t.id)}
+                        disabled={templateCreating === t.id}
+                        style={{ flexShrink: 0 }}
+                      >
+                        {templateCreating === t.id ? <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={11} />}
+                        Create
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {personas.length === 0 && !showNewDialog && !showTemplateDialog && (
         <EmptyStateHook
           icon={Bot}
           title="Personas"

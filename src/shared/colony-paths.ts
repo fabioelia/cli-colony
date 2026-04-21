@@ -51,6 +51,7 @@ export const colonyPaths = {
   taskWorkspace: path.join(ROOT, 'task-workspace'),
   taskQueues: path.join(ROOT, 'task-queues'),
   personas: path.join(ROOT, 'personas'),
+  personaTemplates: path.join(ROOT, 'persona-templates'),
   personaState: path.join(ROOT, 'persona-state.json'),
   recentSessions: path.join(ROOT, 'recent-sessions.json'),
   activityLog: path.join(ROOT, 'activity.json'),
