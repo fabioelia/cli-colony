@@ -6975,6 +6975,27 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-weight: 600;
 }
 
+button.session-trigger-chain-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--text-muted);
+  white-space: nowrap;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+button.session-trigger-chain-btn:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
 .session-trigger-chain-arrow {
   color: var(--text-muted);
   opacity: 0.5;

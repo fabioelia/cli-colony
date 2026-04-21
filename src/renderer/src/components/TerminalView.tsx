@@ -147,17 +147,19 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
   const sortedChildren = useMemo(() => [...childInstances].sort(compareChildren), [childInstances])
 
   // Trigger chain: walk up the triggeredBy chain to build root→...→current breadcrumb
-  const triggerChain = useMemo<string[]>(() => {
+  const triggerChain = useMemo<{ id: string; name: string }[]>(() => {
     if (!instance.triggeredBy) return []
-    const chain: string[] = []
+    const chain: { id: string; name: string }[] = []
     let currentTriggeredBy: string | undefined = instance.triggeredBy
     let depth = 0
-    while (currentTriggeredBy && depth < 5) {
-      chain.unshift(currentTriggeredBy)
-      if (allInstances.length === 0) break
+    const seen = new Set<string>()
+    while (currentTriggeredBy && depth < 10) {
+      if (seen.has(currentTriggeredBy)) break
+      seen.add(currentTriggeredBy)
       const parent = allInstances
         .filter(i => i.name === currentTriggeredBy && i.id !== instance.id)
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+      chain.unshift({ id: parent?.id ?? '', name: currentTriggeredBy })
       if (!parent) break
       currentTriggeredBy = parent.triggeredBy
       depth++
@@ -1288,16 +1290,26 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
               ctx
             </span>
           )}
-          {triggerChain.length > 0 && (
-            <span className="session-status-item session-trigger-chain" title={`Trigger chain: ${triggerChain.join(' → ')} → ${instance.name}`}>
-              {triggerChain.map((name, i) => (
-                <span key={i} className="session-trigger-chain-node">
+          {(triggerChain.length > 0 || childInstances.length > 0) && (
+            <span className="session-status-item session-trigger-chain" title={`Trigger chain: ${[...triggerChain.map(n => n.name), instance.name, ...childInstances.map(c => c.name)].join(' → ')}`}>
+              {triggerChain.map((node, i) => (
+                <span key={node.id || i} className="session-trigger-chain-node">
                   {i > 0 && <ArrowRight size={9} className="session-trigger-chain-arrow" />}
-                  <span className="session-trigger-chain-name">{name.length > 14 ? name.slice(0, 12) + '…' : name}</span>
+                  {node.id
+                    ? <button className="session-trigger-chain-name session-trigger-chain-btn" onClick={() => onNavigateToSession?.(node.id)}>{node.name.length > 20 ? node.name.slice(0, 18) + '…' : node.name}</button>
+                    : <span className="session-trigger-chain-name">{node.name.length > 20 ? node.name.slice(0, 18) + '…' : node.name}</span>
+                  }
                 </span>
               ))}
-              <ArrowRight size={9} className="session-trigger-chain-arrow" />
-              <span className="session-trigger-chain-name session-trigger-chain-current">me</span>
+              {triggerChain.length > 0 && <ArrowRight size={9} className="session-trigger-chain-arrow" />}
+              <span className="session-trigger-chain-name session-trigger-chain-current">{instance.name.length > 20 ? instance.name.slice(0, 18) + '…' : instance.name}</span>
+              {childInstances.slice(0, 3).map(child => (
+                <span key={child.id} className="session-trigger-chain-node">
+                  <ArrowRight size={9} className="session-trigger-chain-arrow" />
+                  <button className="session-trigger-chain-name session-trigger-chain-btn" onClick={() => onNavigateToSession?.(child.id)}>{child.name.length > 20 ? child.name.slice(0, 18) + '…' : child.name}</button>
+                </span>
+              ))}
+              {childInstances.length > 3 && <span className="session-trigger-chain-name" style={{ opacity: 0.5 }}>+{childInstances.length - 3}</span>}
             </span>
           )}
         </div>
