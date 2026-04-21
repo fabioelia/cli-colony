@@ -194,24 +194,36 @@ export async function runSetup(
       })
       logSetup(`  Hook: ${hook.name} -- ${cmd.slice(0, 80)}`)
       updateStep(hook.name, 'running')
-      try {
-        const output = await execAsync(cmd, { cwd: hook.cwd || envDir, timeout: 300000 })
-        const trimmed = output?.trim() || ''
-        if (trimmed) logSetup(`  Output: ${trimmed.slice(0, 500)}`)
-        const lastLine = trimmed.split('\n').pop()?.trim() || ''
-        if (lastLine) {
-          const key = (hook.name as string).replace(/-/g, '_')
-          hookOutputs[key] = lastLine
-          hookOutputs[hook.name] = lastLine
-        }
-        updateStep(hook.name, 'done')
-        logSetup(`  Done: ${hook.name}`)
-      } catch (err: any) {
-        const stderr = err.stderr ? `\nStderr: ${err.stderr.slice(0, 500)}` : ''
-        logSetup(`  FAILED: ${hook.name} -- ${String(err).slice(0, 300)}${stderr}`)
-        updateStep(hook.name, 'error', String(err).slice(0, 300), { continueOnError: !!hook.continueOnError })
-        if (hook.continueOnError) {
-          logSetup(`  (continueOnError: proceeding despite failure)`)
+
+      const maxRetries = Math.min(hook.retries ?? 0, 5)
+      const retryDelay = Math.min(hook.retryDelayMs ?? 5000, 30000)
+
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          const output = await execAsync(cmd, { cwd: hook.cwd || envDir, timeout: 300000 })
+          const trimmed = output?.trim() || ''
+          if (trimmed) logSetup(`  Output: ${trimmed.slice(0, 500)}`)
+          const lastLine = trimmed.split('\n').pop()?.trim() || ''
+          if (lastLine) {
+            const key = (hook.name as string).replace(/-/g, '_')
+            hookOutputs[key] = lastLine
+            hookOutputs[hook.name] = lastLine
+          }
+          updateStep(hook.name, 'done')
+          logSetup(`  Done: ${hook.name}`)
+          return  // success — exit retry loop
+        } catch (err: any) {
+          if (attempt < maxRetries) {
+            logSetup(`  Hook ${hook.name} failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${retryDelay}ms...`)
+            await new Promise(r => setTimeout(r, retryDelay))
+            continue
+          }
+          const stderr = err.stderr ? `\nStderr: ${err.stderr.slice(0, 500)}` : ''
+          logSetup(`  FAILED: ${hook.name} -- ${String(err).slice(0, 300)}${stderr}`)
+          updateStep(hook.name, 'error', String(err).slice(0, 300), { continueOnError: !!hook.continueOnError })
+          if (hook.continueOnError) {
+            logSetup(`  (continueOnError: proceeding despite failure)`)
+          }
         }
       }
     }
