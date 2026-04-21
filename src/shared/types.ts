@@ -379,6 +379,8 @@ export interface PersonaInfo {
   pendingRunCount: number
   /** If true, persona fires on app startup */
   runOnStartup: boolean
+  /** Minimum minutes between automatic runs (0 = no cooldown) */
+  minIntervalMinutes: number
 }
 
 // ---- Persona Memory (structured sidecar) ----

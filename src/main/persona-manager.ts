@@ -130,6 +130,8 @@ export interface PersonaFrontmatter {
   on_complete_run_if?: string
   /** If true, persona fires once on app startup (staggered 2s apart from other startup personas). */
   run_on_startup?: boolean
+  /** Minimum minutes between automatic runs (cron/trigger/startup). Manual runs bypass this. */
+  min_interval_minutes?: number
 }
 
 function parseFrontmatter(content: string): PersonaFrontmatter | null {
@@ -162,6 +164,7 @@ function parseFrontmatter(content: string): PersonaFrontmatter | null {
     retry_on_failure: parseInt(val('retry_on_failure')) || undefined,
     on_complete_run_if: val('on_complete_run_if') || undefined,
     run_on_startup: val('run_on_startup') === 'true',
+    min_interval_minutes: parseInt(val('min_interval_minutes')) || undefined,
   }
 
   if (!result.name) return null
@@ -310,6 +313,7 @@ export function getPersonaList(): PersonaInfo[] {
         color: fm.color || undefined,
         pendingRunCount: (state.pendingRuns || []).length,
         runOnStartup: fm.run_on_startup || false,
+        minIntervalMinutes: fm.min_interval_minutes || 0,
         briefPreview: (() => {
           const bp = join(PERSONAS_DIR, `${personaId}.brief.md`)
           try {
@@ -685,6 +689,19 @@ export async function runPersona(fileName: string, trigger: TriggerSource = { ty
       // Re-throw skip errors; for git failures (not a repo, etc.) fall through and run normally
       if (String(err).includes('Skipped —')) throw err
       console.log(`[persona] run_condition git check failed for "${fm.name}", running anyway: ${err}`)
+    }
+  }
+
+  // Check min_interval cooldown — skip automatic runs that fire too soon after the last run
+  if (fm.min_interval_minutes && fm.min_interval_minutes > 0 && trigger.type !== 'manual') {
+    const elapsed = state.lastRunAt ? (Date.now() - new Date(state.lastRunAt).getTime()) / 60000 : Infinity
+    if (elapsed < fm.min_interval_minutes) {
+      const remaining = Math.ceil(fm.min_interval_minutes - elapsed)
+      console.log(`[persona] Skipping "${fm.name}" — cooldown ${fm.min_interval_minutes}m (last run ${elapsed.toFixed(1)}m ago, ${remaining}m remaining)`)
+      state.lastSkipped = Date.now()
+      saveState()
+      broadcastStatus()
+      throw new Error(`Skipped — cooldown (${remaining}m remaining)`)
     }
   }
 

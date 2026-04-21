@@ -1416,6 +1416,16 @@ function PersonaCard({
           })()}
           {isRunning && <span className="persona-list-badge running">Running</span>}
           {persona.runOnStartup && <span className="persona-list-badge startup" title="Fires on app startup">Startup</span>}
+          {(persona.minIntervalMinutes ?? 0) > 0 && persona.lastRun && (() => {
+            const elapsed = (Date.now() - new Date(persona.lastRun).getTime()) / 60000
+            const remaining = Math.ceil((persona.minIntervalMinutes ?? 0) - elapsed)
+            if (remaining > 0) return (
+              <span className="persona-list-badge cooldown" title={`Cooldown active — ${remaining}m until next auto-run allowed`}>
+                ⏳ {remaining}m
+              </span>
+            )
+            return null
+          })()}
           {persona.draining && <span className="persona-list-badge draining" title="Draining — will disable after current session and triggers complete">Draining</span>}
           {!isRunning && (persona.retryCount ?? 0) > 0 && (
             <span className="persona-list-badge retry" title={`Auto-retrying: attempt ${persona.retryCount}`}>
@@ -2149,6 +2159,7 @@ function EditPersonaModal({ persona, allPersonaIds, onClose, onSaved }: {
   const [maxCostPerDayUsd, setMaxCostPerDayUsd] = useState(persona.maxCostPerDayUsd?.toString() ?? '')
   const [monthlyBudgetUsd, setMonthlyBudgetUsd] = useState(persona.monthlyBudgetUsd?.toString() ?? '')
   const [runOnStartup, setRunOnStartup] = useState(persona.runOnStartup ?? false)
+  const [minIntervalMinutes, setMinIntervalMinutes] = useState(persona.minIntervalMinutes?.toString() ?? '')
   const [onCompleteRun, setOnCompleteRun] = useState<string[]>(persona.onCompleteRun ?? [])
   const [onCompleteRunIf, setOnCompleteRunIf] = useState(persona.onCompleteRunIf ?? '')
   const [canInvoke, setCanInvoke] = useState<string[]>(persona.canInvoke ?? [])
@@ -2167,6 +2178,12 @@ function EditPersonaModal({ persona, allPersonaIds, onClose, onSaved }: {
         on_complete_run_if: onCompleteRunIf || '',
         can_invoke: canInvoke,
         run_on_startup: runOnStartup,
+      }
+      const parsedInterval = parseInt(minIntervalMinutes)
+      if (parsedInterval > 0) {
+        updates.min_interval_minutes = parsedInterval
+      } else if (persona.minIntervalMinutes) {
+        updates.min_interval_minutes = 0
       }
       if (schedule.trim()) {
         updates.schedule = schedule.trim()
@@ -2236,6 +2253,18 @@ function EditPersonaModal({ persona, allPersonaIds, onClose, onSaved }: {
               checked={runOnStartup}
               onChange={(e) => setRunOnStartup(e.target.checked)}
               style={{ width: 'auto', cursor: 'pointer' }}
+            />
+          </label>
+          <label className="persona-edit-meta-field">
+            <span>Min interval (min)</span>
+            <input
+              className="persona-edit-meta-input"
+              type="number"
+              min={0}
+              step={1}
+              value={minIntervalMinutes}
+              onChange={(e) => setMinIntervalMinutes(e.target.value)}
+              placeholder="No cooldown"
             />
           </label>
           <label className="persona-edit-meta-field">
