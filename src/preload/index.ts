@@ -340,6 +340,7 @@ export interface ClaudeManagerAPI {
     getTemplates: () => Promise<{ id: string; name: string; description: string; builtIn: boolean }[]>
     createFromTemplate: (templateId: string) => Promise<{ fileName: string } | null>
     compareConfig: (idA: string, idB: string) => Promise<{ a: { name: string; content: string }; b: { name: string; content: string } } | null>
+    searchLearnings: (query: string) => Promise<Array<{ personaId: string; personaName: string; type: string; text: string; matchIndex: number }>>
     onStatus: (cb: (personas: PersonaInfo[]) => void) => () => void
     onRun: (cb: (data: { persona: string; instanceId: string }) => void) => () => void
   }
@@ -1068,6 +1069,7 @@ const api: ClaudeManagerAPI = {
     getTemplates: () => ipcRenderer.invoke('persona:getTemplates'),
     createFromTemplate: (templateId) => ipcRenderer.invoke('persona:createFromTemplate', templateId),
     compareConfig: (idA, idB) => ipcRenderer.invoke('persona:compareConfig', idA, idB),
+    searchLearnings: (query) => ipcRenderer.invoke('persona:searchLearnings', query),
     onStatus: (cb) => {
       const l = (_e: any, data: PersonaInfo[]) => cb(data)
       ipcRenderer.on('persona:status', l)

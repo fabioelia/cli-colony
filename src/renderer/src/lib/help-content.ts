@@ -1066,6 +1066,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'List / Schedule / Triggers tabs', detail: 'List shows persona cards. Schedule shows a 24-hour heatmap of when each persona fires. Triggers shows a directed graph of cross-persona trigger chains.', icon: 'CalendarClock' },
           { label: 'Search', detail: 'Filter the persona list by name or ID. Case-insensitive substring match. Clear with the ✕ button.', icon: 'Search' },
           { label: 'Compare', detail: 'Enter compare mode to diff two persona configs side-by-side. Click the Compare button (GitCompare icon) to toggle. In compare mode, click any two persona cards to select them — a unified diff of their full config files (frontmatter + body) appears below the list. Clear selection with the ✕ button, exit compare mode with Escape or the Exit button.', icon: 'GitCompare' },
+          { label: 'Search Learnings', detail: 'Search across all persona learnings and active situations. Click the "Search Learnings" button (book icon) to open the search bar. Type at least 2 characters to search — results appear grouped by persona with the matched text highlighted. Click any result to expand that persona\'s card. Press Escape to close.', icon: 'BookOpen' },
         ],
       },
       {

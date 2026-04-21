@@ -7,6 +7,7 @@ import {
   getPersonaConfigPair, PersonaRunOverrides,
 } from '../persona-manager'
 import { getRunHistory, getPersonaAnalytics, getColonyCostTrend, getPersonaHealthSummary } from '../persona-run-history'
+import { searchPersonaLearnings } from '../persona-memory'
 import { markChecklistItem } from '../onboarding-state'
 import { getAllPendingAttention, resolveAttention, dismissAttention } from '../persona-attention'
 import { getAllTemplates, createPersonaFromTemplate } from '../persona-templates'
@@ -47,4 +48,5 @@ export function registerPersonaHandlers(): void {
   ipcMain.handle('persona:getTemplates', () => getAllTemplates())
   ipcMain.handle('persona:createFromTemplate', (_e, templateId: string) => createPersonaFromTemplate(templateId))
   ipcMain.handle('persona:compareConfig', (_e, idA: string, idB: string) => getPersonaConfigPair(idA, idB))
+  ipcMain.handle('persona:searchLearnings', (_e, query: string) => searchPersonaLearnings(query))
 }

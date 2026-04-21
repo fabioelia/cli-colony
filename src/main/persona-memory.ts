@@ -9,11 +9,12 @@
  * Limits: 30 learnings, 20 session log entries (oldest trimmed on add).
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync, readdirSync } from 'fs'
 import { spawn } from 'child_process'
 import { resolveCommand } from './resolve-command'
 import { join, dirname, basename } from 'path'
 import { colonyPaths } from '../shared/colony-paths'
+import { parseFrontmatter } from '../shared/utils'
 import type { PersonaMemory, PersonaMemorySituation, PersonaMemoryLearning, PersonaMemoryLogEntry } from '../shared/types'
 
 const PERSONAS_DIR = colonyPaths.personas
@@ -281,4 +282,54 @@ export function extractMemoryInBackground(personaName: string, output: string, d
 
     proc.on('error', () => { /* non-fatal */ })
   } catch { /* non-fatal */ }
+}
+
+export interface LearningSearchResult {
+  personaId: string
+  personaName: string
+  type: 'learning' | 'situation'
+  text: string
+  matchIndex: number
+}
+
+export function searchPersonaLearnings(query: string): LearningSearchResult[] {
+  if (!query || query.length < 2) return []
+  const q = query.toLowerCase()
+  const results: LearningSearchResult[] = []
+
+  let files: string[]
+  try {
+    files = readdirSync(PERSONAS_DIR).filter(f => f.endsWith('.md'))
+  } catch {
+    return []
+  }
+
+  for (const file of files) {
+    const personaId = file.replace(/\.md$/, '')
+    let personaName = personaId
+    try {
+      const content = readFileSync(join(PERSONAS_DIR, file), 'utf-8')
+      const fm = parseFrontmatter(content)
+      if (fm['name']) personaName = fm['name']
+    } catch { /* use id as name */ }
+
+    const mem = readPersonaMemory(personaId)
+    for (const learning of mem.learnings) {
+      const idx = learning.text.toLowerCase().indexOf(q)
+      if (idx !== -1) results.push({ personaId, personaName, type: 'learning', text: learning.text, matchIndex: idx })
+    }
+    for (const sit of mem.activeSituations) {
+      const idx = sit.text.toLowerCase().indexOf(q)
+      if (idx !== -1) results.push({ personaId, personaName, type: 'situation', text: sit.text, matchIndex: idx })
+    }
+  }
+
+  results.sort((a, b) => {
+    const aWord = a.matchIndex === 0 || /\W/.test(a.text[a.matchIndex - 1] ?? ' ')
+    const bWord = b.matchIndex === 0 || /\W/.test(b.text[b.matchIndex - 1] ?? ' ')
+    if (aWord !== bWord) return aWord ? -1 : 1
+    return a.text.length - b.text.length
+  })
+
+  return results.slice(0, 50)
 }

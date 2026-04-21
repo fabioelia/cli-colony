@@ -4,7 +4,7 @@ import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
   ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote, ArrowRightCircle, Save, Loader2,
   Hourglass, ArrowRight, FolderOpen, Search, Check, Bot, BarChart3, ArrowUpDown, DollarSign, TrendingUp, Copy,
-  CalendarClock, GitBranch, Brain, ShieldCheck, Bell, Timer, GitCompare,
+  CalendarClock, GitBranch, Brain, ShieldCheck, Bell, Timer, GitCompare, BookOpen,
 } from 'lucide-react'
 import EmptyStateHook from './EmptyStateHook'
 import MarkdownViewer from './MarkdownViewer'
@@ -234,6 +234,13 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
 
   // Batch selection
   const [selectedPersonas, setSelectedPersonas] = useState<Set<string>>(new Set())
+
+  // Learning search
+  const [learningSearchOpen, setLearningSearchOpen] = useState(false)
+  const [learningQuery, setLearningQuery] = useState('')
+  const [learningResults, setLearningResults] = useState<Array<{ personaId: string; personaName: string; type: string; text: string; matchIndex: number }>>([])
+  const [learningLoading, setLearningLoading] = useState(false)
+  const learningSearchRef = useRef<HTMLInputElement>(null)
 
   // Compare mode
   const [compareMode, setCompareMode] = useState(false)
@@ -595,6 +602,32 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
   }, [compareMode])
 
   useEffect(() => {
+    if (learningSearchOpen) setTimeout(() => learningSearchRef.current?.focus(), 50)
+  }, [learningSearchOpen])
+
+  useEffect(() => {
+    if (!learningSearchOpen) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setLearningSearchOpen(false); setLearningQuery(''); setLearningResults([]) }
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [learningSearchOpen])
+
+  useEffect(() => {
+    if (learningQuery.length < 2) { setLearningResults([]); return }
+    setLearningLoading(true)
+    const timer = setTimeout(async () => {
+      try {
+        const results = await window.api.persona.searchLearnings(learningQuery)
+        setLearningResults(results)
+      } catch { /* non-fatal */ }
+      setLearningLoading(false)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [learningQuery])
+
+  useEffect(() => {
     if (compareSelection.length !== 2) return
     setCompareLoading(true)
     window.api.persona.compareConfig(compareSelection[0], compareSelection[1])
@@ -639,6 +672,15 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
               </select>
             </div>
           </>
+        )}
+        {panelView === 'list' && (
+          <button
+            className={`panel-header-btn${learningSearchOpen ? ' active' : ''}`}
+            onClick={() => { setLearningSearchOpen(o => !o); setLearningQuery(''); setLearningResults([]) }}
+            title="Search across all persona learnings and situations"
+          >
+            <BookOpen size={12} /> Search Learnings
+          </button>
         )}
         {panelView === 'list' && (
           <button
@@ -744,6 +786,65 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
       {compareMode && comparePair && (
         <div className="persona-compare-diff">
           <DiffViewer diff={makePersonaConfigDiff(comparePair)} filename="persona-config.md" />
+        </div>
+      )}
+
+      {/* Learning search bar + results */}
+      {learningSearchOpen && (
+        <div className="learning-search-panel">
+          <div className="learning-search-bar">
+            <Search size={13} className="learning-search-icon" />
+            <input
+              ref={learningSearchRef}
+              className="learning-search-input"
+              placeholder="Search across all persona learnings…"
+              value={learningQuery}
+              onChange={(e) => setLearningQuery(e.target.value)}
+            />
+            {learningLoading && <Loader2 size={13} className="spin" />}
+            {learningQuery && !learningLoading && (
+              <button className="review-search-clear" onClick={() => { setLearningQuery(''); setLearningResults([]) }} title="Clear"><X size={10} /></button>
+            )}
+          </div>
+          {learningQuery.length >= 2 && !learningLoading && learningResults.length === 0 && (
+            <div className="learning-search-empty">No matches found</div>
+          )}
+          {learningResults.length > 0 && (() => {
+            const byPersona: Record<string, typeof learningResults> = {}
+            for (const r of learningResults) {
+              if (!byPersona[r.personaId]) byPersona[r.personaId] = []
+              byPersona[r.personaId].push(r)
+            }
+            return (
+              <div className="learning-search-results">
+                {Object.entries(byPersona).map(([personaId, items]) => (
+                  <div key={personaId} className="learning-search-group">
+                    <div className="learning-search-group-header">{items[0].personaName}</div>
+                    {items.map((item, i) => {
+                      const before = item.text.slice(Math.max(0, item.matchIndex - 40), item.matchIndex)
+                      const match = item.text.slice(item.matchIndex, item.matchIndex + learningQuery.length)
+                      const after = item.text.slice(item.matchIndex + learningQuery.length, item.matchIndex + learningQuery.length + 80)
+                      return (
+                        <div
+                          key={i}
+                          className="learning-search-result"
+                          onClick={() => {
+                            setLearningSearchOpen(false); setLearningQuery(''); setLearningResults([])
+                            setExpandedId(personaId)
+                          }}
+                        >
+                          <span className={`learning-search-type ${item.type}`}>{item.type}</span>
+                          <span className="learning-search-text">
+                            {before.length < item.matchIndex ? '…' : ''}{before}<mark>{match}</mark>{after}{after.length === 80 ? '…' : ''}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
         </div>
       )}
 
