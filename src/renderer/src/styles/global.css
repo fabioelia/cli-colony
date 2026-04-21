@@ -15349,6 +15349,13 @@ button.session-trigger-chain-btn:hover {
   flex-shrink: 0;
 }
 
+.pipeline-output-preview-truncated {
+  padding: 6px 8px 4px 42px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 .pipeline-memory-editor {
   display: flex;
   flex-direction: column;
