@@ -1246,6 +1246,17 @@ function PersonaCard({
               <span className="persona-list-brief" title={persona.briefPreview}>{persona.briefPreview}</span>
             )}
           </span>
+          {(() => {
+            const hs = persona.healthScore
+            if (!hs || hs.status === 'unknown') return null
+            const statusClass = hs.status
+            const tooltip = `${hs.totalRuns} run${hs.totalRuns !== 1 ? 's' : ''} · ${hs.successRate}% success · avg $${hs.avgCost.toFixed(2)} · avg ${Math.round(hs.avgDuration / 60000)}m${hs.consecutiveFailures > 0 ? ` · ${hs.consecutiveFailures} consecutive failure${hs.consecutiveFailures !== 1 ? 's' : ''}` : ''}`
+            return (
+              <Tooltip text={tooltip}>
+                <span className={`persona-health-dot health-${statusClass}`} />
+              </Tooltip>
+            )
+          })()}
           {isRunning && <span className="persona-list-badge running">Running</span>}
           {!isRunning && (persona.retryCount ?? 0) > 0 && (
             <span className="persona-list-badge retry" title={`Auto-retrying: attempt ${persona.retryCount}`}>

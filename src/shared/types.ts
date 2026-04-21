@@ -367,6 +367,8 @@ export interface PersonaInfo {
   attentionCount: number
   /** Current auto-retry attempt count (0 = not retrying) */
   retryCount: number
+  /** Synthesized health score from last 10 runs */
+  healthScore: PersonaHealthScore
   /** First meaningful line of the latest brief (max 120 chars), or null if no brief exists */
   briefPreview: string | null
   /** Display color (hex), e.g. "#a78bfa" */
@@ -416,6 +418,15 @@ export interface PersonaRunEntry {
   stopReason?: 'budget_exceeded' | 'timeout' | 'manual'
   /** Instance ID of the session that ran — for navigating to the session */
   sessionId?: string
+}
+
+export interface PersonaHealthScore {
+  status: 'green' | 'yellow' | 'red' | 'unknown'
+  successRate: number
+  avgCost: number
+  avgDuration: number
+  consecutiveFailures: number
+  totalRuns: number
 }
 
 export interface PersonaAnalytics {

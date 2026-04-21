@@ -23,7 +23,7 @@ import { slugify, parseFrontmatter as parseRawFrontmatter, stripAnsi } from '../
 import type { PersonaInfo } from '../shared/types'
 import { JsonFile } from '../shared/json-file'
 import { appendActivity } from './activity-manager'
-import { appendRunEntry, checkDailyCostBudget, getPersonaDailyCost } from './persona-run-history'
+import { appendRunEntry, checkDailyCostBudget, getPersonaDailyCost, getRunHistory } from './persona-run-history'
 import { getRateLimitState } from './rate-limit-state'
 import { migrateFromMarkdown, readPersonaMemory, extractMemoryInBackground, trackMonthlyCost } from './persona-memory'
 import { buildPlanningPrompt, buildKickoff } from './persona-prompt-builder'
@@ -224,6 +224,34 @@ function sweepOrphanedPromptFiles(): void {
   if (cleaned > 0) console.log(`[persona] swept ${cleaned} orphaned prompt file(s)`)
 }
 
+type HealthStatus = 'green' | 'yellow' | 'red' | 'unknown'
+
+function computePersonaHealth(personaId: string, fm: PersonaFrontmatter | null): import('../shared/types').PersonaHealthScore {
+  const last10 = getRunHistory(personaId, 10)
+  const totalRuns = last10.length
+  if (totalRuns < 3) {
+    return { status: 'unknown', successRate: 0, avgCost: 0, avgDuration: 0, consecutiveFailures: 0, totalRuns }
+  }
+  const successCount = last10.filter(r => r.success).length
+  const successRate = Math.round((successCount / totalRuns) * 100)
+  const avgCost = Math.round(last10.reduce((s, r) => s + (r.costUsd ?? 0), 0) / totalRuns * 10000) / 10000
+  const avgDuration = Math.round(last10.reduce((s, r) => s + r.durationMs, 0) / totalRuns)
+  let consecutiveFailures = 0
+  for (const run of last10) { if (!run.success) consecutiveFailures++; else break }
+  const anyBudgetExceeded = last10.some(r => r.stopReason === 'budget_exceeded')
+  const budgetUsd = fm?.max_cost_usd
+  const costRatio = budgetUsd && budgetUsd > 0 ? avgCost / budgetUsd : 0
+  let status: HealthStatus
+  if (successRate < 50 || consecutiveFailures >= 3 || anyBudgetExceeded) {
+    status = 'red'
+  } else if (successRate < 80 || costRatio >= 0.8) {
+    status = 'yellow'
+  } else {
+    status = 'green'
+  }
+  return { status, successRate, avgCost, avgDuration, consecutiveFailures, totalRuns }
+}
+
 export function getPersonaList(): PersonaInfo[] {
   ensureDir()
   const files = readdirSync(PERSONAS_DIR).filter(f => f.endsWith('.md')).sort()
@@ -271,6 +299,7 @@ export function getPersonaList(): PersonaInfo[] {
           try { return readPersonaMemory(personaId).costTracking?.totalUsd ?? 0 } catch { return 0 }
         })() : undefined,
         retryCount: state.retryCount ?? 0,
+        healthScore: computePersonaHealth(personaId, fm),
         attentionCount: getAttentionCount(personaId),
         color: fm.color || undefined,
         briefPreview: (() => {

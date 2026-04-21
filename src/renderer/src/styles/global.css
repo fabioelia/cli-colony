@@ -20006,6 +20006,17 @@ button.session-trigger-chain-btn:hover {
   color: #f97316;
   border: 1px solid rgba(249, 115, 22, 0.3);
 }
+.persona-health-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  cursor: default;
+}
+.persona-health-dot.health-green { background: var(--success); }
+.persona-health-dot.health-yellow { background: var(--warning); }
+.persona-health-dot.health-red { background: var(--danger); }
 
 .persona-cost-badge {
   font-size: 9px;
