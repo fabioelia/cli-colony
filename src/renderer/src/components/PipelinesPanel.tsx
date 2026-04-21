@@ -346,7 +346,7 @@ function RunWithOptionsDialog({ pipelineName, firstActionPrompt, firstActionMode
           <label style={labelStyle}>Model</label>
           <select value={model} onChange={e => setModel(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
             <option value="">(pipeline default)</option>
-            {RUN_MODELS.map(m => <option key={m.id} value={m.id}>{m.label} ({m.id})</option>)}
+            {RUN_MODELS.map(m => <option key={m.id} value={m.id} title={m.id}>{m.label}</option>)}
           </select>
         </div>
         <div style={{ flex: 1 }}>
