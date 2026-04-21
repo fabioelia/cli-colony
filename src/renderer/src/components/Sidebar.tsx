@@ -471,6 +471,7 @@ interface Props {
   currentLayout?: 'single' | '2-up' | '4-up'
   onLoadPreset?: (preset: WorkspacePreset) => void
   onCloneSession?: (inst: ClaudeInstance) => void
+  onSaveAsPipeline?: (inst: ClaudeInstance) => void
   errorSummaries?: Map<string, ErrorSummary>
   onNewWithHandoff?: (handoffContent: string, workingDirectory: string) => void
   rateLimitState?: { utilization: number | null; resetAt: number | null; rateLimitType: string | null; paused: boolean; source: string | null; projectedMinutesToLimit?: number | null }
@@ -532,7 +533,7 @@ function SessionTile({ s, onResumeSession, hoveredSessionId, setHoveredSessionId
   )
 }
 
-function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onSetNote, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onShowRestoreDialog, restorableCount, unreadIds, outputBytes, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop, forkGroups = [], onForkSession, gridPanes, currentLayout = 'single', onLoadPreset, onCloneSession, errorSummaries, onNewWithHandoff, rateLimitState, rateLimitCountdown }: Props) {
+function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRestart, onRemove, onRename, onSetNote, onRecolor, onPin, onUnpin, onViewChange, onResumeSession, onTakeoverExternal, onShowRestoreDialog, restorableCount, unreadIds, outputBytes, splitId, splitPairs, focusedPane, onSplitWith, onCloseSplit, onDrop, forkGroups = [], onForkSession, gridPanes, currentLayout = 'single', onLoadPreset, onCloneSession, onSaveAsPipeline, errorSummaries, onNewWithHandoff, rateLimitState, rateLimitCountdown }: Props) {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
@@ -899,6 +900,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   })
   const [navContextMenu, setNavContextMenu] = useState<{ x: number; y: number; slotId: SidebarView; source: 'primary' | 'overflow' } | null>(null)
   const [savedTemplateId, setSavedTemplateId] = useState<string | null>(null)
+  const [savedAsPipelineId, setSavedAsPipelineId] = useState<string | null>(null)
   const [exportedId, setExportedId] = useState<string | null>(null)
   const newSessionBtnRef = useRef<HTMLButtonElement>(null)
   const [sessions, setSessions] = useState<CliSession[]>([])
@@ -2479,6 +2481,28 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                 <><BookTemplate size={12} /> Save as Template</>
               )}
             </button>
+            {(() => {
+              const inst = instances.find(i => i.id === contextMenu.id)
+              return inst?.status === 'exited' ? (
+                <button
+                  className="context-menu-item"
+                  onClick={() => {
+                    if (inst) {
+                      onSaveAsPipeline?.(inst)
+                      setSavedAsPipelineId(inst.id)
+                      setTimeout(() => { setSavedAsPipelineId(null); setContextMenu(null) }, 1200)
+                    }
+                  }}
+                  title="Convert this session into a reusable pipeline"
+                >
+                  {savedAsPipelineId === contextMenu.id ? (
+                    'Pipeline created!'
+                  ) : (
+                    <><Zap size={12} /> Save as Pipeline</>
+                  )}
+                </button>
+              ) : null
+            })()}
             <button
               className="context-menu-item danger"
               onClick={() => {

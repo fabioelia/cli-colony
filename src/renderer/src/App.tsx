@@ -727,6 +727,38 @@ export default function App() {
     setShowNewDialog(true)
   }, [])
 
+  const handleSaveAsPipeline = useCallback(async (inst: ClaudeInstance) => {
+    const prompt = inst.args.find(a => !a.startsWith('-') && !a.startsWith('--')) || inst.name
+    const slug = inst.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'session'
+    const lines: string[] = [
+      `name: "${inst.name.replace(/"/g, '\\"')}"`,
+      `description: "Created from session ${inst.name.replace(/"/g, '\\"')}"`,
+      'enabled: false',
+      'trigger:',
+      '  type: cron',
+      '  cron: "0 9 * * 1-5"',
+      'action:',
+      '  type: launch-session',
+      `  name: "${inst.name.replace(/"/g, '\\"')}"`,
+    ]
+    if (inst.color) lines.push(`  color: "${inst.color}"`)
+    if (inst.workingDirectory) lines.push(`  workingDirectory: "${inst.workingDirectory.replace(/"/g, '\\"')}"`)
+    if (inst.cliBackend && inst.cliBackend !== 'claude') lines.push(`  model: "${inst.cliBackend}"`)
+    if (inst.mcpServers.length > 0) {
+      lines.push('  mcpServers:')
+      inst.mcpServers.forEach(s => lines.push(`    - "${s}"`))
+    }
+    lines.push('  prompt: |')
+    lines.push(`    ${prompt.replace(/\n/g, '\n    ')}`)
+    const yaml = lines.join('\n')
+    try {
+      await window.api.pipeline.createFromTemplate(yaml, slug)
+      setView('pipelines')
+    } catch (err) {
+      console.error('Save as pipeline failed:', err)
+    }
+  }, [])
+
   const handleCloneSession = useCallback((inst: ClaudeInstance) => {
     agentToLaunchRef.current = null
     setCloneSource({
@@ -1590,6 +1622,7 @@ export default function App() {
         currentLayout={showGrid ? '4-up' : isSplit ? '2-up' : 'single'}
         onLoadPreset={handleLoadPreset}
         onCloneSession={handleCloneSession}
+        onSaveAsPipeline={handleSaveAsPipeline}
         errorSummaries={errorSummaries}
         onNewWithHandoff={handleNewWithHandoff}
         rateLimitState={rateLimitState}
