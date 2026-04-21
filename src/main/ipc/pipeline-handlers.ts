@@ -274,6 +274,36 @@ export function registerPipelineHandlers(): void {
     return updatePipelineNote(fileName, index, newText)
   })
 
+  ipcMain.handle('pipeline:listArtifacts', async (): Promise<Array<{ name: string; size: number; modifiedAt: string }>> => {
+    try {
+      const entries = await fsp.readdir(colonyPaths.artifacts)
+      const results = await Promise.all(
+        entries
+          .filter(e => !e.startsWith('.'))
+          .map(async (entry) => {
+            const st = await fsp.stat(join(colonyPaths.artifacts, entry))
+            return { name: entry, size: st.size, modifiedAt: st.mtime.toISOString() }
+          })
+      )
+      return results.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt))
+    } catch {
+      return []
+    }
+  })
+
+  ipcMain.handle('pipeline:readArtifact', async (_e, name: string): Promise<string | null> => {
+    if (!name || name.includes('/') || name.includes('\\') || name.includes('..')) return null
+    try {
+      const filePath = join(colonyPaths.artifacts, name)
+      const buf = await fsp.readFile(filePath)
+      const MAX = 50 * 1024
+      if (buf.length > MAX) return buf.slice(0, MAX).toString('utf-8') + '\n\n[File truncated at 50KB]'
+      return buf.toString('utf-8')
+    } catch {
+      return null
+    }
+  })
+
   // Create a pipeline from generated YAML (Automation Wizard)
   ipcMain.handle('pipeline:createFromTemplate', async (_e, yaml: string, slug: string): Promise<boolean> => {
     if (!yaml || typeof yaml !== 'string' || yaml.trim().length === 0) return false

@@ -7,7 +7,7 @@ import {
   MessageSquare, Send, Plus, Search, Pencil, Eye, X, LayoutList, LayoutGrid,
   ShieldCheck, List, Globe, Wand2, ArrowRight, ArrowLeft, Hourglass, ArrowUpDown,
   GitPullRequest, GitMerge, GitBranch, Sparkles, RotateCw, Copy, Timer, Activity,
-  Download, Upload, PauseCircle, PlayCircle, Check, StickyNote, Network,
+  Download, Upload, PauseCircle, PlayCircle, Check, StickyNote, Network, Archive,
 } from 'lucide-react'
 import type { AuditResult, GitHubRepo, SessionArtifact } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
@@ -399,7 +399,9 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [memoryDirty, setMemoryDirty] = useState(false)
   const [outputFiles, setOutputFiles] = useState<Array<{ name: string; path: string; size: number; modified: number }>>([])
   const [outputPreview, setOutputPreview] = useState<{ name: string; content: string } | null>(null)
-  const [expandedTab, setExpandedTab] = useState<'yaml' | 'flow' | 'docs' | 'memory' | 'outputs' | 'history' | 'debug'>('yaml')
+  const [artifactFiles, setArtifactFiles] = useState<Array<{ name: string; size: number; modifiedAt: string }>>([])
+  const [artifactPreview, setArtifactPreview] = useState<{ name: string; content: string } | null>(null)
+  const [expandedTab, setExpandedTab] = useState<'yaml' | 'flow' | 'docs' | 'memory' | 'outputs' | 'history' | 'debug' | 'artifacts'>('yaml')
   type StageTrace = { index: number; actionType: string; sessionName?: string; sessionId?: string; model?: string; autoResolved?: boolean; durationMs: number; startedAt?: number; completedAt?: number; success: boolean; error?: string; responseSnippet?: string; subStages?: StageTrace[] }
   const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; sessionIds?: string[]; stages?: StageTrace[]; dedupAttempt?: number; dedupMaxRetries?: number }>>([])
   const [expandedHistoryRows, setExpandedHistoryRows] = useState<Set<number>>(new Set())
@@ -825,6 +827,11 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
       const files = await window.api.pipeline.listOutputs(p.outputsDir)
       setOutputFiles(files)
     }
+
+    // Load artifacts
+    setArtifactFiles([])
+    setArtifactPreview(null)
+    window.api.pipeline.listArtifacts().then(setArtifactFiles)
 
     // Load run history
     setHistoryEntries([])
@@ -1653,6 +1660,12 @@ ${modelLine}  prompt: |
                     >
                       <List size={11} /> Logs {(p.debugLog?.filter(l => l !== '---').length ?? 0) > 0 && `(${p.debugLog!.filter(l => l !== '---').length})`}
                     </button>
+                    <button
+                      className={`pipeline-tab ${expandedTab === 'artifacts' ? 'active' : ''}`}
+                      onClick={() => { setExpandedTab('artifacts'); setComparedRuns(new Set()); setShowComparison(false) }}
+                    >
+                      <Archive size={11} /> Artifacts {artifactFiles.length > 0 && `(${artifactFiles.length})`}
+                    </button>
                   </div>
                   {expandedTab === 'yaml' && dirty && (
                     <button className="pipeline-save-btn" onClick={handleSave}>
@@ -2235,6 +2248,52 @@ ${modelLine}  prompt: |
                       </pre>
                     ) : (
                       <p className="pipeline-memory-hint">No logs yet. Click "Poll Now" to generate the first entries.</p>
+                    )}
+                  </div>
+                ) : expandedTab === 'artifacts' ? (
+                  <div className="pipeline-outputs">
+                    {artifactPreview ? (
+                      <div className="pipeline-output-preview">
+                        <div className="pipeline-output-preview-header">
+                          <span>{artifactPreview.name}</span>
+                          <button onClick={() => setArtifactPreview(null)}>Back</button>
+                          <button onClick={() => { navigator.clipboard.writeText(artifactPreview.content) }} title="Copy to clipboard"><Copy size={11} /></button>
+                        </div>
+                        <pre className="pipeline-output-preview-code">
+                          {artifactPreview.content.split('\n').slice(0, 200).map((line, i) => (
+                            <div key={i} className="pipeline-output-preview-line">
+                              <span className="pipeline-output-preview-num">{i + 1}</span>
+                              <span>{line}</span>
+                            </div>
+                          ))}
+                          {artifactPreview.content.split('\n').length > 200 && (
+                            <div className="pipeline-output-preview-truncated">… {artifactPreview.content.split('\n').length - 200} more lines</div>
+                          )}
+                        </pre>
+                      </div>
+                    ) : artifactFiles.length === 0 ? (
+                      <p className="pipeline-memory-hint">No artifacts yet. Add <code>artifactOutputs</code> to a pipeline action to capture command output between stages.</p>
+                    ) : (
+                      <div className="pipeline-output-list">
+                        {artifactFiles.map((f) => (
+                          <div
+                            key={f.name}
+                            className="pipeline-output-file"
+                            onClick={async () => {
+                              const content = await window.api.pipeline.readArtifact(f.name)
+                              if (content !== null) setArtifactPreview({ name: f.name, content })
+                            }}
+                          >
+                            <FileText size={11} />
+                            <span className="pipeline-output-file-name">{f.name}</span>
+                            <span className="pipeline-output-file-meta">
+                              {f.size < 1024 ? `${f.size}B` : `${(f.size / 1024).toFixed(1)}KB`}
+                              {' · '}
+                              {new Date(f.modifiedAt).toLocaleDateString()} {new Date(f.modifiedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 ) : (

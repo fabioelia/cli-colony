@@ -730,6 +730,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Retry Failed Run', detail: 'Re-trigger the pipeline from a failed history entry. Appears as a refresh icon on failed rows.', icon: 'RefreshCw' },
           { label: 'Run Comparison', detail: 'Select two history runs via their checkboxes and click Compare to see a structured side-by-side diff — duration delta, cost delta, and stage-by-stage status/timing changes. Earlier/Later labels are assigned automatically by timestamp.', icon: 'ArrowUpDown' },
           { label: 'Docs', detail: 'Companion readme if <name>.readme.md exists alongside the pipeline.' },
+          { label: 'Artifacts', detail: 'Browse captured artifact files from ~/.claude-colony/artifacts/. Artifacts are captured at fire time via artifactOutputs in the pipeline action (commands like grep, jq, git log). Shows all artifacts sorted by most-recently modified with file size and timestamp. Click any artifact to preview its content inline (monospace, first 200 lines, capped at 50KB). Files over 50KB show a truncation notice. Copy-to-clipboard button in the preview header.', icon: 'Archive' },
         ],
       },
       {
