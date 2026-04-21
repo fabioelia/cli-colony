@@ -220,6 +220,8 @@ export interface PipelineInfo {
   defaultModel?: string
   /** If set, cron fires are skipped when this condition is not met (e.g. 'has_changes') */
   runCondition?: string
+  /** Hook types configured in pre_run (e.g. ['refresh-prs']) */
+  preRunHooks?: string[]
 }
 
 const MAX_DEBUG_ITERATIONS = 20
@@ -1911,6 +1913,7 @@ export function getPipelineList(): PipelineInfo[] {
       firstActionModel: p.def.action.model || p.def.default_model || undefined,
       defaultModel: p.def.default_model || undefined,
       runCondition: p.def.run_condition || undefined,
+      preRunHooks: p.def.pre_run?.length ? p.def.pre_run.map(h => h.type) : undefined,
     })
   }
   return result

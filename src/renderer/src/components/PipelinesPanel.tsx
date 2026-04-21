@@ -81,6 +81,7 @@ interface PipelineInfo {
   firstActionModel?: string
   defaultModel?: string
   runCondition?: string
+  preRunHooks?: string[]
 }
 
 interface Props {
@@ -1356,6 +1357,9 @@ ${modelLine}  prompt: |
                 {p.runCondition === 'has_changes' && (
                   <span className="pipeline-run-condition" title="Only fires when new commits exist since last run">if changes</span>
                 )}
+                {p.preRunHooks?.length ? (
+                  <span className="pipeline-pre-run" title={`Pre-run hooks: ${p.preRunHooks.join(', ')}`}>pre-run</span>
+                ) : null}
                 {p.triggerType === 'webhook' ? (
                   <span className="pipeline-webhook-badge" title="Triggered by HTTP webhook POST">
                     <Globe size={10} /> Webhook

@@ -14552,6 +14552,14 @@ button.session-trigger-chain-btn:hover {
   font-size: 10px;
 }
 
+.pipeline-pre-run {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+}
+
 .pipeline-card-interval {
   color: var(--text-muted);
 }
