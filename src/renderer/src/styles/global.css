@@ -6992,7 +6992,7 @@ button.session-trigger-chain-btn {
 }
 
 button.session-trigger-chain-btn:hover {
-  color: var(--text);
+  color: var(--text-primary);
   text-decoration: underline;
 }
 

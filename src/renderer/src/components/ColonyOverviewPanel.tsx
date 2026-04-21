@@ -1324,6 +1324,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
             </div>
             {activityProjectChips.length >= 2 && (
               <div className="activity-filter-row">
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 4, alignSelf: 'center' }}>Project:</span>
                 <button className={`activity-filter-chip${activityProjectFilter === 'all' ? ' active' : ''}`} onClick={() => setActivityProjectFilter('all')}>All</button>
                 {activityProjectChips.map(p => (
                   <button key={p} className={`activity-filter-chip${activityProjectFilter === p ? ' active' : ''}`} onClick={() => setActivityProjectFilter(p)}>{p}</button>
