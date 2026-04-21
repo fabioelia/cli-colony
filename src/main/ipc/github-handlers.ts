@@ -8,7 +8,7 @@ import {
   getPrMemory, savePrMemory, getPrMemoryPath, getPrWorkspacePath,
   fetchChecks, fetchCheckLogs, ensureBareClone,
   getGitHubUser, fetchFeedbackFiles, createPRReviewComment, replyToPRComment,
-  requestReviewers, closePR, updatePR,
+  requestReviewers, closePR, updatePR, markPRReady,
 } from '../github'
 import type { GitHubRepo, QuickPrompt, GitHubPR } from '../../shared/types'
 
@@ -59,4 +59,6 @@ export function registerGitHubHandlers(): void {
     closePR(repo, prNumber, deleteBranch))
   ipcMain.handle('github:updatePR', (_e, repo: GitHubRepo, prNumber: number, fields: { title?: string; body?: string }) =>
     updatePR(repo, prNumber, fields))
+  ipcMain.handle('github:markPRReady', (_e, repo: GitHubRepo, prNumber: number) =>
+    markPRReady(repo, prNumber))
 }

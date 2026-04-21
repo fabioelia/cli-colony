@@ -375,9 +375,14 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
     return () => clearInterval(interval)
   }, [instance.id, instance.status])
 
-  // Poll changed files for running sessions
+  // Poll changed files while running; do one final fetch on exit to capture last state
   useEffect(() => {
-    if (instance.status !== 'running' || !instance.workingDirectory) return
+    if (!instance.workingDirectory) return
+    if (instance.status === 'exited') {
+      window.api.git.changedFiles(instance.workingDirectory).then(setChangedFiles).catch(() => {})
+      return
+    }
+    if (instance.status !== 'running') return
     const poll = async () => {
       try {
         const files = await window.api.git.changedFiles(instance.workingDirectory!)
@@ -1262,7 +1267,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
           )}
         </div>
       )}
-      {viewTab === 'session' && instance.status === 'running' && changedFiles.length > 0 && (
+      {viewTab === 'session' && changedFiles.length > 0 && (
         <div className="session-changed-files">
           <div
             className="session-changed-files-header"
@@ -1274,7 +1279,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
             }}
           >
             <FileCode size={11} />
-            <span>{changedFiles.length} changed file{changedFiles.length !== 1 ? 's' : ''}</span>
+            <span>{changedFiles.length} changed file{changedFiles.length !== 1 ? 's' : ''}{instance.status !== 'running' ? ' (session ended)' : ''}</span>
             <span className="session-changed-files-summary">
               +{changedFiles.filter(f => f.status === 'A' || f.status === '?').length}
               {' '}~{changedFiles.filter(f => f.status === 'M').length}

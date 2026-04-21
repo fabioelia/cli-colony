@@ -276,6 +276,11 @@ export async function updatePR(repo: GitHubRepo, prNumber: number, fields: { tit
   await gh(args)
 }
 
+/** Mark a draft PR as ready for review. */
+export async function markPRReady(repo: GitHubRepo, prNumber: number): Promise<void> {
+  await gh(['pr', 'ready', String(prNumber), '--repo', `${repo.owner}/${repo.name}`])
+}
+
 /** Fetch the list of changed files for a PR, including unified diff patches. */
 export async function fetchPRFiles(repo: GitHubRepo, prNumber: number): Promise<PRFile[]> {
   const slug = `${repo.owner}/${repo.name}`

@@ -196,6 +196,9 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const [editingPRDescDraft, setEditingPRDescDraft] = useState<Record<string, string>>({})
   const [savingPREdit, setSavingPREdit] = useState<Set<string>>(new Set())
 
+  // Mark draft as ready state
+  const [markingReady, setMarkingReady] = useState<Set<string>>(new Set())
+
   // Prompt Environment Selector modal
   const [showEnvSelector, setShowEnvSelector] = useState(false)
   const [pendingPromptAction, setPendingPromptAction] = useState<{ prompt: QuickPrompt; pr: GitHubPR; repo: GitHubRepo } | null>(null)
@@ -686,6 +689,16 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
       fetchPRsForRepo(repo)
     } catch { /* API error is non-fatal — keep edit mode open */ } finally {
       setSavingPREdit(prev => { const n = new Set(prev); n.delete(prKey); return n })
+    }
+  }
+
+  const handleMarkPRReady = async (pr: GitHubPR, repo: GitHubRepo, prKey: string) => {
+    setMarkingReady(prev => new Set(prev).add(prKey))
+    try {
+      await window.api.github.markPRReady(repo, pr.number)
+      fetchPRsForRepo(repo)
+    } catch { /* non-fatal */ } finally {
+      setMarkingReady(prev => { const n = new Set(prev); n.delete(prKey); return n })
     }
   }
 
@@ -1379,6 +1392,17 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                                 return <span className="github-pr-ci pending" title="Checks in progress"><CircleDot size={11} /> CI</span>
                               })()}
                               {/* Merge readiness badge + merge button */}
+                              {pr.draft && ghUser && pr.author === ghUser && (
+                                <button
+                                  className="github-pr-ready-btn"
+                                  title="Mark as ready for review"
+                                  disabled={markingReady.has(prKey)}
+                                  onClick={(e) => { e.stopPropagation(); handleMarkPRReady(pr, repo, prKey) }}
+                                >
+                                  {markingReady.has(prKey) ? <Loader size={11} className="spin" /> : <Eye size={11} />}
+                                  {markingReady.has(prKey) ? ' Marking…' : ' Ready for Review'}
+                                </button>
+                              )}
                               {checksByPR[prKey] && !pr.draft && pr.reviewDecision === 'APPROVED' && checksByPR[prKey].overall === 'success' && (
                                 <>
                                   <span className="github-pr-merge-ready" title="Ready to merge">

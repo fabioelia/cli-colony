@@ -224,6 +224,7 @@ export interface ClaudeManagerAPI {
     requestReviewers: (repo: GitHubRepo, prNumber: number, usernames: string[]) => Promise<void>
     closePR: (repo: GitHubRepo, prNumber: number, deleteBranch: boolean) => Promise<void>
     updatePR: (repo: GitHubRepo, prNumber: number, fields: { title?: string; body?: string }) => Promise<void>
+    markPRReady: (repo: GitHubRepo, prNumber: number) => Promise<void>
   }
   jira: {
     fetchTicket: (key: string) => Promise<{ ok: true; ticket: import('../shared/types').JiraTicket } | { ok: false; error: string }>
@@ -915,6 +916,7 @@ const api: ClaudeManagerAPI = {
     requestReviewers: (repo, prNumber, usernames) => ipcRenderer.invoke('github:requestReviewers', repo, prNumber, usernames),
     closePR: (repo, prNumber, deleteBranch) => ipcRenderer.invoke('github:closePR', repo, prNumber, deleteBranch),
     updatePR: (repo, prNumber, fields) => ipcRenderer.invoke('github:updatePR', repo, prNumber, fields),
+    markPRReady: (repo, prNumber) => ipcRenderer.invoke('github:markPRReady', repo, prNumber),
   },
   jira: {
     fetchTicket: (key) => ipcRenderer.invoke('jira:fetchTicket', key),
