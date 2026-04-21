@@ -926,6 +926,9 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const [retryTarget, setRetryTarget] = useState<ClaudeInstance | null>(null)
   const [sendingMessageTo, setSendingMessageTo] = useState<string | null>(null)
   const [messageText, setMessageText] = useState('')
+  const [groupMenuTarget, setGroupMenuTarget] = useState<string | null>(null)
+  const [groupPromptText, setGroupPromptText] = useState('')
+  const [groupPromptTarget, setGroupPromptTarget] = useState<string | null>(null)
   const renameRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -944,6 +947,13 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     window.addEventListener('sidebar-start-rename', handler)
     return () => window.removeEventListener('sidebar-start-rename', handler)
   }, [instances])
+
+  useEffect(() => {
+    if (!groupMenuTarget) return
+    const handler = () => setGroupMenuTarget(null)
+    document.addEventListener('click', handler)
+    return () => document.removeEventListener('click', handler)
+  }, [groupMenuTarget])
 
   useEffect(() => { localStorage.setItem('colony:sessionSort', sessionSort) }, [sessionSort])
   useEffect(() => { localStorage.setItem('colony:instanceStatusFilter', JSON.stringify(Array.from(instanceStatusFilter))) }, [instanceStatusFilter])
@@ -1720,8 +1730,8 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             <React.Fragment key={label}>
               <div
                 className="instance-list-divider session-group-header"
-                style={{ cursor: 'pointer' }}
-                onClick={() => toggleGroupCollapse(label)}
+                style={{ cursor: 'pointer', position: 'relative' }}
+                onClick={() => { toggleGroupCollapse(label); setGroupMenuTarget(null) }}
               >
                 {collapsedGroups.has(label) ? <ChevronRight size={11} /> : <ChevronDown size={11} />}
                 {groupBy === 'pipeline' && label !== 'Manual Sessions' && (() => {
@@ -1741,7 +1751,61 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                     </span>
                   )
                 })()}
+                <button
+                  className="session-group-actions"
+                  title="Group actions"
+                  onClick={(e) => { e.stopPropagation(); setGroupMenuTarget(groupMenuTarget === label ? null : label); setGroupPromptTarget(null) }}
+                >
+                  <MoreHorizontal size={12} />
+                </button>
+                {groupMenuTarget === label && (() => {
+                  const runningIds = items.filter(i => i.status === 'running').map(i => i.id)
+                  const stoppedIds = items.filter(i => i.status !== 'running').map(i => i.id)
+                  return (
+                    <div className="session-group-menu" onClick={e => e.stopPropagation()}>
+                      {runningIds.length > 0 && (
+                        <button className="session-group-menu-item" onClick={() => { runningIds.forEach(id => onKill(id)); setGroupMenuTarget(null) }}>
+                          Stop All ({runningIds.length})
+                        </button>
+                      )}
+                      {stoppedIds.length > 0 && (
+                        <button className="session-group-menu-item" onClick={() => { stoppedIds.forEach(id => onRemove(id)); setGroupMenuTarget(null) }}>
+                          Remove Stopped ({stoppedIds.length})
+                        </button>
+                      )}
+                      {runningIds.length > 0 && (
+                        <button className="session-group-menu-item" onClick={() => { setGroupPromptTarget(label); setGroupMenuTarget(null) }}>
+                          Send Prompt…
+                        </button>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
+              {groupPromptTarget === label && (() => {
+                const runningIds = items.filter(i => i.status === 'running').map(i => i.id)
+                return (
+                  <div className="session-group-prompt" onClick={e => e.stopPropagation()}>
+                    <textarea
+                      autoFocus
+                      value={groupPromptText}
+                      onChange={e => setGroupPromptText(e.target.value)}
+                      placeholder={`Send to ${runningIds.length} session${runningIds.length !== 1 ? 's' : ''}…`}
+                      rows={2}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && !e.shiftKey && groupPromptText.trim()) {
+                          e.preventDefault()
+                          runningIds.forEach(id => window.api.session.steer(id, groupPromptText.trim()))
+                          setGroupPromptTarget(null)
+                          setGroupPromptText('')
+                        }
+                        if (e.key === 'Escape') { setGroupPromptTarget(null); setGroupPromptText('') }
+                      }}
+                    />
+                    <div className="send-message-hint">Enter to send · Shift+Enter for newline · Esc to cancel</div>
+                  </div>
+                )
+              })()}
               {!collapsedGroups.has(label) && items.map(renderItem)}
             </React.Fragment>
           ))

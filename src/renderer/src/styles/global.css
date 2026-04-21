@@ -23706,6 +23706,63 @@ button.session-trigger-chain-btn:hover {
   flex-shrink: 0;
   opacity: 0.7;
 }
+.session-group-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.1s;
+  flex-shrink: 0;
+}
+.session-group-header:hover .session-group-actions { opacity: 1; }
+.session-group-actions:hover { background: var(--bg-hover); color: var(--text-primary); }
+.session-group-menu {
+  position: absolute;
+  right: 4px;
+  top: 100%;
+  z-index: 200;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  min-width: 160px;
+  padding: 4px 0;
+}
+.session-group-menu-item {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+.session-group-menu-item:hover { background: var(--bg-hover); }
+.session-group-prompt {
+  padding: 6px 8px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.session-group-prompt textarea {
+  width: 100%;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 12px;
+  padding: 6px 8px;
+  resize: none;
+  box-sizing: border-box;
+}
 
 /* ---- Global Search Panel ---- */
 .global-search-panel {
