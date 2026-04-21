@@ -82,6 +82,11 @@ export function startScheduler(): void {
     for (const persona of personas) {
       if (!persona.enabled || !persona.schedule) continue
 
+      if (persona.draining) {
+        schedulerLog(`skip "${persona.name}" — draining (waiting for current session to finish)`)
+        continue
+      }
+
       if (persona.activeSessionId) {
         schedulerLog(`skip "${persona.name}" — already running (session ${persona.activeSessionId})`)
         continue

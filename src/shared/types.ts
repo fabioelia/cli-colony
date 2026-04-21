@@ -367,6 +367,8 @@ export interface PersonaInfo {
   attentionCount: number
   /** Current auto-retry attempt count (0 = not retrying) */
   retryCount: number
+  /** Whether the persona is draining — will disable after current session + triggers complete */
+  draining: boolean
   /** Synthesized health score from last 10 runs */
   healthScore: PersonaHealthScore
   /** First meaningful line of the latest brief (max 120 chars), or null if no brief exists */

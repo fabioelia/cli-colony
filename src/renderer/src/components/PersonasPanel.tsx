@@ -4,7 +4,7 @@ import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
   ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote, ArrowRightCircle, Save, Loader2,
   Hourglass, ArrowRight, FolderOpen, Search, Check, Bot, BarChart3, ArrowUpDown, DollarSign, TrendingUp, Copy,
-  CalendarClock, GitBranch, Brain, ShieldCheck, Bell,
+  CalendarClock, GitBranch, Brain, ShieldCheck, Bell, Timer,
 } from 'lucide-react'
 import EmptyStateHook from './EmptyStateHook'
 import MarkdownViewer from './MarkdownViewer'
@@ -378,6 +378,14 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
       await window.api.persona.toggle(id, enabled)
     } catch (err) {
       console.error('Failed to toggle persona:', err)
+    }
+  }
+
+  const handleDrain = async (id: string) => {
+    try {
+      await window.api.persona.drain(id)
+    } catch (err) {
+      console.error('Failed to drain persona:', err)
     }
   }
 
@@ -773,6 +781,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
             onRun={() => handleRun(persona.id)}
             onStop={() => handleStop(persona.id)}
             onToggle={(enabled) => handleToggle(persona.id, enabled)}
+            onDrain={() => handleDrain(persona.id)}
             onDelete={() => handleDelete(persona.id)}
             onDuplicate={() => handleDuplicate(persona.id)}
             onFocusInstance={onFocusInstance}
@@ -1132,6 +1141,7 @@ interface PersonaCardProps {
   onRun: () => void
   onStop: () => void
   onToggle: (enabled: boolean) => void
+  onDrain: () => void
   onDelete: () => void
   onFocusInstance: (id: string) => void
   onViewFile: () => void
@@ -1147,7 +1157,7 @@ interface PersonaCardProps {
 
 function PersonaCard({
   persona, expanded, instances, allPersonas, analytics, selected, onToggleSelect,
-  onToggleExpand, onRun, onStop, onToggle, onDelete, onDuplicate, onFocusInstance, onViewFile, onEditFile, onEditMeta, onScheduleSave, onWhisper, onDeleteNote, onUpdateNote, cronsPaused
+  onToggleExpand, onRun, onStop, onToggle, onDrain, onDelete, onDuplicate, onFocusInstance, onViewFile, onEditFile, onEditMeta, onScheduleSave, onWhisper, onDeleteNote, onUpdateNote, cronsPaused
 }: PersonaCardProps) {
   const [editingSchedule, setEditingSchedule] = useState(false)
   const [whisperOpen, setWhisperOpen] = useState(false)
@@ -1258,6 +1268,7 @@ function PersonaCard({
             )
           })()}
           {isRunning && <span className="persona-list-badge running">Running</span>}
+          {persona.draining && <span className="persona-list-badge draining" title="Draining — will disable after current session and triggers complete">Draining</span>}
           {!isRunning && (persona.retryCount ?? 0) > 0 && (
             <span className="persona-list-badge retry" title={`Auto-retrying: attempt ${persona.retryCount}`}>
               ↺ {persona.retryCount}
@@ -1363,6 +1374,11 @@ function PersonaCard({
                   <Bell size={11} />
                   <span className="persona-attention-badge">{persona.attentionCount}</span>
                 </button>
+              </Tooltip>
+            )}
+            {persona.enabled && !persona.draining && (
+              <Tooltip text="Drain — finish current session and triggers, then disable">
+                <button className="persona-action-btn" onClick={onDrain}><Timer size={11} /></button>
               </Tooltip>
             )}
             <button

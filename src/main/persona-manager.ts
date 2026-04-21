@@ -52,6 +52,7 @@ export interface PersonaState {
   triggerType: string | null
   lastSkipped: number | null
   retryCount: number
+  draining: boolean
 }
 
 const stateFile = new JsonFile<Record<string, PersonaState>>(STATE_PATH, {})
@@ -75,7 +76,7 @@ export function saveState(): void {
 
 export function getState(name: string): PersonaState {
   if (!stateCache[name]) {
-    stateCache[name] = { lastRunAt: null, runCount: 0, activeSessionId: null, enabled: false, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null, triggeredBy: null, triggerType: null, lastSkipped: null, retryCount: 0 }
+    stateCache[name] = { lastRunAt: null, runCount: 0, activeSessionId: null, enabled: false, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null, triggeredBy: null, triggerType: null, lastSkipped: null, retryCount: 0, draining: false }
   }
   return stateCache[name]
 }
@@ -299,6 +300,7 @@ export function getPersonaList(): PersonaInfo[] {
           try { return readPersonaMemory(personaId).costTracking?.totalUsd ?? 0 } catch { return 0 }
         })() : undefined,
         retryCount: state.retryCount ?? 0,
+        draining: state.draining ?? false,
         healthScore: computePersonaHealth(personaId, fm),
         attentionCount: getAttentionCount(personaId),
         color: fm.color || undefined,
@@ -530,6 +532,23 @@ export function togglePersona(fileName: string, enabled: boolean): boolean {
   if (!fm) return false
   const state = getState(fm.name)
   state.enabled = enabled
+  saveState()
+  broadcastStatus()
+  return true
+}
+
+export function drainPersona(fileName: string): boolean {
+  const filePath = resolvedPersonaPath(fileName)
+  if (!existsSync(filePath)) return false
+  const content = readFileSync(filePath, 'utf-8')
+  const fm = parseFrontmatter(content)
+  if (!fm) return false
+  const state = getState(fm.name)
+  if (state.activeSessionId) {
+    state.draining = true
+  } else {
+    state.enabled = false
+  }
   saveState()
   broadcastStatus()
   return true
@@ -921,6 +940,7 @@ export async function askPersonas(query: string): Promise<string> {
 export async function onSessionExit(instanceId: string): Promise<void> {
   let changed = false
   const triggerPersonas: Array<{ id: string; triggeredBy: string; customMessage?: string }> = []
+  const drainingExited: string[] = []
 
   for (const [name, state] of Object.entries(stateCache)) {
     if (state.activeSessionId === instanceId) {
@@ -1149,6 +1169,11 @@ export async function onSessionExit(instanceId: string): Promise<void> {
             }
           } catch { /* non-fatal */ }
         }
+
+        // Track draining personas — will be disabled after triggers fire
+        if (state.draining) {
+          drainingExited.push(name)
+        }
       }
     }
   }
@@ -1176,6 +1201,19 @@ export async function onSessionExit(instanceId: string): Promise<void> {
     runPersona(persona.id, { type: 'handoff', from: triggeredBy }, customMessage).catch(err => {
       console.log(`[persona] trigger: launch failed for "${triggerId}": ${err.message}`)
     })
+  }
+
+  // Finalize drain: disable personas that were draining and just exited
+  if (drainingExited.length > 0) {
+    for (const name of drainingExited) {
+      const state = stateCache[name]
+      if (!state) continue
+      state.enabled = false
+      state.draining = false
+      appendActivity({ source: 'persona', name, summary: `Persona "${name}" drained — now disabled`, level: 'info' })
+    }
+    saveState()
+    broadcastStatus()
   }
 }
 

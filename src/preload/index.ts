@@ -316,6 +316,7 @@ export interface ClaudeManagerAPI {
     run: (fileName: string) => Promise<string>
     stop: (fileName: string) => Promise<boolean>
     toggle: (fileName: string, enabled: boolean) => Promise<boolean>
+    drain: (fileName: string) => Promise<boolean>
     getDir: () => Promise<string>
     setSchedule: (fileName: string, schedule: string) => Promise<boolean>
     whisper: (fileName: string, text: string) => Promise<boolean>
@@ -1038,6 +1039,7 @@ const api: ClaudeManagerAPI = {
     run: (fileName) => ipcRenderer.invoke('persona:run', fileName),
     stop: (fileName) => ipcRenderer.invoke('persona:stop', fileName),
     toggle: (fileName, enabled) => ipcRenderer.invoke('persona:toggle', fileName, enabled),
+    drain: (fileName) => ipcRenderer.invoke('persona:drain', fileName),
     getDir: () => ipcRenderer.invoke('persona:getDir'),
     setSchedule: (fileName, schedule) => ipcRenderer.invoke('persona:setSchedule', fileName, schedule),
     whisper: (fileName, text) => ipcRenderer.invoke('persona:whisper', fileName, text),
