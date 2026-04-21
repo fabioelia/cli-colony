@@ -146,6 +146,9 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
   const [checksByPR, setChecksByPR] = useState<Record<string, PRChecks>>({})
   const [checksLoading, setChecksLoading] = useState<Set<string>>(new Set())
   const checksFetchedRef = useRef<Set<string>>(new Set())
+  const [expandedChecks, setExpandedChecks] = useState<string | null>(null)
+  const [checkLogs, setCheckLogs] = useState<Record<string, string>>({})
+  const [checkLogsLoading, setCheckLogsLoading] = useState<Set<string>>(new Set())
   const prsFetchedRef = useRef<Set<string>>(new Set())
   const repoRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [checkLogContent, setCheckLogContent] = useState<string | null>(null)
@@ -1379,17 +1382,26 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                                 const loading = checksLoading.has(prKey)
                                 if (loading) return <span className="github-pr-ci loading" title="Loading checks..."><Loader size={11} /> CI</span>
                                 if (!checks || checks.overall === 'none') return null
-                                if (checks.overall === 'success') return <span className="github-pr-ci success" title="All checks passed"><CheckCircle size={11} /> CI</span>
+                                const toggleChecks = (e: React.MouseEvent) => { e.stopPropagation(); setExpandedChecks(expandedChecks === prKey ? null : prKey) }
+                                if (checks.overall === 'success') return (
+                                  <span className="github-pr-ci success clickable" title="All checks passed — click to expand" onClick={toggleChecks}>
+                                    <CheckCircle size={11} /> CI
+                                  </span>
+                                )
                                 if (checks.overall === 'failure') return (
                                   <span
                                     className="github-pr-ci failure clickable"
                                     title="Checks failed — click to see details"
-                                    onClick={(e) => { e.stopPropagation(); setExpandedPR(isOpen ? null : prKey) }}
+                                    onClick={toggleChecks}
                                   >
                                     <XCircle size={11} /> CI
                                   </span>
                                 )
-                                return <span className="github-pr-ci pending" title="Checks in progress"><CircleDot size={11} /> CI</span>
+                                return (
+                                  <span className="github-pr-ci pending clickable" title="Checks in progress — click to expand" onClick={toggleChecks}>
+                                    <CircleDot size={11} /> CI
+                                  </span>
+                                )
                               })()}
                               {/* Merge readiness badge + merge button */}
                               {pr.draft && ghUser && pr.author === ghUser && (
@@ -1627,6 +1639,64 @@ export default function GitHubPanel({ onBack, onLaunchInstance, onFocusInstance,
                                 ))}
                             </div>
                             {requestReviewerError[prKey] && <div className="github-merge-error"><AlertCircle size={11} /> {requestReviewerError[prKey]}</div>}
+                          </div>
+                        )}
+                        {expandedChecks === prKey && checksByPR[prKey] && (
+                          <div className="github-checks-detail" onClick={(e) => e.stopPropagation()}>
+                            <div className="github-checks-detail-header">
+                              <span>CI / CD Checks ({checksByPR[prKey].checks.length})</span>
+                              <button className="github-checks-detail-refresh" onClick={() => fetchChecksForPR(repo, pr)} title="Refresh checks"><RefreshCw size={11} /></button>
+                              <button className="github-checks-detail-close" onClick={() => setExpandedChecks(null)} title="Close"><X size={11} /></button>
+                            </div>
+                            <div className="github-checks-detail-list">
+                              {checksByPR[prKey].checks.map((check) => {
+                                const logKey = `${prKey}:${check.name}`
+                                return (
+                                  <div key={check.name} className={`github-check-row ${check.conclusion || 'pending'}`}>
+                                    <span className="github-check-icon">
+                                      {check.conclusion === 'success' && <CheckCircle size={12} />}
+                                      {check.conclusion === 'failure' && <XCircle size={12} />}
+                                      {check.conclusion === 'skipped' && <CircleDot size={12} />}
+                                      {check.conclusion === 'cancelled' && <CircleDot size={12} />}
+                                      {!check.conclusion && <Loader size={12} className="spin" />}
+                                      {check.conclusion && !['success','failure','skipped','cancelled'].includes(check.conclusion) && <CircleDot size={12} />}
+                                    </span>
+                                    <span className="github-check-name">{check.name}</span>
+                                    <span className="github-check-status">{check.conclusion || check.status}</span>
+                                    {check.url && (
+                                      <button className="github-check-ext" onClick={() => window.api.shell.openExternal(check.url)} title="Open in browser">
+                                        <ExternalLink size={10} />
+                                      </button>
+                                    )}
+                                    {check.conclusion === 'failure' && (
+                                      <button
+                                        className="github-check-logs-btn"
+                                        title="View failure logs"
+                                        onClick={async () => {
+                                          if (checkLogs[logKey] !== undefined) {
+                                            setCheckLogs(prev => { const n = { ...prev }; delete n[logKey]; return n })
+                                            return
+                                          }
+                                          setCheckLogsLoading(prev => new Set(prev).add(logKey))
+                                          try {
+                                            const logs = await window.api.github.fetchCheckLogs(repo, pr.number, check.name)
+                                            setCheckLogs(prev => ({ ...prev, [logKey]: logs }))
+                                          } finally {
+                                            setCheckLogsLoading(prev => { const n = new Set(prev); n.delete(logKey); return n })
+                                          }
+                                        }}
+                                      >
+                                        {checkLogsLoading.has(logKey) ? <Loader size={10} className="spin" /> : <FileText size={10} />}
+                                        {' '}{checkLogs[logKey] !== undefined ? 'Hide logs' : 'View logs'}
+                                      </button>
+                                    )}
+                                    {checkLogs[logKey] !== undefined && (
+                                      <pre className="github-check-log">{checkLogs[logKey]}</pre>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
                           </div>
                         )}
                         {isOpen && (

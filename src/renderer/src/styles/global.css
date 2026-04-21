@@ -12743,6 +12743,151 @@ body:has(.daemon-update-banner) .app-update-banner {
   to { transform: rotate(360deg); }
 }
 
+.github-pr-ci.clickable {
+  cursor: pointer;
+}
+.github-pr-ci.clickable:hover {
+  filter: brightness(1.2);
+}
+
+/* ===== Inline Check Details Panel ===== */
+.github-checks-detail {
+  margin: 4px 8px 4px 24px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  overflow: hidden;
+}
+
+.github-checks-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border);
+}
+
+.github-checks-detail-header span {
+  flex: 1;
+}
+
+.github-checks-detail-refresh,
+.github-checks-detail-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 2px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.github-checks-detail-refresh:hover,
+.github-checks-detail-close:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.github-checks-detail-list {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.github-check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.github-check-row:last-child {
+  border-bottom: none;
+}
+
+.github-check-icon {
+  display: flex;
+  align-items: center;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+.github-check-row.success .github-check-icon { color: var(--success); }
+.github-check-row.failure .github-check-icon { color: var(--danger); }
+.github-check-row.skipped .github-check-icon,
+.github-check-row.cancelled .github-check-icon,
+.github-check-row.pending .github-check-icon { color: var(--text-muted); }
+
+.github-check-name {
+  flex: 1;
+  font-size: 11px;
+  color: var(--text-primary);
+  min-width: 0;
+  word-break: break-word;
+}
+
+.github-check-status {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.github-check-row.success .github-check-status { color: var(--success); }
+.github-check-row.failure .github-check-status { color: var(--danger); }
+
+.github-check-ext,
+.github-check-logs-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 10px;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.github-check-ext:hover,
+.github-check-logs-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.github-check-row.failure .github-check-logs-btn {
+  color: var(--danger);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.github-check-log {
+  width: 100%;
+  flex-basis: 100%;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px;
+  font-family: 'SF Mono', Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  overflow: auto;
+  max-height: 300px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-top: 4px;
+}
+
 /* Attention badges */
 .github-pr-attention {
   display: inline-flex;
