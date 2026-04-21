@@ -14544,6 +14544,15 @@ button.session-trigger-chain-btn:hover {
   font-weight: 600;
 }
 
+.pipeline-run-condition {
+  background: color-mix(in srgb, var(--text-muted) 15%, transparent);
+  color: var(--text-muted);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-style: italic;
+}
+
 .pipeline-card-interval {
   color: var(--text-muted);
 }

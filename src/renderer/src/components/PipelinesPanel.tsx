@@ -78,6 +78,7 @@ interface PipelineInfo {
   firstActionWorkingDirectory?: string
   firstActionModel?: string
   defaultModel?: string
+  runCondition?: string
 }
 
 interface Props {
@@ -1323,6 +1324,9 @@ ${modelLine}  prompt: |
                   </span>
                 )}
                 {p.triggerType !== 'webhook' && <span className="pipeline-card-trigger">{p.triggerType}</span>}
+                {p.runCondition === 'has_changes' && (
+                  <span className="pipeline-run-condition" title="Only fires when new commits exist since last run">if changes</span>
+                )}
                 {p.triggerType === 'webhook' ? (
                   <span className="pipeline-webhook-badge" title="Triggered by HTTP webhook POST">
                     <Globe size={10} /> Webhook

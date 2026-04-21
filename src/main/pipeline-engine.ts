@@ -9,6 +9,8 @@
 import { promises as fsp } from 'fs'
 import { join, basename } from 'path'
 import { createHash } from 'crypto'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import { app } from 'electron'
 import { createInstance, getAllInstances, killInstance, setApprovalCountGetter, updateDockBadge } from './instance-manager'
 import { markChecklistItem } from './onboarding-state'
@@ -27,6 +29,9 @@ import { waitForSessionCompletion, waitForStableIdle } from './session-completio
 import { tagArtifactPipeline } from './session-artifacts'
 import { isRateLimited, getRateLimitState } from './rate-limit-state'
 import { isCronsPausedSync } from './cron-pause'
+import { resolveCommand } from './resolve-command'
+
+const execFileAsync = promisify(execFile)
 
 export async function pathExists(p: string): Promise<boolean> {
   try { await fsp.access(p); return true } catch { return false }
@@ -143,6 +148,7 @@ export interface PipelineDef {
   action: ActionDef
   dedup: DedupDef
   budget?: BudgetDef
+  run_condition?: string
 }
 
 export interface PendingApproval {
@@ -209,6 +215,8 @@ export interface PipelineInfo {
   firstActionModel?: string
   /** Pipeline-level fallback model applied to stages that don't set their own model override */
   defaultModel?: string
+  /** If set, cron fires are skipped when this condition is not met (e.g. 'has_changes') */
+  runCondition?: string
 }
 
 const MAX_DEBUG_ITERATIONS = 20
@@ -348,6 +356,8 @@ function parsePipelineYaml(content: string): PipelineDef | null {
     if (result.action && !result.action.busyStrategy) {
       result.action.busyStrategy = 'launch-new'
     }
+
+    result.run_condition = result.run_condition || undefined
 
     return result as PipelineDef
   } catch (err) {
@@ -1249,6 +1259,21 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
       plog(pipelineName, `no contexts — check: repos configured? PRs open? gh auth ok?`)
     }
 
+    // run_condition: has_changes — skip cron-triggered pipelines if no new commits since last fire
+    if (p.def.run_condition === 'has_changes' && p.def.trigger.type === 'cron' && p.state.lastFiredAt) {
+      const repos = await getRepos()
+      const cwd = p.def.action.workingDirectory
+        || (repos.length > 0 ? repos[0].localPath : null)
+        || process.cwd()
+      try {
+        const { stdout } = await execFileAsync(resolveCommand('git'), ['log', '--oneline', '-1', `--after=${p.state.lastFiredAt}`], { encoding: 'utf-8', timeout: 5000, cwd })
+        if (!stdout.trim()) {
+          plog(pipelineName, `⊘ run_condition: no changes since last fire (${p.state.lastFiredAt})`)
+          return
+        }
+      } catch { /* not a git repo — run anyway */ }
+    }
+
     for (const ctx of contexts) {
       const prLabel = ctx.pr ? `PR #${ctx.pr.number} (${ctx.pr.branch})` : 'no PR'
       const repoLabel = ctx.repo ? `${ctx.repo.owner}/${ctx.repo.name}` : 'no repo'
@@ -1832,6 +1857,7 @@ export function getPipelineList(): PipelineInfo[] {
       firstActionWorkingDirectory: p.def.action.workingDirectory || undefined,
       firstActionModel: p.def.action.model || p.def.default_model || undefined,
       defaultModel: p.def.default_model || undefined,
+      runCondition: p.def.run_condition || undefined,
     })
   }
   return result

@@ -712,6 +712,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Webhook trigger', detail: 'Add trigger: {type: webhook, source: github|generic, secret: mytoken} to fire the pipeline when a POST arrives at /webhook/<slug>. The slug is the pipeline name lowercased with spaces replaced by hyphens. Colony validates the signature before firing.', icon: 'Globe' },
           { label: 'GitHub webhooks', detail: 'Set up a GitHub webhook pointing to http://localhost:7474/webhook/<slug> with the same secret as in the YAML. Colony verifies the X-Hub-Signature-256 header (HMAC-SHA256 of the request body). External tools like ngrok can expose the local server.' },
           { label: 'Webhook template variables', detail: '{{pr_title}}, {{pr_url}}, {{pr_number}}, {{sender}} are extracted from GitHub webhook payloads. {{webhook_payload}} contains the full JSON payload. These can be used in the action prompt.' },
+          { label: 'Run condition', detail: 'Add run_condition: has_changes to a cron pipeline to skip the run when no new commits have landed since the last fire. Colony runs git log --after=<lastFiredAt> in the pipeline\'s workingDirectory. If no commits are found, the run is silently skipped and logged. First run always fires (no lastFiredAt). Shows as an "if changes" badge on the pipeline card.' },
         ],
       },
       {
