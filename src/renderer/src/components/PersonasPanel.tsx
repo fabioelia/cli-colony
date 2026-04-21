@@ -1415,7 +1415,7 @@ function PersonaCard({
             )
           })()}
           {isRunning && <span className="persona-list-badge running">Running</span>}
-          {persona.runOnStartup && <span className="persona-list-badge" style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }} title="Fires on app startup">startup</span>}
+          {persona.runOnStartup && <span className="persona-list-badge startup" title="Fires on app startup">Startup</span>}
           {persona.draining && <span className="persona-list-badge draining" title="Draining — will disable after current session and triggers complete">Draining</span>}
           {!isRunning && (persona.retryCount ?? 0) > 0 && (
             <span className="persona-list-badge retry" title={`Auto-retrying: attempt ${persona.retryCount}`}>
