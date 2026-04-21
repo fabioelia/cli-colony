@@ -21910,7 +21910,7 @@ button.session-trigger-chain-btn:hover {
   opacity: 0.7;
 }
 .schedule-overlap-band {
-  fill: rgba(239,68,68,0.12);
+  fill: color-mix(in srgb, var(--danger) 12%, transparent);
 }
 .schedule-heatmap-legend {
   display: flex;
@@ -21945,8 +21945,8 @@ button.session-trigger-chain-btn:hover {
   display: inline-block;
   width: 12px;
   height: 12px;
-  background: rgba(239,68,68,0.12);
-  border: 1px solid rgba(239,68,68,0.3);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
   border-radius: 2px;
 }
 
