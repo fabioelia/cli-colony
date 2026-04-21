@@ -9,6 +9,7 @@ import { cronMatches } from '../shared/cron'
 import { getAllInstances, killInstance } from './instance-manager'
 import { broadcast } from './broadcast'
 import { getPersonaList, getState, saveState, runPersona } from './persona-manager'
+import { appendActivity } from './activity-manager'
 import { isRateLimited, getRateLimitState } from './rate-limit-state'
 import { isCronsPausedSync } from './cron-pause'
 
@@ -88,7 +89,22 @@ export function startScheduler(): void {
       }
 
       if (persona.activeSessionId) {
-        schedulerLog(`skip "${persona.name}" — already running (session ${persona.activeSessionId})`)
+        if (cronMatches(persona.schedule)) {
+          // Queue the cron run instead of silently dropping it
+          const state = getState(persona.name)
+          if (!state.pendingRuns) state.pendingRuns = []
+          if (state.pendingRuns.length >= 5) {
+            schedulerLog(`skip "${persona.name}" — already running, run queue full`)
+          } else {
+            state.pendingRuns.push({ reason: 'cron', queuedAt: new Date().toISOString(), triggerType: 'cron' })
+            appendActivity({ source: 'persona', name: persona.name, summary: `Queued cron run for "${persona.name}" — currently running`, level: 'info' })
+            saveState()
+            broadcastStatus()
+            schedulerLog(`queued cron run for "${persona.name}" — currently running`)
+          }
+        } else {
+          schedulerLog(`skip "${persona.name}" — already running (session ${persona.activeSessionId})`)
+        }
         continue
       }
 

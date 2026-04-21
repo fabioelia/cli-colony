@@ -1284,6 +1284,11 @@ function PersonaCard({
               <Hourglass size={9} /> queued
             </span>
           )}
+          {(persona.pendingRunCount ?? 0) > 0 && (
+            <span className="persona-list-badge queued-runs" title={`${persona.pendingRunCount} run(s) queued — will start after current session exits`}>
+              <Hourglass size={9} /> {persona.pendingRunCount} queued
+            </span>
+          )}
           <span className="persona-list-schedule">
             <Clock size={9} /> {persona.schedule ? describeCron(persona.schedule) : 'Manual'}
           </span>

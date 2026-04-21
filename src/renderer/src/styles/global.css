@@ -20020,6 +20020,11 @@ button.session-trigger-chain-btn:hover {
   color: var(--warning);
   border: 1px solid rgba(245, 158, 11, 0.3);
 }
+.persona-list-badge.queued-runs {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+}
 .persona-health-dot {
   display: inline-block;
   width: 8px;

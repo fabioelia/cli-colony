@@ -1121,6 +1121,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Fire Triggers When', detail: 'Condition that gates when on_complete_run triggers fire. Options: Always (default, triggers on every exit), Success only (exit 0), Has commits (only if ≥1 commit was made), Has changes (only if ≥1 file changed). Set via the "Fire Triggers When" dropdown in the Edit modal or via on_complete_run_if in frontmatter. Condition applies to all targets in on_complete_run; memory extraction always fires regardless. Trigger map edges show "if success" / "if has commits" / "if has changes" labels when a condition is set.' },
           { label: 'View File', detail: 'Open a read-only preview of the persona\'s raw markdown file.', icon: 'FileText' },
           { label: 'Edit File', detail: 'Open the persona\'s markdown file in a text editor. Edit any section and save — useful for updating Role, Objectives, or manually fixing the Active Situations block.', icon: 'Pencil' },
+          { label: 'Run queue badge', detail: 'When a trigger or cron fires while the persona is already running, the run is queued (not dropped). A "N queued" badge appears on the tile. The queue pops automatically when the current session exits — one pop per exit to prevent thundering herd. Max queue depth: 5 (oldest trigger dropped with a warning). Queued runs preserve the original handoff context and trigger source. Draining personas flush their queue instead of popping.' },
         ],
       },
       {

@@ -53,6 +53,7 @@ export interface PersonaState {
   lastSkipped: number | null
   retryCount: number
   draining: boolean
+  pendingRuns: Array<{ reason: string; queuedAt: string; context?: string; triggerType?: string; triggeredBy?: string }>
 }
 
 const stateFile = new JsonFile<Record<string, PersonaState>>(STATE_PATH, {})
@@ -76,7 +77,7 @@ export function saveState(): void {
 
 export function getState(name: string): PersonaState {
   if (!stateCache[name]) {
-    stateCache[name] = { lastRunAt: null, runCount: 0, activeSessionId: null, enabled: false, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null, triggeredBy: null, triggerType: null, lastSkipped: null, retryCount: 0, draining: false }
+    stateCache[name] = { lastRunAt: null, runCount: 0, activeSessionId: null, enabled: false, lastRunOutput: null, sessionStartedAt: null, sessionWorkingDir: null, triggeredBy: null, triggerType: null, lastSkipped: null, retryCount: 0, draining: false, pendingRuns: [] }
   }
   return stateCache[name]
 }
@@ -304,6 +305,7 @@ export function getPersonaList(): PersonaInfo[] {
         healthScore: computePersonaHealth(personaId, fm),
         attentionCount: getAttentionCount(personaId),
         color: fm.color || undefined,
+        pendingRunCount: (state.pendingRuns || []).length,
         briefPreview: (() => {
           const bp = join(PERSONAS_DIR, `${personaId}.brief.md`)
           try {
@@ -1213,7 +1215,18 @@ export async function onSessionExit(instanceId: string): Promise<void> {
       continue
     }
     if (persona.activeSessionId) {
-      console.log(`[persona] trigger: "${triggerId}" already running — skipping`)
+      const pState = getState(persona.name)
+      if (!pState.pendingRuns) pState.pendingRuns = []
+      if (pState.pendingRuns.length >= 5) {
+        console.log(`[persona] trigger: run queue full for "${triggerId}" — dropping trigger from "${triggeredBy}"`)
+        appendActivity({ source: 'persona', name: triggerId, summary: `Run queue full for "${triggerId}" — dropping trigger from "${triggeredBy}"`, level: 'warn' })
+      } else {
+        pState.pendingRuns.push({ reason: `trigger from ${triggeredBy}`, queuedAt: new Date().toISOString(), context: customMessage, triggerType: 'handoff', triggeredBy })
+        appendActivity({ source: 'persona', name: triggerId, summary: `Queued trigger for "${triggerId}" (from "${triggeredBy}") — currently running`, level: 'info' })
+        console.log(`[persona] trigger: queued for "${triggerId}" (from "${triggeredBy}") — currently running`)
+      }
+      saveState()
+      broadcastStatus()
       continue
     }
     console.log(`[persona] trigger: → "${triggerId}" (from "${triggeredBy}")`)
@@ -1227,12 +1240,34 @@ export async function onSessionExit(instanceId: string): Promise<void> {
     for (const name of drainingExited) {
       const state = stateCache[name]
       if (!state) continue
+      const flushed = (state.pendingRuns || []).length
+      state.pendingRuns = []
       state.enabled = false
       state.draining = false
-      appendActivity({ source: 'persona', name, summary: `Persona "${name}" drained — now disabled`, level: 'info' })
+      if (flushed > 0) {
+        appendActivity({ source: 'persona', name, summary: `Persona "${name}" drained — flushed ${flushed} pending run(s)`, level: 'info' })
+      } else {
+        appendActivity({ source: 'persona', name, summary: `Persona "${name}" drained — now disabled`, level: 'info' })
+      }
     }
     saveState()
     broadcastStatus()
+  }
+
+  // Pop from run queue: for the persona that just exited, start its next queued run
+  for (const [name, state] of Object.entries(stateCache)) {
+    if ((state.pendingRuns || []).length > 0 && !state.activeSessionId && !state.draining && state.enabled) {
+      const next = state.pendingRuns!.shift()!
+      saveState()
+      broadcastStatus()
+      const persona = getPersonaList().find(p => p.name === name)
+      if (persona) {
+        runPersona(persona.id, { type: (next.triggerType as any) || 'handoff', from: next.triggeredBy || 'queue' }, next.context).catch(err => {
+          console.log(`[persona] queue pop failed for "${name}": ${err.message}`)
+        })
+      }
+      break // one pop per exit to avoid thundering herd
+    }
   }
 }
 

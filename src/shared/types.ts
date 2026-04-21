@@ -375,6 +375,8 @@ export interface PersonaInfo {
   briefPreview: string | null
   /** Display color (hex), e.g. "#a78bfa" */
   color?: string
+  /** Number of pending queued runs waiting to start when this persona's current session exits */
+  pendingRunCount: number
 }
 
 // ---- Persona Memory (structured sidecar) ----
