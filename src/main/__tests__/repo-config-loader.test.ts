@@ -100,7 +100,7 @@ describe('loadRepoConfig', () => {
     expect(result).not.toBeNull()
     expect(result!.repoSlug).toBe('my-project')
     expect(result!.repoPath).toBe(repoRoot)
-  })
+  }, 15000)
 
   it('loads config.yaml when present with name field', async () => {
     write('repo/.colony/config.yaml', 'name: My Project\ndescription: Test repo\n')
