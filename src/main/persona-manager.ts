@@ -1007,6 +1007,18 @@ function extractOutputTail(output: string): string | null {
   return lines.length > 0 ? lines[lines.length - 1].slice(0, 80) : null
 }
 
+function buildTriggerContext(triggeredBy: string, personaId: string, exitCode: number | null, durationSec: number | null, commitsCount: number, filesChanged: number, sessionCost: number, errorSummary: string | null): string {
+  const lines: string[] = [`Upstream: "${triggeredBy}" — ${exitCode === 0 ? 'success' : `failed (exit ${exitCode})`}`]
+  if (durationSec !== null) lines.push(`Duration: ${Math.round(durationSec)}s`)
+  if (commitsCount > 0) lines.push(`Commits: ${commitsCount}`)
+  if (filesChanged > 0) lines.push(`Files changed: ${filesChanged}`)
+  if (sessionCost > 0.001) lines.push(`Cost: $${sessionCost.toFixed(4)}`)
+  if (errorSummary) lines.push(`Error: ${errorSummary.slice(0, 200)}`)
+  const briefPath = join(PERSONAS_DIR, `${personaId}.brief.md`)
+  if (existsSync(briefPath)) lines.push(`Brief: ${briefPath}`)
+  return lines.join('\n')
+}
+
 /** Called by instance-manager when any session exits — captures output and clears active session */
 export async function onSessionExit(instanceId: string): Promise<void> {
   let changed = false
@@ -1232,8 +1244,9 @@ export async function onSessionExit(instanceId: string): Promise<void> {
                   triggerPersonas.push({ id: t.persona, triggeredBy: name, customMessage: t.message })
                 }
               } else if (fm && fm.on_complete_run.length > 0) {
+                const autoContext = buildTriggerContext(name, personaId, exitCode, durationSec, commitsCount, filesChanged, sessionCost, errorSummary)
                 for (const t of fm.on_complete_run) {
-                  triggerPersonas.push({ id: t, triggeredBy: name, customMessage: undefined })
+                  triggerPersonas.push({ id: t, triggeredBy: name, customMessage: autoContext })
                 }
               }
             }
