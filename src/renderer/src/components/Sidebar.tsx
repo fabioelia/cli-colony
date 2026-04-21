@@ -2347,7 +2347,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                   }}
                   title="Retry with editable prompt and configuration"
                 >
-                  <RotateCcw size={12} /> Retry
+                  <Play size={12} /> Retry
                 </button>
               ) : null
             })()}
