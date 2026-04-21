@@ -301,8 +301,9 @@ export default function PersonaTriggerMap({ personas, onSelectPersona }: Props) 
             const marker = isCyclic ? 'url(#trigger-arrow-cycle)' : isDashed ? 'url(#trigger-arrow-dashed)' : 'url(#trigger-arrow)'
 
             // Label
+            const conditionLabel: Record<string, string> = { success: 'if success', has_commits: 'if has commits', has_changes: 'if has changes' }
             const label = e.type === 'always'
-              ? (e.condition ? `if ${e.condition}` : 'always')
+              ? (e.condition ? (conditionLabel[e.condition] ?? `if ${e.condition}`) : 'always')
               : 'may trigger'
             const labelX = fromCx + dx / 2
             const labelY = fromBy + dy / 2 - 6
