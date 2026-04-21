@@ -13,7 +13,7 @@ import {
   Circle, Users, Layers, CheckSquare, ListChecks, Gavel, ExternalLink, Palette, FileDiff, Send,
   Archive, DollarSign, Swords, Bot, Timer, Unlink, Link, ChevronsUp, ClipboardCopy, Activity,
   Home, Server, GitPullRequest, MoreHorizontal, ArrowLeftRight, ArrowDown, Bookmark,
-  PauseCircle, PanelRight, PanelLeft, FolderTree, HardDrive, Ticket, CheckCircle2, Gauge,
+  PauseCircle, PanelRight, PanelLeft, FolderTree, HardDrive, Ticket, CheckCircle2, CheckCircle, Gauge,
   History, Cloud, ChevronsRight, Clipboard, ListOrdered, Crosshair, FileCode,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -32,7 +32,7 @@ const iconMap: Record<string, LucideIcon> = {
   Circle, Users, Layers, CheckSquare, ListChecks, Gavel, ExternalLink, Palette, FileDiff, Send,
   Archive, DollarSign, Swords, Bot, Timer, Unlink, Link, ChevronsUp, ClipboardCopy, Activity,
   Home, Server, GitPullRequest, MoreHorizontal, ArrowLeftRight, ArrowDown, Bookmark,
-  PauseCircle, PanelRight, PanelLeft, FolderTree, HardDrive, Ticket, CheckCircle2, Gauge, X,
+  PauseCircle, PanelRight, PanelLeft, FolderTree, HardDrive, Ticket, CheckCircle2, CheckCircle, Gauge, X,
   History, Cloud, ChevronsRight, Clipboard, ListOrdered, Crosshair, FileCode,
 }
 

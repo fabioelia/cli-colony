@@ -6961,7 +6961,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 
 .session-trigger-chain-name {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--text-muted);
   white-space: nowrap;
