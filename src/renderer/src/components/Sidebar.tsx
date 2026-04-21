@@ -16,6 +16,7 @@ import ExternalSessionPopover from './ExternalSessionPopover'
 import WorkspacePresets from './WorkspacePresets'
 import NotificationHistory from './NotificationHistory'
 import type { WorkspacePreset } from './WorkspacePresets'
+import RetryDialog from './RetryDialog'
 import { COLORS, formatTime, cliBackendLabel, formatInstanceCmd } from '../lib/constants'
 
 export type SidebarView = 'overview' | 'instances' | 'agents' | 'github' | 'settings' | 'tasks' | 'pipelines' | 'environments' | 'personas' | 'outputs' | 'review' | 'artifacts' | 'activity'
@@ -922,6 +923,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const [popoverPos, setPopoverPos] = useState<{ top: number } | null>(null)
   const [instancePopoverPos, setInstancePopoverPos] = useState<{ top: number; left: number } | null>(null)
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
+  const [retryTarget, setRetryTarget] = useState<ClaudeInstance | null>(null)
   const [sendingMessageTo, setSendingMessageTo] = useState<string | null>(null)
   const [messageText, setMessageText] = useState('')
   const renameRef = useRef<HTMLInputElement>(null)
@@ -2340,18 +2342,10 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                 <button
                   className="context-menu-item"
                   onClick={() => {
-                    window.api.instance.create({
-                      name: `${inst.name} (retry)`,
-                      workingDirectory: inst.workingDirectory,
-                      color: inst.color,
-                      args: inst.args,
-                      cliBackend: inst.cliBackend,
-                      permissionMode: inst.permissionMode,
-                      mcpServers: inst.mcpServers,
-                    }).catch(() => {})
+                    setRetryTarget(inst)
                     setContextMenu(null)
                   }}
-                  title="Create a new session with the same configuration"
+                  title="Retry with editable prompt and configuration"
                 >
                   <RotateCcw size={12} /> Retry
                 </button>
@@ -2588,6 +2582,24 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
         </Tooltip>
         {appVersion && <span className="sidebar-version">v{appVersion}</span>}
       </div>
+      {retryTarget && (
+        <RetryDialog
+          instance={retryTarget}
+          onRetry={({ name, args }) => {
+            window.api.instance.create({
+              name,
+              workingDirectory: retryTarget.workingDirectory,
+              color: retryTarget.color,
+              args,
+              cliBackend: retryTarget.cliBackend,
+              permissionMode: retryTarget.permissionMode,
+              mcpServers: retryTarget.mcpServers,
+            }).catch(() => {})
+            setRetryTarget(null)
+          }}
+          onClose={() => setRetryTarget(null)}
+        />
+      )}
     </div>
   )
 }

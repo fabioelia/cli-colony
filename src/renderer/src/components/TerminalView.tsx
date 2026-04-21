@@ -23,6 +23,7 @@ import '@xterm/xterm/css/xterm.css'
 import type { ClaudeInstance } from '../types'
 import Tooltip from './Tooltip'
 import HelpPopover from './HelpPopover'
+import RetryDialog from './RetryDialog'
 import { usePanelTabKeys } from '../hooks/usePanelTabKeys'
 
 function compareChildren(a: ClaudeInstance, b: ClaudeInstance): number {
@@ -202,6 +203,8 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
   const [artifactCount, setArtifactCount] = useState(0)
   const [exportSuccess, setExportSuccess] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
+
+  const [showRetryDialog, setShowRetryDialog] = useState(false)
 
   // Browser — lazy mount, keep alive once opened to avoid webview reloads
   const [browserMounted, setBrowserMounted] = useState(false)
@@ -1450,16 +1453,8 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
           {(instance.args.length > 0 || instance.workingDirectory) && (
             <button
               className="session-exited-btn"
-              onClick={() => window.api.instance.create({
-                name: `${instance.name} (retry)`,
-                workingDirectory: instance.workingDirectory,
-                color: instance.color,
-                args: instance.args,
-                cliBackend: instance.cliBackend,
-                permissionMode: instance.permissionMode,
-                mcpServers: instance.mcpServers,
-              }).catch(() => {})}
-              title="Create a new session with the same configuration"
+              onClick={() => setShowRetryDialog(true)}
+              title="Retry with editable prompt"
             >
               <Play size={12} /> Retry
             </button>
@@ -1715,6 +1710,24 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
           }
         }}
       />
+      {showRetryDialog && (
+        <RetryDialog
+          instance={instance}
+          onRetry={({ name, args }) => {
+            window.api.instance.create({
+              name,
+              workingDirectory: instance.workingDirectory,
+              color: instance.color,
+              args,
+              cliBackend: instance.cliBackend,
+              permissionMode: instance.permissionMode,
+              mcpServers: instance.mcpServers,
+            }).catch(() => {})
+            setShowRetryDialog(false)
+          }}
+          onClose={() => setShowRetryDialog(false)}
+        />
+      )}
     </>
   )
 }, (prev, next) =>
