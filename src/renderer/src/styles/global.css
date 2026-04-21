@@ -7261,7 +7261,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 9px;
   border-radius: 3px;
   background: rgba(139, 92, 246, 0.12);
-  color: #a78bfa;
+  color: var(--accent-purple);
   vertical-align: middle;
   white-space: nowrap;
   max-width: 120px;
@@ -9808,13 +9808,13 @@ body:has(.daemon-update-banner) .app-update-banner {
   padding: 2px 7px;
   font-size: 10px;
   border-radius: 5px;
-  background: rgba(52, 211, 153, 0.12);
-  color: #34d399;
-  border: 1px solid rgba(52, 211, 153, 0.25);
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--success);
+  border: 1px solid rgba(16, 185, 129, 0.25);
   transition: all 0.15s;
   white-space: nowrap;
 }
-.github-pr-ready-btn:hover { background: rgba(52, 211, 153, 0.2); }
+.github-pr-ready-btn:hover { background: rgba(16, 185, 129, 0.2); }
 .github-pr-ready-btn:disabled { opacity: 0.5; cursor: default; }
 
 /* Add reviewer button — same pattern */
