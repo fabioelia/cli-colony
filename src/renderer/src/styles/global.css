@@ -20029,6 +20029,14 @@ button.session-trigger-chain-btn:hover {
   color: var(--text-secondary);
   border: 1px solid var(--border);
 }
+.persona-list-badge.cooldown {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--warning);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
 .persona-health-dot {
   display: inline-block;
   width: 8px;

@@ -1421,7 +1421,7 @@ function PersonaCard({
             const remaining = Math.ceil((persona.minIntervalMinutes ?? 0) - elapsed)
             if (remaining > 0) return (
               <span className="persona-list-badge cooldown" title={`Cooldown active — ${remaining}m until next auto-run allowed`}>
-                ⏳ {remaining}m
+                <Timer size={9} />{remaining}m
               </span>
             )
             return null
