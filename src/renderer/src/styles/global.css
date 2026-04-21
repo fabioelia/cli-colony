@@ -20000,7 +20000,7 @@ button.session-trigger-chain-btn:hover {
 
 /* Learning search */
 .learning-search-panel { border-bottom: 1px solid var(--border); background: var(--bg-secondary); }
-.learning-search-bar { display: flex; align-items: center; gap: 6px; padding: 6px 12px; }
+.learning-search-bar { display: flex; align-items: center; gap: 6px; padding: 6px 12px; position: relative; }
 .learning-search-icon { color: var(--text-muted); flex-shrink: 0; }
 .learning-search-input { flex: 1; background: transparent; border: none; outline: none; font-size: 12px; color: var(--text-primary); }
 .learning-search-input::placeholder { color: var(--text-muted); }

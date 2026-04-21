@@ -779,7 +779,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
           {compareSelection.length === 1 && <span>Select one more persona to compare</span>}
           {compareSelection.length === 2 && compareLoading && <span>Loading diff…</span>}
           {compareSelection.length === 2 && !compareLoading && <span>{visiblePersonas.find(p => p.id === compareSelection[0])?.name} vs {visiblePersonas.find(p => p.id === compareSelection[1])?.name}</span>}
-          <button className="persona-compare-clear" onClick={() => { setCompareSelection([]); setComparePair(null) }} title="Clear selection"><X size={11} /></button>
+          {compareSelection.length > 0 && <button className="persona-compare-clear" onClick={() => { setCompareSelection([]); setComparePair(null) }} title="Clear selection"><X size={11} /></button>}
           <button className="persona-compare-exit" onClick={() => { setCompareMode(false); setCompareSelection([]); setComparePair(null) }} title="Exit compare mode (Esc)"><X size={11} /> Exit</button>
         </div>
       )}
