@@ -127,6 +127,7 @@ import { cleanupOldDailyLogs } from './activity-manager'
 import { startWebhookServer, stopWebhookServer } from './webhook-server'
 import { initAppUpdater, shutdownAppUpdater } from './app-updater'
 import { stopBatchScheduler } from './batch-runner'
+import { startWakeWatcher, stopWakeWatcher } from './session-wake'
 import { colonyPaths } from '../shared/colony-paths'
 import { registerGlobalHotkey } from './global-hotkey'
 import { startUsageMonitor } from './persona-run-history'
@@ -639,6 +640,7 @@ app.whenReady().then(async () => {
       startPersonaScheduler()
       initTriggerWatcher(runPersona, getPersonaList, addWhisper)
     } catch (err) { console.warn('[app] persona/scheduler init failed:', err) }
+    startWakeWatcher().catch(err => console.warn('[app] wake watcher init failed:', err))
     startRateLimitProbe().catch(err => console.warn('[app] rate-limit probe init failed:', err))
   }).catch((err) => {
     console.error('[app] daemon init failed:', err)
@@ -688,6 +690,7 @@ app.on('before-quit', () => {
   try { stopTasksBoardWatcher() } catch (e) { console.error('[quit] stopTasksBoardWatcher:', e) }
   try { stopPipelines() } catch (e) { console.error('[quit] stopPipelines:', e) }
   try { stopBatchScheduler() } catch (e) { console.error('[quit] stopBatchScheduler:', e) }
+  try { stopWakeWatcher() } catch (e) { console.error('[quit] stopWakeWatcher:', e) }
   try { disconnectDaemon() } catch (e) { console.error('[quit] disconnectDaemon:', e) }
 })
 

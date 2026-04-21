@@ -60,6 +60,7 @@ export const colonyPaths = {
   mcpConfigs: path.join(ROOT, 'mcp-configs'),
   sessions: path.join(ROOT, 'sessions'),
   taskBoard: path.join(ROOT, 'colony-tasks.json'),
+  wake: path.join(ROOT, 'wake'),
   triggers: path.join(ROOT, 'triggers'),
   bin: path.join(ROOT, 'bin'),
   worktrees: path.join(ROOT, 'worktrees'),
