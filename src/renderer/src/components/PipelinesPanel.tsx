@@ -158,6 +158,7 @@ const STAGE_TYPE_LABELS: Record<string, string> = {
   'parallel': 'Parallel',
   'plan': 'Plan',
   'wait_for_session': 'Wait Session',
+  'trigger_pipeline': 'Trigger Pipeline',
 }
 function stageTypeLabel(type: string): string {
   return STAGE_TYPE_LABELS[type] ?? type
@@ -1320,7 +1321,7 @@ ${modelLine}  prompt: |
               <div className="pipeline-card-right">
                 {p.actionShape?.type && p.actionShape.type !== 'launch-session' && (
                   <span className="pipeline-action-type" title={`Action type: ${p.actionShape.type}`}>
-                    {({ 'maker-checker': 'Maker-Checker', 'diff_review': 'Diff Review', 'best-of-n': 'Best of N', 'parallel': 'Parallel', 'plan': 'Plan', 'wait_for_session': 'Wait' } as Record<string, string>)[p.actionShape.type] || p.actionShape.type}
+                    {({ 'maker-checker': 'Maker-Checker', 'diff_review': 'Diff Review', 'best-of-n': 'Best of N', 'parallel': 'Parallel', 'plan': 'Plan', 'wait_for_session': 'Wait', 'trigger_pipeline': 'Trigger Pipeline' } as Record<string, string>)[p.actionShape.type] || p.actionShape.type}
                   </span>
                 )}
                 {p.triggerType !== 'webhook' && <span className="pipeline-card-trigger">{p.triggerType}</span>}

@@ -67,9 +67,10 @@ export interface RunOverrides {
 }
 
 export interface ActionDef {
-  type: 'launch-session' | 'route-to-session' | 'maker-checker' | 'diff_review' | 'parallel' | 'plan' | 'wait_for_session' | 'best-of-n' // route-to-session is deprecated, normalized to launch-session + reuse:true
+  type: 'launch-session' | 'route-to-session' | 'maker-checker' | 'diff_review' | 'parallel' | 'plan' | 'wait_for_session' | 'best-of-n' | 'trigger_pipeline' // route-to-session is deprecated, normalized to launch-session + reuse:true
   reuse?: boolean // try to find/resume a matching session before launching new
   name?: string
+  target?: string // trigger_pipeline: name of the target pipeline to trigger
   workingDirectory?: string
   color?: string
   model?: string // Claude model override for this stage (e.g. 'claude-opus-4-6', 'claude-haiku-4-5')
@@ -263,6 +264,8 @@ let started = false
 let approvalSweepTimer: ReturnType<typeof setInterval> | null = null
 /** Startup setTimeout IDs — cleared on stop to prevent firing on stopped pipelines */
 const startupTimers = new Set<ReturnType<typeof setTimeout>>()
+/** Tracks pipeline names currently mid-execution for circular chain detection */
+const executingPipelines = new Set<string>()
 
 export function log(msg: string): void {
   console.log(`[pipeline] ${msg}`)
@@ -319,6 +322,8 @@ function parsePipelineYaml(content: string): PipelineDef | null {
       if (!result.action?.makerPrompt || !result.action?.checkerPrompt) return null
     } else if (result.action?.type === 'wait_for_session') {
       if (!result.action?.session_name) return null
+    } else if (result.action?.type === 'trigger_pipeline') {
+      if (!result.action?.target) return null
     } else if (result.action?.type !== 'diff_review' && result.action?.type !== 'parallel' && !result.action?.prompt) {
       return null
     }
@@ -874,6 +879,20 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
   }
   if (action.type === 'best-of-n') {
     return runBestOfN(action, ctx, pipelineName, pipelineMeta)
+  }
+  if (action.type === 'trigger_pipeline') {
+    if (!action.target) throw new Error('trigger_pipeline requires a target pipeline name')
+    if (executingPipelines.has(action.target)) {
+      plog(pipelineName, `⊘ circular chain: "${action.target}" already executing — skipping`)
+      return { cost: 0, responseSnippet: `Skipped: circular chain to "${action.target}"` }
+    }
+    plog(pipelineName, `→ triggering pipeline "${action.target}"`)
+    const triggered = triggerPollNow(action.target)
+    if (!triggered) {
+      plog(pipelineName, `⚠ trigger_pipeline: pipeline "${action.target}" not found`)
+      return { cost: 0, responseSnippet: `Pipeline "${action.target}" not found` }
+    }
+    return { cost: 0, responseSnippet: `Triggered pipeline "${action.target}"` }
   }
 
   const rawName = resolveTemplate(action.name || 'Pipeline Session', ctx)
@@ -1447,6 +1466,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
       let stageSubStages: PipelineStageTrace[] | undefined
       let stageRetryCount = 0
       let stageSessionId: string | undefined
+      executingPipelines.add(pipelineName)
       try {
         const result = await fireActionWithRetry(resolvedAction, ctx, p.def.name, effectiveOverrides)
         stageCost = result.cost
@@ -1458,6 +1478,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
         stageError = String(stageErr)
         throw stageErr
       } finally {
+        executingPipelines.delete(pipelineName)
         const stageEnd = Date.now()
         stages.push({
           index: stages.length,
@@ -1813,6 +1834,7 @@ export function stopPipelines(): void {
   startupTimers.forEach(clearTimeout)
   startupTimers.clear()
   runningPolls.clear()
+  executingPipelines.clear()
   filePollSnapshots.clear()
   if (approvalSweepTimer) {
     clearInterval(approvalSweepTimer)
