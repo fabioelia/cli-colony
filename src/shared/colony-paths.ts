@@ -74,9 +74,13 @@ export const colonyPaths = {
   governance: path.join(ROOT, 'governance'),
   approvalRulesJson: path.join(ROOT, 'governance', 'approval-rules.json'),
   onboardingStateJson: path.join(ROOT, 'onboarding-state.json'),
+  projectBriefs: path.join(ROOT, 'project-briefs'),
 
   /** Build a daily activity log path for a given date (YYYY-MM-DD) */
   activityDailyLog: (date: string) => path.join(ROOT, `activity-${date}.json`),
+
+  /** Build a per-project brief path for a given slug (basename of working directory) */
+  projectBrief: (slug: string) => path.join(ROOT, 'project-briefs', `${slug}.md`),
 
   /** Build a repo clone path for a given owner/name (shallow clones for GitHub panel) */
   repoDir: (owner: string, name: string) => path.join(ROOT, 'repos', owner, name),

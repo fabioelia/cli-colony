@@ -22,6 +22,7 @@ import { setRateLimited } from './rate-limit-state'
 import { scanNewCommits } from './commit-attributor'
 import { markChecklistItem } from './onboarding-state'
 import { appendActivity } from './activity-manager'
+import { getProjectBriefPath } from './project-brief'
 import { parseErrorSummary } from './error-parser'
 import { transitionTicket, addComment } from './jira'
 
@@ -485,6 +486,12 @@ export async function createInstance(opts: {
     if (mcpConfigPath) {
       finalArgs = [...baseArgs, '--mcp-config', mcpConfigPath]
     }
+  }
+
+  // Inject project brief if one exists for this working directory
+  const briefPath = getProjectBriefPath(cwd)
+  if (briefPath) {
+    finalArgs = ['--append-system-prompt-file', briefPath, ...finalArgs]
   }
 
   const inst = await getDaemonRouter().createInstance({

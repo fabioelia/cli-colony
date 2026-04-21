@@ -13,6 +13,7 @@ import { resolveCommand } from './resolve-command'
 import { colonyPaths } from '../shared/colony-paths'
 import type { SessionArtifact, SessionArtifactCommit, GitDiffEntry } from '../shared/types'
 import { getDaemonRouter } from './daemon-router'
+import { appendBriefEntry } from './project-brief'
 
 const execFileAsync = promisify(execFile)
 const MAX_ARTIFACTS = 200
@@ -223,6 +224,19 @@ export async function collectSessionArtifact(instanceId: string): Promise<Sessio
   artifacts.push(artifact)
   if (artifacts.length > MAX_ARTIFACTS) artifacts.splice(0, artifacts.length - MAX_ARTIFACTS)
   await writeArtifacts(artifacts)
+
+  // Append to per-project brief (best-effort — must not block artifact collection)
+  try {
+    await appendBriefEntry(inst.workingDirectory, {
+      timestamp: artifact.createdAt,
+      sessionName: inst.name,
+      exitCode: artifact.exitCode,
+      durationMinutes: durationMs / 60000,
+      cost: artifact.costUsd,
+      commits: commits.map(c => c.shortMsg),
+      filesChanged: changes.length,
+    })
+  } catch { /* brief append is best-effort */ }
 
   // Auto-rename session based on artifacts (fire-and-forget)
   try {
