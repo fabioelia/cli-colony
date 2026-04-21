@@ -3,7 +3,7 @@ import {
   getPersonaList, getPersonaContent, savePersonaContent,
   createPersona, deletePersona, duplicatePersona, runPersona, stopPersona,
   togglePersona, drainPersona, getPersonasDir, setPersonaSchedule, addWhisper, deleteNote, updateNote,
-  updatePersonaMeta, getPersonaArtifacts, readPersonaArtifact, askPersonas,
+  updatePersonaMeta, getPersonaArtifacts, readPersonaArtifact, getPersonaBriefDiff, askPersonas,
   PersonaRunOverrides,
 } from '../persona-manager'
 import { getRunHistory, getPersonaAnalytics, getColonyCostTrend, getPersonaHealthSummary } from '../persona-run-history'
@@ -35,6 +35,7 @@ export function registerPersonaHandlers(): void {
   ipcMain.handle('persona:updateMeta', (_e, fileName: string, updates: Record<string, string | boolean | number>) => updatePersonaMeta(fileName, updates))
   ipcMain.handle('persona:getArtifacts', (_e, personaId: string) => getPersonaArtifacts(personaId))
   ipcMain.handle('persona:readArtifact', (_e, personaId: string, filename: string) => readPersonaArtifact(personaId, filename))
+  ipcMain.handle('persona:briefDiff', (_e, personaId: string) => getPersonaBriefDiff(personaId))
   ipcMain.handle('persona:ask', (_e, query: string) => askPersonas(query))
   ipcMain.handle('persona:getRunHistory', (_e, personaId: string) => getRunHistory(personaId))
   ipcMain.handle('persona:analytics', (_e, personaId: string) => getPersonaAnalytics(personaId))

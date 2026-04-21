@@ -4,10 +4,11 @@ import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
   ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote, ArrowRightCircle, Save, Loader2,
   Hourglass, ArrowRight, FolderOpen, Search, Check, Bot, BarChart3, ArrowUpDown, DollarSign, TrendingUp, Copy,
-  CalendarClock, GitBranch, Brain, ShieldCheck, Bell, Timer,
+  CalendarClock, GitBranch, Brain, ShieldCheck, Bell, Timer, GitCompare,
 } from 'lucide-react'
 import EmptyStateHook from './EmptyStateHook'
 import MarkdownViewer from './MarkdownViewer'
+import DiffViewer from './DiffViewer'
 import HelpPopover from './HelpPopover'
 import Tooltip from './Tooltip'
 import CronEditor from './CronEditor'
@@ -1334,6 +1335,8 @@ function PersonaCard({
   })
   const [briefContent, setBriefContent] = useState<string | null | 'loading'>(null)
   const [briefMtime, setBriefMtime] = useState<number | null>(null)
+  const [briefDiff, setBriefDiff] = useState<string | null | 'loading'>(null)
+  const [briefDiffOpen, setBriefDiffOpen] = useState(false)
   const fromName = (id: string) => allPersonas.find(p => p.id === id)?.name ?? id
 
   useLayoutEffect(() => {
@@ -1668,19 +1671,54 @@ function PersonaCard({
               ) : artifacts.length === 0 ? (
                 <div className="persona-outputs-empty">No outputs yet</div>
               ) : (
-                artifacts.map((a) => {
-                  const kb = (a.sizeBytes / 1024).toFixed(1)
-                  const secs = (Date.now() - a.modifiedAt) / 1000
-                  const ago = secs < 60 ? 'just now' : secs < 3600 ? `${Math.floor(secs / 60)}m ago` : `${Math.floor(secs / 3600)}h ago`
-                  return (
-                    <button key={a.name} className="persona-artifact-row" onClick={() => handleViewArtifact(a)}>
-                      <span className="persona-artifact-name">
-                        {a.isBrief ? <><FileText size={10} /> Session Brief</> : a.name}
-                      </span>
-                      <span className="persona-artifact-meta">{kb} KB · {ago}</span>
-                    </button>
-                  )
-                })
+                <>
+                  {artifacts.filter(a => !a.isPrevBrief).map((a) => {
+                    const kb = (a.sizeBytes / 1024).toFixed(1)
+                    const secs = (Date.now() - a.modifiedAt) / 1000
+                    const ago = secs < 60 ? 'just now' : secs < 3600 ? `${Math.floor(secs / 60)}m ago` : `${Math.floor(secs / 3600)}h ago`
+                    const hasPrevBrief = a.isBrief && artifacts.some(x => x.isPrevBrief)
+                    return (
+                      <div key={a.name} className="persona-artifact-row-wrap">
+                        <div className="persona-artifact-row-inner">
+                          <button className="persona-artifact-row" onClick={() => handleViewArtifact(a)}>
+                            <span className="persona-artifact-name">
+                              {a.isBrief ? <><FileText size={10} /> Session Brief</> : a.name}
+                            </span>
+                            <span className="persona-artifact-meta">{kb} KB · {ago}</span>
+                          </button>
+                          {hasPrevBrief && (
+                            <button
+                              className={`persona-artifact-diff-btn${briefDiffOpen ? ' active' : ''}`}
+                              title="Show diff from previous run"
+                              onClick={async () => {
+                                if (briefDiffOpen) { setBriefDiffOpen(false); return }
+                                setBriefDiffOpen(true)
+                                if (briefDiff === null) {
+                                  setBriefDiff('loading')
+                                  const d = await window.api.persona.briefDiff(persona.id)
+                                  setBriefDiff(d)
+                                }
+                              }}
+                            >
+                              <GitCompare size={11} />
+                            </button>
+                          )}
+                        </div>
+                        {hasPrevBrief && briefDiffOpen && briefDiff !== null && (
+                          <div className="persona-brief-diff">
+                            {briefDiff === 'loading' ? (
+                              <div className="persona-outputs-loading"><Loader2 size={13} className="spin" /> Loading diff…</div>
+                            ) : briefDiff ? (
+                              <DiffViewer diff={briefDiff} filename="brief.md" />
+                            ) : (
+                              <div className="persona-outputs-empty">No changes since previous run.</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </>
               )}
             </div>
           )}

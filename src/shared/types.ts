@@ -414,6 +414,7 @@ export interface PersonaArtifact {
   sizeBytes: number
   modifiedAt: number
   isBrief: boolean
+  isPrevBrief?: boolean
 }
 
 export interface PersonaRunEntry {

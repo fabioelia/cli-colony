@@ -4,7 +4,7 @@
  * and self-managed sections (Active Situations, Learnings, Session Log).
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, statSync, watch } from 'fs'
+import { readFileSync, writeFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, statSync, watch } from 'fs'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { basename, join } from 'path'
@@ -752,6 +752,14 @@ export async function runPersona(fileName: string, trigger: TriggerSource = { ty
   let cwd = fm.working_directory || colonyPaths.root
   if (cwd.startsWith('~')) cwd = cwd.replace('~', process.env.HOME || '/')
 
+  // Snapshot current brief before overwriting (enables diff view after run)
+  const personaSlug2 = basename(filePath, '.md')
+  const briefPath2 = join(PERSONAS_DIR, `${personaSlug2}.brief.md`)
+  const prevBriefPath = join(PERSONAS_DIR, `${personaSlug2}.brief.prev.md`)
+  if (existsSync(briefPath2)) {
+    try { copyFileSync(briefPath2, prevBriefPath) } catch { /* non-fatal */ }
+  }
+
   // Launch interactive session with system prompt, then send trigger when ready
   const inst = await createInstance({
     name: `Persona: ${fm.name}`,
@@ -889,12 +897,19 @@ export function getPersonaArtifacts(personaId: string): import('../shared/types'
   const outputsDir = join(colonyPaths.root, 'outputs', safeId)
   const artifacts: import('../shared/types').PersonaArtifact[] = []
 
-  // Brief first
+  // Brief first, then prev brief if it exists
   const briefPath = join(PERSONAS_DIR, `${safeId}.brief.md`)
   if (existsSync(briefPath)) {
     try {
       const s = statSync(briefPath)
       artifacts.push({ name: `${safeId}.brief.md`, sizeBytes: s.size, modifiedAt: s.mtimeMs, isBrief: true })
+    } catch { /* skip */ }
+  }
+  const prevBriefPath2 = join(PERSONAS_DIR, `${safeId}.brief.prev.md`)
+  if (existsSync(prevBriefPath2)) {
+    try {
+      const s = statSync(prevBriefPath2)
+      artifacts.push({ name: `${safeId}.brief.prev.md`, sizeBytes: s.size, modifiedAt: s.mtimeMs, isBrief: false, isPrevBrief: true })
     } catch { /* skip */ }
   }
 
@@ -924,7 +939,7 @@ export function readPersonaArtifact(personaId: string, filename: string): string
   const safeId = basename(personaId)
   const safeFile = basename(filename)
   let filePath: string
-  if (safeFile === `${safeId}.brief.md`) {
+  if (safeFile === `${safeId}.brief.md` || safeFile === `${safeId}.brief.prev.md`) {
     filePath = join(PERSONAS_DIR, safeFile)
   } else {
     filePath = join(colonyPaths.root, 'outputs', safeId, safeFile)
@@ -933,6 +948,22 @@ export function readPersonaArtifact(personaId: string, filename: string): string
   const content = readFileSync(filePath, 'utf-8')
   const MAX = 50 * 1024
   return content.length > MAX ? content.slice(0, MAX) + '\n\n[truncated]' : content
+}
+
+/** Generate a unified diff between the previous brief and the current brief. Returns null if no prev brief exists. */
+export async function getPersonaBriefDiff(personaId: string): Promise<string | null> {
+  const safeId = basename(personaId)
+  const currentPath = join(PERSONAS_DIR, `${safeId}.brief.md`)
+  const prevPath = join(PERSONAS_DIR, `${safeId}.brief.prev.md`)
+  if (!existsSync(prevPath) || !existsSync(currentPath)) return null
+  try {
+    // diff -u returns exit code 1 when files differ (normal), 0 when identical, 2 on error
+    const { stdout } = await execFileAsync('diff', ['-u', prevPath, currentPath], { encoding: 'utf-8', timeout: 5000 }).catch(err => {
+      if (err.code === 1) return { stdout: err.stdout as string }
+      throw err
+    })
+    return stdout || null
+  } catch { return null }
 }
 
 /** Query persona activity data via claude -p haiku. */

@@ -21280,6 +21280,12 @@ button.session-trigger-chain-btn:hover {
   gap: 8px;
 }
 .persona-artifact-row:hover { background: var(--bg-hover); }
+.persona-artifact-row-wrap { display: flex; flex-direction: column; }
+.persona-artifact-row-inner { display: flex; align-items: center; }
+.persona-artifact-row-inner .persona-artifact-row { flex: 1; }
+.persona-artifact-diff-btn { background: none; border: none; cursor: pointer; padding: 4px 8px; color: var(--text-muted); flex-shrink: 0; border-radius: 4px; display: flex; align-items: center; }
+.persona-artifact-diff-btn:hover, .persona-artifact-diff-btn.active { background: var(--bg-hover); color: var(--accent); }
+.persona-brief-diff { border-top: 1px solid var(--border); max-height: 400px; overflow: auto; }
 .persona-artifact-name {
   display: flex;
   align-items: center;

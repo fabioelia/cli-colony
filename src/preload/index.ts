@@ -328,6 +328,7 @@ export interface ClaudeManagerAPI {
     updateMeta: (fileName: string, updates: Record<string, string | boolean | number | string[]>) => Promise<boolean>
     getArtifacts: (personaId: string) => Promise<PersonaArtifact[]>
     readArtifact: (personaId: string, filename: string) => Promise<string | null>
+    briefDiff: (personaId: string) => Promise<string | null>
     ask: (query: string) => Promise<string>
     getRunHistory: (personaId: string) => Promise<PersonaRunEntry[]>
     getAnalytics: (personaId: string) => Promise<PersonaAnalytics>
@@ -1054,6 +1055,7 @@ const api: ClaudeManagerAPI = {
     updateMeta: (fileName, updates) => ipcRenderer.invoke('persona:updateMeta', fileName, updates),
     getArtifacts: (personaId) => ipcRenderer.invoke('persona:getArtifacts', personaId),
     readArtifact: (personaId, filename) => ipcRenderer.invoke('persona:readArtifact', personaId, filename),
+    briefDiff: (personaId) => ipcRenderer.invoke('persona:briefDiff', personaId),
     ask: (query) => ipcRenderer.invoke('persona:ask', query),
     getRunHistory: (personaId) => ipcRenderer.invoke('persona:getRunHistory', personaId),
     getAnalytics: (personaId) => ipcRenderer.invoke('persona:analytics', personaId),
