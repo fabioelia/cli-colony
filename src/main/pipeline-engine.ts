@@ -113,6 +113,7 @@ export interface ActionDef {
   // retry
   max_retries?: number       // retry failed stages up to N times (default: 0 = no retry)
   retry_delay_ms?: number    // base delay between retries in ms, doubles each attempt (default: 5000)
+  on_failure?: ActionDef     // action to run when this stage fails after retries exhausted (fire-and-forget)
   // best-of-n specific fields
   n?: number                    // number of parallel contestants (default: 3, clamped 2-8)
   repo?: { owner: string; name: string }  // repo to create worktrees in
@@ -258,6 +259,8 @@ export interface TriggerContext {
   lastRunCommit?: string
   /** Populated by evaluateFilesChanged for preview logging */
   filesChangedMatches?: string[]
+  /** Injected by on_failure handler — error message from the failed stage */
+  error?: string
 }
 
 // Cron matching imported from src/shared/cron.ts
@@ -388,6 +391,15 @@ function parsePipelineYaml(content: string): PipelineDef | null {
       result.action.busyStrategy = 'launch-new'
     }
 
+    // Normalize on_failure: type alias + strip nesting
+    if (result.action?.on_failure) {
+      const of_ = result.action.on_failure
+      if (of_.type === 'session') of_.type = 'launch-session'
+      if (of_.type === 'route-to-session') { of_.type = 'launch-session'; of_.reuse = true }
+      delete of_.on_failure // prevent nesting
+      if (!of_.busyStrategy) of_.busyStrategy = 'launch-new'
+    }
+
     result.run_condition = result.run_condition || undefined
 
     return result as PipelineDef
@@ -414,6 +426,7 @@ export interface PipelineStageTrace {
   responseSnippet?: string // first ~120 chars of reviewer response (diff_review only)
   subStages?: PipelineStageTrace[] // parallel sub-stage results
   retryCount?: number // how many retry attempts were needed (0 = succeeded first try)
+  onFailureFired?: boolean // true if on_failure recovery action was triggered
 }
 
 export interface PipelineRunEntry {
@@ -1708,6 +1721,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
       let stageSubStages: PipelineStageTrace[] | undefined
       let stageRetryCount = 0
       let stageSessionId: string | undefined
+      let stageOnFailureFired: boolean | undefined
       executingPipelines.add(pipelineName)
       try {
         const result = await fireActionWithRetry(resolvedAction, ctx, p.def.name, effectiveOverrides)
@@ -1718,6 +1732,19 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
         stageSessionId = result.sessionId
       } catch (stageErr) {
         stageError = String(stageErr)
+        // Fire on_failure recovery action (fire-and-forget, cannot itself nest on_failure)
+        if (resolvedAction.on_failure) {
+          const failureCtx: TriggerContext = { ...ctx, error: String(stageErr) }
+          const recoveryAction = { ...resolvedAction.on_failure, on_failure: undefined }
+          plog(pipelineName, `→ firing on_failure action: ${recoveryAction.type}`)
+          fireAction(recoveryAction, failureCtx, pipelineName).then(r => {
+            totalCost += r.cost
+            plog(pipelineName, `✓ on_failure action completed`)
+          }).catch(failErr => {
+            plog(pipelineName, `⚠ on_failure action failed: ${String(failErr)}`)
+          })
+          stageOnFailureFired = true
+        }
         throw stageErr
       } finally {
         executingPipelines.delete(pipelineName)
@@ -1737,6 +1764,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
           responseSnippet: stageResponseSnippet,
           subStages: stageSubStages,
           retryCount: stageRetryCount,
+          onFailureFired: stageOnFailureFired,
         })
       }
       totalCost += stageCost
