@@ -5955,6 +5955,10 @@ body:has(.daemon-update-banner) .app-update-banner {
 .arena-promote-btn.primary:hover {
   opacity: 0.88;
 }
+.arena-promote-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 /* Grid empty pane */
 .grid-empty-pane {
