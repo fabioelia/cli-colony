@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { execFile } from 'child_process'
+import { execFile, spawn } from 'child_process'
 import { promises as fsp } from 'fs'
 import path from 'path'
 import os from 'os'
@@ -1158,6 +1158,43 @@ export function registerGitHandlers(): void {
     if (result.canceled || !result.filePath) return { saved: false }
     await fsp.writeFile(result.filePath, content, 'utf-8')
     return { saved: true, path: result.filePath }
+  })
+
+  ipcMain.handle('review:groupChanges', async (_e, files: string[], diffSummary: string): Promise<Array<{ label: string; files: string[] }>> => {
+    const fileList = files.slice(0, 60).join('\n')
+    const prompt =
+      `Given these changed files and diff summary, group them by logical concern.\n` +
+      `Return ONLY a JSON array, no markdown fences, no other text.\n` +
+      `Format: [{"label": "short descriptive label", "files": ["path/to/file", ...]}]\n` +
+      `Rules: every file must appear in exactly one group; max 6 groups; labels under 40 chars.\n\n` +
+      `Files:\n${fileList}\n\nDiff summary:\n${diffSummary.slice(0, 1500)}`
+
+    return new Promise((resolve) => {
+      const proc = spawn(resolveCommand('claude'), ['-p', prompt, '--model', 'claude-haiku-4-5-20251001'], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        detached: false,
+      })
+      let out = ''
+      let killed = false
+      const killTimer = setTimeout(() => { killed = true; proc.kill('SIGTERM') }, 10_000)
+      proc.stdout.on('data', (chunk: Buffer) => { out += chunk.toString() })
+      proc.on('close', () => {
+        clearTimeout(killTimer)
+        if (killed) { resolve([]); return }
+        try {
+          const raw = out.trim()
+          const startIdx = raw.indexOf('[')
+          const endIdx = raw.lastIndexOf(']')
+          if (startIdx < 0 || endIdx < 0) { resolve([]); return }
+          const parsed = JSON.parse(raw.slice(startIdx, endIdx + 1))
+          if (!Array.isArray(parsed)) { resolve([]); return }
+          resolve(parsed.filter(g => typeof g.label === 'string' && Array.isArray(g.files)))
+        } catch {
+          resolve([])
+        }
+      })
+      proc.on('error', () => { clearTimeout(killTimer); resolve([]) })
+    })
   })
 }
 

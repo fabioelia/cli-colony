@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { GitCompare, RefreshCw, ChevronDown, ChevronRight, Terminal, GitBranch, Copy, Filter, RotateCw, Clock, GitCommit, Upload, AlertTriangle, Undo2, Download, ArrowDown, ExternalLink, FolderOpen, Search, X } from 'lucide-react'
+import { GitCompare, RefreshCw, ChevronDown, ChevronRight, Terminal, GitBranch, Copy, Filter, RotateCw, Clock, GitCommit, Upload, AlertTriangle, Undo2, Download, ArrowDown, ExternalLink, FolderOpen, Search, X, Layers } from 'lucide-react'
 import type { ClaudeInstance } from '../types'
 import type { GitDiffEntry } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
@@ -34,6 +34,27 @@ interface ReviewPanelProps {
 
 type FilterMode = 'changes' | 'all'
 type ReviewTab = 'changes' | 'commits'
+
+function GroupSection({ label, count, insertions, deletions, children }: {
+  label: string; count: number; insertions: number; deletions: number; children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(true)
+  return (
+    <div className="review-group-section">
+      <button className="review-group-section-header" onClick={() => setOpen(o => !o)}>
+        {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+        <span className="review-group-section-label">{label}</span>
+        <span className="review-group-section-count">{count} file{count !== 1 ? 's' : ''}</span>
+        <span className="review-group-section-stats">
+          {insertions > 0 && <span style={{ color: 'var(--success)' }}>+{insertions}</span>}
+          {insertions > 0 && deletions > 0 && ' '}
+          {deletions > 0 && <span style={{ color: 'var(--danger)' }}>-{deletions}</span>}
+        </span>
+      </button>
+      {open && <div className="review-group-section-files">{children}</div>}
+    </div>
+  )
+}
 
 function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
   const [activeTab, setActiveTab] = useState<ReviewTab>('changes')
@@ -77,8 +98,32 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
   const [highlightedBranchIdx, setHighlightedBranchIdx] = useState(0)
   const branchPickerRef = useRef<HTMLDivElement>(null)
 
+  const [groupMode, setGroupMode] = useState<'files' | 'logical'>('files')
+  const [logicalGroups, setLogicalGroups] = useState<Map<string, Array<{ label: string; files: string[] }>>>(new Map())
+  const [groupingLoading, setGroupingLoading] = useState<Set<string>>(new Set())
+
   const instancesWithDir = instances.filter(i => i.workingDirectory)
   const instanceIds = instancesWithDir.map(i => i.id).join(',')
+
+  const analyzeGroups = useCallback(async (session: SessionChanges) => {
+    const cacheKey = session.instanceId + '_' + session.entries.map(e => e.file + e.status).join('|')
+    if (logicalGroups.has(cacheKey)) return
+    setGroupingLoading(prev => new Set(prev).add(cacheKey))
+    try {
+      const files = session.entries.map(e => e.file)
+      const diffSummary = `Session "${session.name}", branch: ${session.branch ?? 'unknown'}. Files changed: ${files.join(', ')}`
+      const groups = await window.api.review.groupChanges(files, diffSummary)
+      if (groups.length > 0) {
+        setLogicalGroups(prev => new Map(prev).set(cacheKey, groups))
+      } else {
+        setLogicalGroups(prev => new Map(prev).set(cacheKey, [{ label: 'All changes', files }]))
+      }
+    } catch {
+      // fall back silently — file mode still works
+    } finally {
+      setGroupingLoading(prev => { const next = new Set(prev); next.delete(cacheKey); return next })
+    }
+  }, [logicalGroups])
 
   const loadAllChanges = useCallback(async () => {
     const results = await Promise.allSettled(
@@ -581,6 +626,15 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
               <Filter size={13} /> {filter === 'changes' ? 'Changed' : 'All'}
             </button>
           )}
+          {activeTab === 'changes' && (
+            <button
+              className={`panel-header-btn${groupMode === 'logical' ? ' active' : ''}`}
+              onClick={() => setGroupMode(m => m === 'files' ? 'logical' : 'files')}
+              title={groupMode === 'logical' ? 'Switch to file view' : 'Group files by logical concern (AI)'}
+            >
+              <Layers size={13} /> {groupMode === 'logical' ? 'Logical' : 'Group'}
+            </button>
+          )}
           {activeTab === 'commits' && unpushedCommits.length > 0 && (
             <div className="review-search-wrapper">
               <Search size={12} className="review-search-icon" />
@@ -793,59 +847,100 @@ function ReviewPanel({ instances, onFocusInstance }: ReviewPanelProps) {
                       </div>
 
                       {/* Expanded file list */}
-                      {expanded && (
-                        <div className="review-card-files">
-                          {filteredEntries.map(entry => {
-                            const diffKey = `${session.dir}:${entry.file}`
-                            const isSelected = selectedDiffKey === diffKey
-                            return (
-                              <div
-                                key={entry.file}
-                                className={`review-file-row${isSelected ? ' selected' : ''}`}
-                                style={{ cursor: 'pointer' }}
-                                role="button"
-                                tabIndex={0}
-                                aria-selected={isSelected}
-                                onClick={() => selectFile(session.dir, entry.file, entry.status)}
-                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectFile(session.dir, entry.file, entry.status) } }}
+                      {expanded && (() => {
+                        const cacheKey = session.instanceId + '_' + session.entries.map(e => e.file + e.status).join('|')
+                        const groups = logicalGroups.get(cacheKey)
+                        const isGroupLoading = groupingLoading.has(cacheKey)
+
+                        function renderFileRow(entry: { file: string; status: string; insertions: number; deletions: number }) {
+                          const diffKey = `${session.dir}:${entry.file}`
+                          const isSelected = selectedDiffKey === diffKey
+                          return (
+                            <div
+                              key={entry.file}
+                              className={`review-file-row${isSelected ? ' selected' : ''}`}
+                              style={{ cursor: 'pointer' }}
+                              role="button"
+                              tabIndex={0}
+                              aria-selected={isSelected}
+                              onClick={() => selectFile(session.dir, entry.file, entry.status)}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectFile(session.dir, entry.file, entry.status) } }}
+                            >
+                              <span
+                                className="review-file-status"
+                                style={{
+                                  color: entry.status === 'A' ? 'var(--success)'
+                                    : entry.status === 'D' ? 'var(--danger)'
+                                    : 'var(--warning)',
+                                }}
                               >
-                                <span
-                                  className="review-file-status"
-                                  style={{
-                                    color: entry.status === 'A' ? 'var(--success)'
-                                      : entry.status === 'D' ? 'var(--danger)'
-                                      : 'var(--warning)',
-                                  }}
-                                >
-                                  {entry.status}
-                                </span>
-                                <span className="review-file-name">{entry.file}</span>
-                                <span className="review-file-stats">
-                                  {entry.insertions > 0 && <span style={{ color: 'var(--success)' }}>+{entry.insertions}</span>}
-                                  {entry.insertions > 0 && entry.deletions > 0 && ' '}
-                                  {entry.deletions > 0 && <span style={{ color: 'var(--danger)' }}>-{entry.deletions}</span>}
-                                </span>
-                                <button
-                                  className="review-file-open-btn"
-                                  title={entry.status === 'D' ? 'File was deleted' : `Open ${entry.file}`}
-                                  onClick={(e) => { e.stopPropagation(); window.api.shell.openExternal(`file://${session.dir}/${entry.file}`) }}
-                                  disabled={entry.status === 'D'}
-                                >
-                                  <ExternalLink size={10} />
-                                </button>
-                                <button
-                                  className="review-file-revert-btn"
-                                  title={entry.status === '?' ? 'Cannot revert untracked files' : `Revert ${entry.file}`}
-                                  onClick={(e) => { e.stopPropagation(); handleRevertFile(session.dir, entry.file) }}
-                                  disabled={revertingFile === `${session.dir}:${entry.file}` || entry.status === '?'}
-                                >
-                                  <Undo2 size={10} className={revertingFile === `${session.dir}:${entry.file}` ? 'spinning' : ''} />
-                                </button>
+                                {entry.status}
+                              </span>
+                              <span className="review-file-name">{entry.file}</span>
+                              <span className="review-file-stats">
+                                {entry.insertions > 0 && <span style={{ color: 'var(--success)' }}>+{entry.insertions}</span>}
+                                {entry.insertions > 0 && entry.deletions > 0 && ' '}
+                                {entry.deletions > 0 && <span style={{ color: 'var(--danger)' }}>-{entry.deletions}</span>}
+                              </span>
+                              <button
+                                className="review-file-open-btn"
+                                title={entry.status === 'D' ? 'File was deleted' : `Open ${entry.file}`}
+                                onClick={(e) => { e.stopPropagation(); window.api.shell.openExternal(`file://${session.dir}/${entry.file}`) }}
+                                disabled={entry.status === 'D'}
+                              >
+                                <ExternalLink size={10} />
+                              </button>
+                              <button
+                                className="review-file-revert-btn"
+                                title={entry.status === '?' ? 'Cannot revert untracked files' : `Revert ${entry.file}`}
+                                onClick={(e) => { e.stopPropagation(); handleRevertFile(session.dir, entry.file) }}
+                                disabled={revertingFile === `${session.dir}:${entry.file}` || entry.status === '?'}
+                              >
+                                <Undo2 size={10} className={revertingFile === `${session.dir}:${entry.file}` ? 'spinning' : ''} />
+                              </button>
+                            </div>
+                          )
+                        }
+
+                        if (groupMode === 'logical') {
+                          if (isGroupLoading) {
+                            return (
+                              <div className="review-card-files">
+                                <div className="review-grouping-loading"><RotateCw size={11} className="spinning" /> Analyzing changes...</div>
                               </div>
                             )
-                          })}
-                        </div>
-                      )}
+                          }
+                          if (!groups) {
+                            analyzeGroups(session)
+                            return (
+                              <div className="review-card-files">
+                                <div className="review-grouping-loading"><RotateCw size={11} className="spinning" /> Analyzing changes...</div>
+                              </div>
+                            )
+                          }
+                          return (
+                            <div className="review-card-files">
+                              {groups.map((group, gi) => {
+                                const groupEntries = filteredEntries.filter(e => group.files.includes(e.file))
+                                if (groupEntries.length === 0) return null
+                                const totalIns = groupEntries.reduce((a, e) => a + e.insertions, 0)
+                                const totalDel = groupEntries.reduce((a, e) => a + e.deletions, 0)
+                                return (
+                                  <GroupSection key={gi} label={group.label} count={groupEntries.length} insertions={totalIns} deletions={totalDel}>
+                                    {groupEntries.map(renderFileRow)}
+                                  </GroupSection>
+                                )
+                              })}
+                            </div>
+                          )
+                        }
+
+                        return (
+                          <div className="review-card-files">
+                            {filteredEntries.map(renderFileRow)}
+                          </div>
+                        )
+                      })()}
                     </div>
                   )
                 })}

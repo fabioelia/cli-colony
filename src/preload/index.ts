@@ -585,6 +585,9 @@ export interface ClaudeManagerAPI {
     suggestPRDescription: (dir: string) => Promise<{ title: string; body: string } | null>
     suggestCommitMessage: (dir: string, files: string[]) => Promise<string | null>
   }
+  review: {
+    groupChanges: (files: string[], diffSummary: string) => Promise<Array<{ label: string; files: string[] }>>
+  }
   audit: {
     runPanel: (panel: string, context: object) => Promise<AuditResult[]>
     getLastRun: (panel: string) => Promise<{ ts: number; issueCount: number } | null>
@@ -1354,6 +1357,9 @@ const api: ClaudeManagerAPI = {
   ai: {
     suggestPRDescription: (dir) => ipcRenderer.invoke('ai:suggestPRDescription', dir) as Promise<{ title: string; body: string } | null>,
     suggestCommitMessage: (dir: string, files: string[]) => ipcRenderer.invoke('ai:suggestCommitMessage', dir, files) as Promise<string | null>,
+  },
+  review: {
+    groupChanges: (files: string[], diffSummary: string) => ipcRenderer.invoke('review:groupChanges', files, diffSummary) as Promise<Array<{ label: string; files: string[] }>>,
   },
   arena: {
     recordWinner: (winnerKey, loserKey, matchCtx) => ipcRenderer.invoke('arena:recordWinner', winnerKey, loserKey, matchCtx),

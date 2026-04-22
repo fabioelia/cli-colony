@@ -2678,7 +2678,6 @@ __metadata:
     highlight.js: ^11.11.1
     lucide-react: ^0.577.0
     marked: ^17.0.5
-    marked-highlight: ^2.2.4
     mermaid: ^11.14.0
     node-pty: ^1.1.0
     playwright-core: ^1.58.2
@@ -5098,15 +5097,6 @@ __metadata:
     proc-log: ^6.0.0
     ssri: ^13.0.0
   checksum: e43195c1e98d37acb4358eb574e6b4a591cd46624cbb4800ab2988bd21a3e7b4a26f94b561af119637643b87144e2adf03808909fefa4f88122ee1b3af7e9400
-  languageName: node
-  linkType: hard
-
-"marked-highlight@npm:^2.2.4":
-  version: 2.2.4
-  resolution: "marked-highlight@npm:2.2.4"
-  peerDependencies:
-    marked: ">=4 <19"
-  checksum: 120c0822e64d11ba719b553bfbafdf721dab4634663127814df70e380c43b1edc120bf35ee8f125fda06459f7db7d432997ca7f5ecc5df72fda618c52235c5aa
   languageName: node
   linkType: hard
 
