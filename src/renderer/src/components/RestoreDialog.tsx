@@ -6,6 +6,8 @@ interface Props {
   sessions: RecentSession[]
   onRestore: (selected: RecentSession[]) => void
   onDismiss: () => void
+  disabled?: boolean
+  restoreError?: string
 }
 
 function formatDuration(openedAt: string): string {
@@ -18,7 +20,7 @@ function formatDuration(openedAt: string): string {
   return `${days}d ${hrs % 24}h`
 }
 
-export default function RestoreDialog({ sessions, onRestore, onDismiss }: Props) {
+export default function RestoreDialog({ sessions, onRestore, onDismiss, disabled, restoreError }: Props) {
   const restorable = useMemo(
     () => sessions.filter((s) => s.sessionId && s.exitType !== 'killed'),
     [sessions]
@@ -156,13 +158,16 @@ export default function RestoreDialog({ sessions, onRestore, onDismiss }: Props)
         </div>
 
         <div className="restore-dialog-footer">
+          {restoreError && (
+            <span className="restore-dialog-error">{restoreError}</span>
+          )}
           <button className="restore-dialog-btn secondary" onClick={onDismiss}>Dismiss</button>
           <button
             className="restore-dialog-btn primary"
-            disabled={checked.size === 0}
+            disabled={checked.size === 0 || !!disabled}
             onClick={() => onRestore(restorable.filter((s) => checked.has(s.sessionId!)))}
           >
-            Restore {checked.size} session{checked.size !== 1 ? 's' : ''}
+            {disabled ? 'Daemon disconnected' : `Restore ${checked.size} session${checked.size !== 1 ? 's' : ''}`}
           </button>
         </div>
       </div>

@@ -80,6 +80,7 @@ export default function App() {
   const [editorInstanceId, setEditorInstanceId] = useState<string | null>(null)
   const [restorableSessions, setRestorableSessions] = useState<RecentSession[]>([])
   const [showRestoreDialog, setShowRestoreDialog] = useState(false)
+  const [restoreError, setRestoreError] = useState<string | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false)
   const [splitPairs, setSplitPairs] = useState<Map<string, string>>(new Map()) // leftId → rightId
@@ -493,23 +494,27 @@ export default function App() {
       if (snippet) createOpts.name = snippet
     }
 
-    const inst = await window.api.instance.create({
-      ...createOpts,
-      ticket: jiraTicket ? { source: 'jira', key: jiraTicket.key, summary: jiraTicket.summary, url: jiraTicket.url } : undefined,
-    })
-    // If the caller seeded a first prompt, queue it to run once the session
-    // signals it's ready — same path the Quick Prompt flow uses.
-    if (effectivePrompt.trim()) {
-      const prompt = planFirst
-        ? `IMPORTANT: Before taking any action, first create a structured plan:\n1. Summarize your understanding of the task\n2. List the files you expect to modify and why\n3. Outline your step-by-step approach\n4. Note any risks or assumptions\n\nPresent the plan, then WAIT for my approval before proceeding.\nDo not use any tools or make any changes until I confirm.\n\nTask: ${effectivePrompt}`
-        : effectivePrompt
-      pendingPromptRef.current = { id: inst.id, prompt }
+    try {
+      const inst = await window.api.instance.create({
+        ...createOpts,
+        ticket: jiraTicket ? { source: 'jira', key: jiraTicket.key, summary: jiraTicket.summary, url: jiraTicket.url } : undefined,
+      })
+      // If the caller seeded a first prompt, queue it to run once the session
+      // signals it's ready — same path the Quick Prompt flow uses.
+      if (effectivePrompt.trim()) {
+        const prompt = planFirst
+          ? `IMPORTANT: Before taking any action, first create a structured plan:\n1. Summarize your understanding of the task\n2. List the files you expect to modify and why\n3. Outline your step-by-step approach\n4. Note any risks or assumptions\n\nPresent the plan, then WAIT for my approval before proceeding.\nDo not use any tools or make any changes until I confirm.\n\nTask: ${effectivePrompt}`
+          : effectivePrompt
+        pendingPromptRef.current = { id: inst.id, prompt }
+      }
+      setActiveId(inst.id)
+      setShowNewDialog(false)
+      setNewDialogSeed(null)
+      setCloneSource(null)
+      setView('instances')
+    } catch (err) {
+      console.error('[create] failed to create instance:', err)
     }
-    setActiveId(inst.id)
-    setShowNewDialog(false)
-    setNewDialogSeed(null)
-    setCloneSource(null)
-    setView('instances')
   }, [])
 
   const handleStarterCard = useCallback(
@@ -807,14 +812,18 @@ export default function App() {
     if (stopped) {
       await window.api.instance.remove(stopped.id)
     }
-    const inst = await window.api.instance.create({
-      name: session.name || session.display.slice(0, 40),
-      workingDirectory: session.project,
-      args: ['--resume', session.sessionId],
-      cliBackend: 'claude',
-    })
-    setActiveId(inst.id)
-    setView('instances')
+    try {
+      const inst = await window.api.instance.create({
+        name: session.name || session.display.slice(0, 40),
+        workingDirectory: session.project,
+        args: ['--resume', session.sessionId],
+        cliBackend: 'claude',
+      })
+      setActiveId(inst.id)
+      setView('instances')
+    } catch (err) {
+      console.error('[create] failed to resume session:', err)
+    }
   }, [instances])
 
   const handleTakeoverExternal = useCallback(async (ext: { pid: number; name: string; cwd: string; sessionId: string | null }) => {
@@ -825,32 +834,50 @@ export default function App() {
       name: ext.name,
       cwd: ext.cwd,
     })
-    const inst = await window.api.instance.create({
-      name: result.name,
-      workingDirectory: result.cwd,
-      args: result.args.length > 0 ? result.args : undefined,
-      cliBackend: 'claude',
-    })
-    setActiveId(inst.id)
-    setView('instances')
+    try {
+      const inst = await window.api.instance.create({
+        name: result.name,
+        workingDirectory: result.cwd,
+        args: result.args.length > 0 ? result.args : undefined,
+        cliBackend: 'claude',
+      })
+      setActiveId(inst.id)
+      setView('instances')
+    } catch (err) {
+      console.error('[create] failed to takeover external session:', err)
+    }
   }, [])
 
   const handleRestoreSelected = useCallback(async (selected: RecentSession[]) => {
+    let restored = 0
+    let failed = 0
+    setRestoreError(null)
     for (const s of selected) {
-      const inst = await window.api.instance.create({
-        name: s.instanceName,
-        workingDirectory: s.workingDirectory,
-        color: s.color,
-        args: ['--resume', s.sessionId!],
-        cliBackend: s.cliBackend ?? 'claude',
-      })
-      if ((s as any).pinned) {
-        await window.api.instance.pin(inst.id)
+      try {
+        const inst = await window.api.instance.create({
+          name: s.instanceName,
+          workingDirectory: s.workingDirectory,
+          color: s.color,
+          args: ['--resume', s.sessionId!],
+          cliBackend: s.cliBackend ?? 'claude',
+        })
+        if ((s as any).pinned) {
+          await window.api.instance.pin(inst.id)
+        }
+        restored++
+      } catch (err) {
+        console.error('[restore] failed to restore session:', err)
+        failed++
       }
     }
-    await window.api.sessions.clearRestorable()
-    setRestorableSessions([])
-    setShowRestoreDialog(false)
+    if (restored > 0) {
+      await window.api.sessions.clearRestorable()
+      setRestorableSessions([])
+      setShowRestoreDialog(false)
+    }
+    if (failed > 0) {
+      setRestoreError(`${restored} of ${selected.length} restored — ${failed} failed`)
+    }
   }, [])
 
   // Drag & drop on sidebar to create instance
@@ -860,9 +887,13 @@ export default function App() {
     if (files.length > 0) {
       const path = window.api.getPathForFile(files[0])
       if (path) {
-        const inst = await window.api.instance.create({ workingDirectory: path })
-        setActiveId(inst.id)
-        setView('instances')
+        try {
+          const inst = await window.api.instance.create({ workingDirectory: path })
+          setActiveId(inst.id)
+          setView('instances')
+        } catch (err) {
+          console.error('[create] failed on sidebar drop:', err)
+        }
       }
     }
   }, [])
@@ -883,15 +914,19 @@ export default function App() {
     })
     const first = prompt.split(/[.\n]/)[0].trim()
     const autoName = first.length <= 50 ? first : (first.slice(0, 50).replace(/\s+\S*$/, '') || first.slice(0, 50))
-    const inst = await window.api.instance.create({
-      workingDirectory: workingDirectory || undefined,
-      name: autoName || undefined,
-    })
-    // Queue the prompt to be written once the session signals it's ready
-    pendingPromptRef.current = { id: inst.id, prompt }
-    setActiveId(inst.id)
-    setView('instances')
-    setQuickPromptOpen(false)
+    try {
+      const inst = await window.api.instance.create({
+        workingDirectory: workingDirectory || undefined,
+        name: autoName || undefined,
+      })
+      // Queue the prompt to be written once the session signals it's ready
+      pendingPromptRef.current = { id: inst.id, prompt }
+      setActiveId(inst.id)
+      setView('instances')
+      setQuickPromptOpen(false)
+    } catch (err) {
+      console.error('[create] failed in quick prompt launch:', err)
+    }
   }, [])
 
   // Open split with a specific instance as the right pane
@@ -1453,13 +1488,17 @@ export default function App() {
         onSpawnChild: async () => {
           const current = regularInstancesRef.current.find(i => i.id === id)
           if (!current) return
-          const child = await window.api.instance.create({
-            name: `${current.name} → child`,
-            workingDirectory: current.workingDirectory,
-            parentId: id,
-            cliBackend: current.cliBackend ?? 'claude',
-          })
-          setActiveId(child.id)
+          try {
+            const child = await window.api.instance.create({
+              name: `${current.name} → child`,
+              workingDirectory: current.workingDirectory,
+              parentId: id,
+              cliBackend: current.cliBackend ?? 'claude',
+            })
+            setActiveId(child.id)
+          } catch (err) {
+            console.error('[create] failed to spawn child session:', err)
+          }
         },
         onFork: async () => {
           const current = regularInstancesRef.current.find(i => i.id === id)
@@ -1498,7 +1537,9 @@ export default function App() {
         <RestoreDialog
           sessions={restorableSessions}
           onRestore={handleRestoreSelected}
-          onDismiss={() => { setShowRestoreDialog(false); window.api.sessions.clearRestorable(); setRestorableSessions([]) }}
+          onDismiss={() => { setShowRestoreDialog(false); setRestoreError(null); window.api.sessions.clearRestorable(); setRestorableSessions([]) }}
+          disabled={daemonFailed}
+          restoreError={restoreError ?? undefined}
         />,
         document.body
       )}
@@ -2110,10 +2151,15 @@ export default function App() {
                 instances={instances}
                 onFocusInstance={(id) => { setActiveId(id); setView('instances') }}
                 onLaunchInstance={async (opts) => {
-                  const inst = await window.api.instance.create(opts)
-                  setActiveId(inst.id)
-                  setView('instances')
-                  return inst.id
+                  try {
+                    const inst = await window.api.instance.create(opts)
+                    setActiveId(inst.id)
+                    setView('instances')
+                    return inst.id
+                  } catch (err) {
+                    console.error('[create] failed in task queue launch:', err)
+                    return ''
+                  }
                 }}
               />
             ) : (
@@ -2125,10 +2171,15 @@ export default function App() {
           <PipelinesPanel
             instances={instances}
             onLaunchInstance={async (opts) => {
-              const inst = await window.api.instance.create(opts)
-              setActiveId(inst.id)
-              setView('instances')
-              return inst.id
+              try {
+                const inst = await window.api.instance.create(opts)
+                setActiveId(inst.id)
+                setView('instances')
+                return inst.id
+              } catch (err) {
+                console.error('[create] failed in pipeline launch:', err)
+                return ''
+              }
             }}
             onFocusInstance={(id) => {
               setActiveId(id)
@@ -2139,10 +2190,15 @@ export default function App() {
         {view === 'environments' && (
           <EnvironmentsPanel
             onLaunchInstance={async (opts) => {
-              const inst = await window.api.instance.create(opts)
-              setActiveId(inst.id)
-              setView('instances')
-              return inst.id
+              try {
+                const inst = await window.api.instance.create(opts)
+                setActiveId(inst.id)
+                setView('instances')
+                return inst.id
+              } catch (err) {
+                console.error('[create] failed in environment launch:', err)
+                return ''
+              }
             }}
             onFocusInstance={(id) => {
               setActiveId(id)
@@ -2158,10 +2214,15 @@ export default function App() {
               setView('instances')
             }}
             onLaunchInstance={async (opts) => {
-              const inst = await window.api.instance.create(opts)
-              setActiveId(inst.id)
-              setView('instances')
-              return inst.id
+              try {
+                const inst = await window.api.instance.create(opts)
+                setActiveId(inst.id)
+                setView('instances')
+                return inst.id
+              } catch (err) {
+                console.error('[create] failed in persona launch:', err)
+                return ''
+              }
             }}
             instances={instances}
           />
@@ -2204,10 +2265,15 @@ export default function App() {
             instances={instances}
             visible={view === 'github'}
             onLaunchInstance={async (opts) => {
-              const inst = await window.api.instance.create(opts)
-              setActiveId(inst.id)
-              setView('instances')
-              return inst.id
+              try {
+                const inst = await window.api.instance.create(opts)
+                setActiveId(inst.id)
+                setView('instances')
+                return inst.id
+              } catch (err) {
+                console.error('[create] failed in GitHub panel launch:', err)
+                return ''
+              }
             }}
             onFocusInstance={(id) => {
               setActiveId(id)

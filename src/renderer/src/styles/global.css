@@ -747,9 +747,17 @@ body:has(.daemon-update-banner) .app-update-banner {
 .restore-dialog-footer {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 8px;
   padding: 10px 14px;
   border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.restore-dialog-error {
+  flex: 1;
+  font-size: 11px;
+  color: var(--error, #ef4444);
+  min-width: 0;
 }
 .restore-dialog-btn {
   padding: 6px 14px;
