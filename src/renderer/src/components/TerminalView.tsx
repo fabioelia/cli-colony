@@ -118,6 +118,8 @@ function formatUptime(seconds: number): string {
   return m > 0 ? `${h}h ${m}m` : `${h}h`
 }
 
+const fmtTokens = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`
+
 type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'changes' | 'artifacts' | 'team' | 'metrics' | 'browser' | 'jira'
 
 export default memo(function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, onSearchToggle, fontSize = 13, fontFamily = 'Menlo, Monaco, Consolas, "Courier New", monospace', cursorStyle = 'underline', cursorBlink = false, scrollback = 10000, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid, onNavigateToSession, errorSummary, childInstances = [], allInstances = [] }: Props) {
@@ -1260,6 +1262,16 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
               title={`Session cost: $${instance.tokenUsage.cost.toFixed(4)}`}
             >
               ${instance.tokenUsage.cost < 0.01 ? '<0.01' : instance.tokenUsage.cost.toFixed(2)}
+            </span>
+          )}
+          {instance.cliBackend !== 'cursor-agent' && (instance.tokenUsage.input > 0 || instance.tokenUsage.output > 0) && (
+            <span
+              className="session-status-item session-status-tokens"
+              tabIndex={-1}
+              title={`Input: ${instance.tokenUsage.input.toLocaleString()} tokens · Output: ${instance.tokenUsage.output.toLocaleString()} tokens`}
+            >
+              <span className="token-in">{fmtTokens(instance.tokenUsage.input)}↓</span>{' '}
+              <span className="token-out">{fmtTokens(instance.tokenUsage.output)}↑</span>
             </span>
           )}
           {contextUsage && (() => {

@@ -1243,6 +1243,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Model', detail: 'The Claude model in use (e.g. sonnet-4-6). Parsed from launch args.' },
           { label: 'Uptime', detail: 'Time since the session was created.' },
           { label: 'Cost', detail: 'Live session cost. Green under $1, amber $1–$5, red over $5. Hover for precise amount. Hidden until the session incurs cost.' },
+          { label: 'Token counts', detail: 'Input (↓, blue) and output (↑, green) token counts in the status strip. Format: 12.3k↓ 4.1k↑ for ≥1000 tokens, exact for smaller. Hover for precise counts. Hidden until tokens are recorded. Not shown for non-Claude backends.' },
           { label: 'Ctx indicator', detail: 'Amber = context ≥ 250 KB output, red ≥ 600 KB. Consider checkpointing.' },
         ],
       },
