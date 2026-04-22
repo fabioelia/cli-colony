@@ -530,6 +530,7 @@ export interface ArenaStatEntry {
   wins: number
   losses: number
   totalRuns: number
+  promotes?: number
 }
 
 export type ArenaStats = Record<string, ArenaStatEntry>

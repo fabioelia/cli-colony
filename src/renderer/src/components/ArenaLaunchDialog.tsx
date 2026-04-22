@@ -22,7 +22,7 @@ const QUICK_MODELS = [
 
 interface Props {
   onClose: () => void
-  onLaunch: (result: { instances: string[]; worktrees: string[] }) => void
+  onLaunch: (result: { instances: string[]; worktrees: string[]; branch: string }) => void
   prefill?: ArenaPrefill
   mode?: 'quick' | 'full'
   quickContext?: QuickContext
@@ -102,7 +102,7 @@ export default function ArenaLaunchDialog({ onClose, onLaunch, prefill, mode = '
         prompt: prompt.trim() || undefined,
         models: effectiveModels,
       })
-      onLaunch(result)
+      onLaunch({ ...result, branch: branch.trim() })
       onClose()
     } catch (err: any) {
       setError(err?.message ?? 'Failed to launch arena')

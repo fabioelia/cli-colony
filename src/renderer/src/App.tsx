@@ -101,6 +101,8 @@ export default function App() {
   const [arenaLaunchMode, setArenaLaunchMode] = useState<'quick' | 'full'>('full')
   const [arenaQuickContext, setArenaQuickContext] = useState<{ repo: string; branch: string } | undefined>()
   const [arenaWorktreeIds, setArenaWorktreeIds] = useState<string[]>([])
+  const [arenaSourceBranch, setArenaSourceBranch] = useState<string>('')
+  const [arenaPromoting, setArenaPromoting] = useState(false)
   const [arenaLeaderboardOpen, setArenaLeaderboardOpen] = useState(false)
   const [arenaReplayPrefill, setArenaReplayPrefill] = useState<{
     count: number; models: (string | null)[]; prompt: string
@@ -1027,8 +1029,8 @@ export default function App() {
     }
   }, [gridPanes, activeId, splitId])
 
-  const handleArenaLaunch = useCallback((result: { instances: string[]; worktrees: string[] }) => {
-    const { instances: ids, worktrees: wtIds } = result
+  const handleArenaLaunch = useCallback((result: { instances: string[]; worktrees: string[]; branch: string }) => {
+    const { instances: ids, worktrees: wtIds, branch } = result
     // Populate grid with the new instance IDs
     const panes: (string | null)[] = [null, null, null, null]
     ids.forEach((id, i) => { if (i < 4) panes[i] = id })
@@ -1039,6 +1041,7 @@ export default function App() {
     setArenaBlind(false)
     setArenaWinnerId(null)
     setArenaWorktreeIds(wtIds)
+    setArenaSourceBranch(branch)
     setSplitPairs(new Map())
     setView('instances')
   }, [])
@@ -1835,8 +1838,51 @@ export default function App() {
                   <FolderOpen size={11} /> Reveal
                 </button>
               )}
+              {winnerWorktreeId && arenaSourceBranch && (
+                <button
+                  className="arena-promote-btn primary"
+                  disabled={arenaPromoting}
+                  onClick={async () => {
+                    setArenaPromoting(true)
+                    try {
+                      const loserIds = arenaWorktreeIds.filter((_, i) => {
+                        const panes2 = gridPanes.some(p => p !== null) ? gridPanes : [activeId, splitId, null, null]
+                        return i !== panes2.indexOf(arenaWinnerId)
+                      })
+                      const result = await window.api.arena.promoteWinner({
+                        winnerWorktreeId,
+                        loserWorktreeIds: loserIds,
+                        sourceBranch: arenaSourceBranch,
+                      })
+                      if (result.success) {
+                        setArenaWinnerId(null)
+                        setArenaWorktreeIds([])
+                        setArenaSourceBranch('')
+                        setArenaMode(false)
+                        setGridPanes([null, null, null, null])
+                        // Show toast
+                        const msg = `Winner promoted — ${result.commitCount} commit${result.commitCount === 1 ? '' : 's'} applied to ${arenaSourceBranch} (branch: ${result.promotedBranch})`
+                        window.dispatchEvent(new CustomEvent('toast', { detail: { message: msg, type: 'success' } }))
+                      } else if (result.error === 'Nothing to promote — winner made no changes') {
+                        window.dispatchEvent(new CustomEvent('toast', { detail: { message: result.error, type: 'info' } }))
+                      } else if (result.conflictFiles?.length) {
+                        window.dispatchEvent(new CustomEvent('toast', { detail: { message: `Cherry-pick conflict in: ${result.conflictFiles.slice(0, 3).join(', ')}${result.conflictFiles.length > 3 ? ` +${result.conflictFiles.length - 3} more` : ''}`, type: 'error' } }))
+                      } else {
+                        window.dispatchEvent(new CustomEvent('toast', { detail: { message: result.error ?? 'Promote failed', type: 'error' } }))
+                      }
+                    } catch (err: any) {
+                      window.dispatchEvent(new CustomEvent('toast', { detail: { message: err?.message ?? 'Promote failed', type: 'error' } }))
+                    } finally {
+                      setArenaPromoting(false)
+                    }
+                  }}
+                  title={`Cherry-pick winner's commits onto ${arenaSourceBranch}`}
+                >
+                  <Rocket size={11} /> {arenaPromoting ? 'Promoting...' : `Promote to ${arenaSourceBranch}`}
+                </button>
+              )}
               <button
-                className="arena-promote-btn primary"
+                className="arena-promote-btn"
                 onClick={handleKeepWinner}
                 title={`Remove ${arenaWorktreeIds.length - 1} loser worktree(s), keep winner`}
               >

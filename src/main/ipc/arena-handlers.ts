@@ -1,5 +1,7 @@
 import { ipcMain } from 'electron'
 import { promises as fsp } from 'fs'
+import * as os from 'os'
+import * as path from 'path'
 import { promisify } from 'util'
 import { execFile } from 'child_process'
 import { resolveCommand } from '../resolve-command'
@@ -7,7 +9,7 @@ import { join } from 'path'
 import { readArenaStats, writeArenaStats, readMatchHistory, appendMatchRecord, clearMatchHistory, buildJudgeHistorySection } from '../arena-stats'
 import { getSetting } from '../settings'
 import type { ArenaMatchRecord } from '../../shared/types'
-import { createWorktree, removeWorktree } from '../worktree-manager'
+import { getWorktree, createWorktree, removeWorktree } from '../worktree-manager'
 import { createInstance } from '../instance-manager'
 import { sendPromptWhenReady } from '../send-prompt-when-ready'
 import { getDaemonRouter } from '../daemon-router'
@@ -124,6 +126,73 @@ export function registerArenaHandlers(): void {
       }
     }
     return removed
+  })
+
+  /**
+   * Promote arena winner: cherry-pick winner's commits onto a new branch from origin/<sourceBranch>.
+   */
+  ipcMain.handle('arena:promoteWinner', async (
+    _e,
+    opts: { winnerWorktreeId: string; loserWorktreeIds: string[]; sourceBranch: string },
+  ): Promise<{ success: boolean; commitCount?: number; promotedBranch?: string; error?: string; conflictFiles?: string[] }> => {
+    const { winnerWorktreeId, loserWorktreeIds, sourceBranch } = opts
+
+    const info = await getWorktree(winnerWorktreeId)
+    if (!info) return { success: false, error: 'Winner worktree not found' }
+
+    const worktreePath = info.path
+    const bareRepoPath = info.bareRepoPath
+
+    // Find commits to promote (winner branch commits not in origin/sourceBranch)
+    const { stdout: commitsRaw } = await execFileAsync('git', [
+      '-C', worktreePath, 'log', '--format=%H', `origin/${sourceBranch}..HEAD`,
+    ])
+    const commits = commitsRaw.trim().split('\n').filter(Boolean).reverse() // oldest first
+
+    if (commits.length === 0) {
+      return { success: false, error: 'Nothing to promote — winner made no changes' }
+    }
+
+    // Create a temp worktree from origin/sourceBranch in the system tmp dir
+    const promotedBranch = `arena-promote-${Date.now()}`
+    const tmpPath = path.join(os.tmpdir(), promotedBranch)
+    await execFileAsync('git', ['-C', bareRepoPath, 'worktree', 'add', '-b', promotedBranch, tmpPath, `origin/${sourceBranch}`])
+
+    try {
+      await execFileAsync('git', ['-C', tmpPath, 'cherry-pick', ...commits], { timeout: 60_000 })
+
+      // Success — remove temp worktree dir but keep the local branch in bare repo
+      await execFileAsync('git', ['-C', bareRepoPath, 'worktree', 'remove', '--force', tmpPath]).catch(() => {})
+
+      // Record promote in stats
+      try {
+        const stats = await readArenaStats()
+        const winner = await getDaemonRouter().getInstance(
+          (await execFileAsync('git', ['-C', worktreePath, 'rev-parse', 'HEAD'])).stdout.trim()
+        )
+        const winnerInst = info.id
+        if (winnerInst) {
+          const key = `worktree:${winnerInst}`
+          if (!stats[key]) stats[key] = { wins: 0, losses: 0, totalRuns: 0, promotes: 0 }
+          stats[key].promotes = (stats[key].promotes ?? 0) + 1
+          await writeArenaStats(stats)
+        }
+      } catch { /* non-fatal */ }
+
+      // Clean up loser worktrees
+      for (const id of loserWorktreeIds) {
+        await removeWorktree(id).catch(() => {})
+      }
+
+      return { success: true, commitCount: commits.length, promotedBranch }
+    } catch (err: any) {
+      const output = (err?.stderr || err?.stdout || '').toString()
+      const conflictFiles = [...output.matchAll(/CONFLICT[^:]*: (.+)/g)].map(m => m[1].trim())
+      await execFileAsync('git', ['-C', tmpPath, 'cherry-pick', '--abort']).catch(() => {})
+      await execFileAsync('git', ['-C', bareRepoPath, 'worktree', 'remove', '--force', tmpPath]).catch(() => {})
+      await execFileAsync('git', ['-C', bareRepoPath, 'branch', '-D', promotedBranch]).catch(() => {})
+      return { success: false, conflictFiles: conflictFiles.length ? conflictFiles : undefined, error: 'Cherry-pick conflict' }
+    }
   })
 
   /**

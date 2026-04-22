@@ -588,6 +588,11 @@ export interface ClaudeManagerAPI {
       instanceIds: string[]
       judgeConfig: { type: 'command'; cmd: string } | { type: 'llm'; prompt: string }
     }) => Promise<{ winnerId: string | null; results: Array<{ instanceId: string; exitCode: number; stdout: string }>; verdictText?: string | null }>
+    promoteWinner: (opts: {
+      winnerWorktreeId: string
+      loserWorktreeIds: string[]
+      sourceBranch: string
+    }) => Promise<{ success: boolean; commitCount?: number; promotedBranch?: string; error?: string; conflictFiles?: string[] }>
   }
   fork: {
     create: (parentId: string, opts: {
@@ -1312,6 +1317,7 @@ const api: ClaudeManagerAPI = {
     launchWithWorktrees: (opts) => ipcRenderer.invoke('arena:launchWithWorktrees', opts),
     cleanupWorktrees: (ids) => ipcRenderer.invoke('arena:cleanupWorktrees', ids),
     autoJudge: (opts) => ipcRenderer.invoke('arena:autoJudge', opts),
+    promoteWinner: (opts) => ipcRenderer.invoke('arena:promoteWinner', opts),
   },
   fork: {
     create: (parentId, opts) => ipcRenderer.invoke('fork:create', parentId, opts),
