@@ -19252,7 +19252,7 @@ button.session-trigger-chain-btn:hover {
   gap: 6px;
   padding: 5px 10px;
   cursor: pointer;
-  border-bottom: 1px solid var(--border-subtle, var(--border));
+  border-bottom: 1px solid var(--border-subtle);
 }
 .history-search-row:hover { background: var(--bg-hover); }
 .history-search-row:last-child { border-bottom: none; }
@@ -19268,8 +19268,8 @@ button.session-trigger-chain-btn:hover {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.history-search-success { color: var(--color-success, #22c55e); flex-shrink: 0; }
-.history-search-fail { color: var(--color-error, #ef4444); flex-shrink: 0; }
+.history-search-success { color: var(--success); flex-shrink: 0; }
+.history-search-fail { color: var(--danger); flex-shrink: 0; }
 .history-search-trigger { color: var(--text-secondary); font-size: 11px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .history-search-ago { color: var(--text-muted); font-size: 10px; white-space: nowrap; }
 .history-search-cost { color: var(--text-muted); font-size: 10px; white-space: nowrap; margin-left: 2px; }
