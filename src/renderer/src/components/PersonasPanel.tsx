@@ -1206,13 +1206,14 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
 }
 
 /** Collapsible section within the persona card */
-function PersonaSection({ title, content, defaultOpen, isOutput, isBrief, onReply, children }: {
+function PersonaSection({ title, content, defaultOpen, isOutput, isBrief, onReply, headerExtra, children }: {
   title: string
   content: string | null | undefined
   defaultOpen: boolean
   isOutput?: boolean
   isBrief?: boolean
   onReply?: () => void
+  headerExtra?: React.ReactNode
   children?: React.ReactNode
 }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -1227,6 +1228,7 @@ function PersonaSection({ title, content, defaultOpen, isOutput, isBrief, onRepl
           <h4>{title}</h4>
           {!open && content && <span className="persona-section-preview">{content.split('\n').find(l => l.trim())?.trim().slice(0, 80)}...</span>}
         </button>
+        {headerExtra}
         {isBrief && onReply && (
           <button className="persona-brief-reply-btn" title="Reply to brief" onClick={onReply}>
             <MessageSquare size={11} />
@@ -1647,6 +1649,10 @@ function PersonaCard({
   const [briefMtime, setBriefMtime] = useState<number | null>(null)
   const [briefDiff, setBriefDiff] = useState<string | null | 'loading'>(null)
   const [briefDiffOpen, setBriefDiffOpen] = useState(false)
+  const [briefHistory, setBriefHistory] = useState<Array<{ index: number; timestamp: string; preview: string }> | null>(null)
+  const [briefHistoryIdx, setBriefHistoryIdx] = useState<number | null>(null)
+  const [briefHistoryContent, setBriefHistoryContent] = useState<string | null | 'loading'>(null)
+  const [briefHistoryOpen, setBriefHistoryOpen] = useState(false)
   const fromName = (id: string) => allPersonas.find(p => p.id === id)?.name ?? id
 
   useLayoutEffect(() => {
@@ -1661,6 +1667,11 @@ function PersonaCard({
       setBriefMtime(mtime)
     })
   }, [expanded, persona.id, briefContent])
+
+  useEffect(() => {
+    if (!expanded || briefHistory !== null) return
+    window.api.persona.briefHistory(persona.id).then(setBriefHistory)
+  }, [expanded, persona.id, briefHistory])
 
   useEffect(() => {
     if (!expanded || activeTab !== 'outputs' || artifacts !== null) return
@@ -2435,23 +2446,66 @@ function PersonaCard({
           )}
 
           {/* Session brief — latest run summary written by the persona itself */}
-          {briefContent && briefContent !== 'loading' && (
-            <PersonaSection
-              title={briefMtime ? (() => { const secs = (Date.now() - briefMtime) / 1000; const ago = secs < 60 ? 'just now' : secs < 3600 ? `${Math.floor(secs / 60)}m ago` : `${Math.floor(secs / 3600)}h ago`; return `Latest Brief · ${ago}` })() : 'Latest Brief'}
-              content={briefContent}
-              defaultOpen={true}
-              isBrief
-              onReply={() => {
-                const lines = briefContent.split('\n').filter(l => l.trim()).slice(0, 3)
-                const quoted = lines.map(l => `> ${l}`).join('\n')
-                const prefill = `Re: your last brief —\n\n${quoted}\n\n`
-                if (whisperText.trim() && !window.confirm('Replace whisper bar contents with brief reply?')) return
-                setWhisperText(prefill)
-                setWhisperOpen(true)
-                setTimeout(() => whisperRef.current?.focus(), 0)
-              }}
-            />
-          )}
+          {briefContent && briefContent !== 'loading' && (() => {
+            const displayedBrief = briefHistoryIdx !== null
+              ? (briefHistoryContent === 'loading' ? null : briefHistoryContent ?? '')
+              : briefContent
+            const briefTitle = briefHistoryIdx !== null
+              ? `Brief · ${formatRelativeTime(briefHistory?.find(h => h.index === briefHistoryIdx)?.timestamp ?? '')}`
+              : (briefMtime ? (() => { const secs = (Date.now() - briefMtime) / 1000; const ago = secs < 60 ? 'just now' : secs < 3600 ? `${Math.floor(secs / 60)}m ago` : `${Math.floor(secs / 3600)}h ago`; return `Latest Brief · ${ago}` })() : 'Latest Brief')
+            const historyControls = briefHistory && briefHistory.length > 0 ? (
+              <div className="persona-brief-history-ctrl" style={{ position: 'relative' }}>
+                <button
+                  className={`persona-brief-reply-btn${briefHistoryOpen ? ' active' : ''}`}
+                  title="View brief history"
+                  onClick={e => { e.stopPropagation(); setBriefHistoryOpen(v => !v) }}
+                >
+                  <Clock size={11} />
+                </button>
+                {briefHistoryOpen && (
+                  <div className="persona-brief-history-dropdown" onClick={e => e.stopPropagation()}>
+                    <button
+                      className={`persona-brief-history-item${briefHistoryIdx === null ? ' active' : ''}`}
+                      onClick={() => { setBriefHistoryIdx(null); setBriefHistoryOpen(false) }}
+                    >Current</button>
+                    {briefHistory.map(h => (
+                      <button
+                        key={h.index}
+                        className={`persona-brief-history-item${briefHistoryIdx === h.index ? ' active' : ''}`}
+                        onClick={async () => {
+                          setBriefHistoryIdx(h.index)
+                          setBriefHistoryOpen(false)
+                          if (briefHistoryContent === null || briefHistoryIdx !== h.index) {
+                            setBriefHistoryContent('loading')
+                            const c = await window.api.persona.briefAt(persona.id, h.index)
+                            setBriefHistoryContent(c)
+                          }
+                        }}
+                      >{formatRelativeTime(h.timestamp)}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : null
+            return displayedBrief !== null ? (
+              <PersonaSection
+                title={briefTitle}
+                content={displayedBrief}
+                defaultOpen={true}
+                isBrief
+                headerExtra={historyControls}
+                onReply={briefHistoryIdx === null ? () => {
+                  const lines = briefContent.split('\n').filter(l => l.trim()).slice(0, 3)
+                  const quoted = lines.map(l => `> ${l}`).join('\n')
+                  const prefill = `Re: your last brief —\n\n${quoted}\n\n`
+                  if (whisperText.trim() && !window.confirm('Replace whisper bar contents with brief reply?')) return
+                  setWhisperText(prefill)
+                  setWhisperOpen(true)
+                  setTimeout(() => whisperRef.current?.focus(), 0)
+                } : undefined}
+              />
+            ) : null
+          })()}
 
           {/* Collapsible sections — dynamic ones open, static ones collapsed */}
           <PersonaSection title="Active Situations" content={sections['Active Situations']} defaultOpen={true} />

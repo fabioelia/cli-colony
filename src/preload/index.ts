@@ -336,6 +336,8 @@ export interface ClaudeManagerAPI {
     getArtifacts: (personaId: string) => Promise<PersonaArtifact[]>
     readArtifact: (personaId: string, filename: string) => Promise<string | null>
     briefDiff: (personaId: string) => Promise<string | null>
+    briefHistory: (id: string) => Promise<Array<{ index: number; timestamp: string; preview: string }>>
+    briefAt: (id: string, index: number) => Promise<string | null>
     ask: (query: string) => Promise<string>
     getRunHistory: (personaId: string) => Promise<PersonaRunEntry[]>
     getAnalytics: (personaId: string) => Promise<PersonaAnalytics>
@@ -1084,6 +1086,8 @@ const api: ClaudeManagerAPI = {
     getArtifacts: (personaId) => ipcRenderer.invoke('persona:getArtifacts', personaId),
     readArtifact: (personaId, filename) => ipcRenderer.invoke('persona:readArtifact', personaId, filename),
     briefDiff: (personaId) => ipcRenderer.invoke('persona:briefDiff', personaId),
+    briefHistory: (id) => ipcRenderer.invoke('persona:briefHistory', id),
+    briefAt: (id, index) => ipcRenderer.invoke('persona:briefAt', id, index),
     ask: (query) => ipcRenderer.invoke('persona:ask', query),
     getRunHistory: (personaId) => ipcRenderer.invoke('persona:getRunHistory', personaId),
     getAnalytics: (personaId) => ipcRenderer.invoke('persona:analytics', personaId),

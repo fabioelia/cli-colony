@@ -19929,7 +19929,12 @@ button.session-trigger-chain-btn:hover {
 .persona-section-header .persona-section-toggle { flex: 1; }
 .persona-brief-reply-btn { flex-shrink: 0; padding: 4px 8px; background: none; border: none; color: var(--text-muted); cursor: pointer; opacity: 0; transition: opacity 0.15s; }
 .persona-section-header:hover .persona-brief-reply-btn { opacity: 1; }
-.persona-brief-reply-btn:hover, .persona-brief-reply-btn:focus { color: var(--accent); opacity: 1; }
+.persona-brief-reply-btn:hover, .persona-brief-reply-btn:focus, .persona-brief-reply-btn.active { color: var(--accent); opacity: 1; }
+.persona-brief-history-ctrl { flex-shrink: 0; }
+.persona-brief-history-dropdown { position: absolute; right: 0; top: 100%; z-index: 200; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 4px; min-width: 110px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); display: flex; flex-direction: column; gap: 2px; }
+.persona-brief-history-item { background: none; border: none; padding: 5px 10px; font-size: 11px; color: var(--text-secondary); cursor: pointer; text-align: left; border-radius: 4px; white-space: nowrap; }
+.persona-brief-history-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.persona-brief-history-item.active { color: var(--accent); font-weight: 600; }
 
 .persona-section-toggle {
   display: flex;

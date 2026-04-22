@@ -766,12 +766,18 @@ export async function runPersona(fileName: string, trigger: TriggerSource = { ty
   let cwd = fm.working_directory || colonyPaths.root
   if (cwd.startsWith('~')) cwd = cwd.replace('~', process.env.HOME || '/')
 
-  // Snapshot current brief before overwriting (enables diff view after run)
+  // Rotate briefs: .brief.4.md→.brief.5.md, ... .brief.md→.brief.1.md
   const personaSlug2 = basename(filePath, '.md')
   const briefPath2 = join(PERSONAS_DIR, `${personaSlug2}.brief.md`)
-  const prevBriefPath = join(PERSONAS_DIR, `${personaSlug2}.brief.prev.md`)
   if (existsSync(briefPath2)) {
-    try { copyFileSync(briefPath2, prevBriefPath) } catch { /* non-fatal */ }
+    try {
+      for (let i = 4; i >= 1; i--) {
+        const src = join(PERSONAS_DIR, `${personaSlug2}.brief.${i}.md`)
+        const dst = join(PERSONAS_DIR, `${personaSlug2}.brief.${i + 1}.md`)
+        if (existsSync(src)) { try { copyFileSync(src, dst) } catch { /* non-fatal */ } }
+      }
+      copyFileSync(briefPath2, join(PERSONAS_DIR, `${personaSlug2}.brief.1.md`))
+    } catch { /* non-fatal */ }
   }
 
   // Launch interactive session with system prompt, then send trigger when ready
@@ -911,7 +917,7 @@ export function getPersonaArtifacts(personaId: string): import('../shared/types'
   const outputsDir = join(colonyPaths.root, 'outputs', safeId)
   const artifacts: import('../shared/types').PersonaArtifact[] = []
 
-  // Brief first, then prev brief if it exists
+  // Brief first, then prev brief (prefer .brief.1.md, fall back to .brief.prev.md legacy)
   const briefPath = join(PERSONAS_DIR, `${safeId}.brief.md`)
   if (existsSync(briefPath)) {
     try {
@@ -919,12 +925,18 @@ export function getPersonaArtifacts(personaId: string): import('../shared/types'
       artifacts.push({ name: `${safeId}.brief.md`, sizeBytes: s.size, modifiedAt: s.mtimeMs, isBrief: true })
     } catch { /* skip */ }
   }
-  const prevBriefPath2 = join(PERSONAS_DIR, `${safeId}.brief.prev.md`)
-  if (existsSync(prevBriefPath2)) {
-    try {
-      const s = statSync(prevBriefPath2)
-      artifacts.push({ name: `${safeId}.brief.prev.md`, sizeBytes: s.size, modifiedAt: s.mtimeMs, isBrief: false, isPrevBrief: true })
-    } catch { /* skip */ }
+  const prevBriefCandidates = [
+    join(PERSONAS_DIR, `${safeId}.brief.1.md`),
+    join(PERSONAS_DIR, `${safeId}.brief.prev.md`),
+  ]
+  for (const prevBriefPath2 of prevBriefCandidates) {
+    if (existsSync(prevBriefPath2)) {
+      try {
+        const s = statSync(prevBriefPath2)
+        artifacts.push({ name: basename(prevBriefPath2), sizeBytes: s.size, modifiedAt: s.mtimeMs, isBrief: false, isPrevBrief: true })
+      } catch { /* skip */ }
+      break
+    }
   }
 
   // Output files
@@ -953,7 +965,7 @@ export function readPersonaArtifact(personaId: string, filename: string): string
   const safeId = basename(personaId)
   const safeFile = basename(filename)
   let filePath: string
-  if (safeFile === `${safeId}.brief.md` || safeFile === `${safeId}.brief.prev.md`) {
+  if (safeFile === `${safeId}.brief.md` || safeFile === `${safeId}.brief.prev.md` || /^.+\.brief\.\d+\.md$/.test(safeFile)) {
     filePath = join(PERSONAS_DIR, safeFile)
   } else {
     filePath = join(colonyPaths.root, 'outputs', safeId, safeFile)
@@ -968,7 +980,9 @@ export function readPersonaArtifact(personaId: string, filename: string): string
 export async function getPersonaBriefDiff(personaId: string): Promise<string | null> {
   const safeId = basename(personaId)
   const currentPath = join(PERSONAS_DIR, `${safeId}.brief.md`)
-  const prevPath = join(PERSONAS_DIR, `${safeId}.brief.prev.md`)
+  // Prefer .brief.1.md (new rotation), fall back to .brief.prev.md (legacy)
+  let prevPath = join(PERSONAS_DIR, `${safeId}.brief.1.md`)
+  if (!existsSync(prevPath)) prevPath = join(PERSONAS_DIR, `${safeId}.brief.prev.md`)
   if (!existsSync(prevPath) || !existsSync(currentPath)) return null
   try {
     // diff -u returns exit code 1 when files differ (normal), 0 when identical, 2 on error
@@ -978,6 +992,30 @@ export async function getPersonaBriefDiff(personaId: string): Promise<string | n
     })
     return stdout || null
   } catch { return null }
+}
+
+/** List brief history entries (indices 1–5) for a persona, newest first. */
+export function getPersonaBriefHistory(personaId: string): Array<{ index: number; timestamp: string; preview: string }> {
+  const safeId = basename(personaId)
+  const entries: Array<{ index: number; timestamp: string; preview: string }> = []
+  for (let i = 1; i <= 5; i++) {
+    const p = join(PERSONAS_DIR, `${safeId}.brief.${i}.md`)
+    if (!existsSync(p)) continue
+    try {
+      const s = statSync(p)
+      const content = readFileSync(p, 'utf-8')
+      entries.push({ index: i, timestamp: s.mtime.toISOString(), preview: content.slice(0, 100) })
+    } catch { /* skip */ }
+  }
+  return entries
+}
+
+/** Read a specific historical brief (index 1–5). Returns null if not found. */
+export function getPersonaBriefAt(personaId: string, index: number): string | null {
+  const safeId = basename(personaId)
+  const p = join(PERSONAS_DIR, `${safeId}.brief.${index}.md`)
+  if (!existsSync(p)) return null
+  try { return readFileSync(p, 'utf-8') } catch { return null }
 }
 
 /** Query persona activity data via claude -p haiku. */
