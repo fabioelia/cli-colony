@@ -20075,6 +20075,19 @@ button.session-trigger-chain-btn:hover {
 .persona-bulk-btn.primary:hover { opacity: 0.85; }
 .persona-bulk-btn.danger:hover { background: rgba(239,68,68,0.15); color: var(--danger); border-color: var(--danger); }
 
+.pipeline-bulk-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px; position: sticky; top: 0; z-index: 2; backdrop-filter: blur(4px); }
+.pipeline-bulk-select-all { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: var(--bg-active); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; }
+.pipeline-bulk-select-all:hover { color: var(--text-primary); }
+.pipeline-bulk-count { font-size: 11px; color: var(--text-muted); }
+.pipeline-bulk-actions { display: flex; gap: 4px; margin-left: auto; }
+.pipeline-bulk-btn { display: flex; align-items: center; gap: 3px; font-size: 11px; padding: 3px 8px; border-radius: 4px; background: var(--bg-hover); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; }
+.pipeline-bulk-btn:hover { background: var(--bg-active); color: var(--text-primary); }
+.pipeline-bulk-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.pipeline-bulk-btn.primary:hover { opacity: 0.85; }
+.pipeline-bulk-btn.danger:hover { background: rgba(239,68,68,0.15); color: var(--danger); border-color: var(--danger); }
+.pipeline-select-checkbox { width: 13px; height: 13px; flex-shrink: 0; cursor: pointer; accent-color: var(--accent); margin: 0; }
+.pipeline-card.selected { background: color-mix(in srgb, var(--accent) 8%, var(--bg-card)); border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
+
 .persona-list-row-main {
   display: flex;
   align-items: center;

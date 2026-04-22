@@ -8,7 +8,7 @@ import {
   ShieldCheck, List, Globe, Wand2, ArrowRight, ArrowLeft, Hourglass, ArrowUpDown,
   GitPullRequest, GitMerge, GitBranch, Sparkles, RotateCw, Copy, Timer, Activity,
   Download, Upload, PauseCircle, PlayCircle, Check, StickyNote, Network, Archive, CalendarDays,
-  History,
+  History, CheckSquare, Trash2,
 } from 'lucide-react'
 import type { AuditResult, GitHubRepo, SessionArtifact } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
@@ -429,6 +429,8 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [showTopologyMap, setShowTopologyMap] = useState(() => localStorage.getItem('pipelines-topology-map') === '1')
   const [showScheduleHeatmap, setShowScheduleHeatmap] = useState(() => localStorage.getItem('pipelines-schedule-heatmap') === '1')
   const [pipelineSearch, setPipelineSearch] = useState('')
+  const [selectedPipelines, setSelectedPipelines] = useState<Set<string>>(new Set())
+  const [selectMode, setSelectMode] = useState(false)
   const [pipelineStats, setPipelineStats] = useState<Map<string, PipelineStats | null>>(new Map())
   const [cronsPaused, setCronsPaused] = useState(false)
 
@@ -464,6 +466,15 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [pipelineCtx])
+
+  useEffect(() => {
+    if (selectedPipelines.size === 0 && !selectMode) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setSelectedPipelines(new Set()); setSelectMode(false) }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [selectedPipelines.size, selectMode])
 
   // Cron editor — tracks which pipeline's cron is being edited
   const [cronEditingPipeline, setCronEditingPipeline] = useState<string | null>(null)
@@ -783,6 +794,50 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     }
     return sorted
   }, [pipelines, sortBy, pipelineStats])
+
+  const visiblePipelines = useMemo(() =>
+    sortedPipelines.filter(p => !pipelineSearch || p.name.toLowerCase().includes(pipelineSearch.toLowerCase())),
+    [sortedPipelines, pipelineSearch]
+  )
+  const allPipelinesSelected = selectedPipelines.size > 0 && selectedPipelines.size === visiblePipelines.length
+
+  const handleTogglePipelineSelect = useCallback((name: string) => {
+    setSelectedPipelines(prev => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }, [])
+
+  const handlePipelineSelectAll = useCallback(() => {
+    if (allPipelinesSelected) setSelectedPipelines(new Set())
+    else setSelectedPipelines(new Set(visiblePipelines.map(p => p.name)))
+  }, [visiblePipelines, allPipelinesSelected])
+
+  const handleBulkPipelineEnable = useCallback(async () => {
+    for (const name of selectedPipelines) await window.api.pipeline.toggle(name, true)
+    setSelectedPipelines(new Set()); setSelectMode(false)
+  }, [selectedPipelines])
+
+  const handleBulkPipelineDisable = useCallback(async () => {
+    for (const name of selectedPipelines) await window.api.pipeline.toggle(name, false)
+    setSelectedPipelines(new Set()); setSelectMode(false)
+  }, [selectedPipelines])
+
+  const handleBulkPipelineRun = useCallback(async () => {
+    for (const name of selectedPipelines) await window.api.pipeline.triggerNow(name)
+    setSelectedPipelines(new Set()); setSelectMode(false)
+  }, [selectedPipelines])
+
+  const handleBulkPipelineDelete = useCallback(async () => {
+    if (!confirm(`Delete ${selectedPipelines.size} pipeline${selectedPipelines.size !== 1 ? 's' : ''}? This cannot be undone.`)) return
+    for (const name of selectedPipelines) {
+      const p = pipelines.find(pl => pl.name === name)
+      if (p) await window.api.pipeline.delete(p.fileName)
+    }
+    setSelectedPipelines(new Set()); setSelectMode(false)
+  }, [selectedPipelines, pipelines])
 
   // Health view: sorted by failures desc, then fire count desc
   const healthPipelines = useMemo(() => {
@@ -1118,6 +1173,15 @@ ${modelLine}  prompt: |
         </div>
         <HelpPopover topic="pipelines" align="right" />
         <div className="panel-header-actions">
+          {!healthView && !showTopologyMap && !showScheduleHeatmap && pipelines.length > 0 && (
+            <button
+              className={`panel-header-btn${selectMode ? ' active' : ''}`}
+              onClick={() => { const next = !selectMode; setSelectMode(next); if (!next) setSelectedPipelines(new Set()) }}
+              title={selectMode ? 'Exit selection mode' : 'Select pipelines for bulk actions'}
+            >
+              <CheckSquare size={12} />
+            </button>
+          )}
           <button
             className={`panel-header-btn${cronsPaused ? ' active' : ''}`}
             onClick={() => window.api.colony.setCronsPaused(!cronsPaused)}
@@ -1396,17 +1460,48 @@ ${modelLine}  prompt: |
       )}
 
       {!healthView && !showTopologyMap && !showScheduleHeatmap && <div className={`pipelines-list${listMode ? ' list-mode' : ''}`}>
-        {pipelineSearch && sortedPipelines.length > 0 && sortedPipelines.filter(p => p.name.toLowerCase().includes(pipelineSearch.toLowerCase())).length === 0 && (
+        {selectedPipelines.size > 0 && (
+          <div className="pipeline-bulk-bar">
+            <button className="pipeline-bulk-select-all" onClick={handlePipelineSelectAll}>
+              {allPipelinesSelected ? 'Deselect All' : 'Select All'}
+            </button>
+            <span className="pipeline-bulk-count">{selectedPipelines.size} selected</span>
+            <div className="pipeline-bulk-actions">
+              <button className="pipeline-bulk-btn" onClick={handleBulkPipelineEnable} title="Enable selected pipelines">Enable</button>
+              <button className="pipeline-bulk-btn" onClick={handleBulkPipelineDisable} title="Disable selected pipelines">Disable</button>
+              <button className="pipeline-bulk-btn primary" onClick={handleBulkPipelineRun} title="Run selected pipelines now"><Play size={11} /> Run Now</button>
+              <button className="pipeline-bulk-btn danger" onClick={handleBulkPipelineDelete} title="Delete selected pipelines"><Trash2 size={11} /> Delete</button>
+            </div>
+          </div>
+        )}
+        {pipelineSearch && sortedPipelines.length > 0 && visiblePipelines.length === 0 && (
           <div className="panel-search-empty">No pipelines matching &ldquo;{pipelineSearch}&rdquo;</div>
         )}
-        {sortedPipelines.filter(p => !pipelineSearch || p.name.toLowerCase().includes(pipelineSearch.toLowerCase())).map((p) => (
-          <div key={p.name} className={`pipeline-card ${p.enabled ? '' : 'disabled'}${expandedPipeline === p.name ? ' expanded' : ''}`}>
-            <div className="pipeline-card-header" onClick={() => handleExpand(p)} onContextMenu={(e) => {
+        {visiblePipelines.map((p) => (
+          <div key={p.name} className={`pipeline-card ${p.enabled ? '' : 'disabled'}${expandedPipeline === p.name ? ' expanded' : ''}${selectedPipelines.has(p.name) ? ' selected' : ''}`}>
+            <div className="pipeline-card-header" onClick={(e) => {
+              if (selectMode || selectedPipelines.size > 0 || e.shiftKey) {
+                if (e.shiftKey && !selectMode) setSelectMode(true)
+                handleTogglePipelineSelect(p.name)
+              } else {
+                handleExpand(p)
+              }
+            }} onContextMenu={(e) => {
               e.preventDefault()
               setPipelineCtx({ name: p.name, fileName: p.fileName, enabled: p.enabled, x: Math.min(e.clientX, window.innerWidth - 180), y: Math.min(e.clientY, window.innerHeight - 200) })
             }}>
               <div className="pipeline-card-left">
-                {expandedPipeline === p.name ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                {(selectMode || selectedPipelines.size > 0) ? (
+                  <input
+                    type="checkbox"
+                    className="pipeline-select-checkbox"
+                    checked={selectedPipelines.has(p.name)}
+                    onChange={() => handleTogglePipelineSelect(p.name)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  expandedPipeline === p.name ? <ChevronDown size={13} /> : <ChevronRight size={13} />
+                )}
                 <span className={`pipeline-status-dot ${p.running ? 'running' : p.enabled ? 'active' : 'inactive'}`} />
                 <span className="pipeline-card-name">{p.name}</span>
                 {p.running && <span className="pipeline-running-badge">Running</span>}

@@ -659,6 +659,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Reload button', detail: 'Re-read all pipeline YAML files from disk. Icon spins and label shows "Reloading…" during the scan, then flashes green "Reloaded" for ~1s on success.', icon: 'RefreshCw' },
           { label: 'Audit button', detail: 'Run an AI audit of all pipelines. Claude reviews each pipeline\'s YAML, error history, and configuration and returns a list of HIGH/MEDIUM/LOW findings. Each finding with a clear fix has a Fix button that opens the editor or applies the fix directly. Badge shows issue count from the last audit.', icon: 'ShieldCheck' },
           { label: 'Pause All / Resume All', detail: 'Globally pause or resume all cron-triggered pipelines and persona schedules. When paused, an amber banner appears at the top of the app and all cron next-run countdowns show "Paused (manual)". Git-poll and file-poll pipelines are not affected. Independent from the automatic rate-limit pause.', icon: 'PauseCircle' },
+          { label: 'Select (bulk actions)', detail: 'Enter selection mode to bulk-manage pipelines. Click the checkbox icon in the header, or shift-click any pipeline card. Once 1+ pipelines are selected, a bulk action bar appears above the list with Enable, Disable, Run Now, and Delete buttons. "Select All" / "Deselect All" toggles the full visible set. Press Escape to exit selection mode.', icon: 'CheckSquare' },
         ],
       },
       {
