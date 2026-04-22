@@ -19929,7 +19929,7 @@ button.session-trigger-chain-btn:hover {
 .persona-section-header .persona-section-toggle { flex: 1; }
 .persona-brief-reply-btn { flex-shrink: 0; padding: 4px 8px; background: none; border: none; color: var(--text-muted); cursor: pointer; opacity: 0; transition: opacity 0.15s; }
 .persona-section-header:hover .persona-brief-reply-btn { opacity: 1; }
-.persona-brief-reply-btn:hover { color: var(--accent); }
+.persona-brief-reply-btn:hover, .persona-brief-reply-btn:focus { color: var(--accent); opacity: 1; }
 
 .persona-section-toggle {
   display: flex;
