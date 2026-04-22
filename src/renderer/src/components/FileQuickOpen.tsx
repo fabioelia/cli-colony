@@ -90,7 +90,13 @@ export default function FileQuickOpen({ open, onClose, workingDirectory, onSelec
   const filtered = useMemo(() => {
     if (!query.trim()) return files.slice(0, 50)
     const q = query.toLowerCase()
-    return files.filter((f) => f.relPath.toLowerCase().includes(q)).slice(0, 100)
+    const matches = files.filter((f) => f.relPath.toLowerCase().includes(q))
+    matches.sort((a, b) => {
+      const aName = a.name.toLowerCase().includes(q) ? 0 : 1
+      const bName = b.name.toLowerCase().includes(q) ? 0 : 1
+      return aName - bName
+    })
+    return matches.slice(0, 100)
   }, [files, query])
 
   useEffect(() => setSelectedIndex(0), [query])
