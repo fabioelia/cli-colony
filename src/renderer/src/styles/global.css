@@ -756,7 +756,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .restore-dialog-error {
   flex: 1;
   font-size: 11px;
-  color: var(--error, #ef4444);
+  color: var(--danger);
   min-width: 0;
 }
 .restore-dialog-btn {
@@ -2367,7 +2367,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   align-items: center;
   gap: 2px;
   font-size: 10px;
-  font-family: var(--font-mono);
+  font-family: var(--font-mono, monospace);
   color: var(--text-muted);
   cursor: pointer;
   max-width: 140px;
@@ -7446,7 +7446,7 @@ button.session-trigger-chain-btn:hover {
 .instance-diff-badge {
   font-size: 9px;
   font-weight: 600;
-  font-family: var(--font-mono);
+  font-family: var(--font-mono, monospace);
   padding: 1px 4px;
   border-radius: 3px;
   background: color-mix(in srgb, var(--text-muted) 8%, transparent);
@@ -15844,7 +15844,7 @@ button.session-trigger-chain-btn:hover {
   padding: 6px 8px;
   background: var(--bg-secondary);
   border-radius: 4px;
-  font-family: var(--font-mono);
+  font-family: var(--font-mono, monospace);
   font-size: 10px;
   white-space: pre-wrap;
   color: var(--text-secondary);
