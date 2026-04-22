@@ -61,6 +61,8 @@ let stateCache: Record<string, PersonaState> = {}
 
 /** Instance IDs that were explicitly stopped by the user (not natural exits). */
 const _manuallyStopped = new Set<string>()
+/** Instance IDs killed by idle-completion or timeout — not user error. */
+const _normalCompletion = new Set<string>()
 
 function ensureDir(): void {
   if (!existsSync(PERSONAS_DIR)) mkdirSync(PERSONAS_DIR, { recursive: true })
@@ -593,11 +595,13 @@ function sendTriggerWhenReady(
         if (outcome === 'stable') {
           console.log(`[persona] session ${instanceId} idle ${stableMs}ms, killing in 5s`)
           setTimeout(async () => {
+            _normalCompletion.add(instanceId)
             try { await killInstance(instanceId) } catch { /* already gone */ }
           }, 5000)
         } else {
           console.log(`[persona] session ${instanceId} still running after ${timeoutMinutes}min, force-killing`)
           ;(async () => {
+            _normalCompletion.add(instanceId)
             try { await killInstance(instanceId) } catch { /* already gone */ }
           })()
         }
@@ -1078,6 +1082,8 @@ export async function onSessionExit(instanceId: string): Promise<void> {
 
       const manuallyStopped = _manuallyStopped.has(instanceId)
       _manuallyStopped.delete(instanceId)
+      const normalCompletion = _normalCompletion.has(instanceId)
+      _normalCompletion.delete(instanceId)
 
       // Compute session outcome stats
       const startedAt = state.sessionStartedAt
@@ -1100,8 +1106,8 @@ export async function onSessionExit(instanceId: string): Promise<void> {
       }
 
       const commitLabel = commitsCount > 0 ? ` · ${commitsCount} commit${commitsCount !== 1 ? 's' : ''}` : ''
-      const failed = !manuallyStopped && exitCode !== null && exitCode !== 0
-      const exitLabel = manuallyStopped ? 'stopped' : failed ? `failed (exit ${exitCode})` : 'completed'
+      const failed = !manuallyStopped && !normalCompletion && exitCode !== null && exitCode !== 0
+      const exitLabel = manuallyStopped ? 'stopped' : normalCompletion ? 'completed' : failed ? `failed (exit ${exitCode})` : 'completed'
       const errorSummary = failed && state.lastRunOutput ? extractErrorSummary(state.lastRunOutput) : null
       const outputTail = !failed && !manuallyStopped && state.lastRunOutput ? extractOutputTail(state.lastRunOutput) : null
       const contextSuffix = errorSummary ? ` — ${errorSummary}` : outputTail ? ` — ${outputTail}` : ''
@@ -1146,7 +1152,7 @@ export async function onSessionExit(instanceId: string): Promise<void> {
         // Record this run in the per-persona ring buffer
         const personaId = personaFile.replace('.md', '')
         const budgetExceeded = wasBudgetStopped(instanceId)
-        const stopReason = manuallyStopped ? 'manual' : budgetExceeded ? 'budget_exceeded' : undefined
+        const stopReason = manuallyStopped ? 'manual' : budgetExceeded ? 'budget_exceeded' : normalCompletion ? 'idle_complete' : undefined
         appendRunEntry(personaId, {
           personaId,
           timestamp: new Date().toISOString(),

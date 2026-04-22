@@ -424,7 +424,7 @@ export interface PersonaRunEntry {
   success: boolean
   costUsd?: number
   /** Why the session stopped — undefined for normal exit */
-  stopReason?: 'budget_exceeded' | 'timeout' | 'manual'
+  stopReason?: 'budget_exceeded' | 'timeout' | 'manual' | 'idle_complete'
   /** Instance ID of the session that ran — for navigating to the session */
   sessionId?: string
 }
@@ -452,7 +452,7 @@ export interface PersonaAnalytics {
 export interface PersonaHealthEntry {
   personaId: string
   lastRunSuccess: boolean
-  stopReason?: 'budget_exceeded' | 'timeout' | 'manual'
+  stopReason?: 'budget_exceeded' | 'timeout' | 'manual' | 'idle_complete'
 }
 
 export interface AuditResult {
