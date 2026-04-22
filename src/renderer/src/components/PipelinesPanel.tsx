@@ -447,6 +447,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     (localStorage.getItem('pipelines-sort') as 'name' | 'lastFired' | 'fireCount' | 'enabled' | 'successRate') || 'name'
   )
   const [healthView, setHealthView] = useState(() => localStorage.getItem('pipelines-health-view') === '1')
+  const [healthTimeRange, setHealthTimeRange] = useState<'24h' | '7d'>('7d')
   const [showTopologyMap, setShowTopologyMap] = useState(() => localStorage.getItem('pipelines-topology-map') === '1')
   const [showScheduleHeatmap, setShowScheduleHeatmap] = useState(() => localStorage.getItem('pipelines-schedule-heatmap') === '1')
   const [pipelineSearch, setPipelineSearch] = useState('')
@@ -930,6 +931,53 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     const totalErrors = pipelines.filter(p => (p.consecutiveFailures ?? 0) > 0).length
     return { total, healthy, totalFires, totalErrors }
   }, [pipelines])
+
+  const healthBars = useMemo(() => {
+    const cutoff = healthTimeRange === '24h'
+      ? Date.now() - 86400000
+      : Date.now() - 7 * 86400000
+    return pipelines.map(p => {
+      const stats = pipelineStats.get(p.name)
+      const runs = (stats?.recent ?? []).filter(r => new Date(r.ts).getTime() >= cutoff)
+      const successes = runs.filter(r => r.success && r.actionExecuted).length
+      const failures = runs.filter(r => !r.success).length
+      const skipped = runs.filter(r => r.success && !r.actionExecuted).length
+      const total = runs.length
+      const failureRate = total > 0 ? failures / total : 0
+      return { name: p.name, fileName: p.fileName, successes, failures, skipped, total, failureRate }
+    }).sort((a, b) => b.failureRate - a.failureRate || b.failures - a.failures)
+  }, [pipelines, pipelineStats, healthTimeRange])
+
+  const overallHealthRate = useMemo(() => {
+    const cutoff = healthTimeRange === '24h'
+      ? Date.now() - 86400000
+      : Date.now() - 7 * 86400000
+    let successes = 0; let total = 0
+    for (const stats of pipelineStats.values()) {
+      if (!stats) continue
+      const runs = stats.recent.filter(r => new Date(r.ts).getTime() >= cutoff)
+      successes += runs.filter(r => r.success && r.actionExecuted).length
+      total += runs.filter(r => r.actionExecuted).length
+    }
+    return total > 0 ? Math.round((successes / total) * 100) : null
+  }, [pipelineStats, healthTimeRange])
+
+  const recentFailures = useMemo(() => {
+    const cutoff = healthTimeRange === '24h'
+      ? Date.now() - 86400000
+      : Date.now() - 7 * 86400000
+    const failures: Array<{ name: string; ts: string; error: string | null }> = []
+    for (const p of pipelines) {
+      const stats = pipelineStats.get(p.name)
+      if (!stats) continue
+      for (const r of stats.recent) {
+        if (!r.success && new Date(r.ts).getTime() >= cutoff) {
+          failures.push({ name: p.name, ts: r.ts, error: r.error })
+        }
+      }
+    }
+    return failures.sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime()).slice(0, 10)
+  }, [pipelines, pipelineStats, healthTimeRange])
 
   const handleExpand = async (p: PipelineInfo, opts?: { openFailures?: boolean }) => {
     if (expandedPipeline === p.name) {
@@ -1526,6 +1574,68 @@ ${modelLine}  prompt: |
 
       {healthView && pipelines.length > 0 && (
         <div className="pipeline-health-table">
+          <div className="pipeline-health-header">
+            <div className="pipeline-health-rate-block">
+              {overallHealthRate !== null
+                ? <span className={`pipeline-health-rate-big${overallHealthRate >= 80 ? ' green' : overallHealthRate >= 50 ? ' amber' : ' red'}`}>{overallHealthRate}%</span>
+                : <span className="pipeline-health-rate-big green">—</span>}
+              <span className="pipeline-health-rate-label">Overall Success Rate</span>
+            </div>
+            <div className="pipeline-health-time-toggle">
+              <button className={`pipeline-health-toggle-btn${healthTimeRange === '24h' ? ' active' : ''}`} onClick={() => setHealthTimeRange('24h')}>24h</button>
+              <button className={`pipeline-health-toggle-btn${healthTimeRange === '7d' ? ' active' : ''}`} onClick={() => setHealthTimeRange('7d')}>7d</button>
+            </div>
+          </div>
+          <div className="pipeline-health-bars">
+            {healthBars.length === 0 && (
+              <div className="pipeline-health-empty-state">
+                <span style={{ color: 'var(--success)' }}>✓</span> All pipelines healthy
+              </div>
+            )}
+            {healthBars.map(bar => {
+              const total = bar.total
+              const tooltip = `${bar.name} — ${bar.successes}/${total} successful${total > 0 ? ` (${Math.round((bar.successes / total) * 100)}%)` : ''}, ${bar.failures} failed, ${bar.skipped} skipped`
+              return (
+                <div key={bar.name} className="pipeline-health-bar-row" title={tooltip}>
+                  <span className="pipeline-health-bar-name">{bar.name}</span>
+                  <div className="pipeline-health-bar-track">
+                    {total === 0
+                      ? <div className="pipeline-health-bar-seg gray" style={{ width: '100%' }} />
+                      : <>
+                          {bar.successes > 0 && <div className="pipeline-health-bar-seg success" style={{ width: `${(bar.successes / total) * 100}%` }} />}
+                          {bar.failures > 0 && <div className="pipeline-health-bar-seg failure" style={{ width: `${(bar.failures / total) * 100}%` }} />}
+                          {bar.skipped > 0 && <div className="pipeline-health-bar-seg skipped" style={{ width: `${(bar.skipped / total) * 100}%` }} />}
+                        </>}
+                  </div>
+                  <span className="pipeline-health-bar-count">{total > 0 ? `${Math.round((bar.successes / total) * 100)}%` : '—'}</span>
+                </div>
+              )
+            })}
+          </div>
+          {recentFailures.length > 0 && (
+            <div className="pipeline-failure-list">
+              <div className="pipeline-failure-list-title">Recent Failures</div>
+              {recentFailures.map((f, i) => (
+                <div key={i} className="pipeline-failure-row">
+                  <span className="pipeline-failure-name">{f.name}</span>
+                  <span className="pipeline-failure-time">{(() => {
+                    const mins = Math.floor((Date.now() - new Date(f.ts).getTime()) / 60000)
+                    if (mins < 1) return 'just now'
+                    if (mins < 60) return `${mins}m ago`
+                    const hrs = Math.floor(mins / 60)
+                    if (hrs < 24) return `${hrs}h ago`
+                    return `${Math.floor(hrs / 24)}d ago`
+                  })()}</span>
+                  <span className="pipeline-failure-error" title={f.error ?? undefined}>{f.error ? (f.error.length > 80 ? f.error.slice(0, 80) + '…' : f.error) : 'unknown error'}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {recentFailures.length === 0 && overallHealthRate !== null && (
+            <div className="pipeline-health-all-good">
+              <span style={{ color: 'var(--success)' }}>✓</span> 0 failures in the last {healthTimeRange}
+            </div>
+          )}
           <div className="pipeline-health-aggregate">
             {healthAggregate.healthy}/{healthAggregate.total} healthy · {healthAggregate.totalFires} total fires · {healthAggregate.totalErrors} error{healthAggregate.totalErrors !== 1 ? 's' : ''}
           </div>

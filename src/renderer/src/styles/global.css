@@ -15709,10 +15709,39 @@ button.session-trigger-chain-btn:hover {
   font-size: 11px;
   color: var(--text-secondary);
   margin-bottom: 8px;
+  margin-top: 8px;
   padding: 6px 8px;
   background: var(--bg-hover);
   border-radius: 4px;
 }
+.pipeline-health-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; padding: 8px 0 6px; border-bottom: 1px solid var(--border); }
+.pipeline-health-rate-block { display: flex; align-items: baseline; gap: 8px; }
+.pipeline-health-rate-big { font-size: 28px; font-weight: 700; line-height: 1; }
+.pipeline-health-rate-big.green { color: var(--success); }
+.pipeline-health-rate-big.amber { color: var(--warning); }
+.pipeline-health-rate-big.red { color: var(--danger); }
+.pipeline-health-rate-label { font-size: 11px; color: var(--text-muted); }
+.pipeline-health-time-toggle { display: flex; gap: 3px; }
+.pipeline-health-toggle-btn { background: var(--bg-hover); border: 1px solid var(--border); border-radius: 4px; color: var(--text-muted); font-size: 11px; padding: 2px 8px; cursor: pointer; }
+.pipeline-health-toggle-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.pipeline-health-bars { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+.pipeline-health-bar-row { display: flex; align-items: center; gap: 8px; }
+.pipeline-health-bar-name { font-size: 11px; color: var(--text-secondary); width: 140px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pipeline-health-bar-track { flex: 1; height: 8px; background: var(--bg-hover); border-radius: 4px; overflow: hidden; display: flex; }
+.pipeline-health-bar-seg { height: 100%; }
+.pipeline-health-bar-seg.success { background: var(--success); }
+.pipeline-health-bar-seg.failure { background: var(--danger); }
+.pipeline-health-bar-seg.skipped { background: var(--text-muted); opacity: 0.5; }
+.pipeline-health-bar-seg.gray { background: var(--border); }
+.pipeline-health-bar-count { font-size: 10px; color: var(--text-muted); width: 32px; text-align: right; flex-shrink: 0; }
+.pipeline-health-empty-state { font-size: 12px; color: var(--text-secondary); padding: 10px 0; }
+.pipeline-failure-list { margin-bottom: 10px; }
+.pipeline-failure-list-title { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 5px; }
+.pipeline-failure-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.pipeline-failure-name { font-size: 11px; color: var(--danger); width: 120px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pipeline-failure-time { font-size: 10px; color: var(--text-muted); width: 55px; flex-shrink: 0; }
+.pipeline-failure-error { font-size: 11px; color: var(--text-secondary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pipeline-health-all-good { font-size: 12px; color: var(--text-secondary); padding: 8px 0; margin-bottom: 8px; }
 .pipeline-health-table table {
   width: 100%;
   border-collapse: collapse;
