@@ -29,7 +29,7 @@ export function PipelineSparkline({ entries }: { entries: SparkEntry[] }) {
         const barH = Math.max(2, Math.round((e.durationMs / maxMs) * H))
         const x = i * (BAR_W + GAP)
         const y = H - barH
-        const color = e.success ? 'var(--green, #3fb950)' : 'var(--danger, #f85149)'
+        const color = e.success ? 'var(--success)' : 'var(--danger)'
         const dur = e.durationMs < 1000
           ? `${e.durationMs}ms`
           : e.durationMs < 60000

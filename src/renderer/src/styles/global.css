@@ -7390,8 +7390,8 @@ button.session-trigger-chain-btn:hover {
   display: inline-flex;
   gap: 3px;
 }
-.diff-plus { color: var(--green, #3fb950); }
-.diff-minus { color: var(--danger, #f85149); }
+.diff-plus { color: var(--success); }
+.diff-minus { color: var(--danger); }
 
 /* Idle / stale session badge — amber idle, red stale */
 .instance-idle-badge {
