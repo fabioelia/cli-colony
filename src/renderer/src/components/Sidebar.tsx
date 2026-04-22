@@ -21,6 +21,13 @@ import { COLORS, formatTime, cliBackendLabel, formatInstanceCmd } from '../lib/c
 
 export type SidebarView = 'overview' | 'instances' | 'agents' | 'github' | 'settings' | 'tasks' | 'pipelines' | 'environments' | 'personas' | 'outputs' | 'review' | 'artifacts' | 'activity'
 
+const ALERT_PRESETS = [
+  { label: 'Build Success', regex: '(build|compile)\\s+(succeeded|passed|complete)' },
+  { label: 'Test Failure', regex: '(FAIL|FAILED|✗|✘)\\s' },
+  { label: 'Error', regex: '(Error|Exception|FATAL|panic):' },
+  { label: 'Deploy Complete', regex: '(deployed|published|released)\\s+to' },
+]
+
 const NAV_ITEMS: Record<SidebarView, { label: string; shortLabel: string; Icon: typeof Home; group: string; tooltip: string; detail: string }> = {
   overview:     { label: 'Home',         shortLabel: 'Home',     Icon: Home,          group: 'primary',    tooltip: 'Overview',      detail: 'Colony command center — sessions, pipelines, personas, cost' },
   instances:    { label: 'Sessions',     shortLabel: 'Sessions', Icon: TerminalSquare, group: 'primary',   tooltip: 'Sessions',      detail: '' },
@@ -2753,6 +2760,11 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
           <div className="modal-box" onClick={e => e.stopPropagation()}>
             <h3>Add Output Alert</h3>
             <p className="modal-help">Get notified when this pattern appears in session output.</p>
+            <div className="alert-preset-row">
+              {ALERT_PRESETS.map(p => (
+                <button key={p.label} className="alert-preset-chip" onClick={() => { setAlertPattern(p.regex); setAlertIsRegex(true) }}>{p.label}</button>
+              ))}
+            </div>
             <input
               className="modal-input"
               placeholder="Pattern to match..."

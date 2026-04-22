@@ -5,7 +5,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
  * On drop, calls onPaths with the absolute filesystem paths of dragged files.
  * Returns a ref to attach to the container and an isDragging flag for styling.
  */
-export function useFileDrop(onPaths: (paths: string[]) => void) {
+export function useFileDrop(onPaths: (paths: string[]) => void | Promise<void>) {
   const [isDragging, setIsDragging] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const onPathsRef = useRef(onPaths)

@@ -19925,6 +19925,11 @@ button.session-trigger-chain-btn:hover {
   border-color: rgba(99, 102, 241, 0.2);
   background: rgba(99, 102, 241, 0.04);
 }
+.persona-section-header { display: flex; align-items: center; }
+.persona-section-header .persona-section-toggle { flex: 1; }
+.persona-brief-reply-btn { flex-shrink: 0; padding: 4px 8px; background: none; border: none; color: var(--text-muted); cursor: pointer; opacity: 0; transition: opacity 0.15s; }
+.persona-section-header:hover .persona-brief-reply-btn { opacity: 1; }
+.persona-brief-reply-btn:hover { color: var(--accent); }
 
 .persona-section-toggle {
   display: flex;
@@ -24989,6 +24994,9 @@ button.session-trigger-chain-btn:hover {
 .modal-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .modal-btn.primary:hover { opacity: 0.88; }
 .modal-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.alert-preset-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.alert-preset-chip { display: inline-flex; align-items: center; padding: 3px 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-secondary); color: var(--text-secondary); font-size: 11px; cursor: pointer; white-space: nowrap; }
+.alert-preset-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--bg-hover); }
 
 /* Session output alert count badge */
 .session-alert-badge {

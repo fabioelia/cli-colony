@@ -1168,12 +1168,13 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
 }
 
 /** Collapsible section within the persona card */
-function PersonaSection({ title, content, defaultOpen, isOutput, isBrief, children }: {
+function PersonaSection({ title, content, defaultOpen, isOutput, isBrief, onReply, children }: {
   title: string
   content: string | null | undefined
   defaultOpen: boolean
   isOutput?: boolean
   isBrief?: boolean
+  onReply?: () => void
   children?: React.ReactNode
 }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -1182,11 +1183,18 @@ function PersonaSection({ title, content, defaultOpen, isOutput, isBrief, childr
 
   return (
     <div className={`persona-card-section${isBrief ? ' persona-brief-section' : ''}`}>
-      <button className="persona-section-toggle" onClick={() => setOpen(!open)}>
-        {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-        <h4>{title}</h4>
-        {!open && content && <span className="persona-section-preview">{content.split('\n').find(l => l.trim())?.trim().slice(0, 80)}...</span>}
-      </button>
+      <div className="persona-section-header">
+        <button className="persona-section-toggle" onClick={() => setOpen(!open)}>
+          {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+          <h4>{title}</h4>
+          {!open && content && <span className="persona-section-preview">{content.split('\n').find(l => l.trim())?.trim().slice(0, 80)}...</span>}
+        </button>
+        {isBrief && onReply && (
+          <button className="persona-brief-reply-btn" title="Reply to brief" onClick={onReply}>
+            <MessageSquare size={11} />
+          </button>
+        )}
+      </div>
       {open && (
         children || (
           <div className={`persona-card-section-content${isOutput ? ' persona-run-output' : ''}`}>
@@ -1566,9 +1574,34 @@ function PersonaCard({
   const [addingLogEntry, setAddingLogEntry] = useState(false)
   const [newLogText, setNewLogText] = useState('')
   const whisperRef = useRef<HTMLTextAreaElement>(null)
-  const { ref: whisperBarRef, isDragging: whisperDragging } = useFileDrop(paths => {
-    const pathText = paths.join('\n')
-    setWhisperText(prev => prev ? prev + '\n' + pathText : pathText)
+  const { ref: whisperBarRef, isDragging: whisperDragging } = useFileDrop(async (paths) => {
+    const SENSITIVE = ['.ssh', '.env', '.gnupg', 'credentials']
+    const parts: string[] = []
+    for (const p of paths) {
+      if (SENSITIVE.some(s => p.includes(s))) {
+        parts.push(`${p} (sensitive path — not embedded)`)
+        continue
+      }
+      const result = await window.api.fs.readFile(p)
+      if ('error' in result || !result.content) {
+        parts.push(`${p} (could not read file)`)
+        continue
+      }
+      const { content } = result
+      if (content.length > 50 * 1024) {
+        parts.push(`${p} (file too large to embed — path inserted)`)
+        continue
+      }
+      if (content.includes('\0')) {
+        parts.push(`${p} (binary file — path inserted)`)
+        continue
+      }
+      const name = p.split('/').pop() || p
+      const lines = content.split('\n').length
+      parts.push(`📎 **${name}** (${lines} lines):\n\`\`\`\n${content}\n\`\`\``)
+    }
+    const text = parts.join('\n\n')
+    setWhisperText(prev => prev ? prev + '\n\n' + text : text)
     setWhisperOpen(true)
     setTimeout(() => whisperRef.current?.focus(), 0)
   })
@@ -2370,6 +2403,15 @@ function PersonaCard({
               content={briefContent}
               defaultOpen={true}
               isBrief
+              onReply={() => {
+                const lines = briefContent.split('\n').filter(l => l.trim()).slice(0, 3)
+                const quoted = lines.map(l => `> ${l}`).join('\n')
+                const prefill = `Re: your last brief —\n\n${quoted}\n\n`
+                if (whisperText.trim() && !window.confirm('Replace whisper bar contents with brief reply?')) return
+                setWhisperText(prefill)
+                setWhisperOpen(true)
+                setTimeout(() => whisperRef.current?.focus(), 0)
+              }}
             />
           )}
 
