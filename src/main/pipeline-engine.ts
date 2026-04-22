@@ -222,6 +222,10 @@ export interface PipelineInfo {
   defaultModel?: string
   /** If set, cron fires are skipped when this condition is not met (e.g. 'has_changes') */
   runCondition?: string
+  /** Structured condition type (e.g. 'files-changed') — undefined when type is 'always' */
+  conditionType?: string
+  /** Glob patterns for files-changed condition */
+  conditionPatterns?: string[]
   /** Hook types configured in pre_run (e.g. ['refresh-prs']) */
   preRunHooks?: string[]
   /** Notification level: all (default), failures (warn+critical only), or none */
@@ -2097,6 +2101,8 @@ export function getPipelineList(): PipelineInfo[] {
       firstActionModel: p.def.action.model || p.def.default_model || undefined,
       defaultModel: p.def.default_model || undefined,
       runCondition: p.def.run_condition || undefined,
+      conditionType: p.def.condition?.type !== 'always' ? p.def.condition?.type : undefined,
+      conditionPatterns: p.def.condition?.patterns?.length ? p.def.condition.patterns : undefined,
       preRunHooks: p.def.pre_run?.length ? p.def.pre_run.map(h => h.type) : undefined,
       notifications: p.def.notifications,
     })

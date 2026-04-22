@@ -83,6 +83,8 @@ interface PipelineInfo {
   firstActionModel?: string
   defaultModel?: string
   runCondition?: string
+  conditionType?: string
+  conditionPatterns?: string[]
   preRunHooks?: string[]
   notifications?: 'all' | 'failures' | 'none'
 }
@@ -1566,6 +1568,9 @@ ${modelLine}  prompt: |
                 {p.triggerType !== 'webhook' && <span className="pipeline-card-trigger">{p.triggerType}</span>}
                 {p.runCondition === 'has_changes' && (
                   <span className="pipeline-run-condition" title="Only fires when new commits exist since last run">if changes</span>
+                )}
+                {p.conditionType === 'files-changed' && (
+                  <span className="pipeline-run-condition" title={p.conditionPatterns?.length ? `Only fires when matching files change:\n${p.conditionPatterns.join('\n')}` : 'Only fires when matched files change'}>if files changed</span>
                 )}
                 {p.preRunHooks?.length ? (
                   <span className="pipeline-pre-run" title={`Pre-run hooks: ${p.preRunHooks.join(', ')}`}>pre-run</span>
