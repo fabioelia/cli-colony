@@ -52,9 +52,10 @@ export interface TriggerDef {
 }
 
 export interface ConditionDef {
-  type: 'branch-file-exists' | 'pr-checks-failed' | 'file-created' | 'always'
+  type: 'branch-file-exists' | 'pr-checks-failed' | 'file-created' | 'always' | 'files-changed'
   branch?: string
   path?: string
+  patterns?: string[] // for files-changed: glob patterns (prefix ! for exclusion)
   match?: Record<string, string>
   exclude?: string[] // check names to ignore (substring match)
 }
@@ -243,6 +244,12 @@ export interface TriggerContext {
   webhookPayload?: unknown
   /** All configured repos as "owner/name" slugs — available as {{repos}} */
   repoSlugs?: string[]
+  /** For files-changed condition: absolute path to the repo to diff */
+  repoPath?: string
+  /** For files-changed condition: HEAD commit from last successful run */
+  lastRunCommit?: string
+  /** Populated by evaluateFilesChanged for preview logging */
+  filesChangedMatches?: string[]
 }
 
 // Cron matching imported from src/shared/cron.ts
@@ -310,6 +317,7 @@ function parsePipelineYaml(content: string): PipelineDef | null {
     const arrayFields: Array<{ parent: any; key: string }> = []
     if (result.condition?.exclude !== undefined) arrayFields.push({ parent: result.condition, key: 'exclude' })
     if (result.trigger?.watch !== undefined) arrayFields.push({ parent: result.trigger, key: 'watch' })
+    if (result.condition?.patterns !== undefined) arrayFields.push({ parent: result.condition, key: 'patterns' })
 
     for (const { parent, key } of arrayFields) {
       if (typeof parent[key] === 'string') {
@@ -317,12 +325,15 @@ function parsePipelineYaml(content: string): PipelineDef | null {
       }
     }
 
-    // Also parse dash-list arrays from the raw content for exclude and watch
+    // Also parse dash-list arrays from the raw content for exclude, watch, and patterns
     const excludeArr = parseYamlArray(content, 'exclude')
     if (excludeArr && result.condition) result.condition.exclude = excludeArr
 
     const watchArr = parseYamlArray(content, 'watch')
     if (watchArr && result.trigger) result.trigger.watch = watchArr
+
+    const patternsArr = parseYamlArray(content, 'patterns')
+    if (patternsArr && result.condition) result.condition.patterns = patternsArr
 
     if (!result.name || !result.trigger?.type) return null
     if (result.action?.type === 'maker-checker') {
@@ -411,6 +422,8 @@ export interface PipelineRunEntry {
   dedupAttempt?: number
   /** Mirrors pipeline dedup.maxRetries — for "Attempt N/M" display */
   dedupMaxRetries?: number
+  /** HEAD commit hash at the time of the run — used by files-changed condition as baseline */
+  headCommit?: string
 }
 
 const MAX_HISTORY_ENTRIES = 20
@@ -859,10 +872,56 @@ async function evaluatePrChecksFailed(condition: ConditionDef, ctx: TriggerConte
   }
 }
 
+/** Minimal glob matcher supporting `*`, `**`, `?`, and `[...]` character classes. */
+function matchGlob(path: string, pattern: string): boolean {
+  const regexStr = pattern
+    .replace(/[.+^${}()|[\]\\]/g, c => c === '[' || c === ']' ? c : `\\${c}`)
+    .replace(/\*\*\//g, '(?:.+/)?')
+    .replace(/\*\*/g, '.*')
+    .replace(/\*/g, '[^/]*')
+    .replace(/\?/g, '[^/]')
+  return new RegExp(`^${regexStr}$`).test(path)
+}
+
+async function evaluateFilesChanged(condition: ConditionDef, ctx: TriggerContext): Promise<boolean> {
+  if (!condition.patterns?.length) return true
+  const repoPath = ctx.repoPath
+  if (!repoPath) return true // no repo path — can't evaluate, always fire
+  const sinceCommit = ctx.lastRunCommit
+  if (!sinceCommit) return true // first run — no baseline, always fire
+
+  let changedFiles: string[]
+  try {
+    const { stdout } = await execFileAsync(
+      resolveCommand('git'),
+      ['diff', '--name-only', sinceCommit, 'HEAD'],
+      { cwd: repoPath, timeout: 10000 },
+    )
+    changedFiles = stdout.trim().split('\n').filter(Boolean)
+  } catch {
+    return true // git error — fire anyway
+  }
+
+  if (changedFiles.length > 1000) return true // too many files — always fire
+
+  const includePatterns = condition.patterns.filter(p => !p.startsWith('!'))
+  const excludePatterns = condition.patterns.filter(p => p.startsWith('!')).map(p => p.slice(1))
+
+  const matched = changedFiles.filter(file => {
+    const included = includePatterns.length === 0 || includePatterns.some(p => matchGlob(file, p))
+    const excluded = excludePatterns.some(p => matchGlob(file, p))
+    return included && !excluded
+  })
+
+  ctx.filesChangedMatches = matched
+  return matched.length > 0
+}
+
 async function evaluateCondition(condition: ConditionDef, ctx: TriggerContext): Promise<boolean> {
   switch (condition.type) {
     case 'branch-file-exists': return evaluateBranchFileExists(condition, ctx)
     case 'pr-checks-failed': return evaluatePrChecksFailed(condition, ctx)
+    case 'files-changed': return evaluateFilesChanged(condition, ctx)
     case 'always': return true
     default: return false
   }
@@ -1248,6 +1307,23 @@ export async function previewPipeline(fileNameOrName: string): Promise<PreviewRe
       plog(`No contexts — check: repos configured? PRs open? gh auth ok?`)
     }
 
+    // files-changed condition: inject repoPath + lastRunCommit for preview evaluation
+    if (def.condition.type === 'files-changed' && contexts.length > 0) {
+      const repos = await getRepos()
+      const history = await getHistory(def.name)
+      const lastSuccess = [...history].reverse().find(e => e.success && e.headCommit)
+      const lastCommit = lastSuccess?.headCommit
+      for (const ctx of contexts) {
+        ctx.repoPath = ctx.repo?.localPath || def.action.workingDirectory || repos[0]?.localPath
+        ctx.lastRunCommit = lastCommit
+      }
+      if (lastCommit) {
+        plog(`files-changed: comparing against last run commit ${lastCommit.slice(0, 8)}`)
+      } else {
+        plog(`files-changed: no prior run — condition will fire (first run)`)
+      }
+    }
+
     for (const ctx of contexts) {
       const prLabel = ctx.pr ? `PR #${ctx.pr.number} (${ctx.pr.branch})` : 'cron'
       const repoLabel = ctx.repo ? `${ctx.repo.owner}/${ctx.repo.name}` : ''
@@ -1255,10 +1331,17 @@ export async function previewPipeline(fileNameOrName: string): Promise<PreviewRe
 
       const matched = await evaluateCondition(def.condition, ctx)
       if (!matched) {
-        plog(`  condition not met (${def.condition.type}: ${def.condition.path || def.condition.branch || ''})`)
+        const condDetail = def.condition.type === 'files-changed'
+          ? `no matching file changes`
+          : `${def.condition.path || def.condition.branch || ''}`
+        plog(`  condition not met (${def.condition.type}: ${condDetail})`)
         continue
       }
-      plog(`  ✓ condition matched (sha=${ctx.contentSha || 'none'})`)
+      if (def.condition.type === 'files-changed' && ctx.filesChangedMatches) {
+        plog(`  ✓ files-changed: ${ctx.filesChangedMatches.length} file(s) matched — ${ctx.filesChangedMatches.slice(0, 5).join(', ')}${ctx.filesChangedMatches.length > 5 ? `… (+${ctx.filesChangedMatches.length - 5} more)` : ''}`)
+      } else {
+        plog(`  ✓ condition matched (sha=${ctx.contentSha || 'none'})`)
+      }
 
       const dedup = def.dedup || { key: '{{timestamp}}', ttl: 3600 }
       const dedupKey = resolveTemplate(dedup.key, ctx)
@@ -1329,6 +1412,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
   let budgetWarnSent = false
   let runDedupAttempt: number | undefined
   let runDedupMaxRetries: number | undefined
+  let headCommitForHistory: string | undefined
 
   try {
     // Fetch configured repo slugs once for template resolution
@@ -1371,6 +1455,33 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
       plog(pipelineName, `no contexts — check: repos configured? PRs open? gh auth ok?`)
     }
 
+    // files-changed condition: inject repoPath + lastRunCommit into all contexts
+    if (p.def.condition.type === 'files-changed' && contexts.length > 0) {
+      const history = await getHistory(pipelineName)
+      const lastSuccess = [...history].reverse().find(e => e.success && e.headCommit)
+      const lastCommit = lastSuccess?.headCommit
+      const repos = await getRepos()
+      for (const ctx of contexts) {
+        ctx.repoPath = ctx.repo?.localPath || p.def.action.workingDirectory || repos[0]?.localPath
+        ctx.lastRunCommit = lastCommit
+      }
+      if (lastCommit) {
+        plog(pipelineName, `files-changed: comparing against ${lastCommit.slice(0, 8)}`)
+      } else {
+        plog(pipelineName, `files-changed: no prior run commit — will fire on first run`)
+      }
+      // Capture current HEAD so we can store it in history after the run
+      const repoPathForHead = contexts[0]?.repoPath
+      if (repoPathForHead) {
+        try {
+          const { stdout } = await execFileAsync(
+            resolveCommand('git'), ['rev-parse', 'HEAD'], { cwd: repoPathForHead, timeout: 5000 },
+          )
+          headCommitForHistory = stdout.trim()
+        } catch { /* ignore — non-git dir */ }
+      }
+    }
+
     // run_condition: has_changes — skip cron-triggered pipelines if no new commits since last fire
     if (p.def.run_condition === 'has_changes' && p.def.trigger.type === 'cron' && p.state.lastFiredAt) {
       const repos = await getRepos()
@@ -1397,11 +1508,18 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
 
       const matched = await evaluateCondition(p.def.condition, ctx)
       if (!matched) {
-        plog(pipelineName, `condition not met for ${prLabel} (${p.def.condition.type}: ${p.def.condition.path || p.def.condition.branch || ''})`)
+        const condDetail = p.def.condition.type === 'files-changed'
+          ? `no matching file changes`
+          : `${p.def.condition.path || p.def.condition.branch || ''}`
+        plog(pipelineName, `condition not met for ${prLabel} (${p.def.condition.type}: ${condDetail})`)
         continue
       }
       p.state.lastMatchAt = new Date().toISOString()
-      plog(pipelineName, `✓ condition matched for ${prLabel} (sha=${ctx.contentSha || 'none'})`)
+      if (p.def.condition.type === 'files-changed' && ctx.filesChangedMatches) {
+        plog(pipelineName, `✓ files-changed: ${ctx.filesChangedMatches.length} file(s) matched — ${ctx.filesChangedMatches.slice(0, 3).join(', ')}${ctx.filesChangedMatches.length > 3 ? '…' : ''}`)
+      } else {
+        plog(pipelineName, `✓ condition matched for ${prLabel} (sha=${ctx.contentSha || 'none'})`)
+      }
 
       const dedup = p.def.dedup || { key: '{{timestamp}}', ttl: 3600 }
       const dedupKey = resolveTemplate(dedup.key, ctx)
@@ -1685,6 +1803,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
       stoppedBudget: stoppedBudget || undefined,
       dedupAttempt: runDedupAttempt,
       dedupMaxRetries: runDedupMaxRetries,
+      headCommit: headCommitForHistory,
     })
 
     // Trim debug log to the last N iterations
