@@ -87,6 +87,7 @@ function inferSource(title: string): string {
   if (t.includes('approval')) return 'approval'
   if (t.includes('session')) return 'session'
   if (t.includes('budget') || t.includes('cost')) return 'budget'
+  if (t.includes('environment') || t.includes('service')) return 'environment'
   return 'system'
 }
 

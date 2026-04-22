@@ -25,6 +25,7 @@ import { addToIndex, removeFromIndex, allEnvDirs } from '../shared/env-index'
 import { broadcast } from './broadcast'
 import { generateEnvClaudeMd } from './env-claudemd'
 import { appendActivity } from './activity-manager'
+import { notify } from './notifications'
 import { handleEnvStatusUpdate } from './pending-session-launches'
 import { runSetup } from './env-setup'
 import { gitRemoteUrl } from './settings'
@@ -38,6 +39,11 @@ import { computeDriftHash } from '../shared/template-drift'
 
 const HOME = process.env.HOME || '/'
 const ENVIRONMENTS_DIR = colonyPaths.environments
+
+const OPTIONAL_SERVICES = new Set(['mcp-server'])
+const CRASH_NOTIFY_COOLDOWN_MS = 60_000
+const _crashNotifiedAt = new Map<string, number>()
+const _envAllRunning = new Map<string, boolean>()
 
 
 // ---- Helpers ----
@@ -64,6 +70,19 @@ export function wireEnvDaemonEvents(): void {
     try { handleEnvStatusUpdate(environments) } catch (err) {
       console.warn('[env-manager] pending-session-launches update failed:', err)
     }
+    for (const env of environments) {
+      const allRunning = env.services.length > 0 && env.services.every(s => s.status === 'running')
+      const wasAllRunning = _envAllRunning.get(env.id) ?? false
+      _envAllRunning.set(env.id, allRunning)
+      if (allRunning && !wasAllRunning) {
+        notify(
+          'Colony: Environment ready',
+          `"${env.displayName || env.name}" — ${env.services.length} service${env.services.length === 1 ? '' : 's'} running`,
+          { type: 'environment', envId: env.id },
+          'environment'
+        ).catch(() => {})
+      }
+    }
   })
 
   client.on('service-output', (envId: string, service: string, data: string) => {
@@ -74,12 +93,31 @@ export function wireEnvDaemonEvents(): void {
     broadcast('env:service-crashed', { envId, service, exitCode })
     appendActivity({ source: 'env', name: envId, summary: `Service "${service}" crashed (exit ${exitCode}) in environment "${envId}"`, level: 'error' })
 
+    const cooldownKey = `${envId}:${service}`
+    const lastAt = _crashNotifiedAt.get(cooldownKey) ?? 0
+    if (Date.now() - lastAt > CRASH_NOTIFY_COOLDOWN_MS) {
+      _crashNotifiedAt.set(cooldownKey, Date.now())
+      const label = OPTIONAL_SERVICES.has(service) ? `"${service}" (optional)` : `"${service}"`
+      notify(
+        'Colony: Service crashed',
+        `${label} in "${envId}" exited with code ${exitCode}`,
+        { type: 'environment', envId },
+        'environment'
+      ).catch(() => {})
+    }
+
     // Auto-restart crashed service if policy is 'on-crash'
     getRestartPolicy(envId).then(policy => {
       if (policy === 'on-crash') {
         setTimeout(() => {
           getEnvDaemonClient().restartService(envId, service).catch(err => {
             console.warn(`[env-manager] auto-restart of ${service} in ${envId} failed:`, err)
+            notify(
+              'Colony: Auto-restart failed',
+              `Could not restart "${service}" in "${envId}"`,
+              { type: 'environment', envId },
+              'environment'
+            ).catch(() => {})
           })
         }, 5000)
       }

@@ -20,7 +20,7 @@ export default function SettingsPanel({ onBack }: Props) {
   const [detectedProtocol, setDetectedProtocol] = useState<'ssh' | 'https' | null>(null)
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   const [notifySources, setNotifySources] = useState<Record<string, boolean>>({
-    pipeline: true, persona: true, approval: true, session: true, budget: true, system: true,
+    pipeline: true, persona: true, approval: true, session: true, budget: true, environment: true, system: true,
   })
   const [soundOnFinish, setSoundOnFinish] = useState(true)
   const [quietHoursEnabled, setQuietHoursEnabled] = useState(false)
@@ -109,7 +109,7 @@ export default function SettingsPanel({ onBack }: Props) {
     appearance: 'appearance theme dark light font size family cursor style blink scrollback lines terminal monospace',
     arena: 'arena judge learning history reasons manual pick auto-judge',
     general: 'general tray keep running close quit',
-    notifications: 'notifications sound desktop alert pipeline persona approval session budget system',
+    notifications: 'notifications sound desktop alert pipeline persona approval session budget environment system',
     sessions: 'sessions cleanup auto-cleanup idle cost daily budget hotkey global shortcut retention purge age',
     mcp: 'mcp server catalog stdio sse environment variables',
     audit: 'mcp audit tool call approval log',
@@ -154,6 +154,7 @@ export default function SettingsPanel({ onBack }: Props) {
         approval: s.notifyApproval !== 'false',
         session: s.notifySession !== 'false',
         budget: s.notifyBudget !== 'false',
+        environment: s.notifyEnvironment !== 'false',
         system: s.notifySystem !== 'false',
       })
       setSoundOnFinish(s.soundOnFinish !== 'false')
@@ -274,6 +275,7 @@ export default function SettingsPanel({ onBack }: Props) {
       window.api.settings.set('notifyApproval', notifySources.approval ? 'true' : 'false'),
       window.api.settings.set('notifySession', notifySources.session ? 'true' : 'false'),
       window.api.settings.set('notifyBudget', notifySources.budget ? 'true' : 'false'),
+      window.api.settings.set('notifyEnvironment', notifySources.environment ? 'true' : 'false'),
       window.api.settings.set('notifySystem', notifySources.system ? 'true' : 'false'),
       window.api.settings.set('soundOnFinish', soundOnFinish ? 'true' : 'false'),
       window.api.settings.set('quietHoursEnabled', quietHoursEnabled ? 'true' : 'false'),
@@ -324,6 +326,7 @@ export default function SettingsPanel({ onBack }: Props) {
           approval: s.notifyApproval !== 'false',
           session: s.notifySession !== 'false',
           budget: s.notifyBudget !== 'false',
+          environment: s.notifyEnvironment !== 'false',
           system: s.notifySystem !== 'false',
         })
         setSoundOnFinish(s.soundOnFinish !== 'false')
@@ -684,7 +687,7 @@ export default function SettingsPanel({ onBack }: Props) {
         <p className="settings-help">Show system notifications for pipeline fires, approval gates, and persona run events.</p>
         {notificationsEnabled && (
           <div className="settings-notification-sources">
-            {(['pipeline', 'persona', 'approval', 'session', 'budget', 'system'] as const).map(source => (
+            {(['pipeline', 'persona', 'approval', 'session', 'budget', 'environment', 'system'] as const).map(source => (
               <div key={source} className="settings-row" style={{ paddingLeft: 24 }}>
                 <span className="settings-row-label">{source.charAt(0).toUpperCase() + source.slice(1)}</span>
                 <button

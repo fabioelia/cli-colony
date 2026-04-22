@@ -417,6 +417,8 @@ export default function App() {
         } else if (route && typeof route === 'object' && route.type === 'session' && typeof route.id === 'string') {
           setActiveId(route.id)
           setView('instances')
+        } else if (route && typeof route === 'object' && route.type === 'environment') {
+          setView('environments')
         }
       }),
     ]
