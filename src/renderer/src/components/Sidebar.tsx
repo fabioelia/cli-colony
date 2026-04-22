@@ -1339,7 +1339,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   // Update to latest closures every render (ref identity stays stable)
   Object.assign(itemCallbacksRef.current, {
     onSelect, onKill, onRestart, onRemove, onPin, onUnpin,
-    onContextMenu: (id: string, x: number, y: number) => setContextMenu({ id, x, y }),
+    onContextMenu: (id: string, x: number, y: number) => { setContextMenu({ id, x, y }); setReviewSubmenuOpen(false) },
     onColorClick: (id: string, e: React.MouseEvent) => togglePopover(id, 'color', e),
     onInfoClick: (id: string, e: React.MouseEvent) => togglePopover(id, 'info', e),
     onStartRename: startRename,
