@@ -1568,11 +1568,11 @@ ${modelLine}  prompt: |
                 {p.running && <span className="pipeline-running-badge">Running</span>}
                 {p.pausedUntil !== undefined && p.pausedUntil !== null && p.enabled && (
                   <span className="pipeline-paused-badge" title={`Paused until ${new Date(p.pausedUntil).toLocaleString()}`}>
-                    ⏸ {formatResumeIn(p.pausedUntil)}
+                    <PauseCircle size={9} />{formatResumeIn(p.pausedUntil)}
                   </span>
                 )}
                 {p.pausedUntil === null && p.enabled && (
-                  <span className="pipeline-paused-badge" title="Paused indefinitely — right-click to resume">⏸ paused</span>
+                  <span className="pipeline-paused-badge" title="Paused indefinitely — right-click to resume"><PauseCircle size={9} />paused</span>
                 )}
                 {p.lastRunStoppedBudget && <span className="pipeline-budget-badge" title="Last run stopped: budget limit reached">$ Cap</span>}
                 {p.budget && !p.lastRunStoppedBudget && (
@@ -1616,7 +1616,7 @@ ${modelLine}  prompt: |
                             title={tooltip}
                             onClick={(e) => { e.stopPropagation(); handleExpand(p) }}
                           >
-                            {last.success ? '✓' : '✗'} {ago}{errText}
+                            {last.success ? <Check size={10} /> : <X size={10} />}{ago}{errText}
                           </span>
                         )
                       })()}

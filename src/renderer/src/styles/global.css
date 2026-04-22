@@ -14812,6 +14812,9 @@ button.session-trigger-chain-btn:hover {
 }
 
 .pipeline-paused-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-size: 9px;
   padding: 1px 5px;
   border-radius: 4px;
@@ -14824,8 +14827,11 @@ button.session-trigger-chain-btn:hover {
 
 .pipeline-last-run {
   font-size: 10px;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
