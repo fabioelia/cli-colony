@@ -125,6 +125,11 @@ function buildFsMock(options: {
     }),
     watch: vi.fn().mockReturnValue({ close: vi.fn() }),
     _deletedFiles: deletedFiles,
+    promises: {
+      mkdir: vi.fn().mockResolvedValue(undefined),
+      writeFile: vi.fn().mockResolvedValue(undefined),
+      readFile: vi.fn().mockRejectedValue(new Error('no file')),
+    },
   }
 }
 

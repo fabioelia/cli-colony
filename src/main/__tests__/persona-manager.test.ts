@@ -139,6 +139,11 @@ function buildFsMock(options: {
     statSync: vi.fn().mockReturnValue({ mtimeMs: 1700000000000 }),
     unlinkSync: vi.fn(),
     watch: vi.fn().mockReturnValue({ close: vi.fn() }),
+    promises: {
+      mkdir: vi.fn().mockResolvedValue(undefined),
+      writeFile: vi.fn().mockResolvedValue(undefined),
+      readFile: vi.fn().mockRejectedValue(new Error('no file')),
+    },
   }
 }
 

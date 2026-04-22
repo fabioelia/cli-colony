@@ -850,3 +850,16 @@ export interface WorktreeInfo {
   repoAlias: string
 }
 
+export interface HandoffMetadata {
+  triggeredBy: string
+  outcome: 'success' | 'failed' | 'stopped'
+  exitCode: number | null
+  durationSec: number | null
+  commitsCount: number
+  filesChanged: number
+  costUsd: number
+  errorSummary: string | null
+  briefPath: string | null
+  chainId?: string
+  chainDepth: number
+}

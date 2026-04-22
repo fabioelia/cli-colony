@@ -4,7 +4,7 @@
  * and self-managed sections (Active Situations, Learnings, Session Log).
  */
 
-import { readFileSync, writeFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, statSync, watch } from 'fs'
+import { readFileSync, writeFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, statSync, watch, promises as fsp } from 'fs'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { basename, join } from 'path'
@@ -20,7 +20,7 @@ import { waitForStableIdle } from './session-completion'
 import { broadcast } from './broadcast'
 import { notify } from './notifications'
 import { slugify, parseFrontmatter as parseRawFrontmatter, stripAnsi } from '../shared/utils'
-import type { PersonaInfo } from '../shared/types'
+import type { PersonaInfo, HandoffMetadata } from '../shared/types'
 import { JsonFile } from '../shared/json-file'
 import { appendActivity } from './activity-manager'
 import { appendRunEntry, checkDailyCostBudget, getPersonaDailyCost, getRunHistory } from './persona-run-history'
@@ -1120,22 +1120,49 @@ function extractOutputTail(output: string): string | null {
   return lines.length > 0 ? lines[lines.length - 1].slice(0, 80) : null
 }
 
-function buildTriggerContext(triggeredBy: string, personaId: string, exitCode: number | null, durationSec: number | null, commitsCount: number, filesChanged: number, sessionCost: number, errorSummary: string | null): string {
+function buildTriggerContext(triggeredBy: string, personaId: string, exitCode: number | null, durationSec: number | null, commitsCount: number, filesChanged: number, sessionCost: number, errorSummary: string | null, chainId?: string, chainDepth = 0): { text: string; metadata: HandoffMetadata } {
+  const outcome: HandoffMetadata['outcome'] = exitCode === 0 ? 'success' : errorSummary ? 'failed' : 'success'
+  const briefPath = join(PERSONAS_DIR, `${personaId}.brief.md`)
+  const metadata: HandoffMetadata = {
+    triggeredBy,
+    outcome,
+    exitCode,
+    durationSec,
+    commitsCount,
+    filesChanged,
+    costUsd: sessionCost,
+    errorSummary,
+    briefPath: existsSync(briefPath) ? briefPath : null,
+    chainId,
+    chainDepth,
+  }
   const lines: string[] = [`Upstream: "${triggeredBy}" — ${exitCode === 0 ? 'success' : `failed (exit ${exitCode})`}`]
   if (durationSec !== null) lines.push(`Duration: ${Math.round(durationSec)}s`)
   if (commitsCount > 0) lines.push(`Commits: ${commitsCount}`)
   if (filesChanged > 0) lines.push(`Files changed: ${filesChanged}`)
   if (sessionCost > 0.001) lines.push(`Cost: $${sessionCost.toFixed(4)}`)
   if (errorSummary) lines.push(`Error: ${errorSummary.slice(0, 200)}`)
-  const briefPath = join(PERSONAS_DIR, `${personaId}.brief.md`)
-  if (existsSync(briefPath)) lines.push(`Brief: ${briefPath}`)
-  return lines.join('\n')
+  if (metadata.briefPath) lines.push(`Brief: ${metadata.briefPath}`)
+  return { text: lines.join('\n'), metadata }
+}
+
+export async function readHandoffMetadata(handoffId: string): Promise<HandoffMetadata | null> {
+  const handoffPath = join(colonyPaths.root, 'handoffs', `${handoffId}.md`)
+  try {
+    const content = await fsp.readFile(handoffPath, 'utf-8')
+    if (!content.startsWith('---json\n')) return null
+    const end = content.indexOf('\n---\n', 8)
+    if (end < 0) return null
+    return JSON.parse(content.slice(8, end)) as HandoffMetadata
+  } catch {
+    return null
+  }
 }
 
 /** Called by instance-manager when any session exits — captures output and clears active session */
 export async function onSessionExit(instanceId: string): Promise<void> {
   let changed = false
-  const triggerPersonas: Array<{ id: string; triggeredBy: string; customMessage?: string; chainDepth: number; chainId?: string }> = []
+  const triggerPersonas: Array<{ id: string; triggeredBy: string; customMessage?: string; metadata?: HandoffMetadata; chainDepth: number; chainId?: string }> = []
   const drainingExited: string[] = []
 
   for (const [name, state] of Object.entries(stateCache)) {
@@ -1364,9 +1391,9 @@ export async function onSessionExit(instanceId: string): Promise<void> {
                   triggerPersonas.push({ id: t.persona, triggeredBy: name, customMessage: t.message, chainDepth: nextDepth, chainId: state.chainId })
                 }
               } else if (fm && fm.on_complete_run.length > 0) {
-                const autoContext = buildTriggerContext(name, personaId, exitCode, durationSec, commitsCount, filesChanged, sessionCost, errorSummary)
+                const { text: autoContext, metadata: handoffMeta } = buildTriggerContext(name, personaId, exitCode, durationSec, commitsCount, filesChanged, sessionCost, errorSummary, state.chainId, nextDepth)
                 for (const t of fm.on_complete_run) {
-                  triggerPersonas.push({ id: t, triggeredBy: name, customMessage: autoContext, chainDepth: nextDepth, chainId: state.chainId })
+                  triggerPersonas.push({ id: t, triggeredBy: name, customMessage: autoContext, metadata: handoffMeta, chainDepth: nextDepth, chainId: state.chainId })
                 }
               }
             }
@@ -1391,7 +1418,7 @@ export async function onSessionExit(instanceId: string): Promise<void> {
   }
 
   // Dispatch completion triggers after state is saved
-  for (const { id: triggerId, triggeredBy, customMessage, chainDepth, chainId } of triggerPersonas) {
+  for (const { id: triggerId, triggeredBy, customMessage, metadata, chainDepth, chainId } of triggerPersonas) {
     const maxDepth = parseInt(getSettingSync('triggerChainDepthLimit') || '') || 10
     if (chainDepth > maxDepth) {
       console.log(`[persona] trigger: chain depth ${chainDepth} exceeds limit ${maxDepth} for "${triggerId}" — skipping`)
@@ -1424,6 +1451,14 @@ export async function onSessionExit(instanceId: string): Promise<void> {
       continue
     }
     console.log(`[persona] trigger: → "${triggerId}" (from "${triggeredBy}", depth ${chainDepth})`)
+    // Write structured handoff file with JSON frontmatter
+    if (metadata) {
+      const handoffId = `${Date.now().toString(16)}-${Math.random().toString(36).slice(2, 8)}`
+      const handoffDir = join(colonyPaths.root, 'handoffs')
+      const handoffPath = join(handoffDir, `${handoffId}.md`)
+      const handoffContent = `---json\n${JSON.stringify(metadata, null, 2)}\n---\n\n${customMessage ?? ''}`
+      fsp.mkdir(handoffDir, { recursive: true }).then(() => fsp.writeFile(handoffPath, handoffContent, 'utf-8')).catch(() => {})
+    }
     runPersona(persona.id, { type: 'handoff', from: triggeredBy, chainId }, customMessage, undefined, { chainDepth, chainId }).catch(err => {
       console.log(`[persona] trigger: launch failed for "${triggerId}": ${err.message}`)
     })
