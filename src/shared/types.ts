@@ -381,6 +381,8 @@ export interface PersonaInfo {
   runOnStartup: boolean
   /** Minimum minutes between automatic runs (0 = no cooldown) */
   minIntervalMinutes: number
+  /** One-line working status written mid-session, null if not running or no status file */
+  workingStatus: string | null
 }
 
 // ---- Persona Memory (structured sidecar) ----

@@ -332,6 +332,13 @@ export function getPersonaList(): PersonaInfo[] {
             return null
           } catch { return null }
         })(),
+        workingStatus: (() => {
+          const sp = join(PERSONAS_DIR, `${personaId}.status`)
+          try {
+            if (!existsSync(sp)) return null
+            return readFileSync(sp, 'utf-8').split('\n')[0].slice(0, 120) || null
+          } catch { return null }
+        })(),
       })
     } catch { /* skip invalid files */ }
   }
@@ -1199,6 +1206,10 @@ export async function onSessionExit(instanceId: string): Promise<void> {
       if (personaFile) {
         // Record this run in the per-persona ring buffer
         const personaId = personaFile.replace('.md', '')
+
+        // Clean up working status file
+        try { unlinkSync(join(PERSONAS_DIR, `${personaId}.status`)) } catch { /* file may not exist */ }
+
         const budgetExceeded = wasBudgetStopped(instanceId)
         const stopReason = manuallyStopped ? 'manual' : budgetExceeded ? 'budget_exceeded' : normalCompletion ? 'idle_complete' : undefined
         appendRunEntry(personaId, {

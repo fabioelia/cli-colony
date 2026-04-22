@@ -248,6 +248,10 @@ await window.api.session.sendMessage('Colony Developer', 'your message here')
 Returns \`true\` if the target was found and in a waiting state (message queued), \`false\` if not running or busy.
 
 ### 5. UPDATE
+To show other personas and the user what you're doing right now, write a one-line status to
+\`~/.claude-colony/personas/${personaId}.status\` when you start a major task
+(e.g., "Reviewing PR #38 for auth issues"). Update it when your focus changes. Keep it under 100 characters.
+
 After completing your actions, update your identity file (${filePath}):
 
 **Active Situations** — This is your supervision board. For every delegated task, track:

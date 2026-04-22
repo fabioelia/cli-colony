@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { ChevronLeft, ChevronRight, GitCommit } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Copy, GitCommit } from 'lucide-react'
 import type { ClaudeInstance } from '../../../preload'
 import type { SessionArtifact } from '../../../shared/types'
 
@@ -197,6 +197,29 @@ export default function SessionTimeline({ instances, onFocusInstance }: Props) {
     return result
   }, [artifacts, instances, selectedDate, isToday, now])
 
+  const handleCopyMarkdown = useCallback(() => {
+    const fmtTime = (minute: number): string => {
+      const clamped = Math.min(minute, 23 * 60 + 59)
+      const h = Math.floor(clamped / 60)
+      const m = Math.round(clamped % 60)
+      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
+    }
+    const sorted = [...bars].sort((a, b) => a.startMinute - b.startMinute)
+    const lines = [
+      '| Session | Persona | Start | End | Duration | Cost | Commits | Files |',
+      '|---------|---------|-------|-----|----------|------|---------|-------|',
+    ]
+    for (const bar of sorted) {
+      const start = fmtTime(bar.startMinute)
+      const end = bar.running ? 'running' : fmtTime(bar.endMinute)
+      const dur = bar.durationMs > 0 ? `${Math.round(bar.durationMs / 60000)}m` : '-'
+      const cost = bar.costUsd > 0 ? `$${bar.costUsd.toFixed(2)}` : '-'
+      lines.push(`| ${bar.name} | ${bar.personaName || '-'} | ${start} | ${end} | ${dur} | ${cost} | ${bar.commitCount} | ${bar.filesChanged} |`)
+    }
+    lines.push('', `*Generated from Colony timeline — ${fmtDate(selectedDate)}*`)
+    navigator.clipboard.writeText(lines.join('\n'))
+  }, [bars, selectedDate])
+
   const personaNames = useMemo(() =>
     [...new Set(bars.filter(b => b.personaName).map(b => b.personaName!))].sort()
   , [bars])
@@ -277,6 +300,9 @@ export default function SessionTimeline({ instances, onFocusInstance }: Props) {
         {!isToday && (
           <button className="schedule-heatmap-today" onClick={() => setDayOffset(0)}>Today</button>
         )}
+        <button className="panel-header-btn" onClick={handleCopyMarkdown} title="Copy timeline as markdown table" style={{ marginLeft: 'auto' }}>
+          <Copy size={12} />
+        </button>
         <select className="session-timeline-filter" value={filterPersona} onChange={e => setFilterPersona(e.target.value)}>
           <option value="all">All Sessions</option>
           <option value="running">Running Only</option>

@@ -256,7 +256,7 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Timeline Tab',
         position: 'Tab bar — "Timeline"',
         items: [
-          { label: 'Session Timeline', detail: 'Gantt-style horizontal chart showing when sessions ran during the selected day. Each bar spans start → end, colored by session color. SVG bezier arrows connect parent→child sessions in trigger chains.' },
+          { label: 'Session Timeline', detail: 'Gantt-style horizontal chart showing when sessions ran during the selected day. Each bar spans start → end, colored by session color. SVG bezier arrows connect parent→child sessions in trigger chains. Copy button (clipboard icon) in the nav bar exports all visible bars as a markdown table (session name, persona, start/end times, duration, cost, commits, files) — paste into Slack, PRs, or status updates.' },
           { label: 'Dependency arrows', detail: 'Curved arrows connect parent sessions to child sessions they triggered. Hover any bar in a chain to highlight the entire chain and dim unrelated sessions.' },
           { label: 'Day navigation', detail: 'Use ← / → arrows to browse past days. "Today" button jumps back to the current day.' },
           { label: 'Summary strip', detail: 'Shows total sessions, compute time, cost, and commit count for the selected day.' },
@@ -1116,6 +1116,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Status dot', detail: 'Green pulsing = running a session. Gray = idle. Dimmed = disabled.' },
           { label: 'Brief preview', detail: 'Muted one-line subtitle below the persona name showing the first meaningful line of its latest session brief. Gives an at-a-glance "what did it do last?" without opening the card. Empty when the persona has never run or has no brief.' },
+          { label: 'Working status', detail: 'When a persona is running, a live italic status line appears below the persona name (replaces the brief preview). Personas write this by creating ~/.claude-colony/personas/{slug}.status with a one-line description of their current task (e.g. "Reviewing PR #38 for auth issues"). The status is deleted automatically when the session exits. Also shown in the status bar inside the expanded card.', icon: 'Activity' },
           { label: 'Queued badge', detail: 'Amber "queued" badge appears when another persona has dispatched a trigger for this one — it will launch on its next scheduled run or when manually triggered. Hover for the triggering persona name and context note.' },
           { label: 'Retry badge', detail: 'Orange "↺ N" badge appears when a persona is waiting to auto-retry after a failed run. The number shows which attempt is pending. Set retry_on_failure: N in persona frontmatter to enable up to N retries before the trigger chain fires. Retries occur 30 seconds after failure with the last 500 chars of output as context.' },
           { label: 'Draining badge', detail: 'Amber "Draining" badge appears when a persona has been set to drain. The current session completes normally, all on_complete_run triggers fire, and then the persona is automatically disabled. New scheduled cron runs are suppressed while draining. Use the Drain button (timer icon) to initiate graceful shutdown without orphaning mid-chain work.', icon: 'Timer' },

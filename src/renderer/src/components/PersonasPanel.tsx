@@ -806,21 +806,19 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
       )}
       {batchWhisperOpen && (
         <div className="modal-overlay" onClick={() => setBatchWhisperOpen(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header"><h3>Whisper to {selectedPersonas.size} persona{selectedPersonas.size !== 1 ? 's' : ''}</h3></div>
-            <div className="modal-body">
-              <textarea
-                ref={batchWhisperRef}
-                className="persona-whisper-input"
-                placeholder="Type your message..."
-                value={batchWhisperText}
-                onChange={e => setBatchWhisperText(e.target.value)}
-                rows={4}
-              />
-            </div>
-            <div className="modal-footer">
-              <button onClick={() => setBatchWhisperOpen(false)}>Cancel</button>
-              <button className="primary" disabled={!batchWhisperText.trim()} onClick={handleBatchWhisper}>Send to {selectedPersonas.size} persona{selectedPersonas.size !== 1 ? 's' : ''}</button>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <h3>Whisper to {selectedPersonas.size} persona{selectedPersonas.size !== 1 ? 's' : ''}</h3>
+            <textarea
+              ref={batchWhisperRef}
+              className="modal-textarea"
+              placeholder="Type your message..."
+              value={batchWhisperText}
+              onChange={e => setBatchWhisperText(e.target.value)}
+              rows={4}
+            />
+            <div className="modal-actions">
+              <button className="modal-btn" onClick={() => setBatchWhisperOpen(false)}>Cancel</button>
+              <button className="modal-btn primary" disabled={!batchWhisperText.trim()} onClick={handleBatchWhisper}>Send to {selectedPersonas.size} persona{selectedPersonas.size !== 1 ? 's' : ''}</button>
             </div>
           </div>
         </div>
@@ -1727,7 +1725,9 @@ function PersonaCard({
           <span className={`persona-card-status-dot ${statusClass}`} />
           <span className="persona-list-name-col">
             <span className="persona-list-name">{persona.name}</span>
-            {persona.briefPreview && (
+            {isRunning && persona.workingStatus ? (
+              <span className="persona-list-brief persona-working-status-inline" title={persona.workingStatus}>{persona.workingStatus}</span>
+            ) : persona.briefPreview && (
               <span className="persona-list-brief" title={persona.briefPreview}>{persona.briefPreview}</span>
             )}
           </span>
@@ -2363,6 +2363,11 @@ function PersonaCard({
               </>
             ) : (
               <span className="persona-status-badge idle">Idle</span>
+            )}
+            {isRunning && persona.workingStatus && (
+              <span className="persona-working-status" title={persona.workingStatus}>
+                {persona.workingStatus}
+              </span>
             )}
             {persona.lastRun && (
               <span className="persona-status-last-run">
