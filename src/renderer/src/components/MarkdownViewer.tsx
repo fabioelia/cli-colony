@@ -1,20 +1,9 @@
 import React, { useMemo, useCallback, useEffect, useRef, useState } from 'react'
 import { Marked } from 'marked'
-import { markedHighlight } from 'marked-highlight'
 import { hljs } from '../lib/hljs'
 
-// Configure marked with syntax highlighting
-const markedInstance = new Marked(
-  markedHighlight({
-    highlight(code, lang) {
-      if (lang && hljs.getLanguage(lang)) {
-        return hljs.highlight(code, { language: lang }).value
-      }
-      return code
-    }
-  }),
-  {
-    renderer: {
+const markedInstance = new Marked({
+  renderer: {
       code({ text, lang }) {
         if (lang === 'mermaid') {
           return `<div class="code-block-wrapper mermaid-wrapper"><span class="code-lang-label">mermaid</span><button class="code-copy-btn" title="Copy source">Copy</button><div class="mermaid-block" data-source="${escapeHtml(text)}"></div></div>`
