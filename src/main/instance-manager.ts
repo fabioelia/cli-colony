@@ -11,7 +11,7 @@ import { join, basename } from 'path'
 import { existsSync, statSync } from 'fs'
 import { getDaemonRouter } from './daemon-router'
 import type { UpgradeState } from './daemon-router'
-import { getDefaultArgs, getSetting, getDefaultCliBackend } from './settings'
+import { getDefaultArgs, getSetting, getSettingSync, getDefaultCliBackend } from './settings'
 import { notify } from './notifications'
 import { DAEMON_VERSION } from '../daemon/protocol'
 import type { CliBackend, ColonyComment } from '../shared/types'
@@ -180,7 +180,7 @@ export function wireDaemonEvents(): void {
       const last = _lastCostCheckAt.get(instanceId) ?? 0
       if (now - last >= 30_000) {
         _lastCostCheckAt.set(instanceId, now)
-        const cap = _costCapResolver?.(instanceId)
+        const cap = _costCapResolver?.(instanceId) ?? (parseFloat(getSettingSync('sessionCostCapUsd')) || undefined)
         if (cap != null) {
           router.getInstance(instanceId).then(inst => {
             if (!inst || _budgetStopped.has(instanceId)) return

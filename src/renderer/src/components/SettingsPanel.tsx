@@ -29,6 +29,7 @@ export default function SettingsPanel({ onBack }: Props) {
   const [autoCleanupMinutes, setAutoCleanupMinutes] = useState('5')
   const [sessionRetentionDays, setSessionRetentionDays] = useState('7')
   const [dailyCostBudget, setDailyCostBudget] = useState('')
+  const [sessionCostCap, setSessionCostCap] = useState('')
   const [globalHotkey, setGlobalHotkey] = useState('CommandOrControl+Shift+Space')
   const [hotkeyError, setHotkeyError] = useState('')
   const [availableShells, setAvailableShells] = useState<string[]>([])
@@ -164,6 +165,7 @@ export default function SettingsPanel({ onBack }: Props) {
       setAutoCleanupMinutes(s.autoCleanupMinutes || '5')
       setSessionRetentionDays(s.sessionRetentionDays || '7')
       setDailyCostBudget(s.dailyCostBudgetUsd || '')
+      setSessionCostCap(s.sessionCostCapUsd || '')
       setGlobalHotkey(s.globalHotkey || 'CommandOrControl+Shift+Space')
       setKeepInTray(s.keepInTray !== 'false')
       setWebhookEnabled(s.webhookEnabled !== 'false')
@@ -284,6 +286,7 @@ export default function SettingsPanel({ onBack }: Props) {
       window.api.settings.set('autoCleanupMinutes', autoCleanupMinutes),
       window.api.settings.set('sessionRetentionDays', sessionRetentionDays),
       window.api.settings.set('dailyCostBudgetUsd', dailyCostBudget),
+      window.api.settings.set('sessionCostCapUsd', sessionCostCap),
       window.api.settings.set('globalHotkey', globalHotkey),
       window.api.settings.set('keepInTray', keepInTray ? 'true' : 'false'),
       window.api.settings.set('webhookEnabled', webhookEnabled ? 'true' : 'false'),
@@ -336,6 +339,7 @@ export default function SettingsPanel({ onBack }: Props) {
         setAutoCleanupMinutes(s.autoCleanupMinutes || '5')
         setSessionRetentionDays(s.sessionRetentionDays || '7')
         setDailyCostBudget(s.dailyCostBudgetUsd || '')
+        setSessionCostCap(s.sessionCostCapUsd || '')
         setGlobalHotkey(s.globalHotkey || 'CommandOrControl+Shift+Space')
         setKeepInTray(s.keepInTray !== 'false')
         setWebhookEnabled(s.webhookEnabled !== 'false')
@@ -795,6 +799,24 @@ export default function SettingsPanel({ onBack }: Props) {
           </div>
         </div>
         <p className="settings-help settings-help-bottom">Alert when daily persona run cost exceeds this amount. Leave empty to disable.</p>
+        <div className="settings-row">
+          <span className="settings-row-label">Per-session cost cap</span>
+          <div className="settings-row-control">
+            <span className="settings-unit">$</span>
+            <input
+              type="number"
+              min="0"
+              step="0.50"
+              placeholder="e.g. 2.00"
+              value={sessionCostCap}
+              onChange={(e) => setSessionCostCap(e.target.value)}
+              onBlur={() => { const v = parseFloat(sessionCostCap); setSessionCostCap(isNaN(v) || v <= 0 ? '' : v.toFixed(2)) }}
+              className="settings-compact-number"
+              style={{ width: 80 }}
+            />
+          </div>
+        </div>
+        <p className="settings-help settings-help-bottom">Auto-stop any session when its cost exceeds this amount. Persona max_cost_usd overrides this. Leave empty to disable.</p>
       </div>
 
       {/* MCP Server Catalog */}
