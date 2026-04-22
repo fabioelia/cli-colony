@@ -1467,8 +1467,8 @@ ${modelLine}  prompt: |
             </button>
             <span className="pipeline-bulk-count">{selectedPipelines.size} selected</span>
             <div className="pipeline-bulk-actions">
-              <button className="pipeline-bulk-btn" onClick={handleBulkPipelineEnable} title="Enable selected pipelines">Enable</button>
-              <button className="pipeline-bulk-btn" onClick={handleBulkPipelineDisable} title="Disable selected pipelines">Disable</button>
+              <button className="pipeline-bulk-btn" onClick={handleBulkPipelineEnable} title="Enable selected pipelines"><PlayCircle size={11} /> Enable</button>
+              <button className="pipeline-bulk-btn" onClick={handleBulkPipelineDisable} title="Disable selected pipelines"><PauseCircle size={11} /> Disable</button>
               <button className="pipeline-bulk-btn primary" onClick={handleBulkPipelineRun} title="Run selected pipelines now"><Play size={11} /> Run Now</button>
               <button className="pipeline-bulk-btn danger" onClick={handleBulkPipelineDelete} title="Delete selected pipelines"><Trash2 size={11} /> Delete</button>
             </div>
