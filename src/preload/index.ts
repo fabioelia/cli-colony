@@ -463,12 +463,14 @@ export interface ClaudeManagerAPI {
     onUnread: (cb: (data: { count: number }) => void) => () => void
   }
   mcp: {
-    list: () => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string> }>>
-    save: (server: { name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string> }, originalName?: string) => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string> }>>
-    delete: (name: string) => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string> }>>
+    list: () => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string>; source?: 'manual' | 'gh-skill' }>>
+    save: (server: { name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string> }, originalName?: string) => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string>; source?: 'manual' | 'gh-skill' }>>
+    delete: (name: string) => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string>; source?: 'manual' | 'gh-skill' }>>
     getAuditLog: () => Promise<McpAuditEntry[]>
     clearAuditLog: () => Promise<void>
     test: (server: { name: string; command?: string; args?: string[]; url?: string; env?: Record<string, string> }) => Promise<{ ok: boolean; message: string }>
+    refreshSkills: () => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string>; source?: 'manual' | 'gh-skill' }>>
+    ignoreGhSkill: (name: string) => Promise<Array<{ name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string>; source?: 'manual' | 'gh-skill' }>>
   }
   session: {
     sendMessage: (targetName: string, text: string) => Promise<boolean>
@@ -1221,6 +1223,8 @@ const api: ClaudeManagerAPI = {
     getAuditLog: () => ipcRenderer.invoke('mcp:getAuditLog'),
     clearAuditLog: () => ipcRenderer.invoke('mcp:clearAuditLog'),
     test: (server) => ipcRenderer.invoke('mcp:test', server),
+    refreshSkills: () => ipcRenderer.invoke('mcp:refreshSkills'),
+    ignoreGhSkill: (name) => ipcRenderer.invoke('mcp:ignoreGhSkill', name),
   },
   session: {
     sendMessage: (targetName, text) => ipcRenderer.invoke('session:sendMessage', targetName, text),

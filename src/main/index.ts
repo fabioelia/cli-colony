@@ -39,6 +39,7 @@ import { initTriggerWatcher } from './persona-triggers'
 import { recordWorkerExit } from './team-metrics'
 import { stopTasksBoardWatcher } from './ipc/tasks-board-handlers'
 import { collectSessionArtifact } from './session-artifacts'
+import { mergeGhSkills } from './mcp-catalog'
 
 // Cross-platform Node.js CLI for controlling Colony environments.
 // Written to ~/.claude-colony/bin/colony-cli.js at app startup.
@@ -569,6 +570,7 @@ app.whenReady().then(async () => {
   await getSettings()
 
   registerIpcHandlers()
+  mergeGhSkills().catch(err => console.warn('[app] gh skill discovery failed:', err))
   buildAppMenu()
   createWindow()
   createTray(mainWindow)

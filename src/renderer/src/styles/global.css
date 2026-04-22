@@ -5445,6 +5445,20 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mcp-gh-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--accent);
+  color: #fff;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
 }
 
 .mcp-catalog-item-detail {

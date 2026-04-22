@@ -1,10 +1,19 @@
 import { ipcMain } from 'electron'
 import { spawn } from 'child_process'
-import { readCatalog, writeCatalog } from '../mcp-catalog'
+import { readCatalog, writeCatalog, mergeGhSkills, ignoreGhSkill } from '../mcp-catalog'
 import type { McpServerDef } from '../mcp-catalog'
 
 export function registerMcpCatalogHandlers(): void {
   ipcMain.handle('mcp:list', () => readCatalog())
+
+  ipcMain.handle('mcp:refreshSkills', () => mergeGhSkills())
+
+  ipcMain.handle('mcp:ignoreGhSkill', async (_e, name: string) => {
+    await ignoreGhSkill(name)
+    const catalog = (await readCatalog()).filter((s) => s.name !== name)
+    await writeCatalog(catalog)
+    return catalog
+  })
 
   ipcMain.handle('mcp:save', async (_e, server: McpServerDef, originalName?: string) => {
     const catalog = await readCatalog()

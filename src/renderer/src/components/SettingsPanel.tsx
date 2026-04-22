@@ -48,7 +48,7 @@ export default function SettingsPanel({ onBack }: Props) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const schedulerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  type McpServer = { name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string> }
+  type McpServer = { name: string; command?: string; args?: string[]; url?: string; description?: string; env?: Record<string, string>; source?: 'manual' | 'gh-skill' }
   const [mcpServers, setMcpServers] = useState<McpServer[]>([])
   const [showMcpSection, setShowMcpSection] = useState(false)
 
@@ -192,7 +192,7 @@ export default function SettingsPanel({ onBack }: Props) {
     window.api.settings.getShells().then(setAvailableShells)
     window.api.daemon.getVersion().then(setDaemonVersion).catch(() => {})
     window.api.settings.detectGitProtocol().then(setDetectedProtocol).catch(() => {})
-    window.api.mcp.list().then(setMcpServers).catch(() => {})
+    window.api.mcp.refreshSkills().then(setMcpServers).catch(() => window.api.mcp.list().then(setMcpServers).catch(() => {}))
     window.api.mcp.getAuditLog().then(setAuditLog).catch(() => {})
     window.api.session.getAttributedCommits().then(setCommitAttributions).catch(() => {})
     window.api.sessionTemplates.list().then(setSessionTemplates).catch(() => {})
@@ -358,7 +358,7 @@ export default function SettingsPanel({ onBack }: Props) {
         if (s.terminalCursorBlink) setCursorBlink(s.terminalCursorBlink === 'true')
         if (s.terminalScrollback) setScrollback(parseInt(s.terminalScrollback, 10) || 10000)
       })
-      window.api.mcp.list().then(setMcpServers).catch(() => {})
+      window.api.mcp.refreshSkills().then(setMcpServers).catch(() => window.api.mcp.list().then(setMcpServers).catch(() => {}))
       window.api.sessionTemplates.list().then(setSessionTemplates).catch(() => {})
       window.api.approvalRules.list().then(setApprovalRules).catch(() => {})
     }
@@ -868,6 +868,16 @@ export default function SettingsPanel({ onBack }: Props) {
           <div className="settings-logs-actions">
             <button
               className="settings-logs-toggle"
+              onClick={async () => {
+                const updated = await window.api.mcp.refreshSkills().catch(() => null)
+                if (updated) setMcpServers(updated)
+              }}
+              title="Re-scan gh skills"
+            >
+              <RotateCcw size={12} />
+            </button>
+            <button
+              className="settings-logs-toggle"
               onClick={() => setShowMcpSection(!showMcpSection)}
               title={showMcpSection ? 'Hide' : 'Show'}
             >
@@ -884,7 +894,10 @@ export default function SettingsPanel({ onBack }: Props) {
               <div className="mcp-catalog-list">
                 {mcpServers.map((s) => (
                   <div key={s.name} className="mcp-catalog-item">
-                    <div className="mcp-catalog-item-name">{s.name}</div>
+                    <div className="mcp-catalog-item-name">
+                      {s.name}
+                      {s.source === 'gh-skill' && <span className="mcp-gh-badge">gh</span>}
+                    </div>
                     <div className="mcp-catalog-item-detail">
                       {s.url ? `SSE: ${s.url}` : `${s.command ?? ''} ${(s.args ?? []).join(' ')}`.trim()}
                     </div>
@@ -903,27 +916,35 @@ export default function SettingsPanel({ onBack }: Props) {
                             : <Play size={11} />}
                         {' '}Test
                       </button>
-                      <button
-                        className="mcp-catalog-edit"
-                        title="Edit"
-                        onClick={() => {
-                          setMcpFormType(s.url ? 'sse' : 'command')
-                          setMcpForm({ ...s })
-                          setMcpFormArgsString((s.args ?? []).join(' '))
-                          setMcpFormEnvVars(Object.entries(s.env ?? {}).map(([key, value]) => ({ key, value })))
-                          setMcpOriginalName(s.name)
-                          setMcpFormError(null)
-                        }}
-                      >
-                        <Pencil size={11} /> Edit
-                      </button>
+                      {s.source !== 'gh-skill' && (
+                        <button
+                          className="mcp-catalog-edit"
+                          title="Edit"
+                          onClick={() => {
+                            setMcpFormType(s.url ? 'sse' : 'command')
+                            setMcpForm({ ...s })
+                            setMcpFormArgsString((s.args ?? []).join(' '))
+                            setMcpFormEnvVars(Object.entries(s.env ?? {}).map(([key, value]) => ({ key, value })))
+                            setMcpOriginalName(s.name)
+                            setMcpFormError(null)
+                          }}
+                        >
+                          <Pencil size={11} /> Edit
+                        </button>
+                      )}
                       <button
                         className="mcp-catalog-delete"
-                        title="Delete"
+                        title={s.source === 'gh-skill' ? 'Hide (ignore this gh skill)' : 'Delete'}
                         onClick={async () => {
-                          if (!confirm(`Delete MCP server "${s.name}"?`)) return
-                          const updated = await window.api.mcp.delete(s.name)
-                          setMcpServers(updated)
+                          if (s.source === 'gh-skill') {
+                            if (!confirm(`Hide gh skill "${s.name}"? It won't re-appear unless you clear the ignore list.`)) return
+                            const updated = await window.api.mcp.ignoreGhSkill(s.name)
+                            setMcpServers(updated)
+                          } else {
+                            if (!confirm(`Delete MCP server "${s.name}"?`)) return
+                            const updated = await window.api.mcp.delete(s.name)
+                            setMcpServers(updated)
+                          }
                         }}
                       >
                         <Trash2 size={11} />
