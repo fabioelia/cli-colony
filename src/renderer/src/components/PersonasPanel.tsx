@@ -264,6 +264,9 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
   }, [personaCtx])
   const [auditOpen, setAuditOpen] = useState(false)
   const [auditLastRun, setAuditLastRun] = useState<{ ts: number; issueCount: number } | null>(null)
+  const [previewPromptPersona, setPreviewPromptPersona] = useState<string | null>(null)
+  const [previewPromptText, setPreviewPromptText] = useState<string>('')
+  const [previewPromptLoading, setPreviewPromptLoading] = useState(false)
 
   // Tick every 60s to refresh next-run countdowns
   const [, setTick] = useState(0)
@@ -487,6 +490,20 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
     if (newSlug) {
       await loadPersonas()
       setExpandedId(newSlug)
+    }
+  }
+
+  const handlePreviewPrompt = async (fileName: string) => {
+    setPreviewPromptPersona(fileName)
+    setPreviewPromptLoading(true)
+    setPreviewPromptText('')
+    try {
+      const text = await window.api.persona.previewPrompt(fileName)
+      setPreviewPromptText(text)
+    } catch (e) {
+      setPreviewPromptText('Error loading prompt preview')
+    } finally {
+      setPreviewPromptLoading(false)
     }
   }
 
@@ -1042,6 +1059,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
             <div className="context-menu-item" onClick={() => { handleDrain(personaCtx.persona.id); setPersonaCtx(null) }}>Drain</div>
             <div className="context-menu-item" onClick={() => { handleDuplicate(personaCtx.persona.id); setPersonaCtx(null) }}>Duplicate</div>
             <div className="context-menu-item" onClick={() => { setEditingPersona(personaCtx.persona); setEditContent(personaCtx.persona.content); setPersonaCtx(null) }}>Edit</div>
+            <div className="context-menu-item" onClick={() => { handlePreviewPrompt(personaCtx.persona.id); setPersonaCtx(null) }}>Preview Prompt</div>
           </div>
         </div>
       )}
@@ -1065,6 +1083,28 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
       )}
 
       </>}
+
+      {/* Prompt Preview modal */}
+      {previewPromptPersona && (
+        <div className="modal-overlay" onClick={() => setPreviewPromptPersona(null)}>
+          <div className="modal-box" style={{ width: 640, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <h3 style={{ margin: 0, flex: 1 }}>Prompt Preview</h3>
+              <button className="modal-btn" onClick={async () => {
+                await navigator.clipboard.writeText(previewPromptText)
+              }}>Copy</button>
+              <button className="modal-btn" onClick={() => setPreviewPromptPersona(null)}>Close</button>
+            </div>
+            {previewPromptLoading ? (
+              <p style={{ color: 'var(--text-secondary)' }}>Loading...</p>
+            ) : (
+              <pre style={{ margin: 0, overflowY: 'auto', fontSize: 11, fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: 'var(--bg-tertiary)', padding: 12, borderRadius: 4, flex: 1 }}>
+                {previewPromptText}
+              </pre>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Markdown viewer modal */}
       {viewingPersona && (

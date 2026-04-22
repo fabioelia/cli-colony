@@ -1437,3 +1437,13 @@ export function getPersonaConfigPair(
   if (!contentA || !contentB) return null
   return { a: { name: pA.name, content: contentA }, b: { name: pB.name, content: contentB } }
 }
+
+export async function previewPersonaPrompt(fileName: string): Promise<string> {
+  const filePath = resolvedPersonaPath(fileName)
+  const content = readFileSync(filePath, 'utf-8')
+  const fm = parseFrontmatter(content)
+  if (!fm) throw new Error(`Could not parse frontmatter for persona: ${fileName}`)
+  const state = getState(fm.name)
+  const whispers = parseWhispers(content)
+  return buildPlanningPrompt(fm, state, filePath, whispers)
+}
