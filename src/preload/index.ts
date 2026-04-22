@@ -270,6 +270,8 @@ export interface ClaudeManagerAPI {
       debugLog: string[]
     }>>
     toggle: (name: string, enabled: boolean) => Promise<boolean>
+    pause: (name: string, durationMs: number | null) => Promise<boolean>
+    resume: (name: string) => Promise<boolean>
     triggerNow: (name: string, overrides?: string | { prompt?: string; model?: string; workingDirectory?: string; maxBudget?: number }) => Promise<boolean>
     getDir: () => Promise<string>
     getContent: (fileName: string) => Promise<string | null>
@@ -1000,6 +1002,8 @@ const api: ClaudeManagerAPI = {
   pipeline: {
     list: () => ipcRenderer.invoke('pipeline:list'),
     toggle: (name, enabled) => ipcRenderer.invoke('pipeline:toggle', name, enabled),
+    pause: (name: string, durationMs: number | null) => ipcRenderer.invoke('pipeline:pause', name, durationMs),
+    resume: (name: string) => ipcRenderer.invoke('pipeline:resume', name),
     triggerNow: (name, overrides) => ipcRenderer.invoke('pipeline:triggerNow', name, overrides),
     getDir: () => ipcRenderer.invoke('pipeline:getDir'),
     getContent: (fileName) => ipcRenderer.invoke('pipeline:getContent', fileName),

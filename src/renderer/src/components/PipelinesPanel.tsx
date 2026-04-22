@@ -89,6 +89,7 @@ interface PipelineInfo {
   conditionPatterns?: string[]
   preRunHooks?: string[]
   notifications?: 'all' | 'failures' | 'none'
+  pausedUntil?: string | null
 }
 
 interface Props {
@@ -410,7 +411,7 @@ function RunWithOptionsDialog({ pipelineName, firstActionPrompt, firstActionMode
 export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, instances }: Props) {
   const [pipelines, setPipelines] = useState<PipelineInfo[]>([])
   const [expandedPipeline, setExpandedPipeline] = useState<string | null>(null)
-  const [pipelineCtx, setPipelineCtx] = useState<{ name: string; fileName: string; enabled: boolean; x: number; y: number } | null>(null)
+  const [pipelineCtx, setPipelineCtx] = useState<{ name: string; fileName: string; enabled: boolean; pausedUntil?: string | null; x: number; y: number } | null>(null)
   const [editingContent, setEditingContent] = useState<string | null>(null)
   const [editingFileName, setEditingFileName] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -700,6 +701,27 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const handleToggle = async (name: string, enabled: boolean) => {
     await window.api.pipeline.toggle(name, enabled)
     loadPipelines()
+  }
+
+  const handlePause = async (name: string, durationMs: number | null) => {
+    await window.api.pipeline.pause(name, durationMs)
+    loadPipelines()
+  }
+
+  const handleResume = async (name: string) => {
+    await window.api.pipeline.resume(name)
+    loadPipelines()
+  }
+
+  const formatResumeIn = (iso: string | null | undefined) => {
+    if (!iso) return 'paused'
+    const ms = new Date(iso).getTime() - Date.now()
+    if (ms <= 0) return 'resuming...'
+    const mins = Math.floor(ms / 60000)
+    if (mins < 60) return `resumes in ${mins}m`
+    const hrs = Math.floor(mins / 60)
+    const rem = mins % 60
+    return rem > 0 ? `resumes in ${hrs}h ${rem}m` : `resumes in ${hrs}h`
   }
 
   const handleTriggerNow = async (name: string) => {
@@ -1527,7 +1549,7 @@ ${modelLine}  prompt: |
               }
             }} onContextMenu={(e) => {
               e.preventDefault()
-              setPipelineCtx({ name: p.name, fileName: p.fileName, enabled: p.enabled, x: Math.min(e.clientX, window.innerWidth - 180), y: Math.min(e.clientY, window.innerHeight - 200) })
+              setPipelineCtx({ name: p.name, fileName: p.fileName, enabled: p.enabled, pausedUntil: p.pausedUntil, x: Math.min(e.clientX, window.innerWidth - 180), y: Math.min(e.clientY, window.innerHeight - 200) })
             }}>
               <div className="pipeline-card-left">
                 {(selectMode || selectedPipelines.size > 0) ? (
@@ -1544,6 +1566,14 @@ ${modelLine}  prompt: |
                 <span className={`pipeline-status-dot ${p.running ? 'running' : p.enabled ? 'active' : 'inactive'}`} />
                 <span className="pipeline-card-name">{p.name}</span>
                 {p.running && <span className="pipeline-running-badge">Running</span>}
+                {p.pausedUntil !== undefined && p.pausedUntil !== null && p.enabled && (
+                  <span className="pipeline-paused-badge" title={`Paused until ${new Date(p.pausedUntil).toLocaleString()}`}>
+                    ⏸ {formatResumeIn(p.pausedUntil)}
+                  </span>
+                )}
+                {p.pausedUntil === null && p.enabled && (
+                  <span className="pipeline-paused-badge" title="Paused indefinitely — right-click to resume">⏸ paused</span>
+                )}
                 {p.lastRunStoppedBudget && <span className="pipeline-budget-badge" title="Last run stopped: budget limit reached">$ Cap</span>}
                 {p.budget && !p.lastRunStoppedBudget && (
                   <span className="pipeline-budget-badge" title={`Budget: $${p.budget.maxCostUsd.toFixed(2)}/run (warn at $${p.budget.warnAt.toFixed(2)})`}>
@@ -1572,6 +1602,24 @@ ${modelLine}  prompt: |
                           ${stats.cumulativeCost < 10 ? stats.cumulativeCost.toFixed(2) : stats.cumulativeCost.toFixed(0)}
                         </span>
                       )}
+                      {stats.recent.length > 0 && (() => {
+                        const last = stats.recent[stats.recent.length - 1]
+                        const secs = Math.floor((Date.now() - new Date(last.ts).getTime()) / 1000)
+                        const ago = secs < 60 ? `${secs}s ago` : secs < 3600 ? `${Math.floor(secs / 60)}m ago` : secs < 86400 ? `${Math.floor(secs / 3600)}h ago` : `${Math.floor(secs / 86400)}d ago`
+                        const tooltip = last.success
+                          ? `Last run: success · ${formatDuration(last.durationMs)}`
+                          : last.error || `Last run: failed · ${formatDuration(last.durationMs)}`
+                        const errText = !last.success && last.error ? ` — ${last.error.slice(0, 50)}${last.error.length > 50 ? '…' : ''}` : ''
+                        return (
+                          <span
+                            className={`pipeline-last-run ${last.success ? 'success' : 'fail'}`}
+                            title={tooltip}
+                            onClick={(e) => { e.stopPropagation(); handleExpand(p) }}
+                          >
+                            {last.success ? '✓' : '✗'} {ago}{errText}
+                          </span>
+                        )
+                      })()}
                     </>
                   )
                 })()}
@@ -2983,6 +3031,19 @@ ${modelLine}  prompt: |
             <div className="context-menu-item" onClick={() => { handleToggle(pipelineCtx.name, !pipelineCtx.enabled); setPipelineCtx(null) }}>
               {pipelineCtx.enabled ? 'Disable' : 'Enable'}
             </div>
+            {pipelineCtx.enabled && (pipelineCtx.pausedUntil !== undefined) && (
+              <div className="context-menu-item" onClick={() => { handleResume(pipelineCtx.name); setPipelineCtx(null) }}>
+                Resume Now
+              </div>
+            )}
+            {pipelineCtx.enabled && pipelineCtx.pausedUntil === undefined && (
+              <>
+                <div className="context-menu-item" onClick={() => { handlePause(pipelineCtx.name, 60 * 60 * 1000); setPipelineCtx(null) }}>Pause 1h</div>
+                <div className="context-menu-item" onClick={() => { handlePause(pipelineCtx.name, 4 * 60 * 60 * 1000); setPipelineCtx(null) }}>Pause 4h</div>
+                <div className="context-menu-item" onClick={() => { handlePause(pipelineCtx.name, 8 * 60 * 60 * 1000); setPipelineCtx(null) }}>Pause 8h</div>
+                <div className="context-menu-item" onClick={() => { handlePause(pipelineCtx.name, null); setPipelineCtx(null) }}>Pause until resumed</div>
+              </>
+            )}
             {pipelineCtx.enabled && (
               <div className="context-menu-item" onClick={() => { handleTriggerNow(pipelineCtx.name); setPipelineCtx(null) }}>
                 Trigger Now

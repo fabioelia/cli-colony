@@ -10,6 +10,7 @@ import {
   getPipelineList, togglePipeline, triggerPollNow, getPipelinesDir,
   getPipelineContent, savePipelineContent, loadPipelines, setPipelineCron,
   previewPipeline, listApprovals, approveAction, dismissAction, getHistory, searchAllHistory,
+  pausePipeline, resumePipeline,
 } from '../pipeline-engine'
 import { getPipelineNotes, addPipelineNote, deletePipelineNote, updatePipelineNote } from '../pipeline-notes'
 
@@ -113,6 +114,8 @@ User description: `
 export function registerPipelineHandlers(): void {
   ipcMain.handle('pipeline:list', () => getPipelineList())
   ipcMain.handle('pipeline:toggle', (_e, name: string, enabled: boolean) => togglePipeline(name, enabled))
+  ipcMain.handle('pipeline:pause', (_e, name: string, durationMs: number | null) => pausePipeline(name, durationMs))
+  ipcMain.handle('pipeline:resume', (_e, name: string) => resumePipeline(name))
   ipcMain.handle('pipeline:triggerNow', (_e, name: string, overrides?: string | { prompt?: string; model?: string; workingDirectory?: string; maxBudget?: number }) => triggerPollNow(name, overrides))
   ipcMain.handle('pipeline:getDir', () => getPipelinesDir())
   ipcMain.handle('pipeline:delete', async (_e, fileName: string) => {

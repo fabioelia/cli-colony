@@ -153,6 +153,8 @@ export interface PipelineDef {
   run_condition?: string
   pre_run?: Array<{ type: string }>
   notifications?: 'all' | 'failures' | 'none'
+  /** ISO timestamp — pipeline is temporarily paused until this time. null = paused indefinitely until resumed. */
+  pausedUntil?: string | null
 }
 
 export interface PendingApproval {
@@ -230,6 +232,8 @@ export interface PipelineInfo {
   preRunHooks?: string[]
   /** Notification level: all (default), failures (warn+critical only), or none */
   notifications?: 'all' | 'failures' | 'none'
+  /** ISO timestamp — pipeline is temporarily paused until this time. null = indefinitely paused. */
+  pausedUntil?: string | null
 }
 
 const MAX_DEBUG_ITERATIONS = 20
@@ -1407,6 +1411,14 @@ function shouldNotify(def: PipelineDef, severity: 'info' | 'warning' | 'critical
 async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<void> {
   const p = pipelines.get(pipelineName)
   if (!p || !p.def.enabled) return
+  if (p.def.pausedUntil !== undefined && p.def.pausedUntil !== null) {
+    if (new Date(p.def.pausedUntil) > new Date()) return // still paused
+    // Auto-resume: expiry passed
+    p.def.pausedUntil = undefined
+    await savePauseState(pipelineName, undefined)
+  } else if (p.def.pausedUntil === null) {
+    return // paused indefinitely
+  }
   if (runningPolls.has(pipelineName)) return // prevent overlapping polls
 
   runningPolls.add(pipelineName)
@@ -2138,6 +2150,7 @@ export function getPipelineList(): PipelineInfo[] {
       conditionPatterns: p.def.condition?.patterns?.length ? p.def.condition.patterns : undefined,
       preRunHooks: p.def.pre_run?.length ? p.def.pre_run.map(h => h.type) : undefined,
       notifications: p.def.notifications,
+      pausedUntil: p.def.pausedUntil,
     })
   }
   return result
@@ -2169,6 +2182,44 @@ export async function togglePipeline(name: string, enabled: boolean): Promise<bo
   }
 
   await saveState()
+  broadcast('pipeline:status', getPipelineList())
+  return true
+}
+
+async function savePauseState(name: string, pausedUntil: string | null | undefined): Promise<void> {
+  const p = pipelines.get(name)
+  if (!p) return
+  const filePath = join(PIPELINES_DIR, p.fileName)
+  try {
+    let content = await fsp.readFile(filePath, 'utf-8')
+    const hasField = /^pausedUntil:/m.test(content)
+    if (pausedUntil === undefined) {
+      content = content.replace(/^pausedUntil:.*\n?/m, '')
+    } else if (hasField) {
+      content = content.replace(/^pausedUntil:.*$/m, `pausedUntil: ${pausedUntil === null ? 'null' : JSON.stringify(pausedUntil)}`)
+    } else {
+      content = content.replace(/^(enabled:.*)$/m, `$1\npausedUntil: ${pausedUntil === null ? 'null' : JSON.stringify(pausedUntil)}`)
+    }
+    await fsp.writeFile(filePath, content, 'utf-8')
+  } catch (err) {
+    log(`Failed to save pause state for ${name}: ${err}`)
+  }
+}
+
+export async function pausePipeline(name: string, durationMs: number | null): Promise<boolean> {
+  const p = pipelines.get(name)
+  if (!p) return false
+  p.def.pausedUntil = durationMs === null ? null : new Date(Date.now() + durationMs).toISOString()
+  await savePauseState(name, p.def.pausedUntil)
+  broadcast('pipeline:status', getPipelineList())
+  return true
+}
+
+export async function resumePipeline(name: string): Promise<boolean> {
+  const p = pipelines.get(name)
+  if (!p) return false
+  p.def.pausedUntil = undefined
+  await savePauseState(name, undefined)
   broadcast('pipeline:status', getPipelineList())
   return true
 }

@@ -14811,6 +14811,29 @@ button.session-trigger-chain-btn:hover {
   font-family: var(--font-mono, monospace);
 }
 
+.pipeline-paused-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--warning);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.pipeline-last-run {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+.pipeline-last-run.success { color: var(--success); }
+.pipeline-last-run.fail { color: var(--danger); }
+
 .pipeline-success-badge {
   display: inline-flex;
   align-items: center;
