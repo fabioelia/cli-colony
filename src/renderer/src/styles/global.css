@@ -1263,7 +1263,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   white-space: nowrap;
 }
 .session-tag-pill.overflow {
-  background: var(--surface-2);
+  background: var(--bg-secondary);
   color: var(--text-muted);
 }
 .tag-pill-remove {
@@ -1285,7 +1285,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 .tag-picker-popover {
   position: fixed;
   z-index: 10000;
-  background: var(--surface-1);
+  background: var(--bg-primary);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 10px;
@@ -1312,10 +1312,13 @@ body:has(.daemon-update-banner) .app-update-banner {
   padding: 2px 7px;
   border-radius: 3px;
   font-size: 11px;
-  background: var(--surface-2);
+  background: var(--bg-secondary);
   border: 1px solid var(--border);
   color: var(--text-secondary);
   cursor: pointer;
+}
+.tag-picker-chip:hover:not(.active) {
+  background: var(--bg-hover);
 }
 .tag-picker-chip.active {
   background: color-mix(in srgb, var(--tag-color, var(--accent)) 20%, transparent);
@@ -1324,7 +1327,7 @@ body:has(.daemon-update-banner) .app-update-banner {
 }
 .tag-picker-input {
   width: 100%;
-  background: var(--surface-2);
+  background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 4px;
   padding: 4px 8px;
@@ -15273,7 +15276,7 @@ button.session-trigger-chain-btn:hover {
 }
 
 .pipeline-notif-btn.failures {
-  color: var(--warning, #f59e0b);
+  color: var(--warning);
 }
 
 .pipeline-editor {
