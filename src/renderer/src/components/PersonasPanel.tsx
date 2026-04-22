@@ -595,6 +595,22 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
     setSelectedPersonas(new Set())
   }, [selectedPersonas])
 
+  const [batchWhisperOpen, setBatchWhisperOpen] = useState(false)
+  const [batchWhisperText, setBatchWhisperText] = useState('')
+  const batchWhisperRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    if (batchWhisperOpen) setTimeout(() => batchWhisperRef.current?.focus(), 0)
+  }, [batchWhisperOpen])
+
+  const handleBatchWhisper = useCallback(async () => {
+    const text = batchWhisperText.trim()
+    if (!text) return
+    for (const id of selectedPersonas) await window.api.persona.whisper(id, text)
+    setBatchWhisperText('')
+    setBatchWhisperOpen(false)
+  }, [selectedPersonas, batchWhisperText])
+
   // Clear selection on tab switch or Escape
   useEffect(() => {
     setSelectedPersonas(new Set())
@@ -784,6 +800,28 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
             <button className="persona-bulk-btn" onClick={handleBatchDisable} title="Disable selected personas">Disable</button>
             <button className="persona-bulk-btn primary" onClick={handleBatchRun} title="Run selected personas (2s stagger)"><Play size={11} /> Run Now</button>
             <button className="persona-bulk-btn danger" onClick={handleBatchStop} title="Stop selected personas"><Square size={11} /> Stop</button>
+            <button className="persona-bulk-btn" onClick={() => setBatchWhisperOpen(true)} title="Whisper to selected personas"><StickyNote size={11} /> Whisper</button>
+          </div>
+        </div>
+      )}
+      {batchWhisperOpen && (
+        <div className="modal-overlay" onClick={() => setBatchWhisperOpen(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header"><h3>Whisper to {selectedPersonas.size} persona{selectedPersonas.size !== 1 ? 's' : ''}</h3></div>
+            <div className="modal-body">
+              <textarea
+                ref={batchWhisperRef}
+                className="persona-whisper-input"
+                placeholder="Type your message..."
+                value={batchWhisperText}
+                onChange={e => setBatchWhisperText(e.target.value)}
+                rows={4}
+              />
+            </div>
+            <div className="modal-footer">
+              <button onClick={() => setBatchWhisperOpen(false)}>Cancel</button>
+              <button className="primary" disabled={!batchWhisperText.trim()} onClick={handleBatchWhisper}>Send to {selectedPersonas.size} persona{selectedPersonas.size !== 1 ? 's' : ''}</button>
+            </div>
           </div>
         </div>
       )}
