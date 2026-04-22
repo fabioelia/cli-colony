@@ -250,6 +250,9 @@ export interface ClaudeManagerAPI {
     setCronsPaused: (paused: boolean) => Promise<void>
     getCronsPaused: () => Promise<boolean>
     onCronsPauseChange: (cb: (paused: boolean) => void) => () => void
+    readKnowledge: () => Promise<Array<{ id: number; date: string; source: string; text: string; raw: string }>>
+    appendKnowledge: (text: string) => Promise<void>
+    deleteKnowledge: (rawLine: string) => Promise<void>
   }
   pipeline: {
     list: () => Promise<Array<{
@@ -980,6 +983,9 @@ const api: ClaudeManagerAPI = {
       ipcRenderer.on('colony:cronsPauseChange', listener)
       return () => ipcRenderer.removeListener('colony:cronsPauseChange', listener)
     },
+    readKnowledge: () => ipcRenderer.invoke('colony:readKnowledge'),
+    appendKnowledge: (text) => ipcRenderer.invoke('colony:appendKnowledge', text),
+    deleteKnowledge: (rawLine) => ipcRenderer.invoke('colony:deleteKnowledge', rawLine),
   },
   tasksBoard: {
     list: () => ipcRenderer.invoke('tasks:board:list'),

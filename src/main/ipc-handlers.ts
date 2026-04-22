@@ -237,6 +237,25 @@ export function registerIpcHandlers(): void {
     return filePath
   })
 
+  // ---- Colony Knowledge Base ----
+  ipcMain.handle('colony:readKnowledge', async () => {
+    const content = await fsp.readFile(colonyPaths.knowledgeBase, 'utf-8').catch(() => '')
+    return content.split('\n').filter(l => l.trim().startsWith('- [')).map((l, i) => {
+      const match = l.match(/^- \[(\d{4}-\d{2}-\d{2})\s*\|\s*([^\]]+)\]\s*(.+)$/)
+      return match ? { id: i, date: match[1], source: match[2].trim(), text: match[3].trim(), raw: l } : null
+    }).filter(Boolean)
+  })
+  ipcMain.handle('colony:appendKnowledge', async (_e, text: string) => {
+    const date = new Date().toISOString().slice(0, 10)
+    const entry = `- [${date} | User] ${text}\n`
+    await fsp.appendFile(colonyPaths.knowledgeBase, entry, 'utf-8')
+  })
+  ipcMain.handle('colony:deleteKnowledge', async (_e, rawLine: string) => {
+    const content = await fsp.readFile(colonyPaths.knowledgeBase, 'utf-8').catch(() => '')
+    const updated = content.split('\n').filter(l => l !== rawLine).join('\n')
+    await fsp.writeFile(colonyPaths.knowledgeBase, updated, 'utf-8')
+  })
+
   // ---- Usage & Rate Limit ----
   ipcMain.handle('colony:getUsageSummary', () => getUsageSummary())
   ipcMain.handle('colony:rateLimitStatus', () => {

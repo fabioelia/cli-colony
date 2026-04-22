@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
   Home, Play, Plus, Zap, Clock, AlertCircle, Layers,
   CheckCircle2, XCircle, Circle, Users, FolderOpen, Activity, GanttChart, BarChart3, X, Eye, Square, Pin, PinOff,
-  ChevronLeft, ChevronRight, Calendar, RotateCcw, Search, MessageSquare, Trash2, Server, Download, Gauge, Terminal, GitCommit, ClipboardCopy, FileText, ChevronDown, ChevronsUpDown, GitCompareArrows
+  ChevronLeft, ChevronRight, Calendar, RotateCcw, Search, MessageSquare, Trash2, Server, Download, Gauge, Terminal, GitCommit, ClipboardCopy, FileText, ChevronDown, ChevronsUpDown, GitCompareArrows, BookOpen, Send
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import MarkdownViewer from './MarkdownViewer'
@@ -95,6 +95,11 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const [personaBriefs, setPersonaBriefs] = useState<Map<string, { content: string; mtime: number | null }>>(new Map())
   const [briefsOpen, setBriefsOpen] = useState(false)
   const [expandedBriefs, setExpandedBriefs] = useState<Set<string>>(new Set())
+  const [knowledgeEntries, setKnowledgeEntries] = useState<Array<{ id: number; date: string; source: string; text: string; raw: string }>>([])
+  const [knowledgeOpen, setKnowledgeOpen] = useState(false)
+  const [knowledgeInput, setKnowledgeInput] = useState('')
+  const [knowledgeAdding, setKnowledgeAdding] = useState(false)
+  const knowledgeInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     window.api.activity.list().then(setActivity)
@@ -105,6 +110,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
     window.api.persona.getColonyCostTrend().then(setCostTrend)
     window.api.persona.healthSummary().then(setPersonaHealth)
     window.api.env.list().then(setEnvironments)
+    window.api.colony.readKnowledge().then(setKnowledgeEntries).catch(() => {})
     window.api.settings.getAll().then(s => {
       setDailyCostBudget(parseFloat(s.dailyCostBudgetUsd) || 0)
       const sm = parseInt(s.staleSessionMinutes)
@@ -310,15 +316,32 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const failedPersonas = useMemo(() => personaHealth.filter(ph =>
     !ph.lastRunSuccess && personas.some(p => p.id === ph.personaId && p.enabled)
   ), [personaHealth, personas])
+
+  const overduePersonas = useMemo(() => personas.filter(p => {
+    if (!p.enabled || !p.schedule || !p.lastRun) return false
+    const runs = nextRuns(p.schedule, 2)
+    if (runs.length < 2) return false
+    const intervalMs = runs[1].getTime() - runs[0].getTime()
+    const minCooldownMs = (p.minIntervalMinutes || 0) * 60000
+    const elapsed = Date.now() - new Date(p.lastRun).getTime()
+    if (minCooldownMs > 0 && elapsed < minCooldownMs) return false
+    return elapsed > intervalMs * 2
+  }), [personas])
+
   // Health score: weighted composite of persona, pipeline, session, and environment health
   const healthScore = useMemo(() => {
-    // Persona health (35%): of enabled personas with run history, % whose last run succeeded
+    // Persona health (35%): of enabled personas with run history, % whose last run succeeded; penalize overdue
     const enabledWithHistory = personaHealth.filter(ph =>
       personas.some(p => p.id === ph.personaId && p.enabled)
     )
-    const personaScore = enabledWithHistory.length > 0
+    const basePersonaScore = enabledWithHistory.length > 0
       ? enabledWithHistory.filter(ph => ph.lastRunSuccess).length / enabledWithHistory.length
       : 1 // No history = assume healthy
+    const enabledPersonas = personas.filter(p => p.enabled)
+    const overduePenalty = enabledPersonas.length > 0
+      ? overduePersonas.length / enabledPersonas.length
+      : 0
+    const personaScore = Math.max(0, basePersonaScore - overduePenalty * 0.5)
 
     // Pipeline health (25%): of enabled pipelines, % without lastError
     const enabledPipelines = pipelines.filter(p => p.enabled)
@@ -345,7 +368,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
       sessionPct: Math.round(sessionScore * 100),
       envPct: Math.round(envScore * 100),
     }
-  }, [personas, pipelines, personaHealth, instances, environments])
+  }, [personas, pipelines, personaHealth, instances, environments, overduePersonas])
 
   // Track actioned attention items for brief feedback (checkmark for 3s)
   const [actionedIds, setActionedIds] = useState<Set<string>>(new Set())
@@ -613,11 +636,12 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
         )}
 
         {/* Attention needed */}
-        {(pendingApprovals.length > 0 || errorPipelines.length > 0 || blockedTasks.length > 0 || staleSessions.length > 0 || unhealthyEnvs.length > 0 || failedPersonas.length > 0 || (rateLimitState?.utilization != null && rateLimitState.utilization >= 0.70)) && (() => {
+        {(pendingApprovals.length > 0 || errorPipelines.length > 0 || blockedTasks.length > 0 || staleSessions.length > 0 || unhealthyEnvs.length > 0 || failedPersonas.length > 0 || overduePersonas.length > 0 || (rateLimitState?.utilization != null && rateLimitState.utilization >= 0.70)) && (() => {
           const errorCount = errorPipelines.length + unhealthyEnvs.length + failedPersonas.length
           const attentionCategories = [
             rateLimitState?.utilization != null && rateLimitState.utilization >= 0.70,
             errorCount > 0,
+            overduePersonas.length > 0,
             pendingApprovals.length > 0,
             blockedTasks.length > 0,
             staleSessions.length > 0,
@@ -717,6 +741,32 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                   <span className="attention-label">and {failedPersonas.length - 5} more failed</span>
                 </div>
               )}
+              {showLabels && overduePersonas.length > 0 && (
+                <div className="attention-category-label">{overduePersonas.length} Overdue</div>
+              )}
+              {overduePersonas.map(p => {
+                const runs = nextRuns(p.schedule, 2)
+                const intervalMs = runs.length >= 2 ? runs[1].getTime() - runs[0].getTime() : 0
+                const elapsedMs = p.lastRun ? Date.now() - new Date(p.lastRun).getTime() : 0
+                const elapsedMins = Math.round(elapsedMs / 60000)
+                const intervalMins = Math.round(intervalMs / 60000)
+                return (
+                  <div key={p.id} className="overview-attention-item attention-stale" onClick={() => onNavigate('personas')}>
+                    <Clock size={13} />
+                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+                      <span className="attention-label">{p.name} — overdue</span>
+                      <span className="attention-time">No run for {elapsedMins}m (expected every {intervalMins}m)</span>
+                    </div>
+                    {actionedIds.has(`overdue-${p.id}`) ? (
+                      <span className="attention-action-btn approve"><CheckCircle2 size={13} /></span>
+                    ) : (
+                      <button className="attention-action-btn" title="Run Now" onClick={(ev) => { ev.stopPropagation(); window.api.persona.run(p.id); markActioned(`overdue-${p.id}`) }}>
+                        <Play size={13} />
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
               {showLabels && pendingApprovals.length > 0 && (
                 <div className="attention-category-label">{pendingApprovals.length} Pending</div>
               )}
@@ -1395,6 +1445,79 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
             <button className="activity-show-more" onClick={() => setActivityExpanded(true)}>
               Show more ({displayActivity.length - 20} older)
             </button>
+          )}
+        </div>
+
+        {/* Colony Knowledge Base */}
+        <div className="overview-section">
+          <h3
+            style={{ cursor: 'pointer', userSelect: 'none' }}
+            onClick={() => setKnowledgeOpen(o => !o)}
+          >
+            <BookOpen size={14} /> Knowledge
+            <span className="overview-section-badge">{knowledgeEntries.length}</span>
+            <ChevronDown size={12} style={{ marginLeft: 'auto', transform: knowledgeOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+          </h3>
+          {knowledgeOpen && (
+            <>
+              <div className="knowledge-add-row">
+                <input
+                  ref={knowledgeInputRef}
+                  className="knowledge-add-input"
+                  placeholder="Add a knowledge entry…"
+                  value={knowledgeInput}
+                  onChange={e => setKnowledgeInput(e.target.value)}
+                  onKeyDown={async e => {
+                    if (e.key === 'Enter' && knowledgeInput.trim()) {
+                      setKnowledgeAdding(true)
+                      await window.api.colony.appendKnowledge(knowledgeInput.trim())
+                      const entries = await window.api.colony.readKnowledge()
+                      setKnowledgeEntries(entries)
+                      setKnowledgeInput('')
+                      setKnowledgeAdding(false)
+                    }
+                  }}
+                  disabled={knowledgeAdding}
+                />
+                <button
+                  className="panel-header-btn primary"
+                  disabled={!knowledgeInput.trim() || knowledgeAdding}
+                  onClick={async () => {
+                    if (!knowledgeInput.trim()) return
+                    setKnowledgeAdding(true)
+                    await window.api.colony.appendKnowledge(knowledgeInput.trim())
+                    const entries = await window.api.colony.readKnowledge()
+                    setKnowledgeEntries(entries)
+                    setKnowledgeInput('')
+                    setKnowledgeAdding(false)
+                  }}
+                >
+                  <Send size={12} />
+                </button>
+              </div>
+              {knowledgeEntries.length === 0 ? (
+                <div className="overview-empty-hint">No entries yet. Personas write learnings here automatically.</div>
+              ) : (
+                <div className="knowledge-entries-list">
+                  {knowledgeEntries.map(entry => (
+                    <div key={entry.id} className="knowledge-entry-row">
+                      <span className="knowledge-entry-meta">[{entry.date} | {entry.source}]</span>
+                      <span className="knowledge-entry-text">{entry.text}</span>
+                      <button
+                        className="knowledge-entry-delete"
+                        title="Delete entry"
+                        onClick={async () => {
+                          await window.api.colony.deleteKnowledge(entry.raw)
+                          setKnowledgeEntries(prev => prev.filter(e => e.id !== entry.id))
+                        }}
+                      >
+                        <X size={11} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
 

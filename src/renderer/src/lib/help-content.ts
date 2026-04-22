@@ -234,6 +234,15 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Knowledge',
+        position: 'Below Recent Activity',
+        items: [
+          { label: 'Knowledge section', detail: 'Collapsible section showing all entries from the Colony Knowledge Base (~/.claude-colony/KNOWLEDGE.md). Personas write cross-cutting learnings here automatically. The entry count badge in the header shows the total number of entries. Click the section header to expand/collapse.', icon: 'BookOpen' },
+          { label: 'Entry rows', detail: 'Each entry shows the date, persona source (e.g. "Colony Developer"), and the knowledge text. Hover a row to reveal the delete button (×). Deleted entries are permanently removed from KNOWLEDGE.md.' },
+          { label: 'Add Entry', detail: 'Text input at the top of the section. Type a fact or observation and press Enter (or the send button) to append it. New entries are tagged with today\'s date and "User" as the source — e.g. "[2026-04-22 | User] fact here". Added immediately to the list.' },
+        ],
+      },
+      {
         name: 'Quick Actions',
         position: 'Bottom',
         items: [
