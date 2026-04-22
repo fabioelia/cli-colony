@@ -356,6 +356,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Active tab', detail: 'Shows running sessions. This is the default view.' },
           { label: 'History tab', detail: 'Browse past Claude CLI conversations from ~/.claude/. Click to resume — detects already-running sessions.' },
           { label: 'External tab', detail: 'Detects Claude CLI processes running outside Colony (VS Code, terminal). Preview messages and take over.' },
+          { label: 'Tags', detail: 'Right-click a session to add tags. Filter by tag using the Tags dropdown. Tags are color-coded and stored locally.', icon: 'Tag' },
         ],
       },
       {

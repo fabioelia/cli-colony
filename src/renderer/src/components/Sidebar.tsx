@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, GitBranch, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock, RotateCcw, DollarSign, ArrowUpDown, ArrowLeft } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, GitBranch, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock, RotateCcw, DollarSign, ArrowUpDown, ArrowLeft, Tag } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate, ErrorSummary } from '../../../shared/types'
@@ -478,7 +478,14 @@ interface Props {
   rateLimitCountdown?: string
 }
 
-function SessionTile({ s, onResumeSession, hoveredSessionId, setHoveredSessionId, popoverPos, setPopoverPos, formatTime }: {
+const TAG_COLORS = ['#34d399', '#60a5fa', '#f59e0b', '#f87171', '#a78bfa', '#fb923c', '#38bdf8', '#4ade80']
+function tagColor(tag: string): string {
+  let h = 0
+  for (let i = 0; i < tag.length; i++) h = (h * 31 + tag.charCodeAt(i)) >>> 0
+  return TAG_COLORS[h % TAG_COLORS.length]
+}
+
+function SessionTile({ s, onResumeSession, hoveredSessionId, setHoveredSessionId, popoverPos, setPopoverPos, formatTime, tags, onContextMenu }: {
   s: CliSession
   onResumeSession: (session: CliSession) => void
   hoveredSessionId: string | null
@@ -486,6 +493,8 @@ function SessionTile({ s, onResumeSession, hoveredSessionId, setHoveredSessionId
   popoverPos: { top: number } | null
   setPopoverPos: (pos: { top: number } | null) => void
   formatTime: (ts: number) => string
+  tags: string[]
+  onContextMenu: (id: string, x: number, y: number) => void
 }) {
   return (
     <div
@@ -501,6 +510,7 @@ function SessionTile({ s, onResumeSession, hoveredSessionId, setHoveredSessionId
         setHoveredSessionId(s.sessionId)
       }}
       onMouseLeave={() => setHoveredSessionId(null)}
+      onContextMenu={(e) => { e.preventDefault(); onContextMenu(s.sessionId, e.clientX, e.clientY) }}
     >
       <div className="sidebar-session-display">
         {s.name || s.display}
@@ -512,6 +522,14 @@ function SessionTile({ s, onResumeSession, hoveredSessionId, setHoveredSessionId
         <span>{s.messageCount} msg{s.messageCount !== 1 ? 's' : ''}</span>
         <span>{formatTime(s.timestamp)}</span>
       </div>
+      {tags.length > 0 && (
+        <div className="sidebar-session-tags">
+          {tags.slice(0, 3).map(t => (
+            <span key={t} className="session-tag-pill" style={{ '--tag-color': tagColor(t) } as React.CSSProperties}>{t}</span>
+          ))}
+          {tags.length > 3 && <span className="session-tag-pill overflow">+{tags.length - 3}</span>}
+        </div>
+      )}
       {hoveredSessionId === s.sessionId && popoverPos && (
         <div className="session-popover" style={{ top: popoverPos.top }}>
           <div className="session-popover-section">
@@ -925,6 +943,15 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const [popoverPos, setPopoverPos] = useState<{ top: number } | null>(null)
   const [instancePopoverPos, setInstancePopoverPos] = useState<{ top: number; left: number } | null>(null)
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
+  const [sessionTags, setSessionTags] = useState<Record<string, string[]>>(() => {
+    try { return JSON.parse(localStorage.getItem('colony:sessionTags') || '{}') } catch { return {} }
+  })
+  const [sessionTagFilter, setSessionTagFilter] = useState<string | null>(() =>
+    localStorage.getItem('colony:sessionTagFilter') || null)
+  const [editingTagsId, setEditingTagsId] = useState<string | null>(null)
+  const [editingTagsInput, setEditingTagsInput] = useState('')
+  const [editingTagsPos, setEditingTagsPos] = useState<{ x: number; y: number } | null>(null)
+  const [sessionContextMenu, setSessionContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const [retryTarget, setRetryTarget] = useState<ClaudeInstance | null>(null)
   const [sendingMessageTo, setSendingMessageTo] = useState<string | null>(null)
   const [messageText, setMessageText] = useState('')
@@ -969,6 +996,11 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     else localStorage.removeItem('colony:sessionProjectFilter')
   }, [sessionProjectFilter])
 
+  useEffect(() => {
+    if (sessionTagFilter) localStorage.setItem('colony:sessionTagFilter', sessionTagFilter)
+    else localStorage.removeItem('colony:sessionTagFilter')
+  }, [sessionTagFilter])
+
   // Restore persisted sidebar width on mount, clamped to minimum
   useEffect(() => {
     const saved = localStorage.getItem('sidebar-width')
@@ -977,6 +1009,22 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
       document.documentElement.style.setProperty('--sidebar-width', width + 'px')
     }
   }, [])
+
+  // Prune tags for sessions that no longer exist
+  useEffect(() => {
+    if (sessions.length === 0) return
+    const validIds = new Set(sessions.map(s => s.sessionId))
+    const pruned: Record<string, string[]> = {}
+    let changed = false
+    for (const [id, tags] of Object.entries(sessionTags)) {
+      if (validIds.has(id)) pruned[id] = tags
+      else changed = true
+    }
+    if (changed) {
+      setSessionTags(pruned)
+      localStorage.setItem('colony:sessionTags', JSON.stringify(pruned))
+    }
+  }, [sessions]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleResizeMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -1202,6 +1250,17 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     }
   }
 
+  const setTagsForSession = useCallback((id: string, tags: string[]) => {
+    const next = { ...sessionTags, [id]: tags }
+    setSessionTags(next)
+    localStorage.setItem('colony:sessionTags', JSON.stringify(next))
+  }, [sessionTags])
+
+  const allKnownTags = useMemo(() =>
+    [...new Set(Object.values(sessionTags).flat())].sort(),
+    [sessionTags]
+  )
+
   const filteredSessions = useMemo(() => {
     let result = sessions
     if (sessionSearch) {
@@ -1215,6 +1274,9 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     if (sessionProjectFilter) {
       result = result.filter(s => s.projectName === sessionProjectFilter)
     }
+    if (sessionTagFilter) {
+      result = result.filter(s => (sessionTags[s.sessionId] || []).includes(sessionTagFilter))
+    }
     if (sessionSort === 'messages') {
       result = [...result].sort((a, b) => b.messageCount - a.messageCount)
     } else if (sessionSort === 'name') {
@@ -1222,7 +1284,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     }
     // 'recent' is the default order from the API — no re-sort needed
     return result
-  }, [sessions, sessionSearch, sessionProjectFilter, sessionSort])
+  }, [sessions, sessionSearch, sessionProjectFilter, sessionSort, sessionTagFilter, sessionTags])
 
   const sessionGroupedSections = useMemo(() => {
     if (sessionGroupBy === 'none') return null
@@ -2155,6 +2217,17 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             <option value="">All Projects</option>
             {uniqueProjects.map(p => <option key={p} value={p}>{p.split('/').pop()}</option>)}
           </select>
+          {allKnownTags.length > 0 && (
+            <select
+              className="sidebar-sessions-filter-select"
+              value={sessionTagFilter ?? ''}
+              onChange={(e) => setSessionTagFilter(e.target.value || null)}
+              title="Filter by tag"
+            >
+              <option value="">All Tags</option>
+              {allKnownTags.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          )}
           <select
             className="sidebar-sessions-filter-select"
             value={sessionGroupBy}
@@ -2178,6 +2251,9 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
               <X size={11} />
             </button>
           )}
+          {sessionTagFilter && (
+            <button className="sidebar-sessions-filter-clear" onClick={() => setSessionTagFilter(null)} title="Clear tag filter"><X size={11} /></button>
+          )}
         </div>
         <div className="sidebar-sessions-list">
           {sessionGroupedSections ? (
@@ -2191,7 +2267,9 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                 {!sessionCollapsedGroups.has(label) && items.map(s => (
                   <SessionTile key={s.sessionId} s={s} onResumeSession={onResumeSession}
                     hoveredSessionId={hoveredSessionId} setHoveredSessionId={setHoveredSessionId}
-                    popoverPos={popoverPos} setPopoverPos={setPopoverPos} formatTime={formatTime} />
+                    popoverPos={popoverPos} setPopoverPos={setPopoverPos} formatTime={formatTime}
+                    tags={sessionTags[s.sessionId] || []}
+                    onContextMenu={(id, x, y) => setSessionContextMenu({ id, x, y })} />
                 ))}
               </div>
             ))
@@ -2199,7 +2277,9 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             filteredSessions.map(s => (
               <SessionTile key={s.sessionId} s={s} onResumeSession={onResumeSession}
                 hoveredSessionId={hoveredSessionId} setHoveredSessionId={setHoveredSessionId}
-                popoverPos={popoverPos} setPopoverPos={setPopoverPos} formatTime={formatTime} />
+                popoverPos={popoverPos} setPopoverPos={setPopoverPos} formatTime={formatTime}
+                tags={sessionTags[s.sessionId] || []}
+                onContextMenu={(id, x, y) => setSessionContextMenu({ id, x, y })} />
             ))
           )}
           {filteredSessions.length === 0 && sessionsReady && (
@@ -2519,6 +2599,82 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             >
               {instances.find((i) => i.id === contextMenu.id)?.status === 'running' ? 'Kill' : 'Remove'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {sessionContextMenu && (
+        <div className="context-menu-overlay" onClick={() => setSessionContextMenu(null)}>
+          <div className="context-menu" style={{ top: sessionContextMenu.y, left: sessionContextMenu.x }} onClick={e => e.stopPropagation()}>
+            <button className="context-menu-item" onClick={() => {
+              setEditingTagsId(sessionContextMenu.id)
+              setEditingTagsPos({ x: sessionContextMenu.x, y: sessionContextMenu.y })
+              setEditingTagsInput('')
+              setSessionContextMenu(null)
+            }}>
+              <Tag size={12} /> Edit Tags
+            </button>
+          </div>
+        </div>
+      )}
+
+      {editingTagsId && editingTagsPos && (
+        <div className="context-menu-overlay" onClick={() => setEditingTagsId(null)}>
+          <div className="tag-picker-popover" style={{ top: editingTagsPos.y, left: editingTagsPos.x }} onClick={e => e.stopPropagation()}>
+            <div className="tag-picker-title">Tags</div>
+            <div className="tag-picker-chips">
+              {allKnownTags.map(t => {
+                const active = (sessionTags[editingTagsId] || []).includes(t)
+                return (
+                  <button
+                    key={t}
+                    className={`tag-picker-chip${active ? ' active' : ''}`}
+                    style={{ '--tag-color': tagColor(t) } as React.CSSProperties}
+                    onClick={() => {
+                      const cur = sessionTags[editingTagsId] || []
+                      if (active) {
+                        setTagsForSession(editingTagsId, cur.filter(x => x !== t))
+                      } else if (cur.length < 5) {
+                        setTagsForSession(editingTagsId, [...cur, t])
+                      }
+                    }}
+                  >
+                    {t}
+                  </button>
+                )
+              })}
+            </div>
+            <input
+              className="tag-picker-input"
+              placeholder="New tag..."
+              value={editingTagsInput}
+              autoFocus
+              maxLength={20}
+              onChange={e => setEditingTagsInput(e.target.value.toLowerCase())}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  const tag = editingTagsInput.trim().slice(0, 20)
+                  if (!tag) return
+                  const cur = sessionTags[editingTagsId] || []
+                  if (!cur.includes(tag) && cur.length < 5) {
+                    setTagsForSession(editingTagsId, [...cur, tag])
+                  }
+                  setEditingTagsInput('')
+                } else if (e.key === 'Escape') {
+                  setEditingTagsId(null)
+                }
+              }}
+            />
+            <div className="tag-picker-current">
+              {(sessionTags[editingTagsId] || []).map(t => (
+                <span key={t} className="session-tag-pill" style={{ '--tag-color': tagColor(t) } as React.CSSProperties}>
+                  {t}
+                  <button className="tag-pill-remove" onClick={() => {
+                    setTagsForSession(editingTagsId, (sessionTags[editingTagsId] || []).filter(x => x !== t))
+                  }}>×</button>
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       )}

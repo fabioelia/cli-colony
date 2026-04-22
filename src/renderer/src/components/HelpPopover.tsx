@@ -5,6 +5,7 @@ import {
   Plus, RotateCcw, RotateCw, Pin, Columns2, Settings, RefreshCw, Play, Pencil,
   Download, Upload, ArrowLeft, Brain, FileText, MessageSquare, Search,
   Filter, Zap, Square, Terminal, FolderOpen, Stethoscope, Trash2,
+  Tag,
   GitBranch, GitMerge, Info, GitFork, User, Bell, BellRing, Eye, FileDown, StickyNote, Clock, Network, ArrowUpDown,
   AlertCircle, AlertTriangle, LayoutList, ShieldCheck, Shield, UserPlus, ClipboardList, GitCommit,
   Trophy, BarChart3, BarChart2, Globe, Navigation, ArrowRight, BookTemplate, Wand2, Hourglass, Undo2, EyeOff,
@@ -23,7 +24,7 @@ import { helpContent, type HelpEntry, type HelpZone } from '../lib/help-content'
 const iconMap: Record<string, LucideIcon> = {
   Plus, RotateCcw, RotateCw, Pin, Columns2, Settings, RefreshCw, Play, Pencil,
   Download, Upload, ArrowLeft, Brain, FileText, MessageSquare, Search,
-  Filter, Zap, Square, Terminal, FolderOpen, Stethoscope, Trash2,
+  Filter, Zap, Square, Terminal, FolderOpen, Stethoscope, Trash2, Tag,
   GitBranch, GitMerge, Info, GitFork, HelpCircle, ChevronDown, ChevronRight, User, Bell, BellRing, Eye, FileDown,
   StickyNote, Clock, Network, ArrowUpDown, AlertCircle, AlertTriangle, LayoutList, ShieldCheck, Shield, UserPlus,
   ClipboardList, GitCommit, Trophy, BarChart3, BarChart2, Globe, Navigation, ArrowRight, BookTemplate, Wand2, Hourglass, Undo2, EyeOff,
