@@ -18,6 +18,7 @@ import PipelineFlowDiagram from './PipelineFlowDiagram'
 import PipelineTriggerMap from './PipelineTriggerMap'
 import PipelineScheduleHeatmap from './PipelineScheduleHeatmap'
 import { describeCron, nextRuns, cronFireTimesForDay } from '../../../shared/cron'
+import { PipelineSparkline } from './PipelineSparkline'
 import { slugify } from '../../../shared/utils'
 import { firstErrorOf } from '../../../shared/pipeline-stats'
 import { parseYaml } from '../../../shared/yaml-parser'
@@ -27,6 +28,7 @@ interface RecentRun {
   success: boolean
   actionExecuted: boolean
   error: string | null
+  durationMs: number
 }
 
 interface PipelineStats {
@@ -568,6 +570,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
             success: e.success,
             actionExecuted: e.actionExecuted,
             error: e.success ? null : firstErrorOf(e),
+            durationMs: e.durationMs ?? 0,
           }))
           const cumulativeCost = history.reduce((sum, e) => sum + (e.totalCost || 0), 0)
           stats.set(p.name, { rate: Math.round((successes / total) * 100), successes, total, recent, cumulativeCost })
@@ -1609,6 +1612,11 @@ ${modelLine}  prompt: |
                   else if (mins < 1440) label = `${Math.floor(mins / 60)}h ${mins % 60}m`
                   else label = fires[0].toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })
                   return <span className="pipeline-next-run" title={`Next fire: ${fires[0].toLocaleString()}`}>Next: {label}</span>
+                })()}
+                {expandedPipeline !== p.name && (() => {
+                  const stats = pipelineStats.get(p.name)
+                  if (!stats || stats.recent.length < 3) return null
+                  return <PipelineSparkline entries={stats.recent} />
                 })()}
                 {listMode && expandedPipeline !== p.name && p.lastFiredAt && (
                   <span className="pipeline-list-last-fired" title={`Last fired: ${new Date(p.lastFiredAt).toLocaleString()}`}>

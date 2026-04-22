@@ -15148,6 +15148,15 @@ button.session-trigger-chain-btn:hover {
   opacity: 0.7;
 }
 
+.pipeline-sparkline {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 6px;
+  opacity: 0.75;
+  flex-shrink: 0;
+}
+.pipeline-sparkline:hover { opacity: 1; }
+
 .pipeline-card-desc {
   font-size: 11px;
   color: var(--text-secondary);
