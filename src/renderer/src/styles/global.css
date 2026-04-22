@@ -15734,14 +15734,14 @@ button.session-trigger-chain-btn:hover {
 .pipeline-health-bar-seg.skipped { background: var(--text-muted); opacity: 0.5; }
 .pipeline-health-bar-seg.gray { background: var(--border); }
 .pipeline-health-bar-count { font-size: 10px; color: var(--text-muted); width: 32px; text-align: right; flex-shrink: 0; }
-.pipeline-health-empty-state { font-size: 12px; color: var(--text-secondary); padding: 10px 0; }
+.pipeline-health-empty-state { font-size: 12px; color: var(--text-secondary); padding: 10px 0; display: flex; align-items: center; gap: 4px; }
 .pipeline-failure-list { margin-bottom: 10px; }
 .pipeline-failure-list-title { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 5px; }
 .pipeline-failure-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--border); }
 .pipeline-failure-name { font-size: 11px; color: var(--danger); width: 120px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pipeline-failure-time { font-size: 10px; color: var(--text-muted); width: 55px; flex-shrink: 0; }
 .pipeline-failure-error { font-size: 11px; color: var(--text-secondary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pipeline-health-all-good { font-size: 12px; color: var(--text-secondary); padding: 8px 0; margin-bottom: 8px; }
+.pipeline-health-all-good { font-size: 12px; color: var(--text-secondary); padding: 8px 0; margin-bottom: 8px; display: flex; align-items: center; gap: 4px; }
 .pipeline-health-table table {
   width: 100%;
   border-collapse: collapse;

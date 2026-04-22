@@ -1589,7 +1589,7 @@ ${modelLine}  prompt: |
           <div className="pipeline-health-bars">
             {healthBars.length === 0 && (
               <div className="pipeline-health-empty-state">
-                <span style={{ color: 'var(--success)' }}>✓</span> All pipelines healthy
+                <Check size={12} style={{ color: 'var(--success)' }} /> All pipelines healthy
               </div>
             )}
             {healthBars.map(bar => {
@@ -1633,7 +1633,7 @@ ${modelLine}  prompt: |
           )}
           {recentFailures.length === 0 && overallHealthRate !== null && (
             <div className="pipeline-health-all-good">
-              <span style={{ color: 'var(--success)' }}>✓</span> 0 failures in the last {healthTimeRange}
+              <Check size={12} style={{ color: 'var(--success)' }} /> 0 failures in the last {healthTimeRange}
             </div>
           )}
           <div className="pipeline-health-aggregate">
