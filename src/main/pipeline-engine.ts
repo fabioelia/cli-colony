@@ -151,6 +151,7 @@ export interface PipelineDef {
   budget?: BudgetDef
   run_condition?: string
   pre_run?: Array<{ type: string }>
+  notifications?: 'all' | 'failures' | 'none'
 }
 
 export interface PendingApproval {
@@ -222,6 +223,8 @@ export interface PipelineInfo {
   runCondition?: string
   /** Hook types configured in pre_run (e.g. ['refresh-prs']) */
   preRunHooks?: string[]
+  /** Notification level: all (default), failures (warn+critical only), or none */
+  notifications?: 'all' | 'failures' | 'none'
 }
 
 const MAX_DEBUG_ITERATIONS = 20
@@ -1299,6 +1302,13 @@ export async function previewPipeline(fileNameOrName: string): Promise<PreviewRe
 
 // ---- Poll Loop ----
 
+function shouldNotify(def: PipelineDef, severity: 'info' | 'warning' | 'critical'): boolean {
+  const level = def.notifications ?? 'all'
+  if (level === 'none') return false
+  if (level === 'failures') return severity !== 'info'
+  return true
+}
+
 async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<void> {
   const p = pipelines.get(pipelineName)
   if (!p || !p.def.enabled) return
@@ -1475,7 +1485,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
             summary: `Pipeline "${pipelineName}" approval required by rule "${ruleMatch.name}"`,
             level: 'warn',
           })
-          notify(`Colony: Approval needed`, `Pipeline "${pipelineName}" — ${summary}`, 'pipelines')
+          if (shouldNotify(p.def, 'warning')) notify(`Colony: Approval needed`, `Pipeline "${pipelineName}" — ${summary}`, 'pipelines')
           continue
         }
       }
@@ -1519,7 +1529,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
         updateDockBadge()
         plog(pipelineName, `→ approval required, queued request ${approvalId} for ${prLabel}`)
         appendActivity({ source: 'pipeline', name: pipelineName, summary: `Pipeline "${pipelineName}" waiting for approval — ${summary}`, level: 'warn' })
-        notify(`Colony: Approval needed`, `Pipeline "${pipelineName}" — ${summary}`, 'pipelines')
+        if (shouldNotify(p.def, 'warning')) notify(`Colony: Approval needed`, `Pipeline "${pipelineName}" — ${summary}`, 'pipelines')
         continue
       }
 
@@ -1592,11 +1602,11 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
         const warnAt = p.def.budget?.warn_at ?? effectiveMaxBudget * 0.75
         if (!budgetWarnSent && totalCost >= warnAt) {
           budgetWarnSent = true
-          notify(`Colony: Budget warning`, `Pipeline "${pipelineName}" has spent $${totalCost.toFixed(2)} (warn threshold: $${warnAt.toFixed(2)})`, 'pipelines')
+          if (shouldNotify(p.def, 'critical')) notify(`Colony: Budget warning`, `Pipeline "${pipelineName}" has spent $${totalCost.toFixed(2)} (warn threshold: $${warnAt.toFixed(2)})`, 'pipelines')
         }
         if (totalCost >= effectiveMaxBudget) {
           plog(pipelineName, `⚠ budget limit reached ($${totalCost.toFixed(2)} >= $${effectiveMaxBudget.toFixed(2)}) — stopping run`)
-          notify(`Colony: Budget limit reached`, `Pipeline "${pipelineName}" stopped after spending $${totalCost.toFixed(2)}`, 'pipelines')
+          if (shouldNotify(p.def, 'critical')) notify(`Colony: Budget limit reached`, `Pipeline "${pipelineName}" stopped after spending $${totalCost.toFixed(2)}`, 'pipelines')
           stoppedBudget = true
           break
         }
@@ -1609,7 +1619,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
         ? `Pipeline "${pipelineName}" fired for PR #${ctx.pr.number} (${ctx.pr.branch})`
         : `Pipeline "${pipelineName}" fired`
       appendActivity({ source: 'pipeline', name: pipelineName, summary: firedSummary, level: 'info', project: ctx.repo?.name || (p.def.action.workingDirectory ? basename(resolveTemplate(p.def.action.workingDirectory, ctx)) : undefined) })
-      notify(`Colony: Pipeline fired`, firedSummary, 'pipelines')
+      if (shouldNotify(p.def, 'info')) notify(`Colony: Pipeline fired`, firedSummary, 'pipelines')
     }
 
     p.state.lastError = null
@@ -1969,6 +1979,7 @@ export function getPipelineList(): PipelineInfo[] {
       defaultModel: p.def.default_model || undefined,
       runCondition: p.def.run_condition || undefined,
       preRunHooks: p.def.pre_run?.length ? p.def.pre_run.map(h => h.type) : undefined,
+      notifications: p.def.notifications,
     })
   }
   return result

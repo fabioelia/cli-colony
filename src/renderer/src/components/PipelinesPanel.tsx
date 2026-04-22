@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo, type ReactElement } from 'react'
 import { useFileDrop } from '../hooks/useFileDrop'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import {
@@ -8,7 +8,7 @@ import {
   ShieldCheck, List, Globe, Wand2, ArrowRight, ArrowLeft, Hourglass, ArrowUpDown,
   GitPullRequest, GitMerge, GitBranch, Sparkles, RotateCw, Copy, Timer, Activity,
   Download, Upload, PauseCircle, PlayCircle, Check, StickyNote, Network, Archive, CalendarDays,
-  History, CheckSquare, Trash2,
+  History, CheckSquare, Trash2, Bell, BellMinus, BellOff,
 } from 'lucide-react'
 import type { AuditResult, GitHubRepo, SessionArtifact } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
@@ -84,6 +84,7 @@ interface PipelineInfo {
   defaultModel?: string
   runCondition?: string
   preRunHooks?: string[]
+  notifications?: 'all' | 'failures' | 'none'
 }
 
 interface Props {
@@ -757,6 +758,25 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     }
     const slug = p.fileName.replace(/\.(yaml|yml)$/, '') + '-copy'
     await window.api.pipeline.createFromTemplate(modified, slug)
+    await window.api.pipeline.reload()
+  }
+
+  const handleCycleNotifications = async (p: PipelineInfo) => {
+    const CYCLE: Array<'all' | 'failures' | 'none'> = ['all', 'failures', 'none']
+    const cur = p.notifications ?? 'all'
+    const next = CYCLE[(CYCLE.indexOf(cur) + 1) % CYCLE.length]
+    const yaml = await window.api.pipeline.getContent(p.fileName)
+    if (!yaml) return
+    let updated: string
+    if (/^notifications:/m.test(yaml)) {
+      updated = yaml.replace(/^notifications:\s*.*/m, `notifications: ${next}`)
+    } else {
+      updated = yaml.replace(/^(enabled:\s*\S+.*)/m, `$1\nnotifications: ${next}`)
+    }
+    if (next === 'all') {
+      updated = updated.replace(/^notifications:\s*all\n?/m, '')
+    }
+    await window.api.pipeline.saveContent(p.fileName, updated)
     await window.api.pipeline.reload()
   }
 
@@ -1616,6 +1636,20 @@ ${modelLine}  prompt: |
                   </span>
                 )}
                 <div className="pipeline-header-actions" onClick={(e) => e.stopPropagation()}>
+                  {(() => {
+                    const nl = p.notifications ?? 'all'
+                    const titles: Record<string, string> = { all: 'Notifications: all — click to set failures-only', failures: 'Notifications: failures only — click to disable', none: 'Notifications: off — click to re-enable all' }
+                    const icons: Record<string, ReactElement> = { all: <Bell size={11} />, failures: <BellMinus size={11} />, none: <BellOff size={11} /> }
+                    return (
+                      <button
+                        className={`pipeline-action-btn pipeline-notif-btn${nl === 'none' ? ' off' : ''}${nl === 'failures' ? ' failures' : ''}`}
+                        onClick={() => handleCycleNotifications(p)}
+                        title={titles[nl]}
+                      >
+                        {icons[nl]}
+                      </button>
+                    )
+                  })()}
                   <button
                     className={`pipeline-action-btn ${p.enabled ? 'enabled' : ''}`}
                     onClick={() => handleToggle(p.name, !p.enabled)}

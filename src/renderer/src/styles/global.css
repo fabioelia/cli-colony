@@ -15268,6 +15268,14 @@ button.session-trigger-chain-btn:hover {
   border-color: rgba(16, 185, 129, 0.3);
 }
 
+.pipeline-notif-btn.off {
+  opacity: 0.4;
+}
+
+.pipeline-notif-btn.failures {
+  color: var(--warning, #f59e0b);
+}
+
 .pipeline-editor {
   border-top: 1px solid var(--border);
   margin-top: 4px;
