@@ -253,6 +253,16 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Board Tab',
+        position: 'Tab bar — "Board"',
+        items: [
+          { label: 'Session Board View', detail: 'Kanban-style board showing all sessions organized into three columns: Running (actively executing), Waiting (idle, awaiting input), and Stopped (exited). Each column header shows the session count. Board tab preference is remembered across reloads.', icon: 'LayoutGrid' },
+          { label: 'Session card', detail: 'Each card shows: a colored dot (session color), session name, model badge (e.g. "sonnet", "4.7"), cost badge, and elapsed time or time since exit. Running persona sessions also show the current working status one-liner when available. Click any card to focus that session. Right-click for the same context menu as the sidebar (Focus, Whisper, Stop, Pin/Unpin).' },
+          { label: 'Attention borders', detail: 'Stale sessions (busy but no output for 15+ min) get an amber left border. Sessions that exited with a non-zero exit code get a red left border — making errors easy to spot at a glance.' },
+          { label: 'Stopped column', detail: 'The Stopped column is capped at 20 most recent sessions. A "Show all N stopped sessions" button expands the list when there are more than 20.' },
+        ],
+      },
+      {
         name: 'Timeline Tab',
         position: 'Tab bar — "Timeline"',
         items: [

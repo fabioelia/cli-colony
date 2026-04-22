@@ -67,10 +67,121 @@ function getModelLabel(args: string[]): string | null {
   return raw.length > 8 ? raw.slice(0, 8) : raw
 }
 
-type OverviewTab = 'dashboard' | 'timeline' | 'changes'
+type OverviewTab = 'dashboard' | 'board' | 'timeline' | 'changes'
+
+interface SessionBoardViewProps {
+  instances: ClaudeInstance[]
+  personas: PersonaInfo[]
+  staleSessions: ClaudeInstance[]
+  setCtxMenu: React.Dispatch<React.SetStateAction<{ x: number; y: number; inst: ClaudeInstance } | null>>
+  onFocusInstance: (id: string) => void
+  showAllStopped: boolean
+  setShowAllStopped: React.Dispatch<React.SetStateAction<boolean>>
+}
+
+function SessionBoardView({ instances, personas, staleSessions, setCtxMenu, onFocusInstance, showAllStopped, setShowAllStopped }: SessionBoardViewProps) {
+  const staleSet = new Set(staleSessions.map(s => s.id))
+
+  const boardRunning = instances.filter(i => i.status === 'running' && i.activity !== 'waiting')
+  const boardWaiting = instances.filter(i => i.status === 'running' && i.activity === 'waiting')
+  const boardStopped = instances
+    .filter(i => i.status === 'exited')
+    .sort((a, b) => (b.exitedAt || 0) - (a.exitedAt || 0))
+  const stoppedVisible = showAllStopped ? boardStopped : boardStopped.slice(0, 20)
+
+  function cardBorderClass(inst: ClaudeInstance): string {
+    if (inst.status === 'exited' && inst.exitCode !== null && inst.exitCode !== 0) return ' board-card-error'
+    if (staleSet.has(inst.id)) return ' board-card-stale'
+    return ''
+  }
+
+  function renderCard(inst: ClaudeInstance) {
+    const persona = personas.find(p => p.activeSessionId === inst.id)
+    const model = getModelLabel(inst.args)
+    const cost = inst.tokenUsage.cost || 0
+    const exitedAgo = inst.exitedAt ? timeAgo(new Date(inst.exitedAt).toISOString()) : null
+
+    return (
+      <div
+        key={inst.id}
+        className={`session-board-card${cardBorderClass(inst)}`}
+        onClick={() => onFocusInstance(inst.id)}
+        onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, inst }) }}
+        title={inst.workingDirectory}
+      >
+        <div className="session-board-card-header">
+          <span className="session-board-card-dot" style={{ background: inst.color || 'var(--text-muted)' }} />
+          <span className="session-board-card-name">{inst.name || 'Untitled'}</span>
+          {model && <span className="session-board-card-badge">{model}</span>}
+          {cost > 0 && <span className="session-board-card-badge cost">{formatCost(cost)}</span>}
+        </div>
+        {persona?.workingStatus && (
+          <div className="session-board-card-status">{persona.workingStatus}</div>
+        )}
+        <div className="session-board-card-meta">
+          <span className="session-board-card-duration">
+            {inst.status === 'running' ? formatElapsed(inst.createdAt) : exitedAgo}
+          </span>
+          {inst.pipelineName && <span className="session-board-card-source">{inst.pipelineName}</span>}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="session-board">
+      <div className="session-board-column">
+        <div className="session-board-column-header">
+          <span className="session-board-column-title">Running</span>
+          <span className="session-board-column-count">{boardRunning.length}</span>
+        </div>
+        <div className="session-board-column-body">
+          {boardRunning.length === 0
+            ? <div className="session-board-empty">No active sessions</div>
+            : boardRunning.map(renderCard)}
+        </div>
+      </div>
+      <div className="session-board-column">
+        <div className="session-board-column-header">
+          <span className="session-board-column-title">Waiting</span>
+          <span className="session-board-column-count">{boardWaiting.length}</span>
+        </div>
+        <div className="session-board-column-body">
+          {boardWaiting.length === 0
+            ? <div className="session-board-empty">No waiting sessions</div>
+            : boardWaiting.map(renderCard)}
+        </div>
+      </div>
+      <div className="session-board-column">
+        <div className="session-board-column-header">
+          <span className="session-board-column-title">Stopped</span>
+          <span className="session-board-column-count">{boardStopped.length}</span>
+        </div>
+        <div className="session-board-column-body">
+          {boardStopped.length === 0
+            ? <div className="session-board-empty">No stopped sessions</div>
+            : <>
+                {stoppedVisible.map(renderCard)}
+                {!showAllStopped && boardStopped.length > 20 && (
+                  <button className="session-board-show-all" onClick={(e) => { e.stopPropagation(); setShowAllStopped(true) }}>
+                    Show all {boardStopped.length} stopped sessions
+                  </button>
+                )}
+              </>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function getInitialOverviewTab(): OverviewTab {
+  const saved = localStorage.getItem('colony-overview-tab')
+  if (saved === 'board' || saved === 'dashboard' || saved === 'timeline' || saved === 'changes') return saved
+  return 'dashboard'
+}
 
 export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewSession, onNavigate, onKill, onRestart, onRemove, rateLimitState }: Props) {
-  const [tab, setTab] = useState<OverviewTab>('dashboard')
+  const [tab, setTab] = useState<OverviewTab>(getInitialOverviewTab)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; inst: ClaudeInstance } | null>(null)
   const [activity, setActivity] = useState<ActivityEvent[]>([])
   const [pipelines, setPipelines] = useState<PipelineSummary[]>([])
@@ -396,6 +507,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
 
   const [showHealthBreakdown, setShowHealthBreakdown] = useState(false)
 
+  const [showAllStopped, setShowAllStopped] = useState(false)
   const [activitySourceFilter, setActivitySourceFilter] = useState<'all' | 'persona' | 'pipeline' | 'env'>('all')
   const [activityLevelFilter, setActivityLevelFilter] = useState<'all' | 'info' | 'warn' | 'error'>('all')
   const [activityProjectFilter, setActivityProjectFilter] = useState<string>('all')
@@ -463,9 +575,10 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
       <div className="panel-header" style={{ WebkitAppRegion: 'drag', paddingTop: 44 } as React.CSSProperties & { WebkitAppRegion?: string }}>
         <h2><Home size={16} /> Colony Overview</h2>
         <div className="panel-header-tabs">
-          <button className={`panel-header-tab${tab === 'dashboard' ? ' active' : ''}`} onClick={() => setTab('dashboard')}>Dashboard</button>
-          <button className={`panel-header-tab${tab === 'timeline' ? ' active' : ''}`} onClick={() => setTab('timeline')}><GanttChart size={11} /> Timeline</button>
-          <button className={`panel-header-tab${tab === 'changes' ? ' active' : ''}`} onClick={() => setTab('changes')}><GitCompareArrows size={11} /> Changes</button>
+          <button className={`panel-header-tab${tab === 'dashboard' ? ' active' : ''}`} onClick={() => { setTab('dashboard'); localStorage.setItem('colony-overview-tab', 'dashboard') }}>Dashboard</button>
+          <button className={`panel-header-tab${tab === 'board' ? ' active' : ''}`} onClick={() => { setTab('board'); localStorage.setItem('colony-overview-tab', 'board') }}>Board</button>
+          <button className={`panel-header-tab${tab === 'timeline' ? ' active' : ''}`} onClick={() => { setTab('timeline'); localStorage.setItem('colony-overview-tab', 'timeline') }}><GanttChart size={11} /> Timeline</button>
+          <button className={`panel-header-tab${tab === 'changes' ? ' active' : ''}`} onClick={() => { setTab('changes'); localStorage.setItem('colony-overview-tab', 'changes') }}><GitCompareArrows size={11} /> Changes</button>
         </div>
         <div className="panel-header-spacer" />
         <HelpPopover topic="overview" align="right" />
@@ -475,6 +588,16 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
         <SessionTimeline instances={instances} onFocusInstance={onFocusInstance} />
       ) : tab === 'changes' ? (
         <OverviewChangesTab />
+      ) : tab === 'board' ? (
+        <SessionBoardView
+          instances={instances}
+          personas={personas}
+          staleSessions={staleSessions}
+          setCtxMenu={setCtxMenu}
+          onFocusInstance={onFocusInstance}
+          showAllStopped={showAllStopped}
+          setShowAllStopped={setShowAllStopped}
+        />
       ) : (
       <div className="colony-overview-content">
         {/* Stats row */}
