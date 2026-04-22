@@ -686,6 +686,7 @@ export async function runParallel(
         completedAt: end,
         success: !stageError,
         error: stageError,
+        cost: stageCost || undefined,
       }
     }
     return { cost: stageCost, i }

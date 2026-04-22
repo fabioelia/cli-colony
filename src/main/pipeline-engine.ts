@@ -427,6 +427,7 @@ export interface PipelineStageTrace {
   subStages?: PipelineStageTrace[] // parallel sub-stage results
   retryCount?: number // how many retry attempts were needed (0 = succeeded first try)
   onFailureFired?: boolean // true if on_failure recovery action was triggered
+  cost?: number // USD cost for this stage (including retries)
 }
 
 export interface PipelineRunEntry {
@@ -1765,6 +1766,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
           subStages: stageSubStages,
           retryCount: stageRetryCount,
           onFailureFired: stageOnFailureFired,
+          cost: stageCost || undefined,
         })
       }
       totalCost += stageCost

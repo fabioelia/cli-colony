@@ -16038,6 +16038,12 @@ button.session-trigger-chain-btn:hover {
   cursor: default;
 }
 
+.pipeline-history-stage-cost {
+  font-size: 10px;
+  color: var(--success);
+  margin-left: 4px;
+}
+
 .pipeline-history-stage-snippet {
   color: var(--text-muted);
   font-size: 9px;

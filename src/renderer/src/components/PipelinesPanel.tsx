@@ -423,7 +423,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [artifactFiles, setArtifactFiles] = useState<Array<{ name: string; size: number; modifiedAt: string }>>([])
   const [artifactPreview, setArtifactPreview] = useState<{ name: string; content: string } | null>(null)
   const [expandedTab, setExpandedTab] = useState<'yaml' | 'flow' | 'docs' | 'memory' | 'outputs' | 'history' | 'debug' | 'artifacts'>('yaml')
-  type StageTrace = { index: number; actionType: string; sessionName?: string; sessionId?: string; model?: string; autoResolved?: boolean; durationMs: number; startedAt?: number; completedAt?: number; success: boolean; error?: string; responseSnippet?: string; subStages?: StageTrace[] }
+  type StageTrace = { index: number; actionType: string; sessionName?: string; sessionId?: string; model?: string; autoResolved?: boolean; durationMs: number; startedAt?: number; completedAt?: number; success: boolean; error?: string; responseSnippet?: string; subStages?: StageTrace[]; cost?: number }
   type TriggerContext = { cronExpr?: string; scheduledAt?: string; matchedPRs?: number[]; newCommits?: string[]; matchedFiles?: string[] }
   const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; sessionIds?: string[]; stages?: StageTrace[]; dedupAttempt?: number; dedupMaxRetries?: number; triggerContext?: TriggerContext }>>([])
   const [expandedHistoryRows, setExpandedHistoryRows] = useState<Set<number>>(new Set())
@@ -2330,6 +2330,9 @@ ${modelLine}  prompt: |
                                           {stage.model && <span className="pipeline-history-stage-model" title={stage.model}>· {stage.model.replace(/^claude-/, '').split('-')[0]}{stage.autoResolved ? ' · auto' : ''}</span>}
                                           {stage.responseSnippet && <span className="pipeline-history-stage-snippet" title={stage.responseSnippet}>{stage.responseSnippet.length > 60 ? stage.responseSnippet.slice(0, 60) + '…' : stage.responseSnippet}</span>}
                                           <span className="pipeline-history-duration">{stage.durationMs < 1000 ? `${stage.durationMs}ms` : `${(stage.durationMs / 1000).toFixed(1)}s`}</span>
+                                          {stage.cost != null && stage.cost > 0.001 && (
+                                            <span className="pipeline-history-stage-cost">${stage.cost.toFixed(3)}</span>
+                                          )}
                                           {stage.error && <span className="pipeline-history-stage-error" title={stage.error}>err</span>}
                                         </div>
                                         {stage.startedAt != null && (
@@ -2399,6 +2402,9 @@ ${modelLine}  prompt: |
                                                       : <span className="pipeline-history-stage-name">{sub.sessionName}</span>
                                                   )}
                                                   <span className="pipeline-history-duration">{sub.durationMs < 1000 ? `${sub.durationMs}ms` : `${(sub.durationMs / 1000).toFixed(1)}s`}</span>
+                                                  {sub.cost != null && sub.cost > 0.001 && (
+                                                    <span className="pipeline-history-stage-cost">${sub.cost.toFixed(3)}</span>
+                                                  )}
                                                   {sub.error && <span className="pipeline-history-stage-error" title={sub.error}>err</span>}
                                                 </div>
                                                 {previewSessionId === sub.sessionId && (() => {
