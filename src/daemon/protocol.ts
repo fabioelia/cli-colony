@@ -17,7 +17,7 @@ export interface CreateOpts {
   parentId?: string
   cliBackend?: CliBackend
   model?: string
-  permissionMode?: 'autonomous' | 'supervised'
+  permissionMode?: 'autonomous' | 'supervised' | 'auto'
   env?: Record<string, string>
   pipelineName?: string
   pipelineRunId?: string
@@ -77,7 +77,7 @@ export type DaemonMessage = DaemonResponse | DaemonEvent
  * requires a daemon restart to pick up. The client checks this on connect
  * and shows a banner if stale.
  */
-export const DAEMON_VERSION = 42
+export const DAEMON_VERSION = 43
 
 export const SOCKET_PATH_SUFFIX = '.claude-colony/daemon.sock'
 export const PID_PATH_SUFFIX = '.claude-colony/daemon.pid'

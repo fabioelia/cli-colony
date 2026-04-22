@@ -11,7 +11,7 @@ export interface CloneSource {
   workingDirectory: string
   color: string
   cliBackend: CliBackend
-  permissionMode?: 'autonomous' | 'supervised'
+  permissionMode?: 'autonomous' | 'supervised' | 'auto'
   mcpServers: string[]
   args: string[]
 }
@@ -31,7 +31,7 @@ interface Props {
     cliBackend?: CliBackend
     mcpServers?: string[]
     initialPrompt?: string
-    permissionMode?: 'autonomous' | 'supervised'
+    permissionMode?: 'autonomous' | 'supervised' | 'auto'
     planFirst?: boolean
     env?: Record<string, string>
     jiraTicket?: JiraTicket
@@ -108,7 +108,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
     return filtered.join(' ')
   })
   const [cliBackend, setCliBackend] = useState<CliBackend>(cloneSource?.cliBackend || 'claude')
-  const [permissionMode, setPermissionMode] = useState<'autonomous' | 'supervised'>(cloneSource?.permissionMode || 'autonomous')
+  const [permissionMode, setPermissionMode] = useState<'autonomous' | 'supervised' | 'auto'>(cloneSource?.permissionMode || 'autonomous')
   const [creating, setCreating] = useState(false)
   const [environments, setEnvironments] = useState<EnvOption[]>([])
   const [mcpServersList, setMcpServersList] = useState<McpServer[]>([])
@@ -631,6 +631,13 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
             </button>
             <button
               type="button"
+              className={`dialog-permission-btn ${permissionMode === 'auto' ? 'active' : ''}`}
+              onClick={() => setPermissionMode('auto')}
+            >
+              Auto
+            </button>
+            <button
+              type="button"
               className={`dialog-permission-btn ${permissionMode === 'supervised' ? 'active' : ''}`}
               onClick={() => setPermissionMode('supervised')}
             >
@@ -640,6 +647,8 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
           <div className="dialog-field-hint">
             {permissionMode === 'supervised'
               ? 'Claude will ask before risky actions (file writes, commands).'
+              : permissionMode === 'auto'
+              ? 'AI classifier auto-approves safe actions, gates dangerous ones.'
               : 'Claude runs with full permissions (default).'}
           </div>
         </div>

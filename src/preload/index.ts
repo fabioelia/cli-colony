@@ -59,7 +59,7 @@ export interface ClaudeManagerAPI {
       parentId?: string
       cliBackend?: CliBackend
       mcpServers?: string[]
-      permissionMode?: 'autonomous' | 'supervised'
+      permissionMode?: 'autonomous' | 'supervised' | 'auto'
       env?: Record<string, string>
       ticket?: { source: 'jira'; key: string; summary: string; url?: string }
     }) => Promise<ClaudeInstance>

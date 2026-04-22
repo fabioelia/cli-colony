@@ -461,7 +461,7 @@ export async function createInstance(opts: {
   cliBackend?: CliBackend
   mcpServers?: string[]
   model?: string
-  permissionMode?: 'autonomous' | 'supervised'
+  permissionMode?: 'autonomous' | 'supervised' | 'auto'
   env?: Record<string, string>
   pipelineName?: string
   pipelineRunId?: string

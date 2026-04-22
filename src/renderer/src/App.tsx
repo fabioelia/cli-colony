@@ -471,7 +471,7 @@ export default function App() {
     cliBackend?: CliBackend
     mcpServers?: string[]
     initialPrompt?: string
-    permissionMode?: 'autonomous' | 'supervised'
+    permissionMode?: 'autonomous' | 'supervised' | 'auto'
     planFirst?: boolean
     env?: Record<string, string>
     jiraTicket?: JiraTicket

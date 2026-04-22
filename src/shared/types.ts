@@ -46,7 +46,7 @@ export interface ClaudeInstance {
   lastSessionId?: string
   pendingSteer?: string
   toolDeferredInfo?: { toolName: string; toolArgs?: string; sessionId: string }
-  permissionMode?: 'autonomous' | 'supervised'
+  permissionMode?: 'autonomous' | 'supervised' | 'auto'
   note?: string
   budgetExceeded?: boolean
   daemonId?: string
@@ -591,7 +591,7 @@ export interface SessionTemplate {
   workingDir?: string
   role?: string
   initialPrompt?: string
-  permissionMode?: 'autonomous' | 'supervised'
+  permissionMode?: 'autonomous' | 'supervised' | 'auto'
   planFirst?: boolean
   lastUsed?: number
   launchCount?: number

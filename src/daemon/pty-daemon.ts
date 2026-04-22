@@ -294,13 +294,15 @@ function buildSpawn(
   defaultArgs: string[],
   userArgs: string[],
   model?: string,
-  permissionMode?: 'autonomous' | 'supervised',
+  permissionMode?: 'autonomous' | 'supervised' | 'auto',
 ): { command: string; argv: string[] } {
   if (cliBackend === 'cursor-agent') {
     return { command: resolveCommand('agent'), argv: [...defaultArgs, ...userArgs] }
   }
   const modelArgs = model ? ['--model', model] : []
-  const permArgs = permissionMode === 'supervised' ? [] : ['--dangerously-skip-permissions']
+  const permArgs = permissionMode === 'supervised' ? []
+    : permissionMode === 'auto' ? ['--permission-mode', 'auto']
+    : ['--dangerously-skip-permissions']
 
   // Consolidate all system prompt sources into a single file to avoid
   // Claude CLI's "Cannot use both --append-system-prompt and --append-system-prompt-file" error.
