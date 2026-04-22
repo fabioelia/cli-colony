@@ -20424,13 +20424,13 @@ button.session-trigger-chain-btn:hover {
   margin-top: 1px;
 }
 .persona-list-brief.persona-working-status-inline {
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   font-style: italic;
 }
 .persona-working-status {
   display: block;
   font-size: 10px;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   font-style: italic;
   overflow: hidden;
   text-overflow: ellipsis;
