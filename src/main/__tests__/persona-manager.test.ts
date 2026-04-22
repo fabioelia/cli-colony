@@ -151,6 +151,7 @@ function setupMocks(fsMock: ReturnType<typeof buildFsMock>) {
       schedulerLog: SCHEDULER_LOG,
       colonyContext: `${MOCK_ROOT}/colony-context.md`,
       knowledgeBase: KNOWLEDGE_PATH,
+      coordination: `${MOCK_ROOT}/coordination`,
     },
   }))
   vi.doMock('fs', () => fsMock)
