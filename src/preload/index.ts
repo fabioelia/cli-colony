@@ -122,6 +122,7 @@ export interface ClaudeManagerAPI {
       matches: Array<{ lineNum: number; line: string; contextBefore: string; contextAfter: string }>
     }>>
     idleInfo: () => Promise<Array<{ id: string; idleMs: number }>>
+    launchReview: (sessionId: string, model: string) => Promise<string>
   }
   daemon: {
     restart: () => Promise<void>
@@ -803,6 +804,7 @@ const api: ClaudeManagerAPI = {
     recent: () => ipcRenderer.invoke('sessions:recent'),
     searchOutput: (query) => ipcRenderer.invoke('sessions:searchOutput', query),
     idleInfo: () => ipcRenderer.invoke('sessions:idleInfo') as Promise<Array<{ id: string; idleMs: number }>>,
+    launchReview: (sessionId: string, model: string) => ipcRenderer.invoke('sessions:launchReview', sessionId, model) as Promise<string>,
   },
   daemon: {
     restart: () => ipcRenderer.invoke('daemon:restart'),

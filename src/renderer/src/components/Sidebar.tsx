@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, GitBranch, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock, RotateCcw, DollarSign, ArrowUpDown, ArrowLeft, Tag } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, GitBranch, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock, RotateCcw, DollarSign, ArrowUpDown, ArrowLeft, Tag, Cpu } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate, ErrorSummary } from '../../../shared/types'
@@ -964,6 +964,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const [editingTagsInput, setEditingTagsInput] = useState('')
   const [editingTagsPos, setEditingTagsPos] = useState<{ x: number; y: number } | null>(null)
   const [sessionContextMenu, setSessionContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
+  const [reviewSubmenuOpen, setReviewSubmenuOpen] = useState(false)
   const [retryTarget, setRetryTarget] = useState<ClaudeInstance | null>(null)
   const [sendingMessageTo, setSendingMessageTo] = useState<string | null>(null)
   const [messageText, setMessageText] = useState('')
@@ -2407,7 +2408,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
       {contextMenu && (
         <div
           className="context-menu-overlay"
-          onClick={() => setContextMenu(null)}
+          onClick={() => { setContextMenu(null); setReviewSubmenuOpen(false) }}
         >
           <div
             className="context-menu"
@@ -2515,6 +2516,45 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             >
               <Copy size={12} /> Clone
             </button>
+            {(() => {
+              const inst = instances.find(i => i.id === contextMenu.id)
+              const REVIEW_MODELS = ['claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'] as const
+              const modelIdx = inst?.args.indexOf('--model') ?? -1
+              const sessionModel = modelIdx >= 0 ? inst!.args[modelIdx + 1] : null
+              const reviewModels = REVIEW_MODELS.filter(m => m !== sessionModel)
+              return inst?.workingDirectory ? (
+                <div className="context-menu-submenu-wrapper">
+                  <button
+                    className="context-menu-item context-menu-item--has-submenu"
+                    onClick={() => setReviewSubmenuOpen(v => !v)}
+                    title="Launch a second-opinion review session using a different model"
+                  >
+                    <Cpu size={12} /> Review with... <ChevronRight size={10} style={{ marginLeft: 'auto' }} />
+                  </button>
+                  {reviewSubmenuOpen && (
+                    <div className="context-menu-submenu">
+                      {reviewModels.map(m => (
+                        <button
+                          key={m}
+                          className="context-menu-item"
+                          onClick={async () => {
+                            setContextMenu(null)
+                            setReviewSubmenuOpen(false)
+                            try {
+                              await window.api.sessions.launchReview(inst.id, m)
+                            } catch (err) {
+                              console.error('Review launch failed:', err)
+                            }
+                          }}
+                        >
+                          {m.includes('opus') ? 'Opus 4' : m.includes('haiku') ? 'Haiku 4.5' : 'Sonnet 4.6'}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : null
+            })()}
             {(() => {
               const inst = instances.find(i => i.id === contextMenu.id)
               return inst?.status === 'exited' && (inst.args.length > 0 || inst.workingDirectory) ? (

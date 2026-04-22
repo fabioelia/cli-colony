@@ -6415,6 +6415,30 @@ body:has(.daemon-update-banner) .app-update-banner {
 .send-message-input textarea { width: 100%; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary); padding: 8px; font-size: 12px; font-family: inherit; resize: vertical; box-sizing: border-box; }
 .send-message-hint { font-size: 10px; color: var(--text-muted); margin-top: 4px; }
 
+.context-menu-submenu-wrapper {
+  position: relative;
+}
+
+.context-menu-item--has-submenu {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.context-menu-submenu {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  min-width: 140px;
+  padding: 4px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 10001;
+  margin-left: 2px;
+}
+
 .context-menu-section {
   padding: 6px 8px 8px;
   border-top: 1px solid var(--border-subtle);

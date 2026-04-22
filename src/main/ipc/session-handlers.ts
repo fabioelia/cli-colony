@@ -8,7 +8,7 @@ import {
   searchSessions, takeoverSession,
 } from '../session-scanner'
 import { getRestorableSessions, clearRestorable, getRecentSessions } from '../recent-sessions'
-import { getAllInstances, getIdleInfo } from '../instance-manager'
+import { getAllInstances, getIdleInfo, createInstance } from '../instance-manager'
 import { getContextUsage, getAllContextUsage, tokenizeApproximate } from '../context-counter'
 import { getArtifact } from '../session-artifacts'
 import { getDaemonRouter } from '../daemon-router'
@@ -104,6 +104,43 @@ export function registerSessionHandlers(): void {
     if (result.canceled || !result.filePath) return false
     await fsp.writeFile(result.filePath, md, 'utf-8')
     return true
+  })
+
+  ipcMain.handle('sessions:launchReview', async (_e, instanceId: string, model: string): Promise<string> => {
+    const instances = await getAllInstances()
+    const inst = instances.find(i => i.id === instanceId)
+    if (!inst) throw new Error('Session not found')
+
+    let diff = ''
+    if (inst.workingDirectory) {
+      try {
+        const { stdout } = await execFileAsync(
+          resolveCommand('git'), ['diff', 'HEAD'],
+          { encoding: 'utf-8', timeout: 10000, cwd: inst.workingDirectory }
+        )
+        diff = stdout
+        if (diff.length > 50 * 1024) {
+          diff = diff.slice(0, 50 * 1024) + '\n\n[...truncated]'
+        }
+      } catch {
+        diff = ''
+      }
+    }
+
+    const diffSection = diff.trim()
+      ? `## Changes\n\`\`\`diff\n${diff.trim()}\n\`\`\``
+      : '## Changes\n_(No uncommitted changes found — reviewing the session context and work done.)_'
+
+    const reviewPrompt = `You are reviewing work done by another session named "${inst.name || 'unnamed'}". Analyze for correctness, edge cases, missed error handling, and improvements.\n\n${diffSection}\n\nProvide a focused review: what's good, what's risky, what to change.`
+
+    const reviewInst = await createInstance({
+      name: `Review: ${inst.name || 'unnamed'}`,
+      workingDirectory: inst.workingDirectory,
+      args: ['--model', model, '-p', reviewPrompt],
+      parentId: instanceId,
+    })
+
+    return reviewInst.id
   })
 }
 
