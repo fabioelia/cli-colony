@@ -557,6 +557,7 @@ export interface ClaudeManagerAPI {
     bisectReset: (cwd: string) => Promise<void>
     bisectLog: (cwd: string) => Promise<string>
     dirtyFileCount: (cwd: string) => Promise<{ count: number }>
+    diffShortstat: (cwd: string) => Promise<{ insertions: number; deletions: number }>
     changedFiles: (cwd: string) => Promise<Array<{ file: string; status: string; staged: boolean }>>
     aheadBehindCommits: (cwd: string, branch: string) => Promise<{ ahead: Array<{ hash: string; subject: string }>; behind: Array<{ hash: string; subject: string }> }>
     exportPatch: (cwd: string, mode: 'working' | 'base' | 'commit', options?: { baseBranch?: string; hash?: string; file?: string }) => Promise<string>
@@ -1300,6 +1301,7 @@ const api: ClaudeManagerAPI = {
     bisectReset: (cwd) => ipcRenderer.invoke('git:bisectReset', cwd) as Promise<void>,
     bisectLog: (cwd) => ipcRenderer.invoke('git:bisectLog', cwd) as Promise<string>,
     dirtyFileCount: (cwd) => ipcRenderer.invoke('git:dirtyFileCount', cwd) as Promise<{ count: number }>,
+    diffShortstat: (cwd) => ipcRenderer.invoke('git:diffShortstat', cwd) as Promise<{ insertions: number; deletions: number }>,
     changedFiles: (cwd) => ipcRenderer.invoke('git:changedFiles', cwd) as Promise<Array<{ file: string; status: string; staged: boolean }>>,
     aheadBehindCommits: (cwd, branch) => ipcRenderer.invoke('git:aheadBehindCommits', cwd, branch) as Promise<{ ahead: Array<{ hash: string; subject: string }>; behind: Array<{ hash: string; subject: string }> }>,
     exportPatch: (cwd, mode, options) => ipcRenderer.invoke('git:exportPatch', cwd, mode, options) as Promise<string>,

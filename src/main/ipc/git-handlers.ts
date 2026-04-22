@@ -1075,6 +1075,16 @@ export function registerGitHandlers(): void {
     } catch { return { count: 0 } }
   })
 
+  ipcMain.handle('git:diffShortstat', async (_e, cwd: string): Promise<{ insertions: number; deletions: number }> => {
+    try {
+      await assertGitRepo(cwd)
+      const { stdout } = await execFileAsync(resolveCommand('git'), ['diff', '--shortstat'], { cwd, timeout: 5000, encoding: 'utf-8' })
+      const ins = stdout.match(/(\d+) insertion/)
+      const del = stdout.match(/(\d+) deletion/)
+      return { insertions: ins ? parseInt(ins[1]) : 0, deletions: del ? parseInt(del[1]) : 0 }
+    } catch { return { insertions: 0, deletions: 0 } }
+  })
+
   ipcMain.handle('git:changedFiles', async (_e, cwd: string): Promise<Array<{ file: string; status: string; staged: boolean }>> => {
     try {
       await assertGitRepo(cwd)

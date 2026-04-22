@@ -7379,6 +7379,20 @@ button.session-trigger-chain-btn:hover {
   100% { opacity: 1; }
 }
 
+/* Diff stats badge — +insertions -deletions on sidebar tiles */
+.instance-diff-badge {
+  font-size: 9px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--text-muted) 8%, transparent);
+  display: inline-flex;
+  gap: 3px;
+}
+.diff-plus { color: var(--green, #3fb950); }
+.diff-minus { color: var(--danger, #f85149); }
+
 /* Idle / stale session badge — amber idle, red stale */
 .instance-idle-badge {
   font-size: 9px;
