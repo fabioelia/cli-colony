@@ -1810,6 +1810,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                 className="instance-list-divider session-group-header"
                 style={{ cursor: 'pointer', position: 'relative' }}
                 onClick={() => { toggleGroupCollapse(label); setGroupMenuTarget(null) }}
+                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setGroupMenuTarget(groupMenuTarget === label ? null : label); setGroupPromptTarget(null) }}
               >
                 {collapsedGroups.has(label) ? <ChevronRight size={11} /> : <ChevronDown size={11} />}
                 {groupBy === 'pipeline' && label !== 'Manual Sessions' && (() => {
@@ -1839,10 +1840,15 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                 {groupMenuTarget === label && (() => {
                   const runningIds = items.filter(i => i.status === 'running').map(i => i.id)
                   const stoppedIds = items.filter(i => i.status !== 'running').map(i => i.id)
+                  const otherLabels = groupedSections!.map(s => s.label).filter(l => l !== label)
                   return (
                     <div className="session-group-menu" onClick={e => e.stopPropagation()}>
                       {runningIds.length > 0 && (
-                        <button className="session-group-menu-item" onClick={() => { runningIds.forEach(id => onKill(id)); setGroupMenuTarget(null) }}>
+                        <button className="session-group-menu-item" onClick={() => {
+                          if (runningIds.length > 3 && !confirm(`Stop ${runningIds.length} running sessions in "${label}"?`)) return
+                          runningIds.forEach(id => onKill(id))
+                          setGroupMenuTarget(null)
+                        }}>
                           Stop All ({runningIds.length})
                         </button>
                       )}
@@ -1854,6 +1860,13 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                       {runningIds.length > 0 && (
                         <button className="session-group-menu-item" onClick={() => { setGroupPromptTarget(label); setGroupMenuTarget(null) }}>
                           Send Prompt…
+                        </button>
+                      )}
+                      {otherLabels.length > 0 && (
+                        <button className="session-group-menu-item" onClick={() => {
+                          setCollapsedGroups(prev => { const next = new Set(prev); otherLabels.forEach(l => next.add(l)); return next }); setGroupMenuTarget(null)
+                        }}>
+                          Collapse Others
                         </button>
                       )}
                     </div>
@@ -2273,7 +2286,13 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
           {sessionGroupedSections ? (
             sessionGroupedSections.map(({ label, items, count }) => (
               <div key={label}>
-                <div className="instance-list-divider session-group-header" style={{ cursor: 'pointer' }} onClick={() => toggleSessionGroupCollapse(label)}>
+                <div className="instance-list-divider session-group-header" style={{ cursor: 'pointer' }} onClick={() => toggleSessionGroupCollapse(label)}
+                  onContextMenu={(e) => {
+                    e.preventDefault()
+                    const otherLabels = sessionGroupedSections!.map(s => s.label).filter(l => l !== label)
+                    if (otherLabels.length > 0) setSessionCollapsedGroups(prev => { const next = new Set(prev); otherLabels.forEach(l => next.add(l)); return next })
+                  }}
+                >
                   {sessionCollapsedGroups.has(label) ? <ChevronRight size={11} /> : <ChevronDown size={11} />}
                   {label}
                   <span className="session-group-count">{count}</span>
