@@ -428,6 +428,14 @@ export interface PipelineRunEntry {
   dedupMaxRetries?: number
   /** HEAD commit hash at the time of the run — used by files-changed condition as baseline */
   headCommit?: string
+  /** Structured trigger context — why this run fired */
+  triggerContext?: {
+    cronExpr?: string
+    scheduledAt?: string
+    matchedPRs?: number[]
+    newCommits?: string[]
+    matchedFiles?: string[]
+  }
 }
 
 const MAX_HISTORY_ENTRIES = 20
@@ -1417,6 +1425,9 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
   let runDedupAttempt: number | undefined
   let runDedupMaxRetries: number | undefined
   let headCommitForHistory: string | undefined
+  const tcMatchedPRs: number[] = []
+  const tcNewCommits: string[] = []
+  const tcMatchedFiles: string[] = []
 
   try {
     // Fetch configured repo slugs once for template resolution
@@ -1736,6 +1747,9 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
 
       await recordFired(pipelineName, dedupKey, ctx.contentSha, stageSessionId)
       fired = true
+      if (ctx.pr?.number != null) tcMatchedPRs.push(ctx.pr.number)
+      if (ctx.contentSha) tcNewCommits.push(ctx.contentSha)
+      if (ctx.filesChangedMatches) tcMatchedFiles.push(...ctx.filesChangedMatches.slice(0, 10))
       plog(pipelineName, `✓ action fired successfully`)
       const firedSummary = ctx.pr
         ? `Pipeline "${pipelineName}" fired for PR #${ctx.pr.number} (${ctx.pr.branch})`
@@ -1794,6 +1808,24 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
       }
     }
 
+    // Build trigger context for debugging ("why did this fire?")
+    let triggerContext: PipelineRunEntry['triggerContext']
+    if (p.def.trigger.type === 'cron') {
+      triggerContext = {
+        cronExpr: p.def.trigger.cron ?? undefined,
+        scheduledAt: new Date().toISOString(),
+      }
+    } else if (p.def.trigger.type === 'git-poll') {
+      const uniqueCommits = [...new Set(tcNewCommits)]
+      triggerContext = {
+        matchedPRs: tcMatchedPRs.length ? tcMatchedPRs : undefined,
+        newCommits: uniqueCommits.length ? uniqueCommits : undefined,
+        matchedFiles: tcMatchedFiles.length ? [...new Set(tcMatchedFiles)].slice(0, 10) : undefined,
+      }
+    } else if (p.def.trigger.type === 'file-poll') {
+      triggerContext = { scheduledAt: new Date().toISOString() }
+    }
+
     // Record run history
     await appendHistory(pipelineName, {
       ts: new Date().toISOString(),
@@ -1808,6 +1840,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
       dedupAttempt: runDedupAttempt,
       dedupMaxRetries: runDedupMaxRetries,
       headCommit: headCommitForHistory,
+      triggerContext,
     })
 
     // Trim debug log to the last N iterations

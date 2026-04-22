@@ -183,6 +183,18 @@ function formatDuration(ms: number): string {
   return remainSecs > 0 ? `${mins}m ${remainSecs}s` : `${mins}m`
 }
 
+function summarizeTriggerContext(tc: { cronExpr?: string; scheduledAt?: string; matchedPRs?: number[]; newCommits?: string[]; matchedFiles?: string[] }): string {
+  if (tc.cronExpr) return `cron: ${tc.cronExpr}`
+  if (tc.matchedPRs?.length) {
+    const prs = tc.matchedPRs.map(n => `#${n}`).join(', ')
+    const files = tc.matchedFiles?.length ? `, ${tc.matchedFiles.length} file(s) changed` : ''
+    return `PR ${prs}${files}`
+  }
+  if (tc.matchedFiles?.length) return `${tc.matchedFiles.length} file(s) changed`
+  if (tc.scheduledAt) return `at ${new Date(tc.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+  return 'trigger details'
+}
+
 const TL_COLORS = [
   '#34d399', '#60a5fa', '#f59e0b', '#f87171', '#a78bfa', '#fb923c',
   '#4ade80', '#38bdf8', '#e879f9', '#facc15',
@@ -411,8 +423,10 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [artifactPreview, setArtifactPreview] = useState<{ name: string; content: string } | null>(null)
   const [expandedTab, setExpandedTab] = useState<'yaml' | 'flow' | 'docs' | 'memory' | 'outputs' | 'history' | 'debug' | 'artifacts'>('yaml')
   type StageTrace = { index: number; actionType: string; sessionName?: string; sessionId?: string; model?: string; autoResolved?: boolean; durationMs: number; startedAt?: number; completedAt?: number; success: boolean; error?: string; responseSnippet?: string; subStages?: StageTrace[] }
-  const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; sessionIds?: string[]; stages?: StageTrace[]; dedupAttempt?: number; dedupMaxRetries?: number }>>([])
+  type TriggerContext = { cronExpr?: string; scheduledAt?: string; matchedPRs?: number[]; newCommits?: string[]; matchedFiles?: string[] }
+  const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; sessionIds?: string[]; stages?: StageTrace[]; dedupAttempt?: number; dedupMaxRetries?: number; triggerContext?: TriggerContext }>>([])
   const [expandedHistoryRows, setExpandedHistoryRows] = useState<Set<number>>(new Set())
+  const [expandedTriggerRows, setExpandedTriggerRows] = useState<Set<number>>(new Set())
   const [comparedRuns, setComparedRuns] = useState<Set<number>>(new Set())
   const [showComparison, setShowComparison] = useState(false)
   const [historyFilterFailures, setHistoryFilterFailures] = useState(false)
@@ -2197,6 +2211,22 @@ ${modelLine}  prompt: |
                                       </div>
                                     : <div className="pipeline-history-error-line no-error">action failed (no error captured)</div>
                                 )}
+                                {entry.triggerContext && (() => {
+                                  const tcExpanded = expandedTriggerRows.has(i)
+                                  const toggleTc = (e: React.MouseEvent) => {
+                                    e.stopPropagation()
+                                    setExpandedTriggerRows(prev => { const next = new Set(prev); if (next.has(i)) next.delete(i); else next.add(i); return next })
+                                  }
+                                  return (
+                                    <div className="pipeline-trigger-context" onClick={toggleTc}>
+                                      {tcExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                                      <span className="trigger-summary">{summarizeTriggerContext(entry.triggerContext)}</span>
+                                      {tcExpanded && (
+                                        <pre className="trigger-detail">{JSON.stringify(entry.triggerContext, null, 2)}</pre>
+                                      )}
+                                    </div>
+                                  )
+                                })()}
                                 {hasStages && isExpanded && (() => {
                                   const totalDuration = entry.stages!.reduce((sum, s) => sum + s.durationMs, 0)
                                   const hasTimingData = entry.stages!.some(s => s.startedAt != null)

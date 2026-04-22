@@ -243,12 +243,6 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
             {inst.pinned && <span className="instance-pin-icon" title="Pinned"><Pin size={11} /></span>}
             {inst.name}
           </div>
-          {inst.gitBranch && inst.gitBranch !== 'main' && inst.gitBranch !== 'master' && (
-            <div className="instance-branch" title={inst.gitBranch}>
-              <GitBranch size={10} />
-              {inst.gitBranch}
-            </div>
-          )}
           {(() => {
             const badges: Array<{ node: React.ReactNode; label: string }> = []
             if (splitBadge === 'left')
@@ -273,6 +267,11 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
             const modelLabel = getModelLabel(inst.args)
             if (modelLabel)
               badges.push({ node: <span key="ml" className="instance-model-badge" title={inst.args[inst.args.indexOf('--model') + 1]}>{modelLabel}</span>, label: modelLabel })
+            const DEFAULT_BRANCHES = ['main', 'master', 'develop']
+            if (inst.gitBranch && !DEFAULT_BRANCHES.includes(inst.gitBranch)) {
+              const display = inst.gitBranch.length > 20 ? inst.gitBranch.slice(0, 20) + '…' : inst.gitBranch
+              badges.push({ node: <span key="br" className="instance-branch-badge" title={`Branch: ${inst.gitBranch} (click to copy)`} onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(inst.gitBranch!) }}><GitBranch size={10} />{' '}{display}</span>, label: inst.gitBranch })
+            }
             if (inst.mcpServers.length > 0)
               badges.push({ node: <span key="mc" className="instance-mcp-badge" title={inst.mcpServers.join(', ')}>MCP {inst.mcpServers.length}</span>, label: `MCP ${inst.mcpServers.length}` })
             if (inst.cliBackend === 'cursor-agent')
