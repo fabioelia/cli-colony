@@ -345,6 +345,7 @@ export interface ClaudeManagerAPI {
     createFromTemplate: (templateId: string) => Promise<{ fileName: string } | null>
     compareConfig: (idA: string, idB: string) => Promise<{ a: { name: string; content: string }; b: { name: string; content: string } } | null>
     searchLearnings: (query: string) => Promise<Array<{ personaId: string; personaName: string; type: string; text: string; matchIndex: number }>>
+    previewPrompt: (fileName: string) => Promise<string>
     onStatus: (cb: (personas: PersonaInfo[]) => void) => () => void
     onRun: (cb: (data: { persona: string; instanceId: string }) => void) => () => void
   }
@@ -482,6 +483,11 @@ export interface ClaudeManagerAPI {
     tokenizeApproximate: (text: string) => Promise<number>
     exportMarkdown: (instanceId: string) => Promise<string>
     exportMarkdownToFile: (instanceId: string) => Promise<boolean>
+    addOutputAlert: (instanceId: string, alert: { id: string; pattern: string; isRegex: boolean; oneShot: boolean }) => Promise<void>
+    removeOutputAlert: (instanceId: string, alertId: string) => Promise<void>
+    getOutputAlerts: (instanceId: string) => Promise<Array<{ id: string; pattern: string; isRegex: boolean; oneShot: boolean }>>
+    onAlertsChanged: (callback: (data: { instanceId: string; alerts: Array<{ id: string; pattern: string; isRegex: boolean; oneShot: boolean }> }) => void) => () => void
+    onAlertMatched: (callback: (data: { instanceId: string; alertId: string }) => void) => () => void
   }
   git: {
     stage: (cwd: string, files: string[]) => Promise<void>
@@ -1084,6 +1090,7 @@ const api: ClaudeManagerAPI = {
     createFromTemplate: (templateId) => ipcRenderer.invoke('persona:createFromTemplate', templateId),
     compareConfig: (idA, idB) => ipcRenderer.invoke('persona:compareConfig', idA, idB),
     searchLearnings: (query) => ipcRenderer.invoke('persona:searchLearnings', query),
+    previewPrompt: (fileName) => ipcRenderer.invoke('persona:previewPrompt', fileName),
     onStatus: (cb) => {
       const l = (_e: any, data: PersonaInfo[]) => cb(data)
       ipcRenderer.on('persona:status', l)
@@ -1225,6 +1232,19 @@ const api: ClaudeManagerAPI = {
     tokenizeApproximate: (text) => ipcRenderer.invoke('session:tokenizeApproximate', text),
     exportMarkdown: (instanceId) => ipcRenderer.invoke('session:exportMarkdown', instanceId),
     exportMarkdownToFile: (instanceId) => ipcRenderer.invoke('session:exportMarkdownToFile', instanceId),
+    addOutputAlert: (instanceId, alert) => ipcRenderer.invoke('session:addOutputAlert', instanceId, alert),
+    removeOutputAlert: (instanceId, alertId) => ipcRenderer.invoke('session:removeOutputAlert', instanceId, alertId),
+    getOutputAlerts: (instanceId) => ipcRenderer.invoke('session:getOutputAlerts', instanceId),
+    onAlertsChanged: (callback) => {
+      const listener = (_e: any, data: { instanceId: string; alerts: Array<{ id: string; pattern: string; isRegex: boolean; oneShot: boolean }> }) => callback(data)
+      ipcRenderer.on('session:alertsChanged', listener)
+      return () => ipcRenderer.removeListener('session:alertsChanged', listener)
+    },
+    onAlertMatched: (callback) => {
+      const listener = (_e: any, data: { instanceId: string; alertId: string }) => callback(data)
+      ipcRenderer.on('session:alertMatched', listener)
+      return () => ipcRenderer.removeListener('session:alertMatched', listener)
+    },
   },
   audit: {
     runPanel: (panel, context) => ipcRenderer.invoke('audit:runPanel', panel, context),

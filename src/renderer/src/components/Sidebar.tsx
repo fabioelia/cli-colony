@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, GitBranch, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock, RotateCcw, DollarSign, ArrowUpDown, ArrowLeft, Tag, Cpu } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, GitBranch, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock, RotateCcw, DollarSign, ArrowUpDown, ArrowLeft, Tag, Cpu, AlertCircle } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate, ErrorSummary } from '../../../shared/types'
@@ -91,6 +91,7 @@ interface InstanceItemProps {
   dirtyFileGrowing?: boolean
   diffInsertions?: number
   diffDeletions?: number
+  alertCount?: number
 }
 
 function dirName(path: string) {
@@ -172,7 +173,7 @@ function buildTriggerChain(inst: ClaudeInstance, allInstances: ClaudeInstance[])
   return result
 }
 
-const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcutIndex, isUnread, ctxLevel, splitBadge, focusedPane, isRenaming, renameValue, renameRef, isEditingNote, noteValue, noteRef, onCommitNote, onCancelNote, onNoteChange, callbacks, selectMode, isSelected, onToggleSelect, conflictFiles, errorMessage, idleMs, exitSummary, exitDuration, dirtyFileCount, dirtyFileGrowing, diffInsertions, diffDeletions }: InstanceItemProps) {
+const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcutIndex, isUnread, ctxLevel, splitBadge, focusedPane, isRenaming, renameValue, renameRef, isEditingNote, noteValue, noteRef, onCommitNote, onCancelNote, onNoteChange, callbacks, selectMode, isSelected, onToggleSelect, conflictFiles, errorMessage, idleMs, exitSummary, exitDuration, dirtyFileCount, dirtyFileGrowing, diffInsertions, diffDeletions, alertCount }: InstanceItemProps) {
   return (
     <div
       className={`instance-item ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''}`}
@@ -324,6 +325,8 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
               const label = inst.triggeredBy.length > 15 ? inst.triggeredBy.slice(0, 13) + '…' : inst.triggeredBy
               badges.push({ node: <button key="tb" className="instance-trigger-badge" title={`Triggered by: ${inst.triggeredBy} — click to filter`} onClick={(e) => { e.stopPropagation(); callbacks.onSetPersonaFilter(inst.triggeredBy ?? null) }}><ArrowLeft size={9} />{' '}{label}</button>, label: inst.triggeredBy })
             }
+            if (alertCount && alertCount > 0)
+              badges.push({ node: <span key="al" className="session-alert-badge" title={`${alertCount} output alert${alertCount !== 1 ? 's' : ''} active`}><AlertCircle size={9} /> {alertCount}</span>, label: `${alertCount} alert${alertCount !== 1 ? 's' : ''}` })
             if (badges.length === 0) return null
             return (
               <div className="instance-badges">
@@ -974,6 +977,11 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const [editingTagsPos, setEditingTagsPos] = useState<{ x: number; y: number } | null>(null)
   const [sessionContextMenu, setSessionContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const [reviewSubmenuOpen, setReviewSubmenuOpen] = useState(false)
+  const [alertModalId, setAlertModalId] = useState<string | null>(null)
+  const [alertPattern, setAlertPattern] = useState('')
+  const [alertIsRegex, setAlertIsRegex] = useState(false)
+  const [alertOneShot, setAlertOneShot] = useState(true)
+  const [activeAlerts, setActiveAlerts] = useState<Map<string, Array<{id: string; pattern: string; isRegex: boolean; oneShot: boolean}>>>(new Map())
   const [retryTarget, setRetryTarget] = useState<ClaudeInstance | null>(null)
   const [sendingMessageTo, setSendingMessageTo] = useState<string | null>(null)
   const [messageText, setMessageText] = useState('')
@@ -1022,6 +1030,25 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     if (sessionTagFilter) localStorage.setItem('colony:sessionTagFilter', sessionTagFilter)
     else localStorage.removeItem('colony:sessionTagFilter')
   }, [sessionTagFilter])
+
+  useEffect(() => {
+    const unsubAlertsChanged = window.api.session.onAlertsChanged((data) => {
+      setActiveAlerts(prev => {
+        const next = new Map(prev)
+        next.set(data.instanceId, data.alerts)
+        return next
+      })
+    })
+    const unsubAlertMatched = window.api.session.onAlertMatched((data) => {
+      setActiveAlerts(prev => {
+        const next = new Map(prev)
+        const alerts = next.get(data.instanceId)
+        if (alerts) next.set(data.instanceId, alerts.filter(a => a.id !== data.alertId))
+        return next
+      })
+    })
+    return () => { unsubAlertsChanged(); unsubAlertMatched() }
+  }, [])
 
   // Restore persisted sidebar width on mount, clamped to minimum
   useEffect(() => {
@@ -1464,6 +1491,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
         dirtyFileGrowing={dirtyFileCounts.get(inst.id)?.growing}
         diffInsertions={dirtyFileCounts.get(inst.id)?.insertions}
         diffDeletions={dirtyFileCounts.get(inst.id)?.deletions}
+        alertCount={activeAlerts.get(inst.id)?.length}
       />
     )
     if (!isDraggable) return item
@@ -2499,6 +2527,19 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             >
               <GitFork size={12} /> Fork session...
             </button>
+            <button
+              className="context-menu-item"
+              onClick={() => {
+                setAlertModalId(contextMenu.id)
+                setAlertPattern('')
+                setAlertIsRegex(false)
+                setAlertOneShot(true)
+                setContextMenu(null)
+              }}
+              title="Get notified when a pattern appears in this session's output"
+            >
+              <AlertCircle size={12} /> Add Output Alert...
+            </button>
             {(() => {
               const inst = instances.find(i => i.id === contextMenu.id)
               return inst?.status === 'running' && inst?.activity === 'waiting' ? (
@@ -2703,6 +2744,38 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             >
               {instances.find((i) => i.id === contextMenu.id)?.status === 'running' ? 'Kill' : 'Remove'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {alertModalId && (
+        <div className="modal-overlay" onClick={() => setAlertModalId(null)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <h3>Add Output Alert</h3>
+            <p className="modal-help">Get notified when this pattern appears in session output.</p>
+            <input
+              className="modal-input"
+              placeholder="Pattern to match..."
+              value={alertPattern}
+              onChange={e => setAlertPattern(e.target.value)}
+              autoFocus
+            />
+            <div className="modal-row">
+              <label><input type="checkbox" checked={alertIsRegex} onChange={e => setAlertIsRegex(e.target.checked)} /> Regex</label>
+              <label><input type="checkbox" checked={alertOneShot} onChange={e => setAlertOneShot(e.target.checked)} /> One-shot</label>
+            </div>
+            <div className="modal-actions">
+              <button className="modal-btn" onClick={() => setAlertModalId(null)}>Cancel</button>
+              <button className="modal-btn primary" onClick={async () => {
+                if (!alertPattern.trim()) return
+                const id = `alert-${Date.now()}`
+                await window.api.session.addOutputAlert(alertModalId, { id, pattern: alertPattern.trim(), isRegex: alertIsRegex, oneShot: alertOneShot })
+                setAlertModalId(null)
+                setAlertPattern('')
+                setAlertIsRegex(false)
+                setAlertOneShot(true)
+              }}>Add Alert</button>
+            </div>
           </div>
         </div>
       )}

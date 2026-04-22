@@ -8,7 +8,7 @@ import {
   searchSessions, takeoverSession,
 } from '../session-scanner'
 import { getRestorableSessions, clearRestorable, getRecentSessions } from '../recent-sessions'
-import { getAllInstances, getIdleInfo, createInstance } from '../instance-manager'
+import { getAllInstances, getIdleInfo, createInstance, addOutputAlert, removeOutputAlert, getOutputAlerts } from '../instance-manager'
 import { getContextUsage, getAllContextUsage, tokenizeApproximate } from '../context-counter'
 import { getArtifact } from '../session-artifacts'
 import { getDaemonRouter } from '../daemon-router'
@@ -141,6 +141,16 @@ export function registerSessionHandlers(): void {
     })
 
     return reviewInst.id
+  })
+
+  ipcMain.handle('session:addOutputAlert', (_e, instanceId: string, alert: { id: string; pattern: string; isRegex: boolean; oneShot: boolean }) => {
+    addOutputAlert(instanceId, alert)
+  })
+  ipcMain.handle('session:removeOutputAlert', (_e, instanceId: string, alertId: string) => {
+    removeOutputAlert(instanceId, alertId)
+  })
+  ipcMain.handle('session:getOutputAlerts', (_e, instanceId: string) => {
+    return getOutputAlerts(instanceId)
   })
 }
 

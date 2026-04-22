@@ -48,6 +48,17 @@ const _lastCostCheckAt = new Map<string, number>()
 // Track which instances have already been budget-stopped (prevent double-stop)
 const _budgetStopped = new Set<string>()
 
+interface OutputAlert {
+  id: string
+  pattern: string
+  isRegex: boolean
+  oneShot: boolean
+  _regex?: RegExp  // cached compiled regex
+}
+
+const _outputAlerts = new Map<string, OutputAlert[]>()
+const _outputBuffers = new Map<string, string>()  // line buffer per instance
+
 /** Check if an instance was stopped due to budget exceeded. */
 export function wasBudgetStopped(instanceId: string): boolean {
   return _budgetStopped.has(instanceId)
@@ -174,6 +185,42 @@ export function wireDaemonEvents(): void {
     _lastOutputAt.set(instanceId, Date.now())
     _staleNotified.delete(instanceId)
 
+    // Check output alerts
+    const alerts = _outputAlerts.get(instanceId)
+    if (alerts?.length) {
+      let buf = (_outputBuffers.get(instanceId) ?? '') + data
+      // Keep last 4KB
+      if (buf.length > 4096) buf = buf.slice(-4096)
+      _outputBuffers.set(instanceId, buf)
+      const lines = buf.split('\n')
+      // Keep incomplete last line in buffer
+      _outputBuffers.set(instanceId, lines[lines.length - 1])
+      const completeLines = lines.slice(0, -1).join('\n')
+      if (completeLines) {
+        const remaining: OutputAlert[] = []
+        for (const alert of alerts) {
+          const matched = alert.isRegex && alert._regex
+            ? alert._regex.test(completeLines)
+            : completeLines.toLowerCase().includes(alert.pattern.toLowerCase())
+          if (matched) {
+            router.getInstance(instanceId).then(inst => {
+              notify(
+                `Colony: pattern matched`,
+                `"${alert.pattern}" in ${inst?.name ?? instanceId}`,
+                { type: 'session', id: instanceId }, 'session'
+              )
+            })
+            if (alert.oneShot) {
+              broadcast('session:alertMatched', { instanceId, alertId: alert.id })
+              continue
+            }
+          }
+          remaining.push(alert)
+        }
+        if (remaining.length !== alerts.length) _outputAlerts.set(instanceId, remaining)
+      }
+    }
+
     // Rate-limited persona cost cap check (every 30s)
     if (!_budgetStopped.has(instanceId)) {
       const now = Date.now()
@@ -266,6 +313,8 @@ export function wireDaemonEvents(): void {
     _staleNotified.delete(instanceId)
     _lastCostCheckAt.delete(instanceId)
     _budgetStopped.delete(instanceId)
+    _outputAlerts.delete(instanceId)
+    _outputBuffers.delete(instanceId)
     _instanceTickets.delete(instanceId)
     _instanceTriggeredBy.delete(instanceId)
     onSessionExitCallback?.(instanceId)
@@ -652,4 +701,24 @@ export async function initDaemon(): Promise<void> {
     }
   }
   throw new Error('daemon init failed after 3 attempts')
+}
+
+export function addOutputAlert(instanceId: string, alert: Omit<OutputAlert, '_regex'>): void {
+  const alerts = _outputAlerts.get(instanceId) ?? []
+  const entry: OutputAlert = { ...alert }
+  if (entry.isRegex) {
+    try { entry._regex = new RegExp(entry.pattern, 'i') } catch { entry.isRegex = false }
+  }
+  _outputAlerts.set(instanceId, [...alerts, entry])
+  broadcast('session:alertsChanged', { instanceId, alerts: _outputAlerts.get(instanceId) ?? [] })
+}
+
+export function removeOutputAlert(instanceId: string, alertId: string): void {
+  const alerts = _outputAlerts.get(instanceId)
+  if (alerts) _outputAlerts.set(instanceId, alerts.filter(a => a.id !== alertId))
+  broadcast('session:alertsChanged', { instanceId, alerts: _outputAlerts.get(instanceId) ?? [] })
+}
+
+export function getOutputAlerts(instanceId: string): OutputAlert[] {
+  return _outputAlerts.get(instanceId) ?? []
 }
