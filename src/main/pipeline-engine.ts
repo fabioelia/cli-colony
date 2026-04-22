@@ -65,6 +65,7 @@ export interface RunOverrides {
   model?: string
   workingDirectory?: string
   maxBudget?: number
+  templateVarOverrides?: Record<string, string>
 }
 
 export interface ActionDef {
@@ -622,7 +623,7 @@ async function executePreRunHooks(hooks: Array<{ type: string }>, pipelineName: 
 
 // ---- Template Resolution ----
 
-export function resolveTemplate(template: string, ctx: TriggerContext): string {
+export function resolveTemplate(template: string, ctx: TriggerContext, varOverrides?: Record<string, string>): string {
   // Build a flat context that exposes aliases the pipeline YAML expects:
   // {{github.user}} -> ctx.githubUser, {{timestamp}} -> ctx.timestamp
   const ghPayload = (ctx.webhookPayload as Record<string, unknown> | null) || {}
@@ -641,7 +642,7 @@ export function resolveTemplate(template: string, ctx: TriggerContext): string {
     webhook_payload: JSON.stringify(ctx.webhookPayload || {}),
     ...ghVars,
   }
-  return resolveMustacheTemplate(template, context)
+  return resolveMustacheTemplate(template, { ...context, ...varOverrides })
 }
 
 // ---- Dedup ----
@@ -1075,7 +1076,8 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
   const name = rawName.startsWith('Pipe') ? rawName : `Pipe (${rawName})`
   const cwd = overrides?.workingDirectory?.trim() || resolveTemplate(action.workingDirectory || '', ctx) || undefined
   // Use overrides.prompt if provided (one-shot manual override); otherwise resolve from action config
-  let prompt = (overrides?.prompt?.trim()) ? overrides.prompt : resolveTemplate(action.prompt || '', ctx)
+  // If templateVarOverrides provided, apply them as extra context variables during resolution
+  let prompt = (overrides?.prompt?.trim()) ? overrides.prompt : resolveTemplate(action.prompt || '', ctx, overrides?.templateVarOverrides)
 
   // Inject configured repos context so sessions know which repos Colony tracks
   if (ctx.repoSlugs?.length) {

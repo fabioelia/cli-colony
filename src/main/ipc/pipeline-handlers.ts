@@ -117,7 +117,7 @@ export function registerPipelineHandlers(): void {
   ipcMain.handle('pipeline:toggle', (_e, name: string, enabled: boolean) => togglePipeline(name, enabled))
   ipcMain.handle('pipeline:pause', (_e, name: string, durationMs: number | null) => pausePipeline(name, durationMs))
   ipcMain.handle('pipeline:resume', (_e, name: string) => resumePipeline(name))
-  ipcMain.handle('pipeline:triggerNow', (_e, name: string, overrides?: string | { prompt?: string; model?: string; workingDirectory?: string; maxBudget?: number }) => triggerPollNow(name, overrides))
+  ipcMain.handle('pipeline:triggerNow', (_e, name: string, overrides?: string | { prompt?: string; model?: string; workingDirectory?: string; maxBudget?: number; templateVarOverrides?: Record<string, string> }) => triggerPollNow(name, overrides))
   ipcMain.handle('pipeline:getDir', () => getPipelinesDir())
   ipcMain.handle('pipeline:delete', async (_e, fileName: string) => {
     if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) return false

@@ -323,13 +323,27 @@ function RunWithOptionsDialog({ pipelineName, firstActionPrompt, firstActionMode
   firstActionModel?: string
   firstActionWorkingDirectory?: string
   budgetMaxCostUsd?: number
-  onRun: (name: string, overrides: { prompt?: string; model?: string; workingDirectory?: string; maxBudget?: number }) => void
+  onRun: (name: string, overrides: { prompt?: string; model?: string; workingDirectory?: string; maxBudget?: number; templateVarOverrides?: Record<string, string> }) => void
   onClose: () => void
 }) {
   const [prompt, setPrompt] = useState(firstActionPrompt)
   const [model, setModel] = useState(firstActionModel || '')
   const [workingDirectory, setWorkingDirectory] = useState(firstActionWorkingDirectory || '')
   const [maxBudget, setMaxBudget] = useState(budgetMaxCostUsd != null ? String(budgetMaxCostUsd) : '')
+  const [varValues, setVarValues] = useState<Record<string, string>>({})
+  const [varsOpen, setVarsOpen] = useState(true)
+
+  const detectedVars = useMemo(() => {
+    const seen = new Set<string>()
+    const result: string[] = []
+    const re = /\{\{(\w[\w.]*)\}\}/g
+    let m: RegExpExecArray | null
+    while ((m = re.exec(prompt)) !== null) {
+      if (!seen.has(m[1])) { seen.add(m[1]); result.push(m[1]) }
+    }
+    return result
+  }, [prompt])
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -341,11 +355,16 @@ function RunWithOptionsDialog({ pipelineName, firstActionPrompt, firstActionMode
 
   const handleRun = () => {
     const budget = parseFloat(maxBudget)
+    const overrides: Record<string, string> = {}
+    for (const v of detectedVars) {
+      if (varValues[v]?.trim()) overrides[v] = varValues[v].trim()
+    }
     onRun(pipelineName, {
       prompt: prompt.trim() || undefined,
       model: model || undefined,
       workingDirectory: workingDirectory.trim() || undefined,
       maxBudget: !isNaN(budget) && budget > 0 ? budget : undefined,
+      templateVarOverrides: Object.keys(overrides).length > 0 ? overrides : undefined,
     })
   }
 
@@ -366,6 +385,32 @@ function RunWithOptionsDialog({ pipelineName, firstActionPrompt, firstActionMode
           autoFocus
         />
       </div>
+      {detectedVars.length > 0 && (
+        <div style={{ marginBottom: 12, border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+          <button
+            style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '6px 10px', background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 11 }}
+            onClick={() => setVarsOpen(v => !v)}
+          >
+            {varsOpen ? '▾' : '▸'} Template Variables ({detectedVars.length})
+          </button>
+          {varsOpen && (
+            <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {detectedVars.map(v => (
+                <div key={v}>
+                  <label style={labelStyle}><code style={{ fontFamily: 'monospace', fontSize: 10 }}>{`{{${v}}}`}</code></label>
+                  <input
+                    type="text"
+                    style={inputStyle}
+                    placeholder={`Override for ${v} (leave empty to use pipeline default)`}
+                    value={varValues[v] || ''}
+                    onChange={e => setVarValues(prev => ({ ...prev, [v]: e.target.value }))}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
         <div style={{ flex: 1 }}>
           <label style={labelStyle}>Model</label>

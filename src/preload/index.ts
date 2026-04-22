@@ -275,7 +275,7 @@ export interface ClaudeManagerAPI {
     toggle: (name: string, enabled: boolean) => Promise<boolean>
     pause: (name: string, durationMs: number | null) => Promise<boolean>
     resume: (name: string) => Promise<boolean>
-    triggerNow: (name: string, overrides?: string | { prompt?: string; model?: string; workingDirectory?: string; maxBudget?: number }) => Promise<boolean>
+    triggerNow: (name: string, overrides?: string | { prompt?: string; model?: string; workingDirectory?: string; maxBudget?: number; templateVarOverrides?: Record<string, string> }) => Promise<boolean>
     getDir: () => Promise<string>
     getContent: (fileName: string) => Promise<string | null>
     saveContent: (fileName: string, content: string) => Promise<boolean>
