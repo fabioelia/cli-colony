@@ -440,6 +440,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [triggeringPipelines, setTriggeringPipelines] = useState<Set<string>>(new Set())
   const [retryingFromHistory, setRetryingFromHistory] = useState(false)
   const [replayToast, setReplayToast] = useState<{ name: string; ts: string } | null>(null)
+  const [yamlCopiedName, setYamlCopiedName] = useState<string | null>(null)
   const [runOverrideDialog, setRunOverrideDialog] = useState<{ name: string; firstActionPrompt: string; firstActionModel?: string; firstActionWorkingDirectory?: string; budgetMaxCostUsd?: number } | null>(null)
   const [listMode, setListMode] = useState(() => localStorage.getItem('pipelines-list-mode') !== '0')
   const [sortBy, setSortBy] = useState<'name' | 'lastFired' | 'fireCount' | 'enabled' | 'successRate'>(() =>
@@ -1975,6 +1976,15 @@ ${modelLine}  prompt: |
                       <Save size={11} /> Save
                     </button>
                   )}
+                  {expandedTab === 'yaml' && editingContent !== null && (
+                    <button className="pipeline-save-btn" onClick={async () => {
+                      try { await navigator.clipboard.writeText(editingContent!) } catch { /* non-fatal */ }
+                      setYamlCopiedName(p.name)
+                      setTimeout(() => setYamlCopiedName(n => n === p.name ? null : n), 2500)
+                    }} title="Copy YAML to clipboard">
+                      <Copy size={11} /> Copy
+                    </button>
+                  )}
                   {expandedTab === 'yaml' && editingFileName && (
                     <button className="pipeline-save-btn" onClick={async () => {
                       const memContent = pipelineMemory ? `\nPipeline memory (learnings):\n${pipelineMemory}\n` : ''
@@ -2075,6 +2085,11 @@ ${modelLine}  prompt: |
                   </div>
                 ) : expandedTab === 'history' ? (
                   <div className="pipeline-history">
+                    {yamlCopiedName === p.name && (
+                      <div className="pipeline-replay-toast">
+                        <Copy size={11} /> YAML copied to clipboard
+                      </div>
+                    )}
                     {replayToast && replayToast.name === p.name && (
                       <div className="pipeline-replay-toast">
                         <RotateCw size={11} /> Replaying run from {new Date(replayToast.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {new Date(replayToast.ts).toLocaleDateString([], { month: 'short', day: 'numeric' })}
@@ -3056,6 +3071,20 @@ ${modelLine}  prompt: |
             )}
             <div className="context-menu-item" onClick={() => { const p = pipelines.find(pp => pp.name === pipelineCtx.name); if (p) handleDuplicate(p); setPipelineCtx(null) }}>
               Duplicate
+            </div>
+            <div className="context-menu-item" onClick={async () => {
+              const p = pipelines.find(pp => pp.name === pipelineCtx.name)
+              if (p) {
+                const yaml = await window.api.pipeline.getContent(p.fileName)
+                if (yaml) {
+                  try { await navigator.clipboard.writeText(yaml) } catch { /* non-fatal */ }
+                  setYamlCopiedName(p.name)
+                  setTimeout(() => setYamlCopiedName(n => n === p.name ? null : n), 2500)
+                }
+              }
+              setPipelineCtx(null)
+            }}>
+              <Copy size={12} /> Copy YAML
             </div>
             <div className="context-menu-item" onClick={() => { const p = pipelines.find(pp => pp.name === pipelineCtx.name); if (p) handlePreview(p); setPipelineCtx(null) }}>
               Preview Next Run

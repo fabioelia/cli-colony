@@ -80,6 +80,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const [costTrend, setCostTrend] = useState<{ date: string; cost: number }[]>([])
   const [personaHealth, setPersonaHealth] = useState<PersonaHealthEntry[]>([])
   const [idleMap, setIdleMap] = useState<Map<string, number>>(new Map())
+  const [staleMinutes, setStaleMinutes] = useState(15)
   const [costLeaderboard, setCostLeaderboard] = useState<Array<{ name: string; id: string; cost: number; avgCost: number }>>([])
   const [batchProgress, setBatchProgress] = useState<{ id: string; total: number; completed: number } | null>(null)
   const [environments, setEnvironments] = useState<EnvStatus[]>([])
@@ -104,7 +105,11 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
     window.api.persona.getColonyCostTrend().then(setCostTrend)
     window.api.persona.healthSummary().then(setPersonaHealth)
     window.api.env.list().then(setEnvironments)
-    window.api.settings.getAll().then(s => setDailyCostBudget(parseFloat(s.dailyCostBudgetUsd) || 0))
+    window.api.settings.getAll().then(s => {
+      setDailyCostBudget(parseFloat(s.dailyCostBudgetUsd) || 0)
+      const sm = parseInt(s.staleSessionMinutes)
+      if (sm > 0) setStaleMinutes(sm)
+    })
     window.api.sessions.idleInfo().then(entries => {
       const m = new Map<string, number>()
       for (const e of entries) m.set(e.id, e.idleMs)
@@ -289,9 +294,10 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const pendingApprovals = approvals
   const inProgressTasks = useMemo(() => tasks.filter(t => t.status === 'in_progress'), [tasks])
   const blockedTasks = useMemo(() => tasks.filter(t => t.status === 'blocked'), [tasks])
+  const staleThresholdMs = staleMinutes * 60000
   const staleSessions = useMemo(() => running.filter(inst =>
-    inst.activity === 'busy' && (idleMap.get(inst.id) || 0) > 900000
-  ), [running, idleMap])
+    inst.activity === 'busy' && (idleMap.get(inst.id) || 0) > staleThresholdMs
+  ), [running, idleMap, staleThresholdMs])
   const recentlyExited = useMemo(() =>
     instances
       .filter(i => i.status === 'exited')
@@ -741,7 +747,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
                 <div className="attention-category-label">{staleSessions.length} Stale</div>
               )}
               {staleSessions.map(inst => (
-                <div key={inst.id} className="overview-attention-item attention-stale" onClick={() => onFocusInstance(inst.id)} title={`No output for ${Math.floor((idleMap.get(inst.id) || 0) / 60000)} minutes`}>
+                <div key={inst.id} className="overview-attention-item attention-stale" onClick={() => onFocusInstance(inst.id)} title={`No output for ${Math.floor((idleMap.get(inst.id) || 0) / 60000)} minutes (threshold: ${staleMinutes}m)`}>
                   <Clock size={13} />
                   <span className="attention-label">{inst.name || 'Unnamed'} — stale</span>
                   <span className="attention-time">{Math.floor((idleMap.get(inst.id) || 0) / 60000)}m idle</span>

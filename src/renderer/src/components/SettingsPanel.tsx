@@ -30,6 +30,8 @@ export default function SettingsPanel({ onBack }: Props) {
   const [sessionRetentionDays, setSessionRetentionDays] = useState('7')
   const [dailyCostBudget, setDailyCostBudget] = useState('')
   const [sessionCostCap, setSessionCostCap] = useState('')
+  const [staleSessionMinutes, setStaleSessionMinutes] = useState('15')
+  const [triggerChainDepthLimit, setTriggerChainDepthLimit] = useState('10')
   const [globalHotkey, setGlobalHotkey] = useState('CommandOrControl+Shift+Space')
   const [hotkeyError, setHotkeyError] = useState('')
   const [availableShells, setAvailableShells] = useState<string[]>([])
@@ -166,6 +168,8 @@ export default function SettingsPanel({ onBack }: Props) {
       setSessionRetentionDays(s.sessionRetentionDays || '7')
       setDailyCostBudget(s.dailyCostBudgetUsd || '')
       setSessionCostCap(s.sessionCostCapUsd || '')
+      setStaleSessionMinutes(s.staleSessionMinutes || '15')
+      setTriggerChainDepthLimit(s.triggerChainDepthLimit || '10')
       setGlobalHotkey(s.globalHotkey || 'CommandOrControl+Shift+Space')
       setKeepInTray(s.keepInTray !== 'false')
       setWebhookEnabled(s.webhookEnabled !== 'false')
@@ -287,6 +291,8 @@ export default function SettingsPanel({ onBack }: Props) {
       window.api.settings.set('sessionRetentionDays', sessionRetentionDays),
       window.api.settings.set('dailyCostBudgetUsd', dailyCostBudget),
       window.api.settings.set('sessionCostCapUsd', sessionCostCap),
+      window.api.settings.set('staleSessionMinutes', staleSessionMinutes),
+      window.api.settings.set('triggerChainDepthLimit', triggerChainDepthLimit),
       window.api.settings.set('globalHotkey', globalHotkey),
       window.api.settings.set('keepInTray', keepInTray ? 'true' : 'false'),
       window.api.settings.set('webhookEnabled', webhookEnabled ? 'true' : 'false'),
@@ -817,6 +823,41 @@ export default function SettingsPanel({ onBack }: Props) {
           </div>
         </div>
         <p className="settings-help settings-help-bottom">Auto-stop any session when its cost exceeds this amount. Persona max_cost_usd overrides this. Leave empty to disable.</p>
+        <div className="settings-row">
+          <span className="settings-row-label">Stale session threshold</span>
+          <div className="settings-row-control">
+            <input
+              type="number"
+              min="1"
+              step="5"
+              placeholder="15"
+              value={staleSessionMinutes}
+              onChange={(e) => setStaleSessionMinutes(e.target.value)}
+              onBlur={() => { const v = parseInt(staleSessionMinutes); setStaleSessionMinutes(isNaN(v) || v < 1 ? '15' : String(v)) }}
+              className="settings-compact-number"
+              style={{ width: 60 }}
+            />
+            <span className="settings-unit">min</span>
+          </div>
+        </div>
+        <p className="settings-help settings-help-bottom">Sessions with no output for this long appear in the "Stale" attention section. Default: 15 minutes.</p>
+        <div className="settings-row">
+          <span className="settings-row-label">Trigger chain depth limit</span>
+          <div className="settings-row-control">
+            <input
+              type="number"
+              min="1"
+              step="1"
+              placeholder="10"
+              value={triggerChainDepthLimit}
+              onChange={(e) => setTriggerChainDepthLimit(e.target.value)}
+              onBlur={() => { const v = parseInt(triggerChainDepthLimit); setTriggerChainDepthLimit(isNaN(v) || v < 1 ? '10' : String(v)) }}
+              className="settings-compact-number"
+              style={{ width: 60 }}
+            />
+          </div>
+        </div>
+        <p className="settings-help settings-help-bottom">Maximum depth for persona on_complete_run trigger chains. Prevents infinite loops from circular triggers. Default: 10.</p>
       </div>
 
       {/* MCP Server Catalog */}

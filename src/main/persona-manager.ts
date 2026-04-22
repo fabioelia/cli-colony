@@ -24,6 +24,7 @@ import type { PersonaInfo } from '../shared/types'
 import { JsonFile } from '../shared/json-file'
 import { appendActivity } from './activity-manager'
 import { appendRunEntry, checkDailyCostBudget, getPersonaDailyCost, getRunHistory } from './persona-run-history'
+import { getSettingSync } from './settings'
 import { getRateLimitState } from './rate-limit-state'
 import { migrateFromMarkdown, readPersonaMemory, extractMemoryInBackground, trackMonthlyCost } from './persona-memory'
 import { buildPlanningPrompt, buildKickoff } from './persona-prompt-builder'
@@ -53,7 +54,8 @@ export interface PersonaState {
   lastSkipped: number | null
   retryCount: number
   draining: boolean
-  pendingRuns: Array<{ reason: string; queuedAt: string; context?: string; triggerType?: string; triggeredBy?: string }>
+  pendingRuns: Array<{ reason: string; queuedAt: string; context?: string; triggerType?: string; triggeredBy?: string; chainDepth?: number }>
+  chainDepth?: number
 }
 
 const stateFile = new JsonFile<Record<string, PersonaState>>(STATE_PATH, {})
@@ -623,6 +625,7 @@ export interface PersonaRunOverrides {
   model?: string
   maxCostUsd?: number
   promptPrefix?: string
+  chainDepth?: number
 }
 
 /** Per-instance cost cap overrides — used for "Run with Options" one-shot budget. */
@@ -637,6 +640,13 @@ export async function runPersona(fileName: string, trigger: TriggerSource = { ty
   if (!fm) throw new Error(`Invalid persona file: ${fileName}`)
 
   const state = getState(fm.name)
+
+  // Track trigger chain depth — reset for non-trigger sources, propagate for handoffs
+  if (trigger.type === 'handoff') {
+    state.chainDepth = overrides?.chainDepth ?? 0
+  } else {
+    state.chainDepth = 0
+  }
 
   // Reset retry count on any non-retry start (manual, cron, handoff)
   if (trigger.type !== 'retry') {
@@ -1057,7 +1067,7 @@ function buildTriggerContext(triggeredBy: string, personaId: string, exitCode: n
 /** Called by instance-manager when any session exits — captures output and clears active session */
 export async function onSessionExit(instanceId: string): Promise<void> {
   let changed = false
-  const triggerPersonas: Array<{ id: string; triggeredBy: string; customMessage?: string }> = []
+  const triggerPersonas: Array<{ id: string; triggeredBy: string; customMessage?: string; chainDepth: number }> = []
   const drainingExited: string[] = []
 
   for (const [name, state] of Object.entries(stateCache)) {
@@ -1274,16 +1284,17 @@ export async function onSessionExit(instanceId: string): Promise<void> {
             }
 
             if (shouldTrigger) {
+              const nextDepth = (state.chainDepth ?? 0) + 1
               if (dynamicTriggers !== null) {
                 // Dynamic override: use file contents (empty array = suppress all triggers)
                 console.log(`[persona] trigger: dynamic override for "${name}" — ${dynamicTriggers.length} trigger(s)`)
                 for (const t of dynamicTriggers) {
-                  triggerPersonas.push({ id: t.persona, triggeredBy: name, customMessage: t.message })
+                  triggerPersonas.push({ id: t.persona, triggeredBy: name, customMessage: t.message, chainDepth: nextDepth })
                 }
               } else if (fm && fm.on_complete_run.length > 0) {
                 const autoContext = buildTriggerContext(name, personaId, exitCode, durationSec, commitsCount, filesChanged, sessionCost, errorSummary)
                 for (const t of fm.on_complete_run) {
-                  triggerPersonas.push({ id: t, triggeredBy: name, customMessage: autoContext })
+                  triggerPersonas.push({ id: t, triggeredBy: name, customMessage: autoContext, chainDepth: nextDepth })
                 }
               }
             }
@@ -1308,7 +1319,14 @@ export async function onSessionExit(instanceId: string): Promise<void> {
   }
 
   // Dispatch completion triggers after state is saved
-  for (const { id: triggerId, triggeredBy, customMessage } of triggerPersonas) {
+  for (const { id: triggerId, triggeredBy, customMessage, chainDepth } of triggerPersonas) {
+    const maxDepth = parseInt(getSettingSync('triggerChainDepthLimit') || '') || 10
+    if (chainDepth > maxDepth) {
+      console.log(`[persona] trigger: chain depth ${chainDepth} exceeds limit ${maxDepth} for "${triggerId}" — skipping`)
+      appendActivity({ source: 'persona', name: triggerId, summary: `Trigger chain depth limit (${maxDepth}) reached — skipping trigger from "${triggeredBy}"`, level: 'warn' })
+      notify(`Colony: trigger chain halted`, `"${triggeredBy}" reached depth ${chainDepth} — possible cycle`, 'personas')
+      continue
+    }
     const persona = getPersonaList().find(p => p.id === triggerId || p.name === triggerId)
     if (!persona) {
       console.log(`[persona] trigger: target "${triggerId}" not found — skipping`)
@@ -1325,7 +1343,7 @@ export async function onSessionExit(instanceId: string): Promise<void> {
         console.log(`[persona] trigger: run queue full for "${triggerId}" — dropping trigger from "${triggeredBy}"`)
         appendActivity({ source: 'persona', name: triggerId, summary: `Run queue full for "${triggerId}" — dropping trigger from "${triggeredBy}"`, level: 'warn' })
       } else {
-        pState.pendingRuns.push({ reason: `trigger from ${triggeredBy}`, queuedAt: new Date().toISOString(), context: customMessage, triggerType: 'handoff', triggeredBy })
+        pState.pendingRuns.push({ reason: `trigger from ${triggeredBy}`, queuedAt: new Date().toISOString(), context: customMessage, triggerType: 'handoff', triggeredBy, chainDepth })
         appendActivity({ source: 'persona', name: triggerId, summary: `Queued trigger for "${triggerId}" (from "${triggeredBy}") — currently running`, level: 'info' })
         console.log(`[persona] trigger: queued for "${triggerId}" (from "${triggeredBy}") — currently running`)
       }
@@ -1333,8 +1351,8 @@ export async function onSessionExit(instanceId: string): Promise<void> {
       broadcastStatus()
       continue
     }
-    console.log(`[persona] trigger: → "${triggerId}" (from "${triggeredBy}")`)
-    runPersona(persona.id, { type: 'handoff', from: triggeredBy }, customMessage).catch(err => {
+    console.log(`[persona] trigger: → "${triggerId}" (from "${triggeredBy}", depth ${chainDepth})`)
+    runPersona(persona.id, { type: 'handoff', from: triggeredBy }, customMessage, undefined, { chainDepth }).catch(err => {
       console.log(`[persona] trigger: launch failed for "${triggerId}": ${err.message}`)
     })
   }
@@ -1366,7 +1384,7 @@ export async function onSessionExit(instanceId: string): Promise<void> {
       broadcastStatus()
       const persona = getPersonaList().find(p => p.name === name)
       if (persona) {
-        runPersona(persona.id, { type: (next.triggerType as any) || 'handoff', from: next.triggeredBy || 'queue' }, next.context).catch(err => {
+        runPersona(persona.id, { type: (next.triggerType as any) || 'handoff', from: next.triggeredBy || 'queue' }, next.context, undefined, { chainDepth: next.chainDepth }).catch(err => {
           console.log(`[persona] queue pop failed for "${name}": ${err.message}`)
         })
       }
