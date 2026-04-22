@@ -7058,8 +7058,8 @@ body:has(.daemon-update-banner) .app-update-banner {
 .session-status-cost.red { color: var(--danger); }
 .session-status-tokens {
   font-family: var(--font-mono, monospace);
-  color: var(--text-tertiary);
-  font-size: 10px;
+  color: var(--text-muted);
+  font-size: 11px;
 }
 .session-status-tokens .token-in { color: #60a5fa; }
 .session-status-tokens .token-out { color: #34d399; }
