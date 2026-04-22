@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, GitBranch, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock, RotateCcw, DollarSign, ArrowUpDown, ArrowLeft, Tag, Cpu, AlertCircle } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, GitBranch, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock, RotateCcw, DollarSign, ArrowUpDown, ArrowLeft, Tag, Cpu, AlertCircle, Folder } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate, ErrorSummary } from '../../../shared/types'
@@ -18,6 +18,7 @@ import NotificationHistory from './NotificationHistory'
 import type { WorkspacePreset } from './WorkspacePresets'
 import RetryDialog from './RetryDialog'
 import { COLORS, formatTime, cliBackendLabel, formatInstanceCmd } from '../lib/constants'
+import { getSpaces, createSpace, assignToSpace, getAssignments, autoAssignPipelineSession, archiveSpace, type Space } from '../lib/spaces'
 
 export type SidebarView = 'overview' | 'instances' | 'agents' | 'github' | 'settings' | 'tasks' | 'pipelines' | 'environments' | 'personas' | 'outputs' | 'review' | 'artifacts' | 'activity'
 
@@ -707,7 +708,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     return () => clearInterval(id)
   }, [])
 
-  type GroupBy = 'none' | 'persona' | 'project' | 'status' | 'pipeline'
+  type GroupBy = 'none' | 'persona' | 'project' | 'status' | 'pipeline' | 'space'
   const [groupBy, setGroupBy] = useState<GroupBy>(() => (localStorage.getItem('sidebar-group-by') as GroupBy) || 'none')
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(localStorage.getItem('sidebar-collapsed-groups') || '[]')) } catch { return new Set() }
@@ -724,6 +725,35 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     setGroupBy(val)
     localStorage.setItem('sidebar-group-by', val)
   }, [])
+
+  const [spaces, setSpaces] = useState<Space[]>(() => getSpaces())
+  const [spaceAssignments, setSpaceAssignments] = useState<Record<string, string>>(() => getAssignments())
+  const [spaceSubmenuOpen, setSpaceSubmenuOpen] = useState(false)
+  const [showCreateSpaceInput, setShowCreateSpaceInput] = useState(false)
+  const [createSpaceName, setCreateSpaceName] = useState('')
+
+  const refreshSpaces = useCallback(() => {
+    setSpaces(getSpaces())
+    setSpaceAssignments(getAssignments())
+  }, [])
+
+  const handleCreateSpace = useCallback((name: string) => {
+    if (!name.trim()) return
+    createSpace(name)
+    refreshSpaces()
+    setCreateSpaceName('')
+    setShowCreateSpaceInput(false)
+  }, [refreshSpaces])
+
+  const handleAssignToSpace = useCallback((instanceId: string, spaceId: string | null) => {
+    assignToSpace(instanceId, spaceId)
+    setSpaceAssignments(getAssignments())
+  }, [])
+
+  const handleArchiveSpace = useCallback((spaceId: string) => {
+    archiveSpace(spaceId)
+    refreshSpaces()
+  }, [refreshSpaces])
 
   const exitSelectMode = useCallback(() => {
     setSelectMode(false)
@@ -827,6 +857,12 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
           ? `${inst.pipelineName || 'Pipeline'} · ${new Date(parseInt(inst.pipelineRunId.split('-')[0])).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
           : 'Manual Sessions'
       }
+      if (groupBy === 'space') {
+        const spaceId = spaceAssignments[inst.id]
+        if (!spaceId) return '(Unassigned)'
+        const space = spaces.find(s => s.id === spaceId)
+        return space ? space.name : '(Unassigned)'
+      }
       // status
       return inst.status === 'running' ? (inst.activity === 'busy' ? 'Busy' : 'Idle') : 'Stopped'
     }
@@ -837,7 +873,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
       groups.get(key)!.push(inst)
     }
     return [...groups.entries()].map(([label, items]) => ({ label, items }))
-  }, [groupBy, orderedInstances])
+  }, [groupBy, orderedInstances, spaces, spaceAssignments])
 
   const flatOrderForIndexing = useMemo(() => {
     if (!groupedSections) return orderedInstances
@@ -1028,6 +1064,14 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     else localStorage.removeItem('colony:instancePersonaFilter')
   }, [instancePersonaFilter])
   useEffect(() => { localStorage.setItem('primaryNavSlots', JSON.stringify(primarySlots)) }, [primarySlots])
+
+  // Pipeline auto-assignment: when a new pipeline-triggered instance arrives, assign to matching space
+  useEffect(() => {
+    for (const inst of instances) {
+      if (inst.pipelineName) autoAssignPipelineSession(inst.id, inst.pipelineName)
+    }
+    setSpaceAssignments(getAssignments())
+  }, [instances])
   useEffect(() => {
     if (sessionProjectFilter) localStorage.setItem('colony:sessionProjectFilter', sessionProjectFilter)
     else localStorage.removeItem('colony:sessionProjectFilter')
@@ -1697,6 +1741,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             <option value="project">By Project</option>
             <option value="status">By Status</option>
             <option value="pipeline">By Pipeline</option>
+            <option value="space">By Space</option>
           </select>
           {customOrder.length > 0 && groupBy === 'none' && (
             <Tooltip text="Reset to default session order" position="bottom">
@@ -1736,6 +1781,39 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
               </button>
             </Tooltip>
           )}
+          {groupBy === 'space' && (
+            <Tooltip text="Create new space" position="bottom">
+              <button
+                className="sidebar-select-toggle"
+                onClick={() => setShowCreateSpaceInput(v => !v)}
+              >
+                <Folder size={12} />
+              </button>
+            </Tooltip>
+          )}
+        </div>
+      )}
+
+      {showCreateSpaceInput && groupBy === 'space' && (
+        <div className="create-space-bar">
+          <input
+            className="create-space-input"
+            placeholder="Space name…"
+            value={createSpaceName}
+            autoFocus
+            onChange={e => setCreateSpaceName(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') handleCreateSpace(createSpaceName)
+              if (e.key === 'Escape') { setShowCreateSpaceInput(false); setCreateSpaceName('') }
+            }}
+          />
+          <button
+            className="create-space-btn"
+            onClick={() => handleCreateSpace(createSpaceName)}
+            disabled={!createSpaceName.trim()}
+          >
+            Create
+          </button>
         </div>
       )}
 
@@ -1871,11 +1949,15 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
         )}
         {groupedSections ? (
           /* Grouped view */
-          groupedSections.map(({ label, items }) => (
+          groupedSections.map(({ label, items }) => {
+            const spaceForGroup = groupBy === 'space' && label !== '(Unassigned)'
+              ? spaces.find(s => s.name === label)
+              : null
+            return (
             <React.Fragment key={label}>
               <div
                 className="instance-list-divider session-group-header"
-                style={{ cursor: 'pointer', position: 'relative' }}
+                style={{ cursor: 'pointer', position: 'relative', borderLeft: spaceForGroup ? `3px solid ${spaceForGroup.color}` : undefined, paddingLeft: spaceForGroup ? 8 : undefined }}
                 onClick={() => { toggleGroupCollapse(label); setGroupMenuTarget(null) }}
                 onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setGroupMenuTarget(groupMenuTarget === label ? null : label); setGroupPromptTarget(null) }}
               >
@@ -1886,6 +1968,9 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                   const color = hasFailed ? 'var(--danger)' : hasRunning ? 'var(--accent)' : 'var(--success)'
                   return <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: color, marginRight: 4, flexShrink: 0 }} />
                 })()}
+                {groupBy === 'space' && spaceForGroup && (
+                  <Folder size={10} style={{ color: spaceForGroup.color, flexShrink: 0 }} />
+                )}
                 {label}
                 <span className="session-group-count">{items.length}</span>
                 {(() => {
@@ -1936,6 +2021,14 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                           Collapse Others
                         </button>
                       )}
+                      {groupBy === 'space' && spaceForGroup && (
+                        <button className="session-group-menu-item danger" onClick={() => {
+                          handleArchiveSpace(spaceForGroup.id)
+                          setGroupMenuTarget(null)
+                        }}>
+                          <Archive size={11} /> Archive Space
+                        </button>
+                      )}
                     </div>
                   )
                 })()}
@@ -1966,7 +2059,8 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
               })()}
               {!collapsedGroups.has(label) && items.map(renderItem)}
             </React.Fragment>
-          ))
+          )
+          })
         ) : customOrder.length > 0 ? (
           /* Custom-ordered flat view */
           orderedInstances.map((inst, idx) => renderItem(inst, idx))
@@ -2474,7 +2568,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
       {contextMenu && (
         <div
           className="context-menu-overlay"
-          onClick={() => { setContextMenu(null); setReviewSubmenuOpen(false) }}
+          onClick={() => { setContextMenu(null); setReviewSubmenuOpen(false); setSpaceSubmenuOpen(false) }}
         >
           <div
             className="context-menu"
@@ -2547,6 +2641,58 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             >
               <AlertCircle size={12} /> Add Output Alert...
             </button>
+            {spaces.length > 0 && (
+              <div className="context-menu-submenu-wrapper">
+                <button
+                  className="context-menu-item context-menu-item--has-submenu"
+                  onClick={() => setSpaceSubmenuOpen(v => !v)}
+                  title="Move this session to a space"
+                >
+                  <Folder size={12} /> Move to Space... <ChevronRight size={10} style={{ marginLeft: 'auto' }} />
+                </button>
+                {spaceSubmenuOpen && (
+                  <div className="context-menu-submenu">
+                    {spaceAssignments[contextMenu.id] && (
+                      <button
+                        className="context-menu-item"
+                        onClick={() => {
+                          handleAssignToSpace(contextMenu.id, null)
+                          setContextMenu(null)
+                          setSpaceSubmenuOpen(false)
+                        }}
+                      >
+                        Remove from Space
+                      </button>
+                    )}
+                    {spaces.map(s => (
+                      <button
+                        key={s.id}
+                        className={`context-menu-item${spaceAssignments[contextMenu.id] === s.id ? ' active' : ''}`}
+                        style={{ borderLeft: `3px solid ${s.color}`, paddingLeft: 9 }}
+                        onClick={() => {
+                          handleAssignToSpace(contextMenu.id, s.id)
+                          setContextMenu(null)
+                          setSpaceSubmenuOpen(false)
+                        }}
+                      >
+                        {s.name}
+                      </button>
+                    ))}
+                    <button
+                      className="context-menu-item"
+                      onClick={() => {
+                        setContextMenu(null)
+                        setSpaceSubmenuOpen(false)
+                        setShowCreateSpaceInput(true)
+                        handleGroupByChange('space')
+                      }}
+                    >
+                      <Plus size={10} /> New Space...
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
             {(() => {
               const inst = instances.find(i => i.id === contextMenu.id)
               return inst?.status === 'running' && inst?.activity === 'waiting' ? (

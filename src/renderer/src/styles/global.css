@@ -25156,3 +25156,10 @@ button.session-trigger-chain-btn:hover {
 .session-board-card-source { font-size: 10px; color: var(--text-muted); background: var(--bg-secondary); border-radius: 3px; padding: 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100px; }
 .session-board-show-all { width: 100%; background: none; border: 1px dashed var(--border); border-radius: 5px; color: var(--text-muted); font-size: 11px; padding: 5px; cursor: pointer; }
 .session-board-show-all:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Task Spaces */
+.create-space-bar { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-bottom: 1px solid var(--border); }
+.create-space-input { flex: 1; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary); font-size: 11px; padding: 4px 8px; outline: none; }
+.create-space-input:focus { border-color: var(--accent); }
+.create-space-btn { background: var(--accent); border: none; border-radius: 4px; color: #fff; font-size: 11px; padding: 3px 8px; cursor: pointer; white-space: nowrap; }
+.create-space-btn:disabled { opacity: 0.4; cursor: default; }
