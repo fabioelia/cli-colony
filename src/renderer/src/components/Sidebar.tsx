@@ -57,6 +57,8 @@ interface InstanceItemCallbacks {
   onRenameChange: (v: string) => void
   onHandoff: (inst: ClaudeInstance) => void
   onSetPersonaFilter: (name: string | null) => void
+  onHoverEnter: (id: string, rect: DOMRect) => void
+  onHoverLeave: () => void
 }
 
 interface InstanceItemProps {
@@ -191,6 +193,11 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
         e.preventDefault()
         callbacks.onContextMenu(inst.id, Math.min(e.clientX, window.innerWidth - 200), Math.min(e.clientY, window.innerHeight - 150))
       }}
+      onMouseEnter={(e) => {
+        if (e.buttons !== 0) return
+        callbacks.onHoverEnter(inst.id, (e.currentTarget as HTMLElement).getBoundingClientRect())
+      }}
+      onMouseLeave={() => callbacks.onHoverLeave()}
     >
       {selectMode && (
         <input
@@ -954,6 +961,9 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const [popoverPos, setPopoverPos] = useState<{ top: number } | null>(null)
   const [instancePopoverPos, setInstancePopoverPos] = useState<{ top: number; left: number } | null>(null)
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
+  const [hoverPreview, setHoverPreview] = useState<{ id: string; x: number; y: number; lines: string[] } | null>(null)
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hoverCacheRef = useRef<Map<string, { lines: string[]; at: number }>>(new Map())
   const [sessionTags, setSessionTags] = useState<Record<string, string[]>>(() => {
     try { return JSON.parse(localStorage.getItem('colony:sessionTags') || '{}') } catch { return {} }
   })
@@ -1347,6 +1357,28 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     onRenameChange: setRenameValue,
     onHandoff: (inst: ClaudeInstance) => { setHandoffInst(inst); setHandoffCopied(false) },
     onSetPersonaFilter: (name: string | null) => setInstancePersonaFilter(name),
+    onHoverEnter: (id: string, rect: DOMRect) => {
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current)
+      hoverTimerRef.current = setTimeout(async () => {
+        const cached = hoverCacheRef.current.get(id)
+        if (cached && Date.now() - cached.at < 5000) {
+          const y = Math.min(rect.top, window.innerHeight - 220)
+          setHoverPreview({ id, x: rect.right + 8, y, lines: cached.lines })
+          return
+        }
+        try {
+          const buf = await window.api.instance.buffer(id)
+          const lines = stripAnsi(buf).split('\n').filter(Boolean).slice(-10)
+          hoverCacheRef.current.set(id, { lines, at: Date.now() })
+          const y = Math.min(rect.top, window.innerHeight - 220)
+          setHoverPreview({ id, x: rect.right + 8, y, lines })
+        } catch { /* ignore */ }
+      }, 500)
+    },
+    onHoverLeave: () => {
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current)
+      setHoverPreview(null)
+    },
   } satisfies InstanceItemCallbacks)
 
   // Drag-to-reorder handlers
@@ -2919,6 +2951,14 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
           }}
           onClose={() => setRetryTarget(null)}
         />
+      )}
+      {hoverPreview && (
+        <div
+          className="session-hover-preview"
+          style={{ left: hoverPreview.x, top: hoverPreview.y }}
+        >
+          <pre>{hoverPreview.lines.join('\n') || 'No output yet'}</pre>
+        </div>
       )}
     </div>
   )
