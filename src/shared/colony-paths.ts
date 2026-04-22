@@ -77,6 +77,8 @@ export const colonyPaths = {
   approvalRulesJson: path.join(ROOT, 'governance', 'approval-rules.json'),
   onboardingStateJson: path.join(ROOT, 'onboarding-state.json'),
   projectBriefs: path.join(ROOT, 'project-briefs'),
+  reviewRules: path.join(ROOT, 'review-rules.json'),
+  ghSkillIgnored: path.join(ROOT, 'gh-skill-ignored.json'),
 
   /** Build a daily activity log path for a given date (YYYY-MM-DD) */
   activityDailyLog: (date: string) => path.join(ROOT, `activity-${date}.json`),

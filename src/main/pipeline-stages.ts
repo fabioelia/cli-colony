@@ -175,6 +175,57 @@ export function isApproved(text: string): boolean {
 }
 
 const MAX_MEMORY_BYTES = 16 * 1024 // ~4K tokens
+const MAX_REVIEW_RULES = 50
+
+export interface ReviewRule {
+  id: string
+  pattern: string
+  severity: 'error' | 'warning' | 'info'
+  repo: string
+  createdAt: string
+  source: string
+}
+
+/** Word-overlap ratio between two strings (Jaccard on word sets). */
+function wordOverlap(a: string, b: string): number {
+  const words = (s: string) => new Set(s.toLowerCase().split(/\W+/).filter(Boolean))
+  const sa = words(a)
+  const sb = words(b)
+  if (sa.size === 0 && sb.size === 0) return 1
+  let intersection = 0
+  for (const w of sa) { if (sb.has(w)) intersection++ }
+  return intersection / (sa.size + sb.size - intersection)
+}
+
+export async function loadReviewRules(repoGlob?: string): Promise<ReviewRule[]> {
+  try {
+    const raw = await fsp.readFile(colonyPaths.reviewRules, 'utf-8')
+    const all: ReviewRule[] = JSON.parse(raw)
+    if (!repoGlob || repoGlob === '*') return all
+    return all.filter(r => r.repo === '*' || r.repo === repoGlob || repoGlob.startsWith(r.repo.replace(/\*$/, '')))
+  } catch {
+    return []
+  }
+}
+
+export async function appendReviewRule(rule: Omit<ReviewRule, 'id' | 'createdAt'>): Promise<void> {
+  const existing = await loadReviewRules()
+  // Dedup: skip if any existing rule has >80% word overlap on pattern
+  for (const r of existing) {
+    if (wordOverlap(r.pattern, rule.pattern) >= 0.8) return
+  }
+  const newRule: ReviewRule = {
+    ...rule,
+    id: `rule-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    createdAt: new Date().toISOString(),
+  }
+  const updated = [...existing, newRule]
+  // Prune oldest if over limit
+  const pruned = updated.length > MAX_REVIEW_RULES
+    ? updated.sort((a, b) => a.createdAt.localeCompare(b.createdAt)).slice(updated.length - MAX_REVIEW_RULES)
+    : updated
+  await fsp.writeFile(colonyPaths.reviewRules, JSON.stringify(pruned, null, 2), 'utf-8')
+}
 
 /** Extract review observations from an APPROVED verdict (lines after the APPROVED keyword). */
 export function extractReviewObservations(verdict: string): string {
@@ -269,6 +320,15 @@ export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pi
       }
     }
 
+    // Inject global learned review rules
+    if (action.checkerMemory !== false) {
+      const rules = await loadReviewRules()
+      if (rules.length > 0) {
+        const rulesBlock = rules.map(r => `- [${r.severity}] ${r.pattern} (from ${r.source})`).join('\n')
+        makerFullPrompt += `\n\n--- Learned Review Rules ---\nApply these standards in your work:\n${rulesBlock}`
+      }
+    }
+
     const makerPromptFile = await writePromptFile(makerFullPrompt)
     const makerInst = await createInstance({
       name: `${baseName} [Maker ${iteration}]`,
@@ -313,7 +373,16 @@ export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pi
       }
     }
 
-    checkerFullPrompt += `\n\n--- Required Verdict Step ---\nAfter your evaluation, write one of the following to:\n${verdictFile}\n\n- Work is complete and acceptable → write: APPROVED on the first line, then on subsequent lines list any review patterns or quality rules worth remembering for future reviews (one per line, prefixed with "- ").\n- Changes needed → write: NEEDS REVISION: <your specific feedback>\n\nThis file MUST be written before you finish.`
+    // Inject global learned review rules into checker
+    if (action.checkerMemory !== false) {
+      const rules = await loadReviewRules()
+      if (rules.length > 0) {
+        const rulesBlock = rules.map(r => `- [${r.severity}] ${r.pattern} (from ${r.source})`).join('\n')
+        checkerFullPrompt += `\n\n--- Global Review Rules ---\nEnforce these learned standards when evaluating:\n${rulesBlock}`
+      }
+    }
+
+    checkerFullPrompt += `\n\n--- Required Verdict Step ---\nAfter your evaluation, write one of the following to:\n${verdictFile}\n\n- Work is complete and acceptable → write: APPROVED on the first line, then on subsequent lines list any review patterns or quality rules worth remembering for future reviews (one per line, prefixed with "- [severity] pattern | repo:<repo-or-*> | source:<pr-or-description>").\n- Changes needed → write: NEEDS REVISION: <your specific feedback>\n\nThis file MUST be written before you finish.`
 
     // Clear any previous verdict
     try { await fsp.writeFile(verdictFile, '', 'utf-8') } catch {}
@@ -357,7 +426,27 @@ export async function runMakerChecker(action: ActionDef, ctx: TriggerContext, pi
         const observations = extractReviewObservations(verdict)
         if (observations) {
           await appendReviewRules(memPath, observations)
-          plog(pipelineName, `maker-checker: appended ${observations.split('\n').length} review rule(s) to memory`)
+          // Also persist structured rules parsed from verdict lines
+          const structuredLines = observations.split('\n').filter(l => /\[(?:error|warning|info)\]/i.test(l))
+          for (const line of structuredLines) {
+            const m = line.match(/\[(\w+)\]\s*(.+?)\s*\|\s*repo:([^\s|]+)(?:\s*\|\s*source:(.+))?/)
+            if (m) {
+              const [, severity, pattern, repo, source] = m
+              await appendReviewRule({
+                pattern: pattern.trim(),
+                severity: severity.toLowerCase() as ReviewRule['severity'],
+                repo: repo.trim(),
+                source: source?.trim() ?? pipelineName,
+              })
+            } else {
+              // Fallback: treat whole line as pattern, wildcard repo
+              const clean = line.replace(/^\s*-\s*/, '').trim()
+              if (clean) {
+                await appendReviewRule({ pattern: clean, severity: 'info', repo: '*', source: pipelineName })
+              }
+            }
+          }
+          plog(pipelineName, `maker-checker: appended ${observations.split('\n').length} review rule(s) to memory, ${structuredLines.length} to global rules`)
         }
       }
 

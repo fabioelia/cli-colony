@@ -504,6 +504,8 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [cronEditingPipeline, setCronEditingPipeline] = useState<string | null>(null)
   const [pipelineNotes, setPipelineNotes] = useState<Record<string, Array<{ createdAt: string; text: string }>>>({})
   const [noteOpenPipeline, setNoteOpenPipeline] = useState<string | null>(null)
+  const [reviewRules, setReviewRules] = useState<Array<{ id: string; pattern: string; severity: string; repo: string; createdAt: string; source: string }>>([])
+  const [reviewRulesOpen, setReviewRulesOpen] = useState(false)
   const [editingNoteKey, setEditingNoteKey] = useState<{ fileName: string; index: number } | null>(null)
   const [editNoteText, setEditNoteText] = useState('')
   const [noteText, setNoteText] = useState('')
@@ -616,6 +618,13 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     fetchNotes()
     return () => { cancelled = true }
   }, [pipelines])
+
+  // Fetch global review rules
+  const fetchReviewRules = useCallback(async () => {
+    const rules = await window.api.pipeline.getReviewRules()
+    setReviewRules(rules)
+  }, [])
+  useEffect(() => { fetchReviewRules() }, [])
 
   // Load pipelines dir + last audit run
   useEffect(() => {
@@ -1317,6 +1326,14 @@ ${modelLine}  prompt: |
             {reloading === 'loading' ? 'Reloading…' : reloading === 'done' ? 'Reloaded' : reloading === 'error' ? 'Failed' : 'Reload'}
           </button>
           <button
+            className={`panel-header-btn${reviewRulesOpen ? ' active' : ''}`}
+            onClick={() => { setReviewRulesOpen(o => !o); if (!reviewRulesOpen) fetchReviewRules() }}
+            title="Review rules learned from past maker-checker runs"
+          >
+            <BookOpen size={12} />
+            Rules{reviewRules.length > 0 && ` (${reviewRules.length})`}
+          </button>
+          <button
             className={`panel-header-btn${auditResults && auditResults.length > 0 ? ' panel-header-btn--audit-alert' : ''}`}
             onClick={handleRunAudit}
             disabled={auditRunning}
@@ -1363,6 +1380,38 @@ ${modelLine}  prompt: |
                   Fix
                 </button>
               )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {reviewRulesOpen && (
+        <div className="audit-results-panel">
+          <div className="audit-results-header">
+            <BookOpen size={13} />
+            <span>Learned Review Rules</span>
+            <span className="audit-results-count">{reviewRules.length} rule{reviewRules.length !== 1 ? 's' : ''}</span>
+            <button className="audit-results-dismiss" onClick={() => setReviewRulesOpen(false)} title="Close">
+              <X size={11} />
+            </button>
+          </div>
+          {reviewRules.length === 0 && (
+            <div className="audit-results-empty">No rules yet. Rules are learned automatically from approved maker-checker runs.</div>
+          )}
+          {reviewRules.map(r => (
+            <div key={r.id} className={`audit-result-row audit-result-row--${r.severity === 'error' ? 'high' : r.severity === 'warning' ? 'medium' : 'low'}`}>
+              <span className="audit-result-severity">{r.severity}</span>
+              <div className="audit-result-body">
+                <span className="audit-result-item">{r.pattern}</span>
+                <span className="audit-result-issue">repo: {r.repo} · from: {r.source} · {r.createdAt.slice(0, 10)}</span>
+              </div>
+              <button
+                className="audit-result-fix"
+                onClick={async () => { await window.api.pipeline.deleteReviewRule(r.id); fetchReviewRules() }}
+                title="Remove this rule"
+              >
+                <X size={10} />
+              </button>
             </div>
           ))}
         </div>

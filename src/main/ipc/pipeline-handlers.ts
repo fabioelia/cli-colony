@@ -13,6 +13,7 @@ import {
   pausePipeline, resumePipeline,
 } from '../pipeline-engine'
 import { getPipelineNotes, addPipelineNote, deletePipelineNote, updatePipelineNote } from '../pipeline-notes'
+import { loadReviewRules } from '../pipeline-stages'
 
 const PIPELINE_SCHEMA_PROMPT = `You are a pipeline YAML generator for Claude Colony.
 
@@ -258,6 +259,17 @@ export function registerPipelineHandlers(): void {
     const memPath = join(PIPELINES_DIR_MEM, `${fileName.replace(/\.(yaml|yml)$/, '')}.memory.md`)
     await fsp.writeFile(memPath, content, 'utf-8')
     return true
+  })
+
+  // Global review rules
+  ipcMain.handle('pipeline:getReviewRules', () => loadReviewRules())
+  ipcMain.handle('pipeline:deleteReviewRule', async (_e, id: string) => {
+    try {
+      const raw = await fsp.readFile(colonyPaths.reviewRules, 'utf-8')
+      const rules = JSON.parse(raw).filter((r: { id: string }) => r.id !== id)
+      await fsp.writeFile(colonyPaths.reviewRules, JSON.stringify(rules, null, 2), 'utf-8')
+      return true
+    } catch { return false }
   })
 
   // Pipeline notes (one-shot per-run steering)

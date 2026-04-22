@@ -314,6 +314,8 @@ export interface ClaudeManagerAPI {
     updateNote: (fileName: string, index: number, newText: string) => Promise<boolean>
     listArtifacts: () => Promise<Array<{ name: string; size: number; modifiedAt: string }>>
     readArtifact: (name: string) => Promise<string | null>
+    getReviewRules: () => Promise<Array<{ id: string; pattern: string; severity: string; repo: string; createdAt: string; source: string }>>
+    deleteReviewRule: (id: string) => Promise<boolean>
   }
   persona: {
     list: () => Promise<PersonaInfo[]>
@@ -1064,6 +1066,8 @@ const api: ClaudeManagerAPI = {
     updateNote: (fileName, index, newText) => ipcRenderer.invoke('pipeline:updateNote', fileName, index, newText),
     listArtifacts: () => ipcRenderer.invoke('pipeline:listArtifacts'),
     readArtifact: (name) => ipcRenderer.invoke('pipeline:readArtifact', name),
+    getReviewRules: () => ipcRenderer.invoke('pipeline:getReviewRules'),
+    deleteReviewRule: (id) => ipcRenderer.invoke('pipeline:deleteReviewRule', id),
   },
   persona: {
     list: () => ipcRenderer.invoke('persona:list'),
