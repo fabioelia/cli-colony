@@ -421,7 +421,7 @@ export const helpContent: Record<string, HelpEntry> = {
       { keys: 'Cmd+Shift+F', action: 'Global Search — search across all sessions\' terminal output' },
       { keys: 'Cmd+K', action: 'Command palette — switch sessions, run personas, launch agents, launch templates, navigate panels, search session history. When a session is active, a "Current Session" section appears with export, clone, fork, pin/unpin, rename, and open-in-Finder actions. Shows shortcut hints inline and recent commands at the top' },
       { keys: 'Cmd+P', action: 'File quick-open — fuzzy search across all env repos (type characters in order, gaps allowed — VS Code style). [alias] badge on sibling roots. ↑↓ to navigate, Enter to open, ESC to dismiss' },
-      { keys: 'Cmd+Shift+↵', action: 'Quick Prompt — launch a new session with a prompt pre-filled; ↑↓ to cycle history; save frequently-used prompts as named snippets; filter snippets by name; edit existing snippets in-place' },
+      { keys: 'Cmd+Shift+↵', action: 'Quick Prompt — launch a new session with a prompt pre-filled; ↑↓ to cycle history; save frequently-used prompts as named snippets; filter snippets by name; edit existing snippets in-place; drag files onto the prompt textarea to embed their content as code blocks (50KB limit, sensitive paths rejected)' },
       { keys: 'Cmd+Shift+1–5', action: 'Load workspace preset by position' },
       { keys: 'Cmd+Click', action: 'Enter multi-select mode and toggle session' },
       { keys: 'Shift+Click', action: 'Select range of sessions from last-clicked (in select mode)' },

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Play, Bookmark, Trash2, Pencil } from 'lucide-react'
 import { getSnippets, saveSnippet, updateSnippet, deleteSnippet } from '../lib/prompt-snippets'
+import { useFileDrop } from '../hooks/useFileDrop'
 
 interface Props {
   onClose: () => void
@@ -23,6 +24,38 @@ export default function QuickPromptDialog({ onClose, onLaunch, recentDirs, promp
   const promptRef = useRef<HTMLTextAreaElement>(null)
   const snippetsRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  const { ref: textareaWrapRef, isDragging } = useFileDrop(async (paths) => {
+    const SENSITIVE = ['.ssh', '.env', '.gnupg', 'credentials']
+    const parts: string[] = []
+    for (const p of paths) {
+      if (SENSITIVE.some(s => p.includes(s))) {
+        parts.push(`${p} (sensitive path — not embedded)`)
+        continue
+      }
+      const result = await window.api.fs.readFile(p)
+      if ('error' in result || !result.content) {
+        parts.push(`${p} (could not read file)`)
+        continue
+      }
+      const { content } = result
+      if (content.length > 50 * 1024) {
+        parts.push(`${p} (file too large to embed — path inserted)`)
+        continue
+      }
+      if (content.includes('\0')) {
+        parts.push(`${p} (binary file — path inserted)`)
+        continue
+      }
+      const name = p.split('/').pop() || p
+      const lines = content.split('\n').length
+      parts.push(`📎 **${name}** (${lines} lines):\n\`\`\`\n${content}\n\`\`\``)
+    }
+    const text = parts.join('\n\n')
+    setPrompt(prev => prev ? prev + '\n\n' + text : text)
+    setHistoryIndex(-1)
+    setTimeout(() => promptRef.current?.focus(), 0)
+  })
 
   useEffect(() => {
     requestAnimationFrame(() => promptRef.current?.focus())
@@ -82,7 +115,7 @@ export default function QuickPromptDialog({ onClose, onLaunch, recentDirs, promp
         <h2><Play size={16} style={{ display: 'inline', marginRight: 8 }} />Quick Prompt</h2>
         <p className="quick-prompt-hint">Launch a new Claude session with a prompt pre-filled. <kbd>⌘↵</kbd> to launch, <kbd>↑↓</kbd> for history.</p>
 
-        <div className="dialog-field">
+        <div className="dialog-field" ref={textareaWrapRef} style={isDragging ? { outline: '2px dashed var(--accent)', outlineOffset: -2, borderRadius: 4 } : undefined}>
           <label>Prompt</label>
           <textarea
             ref={promptRef}
