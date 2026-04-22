@@ -471,7 +471,7 @@ interface Props {
   currentLayout?: 'single' | '2-up' | '4-up'
   onLoadPreset?: (preset: WorkspacePreset) => void
   onCloneSession?: (inst: ClaudeInstance) => void
-  onSaveAsPipeline?: (inst: ClaudeInstance) => void
+  onSaveAsPipeline?: (inst: ClaudeInstance) => Promise<void>
   errorSummaries?: Map<string, ErrorSummary>
   onNewWithHandoff?: (handoffContent: string, workingDirectory: string) => void
   rateLimitState?: { utilization: number | null; resetAt: number | null; rateLimitType: string | null; paused: boolean; source: string | null; projectedMinutesToLimit?: number | null }
@@ -2486,11 +2486,15 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
               return inst?.status === 'exited' ? (
                 <button
                   className="context-menu-item"
-                  onClick={() => {
+                  onClick={async () => {
                     if (inst) {
-                      onSaveAsPipeline?.(inst)
-                      setSavedAsPipelineId(inst.id)
-                      setTimeout(() => { setSavedAsPipelineId(null); setContextMenu(null) }, 1200)
+                      try {
+                        await onSaveAsPipeline?.(inst)
+                        setSavedAsPipelineId(inst.id)
+                        setTimeout(() => { setSavedAsPipelineId(null); setContextMenu(null) }, 1200)
+                      } catch (_) {
+                        setContextMenu(null)
+                      }
                     }
                   }}
                   title="Convert this session into a reusable pipeline"
