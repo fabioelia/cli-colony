@@ -2006,6 +2006,11 @@ ${modelLine}  prompt: |
                     </button>
                   )}
                 </div>
+                {yamlCopiedName === p.name && (
+                  <div className="pipeline-replay-toast">
+                    <Copy size={11} /> YAML copied to clipboard
+                  </div>
+                )}
                 {expandedTab === 'yaml' ? (
                   <>
                     <textarea
@@ -2085,11 +2090,6 @@ ${modelLine}  prompt: |
                   </div>
                 ) : expandedTab === 'history' ? (
                   <div className="pipeline-history">
-                    {yamlCopiedName === p.name && (
-                      <div className="pipeline-replay-toast">
-                        <Copy size={11} /> YAML copied to clipboard
-                      </div>
-                    )}
                     {replayToast && replayToast.name === p.name && (
                       <div className="pipeline-replay-toast">
                         <RotateCw size={11} /> Replaying run from {new Date(replayToast.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {new Date(replayToast.ts).toLocaleDateString([], { month: 'short', day: 'numeric' })}

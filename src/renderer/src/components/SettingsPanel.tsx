@@ -113,7 +113,7 @@ export default function SettingsPanel({ onBack }: Props) {
     arena: 'arena judge learning history reasons manual pick auto-judge',
     general: 'general tray keep running close quit',
     notifications: 'notifications sound desktop alert pipeline persona approval session budget environment system',
-    sessions: 'sessions cleanup auto-cleanup idle cost daily budget hotkey global shortcut retention purge age',
+    sessions: 'sessions cleanup auto-cleanup idle cost daily budget hotkey global shortcut retention purge age stale trigger chain depth persona',
     mcp: 'mcp server catalog stdio sse environment variables',
     audit: 'mcp audit tool call approval log',
     commit: 'commit attribution git',
