@@ -8,6 +8,7 @@ import {
   ShieldCheck, List, Globe, Wand2, ArrowRight, ArrowLeft, Hourglass, ArrowUpDown,
   GitPullRequest, GitMerge, GitBranch, Sparkles, RotateCw, Copy, Timer, Activity,
   Download, Upload, PauseCircle, PlayCircle, Check, StickyNote, Network, Archive, CalendarDays,
+  History,
 } from 'lucide-react'
 import type { AuditResult, GitHubRepo, SessionArtifact } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
@@ -430,6 +431,24 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [pipelineSearch, setPipelineSearch] = useState('')
   const [pipelineStats, setPipelineStats] = useState<Map<string, PipelineStats | null>>(new Map())
   const [cronsPaused, setCronsPaused] = useState(false)
+
+  // Cross-pipeline history search
+  type HistorySearchResult = { pipelineName: string; entry: { ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number }; matchField: string }
+  const [historySearchMode, setHistorySearchMode] = useState(false)
+  const [historySearchQuery, setHistorySearchQuery] = useState('')
+  const [historySearchResults, setHistorySearchResults] = useState<HistorySearchResult[]>([])
+  const [historySearchLoading, setHistorySearchLoading] = useState(false)
+
+  useEffect(() => {
+    if (!historySearchMode || !historySearchQuery.trim()) { setHistorySearchResults([]); return }
+    setHistorySearchLoading(true)
+    const t = setTimeout(async () => {
+      const results = await window.api.pipeline.searchHistory(historySearchQuery).catch(() => [])
+      setHistorySearchResults(results)
+      setHistorySearchLoading(false)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [historySearchMode, historySearchQuery])
 
   // 60s tick for next-run countdown refresh
   const [, setTick] = useState(0)
@@ -1140,6 +1159,13 @@ ${modelLine}  prompt: |
           >
             <CalendarDays size={13} />
           </button>
+          <button
+            className={`panel-header-btn${historySearchMode ? ' active' : ''}`}
+            title={historySearchMode ? 'Close history search' : 'Search all pipeline history'}
+            onClick={() => { setHistorySearchMode(m => !m); setHistorySearchQuery(''); setHistorySearchResults([]) }}
+          >
+            <History size={13} />
+          </button>
           {!healthView && !showTopologyMap && !showScheduleHeatmap && (
             <button
               className={`panel-header-btn${listMode ? ' active' : ''}`}
@@ -1207,6 +1233,54 @@ ${modelLine}  prompt: |
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {historySearchMode && (
+        <div className="history-search-panel">
+          <div className="history-search-bar">
+            <Search size={13} className="history-search-icon" />
+            <input
+              autoFocus
+              className="history-search-input"
+              placeholder="Search all pipeline runs… try: failed, >$1, today, last-hour"
+              value={historySearchQuery}
+              onChange={e => setHistorySearchQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Escape') { setHistorySearchMode(false); setHistorySearchQuery(''); setHistorySearchResults([]) } }}
+            />
+            {historySearchLoading && <RefreshCw size={12} className="spin" />}
+            {historySearchQuery && !historySearchLoading && <button className="history-search-clear" onClick={() => { setHistorySearchQuery(''); setHistorySearchResults([]) }}><X size={11} /></button>}
+          </div>
+          <div className="history-search-chips">
+            {['failed', '>$1', 'today', 'last-hour'].map(chip => (
+              <button key={chip} className={`history-search-chip${historySearchQuery === chip ? ' active' : ''}`} onClick={() => setHistorySearchQuery(historySearchQuery === chip ? '' : chip)}>{chip}</button>
+            ))}
+          </div>
+          {historySearchQuery.trim() && !historySearchLoading && (
+            <div className="history-search-results">
+              {historySearchResults.length === 0 ? (
+                <div className="history-search-empty">No runs found for "{historySearchQuery}"</div>
+              ) : (
+                historySearchResults.map((r, i) => {
+                  const d = new Date(r.entry.ts)
+                  const ago = (() => { const s = (Date.now() - d.getTime()) / 1000; if (s < 3600) return `${Math.floor(s / 60)}m ago`; if (s < 86400) return `${Math.floor(s / 3600)}h ago`; return `${Math.floor(s / 86400)}d ago` })()
+                  return (
+                    <div
+                      key={i}
+                      className="history-search-row"
+                      onClick={() => { setExpandedPipeline(r.pipelineName); setExpandedTab('history'); setHistorySearchMode(false); setHistorySearchQuery(''); setHistorySearchResults([]) }}
+                    >
+                      <span className="history-search-pipeline-badge">{r.pipelineName}</span>
+                      {r.entry.success ? <CheckCircle size={11} className="history-search-success" /> : <XCircle size={11} className="history-search-fail" />}
+                      <span className="history-search-trigger">{r.entry.trigger}</span>
+                      <span className="history-search-ago">{ago}</span>
+                      {r.entry.totalCost != null && r.entry.totalCost > 0 && <span className="history-search-cost">${r.entry.totalCost.toFixed(3)}</span>}
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          )}
         </div>
       )}
 

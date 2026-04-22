@@ -296,6 +296,7 @@ export interface ClaudeManagerAPI {
     onApprovalNew: (cb: (request: ApprovalRequest) => void) => () => void
     onApprovalUpdate: (cb: (data: { id: string; status: 'approved' | 'dismissed' | 'expired' }) => void) => () => void
     getHistory: (name: string) => Promise<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; stages?: Array<{ index: number; actionType: string; sessionName?: string; durationMs: number; success: boolean; error?: string }> }>>
+    searchHistory: (query: string) => Promise<Array<{ pipelineName: string; entry: { ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number }; matchField: string }>>
     createFromTemplate: (yaml: string, slug: string) => Promise<boolean>
     generate: (description: string) => Promise<string>
     delete: (fileName: string) => Promise<boolean>
@@ -1025,6 +1026,7 @@ const api: ClaudeManagerAPI = {
       return () => ipcRenderer.removeListener('pipeline:approval:update', l)
     },
     getHistory: (name) => ipcRenderer.invoke('pipeline:getHistory', name),
+    searchHistory: (query) => ipcRenderer.invoke('pipeline:searchHistory', query),
     createFromTemplate: (yaml, slug) => ipcRenderer.invoke('pipeline:createFromTemplate', yaml, slug),
     generate: (description) => ipcRenderer.invoke('pipeline:generate', description),
     delete: (fileName) => ipcRenderer.invoke('pipeline:delete', fileName),

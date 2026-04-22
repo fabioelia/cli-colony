@@ -9,7 +9,7 @@ import { colonyPaths } from '../../shared/colony-paths'
 import {
   getPipelineList, togglePipeline, triggerPollNow, getPipelinesDir,
   getPipelineContent, savePipelineContent, loadPipelines, setPipelineCron,
-  previewPipeline, listApprovals, approveAction, dismissAction, getHistory,
+  previewPipeline, listApprovals, approveAction, dismissAction, getHistory, searchAllHistory,
 } from '../pipeline-engine'
 import { getPipelineNotes, addPipelineNote, deletePipelineNote, updatePipelineNote } from '../pipeline-notes'
 
@@ -154,6 +154,7 @@ export function registerPipelineHandlers(): void {
   ipcMain.handle('pipeline:approve', (_e, id: string) => approveAction(id))
   ipcMain.handle('pipeline:dismiss', (_e, id: string) => dismissAction(id))
   ipcMain.handle('pipeline:getHistory', (_e, name: string) => getHistory(name))
+  ipcMain.handle('pipeline:searchHistory', (_e, query: string) => searchAllHistory(query))
 
   ipcMain.handle('pipeline:export', async (_e, fileNames: string[]) => {
     const result = await dialog.showSaveDialog({

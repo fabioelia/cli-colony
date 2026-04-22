@@ -19185,6 +19185,95 @@ button.session-trigger-chain-btn:hover {
   background: rgba(99,102,241,0.25);
 }
 
+.history-search-panel {
+  margin: 0 12px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  font-size: 12px;
+}
+.history-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+.history-search-icon { color: var(--text-muted); flex-shrink: 0; }
+.history-search-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.history-search-input::placeholder { color: var(--text-muted); }
+.history-search-clear {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  border-radius: 3px;
+}
+.history-search-clear:hover { color: var(--text-primary); background: var(--bg-hover); }
+.history-search-chips {
+  display: flex;
+  gap: 4px;
+  padding: 5px 10px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+.history-search-chip {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1px 8px;
+  font-size: 10px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.history-search-chip:hover { color: var(--text-primary); border-color: var(--accent); }
+.history-search-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.history-search-results { max-height: 260px; overflow-y: auto; }
+.history-search-empty {
+  padding: 12px 14px;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: center;
+}
+.history-search-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border-subtle, var(--border));
+}
+.history-search-row:hover { background: var(--bg-hover); }
+.history-search-row:last-child { border-bottom: none; }
+.history-search-pipeline-badge {
+  background: rgba(99,102,241,0.15);
+  color: var(--accent);
+  border-radius: 8px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.history-search-success { color: var(--color-success, #22c55e); flex-shrink: 0; }
+.history-search-fail { color: var(--color-error, #ef4444); flex-shrink: 0; }
+.history-search-trigger { color: var(--text-secondary); font-size: 11px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-search-ago { color: var(--text-muted); font-size: 10px; white-space: nowrap; }
+.history-search-cost { color: var(--text-muted); font-size: 10px; white-space: nowrap; margin-left: 2px; }
+
 .persona-card-status-dot {
   width: 7px;
   height: 7px;

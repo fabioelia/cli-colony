@@ -444,6 +444,61 @@ export async function getHistory(pipelineName: string): Promise<PipelineRunEntry
   return []
 }
 
+export interface HistorySearchResult {
+  pipelineName: string
+  entry: PipelineRunEntry
+  matchField: string
+}
+
+export async function searchAllHistory(query: string): Promise<HistorySearchResult[]> {
+  if (!await pathExists(PIPELINES_DIR)) return []
+  const files = (await fsp.readdir(PIPELINES_DIR)).filter(f => f.endsWith('.history.json'))
+  const q = query.trim().toLowerCase()
+  const now = Date.now()
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+  const hourAgo = now - 3600_000
+
+  const filterFailed = q === 'failed' || q.includes('failed')
+  const costMatch = q.match(/^>\s*\$?(\d+(?:\.\d+)?)/)
+  const costThreshold = costMatch ? parseFloat(costMatch[1]) : null
+  const filterToday = q === 'today'
+  const filterLastHour = q === 'last-hour' || q === 'lasthour'
+  const textQuery = (!filterFailed && !costThreshold && !filterToday && !filterLastHour) ? q : ''
+
+  const results: HistorySearchResult[] = []
+  const loadedNames = new Map<string, string>()
+  for (const [, p] of pipelines) {
+    const safe = p.def.name.replace(/[^a-zA-Z0-9._-]/g, '-')
+    loadedNames.set(safe, p.def.name)
+  }
+
+  for (const file of files) {
+    const slug = file.replace(/\.history\.json$/, '')
+    const pipelineName = loadedNames.get(slug) || slug.replace(/-/g, ' ')
+    let entries: PipelineRunEntry[] = []
+    try {
+      entries = JSON.parse(await fsp.readFile(join(PIPELINES_DIR, file), 'utf-8'))
+    } catch { continue }
+
+    for (const entry of entries) {
+      const entryTs = new Date(entry.ts).getTime()
+      if (filterFailed && entry.success) continue
+      if (costThreshold !== null && (entry.totalCost ?? 0) <= costThreshold) continue
+      if (filterToday && entryTs < todayStart.getTime()) continue
+      if (filterLastHour && entryTs < hourAgo) continue
+      if (textQuery) {
+        const haystack = [pipelineName, entry.trigger, ...(entry.sessionIds || [])].join(' ').toLowerCase()
+        if (!haystack.includes(textQuery)) continue
+      }
+      const matchField = filterFailed ? 'status' : costThreshold !== null ? 'cost' : filterToday ? 'date' : filterLastHour ? 'date' : textQuery ? 'name' : 'all'
+      results.push({ pipelineName, entry, matchField })
+    }
+  }
+
+  results.sort((a, b) => new Date(b.entry.ts).getTime() - new Date(a.entry.ts).getTime())
+  return results.slice(0, 50)
+}
+
 // ---- State Persistence ----
 
 function debugLogPath(name: string): string {
