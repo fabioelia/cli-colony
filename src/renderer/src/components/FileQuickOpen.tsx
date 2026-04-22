@@ -90,11 +90,21 @@ export default function FileQuickOpen({ open, onClose, workingDirectory, onSelec
   const filtered = useMemo(() => {
     if (!query.trim()) return files.slice(0, 50)
     const q = query.toLowerCase()
-    const matches = files.filter((f) => f.relPath.toLowerCase().includes(q))
+    const fuzzyMatch = (haystack: string) => {
+      let hi = 0
+      for (const ch of q) {
+        const idx = haystack.indexOf(ch, hi)
+        if (idx === -1) return false
+        hi = idx + 1
+      }
+      return true
+    }
+    const matches = files.filter((f) => fuzzyMatch(f.relPath.toLowerCase()))
     matches.sort((a, b) => {
       const aName = a.name.toLowerCase().includes(q) ? 0 : 1
       const bName = b.name.toLowerCase().includes(q) ? 0 : 1
-      return aName - bName
+      if (aName !== bName) return aName - bName
+      return a.relPath.length - b.relPath.length
     })
     return matches.slice(0, 100)
   }, [files, query])

@@ -76,9 +76,19 @@ interface FileTreeNodeProps {
   onLoadChildren: (path: string) => void
 }
 
+function fuzzyMatchStr(haystack: string, query: string): boolean {
+  let hi = 0
+  for (const ch of query) {
+    const idx = haystack.indexOf(ch, hi)
+    if (idx === -1) return false
+    hi = idx + 1
+  }
+  return true
+}
+
 function nodeMatchesFilter(node: FileNode, filter: string, lazyChildren: Map<string, FileNode[]>): boolean {
   const q = filter.toLowerCase()
-  if (node.name.toLowerCase().includes(q)) return true
+  if (fuzzyMatchStr(node.name.toLowerCase(), q)) return true
   if (node.type === 'directory') {
     const children = node.children || lazyChildren.get(node.path)
     if (children) return children.some((c) => nodeMatchesFilter(c, filter, lazyChildren))
