@@ -6,7 +6,7 @@ import {
   FileText, Clock, CheckCircle, XCircle, AlertTriangle, Save, BookOpen,
   MessageSquare, Send, Plus, Search, Pencil, Eye, X, LayoutList, LayoutGrid,
   ShieldCheck, List, Globe, Wand2, ArrowRight, ArrowLeft, Hourglass, ArrowUpDown,
-  GitPullRequest, GitMerge, GitBranch, Sparkles, RotateCw, Copy, Timer, Activity,
+  GitPullRequest, GitMerge, GitBranch, Sparkles, RotateCw, Copy, ClipboardPaste, Timer, Activity,
   Download, Upload, PauseCircle, PlayCircle, Check, StickyNote, Network, Archive, CalendarDays,
   History, CheckSquare, Trash2, Bell, BellMinus, BellOff,
 } from 'lucide-react'
@@ -1262,7 +1262,7 @@ ${modelLine}  prompt: |
             <Upload size={12} />
           </button>
           <button className="panel-header-btn" onClick={() => { setPasteModalOpen(true); setPasteYaml(''); setPasteError('') }} title="Paste YAML to import a pipeline">
-            <Copy size={12} />
+            <ClipboardPaste size={12} />
           </button>
           <button className="panel-header-btn primary" onClick={openAutomationWizard} title="Create a new automation with a step-by-step wizard">
             <Wand2 size={12} /> New Automation

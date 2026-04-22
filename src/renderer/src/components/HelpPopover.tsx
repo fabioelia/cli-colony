@@ -16,7 +16,7 @@ import {
   Home, Server, GitPullRequest, MoreHorizontal, ArrowLeftRight, ArrowDown, Bookmark,
   PauseCircle, PanelRight, PanelLeft, FolderTree, HardDrive, Ticket, CheckCircle2, CheckCircle, Gauge,
   History, Cloud, ChevronsRight, Clipboard, ListOrdered, Crosshair, FileCode, GitCompareArrows, CalendarDays, BookOpen,
-  Cpu,
+  Cpu, ClipboardPaste,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { helpContent, type HelpEntry, type HelpZone } from '../lib/help-content'
@@ -36,7 +36,7 @@ const iconMap: Record<string, LucideIcon> = {
   Home, Server, GitPullRequest, MoreHorizontal, ArrowLeftRight, ArrowDown, Bookmark,
   PauseCircle, PanelRight, PanelLeft, FolderTree, HardDrive, Ticket, CheckCircle2, CheckCircle, Gauge, X,
   History, Cloud, ChevronsRight, Clipboard, ListOrdered, Crosshair, FileCode, GitCompareArrows, CalendarDays, BookOpen,
-  Cpu,
+  Cpu, ClipboardPaste,
 }
 
 function HelpIcon({ name }: { name?: string }) {

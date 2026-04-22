@@ -23899,6 +23899,44 @@ button.session-trigger-chain-btn:hover {
   background: none; border: 1px dashed var(--border); border-radius: 4px; cursor: pointer;
 }
 .activity-show-more:hover { border-color: var(--border-active); color: var(--text-secondary); }
+/* Knowledge Base section */
+.overview-section-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 16px; padding: 0 5px; border-radius: 8px;
+  background: var(--bg-tertiary); color: var(--text-muted); font-size: 10px; font-weight: 600;
+}
+.knowledge-add-row {
+  display: flex; gap: 6px; margin-bottom: 8px;
+}
+.knowledge-add-input {
+  flex: 1; padding: 5px 8px; font-size: 12px; border-radius: 4px;
+  border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary);
+  outline: none;
+}
+.knowledge-add-input:focus { border-color: var(--border-active); }
+.knowledge-entries-list {
+  display: flex; flex-direction: column; gap: 3px;
+  max-height: 300px; overflow-y: auto;
+}
+.knowledge-entry-row {
+  display: flex; align-items: flex-start; gap: 6px; padding: 5px 6px;
+  border-radius: 4px; font-size: 11px; line-height: 1.4;
+}
+.knowledge-entry-row:hover { background: var(--bg-hover); }
+.knowledge-entry-meta {
+  color: var(--text-muted); white-space: nowrap; flex-shrink: 0; font-size: 10px;
+  padding-top: 1px;
+}
+.knowledge-entry-text {
+  flex: 1; color: var(--text-secondary); min-width: 0; word-break: break-word;
+}
+.knowledge-entry-delete {
+  flex-shrink: 0; padding: 2px; margin-top: 1px; border-radius: 3px;
+  background: none; border: none; color: var(--text-muted); cursor: pointer;
+  opacity: 0; transition: opacity 0.1s;
+}
+.knowledge-entry-row:hover .knowledge-entry-delete { opacity: 1; }
+.knowledge-entry-delete:hover { color: var(--danger); background: var(--danger-bg); }
 /* Artifacts summary strip */
 .artifacts-summary-strip {
   padding: 8px 16px;
@@ -24909,5 +24947,54 @@ button.session-trigger-chain-btn:hover {
   padding: 12px 20px;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+/* Generic shared modal UI — used by persona prompt preview, pipeline YAML paste, output alerts */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 8000; -webkit-app-region: no-drag;
+}
+.modal-box {
+  background: var(--bg-primary); border: 1px solid var(--border);
+  border-radius: 10px; min-width: 320px; max-width: 94vw; max-height: 88vh;
+  padding: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  display: flex; flex-direction: column; gap: 12px;
+}
+.modal-box h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.modal-help { margin: 0; font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.modal-input {
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: 6px; padding: 7px 10px; font-size: 13px; color: var(--text-primary);
+  width: 100%; box-sizing: border-box;
+}
+.modal-input:focus { outline: none; border-color: var(--accent); }
+.modal-textarea {
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: 6px; padding: 7px 10px; font-size: 12px; color: var(--text-primary);
+  width: 100%; box-sizing: border-box; resize: vertical; line-height: 1.5;
+}
+.modal-textarea:focus { outline: none; border-color: var(--accent); }
+.modal-row { display: flex; align-items: center; gap: 16px; font-size: 12px; color: var(--text-secondary); }
+.modal-error { margin: 0; font-size: 12px; color: var(--danger); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.modal-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 14px; border-radius: 6px; font-size: 12px;
+  cursor: pointer; border: 1px solid var(--border);
+  background: var(--bg-secondary); color: var(--text-secondary);
+  transition: background 0.12s;
+}
+.modal-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.modal-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.modal-btn.primary:hover { opacity: 0.88; }
+.modal-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Session output alert count badge */
+.session-alert-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; padding: 1px 5px; border-radius: 8px;
+  background: var(--bg-tertiary); border: 1px solid var(--border);
+  color: var(--warning); white-space: nowrap; flex-shrink: 0;
 }
 .overview-changes-diff-error { color: var(--danger); }
