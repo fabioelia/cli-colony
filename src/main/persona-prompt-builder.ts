@@ -8,7 +8,7 @@
  */
 
 import { readFileSync, existsSync } from 'fs'
-import { basename } from 'path'
+import { basename, join } from 'path'
 import type { PersonaFrontmatter, PersonaState, TriggerSource } from './persona-manager'
 import { updateColonyContext } from './colony-context'
 import { colonyPaths } from '../shared/colony-paths'
@@ -268,6 +268,12 @@ Remove DONE items after you've reviewed their output.
 **Learnings** — Append new entries if you discovered something useful. Remove entries
 that are no longer relevant. Keep this section under 30 items.
 
+### Coordination Artifacts
+If your kickoff message references a coordination file, read it at the start to understand what
+previous personas in this chain accomplished. Before exiting, append a section with your name,
+timestamp, what you did, key findings, and decisions made. This helps the next persona pick up
+where you left off.
+
 **Session Log** — Append exactly one entry in this format:
 \`- [${timestamp}] <one-line summary of what you did>\`
 If there are more than 20 entries, remove the oldest ones.
@@ -318,8 +324,14 @@ export function buildKickoff(filePath: string, trigger: TriggerSource, customMes
   switch (trigger.type) {
     case 'cron':
       return `Your scheduled run has fired (schedule: ${trigger.schedule}). ${base}`
-    case 'handoff':
-      return `You've been triggered by "${trigger.from}" completing its run.${customMessage ? '' : ' Check what it accomplished in the colony context or recent session output, then'} ${base}`
+    case 'handoff': {
+      let msg = `You've been triggered by "${trigger.from}" completing its run.`
+      if (trigger.chainId) {
+        const coordPath = join(colonyPaths.coordination, `${trigger.chainId}.md`)
+        msg += `\n\nCoordination file for this chain: ${coordPath}\nRead it for context from all previous stages. Append your key findings and decisions before exiting.`
+      }
+      return `${msg}${!trigger.chainId ? ' Check what it accomplished in the colony context or recent session output, then' : ''} ${base}`
+    }
     case 'manual':
     default:
       return `You've been manually triggered. ${base}`
