@@ -454,6 +454,9 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [selectMode, setSelectMode] = useState(false)
   const [pipelineStats, setPipelineStats] = useState<Map<string, PipelineStats | null>>(new Map())
   const [cronsPaused, setCronsPaused] = useState(false)
+  const [pasteModalOpen, setPasteModalOpen] = useState(false)
+  const [pasteYaml, setPasteYaml] = useState('')
+  const [pasteError, setPasteError] = useState('')
 
   // Cross-pipeline history search
   type HistorySearchResult = { pipelineName: string; entry: { ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number }; matchField: string }
@@ -1257,6 +1260,9 @@ ${modelLine}  prompt: |
           </button>
           <button className="panel-header-btn" onClick={handleImport} title="Import pipelines from zip">
             <Upload size={12} />
+          </button>
+          <button className="panel-header-btn" onClick={() => { setPasteModalOpen(true); setPasteYaml(''); setPasteError('') }} title="Paste YAML to import a pipeline">
+            <Copy size={12} />
           </button>
           <button className="panel-header-btn primary" onClick={openAutomationWizard} title="Create a new automation with a step-by-step wizard">
             <Wand2 size={12} /> New Automation
@@ -2734,6 +2740,44 @@ ${modelLine}  prompt: |
                   {generateSaving ? 'Saving…' : 'Save Pipeline'}
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Paste YAML Modal */}
+      {pasteModalOpen && (
+        <div className="modal-overlay" onClick={() => { setPasteModalOpen(false); setPasteYaml(''); setPasteError('') }}>
+          <div className="modal-box" style={{ width: 520 }} onClick={e => e.stopPropagation()}>
+            <h3>Paste Pipeline YAML</h3>
+            <textarea
+              className="modal-textarea"
+              placeholder="Paste YAML here..."
+              value={pasteYaml}
+              onChange={e => { setPasteYaml(e.target.value); setPasteError('') }}
+              rows={14}
+              style={{ fontFamily: 'monospace', fontSize: 12 }}
+              autoFocus
+            />
+            {pasteError && <p className="modal-error">{pasteError}</p>}
+            <div className="modal-actions">
+              <button className="modal-btn" onClick={() => { setPasteModalOpen(false); setPasteYaml(''); setPasteError('') }}>Cancel</button>
+              <button className="modal-btn primary" onClick={async () => {
+                const trimmed = pasteYaml.trim()
+                if (!trimmed) return
+                try {
+                  const parsed = parseYaml(trimmed) as any
+                  if (!parsed?.name) { setPasteError('YAML must have a "name" field'); return }
+                  const result = await window.api.pipeline.createFromTemplate(trimmed, slugify(parsed.name))
+                  if (!result) { setPasteError('Failed to create pipeline'); return }
+                  setPasteModalOpen(false)
+                  setPasteYaml('')
+                  setPasteError('')
+                  loadPipelines()
+                } catch (e: any) {
+                  setPasteError(`Invalid YAML: ${e.message}`)
+                }
+              }}>Import</button>
             </div>
           </div>
         </div>
