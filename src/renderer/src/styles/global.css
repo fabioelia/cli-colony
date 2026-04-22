@@ -23936,7 +23936,7 @@ button.session-trigger-chain-btn:hover {
   opacity: 0; transition: opacity 0.1s;
 }
 .knowledge-entry-row:hover .knowledge-entry-delete { opacity: 1; }
-.knowledge-entry-delete:hover { color: var(--danger); background: var(--danger-bg); }
+.knowledge-entry-delete:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
 /* Artifacts summary strip */
 .artifacts-summary-strip {
   padding: 8px 16px;
