@@ -288,6 +288,17 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Project grouping', detail: 'When sessions span multiple projects (different working directories), files are grouped by project with a subtle header.' },
         ],
       },
+      {
+        name: 'Changelog Tab',
+        position: 'Tab bar — "Changelog"',
+        items: [
+          { label: 'Changelog view', detail: 'Reverse-chronological list of git commits from the last 7 days (up to 100). Parses conventional commit format (feat/fix/ux/perf/refactor/test/chore/docs) and shows each type with a colored badge. Summary bar at the top shows feature/fix/UX counts and total commit count.', icon: 'GitCommit' },
+          { label: 'Type filter chips', detail: 'Click any commit-type chip (feat, fix, ux, etc.) to filter the list to that type. Click again to clear. Only one type filter at a time.' },
+          { label: 'Day filter chips', detail: 'Days present in the log appear as chip buttons (Today, Yesterday, weekday names). Click to filter to commits from that day only. Combines with the type filter.' },
+          { label: 'Copy commit hash', detail: 'Click any short commit hash (7-char monospace) to copy the full hash to the clipboard.' },
+          { label: 'Files changed', detail: 'Shows a compact "Nf" badge per commit when the git log includes file-change stats.' },
+        ],
+      },
     ],
   },
   sessions: {
