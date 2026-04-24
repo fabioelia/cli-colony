@@ -207,8 +207,18 @@ function createWindow(): void {
     width: savedState.width || 1200,
   }
   if (savedState.x !== undefined && savedState.y !== undefined) {
-    bounds.x = savedState.x
-    bounds.y = savedState.y
+    // Snap to the nearest display so a disconnected monitor doesn't hide the window.
+    const displays = screen.getAllDisplays()
+    const cx = savedState.x + (savedState.width || 1200) / 2
+    const cy = savedState.y + (savedState.height || 800) / 2
+    const onScreen = displays.some(d => {
+      const a = d.workArea
+      return cx >= a.x && cx <= a.x + a.width && cy >= a.y && cy <= a.y + a.height
+    })
+    if (onScreen) {
+      bounds.x = savedState.x
+      bounds.y = savedState.y
+    }
   }
 
   const platformWindowOptions: Partial<Electron.BrowserWindowConstructorOptions> =
@@ -217,6 +227,9 @@ function createWindow(): void {
           titleBarStyle: 'hiddenInset',
           trafficLightPosition: { x: 16, y: 16 },
           vibrancy: 'sidebar',
+          // Keep vibrancy painting even when the window isn't frontmost — helps
+          // avoid blank-content moments during window-state transitions.
+          visualEffectState: 'active',
         }
       : {
           titleBarStyle: 'hidden',
@@ -255,10 +268,23 @@ function createWindow(): void {
   mainWindow.on('enter-full-screen', () => {
     stateChangeHandler()
     mainWindow?.webContents.send('window:fullscreen-changed', true)
+    // Workaround for Electron 41 + vibrancy + hiddenInset: the compositor drops
+    // the first frame after the Space transition, and the vibrancy backing layer
+    // masks the blank. Drop vibrancy during fullscreen so the WebContents paint
+    // is unobstructed, and force an invalidate to kick a repaint.
+    if (process.platform === 'darwin' && mainWindow) {
+      mainWindow.setVibrancy(null)
+      mainWindow.setBackgroundColor('#1a1a2e')
+      setImmediate(() => mainWindow?.webContents.invalidate())
+    }
   })
   mainWindow.on('leave-full-screen', () => {
     stateChangeHandler()
     mainWindow?.webContents.send('window:fullscreen-changed', false)
+    if (process.platform === 'darwin' && mainWindow) {
+      mainWindow.setVibrancy('sidebar')
+      setImmediate(() => mainWindow?.webContents.invalidate())
+    }
   })
 
   mainWindow.on('close', (event) => {
@@ -297,16 +323,10 @@ function createWindow(): void {
   mainWindow.on('ready-to-show', () => {
     clearTimeout(fallbackShowTimer)
     mainWindow?.show()
-    // Restore fullscreen state after window is shown
-    // Do this in setImmediate to ensure the window is fully visible first
-    if (savedState.isFullScreen) {
-      setImmediate(() => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.setFullScreen(true)
-        }
-      })
-    } else if (savedState.isMaximized) {
-      // Restore maximized state if not fullscreen
+    // Intentionally do not restore fullscreen: vibrancy + hiddenInset + fullscreen
+    // on macOS can produce an invisible window on a separate Space with no way
+    // to get back to it. Users who want fullscreen can re-enter via the menu.
+    if (savedState.isMaximized && !savedState.isFullScreen) {
       setImmediate(() => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.maximize()

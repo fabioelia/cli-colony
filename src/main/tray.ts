@@ -5,11 +5,23 @@ import { getAllInstances, ClaudeInstance } from './instance-manager'
 let tray: Tray | null = null
 
 /**
+ * Force the window out of any fullscreen mode. Native macOS fullscreen +
+ * vibrancy + hiddenInset can render an invisible window on a separate Space.
+ */
+function forceExitFullscreen(mainWindow: BrowserWindow): void {
+  try { if (mainWindow.isFullScreen()) mainWindow.setFullScreen(false) } catch { /* */ }
+  if (process.platform === 'darwin') {
+    try { if (mainWindow.isSimpleFullScreen()) mainWindow.setSimpleFullScreen(false) } catch { /* */ }
+  }
+}
+
+/**
  * Reliably bring the main window to the user's current Space and foreground.
  * Plain show()/focus() doesn't cross macOS Spaces or wake a minimized window.
  */
 function bringToFront(mainWindow: BrowserWindow | null): void {
   if (!mainWindow || mainWindow.isDestroyed()) return
+  forceExitFullscreen(mainWindow)
   if (mainWindow.isMinimized()) mainWindow.restore()
   if (!mainWindow.isVisible()) mainWindow.show()
   if (process.platform === 'darwin') {
@@ -86,6 +98,14 @@ export async function updateTrayMenu(mainWindow: BrowserWindow | null): Promise<
             Math.round(dy + (dh - bounds.height) / 2),
           )
         }
+        bringToFront(mainWindow)
+      },
+    },
+    {
+      label: 'Exit Fullscreen',
+      click: () => {
+        if (!mainWindow || mainWindow.isDestroyed()) return
+        forceExitFullscreen(mainWindow)
         bringToFront(mainWindow)
       },
     },
