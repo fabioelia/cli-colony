@@ -29,6 +29,19 @@ import { transitionTicket, addComment } from './jira'
 export type { ClaudeInstance } from '../daemon/protocol'
 import type { ClaudeInstance } from '../daemon/protocol'
 
+export function computeSessionTags(inst: ClaudeInstance, exitCode: number): string[] {
+  const tags: string[] = []
+  if (exitCode !== 0) tags.push('failed')
+  if (inst.pipelineName) {
+    tags.push('pipeline')
+  } else if (inst.name.startsWith('Persona: ')) {
+    tags.push('persona')
+  }
+  const durationMs = Date.now() - new Date(inst.createdAt).getTime()
+  if (durationMs > 30 * 60 * 1000) tags.push('long-running')
+  return tags
+}
+
 // Track MCP config files by instance ID so we can clean them up on exit
 const _mcpConfigPaths = new Map<string, string>()
 
@@ -333,6 +346,12 @@ export function wireDaemonEvents(): void {
     // Single getInstance call — shared by activity log + commit attribution
     router.getInstance(instanceId).then(inst => {
       if (!inst) return
+
+      // Auto-tag session on exit — broadcast to renderer for sidebar localStorage
+      const autoTags = computeSessionTags(inst, exitCode)
+      if (autoTags.length > 0) {
+        broadcast('instance:autoTags', { id: instanceId, tags: autoTags })
+      }
 
       appendActivity({
         source: 'session',

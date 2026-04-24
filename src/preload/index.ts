@@ -92,6 +92,7 @@ export interface ClaudeManagerAPI {
     onToolDeferred: (callback: (data: { id: string; sessionId: string; toolName?: string }) => void) => () => void
     onErrorSummary: (callback: (data: { id: string; errorSummary: ErrorSummary }) => void) => () => void
     onBudgetExceeded: (callback: (data: { id: string; cost: number; cap: number }) => void) => () => void
+    onAutoTags: (callback: (data: { id: string; tags: string[] }) => void) => () => void
     clearToolDeferred: (id: string) => Promise<boolean>
     fileOverlaps: () => Promise<Record<string, { file: string; otherSessions: { id: string; name: string }[] }[]>>
     stopChildren: (parentId: string) => Promise<number>
@@ -799,6 +800,11 @@ const api: ClaudeManagerAPI = {
       const listener = (_e: any, data: { id: string; cost: number; cap: number }) => callback(data)
       ipcRenderer.on('instance:budgetExceeded', listener)
       return () => ipcRenderer.removeListener('instance:budgetExceeded', listener)
+    },
+    onAutoTags: (callback) => {
+      const listener = (_e: any, data: { id: string; tags: string[] }) => callback(data)
+      ipcRenderer.on('instance:autoTags', listener)
+      return () => ipcRenderer.removeListener('instance:autoTags', listener)
     },
     clearToolDeferred: (id) => ipcRenderer.invoke('instance:clearToolDeferred', id),
     fileOverlaps: () => ipcRenderer.invoke('instances:fileOverlaps'),

@@ -313,6 +313,12 @@ export default function App() {
     })
   }, [])
 
+  useEffect(() => {
+    return window.api.instance.onAutoTags(({ id, tags }) => {
+      window.dispatchEvent(Object.assign(new CustomEvent('colony:setSessionTags'), { instanceId: id, tags }))
+    })
+  }, [])
+
   // Keyboard shortcuts from main process menu — subscribe once, use refs for fresh values
   useEffect(() => {
     const unsubs = [
