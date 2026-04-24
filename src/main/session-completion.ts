@@ -54,7 +54,7 @@ export interface StableIdleOptions {
   absoluteMs?: number
 }
 
-export type StableIdleOutcome = 'stable' | 'timeout'
+export type StableIdleOutcome = 'stable' | 'timeout' | 'exited'
 
 /**
  * Watches an instance's activity and resolves once it has been in the
@@ -86,6 +86,7 @@ export function waitForStableIdle(
   const cleanup = () => {
     settled = true
     client.removeListener('activity', handler)
+    client.removeListener('exited', exitHandler)
     clearStable()
     if (absoluteTimer) { clearTimeout(absoluteTimer); absoluteTimer = null }
   }
@@ -105,9 +106,18 @@ export function waitForStableIdle(
     }
   }
 
+  // Safety net: if the instance exits before reaching stable-waiting, resolve and detach.
+  // Without this, the 'activity' listener would leak forever on the shared DaemonRouter.
+  const exitHandler = (id: string) => {
+    if (settled || id !== instanceId) return
+    cleanup()
+    resolver('exited')
+  }
+
   const promise = new Promise<StableIdleOutcome>((resolve) => {
     resolver = resolve
     client.on('activity', handler)
+    client.on('exited', exitHandler)
     if (absoluteMs != null) {
       absoluteTimer = setTimeout(() => {
         if (settled) return

@@ -606,6 +606,10 @@ function sendTriggerWhenReady(
       const absoluteMs = timeoutMinutes != null ? timeoutMinutes * 60_000 : undefined
       const { promise } = waitForStableIdle(instanceId, { stableMs, absoluteMs })
       promise.then((outcome) => {
+        if (outcome === 'exited') {
+          // Session exited on its own — nothing to kill, just let the 'exited' handler run.
+          return
+        }
         if (outcome === 'stable') {
           console.log(`[persona] session ${instanceId} idle ${stableMs}ms, killing in 5s`)
           setTimeout(async () => {

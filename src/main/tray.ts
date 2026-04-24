@@ -4,6 +4,25 @@ import { getAllInstances, ClaudeInstance } from './instance-manager'
 
 let tray: Tray | null = null
 
+/**
+ * Reliably bring the main window to the user's current Space and foreground.
+ * Plain show()/focus() doesn't cross macOS Spaces or wake a minimized window.
+ */
+function bringToFront(mainWindow: BrowserWindow | null): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  if (!mainWindow.isVisible()) mainWindow.show()
+  if (process.platform === 'darwin') {
+    // Pull the window to whatever Space the user is currently on
+    mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+    mainWindow.setVisibleOnAllWorkspaces(false, { visibleOnFullScreen: true })
+    app.dock?.show()
+    app.focus({ steal: true })
+  }
+  mainWindow.moveTop()
+  mainWindow.focus()
+}
+
 export function createTray(mainWindow: BrowserWindow | null): void {
   const trayIconPath =
     process.platform === 'win32'
@@ -15,12 +34,7 @@ export function createTray(mainWindow: BrowserWindow | null): void {
   tray = new Tray(icon)
   tray.setToolTip('Claude Colony')
 
-  tray.on('click', () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.show()
-      mainWindow.focus()
-    }
-  })
+  tray.on('click', () => bringToFront(mainWindow))
 
   updateTrayMenu(mainWindow)
 }
@@ -40,11 +54,8 @@ export async function updateTrayMenu(mainWindow: BrowserWindow | null): Promise<
   const instanceItems: Electron.MenuItemConstructorOptions[] = running.map((inst) => ({
     label: `${inst.name} (${cliLabel(inst.cliBackend)}) — ${inst.workingDirectory.split('/').pop()}`,
     click: () => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.show()
-        mainWindow.focus()
-        mainWindow.webContents.send('instance:focus', { id: inst.id })
-      }
+      bringToFront(mainWindow)
+      mainWindow?.webContents.send('instance:focus', { id: inst.id })
     },
   }))
 
@@ -60,29 +71,29 @@ export async function updateTrayMenu(mainWindow: BrowserWindow | null): Promise<
     {
       label: 'Show Colony',
       click: () => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.show()
-          mainWindow.focus()
-          // Center on current display
-          const bounds = mainWindow.getBounds()
-          const display = screen.getDisplayNearestPoint({ x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 })
-          const { width: dw, height: dh, x: dx, y: dy } = display.workArea
+        if (!mainWindow || mainWindow.isDestroyed()) return
+        // If the window is off-screen (e.g. disconnected monitor), recenter first
+        const bounds = mainWindow.getBounds()
+        const cursor = screen.getCursorScreenPoint()
+        const display = screen.getDisplayNearestPoint(cursor)
+        const { x: dx, y: dy, width: dw, height: dh } = display.workArea
+        const offScreen =
+          bounds.x + bounds.width < dx || bounds.x > dx + dw ||
+          bounds.y + bounds.height < dy || bounds.y > dy + dh
+        if (offScreen) {
           mainWindow.setPosition(
             Math.round(dx + (dw - bounds.width) / 2),
             Math.round(dy + (dh - bounds.height) / 2),
           )
-          if (process.platform === 'darwin') app.dock?.show()
         }
+        bringToFront(mainWindow)
       },
     },
     {
       label: 'New Instance',
       click: () => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.show()
-          mainWindow.focus()
-          mainWindow.webContents.send('shortcut:new-instance')
-        }
+        bringToFront(mainWindow)
+        mainWindow?.webContents.send('shortcut:new-instance')
       },
     },
     { type: 'separator' },

@@ -5,9 +5,10 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-type Handler = (id: string, activity: string) => void
+type Handler = (...args: any[]) => void
 
 let handlers: Handler[]
+let exitHandlers: Handler[]
 let mockRouter: {
   on: ReturnType<typeof vi.fn>
   removeListener: ReturnType<typeof vi.fn>
@@ -17,12 +18,15 @@ beforeEach(() => {
   vi.resetModules()
   vi.useFakeTimers()
   handlers = []
+  exitHandlers = []
   mockRouter = {
     on: vi.fn((event: string, h: Handler) => {
       if (event === 'activity') handlers.push(h)
+      else if (event === 'exited') exitHandlers.push(h)
     }),
     removeListener: vi.fn((event: string, h: Handler) => {
       if (event === 'activity') handlers = handlers.filter(x => x !== h)
+      else if (event === 'exited') exitHandlers = exitHandlers.filter(x => x !== h)
     }),
   }
   vi.doMock('../daemon-router', () => ({ getDaemonRouter: () => mockRouter }))
@@ -35,6 +39,10 @@ afterEach(() => {
 
 function fire(id: string, activity: string): void {
   for (const h of [...handlers]) h(id, activity)
+}
+
+function fireExit(id: string, code = 0): void {
+  for (const h of [...exitHandlers]) h(id, code)
 }
 
 describe('waitForStableIdle', () => {
@@ -106,6 +114,36 @@ describe('waitForStableIdle', () => {
     expect(resolved).toBeNull()
   })
 
+  it('resolves "exited" and detaches listeners when the instance exits before going stable', async () => {
+    const { waitForStableIdle } = await import('../session-completion')
+    const { promise } = waitForStableIdle('inst-1', { stableMs: 20_000 })
+
+    let resolved: string | null = null
+    promise.then(v => { resolved = v })
+
+    fire('inst-1', 'busy')
+    await vi.advanceTimersByTimeAsync(1_000)
+    fireExit('inst-1', 1)
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(resolved).toBe('exited')
+    expect(handlers.length).toBe(0)
+    expect(exitHandlers.length).toBe(0)
+  })
+
+  it('ignores exit events for different instance IDs', async () => {
+    const { waitForStableIdle } = await import('../session-completion')
+    const { promise } = waitForStableIdle('inst-1', { stableMs: 10_000 })
+
+    let resolved: string | null = null
+    promise.then(v => { resolved = v })
+
+    fireExit('other-inst', 0)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(resolved).toBeNull()
+    expect(exitHandlers.length).toBe(1)
+  })
+
   it('cancel() removes listeners and clears timers', async () => {
     const { waitForStableIdle } = await import('../session-completion')
     const { promise, cancel } = waitForStableIdle('inst-1', { stableMs: 10_000, absoluteMs: 30_000 })
@@ -124,5 +162,6 @@ describe('waitForStableIdle', () => {
 
     expect(resolved).toBeNull()
     expect(mockRouter.removeListener).toHaveBeenCalledWith('activity', expect.any(Function))
+    expect(mockRouter.removeListener).toHaveBeenCalledWith('exited', expect.any(Function))
   })
 })
