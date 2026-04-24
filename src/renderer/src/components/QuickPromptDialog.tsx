@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { Play, Bookmark, Trash2, Pencil } from 'lucide-react'
 import { getSnippets, saveSnippet, updateSnippet, deleteSnippet } from '../lib/prompt-snippets'
 import { useFileDrop } from '../hooks/useFileDrop'
-import type { PlaybookDef } from '../../../shared/types'
+import type { PlaybookDef, PlaybookInput } from '../../../shared/types'
+import { resolveMustacheTemplate } from '../../../shared/utils'
 
 interface Props {
   onClose: () => void
@@ -23,6 +24,8 @@ export default function QuickPromptDialog({ onClose, onLaunch, recentDirs, promp
   const [snippetSearch, setSnippetSearch] = useState('')
   const [editingExisting, setEditingExisting] = useState(false)
   const [playbooks, setPlaybooks] = useState<PlaybookDef[]>([])
+  const [activePlaybook, setActivePlaybook] = useState<PlaybookDef | null>(null)
+  const [playbookInputValues, setPlaybookInputValues] = useState<Record<string, string>>({})
   const promptRef = useRef<HTMLTextAreaElement>(null)
   const snippetsRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -131,9 +134,19 @@ export default function QuickPromptDialog({ onClose, onLaunch, recentDirs, promp
                   className="panel-header-btn"
                   title={pb.description || pb.name}
                   onClick={() => {
-                    if (pb.prompt) setPrompt(pb.prompt)
-                    setHistoryIndex(-1)
-                    promptRef.current?.focus()
+                    if (pb.inputs?.length) {
+                      const defaults: Record<string, string> = {}
+                      for (const inp of pb.inputs) {
+                        if (inp.default !== undefined) defaults[inp.name] = inp.default
+                        else if (inp.type === 'boolean') defaults[inp.name] = 'false'
+                      }
+                      setPlaybookInputValues(defaults)
+                      setActivePlaybook(pb)
+                    } else {
+                      if (pb.prompt) setPrompt(pb.prompt)
+                      setHistoryIndex(-1)
+                      promptRef.current?.focus()
+                    }
                   }}
                   style={{ fontSize: 12 }}
                 >
@@ -141,6 +154,68 @@ export default function QuickPromptDialog({ onClose, onLaunch, recentDirs, promp
                 </button>
               ))}
             </div>
+            {activePlaybook?.inputs?.length && (
+              <div style={{ marginTop: 10, background: 'var(--bg-hover)', borderRadius: 6, padding: '10px 12px' }}>
+                <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 8 }}>{activePlaybook.name} — fill inputs</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {activePlaybook.inputs.map((inp: PlaybookInput) => (
+                    <div key={inp.name}>
+                      <label style={{ fontSize: 11, opacity: 0.7, marginBottom: 3, display: 'block' }}>
+                        {inp.label || inp.name}{inp.required && <span style={{ color: 'var(--status-error)', marginLeft: 3 }}>*</span>}
+                      </label>
+                      {inp.type === 'boolean' ? (
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13 }}>
+                          <input
+                            type="checkbox"
+                            checked={playbookInputValues[inp.name] === 'true'}
+                            onChange={e => setPlaybookInputValues(v => ({ ...v, [inp.name]: e.target.checked ? 'true' : 'false' }))}
+                          />
+                          {inp.placeholder || inp.label || inp.name}
+                        </label>
+                      ) : inp.type === 'select' ? (
+                        <select
+                          className="settings-select"
+                          style={{ width: '100%' }}
+                          value={playbookInputValues[inp.name] ?? inp.default ?? ''}
+                          onChange={e => setPlaybookInputValues(v => ({ ...v, [inp.name]: e.target.value }))}
+                        >
+                          {!inp.required && <option value="">— select —</option>}
+                          {(inp.options ?? []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          style={{ width: '100%', boxSizing: 'border-box' }}
+                          placeholder={inp.placeholder || inp.name}
+                          value={playbookInputValues[inp.name] ?? ''}
+                          onChange={e => setPlaybookInputValues(v => ({ ...v, [inp.name]: e.target.value }))}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                  <button
+                    type="button"
+                    className="panel-header-btn primary"
+                    disabled={activePlaybook.inputs.some(inp => inp.required && !playbookInputValues[inp.name])}
+                    onClick={() => {
+                      if (activePlaybook.prompt) {
+                        const resolved = resolveMustacheTemplate(activePlaybook.prompt, playbookInputValues as Record<string, unknown>)
+                        setPrompt(resolved)
+                      }
+                      setActivePlaybook(null)
+                      setHistoryIndex(-1)
+                      promptRef.current?.focus()
+                    }}
+                    style={{ fontSize: 12 }}
+                  >
+                    Use Template
+                  </button>
+                  <button type="button" className="panel-header-btn" onClick={() => setActivePlaybook(null)} style={{ fontSize: 12 }}>Cancel</button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

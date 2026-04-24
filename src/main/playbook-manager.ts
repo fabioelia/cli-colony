@@ -3,7 +3,7 @@ import * as fs from 'fs'
 import { join } from 'path'
 import { colonyPaths } from '../shared/colony-paths'
 import { parseYaml } from '../shared/yaml-parser'
-import type { PlaybookDef } from '../shared/types'
+import type { PlaybookDef, PlaybookInput } from '../shared/types'
 
 const PLAYBOOKS_DIR = colonyPaths.playbooks
 
@@ -32,6 +32,22 @@ function parsePlaybook(content: string, fileName: string): PlaybookDef | null {
       tags: Array.isArray(raw.tags) ? (raw.tags as unknown[]).filter(t => typeof t === 'string') as string[] : undefined,
       env: raw.env && typeof raw.env === 'object' && !Array.isArray(raw.env)
         ? raw.env as Record<string, string>
+        : undefined,
+      inputs: Array.isArray(raw.inputs)
+        ? (raw.inputs as unknown[]).flatMap((inp): PlaybookInput[] => {
+            if (!inp || typeof inp !== 'object') return []
+            const i = inp as Record<string, unknown>
+            const type = ['string', 'select', 'boolean'].includes(i.type as string) ? i.type as PlaybookInput['type'] : 'string'
+            return [{
+              name: typeof i.name === 'string' ? i.name : '',
+              label: typeof i.label === 'string' ? i.label : undefined,
+              type,
+              default: typeof i.default === 'string' ? i.default : typeof i.default === 'boolean' ? String(i.default) : undefined,
+              required: i.required === true,
+              options: Array.isArray(i.options) ? (i.options as unknown[]).filter(o => typeof o === 'string') as string[] : undefined,
+              placeholder: typeof i.placeholder === 'string' ? i.placeholder : undefined,
+            }].filter(inp2 => inp2.name)
+          })
         : undefined,
     }
   } catch (e) {

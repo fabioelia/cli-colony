@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { ChevronDown, ChevronRight, CheckCircle, XCircle, ListTodo, Loader } from 'lucide-react'
 import type { AgentDef, CliBackend } from '../types'
-import type { JiraTicket, JiraTicketSummary, PlaybookDef } from '../../../shared/types'
+import type { JiraTicket, JiraTicketSummary, PlaybookDef, PlaybookInput } from '../../../shared/types'
+import { resolveMustacheTemplate } from '../../../shared/utils'
 import { COLORS, COLOR_MAP } from '../lib/constants'
 import { getHistory, addToHistory } from '../lib/prompt-history'
 import { extractTicketKey } from '../../../shared/ticket-commit-format'
@@ -141,6 +142,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
   const [playbooks, setPlaybooks] = useState<PlaybookDef[]>([])
   const [selectedPlaybook, setSelectedPlaybook] = useState<string>('')
   const [playbookTags, setPlaybookTags] = useState<string[]>([])
+  const [playbookInputValues, setPlaybookInputValues] = useState<Record<string, string>>({})
 
   // When the starter-card / clone path opens the dialog, focus the prompt
   // textarea and place the cursor at the end so the user can just press Enter.
@@ -226,6 +228,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
 
   const handlePlaybookSelect = (playbookName: string) => {
     setSelectedPlaybook(playbookName)
+    setPlaybookInputValues({})
     if (!playbookName) { setPlaybookTags([]); return }
     const pb = playbooks.find(p => p.name === playbookName)
     if (!pb) return
@@ -235,12 +238,21 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
     if (pb.workingDirectory && !workingDirectory.trim()) {
       setWorkingDirectory(pb.workingDirectory.replace(/^~/, window.api ? '' : ''))
     }
-    if (pb.prompt) {
+    if (pb.prompt && !pb.inputs?.length) {
       setFirstPrompt(pb.prompt)
       setPromptExpanded(true)
     }
     if (pb.permissionMode) setPermissionMode(pb.permissionMode)
     setPlaybookTags(pb.tags || [])
+    // Pre-fill defaults
+    if (pb.inputs?.length) {
+      const defaults: Record<string, string> = {}
+      for (const inp of pb.inputs) {
+        if (inp.default !== undefined) defaults[inp.name] = inp.default
+        else if (inp.type === 'boolean') defaults[inp.name] = 'false'
+      }
+      setPlaybookInputValues(defaults)
+    }
   }
 
   const handleJiraFetch = async (key: string) => {
@@ -265,7 +277,18 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
     const agentParts = selectedAgent ? ['--agent', selectedAgent] : []
     const args = modelParts.length || agentParts.length || extraParts.length ? [...modelParts, ...agentParts, ...extraParts] : undefined
     const mcpServers = selectedMcpServers.size > 0 ? Array.from(selectedMcpServers) : undefined
-    const trimmedPrompt = firstPrompt.trim()
+
+    // Resolve playbook template if inputs are present
+    const pb = playbooks.find(p => p.name === selectedPlaybook)
+    if (pb?.inputs?.length && pb.prompt) {
+      const resolved = resolveMustacheTemplate(pb.prompt, playbookInputValues as Record<string, unknown>)
+      setFirstPrompt(resolved)
+    }
+    const effectivePrompt = pb?.inputs?.length && pb.prompt
+      ? resolveMustacheTemplate(pb.prompt, playbookInputValues as Record<string, unknown>)
+      : firstPrompt
+
+    const trimmedPrompt = effectivePrompt.trim()
     if (trimmedPrompt) addToHistory(trimmedPrompt)
     const envRecord = envVars.reduce((acc, { key, value }) => {
       if (key.trim()) acc[key.trim()] = value
@@ -396,6 +419,53 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
             )}
           </div>
         )}
+
+        {(() => {
+          const pb = playbooks.find(p => p.name === selectedPlaybook)
+          if (!pb?.inputs?.length) return null
+          return (
+            <div className="dialog-field" style={{ background: 'var(--bg-hover)', borderRadius: 6, padding: '10px 12px' }}>
+              <label style={{ marginBottom: 8, display: 'block' }}>Playbook Inputs</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {pb.inputs.map((inp: PlaybookInput) => (
+                  <div key={inp.name}>
+                    <label style={{ fontSize: 11, opacity: 0.7, marginBottom: 3, display: 'block' }}>
+                      {inp.label || inp.name}{inp.required && <span style={{ color: 'var(--status-error)', marginLeft: 3 }}>*</span>}
+                    </label>
+                    {inp.type === 'boolean' ? (
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13 }}>
+                        <input
+                          type="checkbox"
+                          checked={playbookInputValues[inp.name] === 'true'}
+                          onChange={e => setPlaybookInputValues(v => ({ ...v, [inp.name]: e.target.checked ? 'true' : 'false' }))}
+                        />
+                        {inp.placeholder || inp.label || inp.name}
+                      </label>
+                    ) : inp.type === 'select' ? (
+                      <select
+                        className="settings-select"
+                        style={{ width: '100%' }}
+                        value={playbookInputValues[inp.name] ?? inp.default ?? ''}
+                        onChange={e => setPlaybookInputValues(v => ({ ...v, [inp.name]: e.target.value }))}
+                      >
+                        {!inp.required && <option value="">— select —</option>}
+                        {(inp.options ?? []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        style={{ width: '100%', boxSizing: 'border-box' }}
+                        placeholder={inp.placeholder || inp.name}
+                        value={playbookInputValues[inp.name] ?? ''}
+                        onChange={e => setPlaybookInputValues(v => ({ ...v, [inp.name]: e.target.value }))}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
 
         <div className="dialog-field">
           <label>Name</label>
@@ -751,7 +821,10 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
 
         <div className="dialog-actions">
           <button type="button" className="cancel" onClick={handleClose} disabled={creating} title="Cancel">Cancel</button>
-          <button type="submit" className="confirm" disabled={creating} title="Create session">{creating ? 'Creating...' : 'Create'}</button>
+          <button type="submit" className="confirm" disabled={creating || (() => {
+            const pb = playbooks.find(p => p.name === selectedPlaybook)
+            return (pb?.inputs ?? []).some(inp => inp.required && !playbookInputValues[inp.name])
+          })()} title="Create session">{creating ? 'Creating...' : 'Create'}</button>
         </div>
       </form>
     </div>

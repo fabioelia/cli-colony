@@ -870,6 +870,16 @@ export interface HandoffMetadata {
   chainDepth: number
 }
 
+export interface PlaybookInput {
+  name: string
+  label?: string
+  type: 'string' | 'select' | 'boolean'
+  default?: string
+  required?: boolean
+  options?: string[]
+  placeholder?: string
+}
+
 export interface PlaybookDef {
   name: string
   description?: string
@@ -883,4 +893,6 @@ export interface PlaybookDef {
   /** Tags automatically applied to sessions created from this playbook */
   tags?: string[]
   env?: Record<string, string>
+  /** Typed input declarations — rendered as a form, values injected into {{var}} prompt */
+  inputs?: PlaybookInput[]
 }
