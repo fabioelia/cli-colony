@@ -476,9 +476,10 @@ export default function App() {
     planFirst?: boolean
     env?: Record<string, string>
     jiraTicket?: JiraTicket
+    tags?: string[]
   }) => {
     agentToLaunchRef.current = null
-    const { initialPrompt, planFirst, jiraTicket, ...createOpts } = opts
+    const { initialPrompt, planFirst, jiraTicket, tags, ...createOpts } = opts
 
     // Prepend Jira ticket context if one was attached
     let effectivePrompt = initialPrompt || ''
@@ -506,6 +507,9 @@ export default function App() {
           ? `IMPORTANT: Before taking any action, first create a structured plan:\n1. Summarize your understanding of the task\n2. List the files you expect to modify and why\n3. Outline your step-by-step approach\n4. Note any risks or assumptions\n\nPresent the plan, then WAIT for my approval before proceeding.\nDo not use any tools or make any changes until I confirm.\n\nTask: ${effectivePrompt}`
           : effectivePrompt
         pendingPromptRef.current = { id: inst.id, prompt }
+      }
+      if (tags?.length) {
+        window.dispatchEvent(Object.assign(new CustomEvent('colony:setSessionTags'), { instanceId: inst.id, tags }))
       }
       setActiveId(inst.id)
       setShowNewDialog(false)

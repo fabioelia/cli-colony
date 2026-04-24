@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Play, Bookmark, Trash2, Pencil } from 'lucide-react'
 import { getSnippets, saveSnippet, updateSnippet, deleteSnippet } from '../lib/prompt-snippets'
 import { useFileDrop } from '../hooks/useFileDrop'
+import type { PlaybookDef } from '../../../shared/types'
 
 interface Props {
   onClose: () => void
@@ -21,6 +22,7 @@ export default function QuickPromptDialog({ onClose, onLaunch, recentDirs, promp
   const [snippetName, setSnippetName] = useState('')
   const [snippetSearch, setSnippetSearch] = useState('')
   const [editingExisting, setEditingExisting] = useState(false)
+  const [playbooks, setPlaybooks] = useState<PlaybookDef[]>([])
   const promptRef = useRef<HTMLTextAreaElement>(null)
   const snippetsRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -59,6 +61,9 @@ export default function QuickPromptDialog({ onClose, onLaunch, recentDirs, promp
 
   useEffect(() => {
     requestAnimationFrame(() => promptRef.current?.focus())
+    window.api.playbooks?.list?.().then((pbs: PlaybookDef[]) => {
+      if (pbs?.length) setPlaybooks(pbs)
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -114,6 +119,30 @@ export default function QuickPromptDialog({ onClose, onLaunch, recentDirs, promp
       <div className="dialog quick-prompt-dialog" onClick={(e) => e.stopPropagation()}>
         <h2><Play size={16} style={{ display: 'inline', marginRight: 8 }} />Quick Prompt</h2>
         <p className="quick-prompt-hint">Launch a new Claude session with a prompt pre-filled. <kbd>⌘↵</kbd> to launch, <kbd>↑↓</kbd> for history.</p>
+
+        {playbooks.length > 0 && (
+          <div className="dialog-field">
+            <label>Playbooks</label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {playbooks.map(pb => (
+                <button
+                  key={pb.name}
+                  type="button"
+                  className="panel-header-btn"
+                  title={pb.description || pb.name}
+                  onClick={() => {
+                    if (pb.prompt) setPrompt(pb.prompt)
+                    setHistoryIndex(-1)
+                    promptRef.current?.focus()
+                  }}
+                  style={{ fontSize: 12 }}
+                >
+                  {pb.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="dialog-field" ref={textareaWrapRef} style={isDragging ? { outline: '2px dashed var(--accent)', outlineOffset: -2, borderRadius: 4 } : undefined}>
           <label>Prompt</label>

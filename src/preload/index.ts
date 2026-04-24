@@ -16,6 +16,7 @@ import type {
   ErrorSummary,
   PersonaHealthEntry,
   PersonaAttentionRequest,
+  PlaybookDef,
 } from '../shared/types'
 import type { InstanceManifest } from '../daemon/env-protocol'
 
@@ -37,6 +38,7 @@ export type {
   ErrorSummary,
   PersonaHealthEntry,
   PersonaAttentionRequest,
+  PlaybookDef,
 }
 
 
@@ -719,6 +721,11 @@ export interface ClaudeManagerAPI {
     clearAll: () => Promise<void>
     unreadCount: () => Promise<number>
     onNew: (cb: (entry: NotificationEntry) => void) => () => void
+  }
+  playbooks: {
+    list: () => Promise<PlaybookDef[]>
+    get: (name: string) => Promise<PlaybookDef | null>
+    getDir: () => Promise<string>
   }
 }
 
@@ -1502,6 +1509,11 @@ const api: ClaudeManagerAPI = {
       ipcRenderer.on('notification:new', listener)
       return () => ipcRenderer.removeListener('notification:new', listener)
     },
+  },
+  playbooks: {
+    list: () => ipcRenderer.invoke('playbooks:list'),
+    get: (name) => ipcRenderer.invoke('playbooks:get', name),
+    getDir: () => ipcRenderer.invoke('playbooks:getDir'),
   },
 }
 

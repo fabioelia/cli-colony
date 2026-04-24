@@ -27,6 +27,7 @@ import { notify } from './notifications'
 import { matchRules, estimateActionCost } from './approval-rules'
 import { waitForSessionCompletion, waitForStableIdle } from './session-completion'
 import { tagArtifactPipeline } from './session-artifacts'
+import { getPlaybook } from './playbook-manager'
 import { isRateLimited, getRateLimitState } from './rate-limit-state'
 import { isCronsPausedSync } from './cron-pause'
 import { resolveCommand } from './resolve-command'
@@ -111,6 +112,8 @@ export interface ActionDef {
   timeout_minutes?: number   // max wait time in minutes (default: 30)
   stable_waiting_seconds?: number // continuous 'waiting' window before auto-close fires (default: 20)
   artifact_output?: string   // artifact name to write exit reason to
+  // playbook — when set, load named playbook and merge its defaults under explicit action fields
+  playbook?: string
   // retry
   max_retries?: number       // retry failed stages up to N times (default: 0 = no retry)
   retry_delay_ms?: number    // base delay between retries in ms, doubles each attempt (default: 5000)
@@ -1044,6 +1047,21 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
   markChecklistItem('ranPipeline')
   const effectiveRunId = runId || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const pipelineMeta = { pipelineName, pipelineRunId: effectiveRunId }
+
+  // Merge playbook defaults under explicit action fields (action wins)
+  if (action.playbook) {
+    const pb = getPlaybook(action.playbook)
+    if (pb) {
+      action = {
+        model: pb.model,
+        workingDirectory: pb.workingDirectory,
+        prompt: pb.prompt,
+        ...action, // explicit action fields win
+      }
+    } else {
+      plog(pipelineName, `⚠ playbook "${action.playbook}" not found — running without playbook defaults`)
+    }
+  }
   if (action.type === 'maker-checker') {
     const mc = await runMakerChecker(action, ctx, pipelineName, pipelineMeta)
     return { cost: mc.cost, sessionId: mc.sessionId }

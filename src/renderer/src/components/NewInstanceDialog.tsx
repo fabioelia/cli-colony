@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { ChevronDown, ChevronRight, CheckCircle, XCircle, ListTodo, Loader } from 'lucide-react'
 import type { AgentDef, CliBackend } from '../types'
-import type { JiraTicket, JiraTicketSummary } from '../../../shared/types'
+import type { JiraTicket, JiraTicketSummary, PlaybookDef } from '../../../shared/types'
 import { COLORS, COLOR_MAP } from '../lib/constants'
 import { getHistory, addToHistory } from '../lib/prompt-history'
 import { extractTicketKey } from '../../../shared/ticket-commit-format'
@@ -35,6 +35,7 @@ interface Props {
     planFirst?: boolean
     env?: Record<string, string>
     jiraTicket?: JiraTicket
+    tags?: string[]
   }) => void | Promise<void>
   onClose: () => void
   prefill?: AgentDef
@@ -137,6 +138,9 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
   const [pickerLoading, setPickerLoading] = useState(false)
   const [pickerError, setPickerError] = useState<string | null>(null)
   const pickerRef = useRef<HTMLDivElement | null>(null)
+  const [playbooks, setPlaybooks] = useState<PlaybookDef[]>([])
+  const [selectedPlaybook, setSelectedPlaybook] = useState<string>('')
+  const [playbookTags, setPlaybookTags] = useState<string[]>([])
 
   // When the starter-card / clone path opens the dialog, focus the prompt
   // textarea and place the cursor at the end so the user can just press Enter.
@@ -187,6 +191,10 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
         }
       }
     }).catch(() => {})
+    // Load playbooks
+    window.api.playbooks?.list?.().then((pbs: PlaybookDef[]) => {
+      if (pbs?.length) setPlaybooks(pbs)
+    }).catch(() => {})
   }, [])
 
   // Auto-attach ticket from branch name when an env chip is clicked or on mount
@@ -214,6 +222,25 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
   const handlePickDir = async () => {
     const dir = await window.api.dialog.openDirectory()
     if (dir) setWorkingDirectory(dir)
+  }
+
+  const handlePlaybookSelect = (playbookName: string) => {
+    setSelectedPlaybook(playbookName)
+    if (!playbookName) { setPlaybookTags([]); return }
+    const pb = playbooks.find(p => p.name === playbookName)
+    if (!pb) return
+    if (!name.trim()) setName(pb.name)
+    if (pb.model) setModel(pb.model)
+    if (pb.agent) setSelectedAgent(pb.agent)
+    if (pb.workingDirectory && !workingDirectory.trim()) {
+      setWorkingDirectory(pb.workingDirectory.replace(/^~/, window.api ? '' : ''))
+    }
+    if (pb.prompt) {
+      setFirstPrompt(pb.prompt)
+      setPromptExpanded(true)
+    }
+    if (pb.permissionMode) setPermissionMode(pb.permissionMode)
+    setPlaybookTags(pb.tags || [])
   }
 
   const handleJiraFetch = async (key: string) => {
@@ -257,6 +284,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
         planFirst: planFirst || undefined,
         env: Object.keys(envRecord).length > 0 ? envRecord : undefined,
         jiraTicket: jiraTicket || undefined,
+        tags: playbookTags.length > 0 ? playbookTags : undefined,
       })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -336,6 +364,36 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
         {prefill && (
           <div className="dialog-agent-info">
             {prefill.description}
+          </div>
+        )}
+
+        {playbooks.length > 0 && !cloneSource && (
+          <div className="dialog-field">
+            <label>Playbook <span style={{ opacity: 0.5, fontWeight: 'normal' }}>(optional)</span></label>
+            <select
+              value={selectedPlaybook}
+              onChange={e => handlePlaybookSelect(e.target.value)}
+              className="settings-select"
+              style={{ width: '100%' }}
+            >
+              <option value="">None — configure manually</option>
+              {playbooks.map(pb => (
+                <option key={pb.name} value={pb.name}>{pb.name}</option>
+              ))}
+            </select>
+            {selectedPlaybook && (() => {
+              const pb = playbooks.find(p => p.name === selectedPlaybook)
+              return pb?.description ? (
+                <div className="dialog-agent-info">{pb.description}</div>
+              ) : null
+            })()}
+            {playbookTags.length > 0 && (
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+                {playbookTags.map(t => (
+                  <span key={t} className="session-tag-pill" style={{ fontSize: 11 }}>{t}</span>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

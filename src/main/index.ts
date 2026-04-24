@@ -132,6 +132,7 @@ import { startWakeWatcher, stopWakeWatcher } from './session-wake'
 import { colonyPaths } from '../shared/colony-paths'
 import { registerGlobalHotkey } from './global-hotkey'
 import { startUsageMonitor } from './persona-run-history'
+import { watchPlaybooks } from './playbook-manager'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -644,6 +645,7 @@ app.whenReady().then(async () => {
       runStartupPersonas().catch(err => console.warn('[app] startup personas failed:', err))
     } catch (err) { console.warn('[app] persona/scheduler init failed:', err) }
     startWakeWatcher().catch(err => console.warn('[app] wake watcher init failed:', err))
+    watchPlaybooks().catch(err => console.warn('[app] playbook watcher init failed:', err))
     startRateLimitProbe().catch(err => console.warn('[app] rate-limit probe init failed:', err))
   }).catch((err) => {
     console.error('[app] daemon init failed:', err)

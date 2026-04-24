@@ -1126,6 +1126,23 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     }
   }, [sessions]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const setTagsForSession = useCallback((id: string, tags: string[]) => {
+    const next = { ...sessionTags, [id]: tags }
+    setSessionTags(next)
+    localStorage.setItem('colony:sessionTags', JSON.stringify(next))
+  }, [sessionTags])
+
+  // Apply playbook tags dispatched from App.tsx at instance creation time
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { instanceId, tags } = e as CustomEvent & { instanceId?: string; tags?: string[] }
+      if (!instanceId || !tags?.length) return
+      setTagsForSession(instanceId, [...new Set([...(sessionTags[instanceId] || []), ...tags])])
+    }
+    window.addEventListener('colony:setSessionTags', handler)
+    return () => window.removeEventListener('colony:setSessionTags', handler)
+  }, [sessionTags, setTagsForSession])
+
   const handleResizeMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
     const startX = e.clientX
@@ -1349,12 +1366,6 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
       }
     }
   }
-
-  const setTagsForSession = useCallback((id: string, tags: string[]) => {
-    const next = { ...sessionTags, [id]: tags }
-    setSessionTags(next)
-    localStorage.setItem('colony:sessionTags', JSON.stringify(next))
-  }, [sessionTags])
 
   const allKnownTags = useMemo(() =>
     [...new Set(Object.values(sessionTags).flat())].sort(),

@@ -863,3 +863,18 @@ export interface HandoffMetadata {
   chainId?: string
   chainDepth: number
 }
+
+export interface PlaybookDef {
+  name: string
+  description?: string
+  model?: string
+  /** Agent file path (e.g. ~/.claude/agents/architect.md) */
+  agent?: string
+  /** Prompt template — supports {{variable}} placeholders */
+  prompt?: string
+  workingDirectory?: string
+  permissionMode?: 'autonomous' | 'supervised' | 'auto'
+  /** Tags automatically applied to sessions created from this playbook */
+  tags?: string[]
+  env?: Record<string, string>
+}
