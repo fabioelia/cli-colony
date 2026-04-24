@@ -353,12 +353,25 @@ export default function App() {
         setGlobalSearchOpen(prev => !prev)
       }),
       window.api.shortcuts.onSwitchInstance((idx: number) => {
-        // Match visual order: pinned, then running, then exited
         const all = instancesRef.current
         const pinned = all.filter((i) => i.pinned)
         const running = all.filter((i) => i.status === 'running' && !i.pinned)
         const exited = all.filter((i) => i.status !== 'running' && !i.pinned)
-        const insts = [...pinned, ...running, ...exited]
+        let insts = [...pinned, ...running, ...exited]
+        try {
+          const customOrder: string[] = JSON.parse(localStorage.getItem('colony:sessionOrder') || '[]')
+          if (customOrder.length > 0) {
+            const orderMap = new Map(customOrder.map((id, i) => [id, i]))
+            insts.sort((a, b) => {
+              const ai = orderMap.get(a.id)
+              const bi = orderMap.get(b.id)
+              if (ai !== undefined && bi !== undefined) return ai - bi
+              if (ai !== undefined) return -1
+              if (bi !== undefined) return 1
+              return 0
+            })
+          }
+        } catch { /* ignore */ }
         if (idx < insts.length) {
           const id = insts[idx].id
           setActiveId(id)
@@ -376,7 +389,21 @@ export default function App() {
         const pinned = all.filter((i) => i.pinned)
         const running = all.filter((i) => i.status === 'running' && !i.pinned)
         const exited = all.filter((i) => i.status !== 'running' && !i.pinned)
-        const ordered = [...pinned, ...running, ...exited]
+        let ordered = [...pinned, ...running, ...exited]
+        try {
+          const customOrder: string[] = JSON.parse(localStorage.getItem('colony:sessionOrder') || '[]')
+          if (customOrder.length > 0) {
+            const orderMap = new Map(customOrder.map((id, i) => [id, i]))
+            ordered.sort((a, b) => {
+              const ai = orderMap.get(a.id)
+              const bi = orderMap.get(b.id)
+              if (ai !== undefined && bi !== undefined) return ai - bi
+              if (ai !== undefined) return -1
+              if (bi !== undefined) return 1
+              return 0
+            })
+          }
+        } catch { /* ignore */ }
         if (ordered.length === 0) return
         const { activeId: aid } = activeViewRef.current
         const currentIdx = ordered.findIndex((i) => i.id === aid)
