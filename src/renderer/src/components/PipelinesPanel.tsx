@@ -99,6 +99,113 @@ interface Props {
   instances: Array<{ id: string; name: string; status: string; pipelineName?: string }>
 }
 
+const PIPELINE_RECIPES = [
+  {
+    name: 'PR Review on Push',
+    description: 'Review new commits on every push',
+    triggerType: 'git-poll',
+    actionType: 'diff_review',
+    yaml: `name: PR Review on Push
+description: Review new commits whenever code is pushed
+enabled: false
+trigger:
+  type: git-poll
+  interval: 300
+condition:
+  type: new_commits
+actions:
+  - type: diff_review
+    description: Review the diff for issues and best practices
+`,
+  },
+  {
+    name: 'Daily Test Suite',
+    description: 'Run tests every weekday morning',
+    triggerType: 'cron',
+    actionType: 'session',
+    yaml: `name: Daily Test Suite
+description: Run automated tests every weekday at 9am
+enabled: false
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+actions:
+  - type: session
+    prompt: Run the test suite and write a summary of results to ~/.claude-colony/outputs/test-results.md
+`,
+  },
+  {
+    name: 'Scheduled Summary',
+    description: 'Write a daily progress summary at end of day',
+    triggerType: 'cron',
+    actionType: 'session',
+    yaml: `name: Scheduled Summary
+description: Write a daily summary of activity at 5pm on weekdays
+enabled: false
+trigger:
+  type: cron
+  cron: "0 17 * * 1-5"
+actions:
+  - type: session
+    prompt: Review today's git commits and activity log, then write a concise daily summary to ~/.claude-colony/outputs/daily-summary.md
+`,
+  },
+  {
+    name: 'Branch Protection',
+    description: 'Run linter and type-checker on new PRs',
+    triggerType: 'git-poll',
+    actionType: 'session',
+    yaml: `name: Branch Protection
+description: Run quality checks when a PR is opened
+enabled: false
+trigger:
+  type: git-poll
+  interval: 300
+condition:
+  type: review_requested
+actions:
+  - type: session
+    prompt: Run the linter and type-checker on the PR branch. Report any errors to ~/.claude-colony/outputs/branch-check.md
+`,
+  },
+  {
+    name: 'Maker-Checker QA',
+    description: 'One agent builds, another reviews',
+    triggerType: 'git-poll',
+    actionType: 'maker_checker',
+    yaml: `name: Maker-Checker QA
+description: Maker session produces output, checker session reviews it
+enabled: false
+trigger:
+  type: git-poll
+  interval: 300
+condition:
+  type: new_commits
+actions:
+  - type: maker_checker
+    maker_prompt: Implement the requested changes based on the latest commits
+    checker_prompt: Review the maker's output and confirm it meets quality standards. Reply APPROVED or list issues.
+    approve_keyword: APPROVED
+`,
+  },
+  {
+    name: 'Cost Budget Monitor',
+    description: 'Alert when daily spend exceeds budget',
+    triggerType: 'cron',
+    actionType: 'session',
+    yaml: `name: Cost Budget Monitor
+description: Check daily Colony spend every 4 hours and alert if over budget
+enabled: false
+trigger:
+  type: cron
+  cron: "0 */4 * * *"
+actions:
+  - type: session
+    prompt: Check today's total Colony API spend. If it exceeds $5, write an alert to ~/.claude-colony/outputs/budget-alert.md with the breakdown by persona.
+`,
+  },
+]
+
 const PIPELINE_SYSTEM_PROMPT = `You are a Pipeline Assistant for Claude Colony. You help users create, edit, and manage pipeline YAML files.
 
 Pipelines are YAML files stored in ~/.claude-colony/pipelines/ that define automated trigger → condition → action workflows.
@@ -2938,7 +3045,7 @@ ${modelLine}  prompt: |
                 </div>
               ) : (
                 <div className="automation-wizard-step-content">
-                  <p className="automation-wizard-section-label">Generated pipeline YAML — review and edit before saving</p>
+                  <p className="automation-wizard-section-label">{generateDescription ? 'Generated pipeline YAML — review and edit before saving' : 'Recipe YAML — customize and save'}</p>
                   <textarea
                     className="pipeline-editor-textarea"
                     value={generateResult}
@@ -3035,6 +3142,33 @@ ${modelLine}  prompt: |
             </div>
 
             <div className="automation-wizard-body">
+              {/* Recipe starters */}
+              <div className="pipeline-recipe-section">
+                <p className="automation-wizard-section-label" style={{ marginBottom: 8 }}>Start from a recipe</p>
+                <div className="pipeline-recipe-grid">
+                  {PIPELINE_RECIPES.map((recipe) => (
+                    <button
+                      key={recipe.name}
+                      className="pipeline-recipe-card"
+                      onClick={() => {
+                        setGenerateResult(recipe.yaml)
+                        setGenerateError('')
+                        setShowAutomationWizard(false)
+                        setShowGenerateModal(true)
+                      }}
+                    >
+                      <span className="pipeline-recipe-name">{recipe.name}</span>
+                      <span className="pipeline-recipe-desc">{recipe.description}</span>
+                      <span className="pipeline-recipe-badges">
+                        <span className="pipeline-recipe-badge">{recipe.triggerType}</span>
+                        <span className="pipeline-recipe-badge">{recipe.actionType}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <div className="pipeline-recipe-divider"><span>or build from scratch</span></div>
+              </div>
+
               {/* Step indicators */}
               <div className="automation-wizard-steps">
                 {['Trigger', 'Action', 'Review'].map((label, i) => (

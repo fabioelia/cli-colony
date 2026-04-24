@@ -21337,6 +21337,79 @@ button.session-trigger-chain-btn:hover {
   border-top: 1px solid var(--border);
 }
 
+/* ===== Pipeline Recipe Gallery ===== */
+.pipeline-recipe-section {
+  padding: 12px 14px 0;
+}
+
+.pipeline-recipe-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.pipeline-recipe-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.pipeline-recipe-card:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-secondary));
+}
+
+.pipeline-recipe-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.pipeline-recipe-desc {
+  font-size: 10px;
+  color: var(--text-secondary);
+  line-height: 1.3;
+}
+
+.pipeline-recipe-badges {
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.pipeline-recipe-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  font-family: monospace;
+}
+
+.pipeline-recipe-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 4px;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.pipeline-recipe-divider::before,
+.pipeline-recipe-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
 /* ===== Session Handoff Modal ===== */
 .handoff-overlay {
   position: fixed;
