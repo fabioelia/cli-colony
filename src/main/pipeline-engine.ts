@@ -20,7 +20,7 @@ import { getRepos, fetchPRs, fetchChecks, fetchPRFiles, gh, writePrContext } fro
 import { findBestRoute } from './session-router'
 import { getAllRepoConfigs } from './repo-config-loader'
 import { cronMatches } from '../shared/cron'
-import { resolveMustacheTemplate, slugify } from '../shared/utils'
+import { resolveMustacheTemplate, slugify, stripAnsi } from '../shared/utils'
 import type { GitHubRepo, GitHubPR, PRChecks, ApprovalRequest } from '../shared/types'
 import { appendActivity } from './activity-manager'
 import { notify } from './notifications'
@@ -67,6 +67,12 @@ export interface RunOverrides {
   workingDirectory?: string
   maxBudget?: number
   templateVarOverrides?: Record<string, string>
+}
+
+export interface OnFailureConfig {
+  notify?: boolean           // send desktop notification on failure
+  retry?: { max: number }    // retry up to N times with previous output as context
+  run?: string               // fire named action from the action tree (fire-and-forget)
 }
 
 export interface ActionDef {
@@ -117,7 +123,7 @@ export interface ActionDef {
   // retry
   max_retries?: number       // retry failed stages up to N times (default: 0 = no retry)
   retry_delay_ms?: number    // base delay between retries in ms, doubles each attempt (default: 5000)
-  on_failure?: ActionDef     // action to run when this stage fails after retries exhausted (fire-and-forget)
+  on_failure?: OnFailureConfig  // handlers triggered when this stage fails (notify, retry, run named action)
   // best-of-n specific fields
   n?: number                    // number of parallel contestants (default: 3, clamped 2-8)
   repo?: { owner: string; name: string }  // repo to create worktrees in
@@ -395,13 +401,12 @@ function parsePipelineYaml(content: string): PipelineDef | null {
       result.action.busyStrategy = 'launch-new'
     }
 
-    // Normalize on_failure: type alias + strip nesting
-    if (result.action?.on_failure) {
-      const of_ = result.action.on_failure
-      if (of_.type === 'session') of_.type = 'launch-session'
-      if (of_.type === 'route-to-session') { of_.type = 'launch-session'; of_.reuse = true }
-      delete of_.on_failure // prevent nesting
-      if (!of_.busyStrategy) of_.busyStrategy = 'launch-new'
+    // Validate on_failure.run target to prevent infinite chains
+    if (result.action?.on_failure?.run) {
+      const target = findNamedAction(result.action, result.action.on_failure.run)
+      if (target?.on_failure?.run) {
+        log(`YAML warning: on_failure.run target "${result.action.on_failure.run}" also has on_failure.run — infinite chain risk. Target's on_failure.run will be ignored.`)
+      }
     }
 
     result.run_condition = result.run_condition || undefined
@@ -430,6 +435,7 @@ export interface PipelineStageTrace {
   responseSnippet?: string // first ~120 chars of reviewer response (diff_review only)
   subStages?: PipelineStageTrace[] // parallel sub-stage results
   retryCount?: number // how many retry attempts were needed (0 = succeeded first try)
+  retryContext?: boolean // true if at least one retry injected PTY output as context
   onFailureFired?: boolean // true if on_failure recovery action was triggered
   cost?: number // USD cost for this stage (including retries)
 }
@@ -1014,16 +1020,106 @@ function applyDefaultModel(action: ActionDef, defaultModel: string | undefined):
   return resolved
 }
 
+function findNamedAction(root: ActionDef, name: string): ActionDef | undefined {
+  if (root.name === name) return root
+  if (root.stages) {
+    for (const s of root.stages) {
+      const found = findNamedAction(s, name)
+      if (found) return found
+    }
+  }
+  return undefined
+}
+
+function setupOnFailureExitListener(
+  instanceId: string,
+  action: ActionDef,
+  onFailure: OnFailureConfig,
+  ctx: TriggerContext,
+  pipelineName: string,
+  runId: string,
+  retriesRemaining: number,
+): void {
+  const maxRetries = onFailure.retry?.max ?? 0
+  const router = getDaemonRouter()
+
+  const handler = async (exitedId: string, exitCode: number) => {
+    if (exitedId !== instanceId) return
+    router.removeListener('exited', handler)
+    if (exitCode === 0) return
+
+    const attempt = maxRetries - retriesRemaining + 1
+    plog(pipelineName, `on_failure triggered for "${action.name || action.type}" (exit ${exitCode})`)
+
+    if (onFailure.retry && retriesRemaining > 0) {
+      let bufferContext = ''
+      try {
+        const raw = await router.getInstanceBuffer(instanceId)
+        const lines = stripAnsi(raw).split('\n').filter((l: string) => l.trim()).slice(-30).join('\n')
+        if (lines) bufferContext = lines
+      } catch { /* buffer unavailable */ }
+
+      const retryPrefix = `[RETRY ${attempt}/${maxRetries}] Previous run failed (exit ${exitCode}).${bufferContext ? `\n\nLast output:\n${bufferContext}` : ''}\n\n---\n\n`
+      const retryAction: ActionDef = {
+        ...action,
+        name: `${action.name || pipelineName} [RETRY ${attempt}/${maxRetries}]`,
+        prompt: retryPrefix + (action.prompt || ''),
+        on_failure: undefined,
+      }
+      try {
+        const retryCtx: TriggerContext = { ...ctx, error: `Exit code ${exitCode}` }
+        const result = await fireAction(retryAction, retryCtx, pipelineName, runId)
+        if (result.sessionId) {
+          setupOnFailureExitListener(result.sessionId, action, onFailure, ctx, pipelineName, runId, retriesRemaining - 1)
+        }
+        return
+      } catch (err) {
+        plog(pipelineName, `⚠ on_failure retry ${attempt} launch failed: ${String(err)}`)
+      }
+    }
+
+    if (onFailure.notify) {
+      const retryNote = maxRetries > 0 ? ` after ${maxRetries} retries` : ''
+      notify(`Pipeline failure: ${pipelineName}`, `"${action.name || action.type}" failed${retryNote} (exit ${exitCode})`, 'pipelines').catch(() => {})
+    }
+
+    if (onFailure.run) {
+      const p = [...pipelines.values()].find(pp => pp.def.name === pipelineName)
+      const target = p ? findNamedAction(p.def.action, onFailure.run) : undefined
+      if (target) {
+        const safeTarget = { ...target, on_failure: target.on_failure?.run ? { ...target.on_failure, run: undefined } : target.on_failure }
+        const failCtx: TriggerContext = { ...ctx, error: `Exit code ${exitCode}` }
+        fireAction(safeTarget, failCtx, pipelineName).then(() => {
+          plog(pipelineName, `✓ on_failure.run "${onFailure.run}" completed`)
+        }).catch(e => {
+          plog(pipelineName, `⚠ on_failure.run "${onFailure.run}" failed: ${String(e)}`)
+        })
+      } else {
+        plog(pipelineName, `⚠ on_failure.run: action "${onFailure.run}" not found in pipeline action tree`)
+      }
+    }
+  }
+
+  router.on('exited', handler)
+}
+
+// Tracks the last instance ID created by fireAction (or inner helpers).
+// Used by fireActionWithRetry to inject PTY context on retry after a failed attempt.
+let _lastFireActionInstanceId: string | undefined
+
 async function fireActionWithRetry(
   action: ActionDef,
   ctx: TriggerContext,
   pipelineName: string,
   overrides?: RunOverrides,
-): Promise<{ cost: number; responseSnippet?: string; subStages?: PipelineStageTrace[]; retryCount: number; sessionId?: string }> {
+): Promise<{ cost: number; responseSnippet?: string; subStages?: PipelineStageTrace[]; retryCount: number; sessionId?: string; retryContext?: boolean }> {
   // wait_for_session is a polling action — never retry it
   const maxRetries = action.type === 'wait_for_session' ? 0 : (action.max_retries ?? 0)
   const baseDelay = action.retry_delay_ms ?? 5000
   let lastError: unknown
+  let lastSessionId: string | undefined
+  let retryContextUsed = false
+
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       if (attempt > 0) {
@@ -1031,9 +1127,23 @@ async function fireActionWithRetry(
         plog(pipelineName, `retry ${attempt}/${maxRetries} after ${delay}ms`)
         await new Promise(r => setTimeout(r, delay))
       }
-      const result = await fireAction(action, ctx, pipelineName, undefined, overrides)
-      return { ...result, retryCount: attempt }
+
+      let actionToFire = action
+      if (attempt > 0 && lastSessionId) {
+        const ctxPrefix = await buildRetryContextPrefix(lastSessionId, attempt, maxRetries)
+        if (ctxPrefix) {
+          actionToFire = { ...action, prompt: ctxPrefix + (action.prompt || '') }
+          retryContextUsed = true
+          plog(pipelineName, `retry ${attempt}: injected PTY context from session ${lastSessionId}`)
+        }
+      }
+
+      _lastFireActionInstanceId = undefined
+      const result = await fireAction(actionToFire, ctx, pipelineName, undefined, overrides)
+      lastSessionId = result.sessionId
+      return { ...result, retryCount: attempt, retryContext: retryContextUsed || undefined }
     } catch (err) {
+      lastSessionId = lastSessionId ?? _lastFireActionInstanceId
       lastError = err
       if (attempt < maxRetries) {
         plog(pipelineName, `stage failed (attempt ${attempt + 1}/${maxRetries + 1}): ${String(err)}`)
@@ -1041,6 +1151,18 @@ async function fireActionWithRetry(
     }
   }
   throw lastError
+}
+
+async function buildRetryContextPrefix(sessionId: string, attempt: number, maxRetries: number): Promise<string> {
+  try {
+    const router = getDaemonRouter()
+    const raw = await router.getInstanceBuffer(sessionId)
+    const lines = stripAnsi(raw).split('\n').filter((l: string) => l.trim()).slice(-20)
+    if (!lines.length) return `[RETRY ${attempt}/${maxRetries}] Previous attempt failed.\n\n---\n\n`
+    return `[RETRY ${attempt}/${maxRetries}] Previous attempt failed. Last 20 lines of output:\n\`\`\`\n${lines.join('\n')}\n\`\`\`\n\n---\n\n`
+  } catch {
+    return `[RETRY ${attempt}/${maxRetries}] Previous attempt failed.\n\n---\n\n`
+  }
 }
 
 async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: string, runId?: string, overrides?: RunOverrides): Promise<{ cost: number; responseSnippet?: string; subStages?: PipelineStageTrace[]; sessionId?: string }> {
@@ -1064,10 +1186,13 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
   }
   if (action.type === 'maker-checker') {
     const mc = await runMakerChecker(action, ctx, pipelineName, pipelineMeta)
+    _lastFireActionInstanceId = mc.sessionId
     return { cost: mc.cost, sessionId: mc.sessionId }
   }
   if (action.type === 'diff_review') {
-    return runDiffReview(action, ctx, pipelineName, pipelineMeta)
+    const dr = await runDiffReview(action, ctx, pipelineName, pipelineMeta)
+    _lastFireActionInstanceId = dr.sessionId
+    return dr
   }
   if (action.type === 'parallel') {
     return runParallel(action, ctx, pipelineName, (a, c, n) => fireAction(a, c, n, effectiveRunId), pipelineMeta)
@@ -1262,6 +1387,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
     model: overrides?.model || action.model,
     ...pipelineMeta,
   })
+  _lastFireActionInstanceId = inst.id
 
   // Full prompt is in the system prompt file — just send a trigger
   await sendPromptWhenReady(inst.id, { prompt: 'Execute the instructions in your system prompt. Begin now.' })
@@ -1276,6 +1402,10 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
     absoluteMs: autoCloseMinutes * 60_000,
   })
   stablePromise.then(async (outcome) => {
+    if (outcome === 'exited') {
+      tagArtifactPipeline(inst.id, effectiveRunId).catch(() => {})
+      return
+    }
     if (outcome === 'stable') {
       log(`pipeline session ${inst.id} idle ${stableMs}ms, killing in 5s`)
       tagArtifactPipeline(inst.id, effectiveRunId).catch(() => {})
@@ -1748,6 +1878,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
       let stageResponseSnippet: string | undefined
       let stageSubStages: PipelineStageTrace[] | undefined
       let stageRetryCount = 0
+      let stageRetryContext: boolean | undefined
       let stageSessionId: string | undefined
       let stageOnFailureFired: boolean | undefined
       executingPipelines.add(pipelineName)
@@ -1757,21 +1888,32 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
         stageResponseSnippet = result.responseSnippet
         stageSubStages = result.subStages
         stageRetryCount = result.retryCount
+        stageRetryContext = result.retryContext
         stageSessionId = result.sessionId
       } catch (stageErr) {
         stageError = String(stageErr)
-        // Fire on_failure recovery action (fire-and-forget, cannot itself nest on_failure)
-        if (resolvedAction.on_failure) {
-          const failureCtx: TriggerContext = { ...ctx, error: String(stageErr) }
-          const recoveryAction = { ...resolvedAction.on_failure, on_failure: undefined }
-          plog(pipelineName, `→ firing on_failure action: ${recoveryAction.type}`)
-          fireAction(recoveryAction, failureCtx, pipelineName).then(r => {
-            totalCost += r.cost
-            plog(pipelineName, `✓ on_failure action completed`)
-          }).catch(failErr => {
-            plog(pipelineName, `⚠ on_failure action failed: ${String(failErr)}`)
-          })
-          stageOnFailureFired = true
+        // Notify on stage failure (gated by pipeline notification level)
+        if (shouldNotify(p.def, 'critical')) {
+          const errSnippet = String(stageErr).slice(0, 120)
+          notify(`Colony: Pipeline failure`, `"${pipelineName}" — "${resolvedAction.name || resolvedAction.type}" failed: ${errSnippet}`, 'pipelines').catch(() => {})
+        }
+        // Fire on_failure.run named recovery action (fire-and-forget)
+        if (resolvedAction.on_failure?.run) {
+          const target = findNamedAction(p.def.action, resolvedAction.on_failure.run)
+          if (target) {
+            const failureCtx: TriggerContext = { ...ctx, error: String(stageErr) }
+            const safeTarget: ActionDef = { ...target, on_failure: undefined }
+            plog(pipelineName, `→ firing on_failure.run: "${resolvedAction.on_failure.run}"`)
+            fireAction(safeTarget, failureCtx, pipelineName).then(r => {
+              totalCost += r.cost
+              plog(pipelineName, `✓ on_failure.run "${resolvedAction.on_failure!.run}" completed`)
+            }).catch(failErr => {
+              plog(pipelineName, `⚠ on_failure.run "${resolvedAction.on_failure!.run}" failed: ${String(failErr)}`)
+            })
+            stageOnFailureFired = true
+          } else {
+            plog(pipelineName, `⚠ on_failure.run: action "${resolvedAction.on_failure.run}" not found`)
+          }
         }
         throw stageErr
       } finally {
@@ -1792,6 +1934,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
           responseSnippet: stageResponseSnippet,
           subStages: stageSubStages,
           retryCount: stageRetryCount,
+          retryContext: stageRetryContext,
           onFailureFired: stageOnFailureFired,
           cost: stageCost || undefined,
         })
