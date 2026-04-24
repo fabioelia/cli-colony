@@ -90,6 +90,7 @@ interface PipelineInfo {
   preRunHooks?: string[]
   notifications?: 'all' | 'failures' | 'none'
   pausedUntil?: string | null
+  currentStep?: { index: number; total: number; name?: string; type: string; startedAt: string }
 }
 
 interface Props {
@@ -1778,7 +1779,17 @@ ${modelLine}  prompt: |
                 )}
                 <span className={`pipeline-status-dot ${p.running ? 'running' : p.enabled ? 'active' : 'inactive'}`} />
                 <span className="pipeline-card-name">{p.name}</span>
-                {p.running && <span className="pipeline-running-badge">Running</span>}
+                {p.running && !p.currentStep && <span className="pipeline-running-badge">Running</span>}
+                {p.running && p.currentStep && (
+                  <span className="pipeline-running-badge" title={`Step ${p.currentStep.index + 1} of ${p.currentStep.total}: ${p.currentStep.name || p.currentStep.type}`} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {p.currentStep.total > 1 ? `${p.currentStep.index + 1}/${p.currentStep.total}` : ''} {p.currentStep.name || p.currentStep.type}
+                    {p.currentStep.total > 1 && (
+                      <span style={{ display: 'inline-block', width: 28, height: 3, borderRadius: 2, background: 'rgba(255,255,255,0.25)', marginLeft: 2, overflow: 'hidden' }}>
+                        <span style={{ display: 'block', height: '100%', width: `${Math.round(((p.currentStep.index + 1) / p.currentStep.total) * 100)}%`, background: 'rgba(255,255,255,0.8)', borderRadius: 2 }} />
+                      </span>
+                    )}
+                  </span>
+                )}
                 {p.pausedUntil !== undefined && p.pausedUntil !== null && p.enabled && (
                   <span className="pipeline-paused-badge" title={`Paused until ${new Date(p.pausedUntil).toLocaleString()}`}>
                     <PauseCircle size={9} />{formatResumeIn(p.pausedUntil)}

@@ -245,6 +245,8 @@ export interface PipelineInfo {
   notifications?: 'all' | 'failures' | 'none'
   /** ISO timestamp — pipeline is temporarily paused until this time. null = indefinitely paused. */
   pausedUntil?: string | null
+  /** Live progress of the currently-running step. Only present when running === true. */
+  currentStep?: { index: number; total: number; name?: string; type: string; startedAt: string }
 }
 
 const MAX_DEBUG_ITERATIONS = 20
@@ -301,6 +303,7 @@ let approvalSweepTimer: ReturnType<typeof setInterval> | null = null
 const startupTimers = new Set<ReturnType<typeof setTimeout>>()
 /** Tracks pipeline names currently mid-execution for circular chain detection */
 const executingPipelines = new Set<string>()
+const _currentStep = new Map<string, { index: number; total: number; name?: string; type: string; startedAt: string }>()
 
 export function log(msg: string): void {
   console.log(`[pipeline] ${msg}`)
@@ -1882,6 +1885,14 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
       let stageSessionId: string | undefined
       let stageOnFailureFired: boolean | undefined
       executingPipelines.add(pipelineName)
+      _currentStep.set(pipelineName, {
+        index: contexts.indexOf(ctx),
+        total: contexts.length,
+        name: resolvedAction.name,
+        type: resolvedAction.type,
+        startedAt: new Date().toISOString(),
+      })
+      broadcast('pipeline:status', getPipelineList())
       try {
         const result = await fireActionWithRetry(resolvedAction, ctx, p.def.name, effectiveOverrides)
         stageCost = result.cost
@@ -1918,6 +1929,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
         throw stageErr
       } finally {
         executingPipelines.delete(pipelineName)
+        _currentStep.delete(pipelineName)
         const stageEnd = Date.now()
         stages.push({
           index: stages.length,
@@ -2300,6 +2312,7 @@ export function stopPipelines(): void {
   startupTimers.clear()
   runningPolls.clear()
   executingPipelines.clear()
+  _currentStep.clear()
   filePollSnapshots.clear()
   if (approvalSweepTimer) {
     clearInterval(approvalSweepTimer)
@@ -2351,6 +2364,7 @@ export function getPipelineList(): PipelineInfo[] {
       preRunHooks: p.def.pre_run?.length ? p.def.pre_run.map(h => h.type) : undefined,
       notifications: p.def.notifications,
       pausedUntil: p.def.pausedUntil,
+      currentStep: _currentStep.get(name),
     })
   }
   return result

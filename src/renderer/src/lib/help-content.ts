@@ -714,7 +714,7 @@ export const helpContent: Record<string, HelpEntry> = {
         name: 'Pipeline List',
         position: 'Main area — expandable cards',
         items: [
-          { label: 'Pipeline card', detail: 'Shows name, trigger type (git-poll/cron/file-poll), and enabled/disabled toggle.' },
+          { label: 'Pipeline card', detail: 'Shows name, trigger type (git-poll/cron/file-poll), and enabled/disabled toggle. When a pipeline is running, the "Running" badge updates to show live step progress: for multi-context pipelines (e.g. 3 PRs to process), it shows "2/3 session" with a thin progress bar. Single-context pipelines show just the action type name. The progress indicator is broadcast by the engine at the start of each firing.' },
           { label: 'Action type chip', detail: 'Shows the pipeline action type (e.g. "Parallel", "Maker-Checker") on the card header. Simple session pipelines omit the chip to reduce noise.' },
           { label: 'Schedule badge', detail: 'Shows the current cron schedule as a human-readable label (e.g. "Weekdays 9am"). Click it to open the schedule editor with presets and next-run preview.', icon: 'Clock' },
           { label: 'Running indicator', detail: 'Pulsing amber dot when the pipeline is actively polling.' },
