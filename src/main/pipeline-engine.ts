@@ -610,7 +610,7 @@ async function executePreRunHooks(hooks: Array<{ type: string }>, pipelineName: 
           prsByRepo[`${repo.owner}/${repo.name}`] = await fetchPRs(repo)
         }
         await writePrContext(prsByRepo)
-        broadcast('pipeline:status', {})
+        broadcast('pipeline:status', getPipelineList())
         plog(pipelineName, `pre_run: refresh-prs completed in ${Date.now() - start}ms (${repos.length} repos)`)
       } else {
         plog(pipelineName, `pre_run: unknown hook type "${hook.type}" — skipping`)

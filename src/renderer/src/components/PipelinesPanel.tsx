@@ -614,7 +614,9 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
 
   useEffect(() => {
     loadPipelines()
-    const unsub = window.api.pipeline.onStatus((list) => setPipelines(list))
+    const unsub = window.api.pipeline.onStatus((list) => {
+      if (Array.isArray(list)) setPipelines(list)
+    })
     return unsub
   }, [loadPipelines])
 

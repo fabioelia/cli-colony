@@ -79,10 +79,6 @@ export default function GlobalSearch({ open, onClose, onNavigate }: Props) {
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [])
 
-  if (!open) return null
-
-  const totalMatches = results.reduce((sum, r) => sum + r.matches.length, 0)
-
   const flatItems = useMemo(() => {
     const items: Array<{ instanceId: string; matchIdx: number }> = []
     for (const group of results) {
@@ -100,6 +96,10 @@ export default function GlobalSearch({ open, onClose, onNavigate }: Props) {
   useEffect(() => {
     selectedRef.current?.scrollIntoView({ block: 'nearest' })
   }, [selectedIdx])
+
+  if (!open) return null
+
+  const totalMatches = results.reduce((sum, r) => sum + r.matches.length, 0)
 
   const toggleGroup = (id: string) => {
     setExpandedGroups(prev => {
