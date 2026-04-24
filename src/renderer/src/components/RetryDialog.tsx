@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { stripAnsi } from '../../../shared/utils'
 import type { ClaudeInstance } from '../types'
 
 interface Props {
@@ -31,14 +32,41 @@ function formatDuration(ms: number): string {
   return `${Math.floor(m / 60)}h ${m % 60}m`
 }
 
+function buildFailureContext(exitCode: number, durationMs: number | null, lastLines: string): string {
+  const durationStr = durationMs != null ? formatDuration(durationMs) : 'unknown'
+  return `[Previous attempt failed — context below]
+Exit code: ${exitCode}
+Duration: ${durationStr}
+Last output (20 lines):
+${lastLines}
+[End of failure context — retry the task, avoiding the issue above]
+
+`
+}
+
 export default function RetryDialog({ instance, onRetry, onClose }: Props) {
   const [name, setName] = useState(`${instance.name} (retry)`)
   const [prompt, setPrompt] = useState(() => extractPrompt(instance.args))
+  const [retryWithContext, setRetryWithContext] = useState(true)
+  const [lastLines, setLastLines] = useState<string | null>(null)
+  const [bufferUnavailable, setBufferUnavailable] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const isFailed = instance.exitCode != null && instance.exitCode !== 0
+  const durationMs = instance.exitedAt ? instance.exitedAt - Date.parse(instance.createdAt) : null
 
   useEffect(() => {
     textareaRef.current?.focus()
   }, [])
+
+  useEffect(() => {
+    if (!isFailed) return
+    window.api.instance.buffer(instance.id).then((raw: string) => {
+      if (!raw) { setBufferUnavailable(true); return }
+      const lines = stripAnsi(raw).split('\n').filter(l => l.trim())
+      setLastLines(lines.slice(-20).join('\n'))
+    }).catch(() => setBufferUnavailable(true))
+  }, [instance.id, isFailed])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -49,13 +77,13 @@ export default function RetryDialog({ instance, onRetry, onClose }: Props) {
   }, [onClose])
 
   function handleRetry() {
-    const args = replacePromptInArgs(instance.args, prompt)
+    let finalPrompt = prompt
+    if (isFailed && retryWithContext && lastLines) {
+      finalPrompt = buildFailureContext(instance.exitCode!, durationMs, lastLines) + prompt
+    }
+    const args = replacePromptInArgs(instance.args, finalPrompt)
     onRetry({ name: name.trim() || instance.name, args })
   }
-
-  const duration = instance.exitedAt
-    ? formatDuration(instance.exitedAt - Date.parse(instance.createdAt))
-    : null
 
   return (
     <div className="dialog-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
@@ -95,12 +123,29 @@ export default function RetryDialog({ instance, onRetry, onClose }: Props) {
           <div className="dialog-field-hint">Cmd+Enter to launch</div>
         </div>
 
-        <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>
+        <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>
           {instance.exitCode != null && (
             <span>Exit code: <strong style={{ color: instance.exitCode === 0 ? 'var(--success)' : 'var(--danger)' }}>{instance.exitCode}</strong></span>
           )}
-          {duration && <span>Duration: <strong>{duration}</strong></span>}
+          {durationMs != null && <span>Duration: <strong>{formatDuration(durationMs)}</strong></span>}
         </div>
+
+        {isFailed && (
+          <label
+            style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, cursor: bufferUnavailable ? 'default' : 'pointer' }}
+            title={bufferUnavailable ? 'Output no longer available' : undefined}
+          >
+            <input
+              type="checkbox"
+              checked={retryWithContext && !bufferUnavailable}
+              disabled={bufferUnavailable}
+              onChange={e => setRetryWithContext(e.target.checked)}
+              style={{ accentColor: 'var(--accent)' }}
+            />
+            Include failure context
+            {bufferUnavailable && <span style={{ opacity: 0.5 }}>(output no longer available)</span>}
+          </label>
+        )}
 
         <div className="dialog-actions">
           <button className="cancel" onClick={onClose}>Cancel</button>
