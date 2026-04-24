@@ -1804,6 +1804,22 @@ function PersonaCard({
             return <span className="persona-list-next-run" title={fires[0].toLocaleString()}>Next: {label}</span>
           })()}
           <span className="persona-list-model">{persona.model || 'sonnet'}</span>
+          {(persona.dependsOn ?? []).length > 0 && (() => {
+            const depNames = (persona.dependsOn ?? []).map(id => fromName(id))
+            const allFresh = (persona.dependsOn ?? []).every(id => {
+              const dep = allPersonas.find(p => p.id === id)
+              if (!dep?.lastRun || !persona.lastRun) return true
+              return new Date(dep.lastRun) > new Date(persona.lastRun)
+            })
+            return (
+              <span
+                className={`persona-list-badge deps ${allFresh ? 'deps-ok' : 'deps-stale'}`}
+                title={`Depends on: ${depNames.join(', ')} — ${allFresh ? 'all fresh' : 'waiting for dependency'}`}
+              >
+                ⤴ {depNames.map(n => n.split(' ')[0]).join(', ')}
+              </span>
+            )
+          })()}
           {persona.maxCostUsd != null && <span className="persona-list-cost-cap" title={`Session cost cap: $${persona.maxCostUsd.toFixed(2)}`}>${persona.maxCostUsd.toFixed(2)} cap</span>}
           {persona.maxCostPerDayUsd != null && analytics != null && (() => {
             const pct = analytics.dailyCostUsd / persona.maxCostPerDayUsd! * 100

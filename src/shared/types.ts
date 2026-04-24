@@ -383,6 +383,8 @@ export interface PersonaInfo {
   minIntervalMinutes: number
   /** One-line working status written mid-session, null if not running or no status file */
   workingStatus: string | null
+  /** Persona IDs this persona depends on (must have completed since last run) */
+  dependsOn: string[]
 }
 
 // ---- Persona Memory (structured sidecar) ----
@@ -429,6 +431,10 @@ export interface PersonaRunEntry {
   stopReason?: 'budget_exceeded' | 'timeout' | 'manual' | 'idle_complete'
   /** Instance ID of the session that ran — for navigating to the session */
   sessionId?: string
+  /** Process exit code (0 = success, 129 = killed, etc.) */
+  exitCode?: number
+  /** Number of commits made during this session */
+  commitCount?: number
 }
 
 export interface PersonaHealthScore {

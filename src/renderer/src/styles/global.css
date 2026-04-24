@@ -16665,6 +16665,12 @@ button.session-trigger-chain-btn:hover {
   opacity: 0.8;
 }
 
+.trigger-edge-depends {
+  stroke: var(--warning);
+  stroke-dasharray: 4 4;
+  opacity: 0.55;
+}
+
 .trigger-edge-label {
   fill: var(--text-muted);
   font-size: 11px;
@@ -20616,6 +20622,16 @@ button.session-trigger-chain-btn:hover {
   background: rgba(245, 158, 11, 0.12);
   color: var(--warning);
   border: 1px solid rgba(245, 158, 11, 0.3);
+}
+.persona-list-badge.deps {
+  background: rgba(139, 92, 246, 0.1);
+  color: var(--accent);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+}
+.persona-list-badge.deps-stale {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--warning);
+  border-color: rgba(245, 158, 11, 0.3);
 }
 .persona-health-dot {
   display: inline-block;

@@ -137,6 +137,8 @@ export interface PersonaFrontmatter {
   run_on_startup?: boolean
   /** Minimum minutes between automatic runs (cron/trigger/startup). Manual runs bypass this. */
   min_interval_minutes?: number
+  /** Persona IDs that must have completed a run since this persona's last run before it will fire. */
+  depends_on?: string[]
 }
 
 function parseFrontmatter(content: string): PersonaFrontmatter | null {
@@ -170,6 +172,7 @@ function parseFrontmatter(content: string): PersonaFrontmatter | null {
     on_complete_run_if: val('on_complete_run_if') || undefined,
     run_on_startup: val('run_on_startup') === 'true',
     min_interval_minutes: parseInt(val('min_interval_minutes')) || undefined,
+    depends_on: parseStringArray(val('depends_on')),
   }
 
   if (!result.name) return null
@@ -319,6 +322,7 @@ export function getPersonaList(): PersonaInfo[] {
         pendingRunCount: (state.pendingRuns || []).length,
         runOnStartup: fm.run_on_startup || false,
         minIntervalMinutes: fm.min_interval_minutes || 0,
+        dependsOn: fm.depends_on || [],
         briefPreview: (() => {
           const bp = join(PERSONAS_DIR, `${personaId}.brief.md`)
           try {
@@ -736,6 +740,42 @@ export async function runPersona(fileName: string, trigger: TriggerSource = { ty
       saveState()
       broadcastStatus()
       throw new Error(`Skipped — cooldown (${remaining}m remaining)`)
+    }
+  }
+
+  // Check depends_on — skip if any dependency hasn't run since this persona's last run
+  if (fm.depends_on && fm.depends_on.length > 0 && trigger.type !== 'manual') {
+    // Handoff from a dependency: the dep completing IS the freshness signal — bypass
+    const isHandoffFromDep = trigger.type === 'handoff' &&
+      fm.depends_on.some(depId => {
+        try {
+          const depContent = readFileSync(join(PERSONAS_DIR, `${depId}.md`), 'utf-8')
+          const depFm = parseFrontmatter(depContent)
+          return depFm?.name === trigger.from
+        } catch { return false }
+      })
+
+    if (!isHandoffFromDep) {
+      for (const depId of fm.depends_on) {
+        let depFm: PersonaFrontmatter | null = null
+        try {
+          const depContent = readFileSync(join(PERSONAS_DIR, `${depId}.md`), 'utf-8')
+          depFm = parseFrontmatter(depContent)
+        } catch { continue } // dep file not found — treat as satisfied
+
+        if (!depFm) continue
+        const depState = getState(depFm.name)
+        if (!depState.enabled) continue // disabled dep — treat as satisfied
+        if (!state.lastRunAt) continue  // this persona never ran — first-ever run, bypass
+
+        if (!depState.lastRunAt || new Date(depState.lastRunAt) <= new Date(state.lastRunAt)) {
+          console.log(`[persona] Skipping "${fm.name}" — waiting on dependency "${depId}" (dep last ran ${depState.lastRunAt ?? 'never'}, this ran ${state.lastRunAt})`)
+          state.lastSkipped = Date.now()
+          saveState()
+          broadcastStatus()
+          throw new Error(`Skipped — waiting on dependency "${depId}"`)
+        }
+      }
     }
   }
 
@@ -1270,6 +1310,8 @@ export async function onSessionExit(instanceId: string): Promise<void> {
           success: !failed, // budget_exceeded counts as success; manual stop does not affect; failed exit = false
           stopReason,
           sessionId: instanceId,
+          exitCode: exitCode ?? undefined,
+          commitCount: commitsCount,
         })
         checkDailyCostBudget()
 

@@ -12,6 +12,7 @@ import { basename, join } from 'path'
 import type { PersonaFrontmatter, PersonaState, TriggerSource } from './persona-manager'
 import { updateColonyContext } from './colony-context'
 import { colonyPaths } from '../shared/colony-paths'
+import { getRunHistory } from './persona-run-history'
 
 export async function getColonySnapshot(): Promise<string> {
   try {
@@ -34,6 +35,47 @@ export function readKnowledgeBase(): string {
   } catch {
     return ''
   }
+}
+
+function fmtDuration(ms: number): string {
+  const totalSec = Math.round(ms / 1000)
+  const h = Math.floor(totalSec / 3600)
+  const m = Math.floor((totalSec % 3600) / 60)
+  const s = totalSec % 60
+  if (h > 0) return `${h}h ${m}m`
+  if (m > 0) return `${m}m ${s}s`
+  return `${s}s`
+}
+
+function buildLastRunSection(personaId: string): string {
+  const runs = getRunHistory(personaId, 10)
+  if (runs.length === 0) return '## Last Run\n\nFirst run — no history.\n\n'
+
+  const last = runs[0]
+  const code = last.exitCode ?? (last.success ? 0 : 1)
+  const codeLabel = code === 0 ? 'success' : code === 129 ? 'killed' : 'error'
+  const dur = fmtDuration(last.durationMs)
+  const cost = `$${(last.costUsd ?? 0).toFixed(2)}`
+  const commits = last.commitCount ?? 0
+
+  const successCount = runs.filter(r => r.success).length
+  const successRate = Math.round((successCount / runs.length) * 100)
+  let consecutiveFailures = 0
+  for (const r of runs) { if (!r.success) consecutiveFailures++; else break }
+
+  const failNote = !last.success
+    ? `\n> **Note:** Your last session FAILED (exit ${code}). Consider investigating what went wrong before proceeding with new work.\n`
+    : ''
+
+  return `## Last Run
+
+- Exit code: ${code} (${codeLabel})
+- Duration: ${dur}
+- Cost: ${cost}
+- Commits: ${commits}
+- Health: ${successRate}% success rate (last ${runs.length} runs), ${consecutiveFailures} consecutive failure${consecutiveFailures !== 1 ? 's' : ''}
+${failNote}
+`
 }
 
 export async function buildPlanningPrompt(
@@ -311,7 +353,8 @@ Example:
 - Timestamp: ${timestamp}
 - Working directory: ${fm.working_directory || colonyPaths.root}
 - Model: ${fm.model}
-`
+
+${buildLastRunSection(personaId)}`
 }
 
 export function buildKickoff(filePath: string, trigger: TriggerSource, customMessage?: string): string {

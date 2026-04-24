@@ -27,7 +27,7 @@ interface TriggerNode {
 interface TriggerEdge {
   from: string
   to: string
-  type: 'always' | 'may-trigger'
+  type: 'always' | 'may-trigger' | 'depends-on'
   /** True if this edge participates in a cycle */
   cyclic: boolean
   /** on_complete_run_if condition, if set */
@@ -193,6 +193,20 @@ function buildGraph(personas: PersonaInfo[]): {
         }
       }
     }
+    // depends-on edges: drawn from dependency → dependent (dep must complete first)
+    for (const depId of p.dependsOn || []) {
+      if (posMap.has(depId)) {
+        const alreadyEdge = (p.onCompleteRun || []).includes(depId) || (p.canInvoke || []).includes(depId)
+        if (!alreadyEdge) {
+          edges.push({
+            from: depId,
+            to: p.id,
+            type: 'depends-on',
+            cyclic: false,
+          })
+        }
+      }
+    }
   }
 
   const totalWidth = maxLayerWidth * (NODE_W + GAP_X) - GAP_X + PAD * 2
@@ -280,6 +294,9 @@ export default function PersonaTriggerMap({ personas, onSelectPersona }: Props) 
             <marker id="trigger-arrow-dashed" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
               <path d="M0,0 L8,3 L0,6" fill="var(--text-muted)" opacity="0.4" />
             </marker>
+            <marker id="trigger-arrow-depends" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+              <path d="M0,0 L8,3 L0,6" fill="var(--warning)" opacity="0.7" />
+            </marker>
           </defs>
 
           {/* Edges */}
@@ -298,12 +315,14 @@ export default function PersonaTriggerMap({ personas, onSelectPersona }: Props) 
 
             const isCyclic = e.cyclic
             const isDashed = e.type === 'may-trigger'
-            const marker = isCyclic ? 'url(#trigger-arrow-cycle)' : isDashed ? 'url(#trigger-arrow-dashed)' : 'url(#trigger-arrow)'
+            const isDepends = e.type === 'depends-on'
+            const marker = isCyclic ? 'url(#trigger-arrow-cycle)' : isDepends ? 'url(#trigger-arrow-depends)' : isDashed ? 'url(#trigger-arrow-dashed)' : 'url(#trigger-arrow)'
 
             // Label
             const conditionLabel: Record<string, string> = { success: 'if success', has_commits: 'if has commits', has_changes: 'if has changes' }
             const label = e.type === 'always'
               ? (e.condition ? (conditionLabel[e.condition] ?? `if ${e.condition}`) : 'always')
+              : e.type === 'depends-on' ? 'required by'
               : 'may trigger'
             const labelX = fromCx + dx / 2
             const labelY = fromBy + dy / 2 - 6
@@ -315,7 +334,7 @@ export default function PersonaTriggerMap({ personas, onSelectPersona }: Props) 
                   <line
                     x1={fromCx} y1={fromBy}
                     x2={toCx} y2={toTy - 4}
-                    className={`trigger-edge${isCyclic ? ' trigger-edge-cycle' : ''}${isDashed ? ' trigger-edge-dashed' : ''}`}
+                    className={`trigger-edge${isCyclic ? ' trigger-edge-cycle' : ''}${isDashed ? ' trigger-edge-dashed' : ''}${isDepends ? ' trigger-edge-depends' : ''}`}
                     markerEnd={marker}
                   />
                   {hasEdges && <text x={labelX + 8} y={labelY} className={`trigger-edge-label${isCyclic ? ' trigger-edge-label-cycle' : ''}`}>{label}</text>}
@@ -329,7 +348,7 @@ export default function PersonaTriggerMap({ personas, onSelectPersona }: Props) 
               <g key={i}>
                 <path
                   d={`M${fromCx},${fromBy} C${fromCx},${midY} ${toCx},${midY} ${toCx},${toTy - 4}`}
-                  className={`trigger-edge${isCyclic ? ' trigger-edge-cycle' : ''}${isDashed ? ' trigger-edge-dashed' : ''}`}
+                  className={`trigger-edge${isCyclic ? ' trigger-edge-cycle' : ''}${isDashed ? ' trigger-edge-dashed' : ''}${isDepends ? ' trigger-edge-depends' : ''}`}
                   markerEnd={marker}
                 />
                 <text x={labelX} y={labelY} className={`trigger-edge-label${isCyclic ? ' trigger-edge-label-cycle' : ''}`}>{label}</text>
