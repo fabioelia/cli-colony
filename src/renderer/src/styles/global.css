@@ -15284,6 +15284,22 @@ button.session-trigger-chain-btn:hover {
   cursor: not-allowed;
 }
 
+.pipeline-sessions-badge {
+  font-size: 10px;
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  color: var(--accent);
+  padding: 1px 5px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1.4;
+}
+.pipeline-sessions-badge:hover {
+  background: rgba(var(--accent-rgb, 99, 102, 241), 0.1);
+}
+
 .pipeline-card-fires {
   display: flex;
   align-items: center;

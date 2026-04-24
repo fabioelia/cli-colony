@@ -52,7 +52,7 @@ export interface TriggerDef {
 }
 
 export interface ConditionDef {
-  type: 'branch-file-exists' | 'pr-checks-failed' | 'file-created' | 'always' | 'files-changed'
+  type: 'branch-file-exists' | 'pr-checks-failed' | 'file-created' | 'always' | 'files-changed' | 'review-requested'
   branch?: string
   path?: string
   patterns?: string[] // for files-changed: glob patterns (prefix ! for exclusion)
@@ -948,11 +948,18 @@ async function evaluateFilesChanged(condition: ConditionDef, ctx: TriggerContext
   return matched.length > 0
 }
 
+function evaluateReviewRequested(condition: ConditionDef, ctx: TriggerContext): boolean {
+  void condition
+  if (!ctx.pr || !ctx.githubUser) return false
+  return ctx.pr.reviewers.includes(ctx.githubUser)
+}
+
 async function evaluateCondition(condition: ConditionDef, ctx: TriggerContext): Promise<boolean> {
   switch (condition.type) {
     case 'branch-file-exists': return evaluateBranchFileExists(condition, ctx)
     case 'pr-checks-failed': return evaluatePrChecksFailed(condition, ctx)
     case 'files-changed': return evaluateFilesChanged(condition, ctx)
+    case 'review-requested': return evaluateReviewRequested(condition, ctx)
     case 'always': return true
     default: return false
   }
@@ -1071,7 +1078,7 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
     return { cost: 0, responseSnippet: `Triggered pipeline "${action.target}"` }
   }
 
-  const rawName = resolveTemplate(action.name || 'Pipeline Session', ctx)
+  const rawName = resolveTemplate(action.name || pipelineName || 'Pipeline Session', ctx)
   // Prefix with "Pipe" so pipeline-launched sessions are identifiable
   const name = rawName.startsWith('Pipe') ? rawName : `Pipe (${rawName})`
   const cwd = overrides?.workingDirectory?.trim() || resolveTemplate(action.workingDirectory || '', ctx) || undefined
@@ -1386,7 +1393,7 @@ export async function previewPipeline(fileNameOrName: string): Promise<PreviewRe
 
       // Collect resolved template vars for this context
       const resolvedVars: Record<string, string> = {
-        'action.name': resolveTemplate(def.action.name || 'Pipeline Session', ctx),
+        'action.name': resolveTemplate(def.action.name || def.name || 'Pipeline Session', ctx),
         'dedup.key': dedupKey,
       }
       if (def.action.workingDirectory) resolvedVars['action.workingDirectory'] = resolveTemplate(def.action.workingDirectory, ctx)
@@ -1604,7 +1611,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
             ? `PR #${ctx.pr.number}: ${ctx.pr.branch}${ctx.repo ? ` (${ctx.repo.owner}/${ctx.repo.name})` : ''}`
             : `${pipelineName} (${ctx.timestamp.slice(0, 10)})`
           const resolvedVars: Record<string, string> = {
-            'action.name': resolveTemplate(p.def.action.name || 'Pipeline Session', ctx),
+            'action.name': resolveTemplate(p.def.action.name || p.def.name || 'Pipeline Session', ctx),
             'dedup.key': dedupKey,
             'rule.name': ruleMatch.name,
           }
@@ -1657,7 +1664,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
           ? `PR #${ctx.pr.number}: ${ctx.pr.branch}${ctx.repo ? ` (${ctx.repo.owner}/${ctx.repo.name})` : ''}`
           : `${pipelineName} (${ctx.timestamp.slice(0, 10)})`
         const resolvedVars: Record<string, string> = {
-          'action.name': resolveTemplate(p.def.action.name || 'Pipeline Session', ctx),
+          'action.name': resolveTemplate(p.def.action.name || p.def.name || 'Pipeline Session', ctx),
           'dedup.key': dedupKey,
         }
         if (p.def.action.workingDirectory) resolvedVars['action.workingDirectory'] = resolveTemplate(p.def.action.workingDirectory, ctx)
@@ -1717,7 +1724,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
       plog(pipelineName, `→ firing action: ${p.def.action.type} for ${prLabel}${dedupRetryAttempt !== null ? ` (retry ${dedupRetryAttempt + 1})` : ''}`)
       const stageStart = Date.now()
       const resolvedAction = applyDefaultModel(p.def.action, p.def.default_model)
-      const stageSessionName = resolveTemplate(resolvedAction.name || 'Pipeline Session', ctx)
+      const stageSessionName = resolveTemplate(resolvedAction.name || pipelineName || 'Pipeline Session', ctx)
       let stageError: string | undefined
       let stageCost = 0
       let stageResponseSnippet: string | undefined

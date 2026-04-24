@@ -95,7 +95,7 @@ interface PipelineInfo {
 interface Props {
   onLaunchInstance: (opts: { name?: string; workingDirectory?: string; color?: string; args?: string[] }) => Promise<string>
   onFocusInstance: (id: string) => void
-  instances: Array<{ id: string; name: string; status: string }>
+  instances: Array<{ id: string; name: string; status: string; pipelineName?: string }>
 }
 
 const PIPELINE_SYSTEM_PROMPT = `You are a Pipeline Assistant for Claude Colony. You help users create, edit, and manage pipeline YAML files.
@@ -1923,6 +1923,22 @@ ${modelLine}  prompt: |
                     <AlertTriangle size={9} />
                   </span>
                 )}
+                {(() => {
+                  const sessionCount = instances.filter(i => i.pipelineName === p.name).length
+                  if (sessionCount === 0) return null
+                  const runningSession = instances.find(i => i.pipelineName === p.name && i.status === 'running')
+                  const firstSession = instances.find(i => i.pipelineName === p.name)
+                  const target = runningSession || firstSession
+                  return (
+                    <button
+                      className="pipeline-sessions-badge"
+                      title={`${sessionCount} session${sessionCount === 1 ? '' : 's'} from this pipeline — click to focus`}
+                      onClick={(e) => { e.stopPropagation(); if (target) onFocusInstance(target.id) }}
+                    >
+                      {sessionCount} {sessionCount === 1 ? 'session' : 'sessions'}
+                    </button>
+                  )
+                })()}
                 <div className="pipeline-header-actions" onClick={(e) => e.stopPropagation()}>
                   {(() => {
                     const nl = p.notifications ?? 'all'
