@@ -99,6 +99,8 @@ interface Props {
   errorSummary?: ErrorSummary
   childInstances?: ClaudeInstance[]
   allInstances?: ClaudeInstance[]
+  recapBanner?: { text: string; exitSummary?: string }
+  onDismissRecap?: () => void
 }
 
 const SEARCH_DECORATIONS = {
@@ -122,7 +124,7 @@ const fmtTokens = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}
 
 type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'changes' | 'artifacts' | 'team' | 'metrics' | 'browser' | 'jira'
 
-export default memo(function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, onSearchToggle, fontSize = 13, fontFamily = 'Menlo, Monaco, Consolas, "Courier New", monospace', cursorStyle = 'underline', cursorBlink = false, scrollback = 10000, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid, onNavigateToSession, errorSummary, childInstances = [], allInstances = [] }: Props) {
+export default memo(function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, onSearchToggle, fontSize = 13, fontFamily = 'Menlo, Monaco, Consolas, "Courier New", monospace', cursorStyle = 'underline', cursorBlink = false, scrollback = 10000, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid, onNavigateToSession, errorSummary, childInstances = [], allInstances = [], recapBanner, onDismissRecap }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const initializedRef = useRef(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -144,6 +146,8 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
   const shellTabRef = useRef<HTMLDivElement>(null)
   const shellTermRef = useRef<{ term: Terminal; fitAddon: FitAddon; searchAddon: SearchAddon; unsub?: () => void } | null>(null)
   const shellCreatedRef = useRef(false)
+  const onDismissRecapRef = useRef(onDismissRecap)
+  onDismissRecapRef.current = onDismissRecap
   const [shellResetKey, setShellResetKey] = useState(0)
   const [childrenOpen, setChildrenOpen] = useState(true)
   const sortedChildren = useMemo(() => [...childInstances].sort(compareChildren), [childInstances])
@@ -499,6 +503,13 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
     }
   }, [handleSearchNext, handleSearchPrev, getActiveSearchAddon, onSearchClose])
 
+  // Auto-dismiss recap banner after 8s
+  useEffect(() => {
+    if (!recapBanner) return
+    const t = setTimeout(() => onDismissRecapRef.current?.(), 8000)
+    return () => clearTimeout(t)
+  }, [recapBanner])
+
   // Live search as you type
   useEffect(() => {
     const addon = getActiveSearchAddon()
@@ -548,6 +559,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
 
       term.onData((data) => {
         proxy.onUserInput()
+        onDismissRecapRef.current?.()
         window.api.instance.write(instance.id, data)
       })
 
@@ -1250,7 +1262,18 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
             const model = modelIdx >= 0 ? instance.args[modelIdx + 1] : null
             const parts = model ? model.split('-') : []
             const short = parts.length >= 3 ? parts.slice(1, 3).join('-') : (model || 'claude')
-            return <span className="session-status-item session-status-model">{short}</span>
+            const effortIdx = instance.args.indexOf('--effort')
+            const effortLevel = effortIdx >= 0 ? instance.args[effortIdx + 1] : null
+            return (
+              <>
+                <span className="session-status-item session-status-model">{short}</span>
+                {effortLevel && (
+                  <span className={`session-status-item session-status-effort effort-${effortLevel}`} title={`Effort: ${effortLevel} (Requires Claude Code 2.1.90+)`}>
+                    {effortLevel}
+                  </span>
+                )}
+              </>
+            )
           })()}
           <span className="session-status-item session-status-uptime" tabIndex={-1}>
             {formatUptime(Math.max(0, Math.floor((Date.now() - new Date(instance.createdAt).getTime()) / 1000)))}
@@ -1323,6 +1346,14 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
               ))}
               {childInstances.length > 3 && <span className="session-trigger-chain-name" style={{ opacity: 0.5 }}>+{childInstances.length - 3}</span>}
             </span>
+          )}
+        </div>
+      )}
+      {viewTab === 'session' && recapBanner && (
+        <div className="session-recap-banner" onClick={() => onDismissRecap?.()}>
+          <span className="session-recap-text">{recapBanner.text}</span>
+          {recapBanner.exitSummary && (
+            <span className="session-recap-exit">{recapBanner.exitSummary}</span>
           )}
         </div>
       )}

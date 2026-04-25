@@ -7075,6 +7075,19 @@ body:has(.daemon-update-banner) .app-update-banner {
 .session-status-uptime {
   color: var(--text-secondary);
 }
+.session-status-effort {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.session-status-effort.effort-low { color: var(--text-muted); background: var(--bg-tertiary); }
+.session-status-effort.effort-medium { color: #3b82f6; background: #eff6ff; }
+.session-status-effort.effort-high { color: #92400e; background: #fef3c7; }
+.session-status-effort.effort-xhigh { color: #6d28d9; background: #f5f3ff; }
 .session-status-cost.green { color: var(--success); }
 .session-status-cost.amber { color: var(--warning); }
 .session-status-cost.red { color: var(--danger); }
@@ -7179,6 +7192,28 @@ button.session-trigger-chain-btn:hover {
   color: var(--text-muted);
   opacity: 0.5;
   flex-shrink: 0;
+}
+
+/* ---- Session Recap Banner ---- */
+.session-recap-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  animation: recap-fade-in 0.15s ease;
+  flex-shrink: 0;
+}
+.session-recap-banner:hover { background: var(--bg-hover); }
+.session-recap-text { opacity: 0.8; }
+.session-recap-exit { font-style: italic; opacity: 0.6; }
+@keyframes recap-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ---- Session Changed Files Panel ---- */
@@ -20119,6 +20154,20 @@ button.session-trigger-chain-btn:hover {
   padding: 2px 6px;
   background: var(--bg-tertiary);
   border-radius: 4px;
+}
+
+.persona-model-upgrade-badge {
+  font-size: 10px;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  border-radius: 4px;
+  padding: 2px 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.persona-model-upgrade-badge:hover {
+  background: #fde68a;
 }
 
 .persona-card-section-content {

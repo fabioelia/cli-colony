@@ -45,6 +45,13 @@ import type { ForkGroup, ErrorSummary } from '../../shared/types'
 
 type View = SidebarView | 'agent-editor'
 
+function formatRecapDuration(ms: number): string {
+  const s = Math.floor(ms / 1000)
+  if (s < 60) return `${s}s`
+  if (s < 3600) return `${Math.floor(s / 60)}m`
+  return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`
+}
+
 /** Shallow-compare two instance lists to avoid unnecessary React re-renders */
 function instancesEqual(prev: ClaudeInstance[], next: ClaudeInstance[]): boolean {
   if (prev.length !== next.length) return false
@@ -138,6 +145,8 @@ export default function App() {
   const [forkModalHint, setForkModalHint] = useState('')
   const [forkGroups, setForkGroups] = useState<ForkGroup[]>([])
   const [errorSummaries, setErrorSummaries] = useState<Map<string, ErrorSummary>>(new Map())
+  const [recapBanners, setRecapBanners] = useState<Record<string, { text: string; exitSummary?: string } | null>>({})
+  const lastActiveTimestamps = useRef<Record<string, number>>({})
   const terminalsRef = useRef<Map<string, any>>(new Map())
   const agentToLaunchRef = useRef<AgentDef | null>(null)
   // Track activeId + view in a ref so the output listener always has fresh values
@@ -942,7 +951,7 @@ export default function App() {
     return [...new Set(instances.map((i) => i.workingDirectory).filter(Boolean))]
   }, [instances])
 
-  const handleQuickPromptLaunch = useCallback(async (prompt: string, workingDirectory: string) => {
+  const handleQuickPromptLaunch = useCallback(async (prompt: string, workingDirectory: string, effort?: string) => {
     // Save to history (deduplicated, max 20)
     setQuickPromptHistory((prev) => {
       const next = [prompt, ...prev.filter((h) => h !== prompt)].slice(0, 20)
@@ -955,6 +964,7 @@ export default function App() {
       const inst = await window.api.instance.create({
         workingDirectory: workingDirectory || undefined,
         name: autoName || undefined,
+        args: effort ? ['--effort', effort] : undefined,
       })
       // Queue the prompt to be written once the session signals it's ready
       pendingPromptRef.current = { id: inst.id, prompt }
@@ -1456,6 +1466,48 @@ export default function App() {
     }
   }, [showTerminal, activeId])
 
+  // Session recap banner: show context when switching back to a stale session
+  const prevActiveIdForRecapRef = useRef<string | null>(null)
+  useEffect(() => {
+    const prevId = prevActiveIdForRecapRef.current
+    prevActiveIdForRecapRef.current = activeId
+
+    if (prevId && prevId !== activeId) {
+      lastActiveTimestamps.current[prevId] = Date.now()
+    }
+
+    if (!activeId || arenaMode || !view || view !== 'instances') return
+    const lastSeen = lastActiveTimestamps.current[activeId]
+    if (!lastSeen) return
+
+    const idleMs = Date.now() - lastSeen
+    if (idleMs < 5 * 60 * 1000) return
+
+    const inst = instancesRef.current.find(i => i.id === activeId)
+    if (!inst) return
+    if (inst.activity === 'busy') return
+    if (Date.now() - new Date(inst.createdAt).getTime() < 30_000) return
+
+    const parts: string[] = []
+    try {
+      const tags = JSON.parse(localStorage.getItem('colony:sessionTags') || '{}')[activeId]
+      if (Array.isArray(tags) && tags.length) parts.push(tags.join(' '))
+    } catch { /* */ }
+    if (inst.tokenUsage.cost && inst.tokenUsage.cost > 0.001) {
+      parts.push(`$${inst.tokenUsage.cost.toFixed(2)}`)
+    }
+    const dur = inst.exitedAt
+      ? inst.exitedAt - new Date(inst.createdAt).getTime()
+      : Date.now() - new Date(inst.createdAt).getTime()
+    parts.push(formatRecapDuration(dur))
+    parts.push(`idle ${formatRecapDuration(idleMs)}`)
+
+    setRecapBanners(prev => ({
+      ...prev,
+      [activeId]: { text: parts.join(' · '), exitSummary: inst.exitSummary },
+    }))
+  }, [activeId, arenaMode, view])
+
   // Refit terminals when split/grid changes
   useEffect(() => {
     if (!showTerminal) return
@@ -1772,6 +1824,8 @@ export default function App() {
                 onEnterGrid={handleEnterGrid}
                 onNavigateToSession={setActiveId}
                 errorSummary={errorSummaries.get(inst.id)}
+                recapBanner={recapBanners[inst.id] ?? undefined}
+                onDismissRecap={() => setRecapBanners(prev => ({ ...prev, [inst.id]: null }))}
               />
             </div>
           )

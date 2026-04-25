@@ -320,6 +320,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Playbook', detail: 'When playbooks exist in ~/.claude-colony/playbooks/, a Playbook dropdown appears above the Name field. Selecting a playbook pre-fills name, model, agent, working directory, prompt, permission mode, and tags — any field can be overridden before creating. Playbooks with inputs: declarations show a typed form below the dropdown — fill in values, then click Create. Required inputs (marked *) must be filled before Create is enabled. Input values are injected into {{variable}} placeholders in the prompt via the Mustache template engine.' },
           { label: 'Auto-tags', detail: 'Sessions are automatically tagged when they exit based on heuristics: "failed" (non-zero exit code), "pipeline" (launched by a pipeline), "persona" (launched by a persona), "long-running" (ran > 30 min). Combined with playbook tags, auto-tags make the tag filter dropdown in the sidebar useful without any manual effort.' },
           { label: 'Model picker', detail: 'Dedicated dropdown to select the Claude model (Opus, Sonnet, Haiku) instead of typing --model in CLI args. When cloning a session, the model is extracted from args and pre-selected.' },
+          { label: 'Effort level', detail: 'Optional dropdown to control reasoning depth: Default (CLI default), Low (fast, minimal reasoning — saves tokens on routine tasks), Medium, High, or XHigh (deepest reasoning, for complex architecture decisions — Opus 4.7+ only). Adds --effort <level> to CLI args. Requires Claude Code 2.1.90+. Non-default effort level shows a colored badge in the session status strip. Also available in Quick Prompt dialog and configurable per-persona (effort: field in frontmatter) and per-pipeline-stage (effort: field on action).' },
           { label: 'Environment Variables', detail: 'Set custom environment variables (API keys, debug flags) for a session. Expand the collapsible section, add KEY=value rows. Variables are merged on top of your shell environment so session-specific overrides work without polluting your profile.' },
           { label: 'Plan first', detail: 'When a first prompt is set, toggle "Plan first" to make Claude outline its approach (files to modify, steps, risks) and wait for your approval before taking any action. Useful for complex tasks where you want to review the strategy before committing tokens. Works with both the dialog and session templates.', icon: 'ListChecks' },
           { label: 'First prompt', detail: 'Collapsible textarea for seeding a session with a task. Click the "First prompt" toggle to expand. When cloning a session or launching from a starter card, it opens automatically. The prompt runs as soon as the session is ready; leave blank to start idle.', icon: 'ChevronRight' },
@@ -1204,6 +1205,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'View File', detail: 'Open a read-only preview of the persona\'s raw markdown file.', icon: 'FileText' },
           { label: 'Edit File', detail: 'Open the persona\'s markdown file in a text editor. Edit any section and save — useful for updating Role, Objectives, or manually fixing the Active Situations block.', icon: 'Pencil' },
           { label: 'Run queue badge', detail: 'When a trigger or cron fires while the persona is already running, the run is queued (not dropped). A "N queued" badge appears on the tile. The queue pops automatically when the current session exits — one pop per exit to prevent thundering herd. Max queue depth: 5 (oldest trigger dropped with a warning). Queued runs preserve the original handoff context and trigger source. Draining personas flush their queue instead of popping.' },
+          { label: 'Model update badge', detail: 'An amber "Model update → X" badge appears on persona cards when the persona\'s model field is older than the latest version in the same family (e.g., claude-opus-4-6 when claude-opus-4-7 is available). Click to confirm and rewrite the model field in the persona\'s frontmatter. Family is preserved — opus stays opus, sonnet stays sonnet. Personas with no model field (using CLI default) never show the badge since they automatically use the latest.' },
         ],
       },
       {
@@ -1305,6 +1307,13 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Cost', detail: 'Live session cost. Green under $1, amber $1–$5, red over $5. Hover for precise amount. Hidden until the session incurs cost.' },
           { label: 'Token counts', detail: 'Input (↓, blue) and output (↑, green) token counts in the status strip. Format: 12.3k↓ 4.1k↑ for ≥1000 tokens, exact for smaller. Hover for precise counts. Hidden until tokens are recorded. Not shown for non-Claude backends.' },
           { label: 'Ctx indicator', detail: 'Amber = context ≥ 250 KB output, red ≥ 600 KB. Consider checkpointing.' },
+        ],
+      },
+      {
+        name: 'Session Recap Banner',
+        position: 'Below status strip (idle sessions you return to after 5+ minutes)',
+        items: [
+          { label: 'Recap banner', detail: 'When you switch back to a session that has been idle for 5+ minutes, a compact banner appears showing tags, cost, session duration, and idle time — e.g. "pipeline persona · $0.42 · 3m · idle 23m". For exited sessions, the AI-generated exit summary appears as a second line. Click the banner to dismiss it immediately, or it auto-dismisses after 8 seconds. Typing in the terminal also dismisses it.' },
         ],
       },
       {
