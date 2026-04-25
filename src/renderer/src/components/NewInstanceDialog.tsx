@@ -105,9 +105,15 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
       if (cloneSource.args[i] === '--resume') { i++; continue } // skip --resume and its value
       if (cloneSource.args[i] === '--model') { i++; continue } // skip --model (now in dropdown)
       if (cloneSource.args[i] === '--agent') { i++; continue } // skip --agent (now in dropdown)
+      if (cloneSource.args[i] === '--effort') { i++; continue } // skip --effort (now in dropdown)
       filtered.push(cloneSource.args[i])
     }
     return filtered.join(' ')
+  })
+  const [effort, setEffort] = useState<string>(() => {
+    if (!cloneSource) return ''
+    const i = cloneSource.args.indexOf('--effort')
+    return i >= 0 ? cloneSource.args[i + 1] || '' : ''
   })
   const [cliBackend, setCliBackend] = useState<CliBackend>(cloneSource?.cliBackend || 'claude')
   const [permissionMode, setPermissionMode] = useState<'autonomous' | 'supervised' | 'auto'>(cloneSource?.permissionMode || 'autonomous')
@@ -275,7 +281,8 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
     const extraParts = extraArgs.trim() ? extraArgs.trim().split(/\s+/) : []
     const modelParts = model ? ['--model', model] : []
     const agentParts = selectedAgent ? ['--agent', selectedAgent] : []
-    const args = modelParts.length || agentParts.length || extraParts.length ? [...modelParts, ...agentParts, ...extraParts] : undefined
+    const effortParts = effort ? ['--effort', effort] : []
+    const args = modelParts.length || agentParts.length || effortParts.length || extraParts.length ? [...modelParts, ...agentParts, ...effortParts, ...extraParts] : undefined
     const mcpServers = selectedMcpServers.size > 0 ? Array.from(selectedMcpServers) : undefined
 
     // Resolve playbook template if inputs are present
@@ -693,6 +700,19 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
             <option value="claude-haiku-4-5-20251001">Haiku (claude-haiku-4-5)</option>
           </select>
         </div>
+
+        {cliBackend === 'claude' && (
+          <div className="dialog-field">
+            <label>Effort Level (optional)</label>
+            <select value={effort} onChange={e => setEffort(e.target.value)} className="settings-select" style={{ width: '100%' }}>
+              <option value="">Default</option>
+              <option value="low">Low — fast, minimal reasoning</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="xhigh">XHigh — deepest reasoning (Opus 4.7+)</option>
+            </select>
+          </div>
+        )}
 
         {agents.length > 0 && (
           <div className="dialog-field">

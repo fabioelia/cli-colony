@@ -83,6 +83,7 @@ export interface ActionDef {
   workingDirectory?: string
   color?: string
   model?: string // Claude model override for this stage (e.g. 'claude-opus-4-6', 'claude-haiku-4-5')
+  effort?: string // Claude Code effort level for this stage (e.g. 'low', 'medium', 'high', 'xhigh')
   prompt?: string // required for launch-session; omitted for maker-checker
   match?: {
     gitBranch?: string
@@ -1381,11 +1382,12 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
   plog(name, `launching session "${name}" in ${resolvedCwd || '$HOME (no cwd resolved!)'}`)
 
   const promptFile = await writePromptFile(prompt)
+  const effortArgs = (action.effort) ? ['--effort', action.effort] : []
   const inst = await createInstance({
     name,
     workingDirectory: resolvedCwd,
     color: action.color,
-    args: ['--append-system-prompt-file', promptFile],
+    args: [...effortArgs, '--append-system-prompt-file', promptFile],
     mcpServers: action.mcpServers,
     model: overrides?.model || action.model,
     ...pipelineMeta,

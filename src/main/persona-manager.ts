@@ -139,6 +139,8 @@ export interface PersonaFrontmatter {
   min_interval_minutes?: number
   /** Persona IDs that must have completed a run since this persona's last run before it will fire. */
   depends_on?: string[]
+  /** Effort level for Claude Code sessions (low|medium|high|xhigh). Absent = CLI default. */
+  effort?: string
 }
 
 function parseFrontmatter(content: string): PersonaFrontmatter | null {
@@ -173,6 +175,7 @@ function parseFrontmatter(content: string): PersonaFrontmatter | null {
     run_on_startup: val('run_on_startup') === 'true',
     min_interval_minutes: parseInt(val('min_interval_minutes')) || undefined,
     depends_on: parseStringArray(val('depends_on')),
+    effort: val('effort') || undefined,
   }
 
   if (!result.name) return null
@@ -845,12 +848,13 @@ export async function runPersona(fileName: string, trigger: TriggerSource = { ty
   }
 
   // Launch interactive session with system prompt, then send trigger when ready
+  const effortArgs = fm.effort ? ['--effort', fm.effort] : []
   const inst = await createInstance({
     name: `Persona: ${fm.name}`,
     workingDirectory: cwd,
     color: fm.color,
     model: overrides?.model || fm.model,
-    args: ['--append-system-prompt-file', promptFile],
+    args: [...effortArgs, '--append-system-prompt-file', promptFile],
     parentId,
     triggeredBy: trigger.type === 'handoff' ? (trigger.from ?? undefined) : undefined,
   })

@@ -7,7 +7,7 @@ import { resolveMustacheTemplate } from '../../../shared/utils'
 
 interface Props {
   onClose: () => void
-  onLaunch: (prompt: string, workingDirectory: string) => void
+  onLaunch: (prompt: string, workingDirectory: string, effort?: string) => void
   recentDirs: string[]
   promptHistory: string[]
 }
@@ -15,6 +15,7 @@ interface Props {
 export default function QuickPromptDialog({ onClose, onLaunch, recentDirs, promptHistory }: Props) {
   const [prompt, setPrompt] = useState('')
   const [workingDir, setWorkingDir] = useState('')
+  const [effort, setEffort] = useState('')
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [showDirList, setShowDirList] = useState(false)
   const [tokenCount, setTokenCount] = useState(0)
@@ -114,7 +115,7 @@ export default function QuickPromptDialog({ onClose, onLaunch, recentDirs, promp
 
   const handleLaunch = () => {
     if (!prompt.trim()) return
-    onLaunch(prompt.trim(), workingDir.trim())
+    onLaunch(prompt.trim(), workingDir.trim(), effort || undefined)
   }
 
   return (
@@ -338,7 +339,20 @@ export default function QuickPromptDialog({ onClose, onLaunch, recentDirs, promp
           )}
         </div>
 
-        <div className="dialog-actions">
+        <div className="dialog-actions" style={{ alignItems: 'center' }}>
+          <select
+            value={effort}
+            onChange={e => setEffort(e.target.value)}
+            className="settings-select"
+            style={{ fontSize: '12px', padding: '4px 8px', height: '30px' }}
+            title="Effort level (Requires Claude Code 2.1.90+)"
+          >
+            <option value="">Effort: Default</option>
+            <option value="low">Effort: Low</option>
+            <option value="medium">Effort: Medium</option>
+            <option value="high">Effort: High</option>
+            <option value="xhigh">Effort: XHigh</option>
+          </select>
           <button className="cancel" onClick={onClose}>Cancel</button>
           <button className="confirm" onClick={handleLaunch} disabled={!prompt.trim()}>Launch</button>
         </div>
