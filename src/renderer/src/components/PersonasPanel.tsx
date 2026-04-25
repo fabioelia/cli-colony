@@ -1481,6 +1481,29 @@ const PERSONA_RUN_MODELS = [
   { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
 ]
 
+const MODEL_VERSIONS: Record<string, { latest: string; label: string }> = {
+  opus: { latest: 'claude-opus-4-7', label: 'Opus 4.7' },
+  sonnet: { latest: 'claude-sonnet-4-6', label: 'Sonnet 4.6' },
+  haiku: { latest: 'claude-haiku-4-5', label: 'Haiku 4.5' },
+}
+
+function getModelFamily(model: string): string | null {
+  if (model.includes('opus')) return 'opus'
+  if (model.includes('sonnet')) return 'sonnet'
+  if (model.includes('haiku')) return 'haiku'
+  return null
+}
+
+function getModelUpgrade(model: string): { from: string; to: string; label: string } | null {
+  if (!model) return null
+  const family = getModelFamily(model)
+  if (!family) return null
+  const info = MODEL_VERSIONS[family]
+  if (!info) return null
+  if (model === info.latest || model.startsWith(info.latest)) return null
+  return { from: model, to: info.latest, label: info.label }
+}
+
 function PersonaRunWithOptionsDialog({ persona, onRun, onClose }: {
   persona: PersonaInfo
   onRun: (overrides: { model?: string; maxCostUsd?: number; promptPrefix?: string }) => void
@@ -2404,6 +2427,23 @@ function PersonaCard({
               <span className={`persona-permission-badge ${persona.canMerge ? 'allowed' : 'denied'}`}>Merge</span>
               <span className={`persona-permission-badge ${persona.canCreateSessions ? 'allowed' : 'denied'}`}>Sessions</span>
               <span className="persona-card-meta-inline">{persona.model}</span>
+              {persona.model && (() => {
+                const upgrade = getModelUpgrade(persona.model)
+                if (!upgrade) return null
+                return (
+                  <button
+                    className="persona-model-upgrade-badge"
+                    title={`Running ${upgrade.from} — ${upgrade.to} is now available (87.6% SWE-bench). Click to upgrade.`}
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      if (!confirm(`Update ${persona.name} from ${upgrade.from} to ${upgrade.to}?`)) return
+                      await window.api.persona.updateMeta(persona.id, { model: upgrade.to })
+                    }}
+                  >
+                    Model update → {upgrade.label}
+                  </button>
+                )
+              })()}
               <button className="persona-view-file-btn" onClick={onViewFile} title="View full persona file">
                 <FileText size={10} /> View File
               </button>
