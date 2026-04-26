@@ -499,7 +499,7 @@ interface Props {
   onCloneSession?: (inst: ClaudeInstance) => void
   onSaveAsPipeline?: (inst: ClaudeInstance) => Promise<void>
   errorSummaries?: Map<string, ErrorSummary>
-  onNewWithHandoff?: (handoffContent: string, workingDirectory: string) => void
+  onNewWithHandoff?: (handoffContent: string, workingDirectory: string, sourceInst?: ClaudeInstance) => void
   rateLimitState?: { utilization: number | null; resetAt: number | null; rateLimitType: string | null; paused: boolean; source: string | null; projectedMinutesToLimit?: number | null }
   rateLimitCountdown?: string
 }
@@ -1026,6 +1026,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const [alertOneShot, setAlertOneShot] = useState(true)
   const [activeAlerts, setActiveAlerts] = useState<Map<string, Array<{id: string; pattern: string; isRegex: boolean; oneShot: boolean}>>>(new Map())
   const [retryTarget, setRetryTarget] = useState<ClaudeInstance | null>(null)
+  const [continuingId, setContinuingId] = useState<string | null>(null)
   const [sendingMessageTo, setSendingMessageTo] = useState<string | null>(null)
   const [messageText, setMessageText] = useState('')
   const [groupMenuTarget, setGroupMenuTarget] = useState<string | null>(null)
@@ -2805,6 +2806,34 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                   <Play size={12} /> Retry
                 </button>
               ) : null
+            })()}
+            {(() => {
+              const inst = instances.find(i => i.id === contextMenu.id)
+              if (!inst || inst.status !== 'exited' || !onNewWithHandoff) return null
+              const isLoading = continuingId === inst.id
+              return (
+                <button
+                  className="context-menu-item"
+                  disabled={isLoading}
+                  onClick={async () => {
+                    const id = inst.id
+                    setContinuingId(id)
+                    try {
+                      const md = await window.api.session.exportMarkdown(id)
+                      const prompt = `Continue this session. Here is the full context from the previous run:\n\n<session-context>\n${md}\n</session-context>\n\nPick up where this left off. If the previous session failed, diagnose and fix the issue. If it completed, ask what to do next.`
+                      setContextMenu(null)
+                      onNewWithHandoff(prompt, inst.workingDirectory, inst)
+                    } catch (err) {
+                      console.error('Continue failed:', err)
+                    } finally {
+                      setContinuingId(null)
+                    }
+                  }}
+                  title="Continue this session in a new session with full context injected"
+                >
+                  {isLoading ? 'Preparing...' : <><RotateCcw size={12} /> Continue</>}
+                </button>
+              )
             })()}
             <button
               className="context-menu-item"

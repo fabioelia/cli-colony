@@ -53,6 +53,13 @@ interface Props {
   initialWorkingDirectory?: string
   /** Pre-fill all fields from a source session (Clone action). */
   cloneSource?: CloneSource
+  /** Config inherited from a previous session (Continue action). */
+  seedModel?: string
+  seedAgent?: string
+  seedPermissionMode?: 'autonomous' | 'supervised' | 'auto'
+  seedMcpServers?: string[]
+  seedEffort?: string
+  seedName?: string
 }
 
 function relativeTime(ts: number): string {
@@ -87,8 +94,8 @@ interface McpServer {
   description?: string
 }
 
-export default function NewInstanceDialog({ onCreate, onClose, prefill, initialPrompt, initialWorkingDirectory, cloneSource }: Props) {
-  const [name, setName] = useState(cloneSource ? cloneName(cloneSource.name) : prefill?.name || '')
+export default function NewInstanceDialog({ onCreate, onClose, prefill, initialPrompt, initialWorkingDirectory, cloneSource, seedModel, seedAgent, seedPermissionMode, seedMcpServers, seedEffort, seedName }: Props) {
+  const [name, setName] = useState(cloneSource ? cloneName(cloneSource.name) : seedName || prefill?.name || '')
   const [workingDirectory, setWorkingDirectory] = useState(cloneSource?.workingDirectory || initialWorkingDirectory || '')
   const [color, setColor] = useState(cloneSource ? resolveColor(cloneSource.color) : resolveColor(prefill?.color))
   const [model, setModel] = useState(() => {
@@ -96,7 +103,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
     for (let i = 0; i < src.length; i++) {
       if (src[i] === '--model' && src[i + 1]) return src[i + 1]
     }
-    return ''
+    return seedModel || ''
   })
   const [extraArgs, setExtraArgs] = useState(() => {
     if (!cloneSource) return ''
@@ -111,12 +118,14 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
     return filtered.join(' ')
   })
   const [effort, setEffort] = useState<string>(() => {
-    if (!cloneSource) return ''
-    const i = cloneSource.args.indexOf('--effort')
-    return i >= 0 ? cloneSource.args[i + 1] || '' : ''
+    if (cloneSource) {
+      const i = cloneSource.args.indexOf('--effort')
+      return i >= 0 ? cloneSource.args[i + 1] || '' : ''
+    }
+    return seedEffort || ''
   })
   const [cliBackend, setCliBackend] = useState<CliBackend>(cloneSource?.cliBackend || 'claude')
-  const [permissionMode, setPermissionMode] = useState<'autonomous' | 'supervised' | 'auto'>(cloneSource?.permissionMode || 'autonomous')
+  const [permissionMode, setPermissionMode] = useState<'autonomous' | 'supervised' | 'auto'>(cloneSource?.permissionMode || seedPermissionMode || 'autonomous')
   const [creating, setCreating] = useState(false)
   const [environments, setEnvironments] = useState<EnvOption[]>([])
   const [mcpServersList, setMcpServersList] = useState<McpServer[]>([])
@@ -178,13 +187,15 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
     window.api.agents?.list?.().then((a: AgentDef[]) => {
       if (a?.length) {
         setAgents(a)
-        // Pre-select from clone source if --agent was used
+        // Pre-select from clone source or seed if --agent was used
         if (cloneSource) {
           const ai = cloneSource.args.indexOf('--agent')
           if (ai >= 0 && cloneSource.args[ai + 1]) {
             const path = cloneSource.args[ai + 1]
             if (a.some(ag => ag.filePath === path)) setSelectedAgent(path)
           }
+        } else if (seedAgent) {
+          if (a.some(ag => ag.filePath === seedAgent)) setSelectedAgent(seedAgent)
         }
       }
     }).catch(() => {})
@@ -192,10 +203,13 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
     window.api.mcp?.list?.().then((servers: McpServer[]) => {
       if (servers?.length) {
         setMcpServersList(servers)
-        // Pre-select servers from clone source once the list arrives
+        // Pre-select servers from clone source or seed once the list arrives
         if (cloneSource?.mcpServers?.length) {
           const available = new Set(servers.map(s => s.name))
           setSelectedMcpServers(new Set(cloneSource.mcpServers.filter(n => available.has(n))))
+        } else if (seedMcpServers?.length) {
+          const available = new Set(servers.map(s => s.name))
+          setSelectedMcpServers(new Set(seedMcpServers.filter(n => available.has(n))))
         }
       }
     }).catch(() => {})

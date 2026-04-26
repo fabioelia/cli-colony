@@ -79,6 +79,12 @@ export default function App() {
   const [newDialogSeed, setNewDialogSeed] = useState<{
     initialPrompt?: string
     workingDirectory?: string
+    seedModel?: string
+    seedAgent?: string
+    seedPermissionMode?: 'autonomous' | 'supervised' | 'auto'
+    seedMcpServers?: string[]
+    seedEffort?: string
+    seedName?: string
   } | null>(null)
   const [cloneSource, setCloneSource] = useState<CloneSource | null>(null)
   const [view, setView] = useState<View>('instances')
@@ -777,8 +783,21 @@ export default function App() {
 
   const handleNewSession = useCallback(() => { agentToLaunchRef.current = null; setShowNewDialog(true) }, [])
 
-  const handleNewWithHandoff = useCallback((handoffContent: string, workingDirectory: string) => {
-    setNewDialogSeed({ initialPrompt: handoffContent, workingDirectory })
+  const handleNewWithHandoff = useCallback((handoffContent: string, workingDirectory: string, sourceInst?: ClaudeInstance) => {
+    const modelIdx = sourceInst?.args.indexOf('--model') ?? -1
+    const agentIdx = sourceInst?.args.indexOf('--agent') ?? -1
+    const effortIdx = sourceInst?.args.indexOf('--effort') ?? -1
+    const contName = sourceInst ? `${sourceInst.name.slice(0, 54)} (cont)` : undefined
+    setNewDialogSeed({
+      initialPrompt: handoffContent,
+      workingDirectory,
+      seedModel: modelIdx >= 0 ? sourceInst!.args[modelIdx + 1] : undefined,
+      seedAgent: agentIdx >= 0 ? sourceInst!.args[agentIdx + 1] : undefined,
+      seedEffort: effortIdx >= 0 ? sourceInst!.args[effortIdx + 1] : undefined,
+      seedPermissionMode: sourceInst?.permissionMode,
+      seedMcpServers: sourceInst?.mcpServers?.length ? sourceInst.mcpServers : undefined,
+      seedName: contName,
+    })
     setShowNewDialog(true)
   }, [])
 
@@ -2438,6 +2457,12 @@ export default function App() {
           prefill={agentToLaunchRef.current || undefined}
           initialPrompt={newDialogSeed?.initialPrompt}
           initialWorkingDirectory={newDialogSeed?.workingDirectory}
+          seedModel={newDialogSeed?.seedModel}
+          seedAgent={newDialogSeed?.seedAgent}
+          seedPermissionMode={newDialogSeed?.seedPermissionMode}
+          seedMcpServers={newDialogSeed?.seedMcpServers}
+          seedEffort={newDialogSeed?.seedEffort}
+          seedName={newDialogSeed?.seedName}
           cloneSource={cloneSource || undefined}
         />
       )}
