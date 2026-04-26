@@ -223,14 +223,7 @@ function createWindow(): void {
 
   const platformWindowOptions: Partial<Electron.BrowserWindowConstructorOptions> =
     process.platform === 'darwin'
-      ? {
-          titleBarStyle: 'hiddenInset',
-          trafficLightPosition: { x: 16, y: 16 },
-          vibrancy: 'sidebar',
-          // Keep vibrancy painting even when the window isn't frontmost — helps
-          // avoid blank-content moments during window-state transitions.
-          visualEffectState: 'active',
-        }
+      ? {}
       : {
           titleBarStyle: 'hidden',
           titleBarOverlay: {
@@ -250,6 +243,11 @@ function createWindow(): void {
     backgroundColor: '#1a1a2e',
     title: 'Claude Colony',
     icon: getIconPath(),
+    // macOS Tahoe native fullscreen is broken for this app (window vanishes
+    // into a phantom Space). Disable so the green traffic-light button does
+    // zoom/maximize instead. Cmd+Ctrl+F goes through our IPC handler, which
+    // uses setSimpleFullScreen — reliable on Tahoe.
+    fullscreenable: process.platform !== 'darwin',
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -258,33 +256,20 @@ function createWindow(): void {
       webviewTag: true,
     },
   })
-
   // Save window state on move, resize, maximize, and fullscreen changes
   const stateChangeHandler = () => saveWindowState()
   mainWindow.on('move', stateChangeHandler)
   mainWindow.on('resize', stateChangeHandler)
   mainWindow.on('maximize', stateChangeHandler)
   mainWindow.on('unmaximize', stateChangeHandler)
+
   mainWindow.on('enter-full-screen', () => {
     stateChangeHandler()
     mainWindow?.webContents.send('window:fullscreen-changed', true)
-    // Workaround for Electron 41 + vibrancy + hiddenInset: the compositor drops
-    // the first frame after the Space transition, and the vibrancy backing layer
-    // masks the blank. Drop vibrancy during fullscreen so the WebContents paint
-    // is unobstructed, and force an invalidate to kick a repaint.
-    if (process.platform === 'darwin' && mainWindow) {
-      mainWindow.setVibrancy(null)
-      mainWindow.setBackgroundColor('#1a1a2e')
-      setImmediate(() => mainWindow?.webContents.invalidate())
-    }
   })
   mainWindow.on('leave-full-screen', () => {
     stateChangeHandler()
     mainWindow?.webContents.send('window:fullscreen-changed', false)
-    if (process.platform === 'darwin' && mainWindow) {
-      mainWindow.setVibrancy('sidebar')
-      setImmediate(() => mainWindow?.webContents.invalidate())
-    }
   })
 
   mainWindow.on('close', (event) => {
@@ -323,14 +308,9 @@ function createWindow(): void {
   mainWindow.on('ready-to-show', () => {
     clearTimeout(fallbackShowTimer)
     mainWindow?.show()
-    // Intentionally do not restore fullscreen: vibrancy + hiddenInset + fullscreen
-    // on macOS can produce an invisible window on a separate Space with no way
-    // to get back to it. Users who want fullscreen can re-enter via the menu.
-    if (savedState.isMaximized && !savedState.isFullScreen) {
+    if (savedState.isMaximized) {
       setImmediate(() => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.maximize()
-        }
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.maximize()
       })
     }
   })
@@ -542,7 +522,21 @@ function buildAppMenu(): void {
           click: () => broadcast('shortcut:zoom-reset'),
         },
         { type: 'separator' as const },
-        { role: 'togglefullscreen' as const },
+        {
+          label: 'Toggle Full Screen',
+          accelerator: process.platform === 'darwin' ? 'Ctrl+Cmd+F' : 'F11',
+          click: () => {
+            const win = mainWindow
+            if (!win || win.isDestroyed()) return
+            if (process.platform === 'darwin') {
+              const next = !win.isSimpleFullScreen()
+              win.setSimpleFullScreen(next)
+              win.webContents.send('window:fullscreen-changed', next)
+            } else {
+              win.setFullScreen(!win.isFullScreen())
+            }
+          },
+        },
       ],
     },
     {

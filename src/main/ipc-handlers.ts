@@ -1,4 +1,4 @@
-import { ipcMain, dialog, shell } from 'electron'
+import { ipcMain, dialog, shell, BrowserWindow } from 'electron'
 import { promises as fsp } from 'fs'
 import * as os from 'os'
 import * as path from 'path'
@@ -271,12 +271,21 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('colony:getCronsPaused', () => isCronsPaused())
 
   // ---- Window Management ----
-  ipcMain.handle('window:toggleFullScreen', (_e) => {
-    const { BrowserWindow } = require('electron')
+  // macOS Tahoe + Electron native fullscreen is broken (window enters
+  // fullscreen state but no Space is created and pixels never reach the
+  // screen). simpleFullScreen expands the window to fill the display, hides
+  // the menu bar, and is reliable.
+  ipcMain.handle('window:toggleFullScreen', () => {
     const win = BrowserWindow.getFocusedWindow()
-    if (win) {
-      win.setFullScreen(!win.isFullScreen())
+    if (!win) return false
+    if (process.platform === 'darwin') {
+      const next = !win.isSimpleFullScreen()
+      win.setSimpleFullScreen(next)
+      win.webContents.send('window:fullscreen-changed', next)
+      return next
     }
-    return true
+    const next = !win.isFullScreen()
+    win.setFullScreen(next)
+    return next
   })
 }

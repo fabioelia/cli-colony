@@ -18,6 +18,10 @@ function forceExitFullscreen(mainWindow: BrowserWindow): void {
 /**
  * Reliably bring the main window to the user's current Space and foreground.
  * Plain show()/focus() doesn't cross macOS Spaces or wake a minimized window.
+ *
+ * Note: we deliberately do NOT use setVisibleOnAllWorkspaces() here. That call
+ * mutates the NSWindow collectionBehavior bitmask, and on some macOS builds it
+ * strips .fullScreenPrimary, silently breaking the native fullscreen button.
  */
 function bringToFront(mainWindow: BrowserWindow | null): void {
   if (!mainWindow || mainWindow.isDestroyed()) return
@@ -25,9 +29,6 @@ function bringToFront(mainWindow: BrowserWindow | null): void {
   if (mainWindow.isMinimized()) mainWindow.restore()
   if (!mainWindow.isVisible()) mainWindow.show()
   if (process.platform === 'darwin') {
-    // Pull the window to whatever Space the user is currently on
-    mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
-    mainWindow.setVisibleOnAllWorkspaces(false, { visibleOnFullScreen: true })
     app.dock?.show()
     app.focus({ steal: true })
   }
