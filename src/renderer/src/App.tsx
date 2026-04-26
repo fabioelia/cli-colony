@@ -525,15 +525,28 @@ export default function App() {
     env?: Record<string, string>
     jiraTicket?: JiraTicket
     tags?: string[]
+    playbook?: string
   }) => {
     agentToLaunchRef.current = null
-    const { initialPrompt, planFirst, jiraTicket, tags, ...createOpts } = opts
+    const { initialPrompt, planFirst, jiraTicket, tags, playbook, ...createOpts } = opts
 
     // Prepend Jira ticket context if one was attached
     let effectivePrompt = initialPrompt || ''
     if (jiraTicket) {
       const ticketHeader = `## Ticket: ${jiraTicket.key} — ${jiraTicket.summary}\n\n${jiraTicket.description}\n\n---\n\n`
       effectivePrompt = ticketHeader + effectivePrompt
+    }
+
+    // Inject playbook memory if this session was launched from a playbook
+    if (playbook) {
+      try {
+        const memory = await window.api.playbooks.getMemory(playbook)
+        if (memory) {
+          effectivePrompt = `## Playbook Memory\n\nPrevious runs of this playbook recorded these learnings:\n\n${memory}\n\nUse these learnings to improve your approach. If you discover new patterns worth remembering, append them to the end of your session output prefixed with "MEMORY:".\n\n---\n\n${effectivePrompt}`
+        } else {
+          effectivePrompt = effectivePrompt + (effectivePrompt ? '\n\n' : '') + 'If you discover new patterns worth remembering from this run, append them at the end of your output prefixed with "MEMORY:".'
+        }
+      } catch { /* non-blocking */ }
     }
 
     // Auto-title from initial prompt when user didn't provide a name
@@ -547,6 +560,7 @@ export default function App() {
       const inst = await window.api.instance.create({
         ...createOpts,
         ticket: jiraTicket ? { source: 'jira', key: jiraTicket.key, summary: jiraTicket.summary, url: jiraTicket.url } : undefined,
+        playbook: playbook || undefined,
       })
       // If the caller seeded a first prompt, queue it to run once the session
       // signals it's ready — same path the Quick Prompt flow uses.

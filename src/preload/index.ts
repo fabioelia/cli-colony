@@ -64,6 +64,7 @@ export interface ClaudeManagerAPI {
       permissionMode?: 'autonomous' | 'supervised' | 'auto'
       env?: Record<string, string>
       ticket?: { source: 'jira'; key: string; summary: string; url?: string }
+      playbook?: string
     }) => Promise<ClaudeInstance>
     write: (id: string, data: string) => void
     resize: (id: string, cols: number, rows: number) => Promise<boolean>
@@ -727,6 +728,10 @@ export interface ClaudeManagerAPI {
     list: () => Promise<PlaybookDef[]>
     get: (name: string) => Promise<PlaybookDef | null>
     getDir: () => Promise<string>
+    getMemory: (name: string) => Promise<string>
+    getMemoryLineCount: (name: string) => Promise<number>
+    appendMemory: (name: string, lines: string[]) => Promise<void>
+    clearMemory: (name: string) => Promise<void>
   }
 }
 
@@ -1520,6 +1525,10 @@ const api: ClaudeManagerAPI = {
     list: () => ipcRenderer.invoke('playbooks:list'),
     get: (name) => ipcRenderer.invoke('playbooks:get', name),
     getDir: () => ipcRenderer.invoke('playbooks:getDir'),
+    getMemory: (name) => ipcRenderer.invoke('playbooks:getMemory', name),
+    getMemoryLineCount: (name) => ipcRenderer.invoke('playbooks:getMemoryLineCount', name),
+    appendMemory: (name, lines) => ipcRenderer.invoke('playbooks:appendMemory', name, lines),
+    clearMemory: (name) => ipcRenderer.invoke('playbooks:clearMemory', name),
   },
 }
 

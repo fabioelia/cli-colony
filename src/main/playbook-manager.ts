@@ -6,6 +6,12 @@ import { parseYaml } from '../shared/yaml-parser'
 import type { PlaybookDef, PlaybookInput } from '../shared/types'
 
 const PLAYBOOKS_DIR = colonyPaths.playbooks
+const MAX_MEMORY_LINES = 50
+
+function memoryPath(name: string): string {
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'unnamed'
+  return join(PLAYBOOKS_DIR, `${slug}.memory.md`)
+}
 
 let _playbooks: PlaybookDef[] = []
 let _watcher: fs.FSWatcher | null = null
@@ -79,6 +85,35 @@ export function getPlaybooks(): PlaybookDef[] {
 
 export function getPlaybook(name: string): PlaybookDef | null {
   return _playbooks.find(p => p.name === name) ?? null
+}
+
+export async function getPlaybookMemory(name: string): Promise<string> {
+  try {
+    return (await fsp.readFile(memoryPath(name), 'utf-8')).trim()
+  } catch {
+    return ''
+  }
+}
+
+export async function getPlaybookMemoryLineCount(name: string): Promise<number> {
+  const mem = await getPlaybookMemory(name)
+  return mem ? mem.split('\n').filter(l => l.trim()).length : 0
+}
+
+export async function appendPlaybookMemory(name: string, lines: string[]): Promise<void> {
+  const path = memoryPath(name)
+  const existing = await getPlaybookMemory(name)
+  const existingLines = existing ? existing.split('\n').filter(l => l.trim()) : []
+  const existingSet = new Set(existingLines.map(l => l.trim()))
+  const newUnique = lines.map(l => l.trim()).filter(l => l && !existingSet.has(l))
+  if (!newUnique.length) return
+  const combined = [...existingLines, ...newUnique]
+  const capped = combined.slice(-MAX_MEMORY_LINES)
+  await fsp.writeFile(path, capped.join('\n') + '\n', 'utf-8')
+}
+
+export async function clearPlaybookMemory(name: string): Promise<void> {
+  try { await fsp.unlink(memoryPath(name)) } catch { /* no-op if absent */ }
 }
 
 export async function watchPlaybooks(): Promise<void> {

@@ -37,6 +37,7 @@ interface Props {
     env?: Record<string, string>
     jiraTicket?: JiraTicket
     tags?: string[]
+    playbook?: string
   }) => void | Promise<void>
   onClose: () => void
   prefill?: AgentDef
@@ -158,6 +159,10 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
   const [selectedPlaybook, setSelectedPlaybook] = useState<string>('')
   const [playbookTags, setPlaybookTags] = useState<string[]>([])
   const [playbookInputValues, setPlaybookInputValues] = useState<Record<string, string>>({})
+  const [playbookMemoryCount, setPlaybookMemoryCount] = useState<number>(0)
+  const [memoryModalOpen, setMemoryModalOpen] = useState(false)
+  const [memoryContent, setMemoryContent] = useState('')
+  const [memoryEditing, setMemoryEditing] = useState(false)
 
   // When the starter-card / clone path opens the dialog, focus the prompt
   // textarea and place the cursor at the end so the user can just press Enter.
@@ -249,7 +254,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
   const handlePlaybookSelect = (playbookName: string) => {
     setSelectedPlaybook(playbookName)
     setPlaybookInputValues({})
-    if (!playbookName) { setPlaybookTags([]); return }
+    if (!playbookName) { setPlaybookTags([]); setPlaybookMemoryCount(0); return }
     const pb = playbooks.find(p => p.name === playbookName)
     if (!pb) return
     if (!name.trim()) setName(pb.name)
@@ -273,6 +278,10 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
       }
       setPlaybookInputValues(defaults)
     }
+    // Load memory line count for badge
+    window.api.playbooks?.getMemoryLineCount?.(playbookName)
+      .then(count => setPlaybookMemoryCount(count))
+      .catch(() => setPlaybookMemoryCount(0))
   }
 
   const handleJiraFetch = async (key: string) => {
@@ -329,6 +338,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
         env: Object.keys(envRecord).length > 0 ? envRecord : undefined,
         jiraTicket: jiraTicket || undefined,
         tags: playbookTags.length > 0 ? playbookTags : undefined,
+        playbook: selectedPlaybook || undefined,
       })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -431,7 +441,32 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
                 <div className="dialog-agent-info">{pb.description}</div>
               ) : null
             })()}
-            {playbookTags.length > 0 && (
+            {selectedPlaybook && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                {playbookTags.length > 0 && (
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    {playbookTags.map(t => (
+                      <span key={t} className="session-tag-pill" style={{ fontSize: 11 }}>{t}</span>
+                    ))}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className="panel-header-btn"
+                  style={{ fontSize: 11, padding: '2px 7px', marginLeft: 'auto' }}
+                  onClick={async () => {
+                    const mem = await window.api.playbooks?.getMemory?.(selectedPlaybook) ?? ''
+                    setMemoryContent(mem)
+                    setMemoryEditing(false)
+                    setMemoryModalOpen(true)
+                  }}
+                  title="View or edit playbook memory from previous runs"
+                >
+                  Memory{playbookMemoryCount > 0 ? ` (${playbookMemoryCount} lines)` : ''}
+                </button>
+              </div>
+            )}
+            {!selectedPlaybook && playbookTags.length > 0 && (
               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
                 {playbookTags.map(t => (
                   <span key={t} className="session-tag-pill" style={{ fontSize: 11 }}>{t}</span>
@@ -440,6 +475,56 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
             )}
           </div>
         )}
+
+        {memoryModalOpen && (
+          <div
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onClick={() => setMemoryModalOpen(false)}
+          >
+            <div
+              style={{ background: 'var(--bg-panel)', borderRadius: 8, padding: 16, width: 480, maxHeight: 400, display: 'flex', flexDirection: 'column', gap: 8 }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <strong style={{ fontSize: 13 }}>Playbook Memory — {selectedPlaybook}</strong>
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                  {memoryEditing ? (
+                    <button type="button" className="panel-header-btn primary" style={{ fontSize: 11 }} onClick={async () => {
+                      await window.api.playbooks?.clearMemory?.(selectedPlaybook)
+                      const lines = memoryContent.split('\n').filter(l => l.trim())
+                      if (lines.length > 0) {
+                        await window.api.playbooks?.appendMemory?.(selectedPlaybook, lines)
+                      }
+                      setPlaybookMemoryCount(lines.length)
+                      setMemoryEditing(false)
+                    }}>Save</button>
+                  ) : (
+                    <button type="button" className="panel-header-btn" style={{ fontSize: 11 }} onClick={() => setMemoryEditing(true)}>Edit</button>
+                  )}
+                  <button type="button" className="panel-header-btn" style={{ fontSize: 11, color: 'var(--status-error)' }} onClick={async () => {
+                    if (!window.confirm('Clear all memory for this playbook?')) return
+                    await window.api.playbooks?.clearMemory?.(selectedPlaybook)
+                    setMemoryContent('')
+                    setPlaybookMemoryCount(0)
+                    setMemoryModalOpen(false)
+                  }}>Clear</button>
+                </div>
+              </div>
+              {memoryEditing ? (
+                <textarea
+                  style={{ flex: 1, minHeight: 200, resize: 'vertical', fontFamily: 'monospace', fontSize: 12, padding: 8 }}
+                  value={memoryContent}
+                  onChange={e => setMemoryContent(e.target.value)}
+                />
+              ) : memoryContent ? (
+                <pre style={{ flex: 1, overflowY: 'auto', fontSize: 12, opacity: 0.85, whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>{memoryContent}</pre>
+              ) : (
+                <p style={{ opacity: 0.5, fontSize: 12, margin: 0 }}>No memory recorded yet. Memory lines are captured from session output lines prefixed with "MEMORY:".</p>
+              )}
+            </div>
+          </div>
+        )}
+
 
         {(() => {
           const pb = playbooks.find(p => p.name === selectedPlaybook)

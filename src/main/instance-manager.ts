@@ -25,6 +25,7 @@ import { appendActivity } from './activity-manager'
 import { getProjectBriefPath } from './project-brief'
 import { parseErrorSummary } from './error-parser'
 import { transitionTicket, addComment } from './jira'
+import { getPlaybookMemory, appendPlaybookMemory } from './playbook-manager'
 
 export type { ClaudeInstance } from '../daemon/protocol'
 import type { ClaudeInstance } from '../daemon/protocol'
@@ -71,6 +72,7 @@ interface OutputAlert {
 
 const _outputAlerts = new Map<string, OutputAlert[]>()
 const _outputBuffers = new Map<string, string>()  // line buffer per instance
+const _instancePlaybooks = new Map<string, string>()  // instanceId → playbook name
 
 /** Check if an instance was stopped due to budget exceeded. */
 export function wasBudgetStopped(instanceId: string): boolean {
@@ -317,8 +319,9 @@ export function wireDaemonEvents(): void {
 
   // Forward exit events + handle auto-cleanup + track session closure
   router.on('exited', async (instanceId: string, exitCode: number) => {
-    // Capture ticket BEFORE clearing — _instanceTickets.delete runs below
+    // Capture ticket + playbook BEFORE clearing maps
     const exitTicket = _instanceTickets.get(instanceId)
+    const exitPlaybook = _instancePlaybooks.get(instanceId)
     broadcast('instance:exited', { id: instanceId, exitCode })
     updateDockBadge()
     trackClosed(instanceId, 'exited')
@@ -330,7 +333,25 @@ export function wireDaemonEvents(): void {
     _outputBuffers.delete(instanceId)
     _instanceTickets.delete(instanceId)
     _instanceTriggeredBy.delete(instanceId)
+    _instancePlaybooks.delete(instanceId)
     onSessionExitCallback?.(instanceId)
+
+    // Scan output for MEMORY: lines from playbook sessions and persist them
+    if (exitPlaybook) {
+      router.getInstanceBuffer(instanceId).then(async buffer => {
+        if (!buffer) return
+        const lines = buffer.split('\n')
+        const last50 = lines.slice(-50)
+        const memoryLines = last50
+          .map(l => l.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim())
+          .filter(l => l.startsWith('MEMORY:'))
+          .map(l => l.slice('MEMORY:'.length).trim())
+          .filter(l => l.length > 0)
+        if (memoryLines.length > 0) {
+          appendPlaybookMemory(exitPlaybook, memoryLines).catch(() => {})
+        }
+      }).catch(() => {})
+    }
 
     // Parse error summary from PTY buffer on non-zero exit
     if (exitCode !== 0) {
@@ -535,6 +556,7 @@ export async function createInstance(opts: {
   pipelineRunId?: string
   ticket?: { source: 'jira'; key: string; summary: string }
   triggeredBy?: string
+  playbook?: string
 }): Promise<ClaudeInstance> {
   const defaultArgs = await getDefaultArgs()
   const home = app.getPath('home')
@@ -586,6 +608,7 @@ export async function createInstance(opts: {
     }).catch(() => {})
   }
   _lastOutputAt.set(inst.id, Date.now())
+  if (opts.playbook) _instancePlaybooks.set(inst.id, opts.playbook)
 
   markChecklistItem('createdSession')
 
