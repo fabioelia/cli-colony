@@ -2825,6 +2825,24 @@ ${modelLine}  prompt: |
                               <div className="pipeline-comparison-header">
                                 <ArrowUpDown size={12} />
                                 <span>Run Comparison</span>
+                                <button
+                                  className="panel-header-btn"
+                                  title="Copy comparison as Markdown"
+                                  onClick={() => {
+                                    const durDelta2 = later.durationMs - earlier.durationMs
+                                    const hasCost2 = earlier.totalCost != null && later.totalCost != null
+                                    const costDelta2 = hasCost2 ? later.totalCost! - earlier.totalCost! : 0
+                                    let md = `## Pipeline Run Comparison — ${p.name}\n\n`
+                                    md += `| | Earlier (${new Date(earlier.ts).toLocaleString()}) | Later (${new Date(later.ts).toLocaleString()}) |\n`
+                                    md += `|---|---|---|\n`
+                                    md += `| Result | ${earlier.success ? '✓ pass' : '✗ fail'} | ${later.success ? '✓ pass' : '✗ fail'} |\n`
+                                    md += `| Duration | ${formatDuration(earlier.durationMs)} | ${formatDuration(later.durationMs)} (${durDelta2 > 0 ? '+' : ''}${formatDuration(Math.abs(durDelta2))}) |\n`
+                                    if (hasCost2) md += `| Cost | $${earlier.totalCost!.toFixed(4)} | $${later.totalCost!.toFixed(4)} (${costDelta2 > 0 ? '+' : ''}$${Math.abs(costDelta2).toFixed(4)}) |\n`
+                                    navigator.clipboard.writeText(md).catch(() => {})
+                                  }}
+                                >
+                                  <Copy size={11} /> Copy
+                                </button>
                                 <button className="panel-header-btn" onClick={() => setShowComparison(false)}>
                                   <X size={11} />
                                 </button>
