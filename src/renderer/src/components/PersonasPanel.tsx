@@ -255,6 +255,8 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
   // Right-click context menu
   const [personaCtx, setPersonaCtx] = useState<{ persona: PersonaInfo; x: number; y: number } | null>(null)
   const [runWithOptionsPersona, setRunWithOptionsPersona] = useState<PersonaInfo | null>(null)
+  const [askQuestionPersona, setAskQuestionPersona] = useState<PersonaInfo | null>(null)
+  const [askQuestionText, setAskQuestionText] = useState('')
 
   useEffect(() => {
     if (!personaCtx) return
@@ -490,6 +492,33 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
     if (newSlug) {
       await loadPersonas()
       setExpandedId(newSlug)
+    }
+  }
+
+  const handleAskQuestion = async () => {
+    if (!askQuestionPersona || !askQuestionText.trim()) return
+    const persona = askQuestionPersona
+    const question = askQuestionText.trim()
+    setAskQuestionPersona(null)
+    setAskQuestionText('')
+    try {
+      const id = await onLaunchInstance({
+        name: `Q: ${persona.name}`,
+        color: persona.color,
+        args: ['--model', persona.model || 'claude-sonnet-4-6'],
+      })
+      const prompt = [
+        `You are ${persona.name}. Here is your full identity file for context:\n`,
+        `<persona-context>`,
+        persona.content,
+        `</persona-context>\n`,
+        `This is a one-off question session. Do NOT execute your normal planning loop. Do NOT read inputs, update backlogs, write briefs, trigger other personas, or modify your identity file. Simply answer the question below using your persona knowledge and expertise.\n`,
+        `Question: ${question}`,
+      ].join('\n')
+      sendPromptWhenReady(id, { prompt })
+      onFocusInstance(id)
+    } catch (err) {
+      console.error('Failed to launch question session:', err)
     }
   }
 
@@ -1088,6 +1117,7 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
             {personaCtx.persona.enabled && (
               <div className="context-menu-item" onClick={() => { setRunWithOptionsPersona(personaCtx.persona); setPersonaCtx(null) }}>Run with Options...</div>
             )}
+            <div className="context-menu-item" onClick={() => { setAskQuestionPersona(personaCtx.persona); setPersonaCtx(null) }}>Ask a Question...</div>
             <div className="context-menu-divider" />
             <div className="context-menu-item" onClick={() => { handleToggle(personaCtx.persona.id, !personaCtx.persona.enabled); setPersonaCtx(null) }}>
               {personaCtx.persona.enabled ? 'Disable' : 'Enable'}
@@ -1119,6 +1149,32 @@ export default function PersonasPanel({ onBack, onFocusInstance, onLaunchInstanc
       )}
 
       </>}
+
+      {/* Ask a Question dialog */}
+      {askQuestionPersona && (
+        <div className="modal-overlay" onClick={() => { setAskQuestionPersona(null); setAskQuestionText('') }}>
+          <div className="cmd-palette" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>Ask {askQuestionPersona.name}</span>
+            </div>
+            <div style={{ padding: '12px 16px 16px' }}>
+              <textarea
+                value={askQuestionText}
+                onChange={e => setAskQuestionText(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAskQuestion(); if (e.key === 'Escape') { setAskQuestionPersona(null); setAskQuestionText('') } }}
+                rows={4}
+                autoFocus
+                placeholder="Ask anything... (Cmd+Enter to submit)"
+                style={{ width: '100%', background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 4, padding: '5px 8px', fontSize: 12, fontFamily: 'monospace', resize: 'vertical', boxSizing: 'border-box' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
+                <button className="panel-header-btn" onClick={() => { setAskQuestionPersona(null); setAskQuestionText('') }}>Cancel</button>
+                <button className="panel-header-btn primary" onClick={handleAskQuestion} disabled={!askQuestionText.trim()}>Ask</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Prompt Preview modal */}
       {previewPromptPersona && (
