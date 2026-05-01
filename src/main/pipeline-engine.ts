@@ -820,14 +820,25 @@ async function sendPromptToExistingSession(instanceId: string, prompt: string): 
 
 // ---- Trigger Execution ----
 
-async function executeGitPollTrigger(trigger: TriggerDef): Promise<TriggerContext[]> {
+async function executeGitPollTrigger(trigger: TriggerDef, condition?: ConditionDef): Promise<TriggerContext[]> {
   const repos = trigger.repos === 'auto' || !trigger.repos ? await getRepos() : trigger.repos as GitHubRepo[]
   const contexts: TriggerContext[] = []
   const errors: string[] = []
 
+  // Build server-side search filter from condition type to reduce API payload
+  let search: string | undefined
+  if (condition) {
+    const leafTypes = getLeafConditionTypes(condition)
+    if (leafTypes.has('review-requested') && githubUser) {
+      search = `review-requested:${githubUser}`
+    } else if (leafTypes.has('authored-by') && githubUser) {
+      search = `author:${githubUser}`
+    }
+  }
+
   for (const repo of repos) {
     try {
-      const prs = await fetchPRs(repo)
+      const prs = await fetchPRs(repo, search)
       for (const pr of prs) {
         contexts.push({
           repo,
@@ -1020,6 +1031,13 @@ export function hasConditionOfType(c: ConditionDef, type: LeafConditionType): bo
   let found = false
   walkConditions(c, sub => { if (sub.type === type) found = true })
   return found
+}
+
+/** Collect all leaf condition types from a (possibly composite) condition. */
+function getLeafConditionTypes(c: ConditionDef): Set<string> {
+  const types = new Set<string>()
+  walkConditions(c, sub => { if (!isCompositeCondition(sub)) types.add(sub.type) })
+  return types
 }
 
 /**
@@ -1634,7 +1652,7 @@ export async function previewPipeline(fileNameOrName: string): Promise<PreviewRe
 
     if (def.trigger.type === 'git-poll') {
       plog(`Fetching PRs (git-poll, ${def.trigger.repos === 'auto' ? 'auto repos' : 'custom repos'})`)
-      contexts = await executeGitPollTrigger(def.trigger)
+      contexts = await executeGitPollTrigger(def.trigger, def.condition)
       for (const ctx of contexts) ctx.repoSlugs = repoSlugs
       const previewFetchErrors = (contexts as any)._fetchErrors as string[] | undefined
       if (previewFetchErrors) {
@@ -1781,7 +1799,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
 
     if (p.def.trigger.type === 'git-poll') {
       plog(pipelineName, `polling (git-poll, ${p.def.trigger.repos === 'auto' ? 'auto repos' : 'custom repos'})`)
-      contexts = await executeGitPollTrigger(p.def.trigger)
+      contexts = await executeGitPollTrigger(p.def.trigger, p.def.condition)
       // Inject repoSlugs into git-poll contexts (they already have individual repo set)
       for (const ctx of contexts) ctx.repoSlugs = repoSlugs
       const fetchErrors = (contexts as any)._fetchErrors as string[] | undefined

@@ -99,15 +99,19 @@ export async function checkGhAuth(): Promise<boolean> {
   }
 }
 
-export async function fetchPRs(repo: GitHubRepo): Promise<GitHubPR[]> {
+export async function fetchPRs(repo: GitHubRepo, search?: string): Promise<GitHubPR[]> {
   const repoSlug = `${repo.owner}/${repo.name}`
-  const json = await gh([
+  const args = [
     'pr', 'list',
     '--repo', repoSlug,
     '--state', 'open',
     '--json', 'number,title,body,author,assignees,reviewRequests,headRefName,headRefOid,baseRefName,state,isDraft,url,createdAt,updatedAt,additions,deletions,reviewDecision,labels,comments',
-    '--limit', '200',
-  ])
+    '--limit', '30',
+  ]
+  if (search) {
+    args.push('--search', search)
+  }
+  const json = await gh(args)
   const raw = JSON.parse(json) as Array<{
     number: number
     title: string
