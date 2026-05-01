@@ -59,6 +59,8 @@ export type LeafConditionType =
   | 'always'
   | 'files-changed'
   | 'review-requested'
+  | 'authored-by'
+  | 'not-draft'
 
 export type CompositeConditionType = 'any-of' | 'all-of'
 
@@ -978,6 +980,18 @@ function evaluateReviewRequested(condition: ConditionDef, ctx: TriggerContext): 
   return ctx.pr.reviewers.includes(ctx.githubUser)
 }
 
+function evaluateAuthoredBy(condition: ConditionDef, ctx: TriggerContext): boolean {
+  void condition
+  if (!ctx.pr || !ctx.githubUser) return false
+  return ctx.pr.author === ctx.githubUser
+}
+
+function evaluateNotDraft(condition: ConditionDef, ctx: TriggerContext): boolean {
+  void condition
+  if (!ctx.pr) return false
+  return !ctx.pr.draft
+}
+
 // ---- Composite Condition Helpers ----
 
 const COMPOSITE_CONDITION_TYPES = new Set<string>(['any-of', 'all-of'])
@@ -1039,6 +1053,8 @@ async function evaluateLeafCondition(condition: ConditionDef, ctx: TriggerContex
     case 'pr-checks-failed': return evaluatePrChecksFailed(condition, ctx)
     case 'files-changed': return evaluateFilesChanged(condition, ctx)
     case 'review-requested': return evaluateReviewRequested(condition, ctx)
+    case 'authored-by': return evaluateAuthoredBy(condition, ctx)
+    case 'not-draft': return evaluateNotDraft(condition, ctx)
     case 'always': return true
     default: return false
   }
