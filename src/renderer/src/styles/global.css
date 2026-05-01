@@ -19494,6 +19494,89 @@ button.session-trigger-chain-btn:hover {
   margin-left: 2px;
 }
 
+/* Pipelines view toggle group */
+.pipelines-view-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.pipelines-view-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.1s, color 0.1s;
+}
+.pipelines-view-btn:last-child { border-right: none; }
+.pipelines-view-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.pipelines-view-btn.active { background: var(--accent); color: #fff; }
+
+/* Pipelines "More" dropdown */
+.pipelines-more-menu {
+  position: relative;
+}
+.pipelines-more-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 200;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 0;
+  min-width: 160px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+.pipelines-more-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 5px 12px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+}
+.pipelines-more-item:hover { background: var(--bg-hover); }
+.pipelines-more-item:disabled { color: var(--text-muted); cursor: default; }
+.pipelines-more-item.active { color: var(--accent); }
+.pipelines-more-item.success { color: var(--success); }
+.pipelines-more-item.error { color: var(--danger); }
+.pipelines-more-item.alert { color: var(--warning); }
+.pipelines-more-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 3px 0;
+}
+.pipelines-more-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--warning);
+  color: #000;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  margin-left: auto;
+}
+
 .audit-results-panel {
   margin: 0 12px 8px;
   border: 1px solid var(--border);

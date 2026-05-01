@@ -8,7 +8,7 @@ import {
   ShieldCheck, List, Globe, Wand2, ArrowRight, ArrowLeft, Hourglass, ArrowUpDown,
   GitPullRequest, GitMerge, GitBranch, Sparkles, RotateCw, Copy, ClipboardPaste, Timer, Activity,
   Download, Upload, PauseCircle, PlayCircle, Check, StickyNote, Network, Archive, CalendarDays,
-  History, CheckSquare, Trash2, Bell, BellMinus, BellOff,
+  History, CheckSquare, Trash2, Bell, BellMinus, BellOff, MoreHorizontal,
 } from 'lucide-react'
 import type { AuditResult, GitHubRepo, SessionArtifact } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
@@ -595,14 +595,30 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [replayToast, setReplayToast] = useState<{ name: string; ts: string } | null>(null)
   const [yamlCopiedName, setYamlCopiedName] = useState<string | null>(null)
   const [runOverrideDialog, setRunOverrideDialog] = useState<{ name: string; firstActionPrompt: string; firstActionModel?: string; firstActionWorkingDirectory?: string; budgetMaxCostUsd?: number } | null>(null)
-  const [listMode, setListMode] = useState(() => localStorage.getItem('pipelines-list-mode') !== '0')
+  const [viewMode, setViewModeRaw] = useState<'cards' | 'list' | 'health' | 'topology' | 'schedule'>(() => {
+    if (localStorage.getItem('pipelines-health-view') === '1') return 'health'
+    if (localStorage.getItem('pipelines-topology-map') === '1') return 'topology'
+    if (localStorage.getItem('pipelines-schedule-heatmap') === '1') return 'schedule'
+    if (localStorage.getItem('pipelines-list-mode') === '0') return 'cards'
+    return 'list'
+  })
+  const healthView = viewMode === 'health'
+  const showTopologyMap = viewMode === 'topology'
+  const showScheduleHeatmap = viewMode === 'schedule'
+  const listMode = viewMode === 'list'
+  const changeViewMode = useCallback((mode: 'cards' | 'list' | 'health' | 'topology' | 'schedule') => {
+    setViewModeRaw(mode)
+    localStorage.setItem('pipelines-health-view', mode === 'health' ? '1' : '0')
+    localStorage.setItem('pipelines-topology-map', mode === 'topology' ? '1' : '0')
+    localStorage.setItem('pipelines-schedule-heatmap', mode === 'schedule' ? '1' : '0')
+    localStorage.setItem('pipelines-list-mode', mode === 'list' ? '1' : '0')
+  }, [])
   const [sortBy, setSortBy] = useState<'name' | 'lastFired' | 'fireCount' | 'enabled' | 'successRate'>(() =>
     (localStorage.getItem('pipelines-sort') as 'name' | 'lastFired' | 'fireCount' | 'enabled' | 'successRate') || 'name'
   )
-  const [healthView, setHealthView] = useState(() => localStorage.getItem('pipelines-health-view') === '1')
   const [healthTimeRange, setHealthTimeRange] = useState<'24h' | '7d'>('7d')
-  const [showTopologyMap, setShowTopologyMap] = useState(() => localStorage.getItem('pipelines-topology-map') === '1')
-  const [showScheduleHeatmap, setShowScheduleHeatmap] = useState(() => localStorage.getItem('pipelines-schedule-heatmap') === '1')
+  const [showMoreMenu, setShowMoreMenu] = useState(false)
+  const moreMenuRef = useRef<HTMLDivElement>(null)
   const [pipelineSearch, setPipelineSearch] = useState('')
   const [selectedPipelines, setSelectedPipelines] = useState<Set<string>>(new Set())
   const [selectMode, setSelectMode] = useState(false)
@@ -832,6 +848,17 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
       })
     }
   }, [expandedHistoryRows, historyEntries])
+
+  useEffect(() => {
+    if (!showMoreMenu) return
+    const handler = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setShowMoreMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showMoreMenu])
 
   const sendPromptToAssistant = useCallback((id: string, prompt: string) => {
     sendPromptWhenReady(id, { prompt })
@@ -1450,15 +1477,13 @@ ${modelLine}  prompt: |
         </div>
         <HelpPopover topic="pipelines" align="right" />
         <div className="panel-header-actions">
-          {!healthView && !showTopologyMap && !showScheduleHeatmap && pipelines.length > 0 && (
-            <button
-              className={`panel-header-btn${selectMode ? ' active' : ''}`}
-              onClick={() => { const next = !selectMode; setSelectMode(next); if (!next) setSelectedPipelines(new Set()) }}
-              title={selectMode ? 'Exit selection mode' : 'Select pipelines for bulk actions'}
-            >
-              <CheckSquare size={12} />
-            </button>
-          )}
+          <div className="pipelines-view-toggle">
+            <button className={`pipelines-view-btn${viewMode === 'cards' ? ' active' : ''}`} onClick={() => changeViewMode('cards')} title="Card view"><LayoutGrid size={12} /></button>
+            <button className={`pipelines-view-btn${viewMode === 'list' ? ' active' : ''}`} onClick={() => changeViewMode('list')} title="List view"><LayoutList size={12} /></button>
+            <button className={`pipelines-view-btn${viewMode === 'health' ? ' active' : ''}`} onClick={() => changeViewMode('health')} title="Health dashboard"><Activity size={12} /></button>
+            <button className={`pipelines-view-btn${viewMode === 'topology' ? ' active' : ''}`} onClick={() => changeViewMode('topology')} title="Topology map"><Network size={12} /></button>
+            <button className={`pipelines-view-btn${viewMode === 'schedule' ? ' active' : ''}`} onClick={() => changeViewMode('schedule')} title="Schedule heatmap"><CalendarDays size={12} /></button>
+          </div>
           <button
             className={`panel-header-btn${cronsPaused ? ' active' : ''}`}
             onClick={() => window.api.colony.setCronsPaused(!cronsPaused)}
@@ -1467,89 +1492,63 @@ ${modelLine}  prompt: |
             {cronsPaused ? <PlayCircle size={12} /> : <PauseCircle size={12} />}
             {cronsPaused ? 'Resume All' : 'Pause All'}
           </button>
-          <button className="panel-header-btn" onClick={handleExport} title="Export all pipelines as zip">
-            <Download size={12} />
-          </button>
-          <button className="panel-header-btn" onClick={handleImport} title="Import pipelines from zip">
-            <Upload size={12} />
-          </button>
-          <button className="panel-header-btn" onClick={() => { setPasteModalOpen(true); setPasteYaml(''); setPasteError('') }} title="Paste YAML to import a pipeline">
-            <ClipboardPaste size={12} />
-          </button>
           <button className="panel-header-btn primary" onClick={openAutomationWizard} title="Create a new automation with a step-by-step wizard">
             <Wand2 size={12} /> New Automation
           </button>
-          <button className="panel-header-btn" onClick={() => { setShowGenerateModal(true); setGenerateDescription(''); setGenerateResult(''); setGenerateError('') }} title="Describe a pipeline in plain English and generate YAML with AI">
-            <Sparkles size={12} /> AI Generate
-          </button>
-          <button
-            className={`panel-header-btn${healthView ? ' active' : ''}`}
-            title={healthView ? 'Switch to pipeline list' : 'Show health dashboard'}
-            onClick={() => { const next = !healthView; setHealthView(next); if (next) { setShowTopologyMap(false); setShowScheduleHeatmap(false); localStorage.setItem('pipelines-topology-map', '0'); localStorage.setItem('pipelines-schedule-heatmap', '0') }; localStorage.setItem('pipelines-health-view', next ? '1' : '0') }}
-          >
-            <Activity size={13} />
-          </button>
-          <button
-            className={`panel-header-btn${showTopologyMap ? ' active' : ''}`}
-            title={showTopologyMap ? 'Switch to pipeline list' : 'Show topology map'}
-            onClick={() => { const next = !showTopologyMap; setShowTopologyMap(next); if (next) { setHealthView(false); setShowScheduleHeatmap(false); localStorage.setItem('pipelines-health-view', '0'); localStorage.setItem('pipelines-schedule-heatmap', '0') }; localStorage.setItem('pipelines-topology-map', next ? '1' : '0') }}
-          >
-            <Network size={13} />
-          </button>
-          <button
-            className={`panel-header-btn${showScheduleHeatmap ? ' active' : ''}`}
-            title={showScheduleHeatmap ? 'Switch to pipeline list' : 'Show schedule heatmap'}
-            onClick={() => { const next = !showScheduleHeatmap; setShowScheduleHeatmap(next); if (next) { setHealthView(false); setShowTopologyMap(false); localStorage.setItem('pipelines-health-view', '0'); localStorage.setItem('pipelines-topology-map', '0') }; localStorage.setItem('pipelines-schedule-heatmap', next ? '1' : '0') }}
-          >
-            <CalendarDays size={13} />
-          </button>
-          <button
-            className={`panel-header-btn${historySearchMode ? ' active' : ''}`}
-            title={historySearchMode ? 'Close history search' : 'Search all pipeline history'}
-            onClick={() => { setHistorySearchMode(m => !m); setHistorySearchQuery(''); setHistorySearchResults([]) }}
-          >
-            <History size={13} />
-          </button>
-          {!healthView && !showTopologyMap && !showScheduleHeatmap && (
+          <div className="pipelines-more-menu" ref={moreMenuRef}>
             <button
-              className={`panel-header-btn${listMode ? ' active' : ''}`}
-              title={listMode ? 'Switch to card view' : 'Switch to list view'}
-              onClick={() => { const next = !listMode; setListMode(next); localStorage.setItem('pipelines-list-mode', next ? '1' : '0') }}
+              className={`panel-header-btn${showMoreMenu ? ' active' : ''}`}
+              onClick={() => setShowMoreMenu(m => !m)}
+              title="More actions"
             >
-              {listMode ? <LayoutGrid size={13} /> : <LayoutList size={13} />}
+              <MoreHorizontal size={13} />
             </button>
-          )}
-          <button
-            className={`panel-header-btn${reloading === 'done' ? ' panel-header-btn--success' : reloading === 'error' ? ' panel-header-btn--error' : ''}`}
-            onClick={handleReload}
-            disabled={reloading === 'loading'}
-            title="Reload all pipeline files"
-          >
-            <RefreshCw size={12} className={reloading === 'loading' ? 'spin' : ''} />
-            {reloading === 'loading' ? 'Reloading…' : reloading === 'done' ? 'Reloaded' : reloading === 'error' ? 'Failed' : 'Reload'}
-          </button>
-          <button
-            className={`panel-header-btn${reviewRulesOpen ? ' active' : ''}`}
-            onClick={() => { setReviewRulesOpen(o => !o); if (!reviewRulesOpen) fetchReviewRules() }}
-            title="Review rules learned from past maker-checker runs"
-          >
-            <BookOpen size={12} />
-            Rules{reviewRules.length > 0 && ` (${reviewRules.length})`}
-          </button>
-          <button
-            className={`panel-header-btn${auditResults && auditResults.length > 0 ? ' panel-header-btn--audit-alert' : ''}`}
-            onClick={handleRunAudit}
-            disabled={auditRunning}
-            title={auditLastRun ? `Last run: ${new Date(auditLastRun.ts).toLocaleString()}, ${auditLastRun.issueCount} issue${auditLastRun.issueCount !== 1 ? 's' : ''}` : 'Run AI audit — identify misconfigured or broken pipelines'}
-          >
-            <ShieldCheck size={12} />
-            {auditRunning ? 'Auditing…' : auditLastRun
-              ? (() => { const secs = (Date.now() - auditLastRun.ts) / 1000; const ago = secs < 3600 ? `${Math.floor(secs / 60)}m ago` : `${Math.floor(secs / 3600)}h ago`; return `Audit (${ago}, ${auditLastRun.issueCount} issue${auditLastRun.issueCount !== 1 ? 's' : ''})` })()
-              : 'Audit'}
-            {auditResults && auditResults.length > 0 && (
-              <span className="audit-badge">{auditResults.length}</span>
+            {showMoreMenu && (
+              <div className="pipelines-more-dropdown">
+                <button className="pipelines-more-item" onClick={() => { setShowMoreMenu(false); setShowGenerateModal(true); setGenerateDescription(''); setGenerateResult(''); setGenerateError('') }}>
+                  <Sparkles size={12} /> AI Generate
+                </button>
+                <div className="pipelines-more-divider" />
+                {!healthView && !showTopologyMap && !showScheduleHeatmap && pipelines.length > 0 && (
+                  <button className={`pipelines-more-item${selectMode ? ' active' : ''}`} onClick={() => { const next = !selectMode; setSelectMode(next); if (!next) setSelectedPipelines(new Set()); setShowMoreMenu(false) }}>
+                    <CheckSquare size={12} /> {selectMode ? 'Exit Select' : 'Select'}
+                  </button>
+                )}
+                <button className={`pipelines-more-item${historySearchMode ? ' active' : ''}`} onClick={() => { setHistorySearchMode(m => !m); setHistorySearchQuery(''); setHistorySearchResults([]); setShowMoreMenu(false) }}>
+                  <History size={12} /> History Search
+                </button>
+                <div className="pipelines-more-divider" />
+                <button className="pipelines-more-item" onClick={() => { handleExport(); setShowMoreMenu(false) }}>
+                  <Download size={12} /> Export
+                </button>
+                <button className="pipelines-more-item" onClick={() => { handleImport(); setShowMoreMenu(false) }}>
+                  <Upload size={12} /> Import
+                </button>
+                <button className="pipelines-more-item" onClick={() => { setPasteModalOpen(true); setPasteYaml(''); setPasteError(''); setShowMoreMenu(false) }}>
+                  <ClipboardPaste size={12} /> Paste YAML
+                </button>
+                <button
+                  className={`pipelines-more-item${reloading === 'done' ? ' success' : reloading === 'error' ? ' error' : ''}`}
+                  onClick={() => { handleReload(); setShowMoreMenu(false) }}
+                  disabled={reloading === 'loading'}
+                >
+                  <RefreshCw size={12} className={reloading === 'loading' ? 'spin' : ''} /> Reload
+                </button>
+                <div className="pipelines-more-divider" />
+                <button className={`pipelines-more-item${reviewRulesOpen ? ' active' : ''}`} onClick={() => { setReviewRulesOpen(o => !o); if (!reviewRulesOpen) fetchReviewRules(); setShowMoreMenu(false) }}>
+                  <BookOpen size={12} /> Rules{reviewRules.length > 0 && <span className="pipelines-more-badge">{reviewRules.length}</span>}
+                </button>
+                <button
+                  className={`pipelines-more-item${auditResults && auditResults.length > 0 ? ' alert' : ''}`}
+                  onClick={() => { handleRunAudit(); setShowMoreMenu(false) }}
+                  disabled={auditRunning}
+                  title={auditLastRun ? `Last run: ${new Date(auditLastRun.ts).toLocaleString()}, ${auditLastRun.issueCount} issue${auditLastRun.issueCount !== 1 ? 's' : ''}` : 'Run AI audit'}
+                >
+                  <ShieldCheck size={12} /> {auditRunning ? 'Auditing…' : 'Audit'}{auditResults && auditResults.length > 0 && <span className="pipelines-more-badge">{auditResults.length}</span>}
+                </button>
+              </div>
             )}
-          </button>
+          </div>
         </div>
       </div>
 
@@ -1678,8 +1677,7 @@ ${modelLine}  prompt: |
         <PipelineTriggerMap
           pipelines={pipelines}
           onSelectPipeline={(name) => {
-            setShowTopologyMap(false)
-            localStorage.setItem('pipelines-topology-map', '0')
+            changeViewMode('cards')
             setExpandedPipeline(name)
           }}
         />
@@ -1821,7 +1819,7 @@ ${modelLine}  prompt: |
                   <tr
                     key={p.name}
                     className={failures > 0 ? 'health-row-failing' : ''}
-                    onClick={() => { setHealthView(false); localStorage.setItem('pipelines-health-view', '0'); handleExpand(p) }}
+                    onClick={() => { changeViewMode('cards'); handleExpand(p) }}
                   >
                     <td className="health-name">
                       <span className={`pipeline-status-dot ${p.running ? 'running' : p.enabled ? 'active' : 'inactive'}`} />
