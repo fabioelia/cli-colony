@@ -13,7 +13,7 @@ import { app } from 'electron'
 import { createServer, IncomingMessage, ServerResponse, Server } from 'http'
 import { createHmac, timingSafeEqual } from 'crypto'
 import { fireWebhookPipeline, getWebhookTriggers, getPipelineList, triggerPollNow } from './pipeline-engine'
-import { getAllInstances } from './instance-manager'
+import { getAllInstances, createInstance, killInstance } from './instance-manager'
 import { getDaemonRouter } from './daemon-router'
 import { getSetting } from './settings'
 import { addBroadcastListener } from './broadcast'
@@ -27,6 +27,11 @@ let serverUrl: string | null = null
 // SSE client tracking
 const MAX_SSE_CLIENTS = 5
 const _sseClients = new Set<ServerResponse>()
+
+// Rate limiting for POST /api/sessions (5 per minute)
+const _sessionCreateTimestamps: number[] = []
+const SESSION_CREATE_RATE_LIMIT = 5
+const SESSION_CREATE_WINDOW_MS = 60_000
 
 // Relay all broadcast events to SSE clients
 addBroadcastListener((channel, ...args) => {
@@ -272,6 +277,110 @@ async function handleApiRequest(req: IncomingMessage, res: ServerResponse): Prom
       log(`runPersona(${persona.id}) failed: ${err}`)
     })
     sendJson(res, 202, { ok: true, persona: persona.id })
+    return
+  }
+
+  // POST /api/sessions — create a new session
+  if (method === 'POST' && url === '/api/sessions') {
+    const now = Date.now()
+    _sessionCreateTimestamps.splice(0, _sessionCreateTimestamps.length,
+      ..._sessionCreateTimestamps.filter(t => now - t < SESSION_CREATE_WINDOW_MS))
+    if (_sessionCreateTimestamps.length >= SESSION_CREATE_RATE_LIMIT) {
+      sendJson(res, 429, { error: 'Rate limit exceeded: max 5 sessions per minute' })
+      return
+    }
+    let body: Buffer
+    try {
+      body = await readBody(req)
+    } catch (err) {
+      const status = (err as Error).message?.includes('maximum size') ? 413 : 400
+      sendJson(res, status, { error: status === 413 ? 'Request body too large' : 'Failed to read request body' })
+      return
+    }
+    let parsed: { prompt?: unknown; model?: unknown; permissionMode?: unknown; workingDirectory?: unknown; name?: unknown } = {}
+    try {
+      if (body.length > 0) parsed = JSON.parse(body.toString('utf8'))
+    } catch {
+      sendJson(res, 400, { error: 'Invalid JSON body' })
+      return
+    }
+    const prompt = typeof parsed.prompt === 'string' ? parsed.prompt.trim() : undefined
+    const model = typeof parsed.model === 'string' ? parsed.model : undefined
+    const permissionMode = typeof parsed.permissionMode === 'string' ? parsed.permissionMode as 'autonomous' | 'auto' | 'supervised' : undefined
+    const workingDirectory = typeof parsed.workingDirectory === 'string' ? parsed.workingDirectory : undefined
+    const name = typeof parsed.name === 'string' ? parsed.name : undefined
+    let inst
+    try {
+      const opts: Parameters<typeof createInstance>[0] = { name, model, permissionMode, workingDirectory }
+      if (prompt) opts.args = ['-p', prompt]
+      inst = await createInstance(opts)
+    } catch (err) {
+      sendJson(res, 400, { error: (err as Error).message || 'Failed to create session' })
+      return
+    }
+    _sessionCreateTimestamps.push(now)
+    sendJson(res, 201, { id: inst.id, name: inst.name })
+    return
+  }
+
+  // POST /api/sessions/:id/stop — stop a running session
+  const stopMatch = url.match(/^\/api\/sessions\/([^/?#]+)\/stop$/)
+  if (method === 'POST' && stopMatch) {
+    const idOrName = decodeURIComponent(stopMatch[1])
+    const instances = await getAllInstances()
+    const inst = instances.find((i) => i.id === idOrName || i.name === idOrName)
+    if (!inst) {
+      sendJson(res, 404, { error: 'Session not found' })
+      return
+    }
+    await killInstance(inst.id)
+    sendJson(res, 200, { ok: true })
+    return
+  }
+
+  // GET /api/sessions/:id/output — return PTY buffer content (last 100KB)
+  const outputMatch = url.match(/^\/api\/sessions\/([^/?#]+)\/output$/)
+  if (method === 'GET' && outputMatch) {
+    const idOrName = decodeURIComponent(outputMatch[1])
+    const instances = await getAllInstances()
+    const inst = instances.find((i) => i.id === idOrName || i.name === idOrName)
+    if (!inst) {
+      sendJson(res, 404, { error: 'Session not found' })
+      return
+    }
+    let output = ''
+    try {
+      output = await getDaemonRouter().getInstanceBuffer(inst.id)
+    } catch { /* return empty if buffer unavailable */ }
+    const MAX_OUTPUT_BYTES = 100_000
+    if (Buffer.byteLength(output) > MAX_OUTPUT_BYTES) {
+      output = output.slice(-MAX_OUTPUT_BYTES)
+    }
+    sendJson(res, 200, { output })
+    return
+  }
+
+  // DELETE /api/sessions/:id — remove a stopped session
+  const deleteSessionMatch = url.match(/^\/api\/sessions\/([^/?#]+)$/)
+  if (method === 'DELETE' && deleteSessionMatch) {
+    const idOrName = decodeURIComponent(deleteSessionMatch[1])
+    const instances = await getAllInstances()
+    const inst = instances.find((i) => i.id === idOrName || i.name === idOrName)
+    if (!inst) {
+      sendJson(res, 404, { error: 'Session not found' })
+      return
+    }
+    if (inst.status === 'running') {
+      sendJson(res, 409, { error: 'Session is still running — stop it first' })
+      return
+    }
+    try {
+      await getDaemonRouter().removeInstance(inst.id)
+    } catch (err) {
+      sendJson(res, 500, { error: (err as Error).message || 'Failed to remove session' })
+      return
+    }
+    sendJson(res, 200, { ok: true })
     return
   }
 
