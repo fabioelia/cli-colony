@@ -4309,3 +4309,263 @@ describe('approval PR diff pre-fetch', () => {
     expect(newCall![1].prFiles).toBeUndefined()
   })
 })
+
+// ---- on_success handler ----
+
+describe('pipeline-engine: on_success handler', () => {
+  let mod: typeof import('../pipeline-engine')
+  let mockCreateInstance: ReturnType<typeof vi.fn>
+  let mockNotify: ReturnType<typeof vi.fn>
+  let mockSendPromptWhenReady: ReturnType<typeof vi.fn>
+
+  const ON_SUCCESS_NOTIFY_YAML = `
+name: Notify Pipe
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: launch-session
+  name: main-action
+  prompt: Do work
+  on_success:
+    notify: true
+dedup:
+  key: "{{timestamp}}"
+`
+
+  // on_success.run: top-level action has a name so findNamedAction finds it and fires it again
+  const ON_SUCCESS_RUN_YAML = `
+name: Run Pipe
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: launch-session
+  name: main-action
+  prompt: Do main work
+  on_success:
+    run: main-action
+dedup:
+  key: "{{timestamp}}"
+`
+
+  // on_success.run with a target that doesn't exist — should load and fire without crashing
+  const ON_SUCCESS_MISSING_RUN_YAML = `
+name: Missing Run Pipe
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: launch-session
+  prompt: Do work
+  on_success:
+    run: nonexistent-action
+dedup:
+  key: "{{timestamp}}"
+`
+
+  const ON_SUCCESS_CHAIN_A_YAML = `
+name: Chain Pipe A
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: launch-session
+  prompt: Chain work
+  on_success:
+    chain: Chain Pipe B
+dedup:
+  key: "{{timestamp}}"
+`
+
+  const ON_SUCCESS_CHAIN_B_YAML = `
+name: Chain Pipe B
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: launch-session
+  prompt: Follow-up work
+dedup:
+  key: "{{timestamp}}"
+`
+
+  const ON_SUCCESS_MISSING_CHAIN_YAML = `
+name: Missing Chain Pipe
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: launch-session
+  prompt: Do work
+  on_success:
+    chain: Nonexistent Pipe
+dedup:
+  key: "{{timestamp}}"
+`
+
+  function setupOnSuccessMocks(fsMock: ReturnType<typeof buildFsMock>) {
+    vi.doMock('electron', () => ({
+      app: { getPath: vi.fn().mockReturnValue('/mock/home') },
+    }))
+    vi.doMock('../../shared/colony-paths', () => ({
+      colonyPaths: {
+        root: MOCK_ROOT,
+        pipelines: PIPELINES_DIR,
+        schedulerLog: `${MOCK_ROOT}/scheduler.log`,
+      },
+    }))
+    vi.doMock('fs', () => fsMock)
+    vi.doMock('../broadcast', () => ({ broadcast: mockBroadcast }))
+    vi.doMock('../repo-config-loader', () => ({ getAllRepoConfigs: vi.fn().mockReturnValue([]) }))
+    vi.doMock('../instance-manager', () => ({
+      createInstance: mockCreateInstance,
+      getAllInstances: vi.fn().mockResolvedValue([]),
+      updateDockBadge: vi.fn(),
+      setApprovalCountGetter: vi.fn(),
+      killInstance: vi.fn(),
+    }))
+    vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn() }))
+    vi.doMock('../daemon-router', () => ({ getDaemonRouter: vi.fn() }))
+    vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: mockSendPromptWhenReady }))
+    vi.doMock('../session-completion', () => ({
+      waitForStableIdle: vi.fn().mockReturnValue({ promise: new Promise(() => {}) }),
+      waitForSessionCompletion: vi.fn().mockResolvedValue(undefined),
+    }))
+    vi.doMock('../notifications', () => ({ notify: mockNotify }))
+    vi.doMock('../github', () => ({
+      getRepos: vi.fn().mockReturnValue([]),
+      fetchPRs: vi.fn().mockResolvedValue([]),
+      fetchChecks: vi.fn().mockResolvedValue({ checks: [] }),
+      gh: vi.fn().mockResolvedValue('{}'),
+    }))
+    vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
+    vi.doMock('../activity-manager', () => ({ appendActivity: vi.fn() }))
+    vi.doMock('../pipeline-notes', () => ({
+      getPipelineNotes: vi.fn().mockReturnValue([]),
+      clearPipelineNotes: vi.fn(),
+    }))
+  }
+
+  beforeEach(() => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockCreateInstance = vi.fn().mockResolvedValue({ id: 'inst-1' })
+    mockNotify = vi.fn().mockResolvedValue(undefined)
+    mockSendPromptWhenReady = vi.fn().mockResolvedValue(undefined)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  it('on_success.notify fires desktop notification on successful action', async () => {
+    const fs = buildFsMock(['notify.yaml'], { 'notify.yaml': ON_SUCCESS_NOTIFY_YAML })
+    setupOnSuccessMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Notify Pipe')
+    await flushPromises()
+
+    const successCall = mockNotify.mock.calls.find(
+      (c: any[]) => c[0] === 'Colony: Pipeline succeeded',
+    )
+    expect(successCall).toBeDefined()
+    expect(successCall![1]).toContain('Notify Pipe')
+  })
+
+  it('on_success.notify does not fire when action fails', async () => {
+    mockCreateInstance.mockRejectedValue(new Error('launch failed'))
+    const fs = buildFsMock(['notify.yaml'], { 'notify.yaml': ON_SUCCESS_NOTIFY_YAML })
+    setupOnSuccessMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Notify Pipe')
+    await flushPromises()
+
+    const successCall = mockNotify.mock.calls.find(
+      (c: any[]) => c[0] === 'Colony: Pipeline succeeded',
+    )
+    expect(successCall).toBeUndefined()
+  })
+
+  it('on_success.run fires the named action after success', async () => {
+    let instanceCount = 0
+    mockCreateInstance.mockImplementation(async () => ({ id: `inst-${++instanceCount}` }))
+
+    const fs = buildFsMock(['run.yaml'], { 'run.yaml': ON_SUCCESS_RUN_YAML })
+    setupOnSuccessMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Run Pipe')
+    await flushPromises()
+
+    // Main action fires once; on_success.run fires the named action again (fire-and-forget)
+    expect(mockCreateInstance).toHaveBeenCalledTimes(2)
+  })
+
+  it('on_success.run does not crash when named target is not found', async () => {
+    const fs = buildFsMock(['mr.yaml'], { 'mr.yaml': ON_SUCCESS_MISSING_RUN_YAML })
+    setupOnSuccessMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Missing Run Pipe')
+    await flushPromises()
+
+    // Main action fires; on_success.run target not found — no crash, one call only
+    expect(mockCreateInstance).toHaveBeenCalledTimes(1)
+  })
+
+  it('on_success.chain triggers the named pipeline after success', async () => {
+    const fs = buildFsMock(
+      ['chain-a.yaml', 'chain-b.yaml'],
+      { 'chain-a.yaml': ON_SUCCESS_CHAIN_A_YAML, 'chain-b.yaml': ON_SUCCESS_CHAIN_B_YAML },
+    )
+    setupOnSuccessMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Chain Pipe A')
+    await flushPromises()
+
+    // Chain Pipe A fires once; on_success.chain triggers Chain Pipe B which also fires
+    expect(mockCreateInstance).toHaveBeenCalledTimes(2)
+  })
+
+  it('on_success.chain does not crash when target pipeline is not found', async () => {
+    const fs = buildFsMock(['mc.yaml'], { 'mc.yaml': ON_SUCCESS_MISSING_CHAIN_YAML })
+    setupOnSuccessMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Missing Chain Pipe')
+    await flushPromises()
+
+    // Main action fires; chain target not found — no crash, one call only
+    expect(mockCreateInstance).toHaveBeenCalledTimes(1)
+  })
+})
