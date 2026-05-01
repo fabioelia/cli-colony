@@ -89,6 +89,12 @@ export interface OnFailureConfig {
   run?: string               // fire named action from the action tree (fire-and-forget)
 }
 
+export interface OnSuccessConfig {
+  notify?: boolean           // send desktop notification on success
+  run?: string               // fire named action from the action tree (fire-and-forget)
+  chain?: string             // trigger another pipeline by name
+}
+
 export interface ActionDef {
   type: 'launch-session' | 'route-to-session' | 'maker-checker' | 'diff_review' | 'parallel' | 'plan' | 'wait_for_session' | 'best-of-n' | 'trigger_pipeline' // route-to-session is deprecated, normalized to launch-session + reuse:true
   reuse?: boolean // try to find/resume a matching session before launching new
@@ -139,6 +145,7 @@ export interface ActionDef {
   max_retries?: number       // retry failed stages up to N times (default: 0 = no retry)
   retry_delay_ms?: number    // base delay between retries in ms, doubles each attempt (default: 5000)
   on_failure?: OnFailureConfig  // handlers triggered when this stage fails (notify, retry, run named action)
+  on_success?: OnSuccessConfig  // handlers triggered when this stage succeeds (notify, run named action, chain pipeline)
   // best-of-n specific fields
   n?: number                    // number of parallel contestants (default: 3, clamped 2-8)
   repo?: { owner: string; name: string }  // repo to create worktrees in
@@ -423,6 +430,14 @@ function parsePipelineYaml(content: string): PipelineDef | null {
       const target = findNamedAction(result.action, result.action.on_failure.run)
       if (target?.on_failure?.run) {
         log(`YAML warning: on_failure.run target "${result.action.on_failure.run}" also has on_failure.run — infinite chain risk. Target's on_failure.run will be ignored.`)
+      }
+    }
+
+    // Validate on_success.run target
+    if (result.action?.on_success?.run) {
+      const target = findNamedAction(result.action, result.action.on_success.run)
+      if (!target) {
+        log(`YAML warning: on_success.run target "${result.action.on_success.run}" not found in action tree`)
       }
     }
 
@@ -2165,6 +2180,38 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
         : `Pipeline "${pipelineName}" fired`
       appendActivity({ source: 'pipeline', name: pipelineName, summary: firedSummary, level: 'info', project: ctx.repo?.name || (p.def.action.workingDirectory ? basename(resolveTemplate(p.def.action.workingDirectory, ctx)) : undefined) })
       if (shouldNotify(p.def, 'info')) notify(`Colony: Pipeline fired`, firedSummary, 'pipelines')
+
+      // Fire on_success handlers (fire-and-forget)
+      if (resolvedAction.on_success) {
+        const onSuccess = resolvedAction.on_success
+        if (onSuccess.notify && shouldNotify(p.def, 'info')) {
+          notify(`Colony: Pipeline succeeded`, `"${pipelineName}" — "${resolvedAction.name || resolvedAction.type}" completed successfully`, 'pipelines').catch(() => {})
+        }
+        if (onSuccess.run) {
+          const target = findNamedAction(p.def.action, onSuccess.run)
+          if (target) {
+            const safeTarget: ActionDef = { ...target, on_success: undefined }
+            plog(pipelineName, `→ firing on_success.run: "${onSuccess.run}"`)
+            fireAction(safeTarget, ctx, pipelineName).then(r => {
+              totalCost += r.cost
+              plog(pipelineName, `✓ on_success.run "${onSuccess.run}" completed`)
+            }).catch(succErr => {
+              plog(pipelineName, `⚠ on_success.run "${onSuccess.run}" failed: ${String(succErr)}`)
+            })
+          } else {
+            plog(pipelineName, `⚠ on_success.run: action "${onSuccess.run}" not found`)
+          }
+        }
+        if (onSuccess.chain) {
+          if (executingPipelines.has(onSuccess.chain)) {
+            plog(pipelineName, `⊘ on_success.chain: "${onSuccess.chain}" already executing — skipping`)
+          } else {
+            plog(pipelineName, `→ on_success.chain: triggering "${onSuccess.chain}"`)
+            const triggered = triggerPollNow(onSuccess.chain)
+            if (!triggered) plog(pipelineName, `⚠ on_success.chain: pipeline "${onSuccess.chain}" not found`)
+          }
+        }
+      }
     }
 
     p.state.lastError = null

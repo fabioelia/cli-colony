@@ -204,6 +204,72 @@ actions:
     prompt: Check today's total Colony API spend. If it exceeds $5, write an alert to ~/.claude-colony/outputs/budget-alert.md with the breakdown by persona.
 `,
   },
+  {
+    name: 'Security Review',
+    description: 'Daily security scan on active branches',
+    triggerType: 'cron',
+    actionType: 'session',
+    yaml: `name: Security Review
+description: Daily security scan — checks for hardcoded secrets, vulnerable deps, OWASP issues
+enabled: false
+trigger:
+  type: cron
+  cron: "0 8 * * 1-5"
+actions:
+  - type: session
+    prompt: Run a security scan on the current branch. Check for hardcoded secrets or credentials, outdated dependencies with known CVEs, and common OWASP issues. Write findings to ~/.claude-colony/outputs/security-review.md with severity ratings.
+`,
+  },
+  {
+    name: 'Dependency Audit',
+    description: 'Weekly dep audit, opens issue on findings',
+    triggerType: 'cron',
+    actionType: 'session',
+    yaml: `name: Dependency Audit
+description: Weekly audit of npm/pip dependencies for outdated packages and known vulnerabilities
+enabled: false
+trigger:
+  type: cron
+  cron: "0 9 * * 1"
+actions:
+  - type: session
+    prompt: Audit project dependencies for outdated packages and known vulnerabilities. Run npm audit or pip-audit as appropriate. Write a summary to ~/.claude-colony/outputs/dep-audit.md listing outdated packages, CVEs, and recommended upgrades. If any HIGH or CRITICAL vulnerabilities are found, create a GitHub issue.
+`,
+  },
+  {
+    name: 'Changelog Generator',
+    description: 'Auto-generate CHANGELOG entry on version tag',
+    triggerType: 'git-poll',
+    actionType: 'session',
+    yaml: `name: Changelog Generator
+description: Automatically generate a CHANGELOG entry whenever a version tag is pushed
+enabled: false
+trigger:
+  type: git-poll
+  interval: 300
+condition:
+  type: new_commits
+actions:
+  - type: session
+    prompt: Check if a new version tag (e.g. v1.2.3) was just pushed. If so, generate a CHANGELOG.md entry summarizing the changes since the previous tag using git log. Group changes by feat/fix/ux/perf. Append the new entry at the top of CHANGELOG.md and commit it.
+`,
+  },
+  {
+    name: 'Stale Branch Cleanup',
+    description: 'Weekly report of branches idle for 30+ days',
+    triggerType: 'cron',
+    actionType: 'session',
+    yaml: `name: Stale Branch Cleanup
+description: Weekly scan for branches with no commits in 30+ days
+enabled: false
+trigger:
+  type: cron
+  cron: "0 10 * * 1"
+actions:
+  - type: session
+    prompt: List all git branches (local and remote) that have had no commits in the past 30 days. Exclude main, master, develop, and release branches. Write the list to ~/.claude-colony/outputs/stale-branches.md with the last commit date and author for each. Do not delete any branches — report only.
+`,
+  },
 ]
 
 const PIPELINE_SYSTEM_PROMPT = `You are a Pipeline Assistant for Claude Colony. You help users create, edit, and manage pipeline YAML files.
@@ -266,6 +332,24 @@ dedup:
 
 ## Dedup
 Content-hash based: tracks the Git SHA of matched files. Same content = skip. Changed content = fire. TTL is a fallback for conditions without content hashes.
+
+## Success / Failure Handlers
+Actions can have \`on_success\` and \`on_failure\` blocks:
+
+\`\`\`yaml
+action:
+  type: launch-session
+  prompt: Do the thing
+  on_success:
+    notify: true        # desktop notification on success
+    run: cleanup-action # fire a named action from the action tree
+    chain: Other Pipeline  # trigger another pipeline by name
+  on_failure:
+    notify: true
+    retry:
+      max: 2
+    run: recovery-action
+\`\`\`
 
 Help the user design pipelines for their use cases. Write the YAML files directly to ~/.claude-colony/pipelines/. Ask what they want to automate.`
 
