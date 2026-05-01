@@ -5,6 +5,7 @@
 
 import { execFile } from 'child_process'
 import { resolveCommand } from './resolve-command'
+import { loadShellEnv } from '../shared/shell-env'
 import { promises as fsp } from 'fs'
 import { JsonFile } from '../shared/json-file'
 import { join } from 'path'
@@ -78,7 +79,7 @@ function saveConfig(config: GitHubConfig): void {
 
 export function gh(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile(resolveCommand('gh'), args, { timeout: 15000, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
+    execFile(resolveCommand('gh'), args, { timeout: 30000, maxBuffer: 10 * 1024 * 1024, env: loadShellEnv() }, (err, stdout, stderr) => {
       if (err) {
         reject(new Error(stderr || err.message))
       } else {
@@ -98,15 +99,19 @@ export async function checkGhAuth(): Promise<boolean> {
   }
 }
 
-export async function fetchPRs(repo: GitHubRepo): Promise<GitHubPR[]> {
+export async function fetchPRs(repo: GitHubRepo, search?: string): Promise<GitHubPR[]> {
   const repoSlug = `${repo.owner}/${repo.name}`
-  const json = await gh([
+  const args = [
     'pr', 'list',
     '--repo', repoSlug,
     '--state', 'open',
     '--json', 'number,title,body,author,assignees,reviewRequests,headRefName,headRefOid,baseRefName,state,isDraft,url,createdAt,updatedAt,additions,deletions,reviewDecision,labels,comments',
-    '--limit', '200',
-  ])
+    '--limit', '30',
+  ]
+  if (search) {
+    args.push('--search', search)
+  }
+  const json = await gh(args)
   const raw = JSON.parse(json) as Array<{
     number: number
     title: string
@@ -302,7 +307,7 @@ async function refreshBareRepoConfig(owner: string, name: string): Promise<void>
   if (!await pathExists(bareDir)) return
   try {
     await new Promise<void>((resolve) => {
-      execFile(resolveCommand('git'), ['fetch', 'origin', '--prune'], { cwd: bareDir, timeout: 15000 }, () => resolve())
+      execFile(resolveCommand('git'), ['fetch', 'origin', '--prune'], { cwd: bareDir, timeout: 15000, env: loadShellEnv() }, () => resolve())
     })
   } catch { /* non-fatal */ }
   const config = await getRepoConfig(bareDir, `${owner}/${name}`)
