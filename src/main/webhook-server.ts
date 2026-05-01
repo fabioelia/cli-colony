@@ -28,19 +28,47 @@ let serverUrl: string | null = null
 const MAX_SSE_CLIENTS = 5
 const _sseClients = new Set<ServerResponse>()
 
+// Per-session SSE stream tracking: sessionId → Set of response objects
+const MAX_STREAM_CLIENTS_PER_SESSION = 5
+const _streamClients = new Map<string, Set<ServerResponse>>()
+
 // Rate limiting for POST /api/sessions (5 per minute)
 const _sessionCreateTimestamps: number[] = []
 const SESSION_CREATE_RATE_LIMIT = 5
 const SESSION_CREATE_WINDOW_MS = 60_000
 
-// Relay all broadcast events to SSE clients
+// Relay all broadcast events to global SSE clients and per-session stream clients
 addBroadcastListener((channel, ...args) => {
-  if (_sseClients.size === 0) return
-  const event = JSON.stringify({ channel, data: args.length === 1 ? args[0] : args })
-  for (const res of _sseClients) {
-    try {
-      res.write(`data: ${event}\n\n`)
-    } catch { /* client disconnected */ }
+  if (_sseClients.size === 0 && _streamClients.size === 0) return
+  if (_sseClients.size > 0) {
+    const event = JSON.stringify({ channel, data: args.length === 1 ? args[0] : args })
+    for (const res of _sseClients) {
+      try {
+        res.write(`data: ${event}\n\n`)
+      } catch { /* client disconnected */ }
+    }
+  }
+  if (channel === 'instance:output' && _streamClients.size > 0) {
+    const payload = args[0] as { id: string; data: string }
+    const clients = _streamClients.get(payload.id)
+    if (clients && clients.size > 0) {
+      const msg = `event: output\ndata: ${JSON.stringify({ text: payload.data })}\n\n`
+      for (const res of clients) {
+        try { res.write(msg) } catch { /* client disconnected */ }
+      }
+    }
+  }
+  if (channel === 'instance:exited' && _streamClients.size > 0) {
+    const payload = args[0] as { id: string; exitCode?: number }
+    const clients = _streamClients.get(payload.id)
+    if (clients && clients.size > 0) {
+      const msg = `event: exit\ndata: ${JSON.stringify({ code: payload.exitCode ?? null })}\n\n`
+      for (const res of clients) {
+        try { res.write(msg) } catch { /* already closed */ }
+        try { res.end() } catch { /* already closed */ }
+      }
+      _streamClients.delete(payload.id)
+    }
   }
 })
 
@@ -202,6 +230,58 @@ async function handleApiRequest(req: IncomingMessage, res: ServerResponse): Prom
     }
     const ok = await getDaemonRouter().steerInstance(inst.id, prompt)
     sendJson(res, ok ? 200 : 500, { ok })
+    return
+  }
+
+  // GET /api/sessions/:id/stream — SSE stream of PTY output for a specific session
+  const streamMatch = url.match(/^\/api\/sessions\/([^/?#]+)\/stream$/)
+  if (method === 'GET' && streamMatch) {
+    const idOrName = decodeURIComponent(streamMatch[1])
+    const instances = await getAllInstances()
+    const inst = instances.find((i) => i.id === idOrName || i.name === idOrName)
+    if (!inst) {
+      sendJson(res, 404, { error: 'Session not found' })
+      return
+    }
+    const existing = _streamClients.get(inst.id)
+    if (existing && existing.size >= MAX_STREAM_CLIENTS_PER_SESSION) {
+      sendJson(res, 503, { error: 'Too many stream connections for this session' })
+      return
+    }
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    })
+    // Send current buffer as initial burst
+    let initialBuffer = ''
+    try {
+      initialBuffer = await getDaemonRouter().getInstanceBuffer(inst.id)
+    } catch { /* no buffer — ok */ }
+    const MAX_INITIAL_CHUNK = 65_536
+    if (initialBuffer.length > 0) {
+      let offset = 0
+      while (offset < initialBuffer.length) {
+        const chunk = initialBuffer.slice(offset, offset + MAX_INITIAL_CHUNK)
+        res.write(`event: output\ndata: ${JSON.stringify({ text: chunk })}\n\n`)
+        offset += MAX_INITIAL_CHUNK
+      }
+    }
+    if (!_streamClients.has(inst.id)) _streamClients.set(inst.id, new Set())
+    _streamClients.get(inst.id)!.add(res)
+    // Keepalive ping every 30s
+    const keepalive = setInterval(() => {
+      try { res.write(': ping\n\n') } catch { clearInterval(keepalive) }
+    }, 30_000)
+    req.on('close', () => {
+      clearInterval(keepalive)
+      const set = _streamClients.get(inst.id)
+      if (set) {
+        set.delete(res)
+        if (set.size === 0) _streamClients.delete(inst.id)
+      }
+    })
     return
   }
 

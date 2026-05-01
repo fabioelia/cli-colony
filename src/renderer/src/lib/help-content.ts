@@ -1081,6 +1081,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'POST /api/personas/:id/trigger', detail: 'Trigger a persona run immediately. Optional body: { "message": "custom context" }. Returns 202 { ok: true, persona: id }. Accepts id or name.' },
           { label: 'GET /api/pipelines', detail: 'Returns all pipelines with status, last-fire time, and run history.' },
           { label: 'POST /api/pipelines/:name/trigger', detail: 'Trigger a named pipeline run immediately — same as clicking the Run button in the Pipelines panel. Name must match the pipeline file slug.' },
+          { label: 'GET /api/sessions/:id/stream', detail: 'SSE stream of PTY output for a specific session. Sends current buffer as initial burst, then streams new output as event: output / data: {"text": "..."}. When the session exits, sends event: exit / data: {"code": N} and closes. Keepalive ping every 30s. Max 5 concurrent clients per session. Output includes raw ANSI codes. Try: curl -N http://127.0.0.1:7474/api/sessions/my-session/stream' },
           { label: 'GET /api/events', detail: 'SSE stream of all Colony broadcast events (session updates, pipeline fires, activity). Connect with EventSource. Max 5 concurrent clients. Each message is JSON: { channel, data }.' },
         ],
       },
