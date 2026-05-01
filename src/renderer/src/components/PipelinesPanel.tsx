@@ -270,6 +270,60 @@ actions:
     prompt: List all git branches (local and remote) that have had no commits in the past 30 days. Exclude main, master, develop, and release branches. Write the list to ~/.claude-colony/outputs/stale-branches.md with the last commit date and author for each. Do not delete any branches — report only.
 `,
   },
+  {
+    name: 'Slack Notification',
+    description: 'POST pipeline outcome to a Slack webhook',
+    triggerType: 'cron',
+    actionType: 'session',
+    yaml: `name: Slack Notification
+description: Run a daily task and post the outcome to Slack
+enabled: false
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+actions:
+  - type: session
+    name: daily-task
+    prompt: Run the daily check and write a one-line summary.
+    on_success:
+      webhook:
+        url: https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+        body: '{"text": "✅ {{pipeline_name}} succeeded in {{duration_ms}}ms (cost: \${{cost}})"}'
+    on_failure:
+      webhook:
+        url: https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+        body: '{"text": "❌ {{pipeline_name}} failed after {{duration_ms}}ms"}'
+`,
+  },
+  {
+    name: 'Status Page Update',
+    description: 'POST pipeline result to any HTTP endpoint',
+    triggerType: 'cron',
+    actionType: 'session',
+    yaml: `name: Status Page Update
+description: Run a health check and POST the result to a status API
+enabled: false
+trigger:
+  type: cron
+  cron: "0 */4 * * *"
+actions:
+  - type: session
+    name: health-check
+    prompt: Run a health check on the project and output OK or FAIL.
+    on_success:
+      webhook:
+        url: https://your-status-page.example.com/api/update
+        headers:
+          Authorization: Bearer YOUR_API_TOKEN
+        body: '{"component": "colony-pipeline", "status": "operational", "pipeline": "{{pipeline_name}}"}'
+    on_failure:
+      webhook:
+        url: https://your-status-page.example.com/api/update
+        headers:
+          Authorization: Bearer YOUR_API_TOKEN
+        body: '{"component": "colony-pipeline", "status": "degraded", "pipeline": "{{pipeline_name}}"}'
+`,
+  },
 ]
 
 const PIPELINE_SYSTEM_PROMPT = `You are a Pipeline Assistant for Claude Colony. You help users create, edit, and manage pipeline YAML files.

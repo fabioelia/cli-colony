@@ -83,16 +83,25 @@ export interface RunOverrides {
   templateVarOverrides?: Record<string, string>
 }
 
+export interface OutboundWebhookConfig {
+  url: string
+  method?: 'POST' | 'PUT'
+  headers?: Record<string, string>
+  body?: string   // Mustache template; vars: pipeline_name, action_name, status, duration_ms, cost, run_id
+}
+
 export interface OnFailureConfig {
   notify?: boolean           // send desktop notification on failure
   retry?: { max: number }    // retry up to N times with previous output as context
   run?: string               // fire named action from the action tree (fire-and-forget)
+  webhook?: OutboundWebhookConfig
 }
 
 export interface OnSuccessConfig {
   notify?: boolean           // send desktop notification on success
   run?: string               // fire named action from the action tree (fire-and-forget)
   chain?: string             // trigger another pipeline by name
+  webhook?: OutboundWebhookConfig
 }
 
 export interface ActionDef {
@@ -346,6 +355,57 @@ import { broadcast } from './broadcast'
 import { runMakerChecker, runDiffReview, runPlanStage, runParallel, runWaitForSession, runBestOfN, captureArtifacts, loadArtifactPreamble, loadHandoffPreamble, loadSpecPreamble, appendToSpec } from './pipeline-stages'
 import { getPipelineNotes, clearPipelineNotes } from './pipeline-notes'
 import { parseYaml as parseYamlShared, parseYamlArray } from '../shared/yaml-parser'
+import { request as httpsRequest } from 'https'
+import { request as httpRequest } from 'http'
+
+function fireOutboundWebhook(
+  config: OutboundWebhookConfig,
+  ctx: { pipeline_name: string; action_name: string; status: string; duration_ms: number; cost: number; run_id: string }
+): void {
+  if (!config.url || (!config.url.startsWith('http://') && !config.url.startsWith('https://'))) {
+    log(`outbound webhook: invalid URL (must start with http:// or https://) — skipped`)
+    return
+  }
+  const defaultBody = JSON.stringify({
+    pipeline_name: ctx.pipeline_name,
+    action_name: ctx.action_name,
+    status: ctx.status,
+    duration_ms: ctx.duration_ms,
+    cost: ctx.cost,
+    run_id: ctx.run_id,
+  })
+  const bodyStr = config.body
+    ? resolveMustacheTemplate(config.body, ctx as unknown as Record<string, string>)
+    : defaultBody
+  const bodyBuf = Buffer.from(bodyStr, 'utf8')
+  const url = new URL(config.url)
+  const options = {
+    hostname: url.hostname,
+    port: url.port || (url.protocol === 'https:' ? 443 : 80),
+    path: url.pathname + url.search,
+    method: config.method || 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': bodyBuf.length,
+      ...(config.headers || {}),
+    },
+  }
+  const domain = url.hostname
+  const reqFn = url.protocol === 'https:' ? httpsRequest : httpRequest
+  const req = reqFn(options as unknown as Parameters<typeof httpsRequest>[0], (res) => {
+    log(`outbound webhook → ${domain}: HTTP ${res.statusCode}`)
+    res.resume()
+  })
+  req.setTimeout(10_000, () => {
+    log(`outbound webhook → ${domain}: timeout`)
+    req.destroy()
+  })
+  req.on('error', (err) => {
+    log(`outbound webhook → ${domain}: error: ${err.message}`)
+  })
+  req.write(bodyBuf)
+  req.end()
+}
 
 // ---- Pipeline YAML Parsing (uses shared parser + pipeline-specific post-processing) ----
 
@@ -496,6 +556,7 @@ export interface PipelineRunEntry {
     newCommits?: string[]
     matchedFiles?: string[]
   }
+  webhookFired?: boolean
 }
 
 const MAX_HISTORY_ENTRIES = 20
@@ -1799,6 +1860,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
   const stages: PipelineStageTrace[] = []
   let totalCost = 0
   let stoppedBudget = false
+  let webhookFired = false
   let budgetWarnSent = false
   let runDedupAttempt: number | undefined
   let runDedupMaxRetries: number | undefined
@@ -2126,6 +2188,18 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
             plog(pipelineName, `⚠ on_failure.run: action "${resolvedAction.on_failure.run}" not found`)
           }
         }
+        if (resolvedAction.on_failure?.webhook) {
+          plog(pipelineName, `→ firing on_failure.webhook`)
+          fireOutboundWebhook(resolvedAction.on_failure.webhook, {
+            pipeline_name: pipelineName,
+            action_name: resolvedAction.name || resolvedAction.type,
+            status: 'failure',
+            duration_ms: Date.now() - pollStartedAt,
+            cost: totalCost,
+            run_id: '',
+          })
+          webhookFired = true
+        }
         throw stageErr
       } finally {
         executingPipelines.delete(pipelineName)
@@ -2210,6 +2284,18 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
             const triggered = triggerPollNow(onSuccess.chain)
             if (!triggered) plog(pipelineName, `⚠ on_success.chain: pipeline "${onSuccess.chain}" not found`)
           }
+        }
+        if (onSuccess.webhook) {
+          plog(pipelineName, `→ firing on_success.webhook`)
+          fireOutboundWebhook(onSuccess.webhook, {
+            pipeline_name: pipelineName,
+            action_name: resolvedAction.name || resolvedAction.type,
+            status: 'success',
+            duration_ms: Date.now() - pollStartedAt,
+            cost: totalCost,
+            run_id: '',
+          })
+          webhookFired = true
         }
       }
     }
@@ -2297,6 +2383,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
       dedupMaxRetries: runDedupMaxRetries,
       headCommit: headCommitForHistory,
       triggerContext,
+      webhookFired: webhookFired || undefined,
     })
 
     // Trim debug log to the last N iterations
