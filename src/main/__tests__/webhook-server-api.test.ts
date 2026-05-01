@@ -461,6 +461,50 @@ describe('POST /api/pipelines/:name/trigger', () => {
     await apiRequest({ method: 'POST', path: '/api/pipelines/My%20Pipeline/trigger' })
     expect(mockTriggerPollNow).toHaveBeenCalledWith('My Pipeline')
   })
+
+  it('passes overrides when body contains prompt/model', async () => {
+    mockTriggerPollNow.mockReturnValue(true)
+    const res = await apiRequest({
+      method: 'POST',
+      path: '/api/pipelines/my-pipeline/trigger',
+      body: JSON.stringify({ prompt: 'custom prompt', model: 'claude-opus-4-7', maxBudget: 5 }),
+    })
+    expect(res.status).toBe(200)
+    expect((res.body as Record<string, unknown>).overrides).toMatchObject({ prompt: 'custom prompt', model: 'claude-opus-4-7', maxBudget: 5 })
+    expect(mockTriggerPollNow).toHaveBeenCalledWith('my-pipeline', { prompt: 'custom prompt', model: 'claude-opus-4-7', maxBudget: 5 })
+  })
+
+  it('maps vars to templateVarOverrides', async () => {
+    mockTriggerPollNow.mockReturnValue(true)
+    await apiRequest({
+      method: 'POST',
+      path: '/api/pipelines/my-pipeline/trigger',
+      body: JSON.stringify({ vars: { branch: 'main', env: 'prod' } }),
+    })
+    expect(mockTriggerPollNow).toHaveBeenCalledWith('my-pipeline', { templateVarOverrides: { branch: 'main', env: 'prod' } })
+  })
+
+  it('clamps maxBudget to 0.01–100', async () => {
+    mockTriggerPollNow.mockReturnValue(true)
+    await apiRequest({ method: 'POST', path: '/api/pipelines/my-pipeline/trigger', body: JSON.stringify({ maxBudget: 9999 }) })
+    expect(mockTriggerPollNow).toHaveBeenCalledWith('my-pipeline', { maxBudget: 100 })
+  })
+
+  it('returns 400 when vars contains non-string value', async () => {
+    mockTriggerPollNow.mockReturnValue(true)
+    const res = await apiRequest({
+      method: 'POST',
+      path: '/api/pipelines/my-pipeline/trigger',
+      body: JSON.stringify({ vars: { count: 42 } }),
+    })
+    expect(res.status).toBe(400)
+    expect((res.body as Record<string, unknown>).error).toContain('vars.count')
+  })
+
+  it('returns 400 for invalid JSON body', async () => {
+    const res = await apiRequest({ method: 'POST', path: '/api/pipelines/my-pipeline/trigger', body: 'not-json' })
+    expect(res.status).toBe(400)
+  })
 })
 
 // --- GET /api/personas ---
@@ -589,6 +633,47 @@ describe('GET /api/sessions/:id/stream SSE', () => {
       req.on('error', (e) => { if ((e as NodeJS.ErrnoException).code !== 'ECONNRESET') reject(e) })
       req.end()
     })
+  })
+})
+
+// --- GET /api/openapi.json ---
+
+describe('GET /api/openapi.json', () => {
+  it('returns valid OpenAPI 3.0 spec', async () => {
+    const res = await apiRequest({ path: '/api/openapi.json' })
+    expect(res.status).toBe(200)
+    expect(res.headers['content-type']).toContain('application/json')
+    const spec = res.body as Record<string, unknown>
+    expect(spec.openapi).toBe('3.0.3')
+    expect((spec.info as Record<string, unknown>).title).toBe('Colony API')
+    expect(spec.paths).toBeDefined()
+  })
+
+  it('includes all major endpoint paths', async () => {
+    const res = await apiRequest({ path: '/api/openapi.json' })
+    const paths = Object.keys((res.body as Record<string, unknown>).paths as Record<string, unknown>)
+    expect(paths).toContain('/api/status')
+    expect(paths).toContain('/api/sessions')
+    expect(paths).toContain('/api/pipelines/{name}/trigger')
+    expect(paths).toContain('/api/personas/{id}/trigger')
+    expect(paths).toContain('/api/sessions/{id}/stream')
+  })
+
+  it('sets Access-Control-Allow-Origin header', async () => {
+    const res = await apiRequest({ path: '/api/openapi.json' })
+    expect(res.headers['access-control-allow-origin']).toBe('*')
+  })
+})
+
+// --- GET /api/docs ---
+
+describe('GET /api/docs', () => {
+  it('returns HTML page with Swagger UI', async () => {
+    const res = await apiRequest({ path: '/api/docs' })
+    expect(res.status).toBe(200)
+    expect(res.headers['content-type']).toContain('text/html')
+    expect(res.body as string).toContain('swagger-ui')
+    expect(res.body as string).toContain('/api/openapi.json')
   })
 })
 

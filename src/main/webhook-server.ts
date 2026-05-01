@@ -310,12 +310,44 @@ async function handleApiRequest(req: IncomingMessage, res: ServerResponse): Prom
   const pipelineMatch = url.match(/^\/api\/pipelines\/([^/?#]+)\/trigger$/)
   if (method === 'POST' && pipelineMatch) {
     const name = decodeURIComponent(pipelineMatch[1])
-    const ok = triggerPollNow(name)
+    let overrides: import('./pipeline-engine').RunOverrides | undefined
+    try {
+      const body = await readBody(req)
+      if (body.length > 0) {
+        const parsed = JSON.parse(body.toString('utf8')) as Record<string, unknown>
+        overrides = {}
+        if (typeof parsed.prompt === 'string') overrides.prompt = parsed.prompt
+        if (typeof parsed.model === 'string') overrides.model = parsed.model
+        if (typeof parsed.workingDirectory === 'string') overrides.workingDirectory = parsed.workingDirectory
+        if (typeof parsed.maxBudget === 'number') {
+          overrides.maxBudget = Math.min(100, Math.max(0.01, parsed.maxBudget))
+        }
+        if (parsed.vars !== undefined) {
+          if (typeof parsed.vars !== 'object' || parsed.vars === null || Array.isArray(parsed.vars)) {
+            sendJson(res, 400, { error: 'vars must be an object with string values' })
+            return
+          }
+          const vars = parsed.vars as Record<string, unknown>
+          for (const [k, v] of Object.entries(vars)) {
+            if (typeof v !== 'string') {
+              sendJson(res, 400, { error: `vars.${k} must be a string` })
+              return
+            }
+          }
+          overrides.templateVarOverrides = vars as Record<string, string>
+        }
+        if (Object.keys(overrides).length === 0) overrides = undefined
+      }
+    } catch {
+      sendJson(res, 400, { error: 'Invalid JSON body' })
+      return
+    }
+    const ok = overrides ? triggerPollNow(name, overrides) : triggerPollNow(name)
     if (!ok) {
       sendJson(res, 404, { error: `Pipeline not found: ${name}` })
       return
     }
-    sendJson(res, 200, { ok: true, pipeline: name })
+    sendJson(res, 200, { ok: true, pipeline: name, overrides: overrides ?? {} })
     return
   }
 
@@ -496,6 +528,231 @@ async function handleApiRequest(req: IncomingMessage, res: ServerResponse): Prom
     }
     const ok = await getDaemonRouter().steerInstance(inst.id, prompt)
     sendJson(res, ok ? 200 : 500, { ok })
+    return
+  }
+
+  // GET /api/openapi.json — OpenAPI 3.0 spec (update this when adding new endpoints)
+  if (method === 'GET' && url === '/api/openapi.json') {
+    const port = serverUrl ? new URL(serverUrl).port : '7474'
+    const spec = {
+      openapi: '3.0.3',
+      info: { title: 'Colony API', version: app.getVersion(), description: 'REST API for Colony session, pipeline, and persona management.' },
+      servers: [
+        { url: `http://127.0.0.1:${port}`, description: 'Local Colony server' },
+        { url: `http://0.0.0.0:${port}`, description: 'All interfaces' },
+      ],
+      components: {
+        securitySchemes: {
+          BearerToken: { type: 'http', scheme: 'bearer', description: 'API token configured in Colony Settings → Webhook & API' },
+          ColonyToken: { type: 'apiKey', in: 'header', name: 'X-Colony-Token' },
+        },
+        schemas: {
+          Session: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' }, name: { type: 'string' },
+              status: { type: 'string', enum: ['running', 'waiting', 'stopped'] },
+              cost: { type: 'number' }, uptime: { type: 'number', description: 'Milliseconds since session start' },
+            },
+          },
+          Pipeline: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' }, enabled: { type: 'boolean' },
+              schedule: { type: 'string' }, lastFired: { type: 'string', nullable: true },
+            },
+          },
+          Persona: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' }, name: { type: 'string' }, enabled: { type: 'boolean' },
+              model: { type: 'string' }, schedule: { type: 'string', nullable: true },
+              lastRun: { type: 'string', nullable: true }, runCount: { type: 'number' }, active: { type: 'boolean' },
+            },
+          },
+          Error: { type: 'object', properties: { error: { type: 'string' } } },
+        },
+      },
+      security: [{ BearerToken: [] }, { ColonyToken: [] }],
+      paths: {
+        '/api/status': {
+          get: {
+            summary: 'Health check', operationId: 'getStatus', tags: ['System'],
+            responses: { '200': { description: 'OK', content: { 'application/json': { schema: { type: 'object', properties: { ok: { type: 'boolean' }, version: { type: 'string' }, uptime: { type: 'number' } } } } } } },
+          },
+        },
+        '/api/openapi.json': {
+          get: { summary: 'OpenAPI spec', operationId: 'getOpenApiSpec', tags: ['System'], responses: { '200': { description: 'OpenAPI 3.0 JSON spec' } } },
+        },
+        '/api/docs': {
+          get: { summary: 'Interactive API docs (Swagger UI)', operationId: 'getDocs', tags: ['System'], responses: { '200': { description: 'HTML page' } } },
+        },
+        '/api/events': {
+          get: {
+            summary: 'Global SSE event stream', operationId: 'getEvents', tags: ['Events'],
+            description: 'Server-Sent Events stream. Each event is a JSON object: `{ channel: string, data: any }`. Max 5 concurrent connections.',
+            responses: {
+              '200': { description: 'SSE stream', content: { 'text/event-stream': { schema: { type: 'string', example: 'data: {"channel":"instance:output","data":{"id":"abc","data":"hello"}}\n\n' } } } },
+              '503': { description: 'Too many connections', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+            },
+          },
+        },
+        '/api/sessions': {
+          get: {
+            summary: 'List sessions', operationId: 'listSessions', tags: ['Sessions'],
+            responses: { '200': { description: 'Session list', content: { 'application/json': { schema: { type: 'object', properties: { sessions: { type: 'array', items: { $ref: '#/components/schemas/Session' } } } } } } } },
+          },
+          post: {
+            summary: 'Create session', operationId: 'createSession', tags: ['Sessions'],
+            description: 'Rate limited to 5 per minute.',
+            requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { prompt: { type: 'string', description: 'Prompt to run with -p flag' }, model: { type: 'string' }, permissionMode: { type: 'string', enum: ['autonomous', 'auto', 'supervised'] }, workingDirectory: { type: 'string' }, name: { type: 'string' } } } } } },
+            responses: {
+              '201': { description: 'Created', content: { 'application/json': { schema: { type: 'object', properties: { id: { type: 'string' }, name: { type: 'string' } } } } } },
+              '429': { description: 'Rate limit exceeded' },
+            },
+          },
+        },
+        '/api/sessions/{id}': {
+          get: {
+            summary: 'Get session', operationId: 'getSession', tags: ['Sessions'],
+            parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'Session ID or name' }],
+            responses: { '200': { description: 'Session detail' }, '404': { description: 'Not found' } },
+          },
+          delete: {
+            summary: 'Delete stopped session', operationId: 'deleteSession', tags: ['Sessions'],
+            parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+            responses: { '200': { description: 'Deleted' }, '409': { description: 'Session still running' } },
+          },
+        },
+        '/api/sessions/{id}/stop': {
+          post: {
+            summary: 'Stop session', operationId: 'stopSession', tags: ['Sessions'],
+            parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+            responses: { '200': { description: 'Stopped' } },
+          },
+        },
+        '/api/sessions/{id}/steer': {
+          post: {
+            summary: 'Send prompt to session (steer)', operationId: 'steerSession', tags: ['Sessions'],
+            parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+            requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['prompt'], properties: { prompt: { type: 'string' } } } } } },
+            responses: { '200': { description: 'OK' } },
+          },
+        },
+        '/api/sessions/{id}/whisper': {
+          post: {
+            summary: 'Whisper to session (alias for steer)', operationId: 'whisperSession', tags: ['Sessions'],
+            parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+            requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['prompt'], properties: { prompt: { type: 'string' } } } } } },
+            responses: { '200': { description: 'OK' } },
+          },
+        },
+        '/api/sessions/{id}/output': {
+          get: {
+            summary: 'Get session PTY output (last 100KB)', operationId: 'getSessionOutput', tags: ['Sessions'],
+            parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+            responses: { '200': { description: 'Output buffer', content: { 'application/json': { schema: { type: 'object', properties: { output: { type: 'string' } } } } } } },
+          },
+        },
+        '/api/sessions/{id}/stream': {
+          get: {
+            summary: 'Stream session output (SSE)', operationId: 'streamSession', tags: ['Sessions'],
+            description: 'Server-Sent Events. Events: `output` (text chunks), `exit` (session ended). Sends buffered output on connect. Max 5 connections per session.',
+            parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+            responses: { '200': { description: 'SSE stream', content: { 'text/event-stream': { schema: { type: 'string', example: 'event: output\ndata: {"text":"hello"}\n\nevent: exit\ndata: {"code":0}\n\n' } } } } },
+          },
+        },
+        '/api/pipelines': {
+          get: {
+            summary: 'List pipelines', operationId: 'listPipelines', tags: ['Pipelines'],
+            responses: { '200': { description: 'Pipeline list', content: { 'application/json': { schema: { type: 'object', properties: { pipelines: { type: 'array', items: { $ref: '#/components/schemas/Pipeline' } } } } } } } },
+          },
+        },
+        '/api/pipelines/{name}/trigger': {
+          post: {
+            summary: 'Trigger pipeline', operationId: 'triggerPipeline', tags: ['Pipelines'],
+            parameters: [{ name: 'name', in: 'path', required: true, schema: { type: 'string' } }],
+            requestBody: {
+              description: 'All fields optional. Empty body triggers with defaults.',
+              content: { 'application/json': { schema: { type: 'object', properties: {
+                prompt: { type: 'string', description: 'Override the pipeline action prompt' },
+                model: { type: 'string', description: 'Override the model (e.g. claude-opus-4-7)' },
+                workingDirectory: { type: 'string', description: 'Override the working directory' },
+                maxBudget: { type: 'number', description: 'Override max budget in USD (clamped 0.01–100)' },
+                vars: { type: 'object', additionalProperties: { type: 'string' }, description: 'Template variable overrides for {{varName}} placeholders in pipeline YAML' },
+              } } } },
+            },
+            responses: {
+              '200': { description: 'Triggered', content: { 'application/json': { schema: { type: 'object', properties: { ok: { type: 'boolean' }, pipeline: { type: 'string' }, overrides: { type: 'object' } } } } } },
+              '404': { description: 'Pipeline not found' },
+            },
+          },
+        },
+        '/api/personas': {
+          get: {
+            summary: 'List personas', operationId: 'listPersonas', tags: ['Personas'],
+            responses: { '200': { description: 'Persona list', content: { 'application/json': { schema: { type: 'object', properties: { personas: { type: 'array', items: { $ref: '#/components/schemas/Persona' } } } } } } } },
+          },
+        },
+        '/api/personas/{id}/trigger': {
+          post: {
+            summary: 'Trigger persona', operationId: 'triggerPersona', tags: ['Personas'],
+            parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+            requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { message: { type: 'string', description: 'Optional whisper message to inject' } } } } } },
+            responses: { '202': { description: 'Accepted (runs async)' }, '404': { description: 'Persona not found' } },
+          },
+        },
+      },
+    }
+    const payload = JSON.stringify(spec, null, 2)
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload), 'Access-Control-Allow-Origin': '*' })
+    res.end(payload)
+    return
+  }
+
+  // GET /api/docs — Swagger UI interactive docs
+  if (method === 'GET' && url === '/api/docs') {
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Colony API Docs</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
+<style>
+  body { margin: 0; }
+  #auth-bar { padding: 10px 20px; background: #1a1a2e; display: flex; align-items: center; gap: 10px; }
+  #auth-bar label { color: #ccc; font: 13px monospace; }
+  #token-input { flex: 1; max-width: 400px; padding: 6px 10px; border: 1px solid #444; border-radius: 4px; background: #0d0d1a; color: #fff; font: 13px monospace; }
+  #apply-btn { padding: 6px 14px; background: #4CAF50; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="auth-bar">
+  <label>API Token:</label>
+  <input id="token-input" type="password" placeholder="Leave empty if no auth configured" />
+  <button id="apply-btn">Apply</button>
+</div>
+<div id="swagger-ui"></div>
+<script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+<script>
+  const ui = SwaggerUIBundle({
+    url: '/api/openapi.json',
+    dom_id: '#swagger-ui',
+    presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
+    layout: 'BaseLayout',
+    requestInterceptor(req) {
+      const token = document.getElementById('token-input').value.trim();
+      if (token) req.headers['Authorization'] = 'Bearer ' + token;
+      return req;
+    }
+  });
+  document.getElementById('apply-btn').onclick = () => ui.authActions.logout([]);
+</script>
+</body>
+</html>`
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': Buffer.byteLength(html) })
+    res.end(html)
     return
   }
 

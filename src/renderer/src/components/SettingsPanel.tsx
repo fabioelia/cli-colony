@@ -69,6 +69,7 @@ export default function SettingsPanel({ onBack }: Props) {
   const [webhookPort, setWebhookPort] = useState('7474')
   const [apiToken, setApiToken] = useState('')
   const [showApiToken, setShowApiToken] = useState(false)
+  const [apiTestState, setApiTestState] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle')
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [fontSize, setFontSize] = useState(13)
   const [fontFamily, setFontFamily] = useState('Menlo, Monaco, "Courier New", monospace')
@@ -1314,7 +1315,7 @@ export default function SettingsPanel({ onBack }: Props) {
                 <input
                   type={showApiToken ? 'text' : 'password'}
                   value={apiToken}
-                  onChange={(e) => setApiToken(e.target.value)}
+                  onChange={(e) => { setApiToken(e.target.value); setApiTestState('idle') }}
                   placeholder="Leave empty for no auth"
                   style={{ flex: 1 }}
                 />
@@ -1325,9 +1326,48 @@ export default function SettingsPanel({ onBack }: Props) {
                 >
                   {showApiToken ? <EyeOff size={12} /> : <Eye size={12} />}
                 </button>
+                <button
+                  className="panel-header-btn"
+                  title="Generate secure token"
+                  onClick={() => {
+                    const token = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('')
+                    setApiToken(token)
+                    setShowApiToken(true)
+                    setApiTestState('idle')
+                  }}
+                >
+                  <Sparkles size={12} />
+                </button>
+                <button
+                  className="panel-header-btn"
+                  title="Copy token"
+                  disabled={!apiToken}
+                  onClick={() => navigator.clipboard.writeText(apiToken)}
+                >
+                  <Copy size={12} />
+                </button>
+                <button
+                  className="panel-header-btn"
+                  title="Test API connection"
+                  disabled={apiTestState === 'testing'}
+                  onClick={async () => {
+                    setApiTestState('testing')
+                    try {
+                      const port = parseInt(webhookPort, 10) || 7474
+                      const headers: Record<string, string> = {}
+                      if (apiToken) headers['Authorization'] = `Bearer ${apiToken}`
+                      const r = await fetch(`http://127.0.0.1:${port}/api/status`, { headers })
+                      setApiTestState(r.ok ? 'ok' : 'fail')
+                    } catch {
+                      setApiTestState('fail')
+                    }
+                  }}
+                >
+                  {apiTestState === 'testing' ? <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> : apiTestState === 'ok' ? <CheckCircle size={12} style={{ color: 'var(--c-green, #4ade80)' }} /> : apiTestState === 'fail' ? <XCircle size={12} style={{ color: 'var(--c-red, #f87171)' }} /> : <Play size={12} />}
+                </button>
               </div>
               <p className="settings-help">
-                When set, API requests require a <code>Bearer</code> token or <code>X-Colony-Token</code> header.
+                When set, API requests require a <code>Bearer</code> token or <code>X-Colony-Token</code> header.{apiTestState === 'ok' && <span style={{ color: 'var(--c-green, #4ade80)', marginLeft: 6 }}>Connection OK</span>}{apiTestState === 'fail' && <span style={{ color: 'var(--c-red, #f87171)', marginLeft: 6 }}>Connection failed — check port and token</span>}
               </p>
             </div>
           </>
