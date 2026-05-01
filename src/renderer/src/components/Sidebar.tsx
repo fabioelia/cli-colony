@@ -45,7 +45,7 @@ const NAV_ITEMS: Record<SidebarView, { label: string; shortLabel: string; Icon: 
   settings:     { label: 'Settings',     shortLabel: 'Settings', Icon: Settings,       group: 'primary',   tooltip: 'Settings',      detail: '' },
 }
 const NON_NAV_VIEWS: SidebarView[] = ['settings']
-const DEFAULT_PRIMARY_SLOTS: SidebarView[] = ['overview', 'instances', 'activity', 'personas']
+const DEFAULT_PRIMARY_SLOTS: SidebarView[] = ['overview', 'personas', 'pipelines', 'github']
 
 // ---- Memoized per-instance row ----
 

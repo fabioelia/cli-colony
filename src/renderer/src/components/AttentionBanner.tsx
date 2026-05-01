@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Bell, X, Send, ChevronUp, ChevronDown } from 'lucide-react'
 import type { PersonaAttentionRequest } from '../../../shared/types'
+import MarkdownViewer from './MarkdownViewer'
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -37,7 +38,7 @@ function AttentionCard({ item, onResolve, onDismiss }: AttentionCardProps) {
           <X size={12} />
         </button>
       </div>
-      <div className="attention-card-message">{item.message}</div>
+      <MarkdownViewer content={item.message} className="attention-card-message" />
       <div className="attention-card-actions">
         <button className="attention-reply-btn" onClick={() => setReplyOpen(v => !v)}>Reply</button>
       </div>
