@@ -79,7 +79,7 @@ function saveConfig(config: GitHubConfig): void {
 
 export function gh(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile(resolveCommand('gh'), args, { timeout: 30000, maxBuffer: 1024 * 1024, env: loadShellEnv() }, (err, stdout, stderr) => {
+    execFile(resolveCommand('gh'), args, { timeout: 30000, maxBuffer: 10 * 1024 * 1024, env: loadShellEnv() }, (err, stdout, stderr) => {
       if (err) {
         reject(new Error(stderr || err.message))
       } else {
