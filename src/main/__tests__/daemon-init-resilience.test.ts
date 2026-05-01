@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 // Mock dependencies before importing the module
 const mockConnect = vi.hoisted(() => vi.fn())
@@ -72,7 +72,12 @@ async function loadModule() {
 
 describe('initDaemon resilience', () => {
   beforeEach(() => {
+    vi.useFakeTimers()
     vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('connects on first attempt when daemon is healthy', async () => {
@@ -88,7 +93,9 @@ describe('initDaemon resilience', () => {
       .mockRejectedValueOnce(new Error('subscribe timed out'))
       .mockResolvedValueOnce(undefined)
     const mod = await loadModule()
-    await mod.initDaemon()
+    const promise = mod.initDaemon()
+    await vi.advanceTimersByTimeAsync(5000)
+    await promise
     expect(mockConnect).toHaveBeenCalledTimes(2)
     expect(mockKillDaemonProcess).toHaveBeenCalledTimes(1)
   })
@@ -99,7 +106,9 @@ describe('initDaemon resilience', () => {
       .mockRejectedValueOnce(new Error('timeout 2'))
       .mockResolvedValueOnce(undefined)
     const mod = await loadModule()
-    await mod.initDaemon()
+    const promise = mod.initDaemon()
+    await vi.advanceTimersByTimeAsync(5000)
+    await promise
     expect(mockConnect).toHaveBeenCalledTimes(3)
     expect(mockKillDaemonProcess).toHaveBeenCalledTimes(2)
   })
@@ -110,7 +119,9 @@ describe('initDaemon resilience', () => {
       .mockRejectedValueOnce(new Error('timeout 2'))
       .mockRejectedValueOnce(new Error('timeout 3'))
     const mod = await loadModule()
-    await expect(mod.initDaemon()).rejects.toThrow('daemon init failed after 3 attempts')
+    const promise = mod.initDaemon()
+    await vi.advanceTimersByTimeAsync(5000)
+    await expect(promise).rejects.toThrow('daemon init failed after 3 attempts')
     expect(mockConnect).toHaveBeenCalledTimes(3)
     expect(mockKillDaemonProcess).toHaveBeenCalledTimes(2)
   })
@@ -118,7 +129,9 @@ describe('initDaemon resilience', () => {
   it('does not kill daemon process after the final failed attempt', async () => {
     mockConnect.mockRejectedValue(new Error('always fails'))
     const mod = await loadModule()
-    await expect(mod.initDaemon()).rejects.toThrow()
+    const promise = mod.initDaemon()
+    await vi.advanceTimersByTimeAsync(5000)
+    await expect(promise).rejects.toThrow()
     // killDaemonProcess should only be called between retries (2 times for 3 attempts)
     expect(mockKillDaemonProcess).toHaveBeenCalledTimes(2)
   })
