@@ -120,6 +120,7 @@ describe('initDaemon resilience', () => {
       .mockRejectedValueOnce(new Error('timeout 3'))
     const mod = await loadModule()
     const promise = mod.initDaemon()
+    promise.catch(() => {})  // prevent unhandled rejection during timer advancement
     await vi.advanceTimersByTimeAsync(5000)
     await expect(promise).rejects.toThrow('daemon init failed after 3 attempts')
     expect(mockConnect).toHaveBeenCalledTimes(3)
@@ -130,6 +131,7 @@ describe('initDaemon resilience', () => {
     mockConnect.mockRejectedValue(new Error('always fails'))
     const mod = await loadModule()
     const promise = mod.initDaemon()
+    promise.catch(() => {})  // prevent unhandled rejection during timer advancement
     await vi.advanceTimersByTimeAsync(5000)
     await expect(promise).rejects.toThrow()
     // killDaemonProcess should only be called between retries (2 times for 3 attempts)
