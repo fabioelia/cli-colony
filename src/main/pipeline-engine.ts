@@ -555,6 +555,8 @@ export interface PipelineRunEntry {
     matchedPRs?: number[]
     newCommits?: string[]
     matchedFiles?: string[]
+    githubEvent?: string
+    githubAction?: string
   }
   webhookFired?: boolean
 }
@@ -2911,7 +2913,7 @@ export function getWebhookTriggers(): Array<{ name: string; slug: string; trigge
  * Fire a webhook-triggered pipeline by its slug.
  * Stores the payload for runPoll to consume, then calls runPoll.
  */
-export function fireWebhookPipeline(slug: string, payload: unknown): { ok: boolean; error?: string } {
+export function fireWebhookPipeline(slug: string, payload: unknown, overrides?: RunOverrides): { ok: boolean; error?: string } {
   // Find pipeline whose slugified name matches
   let pipelineName: string | null = null
   for (const [name, p] of pipelines) {
@@ -2927,7 +2929,7 @@ export function fireWebhookPipeline(slug: string, payload: unknown): { ok: boole
 
   // Store payload and trigger runPoll (async, fire-and-forget)
   webhookPayloads.set(pipelineName, payload)
-  runPoll(pipelineName).catch((err) => {
+  runPoll(pipelineName, overrides).catch((err) => {
     log(`Error running webhook poll for ${pipelineName}: ${err}`)
   })
 

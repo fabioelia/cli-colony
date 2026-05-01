@@ -12,7 +12,7 @@
 import { app } from 'electron'
 import { createServer, IncomingMessage, ServerResponse, Server } from 'http'
 import { createHmac, timingSafeEqual } from 'crypto'
-import { fireWebhookPipeline, getWebhookTriggers, getPipelineList, triggerPollNow } from './pipeline-engine'
+import { fireWebhookPipeline, getWebhookTriggers, getPipelineList, triggerPollNow, getHistory } from './pipeline-engine'
 import { getAllInstances, createInstance, killInstance } from './instance-manager'
 import { getDaemonRouter } from './daemon-router'
 import { getSetting } from './settings'
@@ -23,6 +23,77 @@ const PREFIX = '[webhook-server]'
 
 let server: Server | null = null
 let serverUrl: string | null = null
+const serverStartMs = Date.now()
+
+/** Extract structured template vars from a GitHub webhook payload. Returns a flat Record<string, string>. */
+function extractGitHubVars(eventType: string, payload: unknown): Record<string, string> {
+  const vars: Record<string, string> = {}
+  if (!payload || typeof payload !== 'object') return vars
+  const p = payload as Record<string, unknown>
+
+  // All events
+  if (eventType) vars.github_event = eventType
+  const repo = p.repository as Record<string, unknown> | undefined
+  if (repo?.full_name) vars.github_repo = String(repo.full_name)
+  const sender = p.sender as Record<string, unknown> | undefined
+  if (sender?.login) vars.github_sender = String(sender.login)
+
+  try {
+    if (eventType === 'push') {
+      const ref = typeof p.ref === 'string' ? p.ref : ''
+      if (ref.startsWith('refs/tags/')) {
+        vars.github_branch = `tag:${ref.replace('refs/tags/', '')}`
+      } else {
+        vars.github_branch = ref.replace('refs/heads/', '')
+      }
+      const head = p.head_commit as Record<string, unknown> | undefined
+      if (head?.id) vars.github_commit = String(head.id)
+      if (typeof head?.message === 'string') {
+        vars.github_commit_message = head.message.slice(0, 200)
+      }
+      const pusher = p.pusher as Record<string, unknown> | undefined
+      if (pusher?.name) vars.github_pusher = String(pusher.name)
+    } else if (eventType === 'pull_request') {
+      const action = typeof p.action === 'string' ? p.action : ''
+      if (action) vars.github_action = action
+      const pr = p.pull_request as Record<string, unknown> | undefined
+      if (pr) {
+        if (pr.number !== undefined) vars.github_pr_number = String(pr.number)
+        if (typeof pr.title === 'string') vars.github_pr_title = pr.title
+        const head = pr.head as Record<string, unknown> | undefined
+        if (head?.ref) vars.github_pr_branch = String(head.ref)
+        const base = pr.base as Record<string, unknown> | undefined
+        if (base?.ref) vars.github_pr_base = String(base.ref)
+        const user = pr.user as Record<string, unknown> | undefined
+        if (user?.login) vars.github_pr_author = String(user.login)
+        if (typeof pr.html_url === 'string') vars.github_pr_url = pr.html_url
+      }
+    } else if (eventType === 'issues') {
+      const action = typeof p.action === 'string' ? p.action : ''
+      if (action) vars.github_action = action
+      const issue = p.issue as Record<string, unknown> | undefined
+      if (issue) {
+        if (issue.number !== undefined) vars.github_issue_number = String(issue.number)
+        if (typeof issue.title === 'string') vars.github_issue_title = issue.title
+        const user = issue.user as Record<string, unknown> | undefined
+        if (user?.login) vars.github_issue_author = String(user.login)
+      }
+    } else if (eventType === 'workflow_run') {
+      const action = typeof p.action === 'string' ? p.action : ''
+      if (action) vars.github_action = action
+      const wf = p.workflow_run as Record<string, unknown> | undefined
+      if (wf) {
+        if (typeof wf.name === 'string') vars.github_workflow_name = wf.name
+        if (typeof wf.conclusion === 'string') vars.github_workflow_conclusion = wf.conclusion
+        if (typeof wf.head_branch === 'string') vars.github_branch = wf.head_branch
+      }
+    }
+  } catch {
+    // If extraction fails, return whatever we extracted so far — don't crash
+  }
+
+  return vars
+}
 
 // SSE client tracking
 const MAX_SSE_CLIENTS = 5
@@ -531,6 +602,101 @@ async function handleApiRequest(req: IncomingMessage, res: ServerResponse): Prom
     return
   }
 
+  // GET /api/pipelines/:name/runs/latest — must match before bare /runs
+  const runsLatestMatch = url.match(/^\/api\/pipelines\/([^/?#]+)\/runs\/latest$/)
+  if (method === 'GET' && runsLatestMatch) {
+    const name = decodeURIComponent(runsLatestMatch[1])
+    const pipelines = getPipelineList()
+    if (!pipelines.find((p) => p.name === name)) {
+      sendJson(res, 404, { error: `Pipeline not found: ${name}` })
+      return
+    }
+    const history = await getHistory(name)
+    if (history.length === 0) {
+      sendJson(res, 404, { error: 'No runs recorded for this pipeline' })
+      return
+    }
+    sendJson(res, 200, { pipeline: name, run: history[history.length - 1] })
+    return
+  }
+
+  // GET /api/pipelines/:name/runs
+  const runsMatch = url.match(/^\/api\/pipelines\/([^/?#]+)\/runs(?:\?.*)?$/)
+  if (method === 'GET' && runsMatch) {
+    const name = decodeURIComponent(runsMatch[1])
+    const pipelines = getPipelineList()
+    if (!pipelines.find((p) => p.name === name)) {
+      sendJson(res, 404, { error: `Pipeline not found: ${name}` })
+      return
+    }
+    const history = await getHistory(name)
+    const reversed = [...history].reverse()
+    const limitParam = new URL(`http://x${url}`).searchParams.get('limit')
+    const limit = limitParam ? Math.min(20, Math.max(1, parseInt(limitParam, 10) || 20)) : reversed.length
+    sendJson(res, 200, { pipeline: name, runs: reversed.slice(0, limit) })
+    return
+  }
+
+  // GET /api/health
+  if (method === 'GET' && url === '/api/health') {
+    const instances = await getAllInstances()
+    const running = instances.filter((i) => i.status === 'running').length
+    const stopped = instances.filter((i) => i.status === 'exited').length
+    const errored = 0 // exitCode not exposed on InstanceInfo; derive from history if needed
+
+    const personaList = getPersonaList()
+    const personaDetails = personaList.map((p) => ({
+      id: p.id,
+      name: p.name,
+      enabled: p.enabled,
+      active: p.activeSessionId !== null,
+      lastRun: p.lastRun ?? null,
+      runCount: p.runCount,
+      consecutiveFailures: p.healthScore?.consecutiveFailures ?? 0,
+    }))
+
+    const pipelineList = getPipelineList()
+    const pipelineDetails = await Promise.all(pipelineList.map(async (pl) => {
+      let lastSuccess: boolean | null = null
+      try {
+        const hist = await getHistory(pl.name)
+        if (hist.length > 0) lastSuccess = hist[hist.length - 1].success
+      } catch { /* ignore */ }
+      return {
+        name: pl.name,
+        enabled: pl.enabled,
+        lastFired: pl.lastFiredAt ?? null,
+        fireCount: pl.fireCount,
+        lastSuccess,
+      }
+    }))
+
+    // Compute overall status
+    const maxConsecutiveFailures = personaDetails
+      .filter((p) => p.enabled)
+      .reduce((max, p) => Math.max(max, p.consecutiveFailures), 0)
+    let status: 'healthy' | 'degraded' | 'unhealthy'
+    if (maxConsecutiveFailures >= 3) {
+      status = 'unhealthy'
+    } else if (maxConsecutiveFailures >= 1) {
+      status = 'degraded'
+    } else {
+      status = 'healthy'
+    }
+
+    const body = {
+      status,
+      uptime_seconds: Math.floor((Date.now() - serverStartMs) / 1000),
+      sessions: { running, stopped, errored },
+      personas: { total: personaList.length, enabled: personaList.filter((p) => p.enabled).length, active: personaList.filter((p) => p.activeSessionId !== null).length, details: personaDetails },
+      pipelines: { total: pipelineList.length, enabled: pipelineList.filter((p) => p.enabled).length, details: pipelineDetails },
+      version: app.getVersion(),
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=10', 'Access-Control-Allow-Origin': '*' })
+    res.end(JSON.stringify(body))
+    return
+  }
+
   // GET /api/openapi.json — OpenAPI 3.0 spec (update this when adding new endpoints)
   if (method === 'GET' && url === '/api/openapi.json') {
     const port = serverUrl ? new URL(serverUrl).port : '7474'
@@ -571,6 +737,31 @@ async function handleApiRequest(req: IncomingMessage, res: ServerResponse): Prom
             },
           },
           Error: { type: 'object', properties: { error: { type: 'string' } } },
+          PipelineRunEntry: {
+            type: 'object',
+            properties: {
+              ts: { type: 'string', description: 'ISO timestamp of run' },
+              trigger: { type: 'string' },
+              actionExecuted: { type: 'boolean' },
+              success: { type: 'boolean' },
+              durationMs: { type: 'number' },
+              totalCost: { type: 'number', nullable: true },
+              sessionIds: { type: 'array', items: { type: 'string' } },
+              webhookFired: { type: 'boolean' },
+              triggerContext: { type: 'object', properties: { githubEvent: { type: 'string' }, githubAction: { type: 'string' } } },
+            },
+          },
+          HealthReport: {
+            type: 'object',
+            properties: {
+              status: { type: 'string', enum: ['healthy', 'degraded', 'unhealthy'] },
+              uptime_seconds: { type: 'number' },
+              sessions: { type: 'object', properties: { running: { type: 'number' }, stopped: { type: 'number' }, errored: { type: 'number' } } },
+              personas: { type: 'object', properties: { total: { type: 'number' }, enabled: { type: 'number' }, active: { type: 'number' }, details: { type: 'array', items: { type: 'object' } } } },
+              pipelines: { type: 'object', properties: { total: { type: 'number' }, enabled: { type: 'number' }, details: { type: 'array', items: { type: 'object' } } } },
+              version: { type: 'string' },
+            },
+          },
         },
       },
       security: [{ BearerToken: [] }, { ColonyToken: [] }],
@@ -685,6 +876,42 @@ async function handleApiRequest(req: IncomingMessage, res: ServerResponse): Prom
             responses: {
               '200': { description: 'Triggered', content: { 'application/json': { schema: { type: 'object', properties: { ok: { type: 'boolean' }, pipeline: { type: 'string' }, overrides: { type: 'object' } } } } } },
               '404': { description: 'Pipeline not found' },
+            },
+          },
+        },
+        '/api/pipelines/{name}/runs': {
+          get: {
+            summary: 'Get pipeline run history', operationId: 'getPipelineRuns', tags: ['Pipelines'],
+            parameters: [
+              { name: 'name', in: 'path', required: true, schema: { type: 'string' } },
+              { name: 'limit', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 20 }, description: 'Max number of runs to return (default: all, max: 20)' },
+            ],
+            responses: {
+              '200': { description: 'Run history (newest first)', content: { 'application/json': { schema: { type: 'object', properties: { pipeline: { type: 'string' }, runs: { type: 'array', items: { $ref: '#/components/schemas/PipelineRunEntry' } } } } } } },
+              '404': { description: 'Pipeline not found' },
+            },
+          },
+        },
+        '/api/pipelines/{name}/runs/latest': {
+          get: {
+            summary: 'Get most recent pipeline run', operationId: 'getLatestPipelineRun', tags: ['Pipelines'],
+            parameters: [{ name: 'name', in: 'path', required: true, schema: { type: 'string' } }],
+            responses: {
+              '200': { description: 'Most recent run entry', content: { 'application/json': { schema: { type: 'object', properties: { pipeline: { type: 'string' }, run: { $ref: '#/components/schemas/PipelineRunEntry' } } } } } },
+              '404': { description: 'Pipeline not found or no runs recorded' },
+            },
+          },
+        },
+        '/api/health': {
+          get: {
+            summary: 'Colony fleet health', operationId: 'getHealth', tags: ['System'],
+            description: 'Comprehensive health report: session counts, persona health, pipeline status. Cached for 10 seconds.',
+            responses: {
+              '200': {
+                description: 'Health report',
+                headers: { 'Cache-Control': { schema: { type: 'string' }, description: 'max-age=10' } },
+                content: { 'application/json': { schema: { $ref: '#/components/schemas/HealthReport' } } },
+              },
             },
           },
         },
@@ -846,8 +1073,18 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     payload = body.toString('utf8')
   }
 
-  // Fire the pipeline
-  const result = fireWebhookPipeline(triggerEntry.name, payload)
+  // Extract GitHub enrichment vars when source is GitHub
+  let overrides: import('./pipeline-engine').RunOverrides | undefined
+  if (source === 'github') {
+    const eventType = (req.headers['x-github-event'] as string | undefined) || ''
+    const vars = extractGitHubVars(eventType, payload)
+    if (Object.keys(vars).length > 0) {
+      overrides = { templateVarOverrides: vars }
+    }
+  }
+
+  // Fire the pipeline — pass slug (not name) to satisfy fireWebhookPipeline's slug lookup
+  const result = fireWebhookPipeline(slug, payload, overrides)
   if (result.ok) {
     log(`Fired pipeline: ${triggerEntry.name}`)
     sendJson(res, 200, { ok: true, pipeline: triggerEntry.name })
