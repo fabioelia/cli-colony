@@ -1243,17 +1243,21 @@ async function recoverFromDisk(): Promise<void> {
       // Read state.json to find stale PIDs and shouldBeRunning
       const state = readAndReconcileState(envDir)
 
-      // Kill stale PIDs from the previous daemon session
+      // Kill ALL PIDs from the previous daemon session — running or crashed.
+      // The new daemon can't reattach to processes it didn't spawn (no fd inheritance,
+      // no exit-event subscription), so any persisted PID is by definition stale.
+      // Leaving "running" PIDs alive causes orphans + port conflicts on restart.
       if (state) {
         const stalePids: Record<string, number> = {}
         for (const [name, svc] of Object.entries(state.services)) {
-          if (svc.pid != null && svc.status === 'crashed') {
-            // readAndReconcileState already marked dead PIDs as crashed
+          if (svc.pid != null) {
             stalePids[name] = svc.pid
+            svc.pid = null
+            svc.status = 'stopped'
           }
         }
         if (Object.keys(stalePids).length > 0) {
-          log(`[${manifest.name}] cleaning up ${Object.keys(stalePids).length} stale PID(s)`)
+          log(`[${manifest.name}] cleaning up ${Object.keys(stalePids).length} stale PID(s) from prior daemon`)
           await killStalePids(stalePids, manifest.name)
         }
       }

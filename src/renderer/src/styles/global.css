@@ -25015,6 +25015,9 @@ button.session-trigger-chain-btn:hover {
   background: color-mix(in srgb, var(--warning) 10%, var(--bg-primary));
   border-bottom: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
   flex-shrink: 0;
+  position: relative;
+  z-index: 11;
+  -webkit-app-region: no-drag;
 }
 .attention-banner-collapsed {
   display: flex;
