@@ -5,6 +5,7 @@
 
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest'
 import http from 'http'
+import { createHmac } from 'crypto'
 
 // --- Mocks (hoisted before module imports) ---
 
@@ -19,6 +20,7 @@ const mockDaemonRouterObj = vi.hoisted(() => ({
 }))
 const mockGetPipelineList = vi.hoisted(() => vi.fn().mockReturnValue([]))
 const mockTriggerPollNow = vi.hoisted(() => vi.fn().mockReturnValue(false))
+const mockGetHistory = vi.hoisted(() => vi.fn().mockResolvedValue([]))
 const mockGetPersonaList = vi.hoisted(() => vi.fn().mockReturnValue([]))
 const mockRunPersona = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 
@@ -32,11 +34,15 @@ vi.mock('../instance-manager', () => ({
   killInstance: mockKillInstance,
 }))
 vi.mock('../daemon-router', () => ({ getDaemonRouter: () => mockDaemonRouterObj }))
+const mockFireWebhookPipeline = vi.hoisted(() => vi.fn().mockReturnValue({ ok: true }))
+const mockGetWebhookTriggers = vi.hoisted(() => vi.fn().mockReturnValue([]))
+
 vi.mock('../pipeline-engine', () => ({
   getPipelineList: mockGetPipelineList,
   triggerPollNow: mockTriggerPollNow,
-  fireWebhookPipeline: vi.fn(),
-  getWebhookTriggers: vi.fn().mockReturnValue([]),
+  fireWebhookPipeline: mockFireWebhookPipeline,
+  getWebhookTriggers: mockGetWebhookTriggers,
+  getHistory: mockGetHistory,
 }))
 vi.mock('../persona-manager', () => ({
   getPersonaList: mockGetPersonaList,
@@ -116,6 +122,9 @@ beforeEach(() => {
   mockDaemonRouterObj.getInstanceBuffer.mockResolvedValue('')
   mockDaemonRouterObj.removeInstance.mockResolvedValue(undefined)
   mockDaemonRouterObj.steerInstance.mockResolvedValue(true)
+  mockGetHistory.mockResolvedValue([])
+  mockFireWebhookPipeline.mockReturnValue({ ok: true })
+  mockGetWebhookTriggers.mockReturnValue([])
 })
 
 // --- Auth ---
@@ -684,5 +693,357 @@ describe('Unknown /api/* routes', () => {
     const res = await apiRequest({ path: '/api/unknown-endpoint' })
     expect(res.status).toBe(404)
     expect((res.body as Record<string, unknown>).error).toBe('Not Found')
+  })
+})
+
+// --- GET /api/pipelines/:name/runs (#593) ---
+
+const RUN_A = { firedAt: '2026-05-01T10:00:00Z', success: true, durationMs: 100 }
+const RUN_B = { firedAt: '2026-05-01T12:00:00Z', success: false, durationMs: 200 }
+const RUN_C = { firedAt: '2026-05-01T14:00:00Z', success: true, durationMs: 150 }
+
+describe('GET /api/pipelines/:name/runs', () => {
+  it('returns 404 when pipeline not found', async () => {
+    mockGetPipelineList.mockReturnValue([])
+    const res = await apiRequest({ path: '/api/pipelines/missing/runs' })
+    expect(res.status).toBe(404)
+    expect((res.body as Record<string, unknown>).error).toContain('missing')
+  })
+
+  it('returns empty runs array when no history', async () => {
+    mockGetPipelineList.mockReturnValue([{ name: 'my-pipe', enabled: true }])
+    mockGetHistory.mockResolvedValue([])
+    const res = await apiRequest({ path: '/api/pipelines/my-pipe/runs' })
+    expect(res.status).toBe(200)
+    const body = res.body as Record<string, unknown>
+    expect(body.pipeline).toBe('my-pipe')
+    expect(body.runs).toEqual([])
+  })
+
+  it('returns runs newest-first', async () => {
+    mockGetPipelineList.mockReturnValue([{ name: 'my-pipe', enabled: true }])
+    mockGetHistory.mockResolvedValue([RUN_A, RUN_B, RUN_C])
+    const res = await apiRequest({ path: '/api/pipelines/my-pipe/runs' })
+    expect(res.status).toBe(200)
+    const runs = (res.body as Record<string, unknown>).runs as typeof RUN_A[]
+    expect(runs[0].firedAt).toBe(RUN_C.firedAt)
+    expect(runs[1].firedAt).toBe(RUN_B.firedAt)
+    expect(runs[2].firedAt).toBe(RUN_A.firedAt)
+  })
+
+  it('respects ?limit parameter', async () => {
+    mockGetPipelineList.mockReturnValue([{ name: 'my-pipe', enabled: true }])
+    mockGetHistory.mockResolvedValue([RUN_A, RUN_B, RUN_C])
+    const res = await apiRequest({ path: '/api/pipelines/my-pipe/runs?limit=2' })
+    expect(res.status).toBe(200)
+    const runs = (res.body as Record<string, unknown>).runs as unknown[]
+    expect(runs).toHaveLength(2)
+    expect((runs[0] as typeof RUN_A).firedAt).toBe(RUN_C.firedAt)
+  })
+
+  it('clamps limit to max 20', async () => {
+    const many = Array.from({ length: 25 }, (_, i) => ({ firedAt: `2026-05-01T${String(i).padStart(2, '0')}:00:00Z`, success: true }))
+    mockGetPipelineList.mockReturnValue([{ name: 'my-pipe', enabled: true }])
+    mockGetHistory.mockResolvedValue(many)
+    const res = await apiRequest({ path: '/api/pipelines/my-pipe/runs?limit=99' })
+    expect(res.status).toBe(200)
+    expect(((res.body as Record<string, unknown>).runs as unknown[]).length).toBeLessThanOrEqual(20)
+  })
+
+  it('URL-decodes pipeline name', async () => {
+    mockGetPipelineList.mockReturnValue([{ name: 'my pipe', enabled: true }])
+    mockGetHistory.mockResolvedValue([RUN_A])
+    const res = await apiRequest({ path: '/api/pipelines/my%20pipe/runs' })
+    expect(res.status).toBe(200)
+    expect(mockGetHistory).toHaveBeenCalledWith('my pipe')
+  })
+})
+
+// --- GET /api/pipelines/:name/runs/latest (#593) ---
+
+describe('GET /api/pipelines/:name/runs/latest', () => {
+  it('returns 404 when pipeline not found', async () => {
+    mockGetPipelineList.mockReturnValue([])
+    const res = await apiRequest({ path: '/api/pipelines/missing/runs/latest' })
+    expect(res.status).toBe(404)
+  })
+
+  it('returns 404 when no runs recorded', async () => {
+    mockGetPipelineList.mockReturnValue([{ name: 'my-pipe', enabled: true }])
+    mockGetHistory.mockResolvedValue([])
+    const res = await apiRequest({ path: '/api/pipelines/my-pipe/runs/latest' })
+    expect(res.status).toBe(404)
+    expect((res.body as Record<string, unknown>).error).toContain('No runs')
+  })
+
+  it('returns last element (most recent run)', async () => {
+    mockGetPipelineList.mockReturnValue([{ name: 'my-pipe', enabled: true }])
+    mockGetHistory.mockResolvedValue([RUN_A, RUN_B, RUN_C])
+    const res = await apiRequest({ path: '/api/pipelines/my-pipe/runs/latest' })
+    expect(res.status).toBe(200)
+    const body = res.body as Record<string, unknown>
+    expect(body.pipeline).toBe('my-pipe')
+    expect((body.run as typeof RUN_C).firedAt).toBe(RUN_C.firedAt)
+  })
+})
+
+// --- GET /api/health (#594) ---
+
+const HEALTHY_PERSONA = {
+  id: 'p1', name: 'Dev', enabled: true, activeSessionId: null,
+  lastRun: null, runCount: 5,
+  healthScore: { consecutiveFailures: 0, successRate: 1, lastCheck: null },
+}
+
+describe('GET /api/health', () => {
+  it('returns 200 with required top-level keys', async () => {
+    mockGetPersonaList.mockReturnValue([HEALTHY_PERSONA])
+    mockGetPipelineList.mockReturnValue([])
+    const res = await apiRequest({ path: '/api/health' })
+    expect(res.status).toBe(200)
+    const body = res.body as Record<string, unknown>
+    expect(body.status).toBeDefined()
+    expect(body.personas).toBeDefined()
+    expect(body.pipelines).toBeDefined()
+    expect(body.sessions).toBeDefined()
+    expect(body.uptime_seconds).toBeTypeOf('number')
+    expect(body.version).toBe('1.2.3')
+  })
+
+  it('sets Cache-Control: max-age=10', async () => {
+    mockGetPersonaList.mockReturnValue([])
+    mockGetPipelineList.mockReturnValue([])
+    const res = await apiRequest({ path: '/api/health' })
+    expect(res.headers['cache-control']).toBe('max-age=10')
+  })
+
+  it('sets Access-Control-Allow-Origin: *', async () => {
+    mockGetPersonaList.mockReturnValue([])
+    mockGetPipelineList.mockReturnValue([])
+    const res = await apiRequest({ path: '/api/health' })
+    expect(res.headers['access-control-allow-origin']).toBe('*')
+  })
+
+  it('reports healthy status when no consecutive failures', async () => {
+    mockGetPersonaList.mockReturnValue([HEALTHY_PERSONA])
+    mockGetPipelineList.mockReturnValue([])
+    const res = await apiRequest({ path: '/api/health' })
+    expect((res.body as Record<string, unknown>).status).toBe('healthy')
+  })
+
+  it('reports degraded when 1-2 consecutive failures', async () => {
+    const degraded = { ...HEALTHY_PERSONA, healthScore: { consecutiveFailures: 1, successRate: 0.5, lastCheck: null } }
+    mockGetPersonaList.mockReturnValue([degraded])
+    mockGetPipelineList.mockReturnValue([])
+    const res = await apiRequest({ path: '/api/health' })
+    expect((res.body as Record<string, unknown>).status).toBe('degraded')
+  })
+
+  it('reports unhealthy when 3+ consecutive failures', async () => {
+    const unhealthy = { ...HEALTHY_PERSONA, healthScore: { consecutiveFailures: 3, successRate: 0, lastCheck: null } }
+    mockGetPersonaList.mockReturnValue([unhealthy])
+    mockGetPipelineList.mockReturnValue([])
+    const res = await apiRequest({ path: '/api/health' })
+    expect((res.body as Record<string, unknown>).status).toBe('unhealthy')
+  })
+
+  it('personas payload includes totals + enabled + active counts', async () => {
+    const active = { ...HEALTHY_PERSONA, id: 'p2', activeSessionId: 'sess-1' }
+    const disabled = { ...HEALTHY_PERSONA, id: 'p3', enabled: false }
+    mockGetPersonaList.mockReturnValue([HEALTHY_PERSONA, active, disabled])
+    mockGetPipelineList.mockReturnValue([])
+    const res = await apiRequest({ path: '/api/health' })
+    const personas = (res.body as Record<string, unknown>).personas as Record<string, unknown>
+    expect(personas.total).toBe(3)
+    expect(personas.enabled).toBe(2)
+    expect(personas.active).toBe(1)
+    expect(Array.isArray(personas.details)).toBe(true)
+  })
+
+  it('pipelines payload includes totals + enabled counts', async () => {
+    mockGetPersonaList.mockReturnValue([])
+    mockGetPipelineList.mockReturnValue([
+      { name: 'p1', enabled: true, lastFiredAt: null, fireCount: 0 },
+      { name: 'p2', enabled: false, lastFiredAt: null, fireCount: 0 },
+    ])
+    mockGetHistory.mockResolvedValue([])
+    const res = await apiRequest({ path: '/api/health' })
+    const pipelines = (res.body as Record<string, unknown>).pipelines as Record<string, unknown>
+    expect(pipelines.total).toBe(2)
+    expect(pipelines.enabled).toBe(1)
+    expect(Array.isArray(pipelines.details)).toBe(true)
+  })
+
+  it('sessions payload includes running/stopped/errored', async () => {
+    mockGetAllInstances.mockResolvedValue([
+      { id: '1', status: 'running' },
+      { id: '2', status: 'running' },
+      { id: '3', status: 'exited' },
+    ])
+    mockGetPersonaList.mockReturnValue([])
+    mockGetPipelineList.mockReturnValue([])
+    const res = await apiRequest({ path: '/api/health' })
+    const sessions = (res.body as Record<string, unknown>).sessions as Record<string, unknown>
+    expect(sessions.running).toBe(2)
+    expect(sessions.stopped).toBe(1)
+    expect(sessions.errored).toBe(0)
+  })
+})
+
+// --- POST /webhook/:slug — extractGitHubVars enrichment (#592) ---
+
+function makeGithubSig(secret: string, body: string): string {
+  return `sha256=${createHmac('sha256', secret).update(Buffer.from(body)).digest('hex')}`
+}
+
+const GITHUB_TRIGGER = {
+  name: 'github-pipe',
+  slug: 'gh-hook',
+  trigger: { type: 'webhook', source: 'github', secret: 'test-secret' },
+}
+
+async function postWebhook(eventType: string, payload: object): Promise<{ status: number; body: unknown }> {
+  const bodyStr = JSON.stringify(payload)
+  const sig = makeGithubSig(GITHUB_TRIGGER.trigger.secret, bodyStr)
+  return new Promise((resolve, reject) => {
+    const bodyBuf = Buffer.from(bodyStr, 'utf8')
+    const req = http.request(
+      {
+        hostname: '127.0.0.1', port, method: 'POST',
+        path: `/webhook/${GITHUB_TRIGGER.slug}`,
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': bodyBuf.length.toString(),
+          'x-github-event': eventType,
+          'x-hub-signature-256': sig,
+        },
+      },
+      (res) => {
+        const chunks: Buffer[] = []
+        res.on('data', (c: Buffer) => chunks.push(c))
+        res.on('end', () => {
+          const text = Buffer.concat(chunks).toString('utf8')
+          let body: unknown
+          try { body = JSON.parse(text) } catch { body = text }
+          resolve({ status: res.statusCode ?? 0, body })
+        })
+      },
+    )
+    req.on('error', reject)
+    req.write(bodyBuf)
+    req.end()
+  })
+}
+
+describe('POST /webhook/:slug — extractGitHubVars enrichment', () => {
+  beforeEach(() => {
+    mockGetWebhookTriggers.mockReturnValue([GITHUB_TRIGGER])
+  })
+
+  it('enriches push event with github_event, github_repo, github_branch, github_commit, github_pusher', async () => {
+    const payload = {
+      ref: 'refs/heads/main',
+      repository: { full_name: 'acme/app' },
+      sender: { login: 'fabio' },
+      head_commit: { id: 'abc123', message: 'fix: something' },
+      pusher: { name: 'fabio' },
+    }
+    await postWebhook('push', payload)
+    expect(mockFireWebhookPipeline).toHaveBeenCalledOnce()
+    const overrides = mockFireWebhookPipeline.mock.calls[0][2]
+    const vars = overrides?.templateVarOverrides
+    expect(vars?.github_event).toBe('push')
+    expect(vars?.github_repo).toBe('acme/app')
+    expect(vars?.github_sender).toBe('fabio')
+    expect(vars?.github_branch).toBe('main')
+    expect(vars?.github_commit).toBe('abc123')
+    expect(vars?.github_commit_message).toBe('fix: something')
+    expect(vars?.github_pusher).toBe('fabio')
+  })
+
+  it('enriches push event with tag: prefix for tag refs', async () => {
+    const payload = {
+      ref: 'refs/tags/v1.2.3',
+      repository: { full_name: 'acme/app' },
+      sender: { login: 'bot' },
+      head_commit: { id: 'def456', message: 'chore: release' },
+      pusher: { name: 'bot' },
+    }
+    await postWebhook('push', payload)
+    const vars = mockFireWebhookPipeline.mock.calls[0][2]?.templateVarOverrides
+    expect(vars?.github_branch).toBe('tag:v1.2.3')
+  })
+
+  it('enriches pull_request event with pr fields', async () => {
+    const payload = {
+      action: 'opened',
+      repository: { full_name: 'acme/app' },
+      sender: { login: 'dev' },
+      pull_request: {
+        number: 42,
+        title: 'feat: new thing',
+        html_url: 'https://github.com/acme/app/pull/42',
+        head: { ref: 'feat/new-thing' },
+        base: { ref: 'main' },
+        user: { login: 'dev' },
+      },
+    }
+    await postWebhook('pull_request', payload)
+    const vars = mockFireWebhookPipeline.mock.calls[0][2]?.templateVarOverrides
+    expect(vars?.github_event).toBe('pull_request')
+    expect(vars?.github_action).toBe('opened')
+    expect(vars?.github_pr_number).toBe('42')
+    expect(vars?.github_pr_title).toBe('feat: new thing')
+    expect(vars?.github_pr_branch).toBe('feat/new-thing')
+    expect(vars?.github_pr_base).toBe('main')
+    expect(vars?.github_pr_author).toBe('dev')
+    expect(vars?.github_pr_url).toBe('https://github.com/acme/app/pull/42')
+  })
+
+  it('enriches issues event with issue fields', async () => {
+    const payload = {
+      action: 'opened',
+      repository: { full_name: 'acme/app' },
+      sender: { login: 'reporter' },
+      issue: {
+        number: 99,
+        title: 'Bug: something broken',
+        user: { login: 'reporter' },
+      },
+    }
+    await postWebhook('issues', payload)
+    const vars = mockFireWebhookPipeline.mock.calls[0][2]?.templateVarOverrides
+    expect(vars?.github_event).toBe('issues')
+    expect(vars?.github_action).toBe('opened')
+    expect(vars?.github_issue_number).toBe('99')
+    expect(vars?.github_issue_title).toBe('Bug: something broken')
+    expect(vars?.github_issue_author).toBe('reporter')
+  })
+
+  it('passes no overrides for unknown event types', async () => {
+    const payload = { repository: { full_name: 'acme/app' }, sender: { login: 'bot' } }
+    await postWebhook('star', payload)
+    const overrides = mockFireWebhookPipeline.mock.calls[0][2]
+    // github_event + github_repo + github_sender are always extracted — so overrides exist
+    // but no event-specific fields
+    const vars = overrides?.templateVarOverrides
+    expect(vars?.github_event).toBe('star')
+    expect(vars?.github_pr_number).toBeUndefined()
+    expect(vars?.github_issue_number).toBeUndefined()
+    expect(vars?.github_branch).toBeUndefined()
+  })
+
+  it('truncates commit_message to 200 chars', async () => {
+    const longMsg = 'x'.repeat(300)
+    const payload = {
+      ref: 'refs/heads/main',
+      repository: { full_name: 'acme/app' },
+      sender: { login: 'bot' },
+      head_commit: { id: 'aaa', message: longMsg },
+      pusher: { name: 'bot' },
+    }
+    await postWebhook('push', payload)
+    const vars = mockFireWebhookPipeline.mock.calls[0][2]?.templateVarOverrides
+    expect(vars?.github_commit_message?.length).toBe(200)
   })
 })
