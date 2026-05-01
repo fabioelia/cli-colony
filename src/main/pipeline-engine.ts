@@ -52,13 +52,25 @@ export interface TriggerDef {
   event?: string
 }
 
+export type LeafConditionType =
+  | 'branch-file-exists'
+  | 'pr-checks-failed'
+  | 'file-created'
+  | 'always'
+  | 'files-changed'
+  | 'review-requested'
+
+export type CompositeConditionType = 'any-of' | 'all-of'
+
 export interface ConditionDef {
-  type: 'branch-file-exists' | 'pr-checks-failed' | 'file-created' | 'always' | 'files-changed' | 'review-requested'
+  type: LeafConditionType | CompositeConditionType
   branch?: string
   path?: string
   patterns?: string[] // for files-changed: glob patterns (prefix ! for exclusion)
   match?: Record<string, string>
   exclude?: string[] // check names to ignore (substring match)
+  /** Sub-conditions for composite types (any-of, all-of). Recursive — composites may nest. */
+  conditions?: ConditionDef[]
 }
 
 export interface RunOverrides {
@@ -333,32 +345,31 @@ function parsePipelineYaml(content: string): PipelineDef | null {
     const result = parseYamlShared(content) as any
     if (!result) return null
 
-    // Parse match as key-value pairs
-    if (result.condition?.match && typeof result.condition.match === 'string') {
-      result.condition.match = {}
+    // Normalize the condition tree (recursive — handles nested any-of/all-of)
+    if (result.condition) normalizeConditionTree(result.condition)
+
+    // Ensure trigger.watch is an array
+    if (typeof result.trigger?.watch === 'string') {
+      result.trigger.watch = [result.trigger.watch]
     }
-
-    // Ensure array fields are arrays (single string -> wrapped in array)
-    const arrayFields: Array<{ parent: any; key: string }> = []
-    if (result.condition?.exclude !== undefined) arrayFields.push({ parent: result.condition, key: 'exclude' })
-    if (result.trigger?.watch !== undefined) arrayFields.push({ parent: result.trigger, key: 'watch' })
-    if (result.condition?.patterns !== undefined) arrayFields.push({ parent: result.condition, key: 'patterns' })
-
-    for (const { parent, key } of arrayFields) {
-      if (typeof parent[key] === 'string') {
-        parent[key] = [parent[key]]
-      }
-    }
-
-    // Also parse dash-list arrays from the raw content for exclude, watch, and patterns
-    const excludeArr = parseYamlArray(content, 'exclude')
-    if (excludeArr && result.condition) result.condition.exclude = excludeArr
-
     const watchArr = parseYamlArray(content, 'watch')
     if (watchArr && result.trigger) result.trigger.watch = watchArr
 
-    const patternsArr = parseYamlArray(content, 'patterns')
-    if (patternsArr && result.condition) result.condition.patterns = patternsArr
+    // Legacy: re-parse top-level exclude/patterns dash lists from raw content.
+    // Only applied to leaf conditions — composites rely on the structured parser
+    // to populate per-sub-condition arrays.
+    if (result.condition && !isCompositeCondition(result.condition)) {
+      const excludeArr = parseYamlArray(content, 'exclude')
+      if (excludeArr) result.condition.exclude = excludeArr
+      const patternsArr = parseYamlArray(content, 'patterns')
+      if (patternsArr) result.condition.patterns = patternsArr
+    }
+
+    // Validate composite shape
+    if (result.condition && !validateConditionTree(result.condition)) {
+      log(`YAML error: invalid condition tree — any-of/all-of must have non-empty conditions array`)
+      return null
+    }
 
     if (!result.name || !result.trigger?.type) return null
     if (result.action?.type === 'maker-checker') {
@@ -967,7 +978,62 @@ function evaluateReviewRequested(condition: ConditionDef, ctx: TriggerContext): 
   return ctx.pr.reviewers.includes(ctx.githubUser)
 }
 
-async function evaluateCondition(condition: ConditionDef, ctx: TriggerContext): Promise<boolean> {
+// ---- Composite Condition Helpers ----
+
+const COMPOSITE_CONDITION_TYPES = new Set<string>(['any-of', 'all-of'])
+
+export function isCompositeCondition(c: ConditionDef | undefined | null): boolean {
+  return !!c && COMPOSITE_CONDITION_TYPES.has(c.type)
+}
+
+/** Walk the condition tree depth-first (pre-order). Visits composites and leaves. */
+export function walkConditions(c: ConditionDef, fn: (sub: ConditionDef) => void): void {
+  fn(c)
+  if (isCompositeCondition(c) && Array.isArray(c.conditions)) {
+    for (const sub of c.conditions) walkConditions(sub, fn)
+  }
+}
+
+/** True iff the condition tree contains a leaf of the given type. */
+export function hasConditionOfType(c: ConditionDef, type: LeafConditionType): boolean {
+  let found = false
+  walkConditions(c, sub => { if (sub.type === type) found = true })
+  return found
+}
+
+/**
+ * Recursively normalize a parsed condition object: coerce match/exclude/patterns
+ * into their expected shapes and recurse into composite sub-conditions.
+ */
+function normalizeConditionTree(c: any): void {
+  if (!c || typeof c !== 'object') return
+  if (c.match && typeof c.match === 'string') c.match = {}
+  if (typeof c.exclude === 'string') c.exclude = [c.exclude]
+  if (typeof c.patterns === 'string') c.patterns = [c.patterns]
+  if (Array.isArray(c.conditions)) {
+    for (const sub of c.conditions) normalizeConditionTree(sub)
+  }
+}
+
+/** Validate that any-of/all-of nodes have a non-empty conditions array. */
+function validateConditionTree(c: any): boolean {
+  if (!c || typeof c !== 'object' || typeof c.type !== 'string') return false
+  if (c.type === 'any-of' || c.type === 'all-of') {
+    if (!Array.isArray(c.conditions) || c.conditions.length === 0) return false
+    return c.conditions.every(validateConditionTree)
+  }
+  return true
+}
+
+export interface ConditionMatch {
+  matched: boolean
+  /** The leaf condition that fired (only set when matched=true). */
+  matchedLeaf?: ConditionDef
+  /** Human-readable path describing where the match originated, e.g. "any-of[0]: review-requested". */
+  viaPath?: string
+}
+
+async function evaluateLeafCondition(condition: ConditionDef, ctx: TriggerContext): Promise<boolean> {
   switch (condition.type) {
     case 'branch-file-exists': return evaluateBranchFileExists(condition, ctx)
     case 'pr-checks-failed': return evaluatePrChecksFailed(condition, ctx)
@@ -976,6 +1042,66 @@ async function evaluateCondition(condition: ConditionDef, ctx: TriggerContext): 
     case 'always': return true
     default: return false
   }
+}
+
+async function evaluateConditionInternal(condition: ConditionDef, ctx: TriggerContext): Promise<ConditionMatch> {
+  if (isCompositeCondition(condition)) {
+    const subs = condition.conditions
+    if (!Array.isArray(subs) || subs.length === 0) return { matched: false }
+    const isAnyOf = condition.type === 'any-of'
+
+    let firstMatchedLeaf: ConditionDef | undefined
+    let firstMatchedPath: string | undefined
+    let firstMatchedSha: string | undefined
+
+    for (let i = 0; i < subs.length; i++) {
+      const sub = subs[i]
+      const shaBefore = ctx.contentSha
+      const subResult = await evaluateConditionInternal(sub, ctx)
+      if (subResult.matched) {
+        if (!firstMatchedLeaf) {
+          firstMatchedLeaf = subResult.matchedLeaf
+          firstMatchedPath = `${condition.type}[${i}]${subResult.viaPath ? ` -> ${subResult.viaPath}` : ''}`
+          firstMatchedSha = ctx.contentSha
+        }
+        if (isAnyOf) {
+          // any-of short-circuits on first hit
+          return { matched: true, matchedLeaf: firstMatchedLeaf, viaPath: firstMatchedPath }
+        }
+      } else {
+        // Roll back contentSha so a non-matching sub-condition can't poison dedup
+        ctx.contentSha = shaBefore
+        if (!isAnyOf) {
+          // all-of short-circuits on first miss
+          return { matched: false }
+        }
+      }
+    }
+
+    if (isAnyOf) return { matched: false }
+
+    // all-of: every sub matched. Use the first matched leaf's contentSha for dedup.
+    if (firstMatchedSha !== undefined) ctx.contentSha = firstMatchedSha
+    return { matched: true, matchedLeaf: firstMatchedLeaf, viaPath: firstMatchedPath }
+  }
+
+  // Leaf
+  const matched = await evaluateLeafCondition(condition, ctx)
+  return {
+    matched,
+    matchedLeaf: matched ? condition : undefined,
+    viaPath: matched ? condition.type : undefined,
+  }
+}
+
+export async function evaluateCondition(condition: ConditionDef, ctx: TriggerContext): Promise<boolean> {
+  const result = await evaluateConditionInternal(condition, ctx)
+  return result.matched
+}
+
+/** Evaluate a condition and report which sub-condition (if any) fired. */
+export async function evaluateConditionWithPath(condition: ConditionDef, ctx: TriggerContext): Promise<ConditionMatch> {
+  return evaluateConditionInternal(condition, ctx)
 }
 
 // ---- Action Execution (stage runners imported from ./pipeline-stages) ----
@@ -1500,7 +1626,7 @@ export async function previewPipeline(fileNameOrName: string): Promise<PreviewRe
     }
 
     // files-changed condition: inject repoPath + lastRunCommit for preview evaluation
-    if (def.condition.type === 'files-changed' && contexts.length > 0) {
+    if (hasConditionOfType(def.condition, 'files-changed') && contexts.length > 0) {
       const repos = await getRepos()
       const history = await getHistory(def.name)
       const lastSuccess = [...history].reverse().find(e => e.success && e.headCommit)
@@ -1521,18 +1647,21 @@ export async function previewPipeline(fileNameOrName: string): Promise<PreviewRe
       const repoLabel = ctx.repo ? `${ctx.repo.owner}/${ctx.repo.name}` : ''
       plog(`Evaluating: ${[repoLabel, prLabel].filter(Boolean).join(' ')}`)
 
-      const matched = await evaluateCondition(def.condition, ctx)
-      if (!matched) {
+      const evalResult = await evaluateConditionWithPath(def.condition, ctx)
+      if (!evalResult.matched) {
         const condDetail = def.condition.type === 'files-changed'
           ? `no matching file changes`
-          : `${def.condition.path || def.condition.branch || ''}`
+          : isCompositeCondition(def.condition)
+            ? `no sub-condition matched`
+            : `${def.condition.path || def.condition.branch || ''}`
         plog(`  condition not met (${def.condition.type}: ${condDetail})`)
         continue
       }
-      if (def.condition.type === 'files-changed' && ctx.filesChangedMatches) {
-        plog(`  ✓ files-changed: ${ctx.filesChangedMatches.length} file(s) matched — ${ctx.filesChangedMatches.slice(0, 5).join(', ')}${ctx.filesChangedMatches.length > 5 ? `… (+${ctx.filesChangedMatches.length - 5} more)` : ''}`)
+      const viaSuffix = isCompositeCondition(def.condition) && evalResult.viaPath ? ` via ${evalResult.viaPath}` : ''
+      if (hasConditionOfType(def.condition, 'files-changed') && ctx.filesChangedMatches?.length) {
+        plog(`  ✓ files-changed: ${ctx.filesChangedMatches.length} file(s) matched — ${ctx.filesChangedMatches.slice(0, 5).join(', ')}${ctx.filesChangedMatches.length > 5 ? `… (+${ctx.filesChangedMatches.length - 5} more)` : ''}${viaSuffix}`)
       } else {
-        plog(`  ✓ condition matched (sha=${ctx.contentSha || 'none'})`)
+        plog(`  ✓ condition matched (sha=${ctx.contentSha || 'none'})${viaSuffix}`)
       }
 
       const dedup = def.dedup || { key: '{{timestamp}}', ttl: 3600 }
@@ -1659,7 +1788,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
     }
 
     // files-changed condition: inject repoPath + lastRunCommit into all contexts
-    if (p.def.condition.type === 'files-changed' && contexts.length > 0) {
+    if (hasConditionOfType(p.def.condition, 'files-changed') && contexts.length > 0) {
       const history = await getHistory(pipelineName)
       const lastSuccess = [...history].reverse().find(e => e.success && e.headCommit)
       const lastCommit = lastSuccess?.headCommit
@@ -1709,19 +1838,22 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
         plog(pipelineName, `⚠ repo ${repoLabel} has no localPath — session launch will use fallback cwd`)
       }
 
-      const matched = await evaluateCondition(p.def.condition, ctx)
-      if (!matched) {
+      const evalResult = await evaluateConditionWithPath(p.def.condition, ctx)
+      if (!evalResult.matched) {
         const condDetail = p.def.condition.type === 'files-changed'
           ? `no matching file changes`
-          : `${p.def.condition.path || p.def.condition.branch || ''}`
+          : isCompositeCondition(p.def.condition)
+            ? `no sub-condition matched`
+            : `${p.def.condition.path || p.def.condition.branch || ''}`
         plog(pipelineName, `condition not met for ${prLabel} (${p.def.condition.type}: ${condDetail})`)
         continue
       }
       p.state.lastMatchAt = new Date().toISOString()
-      if (p.def.condition.type === 'files-changed' && ctx.filesChangedMatches) {
-        plog(pipelineName, `✓ files-changed: ${ctx.filesChangedMatches.length} file(s) matched — ${ctx.filesChangedMatches.slice(0, 3).join(', ')}${ctx.filesChangedMatches.length > 3 ? '…' : ''}`)
+      const viaSuffix = isCompositeCondition(p.def.condition) && evalResult.viaPath ? ` via ${evalResult.viaPath}` : ''
+      if (hasConditionOfType(p.def.condition, 'files-changed') && ctx.filesChangedMatches?.length) {
+        plog(pipelineName, `✓ files-changed: ${ctx.filesChangedMatches.length} file(s) matched — ${ctx.filesChangedMatches.slice(0, 3).join(', ')}${ctx.filesChangedMatches.length > 3 ? '…' : ''}${viaSuffix}`)
       } else {
-        plog(pipelineName, `✓ condition matched for ${prLabel} (sha=${ctx.contentSha || 'none'})`)
+        plog(pipelineName, `✓ condition matched for ${prLabel} (sha=${ctx.contentSha || 'none'})${viaSuffix}`)
       }
 
       const dedup = p.def.dedup || { key: '{{timestamp}}', ttl: 3600 }

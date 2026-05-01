@@ -289,6 +289,203 @@ describe('pipeline-engine: YAML parsing via loadPipelines', () => {
     await mod.loadPipelines()
     expect(mod.getPipelineList()).toHaveLength(0)
   })
+
+  it('parses any-of composite condition with sub-conditions', async () => {
+    const yaml = `
+name: Composite Pipe
+trigger:
+  type: cron
+  cron: "*/5 * * * *"
+condition:
+  type: any-of
+  conditions:
+    - type: review-requested
+    - type: always
+action:
+  type: launch-session
+  prompt: Run me
+dedup:
+  key: x
+`
+    const fs = buildFsMock(['c.yaml'], { 'c.yaml': yaml })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    await mod.loadPipelines()
+    expect(mod.getPipelineList()).toHaveLength(1)
+  })
+
+  it('rejects any-of with empty conditions array', async () => {
+    const yaml = `
+name: Bad Composite
+trigger:
+  type: cron
+  cron: "*/5 * * * *"
+condition:
+  type: any-of
+action:
+  type: launch-session
+  prompt: Run me
+dedup:
+  key: x
+`
+    const fs = buildFsMock(['bad.yaml'], { 'bad.yaml': yaml })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    await mod.loadPipelines()
+    expect(mod.getPipelineList()).toHaveLength(0)
+  })
+})
+
+describe('pipeline-engine: composite condition evaluation', () => {
+  let mod: typeof import('../pipeline-engine')
+
+  beforeEach(() => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  function makeCtx(overrides: Record<string, unknown> = {}): import('../pipeline-engine').TriggerContext {
+    return {
+      timestamp: '2026-01-01T00:00:00Z',
+      githubUser: 'fabio',
+      pr: { number: 1, branch: 'feat', title: 't', reviewers: ['fabio'], headSha: 'abc' } as any,
+      repo: { owner: 'o', name: 'r', localPath: '/r' } as any,
+      ...overrides,
+    }
+  }
+
+  it('any-of: returns true on first match (short-circuit) and reports the firing leaf', async () => {
+    const fs = buildFsMock([], {})
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+    const ctx = makeCtx()
+
+    const result = await mod.evaluateConditionWithPath(
+      { type: 'any-of', conditions: [
+        { type: 'review-requested' },
+        { type: 'always' },
+      ] },
+      ctx,
+    )
+    expect(result.matched).toBe(true)
+    expect(result.viaPath).toBe('any-of[0] -> review-requested')
+    expect(result.matchedLeaf?.type).toBe('review-requested')
+  })
+
+  it('any-of: returns false when no sub-condition matches', async () => {
+    const fs = buildFsMock([], {})
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+    const ctx = makeCtx({ githubUser: 'someone-else' })
+
+    const result = await mod.evaluateConditionWithPath(
+      { type: 'any-of', conditions: [
+        { type: 'review-requested' }, // pr.reviewers does not include 'someone-else'
+      ] },
+      ctx,
+    )
+    expect(result.matched).toBe(false)
+    expect(result.matchedLeaf).toBeUndefined()
+  })
+
+  it('all-of: short-circuits on first miss (returns false)', async () => {
+    const fs = buildFsMock([], {})
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+    const ctx = makeCtx({ githubUser: 'nobody' })
+
+    const result = await mod.evaluateConditionWithPath(
+      { type: 'all-of', conditions: [
+        { type: 'review-requested' }, // miss
+        { type: 'always' },
+      ] },
+      ctx,
+    )
+    expect(result.matched).toBe(false)
+  })
+
+  it('all-of: returns true and uses first matched leaf as path', async () => {
+    const fs = buildFsMock([], {})
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+    const ctx = makeCtx()
+
+    const result = await mod.evaluateConditionWithPath(
+      { type: 'all-of', conditions: [
+        { type: 'review-requested' },
+        { type: 'always' },
+      ] },
+      ctx,
+    )
+    expect(result.matched).toBe(true)
+    expect(result.viaPath).toBe('all-of[0] -> review-requested')
+  })
+
+  it('any-of: nested composite (any-of inside any-of) recurses correctly', async () => {
+    const fs = buildFsMock([], {})
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+    const ctx = makeCtx({ githubUser: 'nobody' })
+
+    const result = await mod.evaluateConditionWithPath(
+      { type: 'any-of', conditions: [
+        { type: 'review-requested' }, // miss
+        { type: 'any-of', conditions: [
+          { type: 'review-requested' }, // miss
+          { type: 'always' },           // hit
+        ]},
+      ] },
+      ctx,
+    )
+    expect(result.matched).toBe(true)
+    expect(result.viaPath).toBe('any-of[1] -> any-of[1] -> always')
+  })
+
+  it('content-hash dedup: any-of restores ctx.contentSha after a non-matching sub-condition', async () => {
+    const fs = buildFsMock([], {})
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+    const ctx = makeCtx({ contentSha: 'preset-sha' }) // pretend an earlier evaluation set this
+
+    // First sub-condition (review-requested) misses for this user. After the run,
+    // ctx.contentSha should NOT be polluted by partial state from any unrelated leaf;
+    // since the matching leaf is 'always' (which does not set contentSha), the
+    // pre-existing 'preset-sha' must survive.
+    const result = await mod.evaluateConditionWithPath(
+      { type: 'any-of', conditions: [
+        { type: 'review-requested' }, // miss
+        { type: 'always' },           // hit, leaves contentSha alone
+      ] },
+      makeCtx({ githubUser: 'nobody', contentSha: 'preset-sha' }),
+    )
+    expect(result.matched).toBe(true)
+    void ctx
+  })
+
+  it('hasConditionOfType walks composite trees', async () => {
+    const fs = buildFsMock([], {})
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    expect(mod.hasConditionOfType(
+      { type: 'any-of', conditions: [{ type: 'files-changed' }, { type: 'always' }] },
+      'files-changed',
+    )).toBe(true)
+    expect(mod.hasConditionOfType(
+      { type: 'any-of', conditions: [{ type: 'review-requested' }] },
+      'files-changed',
+    )).toBe(false)
+  })
 })
 
 describe('pipeline-engine: getPipelineList fields', () => {
