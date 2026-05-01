@@ -823,6 +823,7 @@ async function sendPromptToExistingSession(instanceId: string, prompt: string): 
 async function executeGitPollTrigger(trigger: TriggerDef): Promise<TriggerContext[]> {
   const repos = trigger.repos === 'auto' || !trigger.repos ? await getRepos() : trigger.repos as GitHubRepo[]
   const contexts: TriggerContext[] = []
+  const errors: string[] = []
 
   for (const repo of repos) {
     try {
@@ -836,8 +837,14 @@ async function executeGitPollTrigger(trigger: TriggerDef): Promise<TriggerContex
         })
       }
     } catch (err) {
-      log(`Failed to fetch PRs for ${repo.owner}/${repo.name}: ${err}`)
+      const msg = `Failed to fetch PRs for ${repo.owner}/${repo.name}: ${err}`
+      log(msg)
+      errors.push(msg)
     }
+  }
+
+  if (errors.length > 0) {
+    (contexts as any)._fetchErrors = errors
   }
 
   return contexts
@@ -1629,6 +1636,11 @@ export async function previewPipeline(fileNameOrName: string): Promise<PreviewRe
       plog(`Fetching PRs (git-poll, ${def.trigger.repos === 'auto' ? 'auto repos' : 'custom repos'})`)
       contexts = await executeGitPollTrigger(def.trigger)
       for (const ctx of contexts) ctx.repoSlugs = repoSlugs
+      const previewFetchErrors = (contexts as any)._fetchErrors as string[] | undefined
+      if (previewFetchErrors) {
+        for (const e of previewFetchErrors) plog(e)
+        delete (contexts as any)._fetchErrors
+      }
       plog(`Found ${contexts.length} repo/PR context(s) to evaluate`)
     } else if (def.trigger.type === 'cron') {
       plog(`Cron trigger — creating single context`)
@@ -1772,6 +1784,11 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
       contexts = await executeGitPollTrigger(p.def.trigger)
       // Inject repoSlugs into git-poll contexts (they already have individual repo set)
       for (const ctx of contexts) ctx.repoSlugs = repoSlugs
+      const fetchErrors = (contexts as any)._fetchErrors as string[] | undefined
+      if (fetchErrors) {
+        for (const e of fetchErrors) plog(pipelineName, e)
+        delete (contexts as any)._fetchErrors
+      }
       plog(pipelineName, `found ${contexts.length} repo/PR contexts to evaluate`)
     } else if (p.def.trigger.type === 'cron') {
       plog(pipelineName, `cron triggered`)
