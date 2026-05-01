@@ -9,6 +9,7 @@
  * API routes: Bearer/X-Colony-Token required when `apiToken` setting is configured
  */
 
+import { app } from 'electron'
 import { createServer, IncomingMessage, ServerResponse, Server } from 'http'
 import { createHmac, timingSafeEqual } from 'crypto'
 import { fireWebhookPipeline, getWebhookTriggers, getPipelineList, triggerPollNow } from './pipeline-engine'
@@ -16,6 +17,7 @@ import { getAllInstances } from './instance-manager'
 import { getDaemonRouter } from './daemon-router'
 import { getSetting } from './settings'
 import { addBroadcastListener } from './broadcast'
+import { getPersonaList, runPersona, addWhisper } from './persona-manager'
 
 const PREFIX = '[webhook-server]'
 
@@ -142,6 +144,12 @@ async function handleApiRequest(req: IncomingMessage, res: ServerResponse): Prom
     return
   }
 
+  // GET /api/status
+  if (method === 'GET' && url === '/api/status') {
+    sendJson(res, 200, { ok: true, version: app.getVersion(), uptime: Math.floor(process.uptime()) })
+    return
+  }
+
   // GET /api/sessions
   if (method === 'GET' && url === '/api/sessions') {
     const instances = await getAllInstances()
@@ -223,6 +231,82 @@ async function handleApiRequest(req: IncomingMessage, res: ServerResponse): Prom
       return
     }
     sendJson(res, 200, { ok: true, pipeline: name })
+    return
+  }
+
+  // GET /api/personas
+  if (method === 'GET' && url === '/api/personas') {
+    const personas = getPersonaList().map((p) => ({
+      id: p.id,
+      name: p.name,
+      enabled: p.enabled,
+      model: p.model,
+      schedule: p.schedule,
+      lastRun: p.lastRun,
+      runCount: p.runCount,
+      active: p.activeSessionId !== null,
+    }))
+    sendJson(res, 200, { personas })
+    return
+  }
+
+  // POST /api/personas/:id/trigger
+  const personaTriggerMatch = url.match(/^\/api\/personas\/([^/?#]+)\/trigger$/)
+  if (method === 'POST' && personaTriggerMatch) {
+    const idOrName = decodeURIComponent(personaTriggerMatch[1])
+    const personas = getPersonaList()
+    const persona = personas.find((p) => p.id === idOrName || p.name === idOrName)
+    if (!persona) {
+      sendJson(res, 404, { error: `Persona not found: ${idOrName}` })
+      return
+    }
+    let message: string | undefined
+    try {
+      const body = await readBody(req)
+      if (body.length > 0) {
+        const parsed = JSON.parse(body.toString('utf8')) as { message?: unknown }
+        if (typeof parsed.message === 'string') message = parsed.message
+      }
+    } catch { /* empty body or non-JSON — run without message */ }
+    runPersona(persona.id, { type: 'manual' }, message).catch((err) => {
+      log(`runPersona(${persona.id}) failed: ${err}`)
+    })
+    sendJson(res, 202, { ok: true, persona: persona.id })
+    return
+  }
+
+  // POST /api/sessions/:id/whisper — alias for steer; also writes to persona Notes if session is a persona
+  const whisperMatch = url.match(/^\/api\/sessions\/([^/?#]+)\/whisper$/)
+  if (method === 'POST' && whisperMatch) {
+    const idOrName = decodeURIComponent(whisperMatch[1])
+    let body: Buffer
+    try {
+      body = await readBody(req)
+    } catch (err) {
+      const status = (err as Error).message?.includes('maximum size') ? 413 : 400
+      sendJson(res, status, { error: status === 413 ? 'Request body too large' : 'Failed to read request body' })
+      return
+    }
+    let parsed: { prompt?: unknown } = {}
+    try {
+      parsed = JSON.parse(body.toString('utf8'))
+    } catch {
+      sendJson(res, 400, { error: 'Invalid JSON body' })
+      return
+    }
+    const prompt = parsed.prompt
+    if (typeof prompt !== 'string' || !prompt.trim()) {
+      sendJson(res, 400, { error: 'Missing required field: prompt' })
+      return
+    }
+    const instances = await getAllInstances()
+    const inst = instances.find((i) => i.id === idOrName || i.name === idOrName)
+    if (!inst) {
+      sendJson(res, 404, { error: 'Session not found' })
+      return
+    }
+    const ok = await getDaemonRouter().steerInstance(inst.id, prompt)
+    sendJson(res, ok ? 200 : 500, { ok })
     return
   }
 
