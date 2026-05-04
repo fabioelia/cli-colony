@@ -20,6 +20,7 @@ import PipelineTriggerMap from './PipelineTriggerMap'
 import PipelineScheduleHeatmap from './PipelineScheduleHeatmap'
 import { describeCron, nextRuns, cronFireTimesForDay } from '../../../shared/cron'
 import { PipelineSparkline } from './PipelineSparkline'
+import PipelineRunTimeline from './PipelineRunTimeline'
 import { slugify } from '../../../shared/utils'
 import { firstErrorOf } from '../../../shared/pipeline-stats'
 import { parseYaml } from '../../../shared/yaml-parser'
@@ -587,8 +588,9 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   type StageTrace = { index: number; actionType: string; sessionName?: string; sessionId?: string; model?: string; autoResolved?: boolean; durationMs: number; startedAt?: number; completedAt?: number; success: boolean; error?: string; responseSnippet?: string; subStages?: StageTrace[]; cost?: number }
   type TriggerContext = { cronExpr?: string; scheduledAt?: string; matchedPRs?: number[]; newCommits?: string[]; matchedFiles?: string[] }
   type DiffStats = { filesChanged: number; insertions: number; deletions: number }
-  const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; sessionIds?: string[]; stages?: StageTrace[]; dedupAttempt?: number; dedupMaxRetries?: number; triggerContext?: TriggerContext; diffStats?: DiffStats }>>([])
+  const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; sessionIds?: string[]; stages?: StageTrace[]; dedupAttempt?: number; dedupMaxRetries?: number; triggerContext?: TriggerContext; diffStats?: DiffStats; stoppedBudget?: boolean; webhookFired?: boolean }>>([])
   const [expandedHistoryRows, setExpandedHistoryRows] = useState<Set<number>>(new Set())
+  const [expandedTimelineIdx, setExpandedTimelineIdx] = useState<number | null>(null)
   const [expandedTriggerRows, setExpandedTriggerRows] = useState<Set<number>>(new Set())
   const [comparedRuns, setComparedRuns] = useState<Set<number>>(new Set())
   const [showComparison, setShowComparison] = useState(false)
@@ -2846,6 +2848,13 @@ ${modelLine}  prompt: |
                                   >
                                     <RotateCw size={11} />
                                   </button>
+                                  <button
+                                    className={`pipeline-history-replay-btn${expandedTimelineIdx === i ? ' active' : ''}`}
+                                    title="Show execution timeline"
+                                    onClick={(e) => { e.stopPropagation(); setExpandedTimelineIdx(prev => prev === i ? null : i) }}
+                                  >
+                                    <Clock size={11} />
+                                  </button>
                                 </div>
                                 {!entry.success && !isExpanded && entry.actionExecuted && (
                                   firstErr
@@ -3041,6 +3050,12 @@ ${modelLine}  prompt: |
                                   </div>
                                   )
                                 })()}
+                                {expandedTimelineIdx === i && (
+                                  <PipelineRunTimeline
+                                    run={{ ...entry, stoppedBudget: (entry as { stoppedBudget?: boolean }).stoppedBudget, webhookFired: (entry as { webhookFired?: boolean }).webhookFired }}
+                                    onFocusSession={(id) => { const inst = instances.find(x => x.id === id); if (inst) onFocusInstance(id) }}
+                                  />
+                                )}
                               </div>
                             )
                           })

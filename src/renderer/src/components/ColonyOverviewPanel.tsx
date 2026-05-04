@@ -202,6 +202,7 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
   const [triggeredIds, setTriggeredIds] = useState<Set<string>>(new Set())
   const [broadcastOpen, setBroadcastOpen] = useState(false)
   const [broadcastText, setBroadcastText] = useState('')
+  const [schedHeatmapCollapsed, setSchedHeatmapCollapsed] = useState(false)
   const [broadcastStatus, setBroadcastStatus] = useState<string | null>(null)
   const [todayArtifacts, setTodayArtifacts] = useState<SessionArtifact[]>([])
   const [personaBriefs, setPersonaBriefs] = useState<Map<string, { content: string; mtime: number | null }>>(new Map())
@@ -482,6 +483,39 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
     }
   }, [personas, pipelines, personaHealth, instances, environments, overduePersonas])
 
+  // Combined 24h × 7d schedule heatmap (hours=cols, days=rows, Sun=0..Sat=6)
+  const scheduleMatrix = useMemo(() => {
+    const matrix: { count: number; items: string[] }[][] = Array.from({ length: 7 }, () =>
+      Array.from({ length: 24 }, () => ({ count: 0, items: [] as string[] }))
+    )
+    const now = Date.now()
+    const window7d = 7 * 24 * 60 * 60 * 1000
+    const allScheduled: { cron: string; name: string; type: 'pipeline' | 'persona' }[] = []
+    for (const p of personas) {
+      if (p.enabled && p.schedule) allScheduled.push({ cron: p.schedule, name: p.name, type: 'persona' })
+    }
+    for (const pl of pipelines) {
+      if (pl.enabled && pl.cron) allScheduled.push({ cron: pl.cron, name: pl.name, type: 'pipeline' })
+    }
+    if (allScheduled.length === 0) return null
+    for (const item of allScheduled) {
+      try {
+        const fires = nextRuns(item.cron, 200)
+        for (const fire of fires) {
+          const d = new Date(fire)
+          if (d.getTime() - now > window7d) break
+          const dayIdx = d.getDay()   // 0=Sun
+          const hourIdx = d.getHours()
+          matrix[dayIdx][hourIdx].count++
+          if (!matrix[dayIdx][hourIdx].items.includes(item.name)) {
+            matrix[dayIdx][hourIdx].items.push(item.name)
+          }
+        }
+      } catch { /* invalid cron — skip */ }
+    }
+    return matrix
+  }, [personas, pipelines])
+
   // Track actioned attention items for brief feedback (checkmark for 3s)
   const [actionedIds, setActionedIds] = useState<Set<string>>(new Set())
   function markActioned(id: string) {
@@ -712,6 +746,54 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
             </div>
           )
         })()}
+
+        {/* Combined Colony Schedule Heatmap */}
+        {scheduleMatrix && (
+          <div className="overview-section">
+            <h3 style={{ cursor: 'pointer' }} onClick={() => setSchedHeatmapCollapsed(v => !v)}>
+              <Calendar size={14} /> Colony Schedule (7d)
+              <span style={{ marginLeft: 'auto', fontSize: '10px', opacity: 0.5 }}>{schedHeatmapCollapsed ? '▶' : '▼'}</span>
+            </h3>
+            {!schedHeatmapCollapsed && (() => {
+              const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+              const maxCount = Math.max(1, ...scheduleMatrix.flat().map(c => c.count))
+              return (
+                <div className="colony-schedule-heatmap">
+                  <div className="schedule-heatmap-grid">
+                    <div className="schedule-heatmap-corner" />
+                    {Array.from({ length: 24 }, (_, h) => (
+                      <div key={h} className="schedule-hour-label">{h === 0 ? '12a' : h < 12 ? `${h}a` : h === 12 ? '12p' : `${h - 12}p`}</div>
+                    ))}
+                    {scheduleMatrix.map((dayRow, dayIdx) => (
+                      <React.Fragment key={dayIdx}>
+                        <div className="schedule-day-label">{DAY_LABELS[dayIdx]}</div>
+                        {dayRow.map((cell, hourIdx) => {
+                          const opacity = cell.count === 0 ? 0 : Math.max(0.12, cell.count / maxCount)
+                          const isContention = cell.count >= 4
+                          const tooltip = cell.count === 0 ? undefined
+                            : `${DAY_LABELS[dayIdx]} ${hourIdx}:00 — ${cell.count} scheduled: ${cell.items.join(', ')}`
+                          return (
+                            <div
+                              key={hourIdx}
+                              className={`schedule-cell${isContention ? ' contention' : ''}`}
+                              style={{ opacity: cell.count === 0 ? 1 : undefined, background: cell.count === 0 ? 'transparent' : isContention ? `rgba(var(--danger-rgb,220,53,69),${opacity})` : `rgba(var(--accent-rgb,99,102,241),${opacity})` }}
+                              title={tooltip}
+                            />
+                          )
+                        })}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                  <div className="schedule-heatmap-legend">
+                    <span><Zap size={10} /> pipeline</span>
+                    <span><Users size={10} /> persona</span>
+                    <span className="legend-contention">4+ fires = ⚠ contention</span>
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
+        )}
 
         {/* Top Spenders (7d) */}
         {costLeaderboard.length > 0 && (() => {

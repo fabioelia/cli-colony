@@ -6,7 +6,7 @@
  */
 
 import { app, BrowserWindow, shell } from 'electron'
-import { exec, execFile } from 'child_process'
+import { exec, execFile, execSync } from 'child_process'
 import { join, basename } from 'path'
 import { existsSync, statSync } from 'fs'
 import { promises as fsp } from 'fs'
@@ -33,6 +33,18 @@ import { slugify, stripAnsi } from '../shared/utils'
 export type { ClaudeInstance } from '../daemon/protocol'
 import type { ClaudeInstance } from '../daemon/protocol'
 
+// Track HEAD commit at session start to detect commits made during the session
+const _startHeadCommits = new Map<string, string>()
+
+export function recordStartHead(instanceId: string, cwd: string): void {
+  try {
+    const head = execSync('git rev-parse HEAD', { cwd, encoding: 'utf8', timeout: 3000 }).trim()
+    _startHeadCommits.set(instanceId, head)
+  } catch {
+    // not a git repo or git unavailable — skip
+  }
+}
+
 export function computeSessionTags(inst: ClaudeInstance, exitCode: number): string[] {
   const tags: string[] = []
   if (exitCode !== 0) tags.push('failed')
@@ -43,6 +55,28 @@ export function computeSessionTags(inst: ClaudeInstance, exitCode: number): stri
   }
   const durationMs = Date.now() - new Date(inst.createdAt).getTime()
   if (durationMs > 30 * 60 * 1000) tags.push('long-running')
+
+  // Enriched tags
+  if (inst.budgetExceeded) tags.push('budget-exceeded')
+  if (_fanOutParent.has(inst.id)) tags.push('fan-out')
+  const cost = inst.tokenUsage?.cost ?? 0
+  if (cost > 0.50) tags.push('costly')
+  if (durationMs < 2 * 60 * 1000 && exitCode === 0) tags.push('quick')
+
+  // Detect commits made during this session
+  const startHead = _startHeadCommits.get(inst.id)
+  _startHeadCommits.delete(inst.id)
+  if (startHead && inst.workingDirectory) {
+    try {
+      const currentHead = execSync('git rev-parse HEAD', {
+        cwd: inst.workingDirectory, encoding: 'utf8', timeout: 3000,
+      }).trim()
+      if (currentHead !== startHead) tags.push('committed')
+    } catch {
+      // repo gone or git unavailable — skip
+    }
+  }
+
   return tags
 }
 
@@ -750,6 +784,7 @@ export async function createInstance(opts: {
   }
   _lastOutputAt.set(inst.id, Date.now())
   if (opts.playbook) _instancePlaybooks.set(inst.id, opts.playbook)
+  if (cwd) recordStartHead(inst.id, cwd)
 
   markChecklistItem('createdSession')
 
