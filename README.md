@@ -299,6 +299,44 @@ Session history is read from Claude CLI's own data at `~/.claude/history.jsonl` 
 
 Agent definitions are read from `~/.claude/agents/` (personal) and `<project>/.claude/agents/` (project-level).
 
+## Colony CLI
+
+A shell script (`scripts/colony-cli.sh`) wraps the Colony REST API for terminal, CI/CD, and SSH use.
+
+```bash
+# Make it accessible
+alias colony="$HOME/projects/claude-electron/scripts/colony-cli.sh"
+
+# Check Colony health
+colony status
+
+# List running sessions
+colony sessions
+
+# Show a session's detail + last 20 lines of output
+colony session my-session
+
+# List pipelines
+colony pipelines
+
+# Trigger a pipeline with optional overrides
+colony trigger "Automated PR Review" --prompt "Review PR #42" --model sonnet --budget 2.0
+
+# Send a whisper to a running session
+colony whisper my-session "What is the current status?"
+
+# List personas
+colony personas
+
+# Print the dashboard URL
+colony dashboard
+```
+
+**Authentication:** Set `COLONY_API_TOKEN` env var or pass `--token <token>`.  
+**Port:** Set `COLONY_PORT` env var (default `7474`) or pass `--port <port>`.  
+**JSON output:** Add `--json` for machine-readable output.  
+**Dependencies:** `curl` (required), `jq` (optional — falls back to raw JSON output).
+
 ## Tech Stack
 
 - **Electron** (electron-vite) — desktop shell
