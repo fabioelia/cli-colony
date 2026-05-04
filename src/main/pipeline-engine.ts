@@ -21,7 +21,7 @@ import { findBestRoute } from './session-router'
 import { getAllRepoConfigs } from './repo-config-loader'
 import { cronMatches } from '../shared/cron'
 import { resolveMustacheTemplate, slugify, stripAnsi } from '../shared/utils'
-import type { GitHubRepo, GitHubPR, GitHubIssue, PRChecks, ApprovalRequest, ConditionTestResult } from '../shared/types'
+import type { GitHubRepo, GitHubPR, GitHubIssue, PRChecks, ApprovalRequest, ConditionTestResult, PipelineVarPreset } from '../shared/types'
 import { appendActivity } from './activity-manager'
 import { notify } from './notifications'
 import { matchRules, estimateActionCost } from './approval-rules'
@@ -255,6 +255,7 @@ interface PipelineState {
   consecutiveFailures: number
   debugLog: string[]
   lastRunStoppedBudget?: boolean
+  varPresets?: PipelineVarPreset[]
 }
 
 export interface ActionShape {
@@ -312,6 +313,8 @@ export interface PipelineInfo {
   pausedUntil?: string | null
   /** Live progress of the currently-running step. Only present when running === true. */
   currentStep?: { index: number; total: number; name?: string; type: string; startedAt: string }
+  /** Saved variable presets for quick re-triggering. Max 10 per pipeline. */
+  varPresets?: PipelineVarPreset[]
 }
 
 const MAX_DEBUG_ITERATIONS = 20
@@ -3219,6 +3222,7 @@ export function getPipelineList(): PipelineInfo[] {
       notifications: p.def.notifications,
       pausedUntil: p.def.pausedUntil,
       currentStep: _currentStep.get(name),
+      varPresets: p.state.varPresets ?? [],
     })
   }
   return result
@@ -3290,6 +3294,34 @@ export async function resumePipeline(name: string): Promise<boolean> {
   await savePauseState(name, undefined)
   broadcast('pipeline:status', getPipelineList())
   return true
+}
+
+export function getPresets(name: string): PipelineVarPreset[] {
+  return pipelines.get(name)?.state.varPresets ?? []
+}
+
+export async function savePreset(name: string, preset: PipelineVarPreset): Promise<boolean> {
+  const p = pipelines.get(name)
+  if (!p) return false
+  if (!p.state.varPresets) p.state.varPresets = []
+  const existing = p.state.varPresets.findIndex(pr => pr.name === preset.name)
+  if (existing >= 0) {
+    p.state.varPresets[existing] = preset
+  } else {
+    if (p.state.varPresets.length >= 10) p.state.varPresets.shift()
+    p.state.varPresets.push(preset)
+  }
+  await saveState()
+  return true
+}
+
+export async function deletePreset(name: string, presetName: string): Promise<boolean> {
+  const p = pipelines.get(name)
+  if (!p?.state.varPresets) return false
+  const before = p.state.varPresets.length
+  p.state.varPresets = p.state.varPresets.filter(pr => pr.name !== presetName)
+  if (p.state.varPresets.length !== before) { await saveState(); return true }
+  return false
 }
 
 export function triggerPollNow(name: string, overrides?: RunOverrides | string): boolean {

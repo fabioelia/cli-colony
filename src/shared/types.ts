@@ -69,6 +69,11 @@ export interface ConditionTestResult {
   children?: ConditionTestResult[]
 }
 
+export interface PipelineVarPreset {
+  name: string
+  vars: Record<string, string>
+}
+
 export interface AgentDef {
   id: string
   name: string

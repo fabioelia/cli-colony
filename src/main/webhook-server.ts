@@ -12,7 +12,7 @@
 import { app } from 'electron'
 import { createServer, IncomingMessage, ServerResponse, Server } from 'http'
 import { createHmac, timingSafeEqual } from 'crypto'
-import { fireWebhookPipeline, getWebhookTriggers, getPipelineList, triggerPollNow, getHistory, previewPipeline, validatePipelineYaml } from './pipeline-engine'
+import { fireWebhookPipeline, getWebhookTriggers, getPipelineList, triggerPollNow, getHistory, previewPipeline, validatePipelineYaml, getPresets } from './pipeline-engine'
 import { getAllInstances, createInstance, killInstance } from './instance-manager'
 import { getDaemonRouter } from './daemon-router'
 import { getSetting } from './settings'
@@ -819,6 +819,19 @@ async function handleApiRequest(req: IncomingMessage, res: ServerResponse): Prom
         if (typeof parsed.maxBudget === 'number') {
           overrides.maxBudget = Math.min(100, Math.max(0.01, parsed.maxBudget))
         }
+        if (parsed.preset !== undefined) {
+          if (typeof parsed.preset !== 'string') {
+            sendJson(res, 400, { error: 'preset must be a string (preset name)' })
+            return
+          }
+          const presets = getPresets(name)
+          const found = presets.find(p => p.name === parsed.preset)
+          if (!found) {
+            sendJson(res, 404, { error: `Preset not found: ${parsed.preset}` })
+            return
+          }
+          overrides.templateVarOverrides = { ...found.vars }
+        }
         if (parsed.vars !== undefined) {
           if (typeof parsed.vars !== 'object' || parsed.vars === null || Array.isArray(parsed.vars)) {
             sendJson(res, 400, { error: 'vars must be an object with string values' })
@@ -831,7 +844,7 @@ async function handleApiRequest(req: IncomingMessage, res: ServerResponse): Prom
               return
             }
           }
-          overrides.templateVarOverrides = vars as Record<string, string>
+          overrides.templateVarOverrides = { ...(overrides.templateVarOverrides ?? {}), ...vars as Record<string, string> }
         }
         if (Object.keys(overrides).length === 0) overrides = undefined
       }

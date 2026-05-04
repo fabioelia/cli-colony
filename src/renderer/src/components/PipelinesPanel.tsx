@@ -358,6 +358,15 @@ function RunWithOptionsDialog({ pipelineName, firstActionPrompt, firstActionMode
   const [maxBudget, setMaxBudget] = useState(budgetMaxCostUsd != null ? String(budgetMaxCostUsd) : '')
   const [varValues, setVarValues] = useState<Record<string, string>>({})
   const [varsOpen, setVarsOpen] = useState(true)
+  const [presets, setPresets] = useState<Array<{ name: string; vars: Record<string, string> }>>([])
+  const [savePresetName, setSavePresetName] = useState('')
+  const [showSavePreset, setShowSavePreset] = useState(false)
+  const [showManagePresets, setShowManagePresets] = useState(false)
+  const [presetToast, setPresetToast] = useState('')
+
+  useEffect(() => {
+    window.api.pipeline.getPresets(pipelineName).then(setPresets).catch(() => {})
+  }, [pipelineName])
 
   const detectedVars = useMemo(() => {
     const seen = new Set<string>()
@@ -394,6 +403,33 @@ function RunWithOptionsDialog({ pipelineName, firstActionPrompt, firstActionMode
     })
   }
 
+  const loadPreset = (presetName: string) => {
+    const preset = presets.find(p => p.name === presetName)
+    if (preset) setVarValues(preset.vars)
+  }
+
+  const handleSavePreset = async () => {
+    const name = savePresetName.trim()
+    if (!name) return
+    const vars: Record<string, string> = {}
+    for (const v of detectedVars) {
+      if (varValues[v]?.trim()) vars[v] = varValues[v].trim()
+    }
+    await window.api.pipeline.savePreset(pipelineName, { name, vars })
+    const updated = await window.api.pipeline.getPresets(pipelineName)
+    setPresets(updated)
+    setSavePresetName('')
+    setShowSavePreset(false)
+    setPresetToast(`Preset "${name}" saved`)
+    setTimeout(() => setPresetToast(''), 2500)
+  }
+
+  const handleDeletePreset = async (presetName: string) => {
+    await window.api.pipeline.deletePreset(pipelineName, presetName)
+    const updated = await window.api.pipeline.getPresets(pipelineName)
+    setPresets(updated)
+  }
+
   const fieldStyle: React.CSSProperties = { marginBottom: 12 }
   const labelStyle: React.CSSProperties = { display: 'block', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }
   const inputStyle: React.CSSProperties = { width: '100%', background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 4, padding: '5px 8px', fontSize: 12, boxSizing: 'border-box' }
@@ -413,12 +449,28 @@ function RunWithOptionsDialog({ pipelineName, firstActionPrompt, firstActionMode
       </div>
       {detectedVars.length > 0 && (
         <div style={{ marginBottom: 12, border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
-          <button
-            style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '6px 10px', background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 11 }}
-            onClick={() => setVarsOpen(v => !v)}
-          >
-            {varsOpen ? '▾' : '▸'} Template Variables ({detectedVars.length})
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg-secondary)', padding: '4px 10px', borderBottom: varsOpen ? '1px solid var(--border)' : 'none' }}>
+            <button
+              style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 11, padding: 0 }}
+              onClick={() => setVarsOpen(v => !v)}
+            >
+              {varsOpen ? '▾' : '▸'} Template Variables ({detectedVars.length})
+            </button>
+            {presets.length > 0 && (
+              <select
+                style={{ fontSize: 10, padding: '2px 4px', background: 'var(--bg-primary)', color: 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', maxWidth: 160 }}
+                value=""
+                onChange={e => { if (e.target.value) { loadPreset(e.target.value); setVarsOpen(true) } }}
+                title="Load a preset"
+              >
+                <option value="">Load preset…</option>
+                {presets.map(p => {
+                  const preview = Object.entries(p.vars).slice(0, 2).map(([k, v]) => `${k}: ${v}`).join(', ')
+                  return <option key={p.name} value={p.name}>{p.name}{preview ? ` — ${preview}` : ''}</option>
+                })}
+              </select>
+            )}
+          </div>
           {varsOpen && (
             <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
               {detectedVars.map(v => (
@@ -433,6 +485,44 @@ function RunWithOptionsDialog({ pipelineName, firstActionPrompt, firstActionMode
                   />
                 </div>
               ))}
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', paddingTop: 4, borderTop: '1px solid var(--border)', flexWrap: 'wrap' }}>
+                {!showSavePreset && !showManagePresets && (
+                  <>
+                    <button style={{ fontSize: 10, padding: '2px 8px', background: 'none', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', color: 'var(--text-secondary)' }} onClick={() => setShowSavePreset(true)}>Save as preset</button>
+                    {presets.length > 0 && (
+                      <button style={{ fontSize: 10, padding: '2px 8px', background: 'none', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', color: 'var(--text-secondary)' }} onClick={() => setShowManagePresets(true)}>Manage ({presets.length})</button>
+                    )}
+                  </>
+                )}
+                {showSavePreset && (
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center', flex: 1 }}>
+                    <input
+                      type="text"
+                      autoFocus
+                      style={{ ...inputStyle, flex: 1, padding: '2px 6px', fontSize: 11 }}
+                      placeholder={presets.find(p => p.name === savePresetName) ? 'Duplicate name — will overwrite' : 'Preset name…'}
+                      value={savePresetName}
+                      onChange={e => setSavePresetName(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') handleSavePreset(); if (e.key === 'Escape') { setShowSavePreset(false); setSavePresetName('') } }}
+                    />
+                    <button className="panel-header-btn primary" style={{ fontSize: 10, padding: '2px 8px' }} onClick={handleSavePreset} disabled={!savePresetName.trim()}>Save</button>
+                    <button style={{ fontSize: 10, padding: '2px 6px', background: 'none', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', color: 'var(--text-secondary)' }} onClick={() => { setShowSavePreset(false); setSavePresetName('') }}>Cancel</button>
+                  </div>
+                )}
+                {showManagePresets && (
+                  <div style={{ flex: 1 }}>
+                    {presets.map(p => (
+                      <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0' }}>
+                        <span style={{ flex: 1, fontSize: 11, color: 'var(--text-primary)' }}>{p.name}</span>
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{Object.entries(p.vars).slice(0, 2).map(([k, v]) => `${k}: ${v}`).join(', ')}</span>
+                        <button style={{ fontSize: 10, padding: '1px 6px', background: 'none', border: '1px solid var(--error)', borderRadius: 3, cursor: 'pointer', color: 'var(--error)' }} onClick={() => handleDeletePreset(p.name)}>Delete</button>
+                      </div>
+                    ))}
+                    <button style={{ marginTop: 4, fontSize: 10, padding: '2px 6px', background: 'none', border: '1px solid var(--border)', borderRadius: 3, cursor: 'pointer', color: 'var(--text-secondary)' }} onClick={() => setShowManagePresets(false)}>Done</button>
+                  </div>
+                )}
+                {presetToast && <span style={{ fontSize: 10, color: 'var(--success, #4ade80)', marginLeft: 4 }}>{presetToast}</span>}
+              </div>
             </div>
           )}
         </div>

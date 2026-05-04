@@ -19,6 +19,7 @@ import type {
   PlaybookDef,
   ProofEntry,
   RecipeEntry,
+  PipelineVarPreset,
 } from '../shared/types'
 import type { InstanceManifest } from '../daemon/env-protocol'
 
@@ -43,6 +44,7 @@ export type {
   PlaybookDef,
   ProofEntry,
   RecipeEntry,
+  PipelineVarPreset,
 }
 
 
@@ -330,6 +332,9 @@ export interface ClaudeManagerAPI {
     getReviewRules: () => Promise<Array<{ id: string; pattern: string; severity: string; repo: string; createdAt: string; source: string }>>
     deleteReviewRule: (id: string) => Promise<boolean>
     testConditions: (fileName: string, mockContext: Record<string, unknown>) => Promise<{ type: string; passed: boolean; detail?: string; children?: unknown[] } | null>
+    getPresets: (name: string) => Promise<PipelineVarPreset[]>
+    savePreset: (name: string, preset: PipelineVarPreset) => Promise<boolean>
+    deletePreset: (name: string, presetName: string) => Promise<boolean>
   }
   persona: {
     list: () => Promise<PersonaInfo[]>
@@ -1130,6 +1135,9 @@ const api: ClaudeManagerAPI = {
     getReviewRules: () => ipcRenderer.invoke('pipeline:getReviewRules'),
     deleteReviewRule: (id) => ipcRenderer.invoke('pipeline:deleteReviewRule', id),
     testConditions: (fileName, mockContext) => ipcRenderer.invoke('pipeline:testConditions', fileName, mockContext),
+    getPresets: (name) => ipcRenderer.invoke('pipeline:getPresets', name),
+    savePreset: (name, preset) => ipcRenderer.invoke('pipeline:savePreset', name, preset),
+    deletePreset: (name, presetName) => ipcRenderer.invoke('pipeline:deletePreset', name, presetName),
   },
   persona: {
     list: () => ipcRenderer.invoke('persona:list'),

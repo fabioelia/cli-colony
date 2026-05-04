@@ -11,6 +11,7 @@ import {
   getPipelineContent, savePipelineContent, loadPipelines, setPipelineCron,
   previewPipeline, listApprovals, approveAction, dismissAction, getHistory, searchAllHistory,
   pausePipeline, resumePipeline, getDebugLog, testConditions,
+  getPresets, savePreset, deletePreset,
 } from '../pipeline-engine'
 import { getPipelineNotes, addPipelineNote, deletePipelineNote, updatePipelineNote } from '../pipeline-notes'
 import { loadReviewRules } from '../pipeline-stages'
@@ -345,6 +346,10 @@ export function registerPipelineHandlers(): void {
   ipcMain.handle('pipeline:testConditions', async (_e, fileName: string, mockContext: Record<string, unknown>) => {
     return testConditions(fileName, mockContext as any)
   })
+
+  ipcMain.handle('pipeline:getPresets', (_e, name: string) => getPresets(name))
+  ipcMain.handle('pipeline:savePreset', (_e, name: string, preset: { name: string; vars: Record<string, string> }) => savePreset(name, preset))
+  ipcMain.handle('pipeline:deletePreset', (_e, name: string, presetName: string) => deletePreset(name, presetName))
 
   // Generate pipeline YAML from a natural language description using claude-haiku
   ipcMain.handle('pipeline:generate', (_e, description: string): Promise<string> => {

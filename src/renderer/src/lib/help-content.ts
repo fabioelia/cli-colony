@@ -1251,6 +1251,16 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Variable Presets',
+        position: 'Run with Options dialog — Template Variables section',
+        items: [
+          { label: 'Load preset', detail: 'When template variables are detected, a "Load preset…" dropdown appears in the variables section header. Selecting a preset auto-fills all variable fields with the saved values — no retyping required.' },
+          { label: 'Save as preset', detail: 'After filling in variable values, click "Save as preset" to name and store the current values. Up to 10 presets per pipeline. Saving with an existing name overwrites it.' },
+          { label: 'Manage presets', detail: 'Click "Manage" to see all saved presets for this pipeline with a preview of their values. Use the Delete button to remove presets you no longer need.' },
+          { label: 'API preset support', detail: 'POST /api/pipelines/:name/trigger accepts a "preset" field (string) to load a saved preset\'s vars. Explicit "vars" override preset values for individual keys.' },
+        ],
+      },
+      {
         name: 'Condition Tester',
         position: 'Pipeline card action buttons',
         items: [
