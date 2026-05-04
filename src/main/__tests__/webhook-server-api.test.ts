@@ -1206,3 +1206,60 @@ describe('PipelineRunEntry.webhookDeliveries in run history (#595)', () => {
     expect(body.runs[0].webhookDeliveries).toBeUndefined()
   })
 })
+
+describe('GET /api/dashboard (#598)', () => {
+  it('returns 200 HTML without requiring auth header', async () => {
+    const res = await apiRequest({ path: '/api/dashboard' })
+    expect(res.status).toBe(200)
+    expect(res.headers['content-type']).toContain('text/html')
+    const body = res.body as string
+    expect(body).toContain('<html')
+    expect(body).toContain('Sessions')
+    expect(body).toContain('Pipelines')
+    expect(body).toContain('Personas')
+  })
+
+  it('returns dashboard page even when API token is configured (no auth required for page)', async () => {
+    mockGetSetting.mockResolvedValue('secret-api-key')
+    const res = await apiRequest({ path: '/api/dashboard' })
+    expect(res.status).toBe(200)
+    const body = res.body as string
+    expect(body).toContain('<html')
+    mockGetSetting.mockResolvedValue(null)
+  })
+
+  it('HTML includes SSE and fetch script for live updates', async () => {
+    const res = await apiRequest({ path: '/api/dashboard' })
+    const body = res.body as string
+    expect(body).toContain('/api/events')
+    expect(body).toContain('/api/sessions')
+  })
+
+  it('diffStats field passes through run history response', async () => {
+    mockGetPipelineList.mockReturnValue([{ name: 'Stats Pipe', enabled: true, schedule: null }])
+    mockGetHistory.mockResolvedValueOnce([
+      {
+        startedAt: '2026-05-04T00:00:00Z',
+        success: true,
+        durationMs: 5000,
+        triggeredBy: 'cron',
+        diffStats: { filesChanged: 3, insertions: 12, deletions: 5 },
+      },
+    ])
+    const res = await apiRequest({ path: '/api/pipelines/Stats%20Pipe/runs' })
+    expect(res.status).toBe(200)
+    const body = res.body as { runs: Array<Record<string, unknown>> }
+    expect(body.runs[0].diffStats).toEqual({ filesChanged: 3, insertions: 12, deletions: 5 })
+  })
+
+  it('diffStats omitted from history response when not present', async () => {
+    mockGetPipelineList.mockReturnValue([{ name: 'No Stats Pipe', enabled: true, schedule: null }])
+    mockGetHistory.mockResolvedValueOnce([
+      { startedAt: '2026-05-04T00:00:00Z', success: true, durationMs: 1000, triggeredBy: 'cron' },
+    ])
+    const res = await apiRequest({ path: '/api/pipelines/No%20Stats%20Pipe/runs' })
+    expect(res.status).toBe(200)
+    const body = res.body as { runs: Array<Record<string, unknown>> }
+    expect((body.runs[0] as Record<string, unknown>).diffStats).toBeUndefined()
+  })
+})

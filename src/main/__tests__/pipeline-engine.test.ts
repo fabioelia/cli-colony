@@ -4569,3 +4569,417 @@ dedup:
     expect(mockCreateInstance).toHaveBeenCalledTimes(1)
   })
 })
+
+// ---- computeDiffStats ----
+
+describe('pipeline-engine: computeDiffStats (#599)', () => {
+  let mod: typeof import('../pipeline-engine')
+  let mockCreateInstance: ReturnType<typeof vi.fn>
+  let mockGetAllInstances: ReturnType<typeof vi.fn>
+
+  // Uses the promisify.custom symbol so promisify(execFile) works correctly
+  const mockExecFileDS: any = vi.fn()
+  mockExecFileDS[Symbol.for('nodejs.util.promisify.custom')] = vi.fn(async (...args: any[]) => {
+    return new Promise((resolve, reject) => {
+      mockExecFileDS(...args, (err: any, stdout: string, stderr: string) => {
+        if (err) reject(err)
+        else resolve({ stdout, stderr })
+      })
+    })
+  })
+
+  const DIFF_STATS_YAML = `
+name: Diff Stats Pipe
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: files-changed
+  patterns: []
+action:
+  type: launch-session
+  prompt: Do work
+  workingDirectory: /mock/repo
+dedup:
+  key: "{{timestamp}}"
+`
+
+  function setupDiffStatsMocks(fsMock: ReturnType<typeof buildFsMock>) {
+    vi.doMock('electron', () => ({
+      app: { getPath: vi.fn().mockReturnValue('/mock/home') },
+    }))
+    vi.doMock('../../shared/colony-paths', () => ({
+      colonyPaths: {
+        root: MOCK_ROOT,
+        pipelines: PIPELINES_DIR,
+        schedulerLog: `${MOCK_ROOT}/scheduler.log`,
+      },
+    }))
+    vi.doMock('fs', () => fsMock)
+    vi.doMock('child_process', () => ({ execFile: mockExecFileDS }))
+    vi.doMock('../broadcast', () => ({ broadcast: mockBroadcast }))
+    vi.doMock('../repo-config-loader', () => ({ getAllRepoConfigs: vi.fn().mockReturnValue([]) }))
+    vi.doMock('../instance-manager', () => ({
+      createInstance: mockCreateInstance,
+      getAllInstances: mockGetAllInstances,
+      updateDockBadge: vi.fn(),
+      setApprovalCountGetter: vi.fn(),
+      killInstance: vi.fn(),
+      getIdleInfo: vi.fn().mockReturnValue([]),
+    }))
+    const mockDaemonDS = {
+      on: vi.fn(),
+      removeListener: vi.fn(),
+      getInstance: vi.fn().mockResolvedValue({ tokenUsage: { cost: 0 } }),
+      steerInstance: vi.fn().mockResolvedValue(true),
+    }
+    vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn().mockReturnValue(mockDaemonDS) }))
+    vi.doMock('../daemon-router', () => ({ getDaemonRouter: () => mockDaemonDS }))
+    vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
+    vi.doMock('../session-completion', () => ({
+      waitForStableIdle: vi.fn().mockReturnValue({ promise: new Promise(() => {}) }),
+      waitForSessionCompletion: vi.fn().mockResolvedValue(undefined),
+    }))
+    vi.doMock('../notifications', () => ({ notify: vi.fn() }))
+    vi.doMock('../github', () => ({
+      getRepos: vi.fn().mockReturnValue([]),
+      fetchPRs: vi.fn().mockResolvedValue([]),
+      fetchChecks: vi.fn().mockResolvedValue({ checks: [] }),
+      gh: vi.fn().mockResolvedValue('{}'),
+    }))
+    vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
+    vi.doMock('../activity-manager', () => ({ appendActivity: vi.fn() }))
+    vi.doMock('../pipeline-notes', () => ({
+      getPipelineNotes: vi.fn().mockReturnValue([]),
+      clearPipelineNotes: vi.fn(),
+    }))
+  }
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+    mockCreateInstance = vi.fn().mockResolvedValue({ id: 'inst-ds-1' })
+    mockGetAllInstances = vi.fn().mockResolvedValue([{ id: 'inst-ds-1', workingDirectory: '/mock/repo' }])
+    mockExecFileDS.mockReset()
+    ;(mockExecFileDS[Symbol.for('nodejs.util.promisify.custom')] as ReturnType<typeof vi.fn>).mockReset()
+    ;(mockExecFileDS[Symbol.for('nodejs.util.promisify.custom')] as any).mockImplementation(async (...args: any[]) => {
+      return new Promise((resolve, reject) => {
+        mockExecFileDS(...args, (err: any, stdout: string, stderr: string) => {
+          if (err) reject(err)
+          else resolve({ stdout, stderr })
+        })
+      })
+    })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  it('populates diffStats in history after run with numstat output', async () => {
+    mockExecFileDS.mockImplementation((_cmd: string, args: string[], _opts: any, cb: Function) => {
+      if (args.includes('rev-parse')) {
+        cb(null, 'abc1234\n', '')
+      } else if (args.includes('diff')) {
+        cb(null, '3\t2\tsrc/foo.ts\n1\t0\tsrc/bar.ts\n', '')
+      } else {
+        cb(null, '', '')
+      }
+    })
+    const fs = buildFsMock(['ds.yaml'], { 'ds.yaml': DIFF_STATS_YAML })
+    setupDiffStatsMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Diff Stats Pipe')
+    await flushPromises()
+
+    // appendHistory writes to fs.promises.writeFile — inspect what was written
+    const writeCalls = (fs.promises.writeFile as ReturnType<typeof vi.fn>).mock.calls
+    const historyWrite = writeCalls.find((c: any[]) => String(c[0]).includes('.history.json'))
+    expect(historyWrite).toBeDefined()
+    const written = JSON.parse(historyWrite![1] as string) as Array<{ diffStats?: Record<string, number> }>
+    expect(written[0].diffStats).toEqual({ filesChanged: 2, insertions: 4, deletions: 2 })
+  })
+
+  it('omits diffStats from history when git diff fails', async () => {
+    mockExecFileDS.mockImplementation((_cmd: string, args: string[], _opts: any, cb: Function) => {
+      if (args.includes('rev-parse')) {
+        cb(null, 'abc1234\n', '')
+      } else if (args.includes('diff')) {
+        cb(new Error('not a git repository'), '', '')
+      } else {
+        cb(null, '', '')
+      }
+    })
+    const fs = buildFsMock(['ds.yaml'], { 'ds.yaml': DIFF_STATS_YAML })
+    setupDiffStatsMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Diff Stats Pipe')
+    await flushPromises()
+
+    const writeCalls = (fs.promises.writeFile as ReturnType<typeof vi.fn>).mock.calls
+    const historyWrite = writeCalls.find((c: any[]) => String(c[0]).includes('.history.json'))
+    expect(historyWrite).toBeDefined()
+    const written = JSON.parse(historyWrite![1] as string) as Array<{ diffStats?: Record<string, number> }>
+    expect(written[0].diffStats).toBeUndefined()
+  })
+
+  it('skips binary files (- in numstat) and counts only text files', async () => {
+    mockExecFileDS.mockImplementation((_cmd: string, args: string[], _opts: any, cb: Function) => {
+      if (args.includes('rev-parse')) {
+        cb(null, 'abc1234\n', '')
+      } else if (args.includes('diff')) {
+        // binary file has '-' for ins/del, text file has numbers
+        cb(null, '-\t-\tbinary.png\n5\t3\tsrc/code.ts\n', '')
+      } else {
+        cb(null, '', '')
+      }
+    })
+    const fs = buildFsMock(['ds.yaml'], { 'ds.yaml': DIFF_STATS_YAML })
+    setupDiffStatsMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Diff Stats Pipe')
+    await flushPromises()
+
+    const writeCalls = (fs.promises.writeFile as ReturnType<typeof vi.fn>).mock.calls
+    const historyWrite = writeCalls.find((c: any[]) => String(c[0]).includes('.history.json'))
+    expect(historyWrite).toBeDefined()
+    const written = JSON.parse(historyWrite![1] as string) as Array<{ diffStats?: Record<string, number> }>
+    expect(written[0].diffStats).toEqual({ filesChanged: 1, insertions: 5, deletions: 3 })
+  })
+
+  it('omits diffStats from history when no instance found for session ID', async () => {
+    mockExecFileDS.mockImplementation((_cmd: string, args: string[], _opts: any, cb: Function) => {
+      if (args.includes('rev-parse')) {
+        cb(null, 'abc1234\n', '')
+      } else {
+        cb(null, '', '')
+      }
+    })
+    // No instances returned — session ID won't be found, no git diff runs
+    mockGetAllInstances.mockResolvedValue([])
+    const fs = buildFsMock(['ds.yaml'], { 'ds.yaml': DIFF_STATS_YAML })
+    setupDiffStatsMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Diff Stats Pipe')
+    await flushPromises()
+
+    const writeCalls = (fs.promises.writeFile as ReturnType<typeof vi.fn>).mock.calls
+    const historyWrite = writeCalls.find((c: any[]) => String(c[0]).includes('.history.json'))
+    expect(historyWrite).toBeDefined()
+    const written = JSON.parse(historyWrite![1] as string) as Array<{ diffStats?: Record<string, number> }>
+    expect(written[0].diffStats).toBeUndefined()
+  })
+})
+
+// ---- setupIdleNudge ----
+
+describe('pipeline-engine: setupIdleNudge (#600)', () => {
+  let mod: typeof import('../pipeline-engine')
+  let mockCreateInstance: ReturnType<typeof vi.fn>
+  let mockGetIdleInfo: ReturnType<typeof vi.fn>
+  let mockSteerInstance: ReturnType<typeof vi.fn>
+
+  const NUDGE_YAML = `
+name: Nudge Pipe
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: launch-session
+  prompt: Do work
+  idle_nudge:
+    after_minutes: 5
+    message: "Are you stuck? Try a different approach."
+    max_nudges: 2
+dedup:
+  key: "{{timestamp}}"
+`
+
+  const NUDGE_DEFAULT_MAX_YAML = `
+name: Nudge Default Max Pipe
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  type: launch-session
+  prompt: Do work
+  idle_nudge:
+    after_minutes: 1
+    message: "Nudge!"
+dedup:
+  key: "{{timestamp}}"
+`
+
+  function setupNudgeMocks(fsMock: ReturnType<typeof buildFsMock>) {
+    vi.doMock('electron', () => ({
+      app: { getPath: vi.fn().mockReturnValue('/mock/home') },
+    }))
+    vi.doMock('../../shared/colony-paths', () => ({
+      colonyPaths: {
+        root: MOCK_ROOT,
+        pipelines: PIPELINES_DIR,
+        schedulerLog: `${MOCK_ROOT}/scheduler.log`,
+      },
+    }))
+    vi.doMock('fs', () => fsMock)
+    vi.doMock('../broadcast', () => ({ broadcast: mockBroadcast }))
+    vi.doMock('../repo-config-loader', () => ({ getAllRepoConfigs: vi.fn().mockReturnValue([]) }))
+    vi.doMock('../instance-manager', () => ({
+      createInstance: mockCreateInstance,
+      getAllInstances: vi.fn().mockResolvedValue([]),
+      updateDockBadge: vi.fn(),
+      setApprovalCountGetter: vi.fn(),
+      killInstance: vi.fn(),
+      getIdleInfo: mockGetIdleInfo,
+    }))
+    const mockDaemonNudge = {
+      on: vi.fn((event: string, cb: any) => { void event; void cb }),
+      removeListener: vi.fn(),
+      steerInstance: mockSteerInstance,
+    }
+    vi.doMock('../daemon-client', () => ({ getDaemonClient: vi.fn().mockReturnValue(mockDaemonNudge) }))
+    vi.doMock('../daemon-router', () => ({ getDaemonRouter: () => mockDaemonNudge }))
+    vi.doMock('../send-prompt-when-ready', () => ({ sendPromptWhenReady: vi.fn() }))
+    vi.doMock('../session-completion', () => ({
+      waitForStableIdle: vi.fn().mockReturnValue({ promise: new Promise(() => {}) }),
+      waitForSessionCompletion: vi.fn().mockResolvedValue(undefined),
+    }))
+    vi.doMock('../notifications', () => ({ notify: vi.fn() }))
+    vi.doMock('../github', () => ({
+      getRepos: vi.fn().mockReturnValue([]),
+      fetchPRs: vi.fn().mockResolvedValue([]),
+      fetchChecks: vi.fn().mockResolvedValue({ checks: [] }),
+      gh: vi.fn().mockResolvedValue('{}'),
+    }))
+    vi.doMock('../session-router', () => ({ findBestRoute: vi.fn().mockResolvedValue(null) }))
+    vi.doMock('../activity-manager', () => ({ appendActivity: vi.fn() }))
+    vi.doMock('../pipeline-notes', () => ({
+      getPipelineNotes: vi.fn().mockReturnValue([]),
+      clearPipelineNotes: vi.fn(),
+    }))
+  }
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+    mockCreateInstance = vi.fn().mockResolvedValue({ id: 'inst-nudge-1' })
+    mockGetIdleInfo = vi.fn().mockReturnValue([])
+    mockSteerInstance = vi.fn().mockResolvedValue(true)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  it('nudges session when idle beyond threshold after 30s interval', async () => {
+    // Session is idle 6 minutes — above the 5-minute threshold
+    mockGetIdleInfo.mockReturnValue([{ id: 'inst-nudge-1', idleMs: 360_000 }])
+    const fs = buildFsMock(['n.yaml'], { 'n.yaml': NUDGE_YAML })
+    setupNudgeMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Nudge Pipe')
+    await flushPromises()
+
+    // Interval fires at 30s
+    await vi.advanceTimersByTimeAsync(30_000)
+
+    expect(mockSteerInstance).toHaveBeenCalledWith(
+      'inst-nudge-1',
+      'Are you stuck? Try a different approach.\n',
+    )
+  })
+
+  it('does not nudge when session idle time is below threshold', async () => {
+    // Session idle only 2 minutes — below the 5-minute threshold
+    mockGetIdleInfo.mockReturnValue([{ id: 'inst-nudge-1', idleMs: 120_000 }])
+    const fs = buildFsMock(['n.yaml'], { 'n.yaml': NUDGE_YAML })
+    setupNudgeMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Nudge Pipe')
+    await flushPromises()
+
+    await vi.advanceTimersByTimeAsync(30_000)
+
+    expect(mockSteerInstance).not.toHaveBeenCalled()
+  })
+
+  it('respects max_nudges limit — stops nudging after max reached', async () => {
+    mockGetIdleInfo.mockReturnValue([{ id: 'inst-nudge-1', idleMs: 600_000 }])
+    const fs = buildFsMock(['n.yaml'], { 'n.yaml': NUDGE_YAML })
+    setupNudgeMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Nudge Pipe')
+    await flushPromises()
+
+    // Two nudges fire (max_nudges: 2)
+    await vi.advanceTimersByTimeAsync(30_000)
+    await vi.advanceTimersByTimeAsync(30_000)
+    // Third tick — should NOT nudge (already at max)
+    await vi.advanceTimersByTimeAsync(30_000)
+
+    expect(mockSteerInstance).toHaveBeenCalledTimes(2)
+  })
+
+  it('defaults max_nudges to 2 when not specified in YAML', async () => {
+    mockGetIdleInfo.mockReturnValue([{ id: 'inst-nudge-1', idleMs: 600_000 }])
+    const fs = buildFsMock(['nd.yaml'], { 'nd.yaml': NUDGE_DEFAULT_MAX_YAML })
+    setupNudgeMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Nudge Default Max Pipe')
+    await flushPromises()
+
+    // Three ticks — max is 2 by default
+    await vi.advanceTimersByTimeAsync(30_000)
+    await vi.advanceTimersByTimeAsync(30_000)
+    await vi.advanceTimersByTimeAsync(30_000)
+
+    expect(mockSteerInstance).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not nudge when session is not in idle list', async () => {
+    // getIdleInfo returns different session ID
+    mockGetIdleInfo.mockReturnValue([{ id: 'other-inst', idleMs: 600_000 }])
+    const fs = buildFsMock(['n.yaml'], { 'n.yaml': NUDGE_YAML })
+    setupNudgeMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.triggerPollNow('Nudge Pipe')
+    await flushPromises()
+
+    await vi.advanceTimersByTimeAsync(30_000)
+
+    expect(mockSteerInstance).not.toHaveBeenCalled()
+  })
+})
