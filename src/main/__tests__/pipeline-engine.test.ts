@@ -5693,3 +5693,119 @@ dedup:
     expect(result!.passed).toBe(true)
   })
 })
+
+// ---- Variable Preset tests ----
+
+describe('pipeline-engine: variable presets (getPresets/savePreset/deletePreset)', () => {
+  let mod: typeof import('../pipeline-engine')
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  async function loadOneYaml() {
+    const fs = buildFsMock(['pipe.yaml'], { 'pipe.yaml': VALID_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+  }
+
+  it('getPresets returns empty array for pipeline with no presets', async () => {
+    await loadOneYaml()
+    expect(mod.getPresets('My Pipeline')).toEqual([])
+  })
+
+  it('getPresets returns empty array for unknown pipeline name', async () => {
+    await loadOneYaml()
+    expect(mod.getPresets('nonexistent')).toEqual([])
+  })
+
+  it('savePreset adds a new preset and getPresets returns it', async () => {
+    await loadOneYaml()
+    const preset = { name: 'prod', vars: { env: 'production', debug: 'false' } }
+    const ok = await mod.savePreset('My Pipeline', preset)
+    expect(ok).toBe(true)
+    const presets = mod.getPresets('My Pipeline')
+    expect(presets).toHaveLength(1)
+    expect(presets[0]).toEqual(preset)
+  })
+
+  it('savePreset returns false for unknown pipeline', async () => {
+    await loadOneYaml()
+    const ok = await mod.savePreset('nonexistent', { name: 'x', vars: {} })
+    expect(ok).toBe(false)
+  })
+
+  it('savePreset overwrites existing preset with same name', async () => {
+    await loadOneYaml()
+    await mod.savePreset('My Pipeline', { name: 'dev', vars: { env: 'development' } })
+    await mod.savePreset('My Pipeline', { name: 'dev', vars: { env: 'dev-updated', extra: '1' } })
+    const presets = mod.getPresets('My Pipeline')
+    expect(presets).toHaveLength(1)
+    expect(presets[0].vars).toEqual({ env: 'dev-updated', extra: '1' })
+  })
+
+  it('savePreset stores multiple distinct presets', async () => {
+    await loadOneYaml()
+    await mod.savePreset('My Pipeline', { name: 'dev', vars: { env: 'dev' } })
+    await mod.savePreset('My Pipeline', { name: 'staging', vars: { env: 'staging' } })
+    await mod.savePreset('My Pipeline', { name: 'prod', vars: { env: 'prod' } })
+    const presets = mod.getPresets('My Pipeline')
+    expect(presets).toHaveLength(3)
+    expect(presets.map(p => p.name)).toEqual(['dev', 'staging', 'prod'])
+  })
+
+  it('savePreset enforces max 10 — drops oldest when cap reached', async () => {
+    await loadOneYaml()
+    for (let i = 1; i <= 10; i++) {
+      await mod.savePreset('My Pipeline', { name: `p${i}`, vars: { n: String(i) } })
+    }
+    expect(mod.getPresets('My Pipeline')).toHaveLength(10)
+    // Adding an 11th shifts off p1
+    await mod.savePreset('My Pipeline', { name: 'p11', vars: { n: '11' } })
+    const presets = mod.getPresets('My Pipeline')
+    expect(presets).toHaveLength(10)
+    expect(presets[0].name).toBe('p2')
+    expect(presets[9].name).toBe('p11')
+  })
+
+  it('deletePreset removes the named preset and returns true', async () => {
+    await loadOneYaml()
+    await mod.savePreset('My Pipeline', { name: 'alpha', vars: {} })
+    await mod.savePreset('My Pipeline', { name: 'beta', vars: {} })
+    const ok = await mod.deletePreset('My Pipeline', 'alpha')
+    expect(ok).toBe(true)
+    const presets = mod.getPresets('My Pipeline')
+    expect(presets).toHaveLength(1)
+    expect(presets[0].name).toBe('beta')
+  })
+
+  it('deletePreset returns false for unknown pipeline', async () => {
+    await loadOneYaml()
+    const ok = await mod.deletePreset('nonexistent', 'alpha')
+    expect(ok).toBe(false)
+  })
+
+  it('deletePreset returns false when preset name not found', async () => {
+    await loadOneYaml()
+    await mod.savePreset('My Pipeline', { name: 'only', vars: {} })
+    const ok = await mod.deletePreset('My Pipeline', 'missing')
+    expect(ok).toBe(false)
+    expect(mod.getPresets('My Pipeline')).toHaveLength(1)
+  })
+
+  it('deletePreset returns false on pipeline with no presets at all', async () => {
+    await loadOneYaml()
+    const ok = await mod.deletePreset('My Pipeline', 'any')
+    expect(ok).toBe(false)
+  })
+})
