@@ -5299,7 +5299,7 @@ dedup:
 
     const cond = { type: 'issue-assigned' as const }
     expect(mod.hasConditionOfType(cond, 'issue-assigned')).toBe(true)
-    expect(mod.hasConditionOfType(cond, 'pr-opened')).toBe(false)
+    expect(mod.hasConditionOfType(cond, 'review-requested')).toBe(false)
   })
 
   it('evaluateCondition returns true for issue-assigned when assignee matches', async () => {
