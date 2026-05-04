@@ -42,17 +42,14 @@ You are the last persona.`
     expect(extractRoleSection(content)).toBe('Trimmed role.')
   })
 
-  it('captures only first line when role body has multiple lines (known limitation: multiline $ stops early)', () => {
-    // NOTE: extractRoleSection only captures the first line of multi-line Role sections.
-    // This is a bug: real persona files often have multi-paragraph Role sections that get truncated.
+  it('captures all lines when role body has multiple lines', () => {
     const content = `## Role\nLine one.\nLine two.\nLine three.\n\n## Objectives\n`
-    expect(extractRoleSection(content)).toBe('Line one.')
+    expect(extractRoleSection(content)).toBe('Line one.\nLine two.\nLine three.')
   })
 
-  it('returns empty string when blank line follows ## Role heading (multiline $ stops at blank line)', () => {
-    // Known limitation: a blank line immediately after ## Role causes empty extraction.
+  it('captures role content even when blank line follows ## Role heading', () => {
     const content = `## Role\n\n  Indented role.\n\n## Objectives\n`
-    expect(extractRoleSection(content)).toBe('')
+    expect(extractRoleSection(content)).toBe('Indented role.')
   })
 })
 

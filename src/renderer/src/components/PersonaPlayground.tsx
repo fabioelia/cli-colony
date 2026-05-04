@@ -14,7 +14,7 @@ interface Props {
 }
 
 export function extractRoleSection(content: string): string {
-  const match = content.match(/^## Role\n([\s\S]*?)(?=\n## |\n---\n|$)/m)
+  const match = content.match(/## Role\n([\s\S]*?)(?=\n## |\n---\n|$)/)
   return match ? match[1].trim() : ''
 }
 
