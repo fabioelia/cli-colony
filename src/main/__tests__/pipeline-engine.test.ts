@@ -5075,3 +5075,280 @@ dedup:
     expect(mockSteerInstance).not.toHaveBeenCalled()
   })
 })
+
+// ---- healthStatus tests ----
+
+describe('pipeline-engine: healthStatus in getPipelineList()', () => {
+  let mod: typeof import('../pipeline-engine')
+
+  const HEALTH_YAML = `
+name: Health Pipe
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  prompt: Do work
+dedup:
+  key: daily
+`
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  it('reports healthy when no failures or errors', async () => {
+    const fs = buildFsMock(['h.yaml'], { 'h.yaml': HEALTH_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    const p = mod.getPipelineList()[0]
+    expect(p.healthStatus).toBe('healthy')
+    expect(p.consecutiveFailures).toBe(0)
+  })
+
+  it('reports degraded when lastHookError is set', async () => {
+    const fs = buildFsMock(['h.yaml'], { 'h.yaml': HEALTH_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.pipelines.get('Health Pipe')!.state.lastHookError = 'hook failed: exit 1'
+    const p = mod.getPipelineList()[0]
+    expect(p.healthStatus).toBe('degraded')
+    expect(p.lastHookError).toBe('hook failed: exit 1')
+  })
+
+  it('reports degraded when repoSlugsStale is true', async () => {
+    const fs = buildFsMock(['h.yaml'], { 'h.yaml': HEALTH_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.pipelines.get('Health Pipe')!.state.repoSlugsStale = true
+    const p = mod.getPipelineList()[0]
+    expect(p.healthStatus).toBe('degraded')
+    expect(p.repoSlugsStale).toBe(true)
+  })
+
+  it('reports failing when consecutiveFailures >= 3', async () => {
+    const fs = buildFsMock(['h.yaml'], { 'h.yaml': HEALTH_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    mod.pipelines.get('Health Pipe')!.state.consecutiveFailures = 3
+    const p = mod.getPipelineList()[0]
+    expect(p.healthStatus).toBe('failing')
+    expect(p.consecutiveFailures).toBe(3)
+  })
+})
+
+// ---- pruneFiredKeys tests ----
+
+describe('pipeline-engine: pruneFiredKeys via togglePipeline', () => {
+  let mod: typeof import('../pipeline-engine')
+
+  const PRUNE_YAML = `
+name: Prune Pipe
+enabled: true
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  prompt: Do work
+dedup:
+  key: "{{timestamp}}"
+  ttl: 3600
+`
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  it('prunes firedKeys entries older than 2× dedup TTL on save', async () => {
+    const fs = buildFsMock(['p.yaml'], { 'p.yaml': PRUNE_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    const state = mod.pipelines.get('Prune Pipe')!.state
+    const oldTs = Date.now() - (3600 * 2 * 1000 + 10_000)
+    state.firedKeys['stale-key'] = { timestamp: oldTs, sessionId: 's1', retryCount: 0 }
+
+    await mod.togglePipeline('Prune Pipe', false)
+
+    expect(state.firedKeys).not.toHaveProperty('stale-key')
+  })
+
+  it('keeps firedKeys entries within 2× dedup TTL', async () => {
+    const fs = buildFsMock(['p.yaml'], { 'p.yaml': PRUNE_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+
+    const state = mod.pipelines.get('Prune Pipe')!.state
+    const recentTs = Date.now() - (3600 * 1000)
+    state.firedKeys['recent-key'] = { timestamp: recentTs, sessionId: 's2', retryCount: 0 }
+
+    await mod.togglePipeline('Prune Pipe', false)
+
+    expect(state.firedKeys).toHaveProperty('recent-key')
+  })
+})
+
+// ---- issue-assigned condition tests ----
+
+describe('pipeline-engine: issue-assigned condition', () => {
+  let mod: typeof import('../pipeline-engine')
+
+  const ISSUE_ASSIGNED_YAML = `
+name: Issue Autopilot
+enabled: true
+trigger:
+  type: git-poll
+  interval: 300
+  repos: auto
+condition:
+  type: issue-assigned
+action:
+  type: launch-session
+  prompt: "Fix issue {{issue.number}}: {{issue.title}}"
+dedup:
+  key: "issue-{{issue.number}}-{{issue.url}}"
+  ttl: 86400
+`
+
+  const ISSUE_ASSIGNED_LABEL_YAML = `
+name: Bug Autopilot
+enabled: true
+trigger:
+  type: git-poll
+  interval: 300
+  repos: auto
+condition:
+  type: issue-assigned
+  label: bug
+action:
+  prompt: Fix it
+dedup:
+  key: "issue-{{issue.number}}"
+  ttl: 86400
+`
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  it('validatePipelineYaml accepts issue-assigned condition', async () => {
+    const fs = buildFsMock([], {})
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    const result = mod.validatePipelineYaml(ISSUE_ASSIGNED_YAML)
+    expect(result.valid).toBe(true)
+    expect(result.def?.condition?.type).toBe('issue-assigned')
+  })
+
+  it('validatePipelineYaml accepts issue-assigned with label filter', async () => {
+    const fs = buildFsMock([], {})
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    const result = mod.validatePipelineYaml(ISSUE_ASSIGNED_LABEL_YAML)
+    expect(result.valid).toBe(true)
+    expect(result.def?.condition?.label).toBe('bug')
+  })
+
+  it('hasConditionOfType detects issue-assigned in a simple condition', async () => {
+    const fs = buildFsMock([], {})
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    const cond = { type: 'issue-assigned' as const }
+    expect(mod.hasConditionOfType(cond, 'issue-assigned')).toBe(true)
+    expect(mod.hasConditionOfType(cond, 'pr-opened')).toBe(false)
+  })
+
+  it('evaluateCondition returns true for issue-assigned when assignee matches', async () => {
+    const fs = buildFsMock([], {})
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    const cond = { type: 'issue-assigned' as const }
+    const ctx = {
+      timestamp: '2026-05-04T00:00:00Z',
+      githubUser: 'fabio',
+      issue: {
+        number: 42,
+        title: 'Fix the thing',
+        body: 'Description',
+        url: 'https://github.com/o/r/issues/42',
+        labels: ['enhancement'],
+        author: 'alice',
+        assignees: ['fabio'],
+        updatedAt: '2026-05-04T00:00:00Z',
+        repoSlug: 'o/r',
+      },
+    } as any
+    const result = await mod.evaluateCondition(cond, ctx)
+    expect(result).toBe(true)
+  })
+
+  it('evaluateCondition returns false when label filter does not match', async () => {
+    const fs = buildFsMock([], {})
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    const cond = { type: 'issue-assigned' as const, label: 'bug' }
+    const ctx = {
+      timestamp: '2026-05-04T00:00:00Z',
+      githubUser: 'fabio',
+      issue: {
+        number: 43,
+        title: 'Add feature',
+        body: '',
+        url: 'https://github.com/o/r/issues/43',
+        labels: ['enhancement'],
+        author: 'alice',
+        assignees: ['fabio'],
+        updatedAt: '2026-05-04T00:00:00Z',
+        repoSlug: 'o/r',
+      },
+    } as any
+    const result = await mod.evaluateCondition(cond, ctx)
+    expect(result).toBe(false)
+  })
+})
