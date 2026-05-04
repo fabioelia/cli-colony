@@ -2171,6 +2171,17 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Analytics',
+        position: 'Below stats bar',
+        items: [
+          { label: 'Analytics — 30 days', detail: 'Collapsible section showing 30-day trends. Toggle with the chevron. State is saved across sessions.' },
+          { label: 'Activity Heatmap', detail: '30-day contribution graph: gray = 0 sessions, green shades = 1–6+ sessions per day. Hover for exact count.' },
+          { label: 'Summary Stats', detail: 'Total sessions, success rate, average cost per session, average duration, and total cost over the last 30 days.' },
+          { label: 'By Persona', detail: 'Horizontal stacked bar showing which personas ran the most sessions. Top 5 shown; remaining grouped as "other".' },
+          { label: 'Peak Hours', detail: 'Sparkline showing when sessions typically run throughout the day (24-hour view). Helps identify your peak productivity window.' },
+        ],
+      },
+      {
         name: 'Proof List',
         position: 'Main area',
         items: [
