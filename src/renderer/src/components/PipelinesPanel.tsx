@@ -733,6 +733,9 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [retryingFromHistory, setRetryingFromHistory] = useState(false)
   const [replayToast, setReplayToast] = useState<{ name: string; ts: string } | null>(null)
   const [yamlCopiedName, setYamlCopiedName] = useState<string | null>(null)
+  const [debugSearch, setDebugSearch] = useState('')
+  const [debugEntries, setDebugEntries] = useState<string[]>([])
+  const [expandedDebugRows, setExpandedDebugRows] = useState<Set<number>>(new Set())
   const [runOverrideDialog, setRunOverrideDialog] = useState<{ name: string; firstActionPrompt: string; firstActionModel?: string; firstActionWorkingDirectory?: string; budgetMaxCostUsd?: number } | null>(null)
   const [viewMode, setViewModeRaw] = useState<'cards' | 'list' | 'health' | 'topology' | 'schedule'>(() => {
     if (localStorage.getItem('pipelines-health-view') === '1') return 'health'
@@ -882,6 +885,20 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     })
     return unsub
   }, [loadPipelines])
+
+  // Refresh persisted debug log when pipeline fires (and debug tab is visible)
+  const activePipelineRef = useRef<string | null>(null)
+  const expandedTabRef = useRef<string>('yaml')
+  useEffect(() => { activePipelineRef.current = expandedPipeline ?? null }, [expandedPipeline])
+  useEffect(() => { expandedTabRef.current = expandedTab }, [expandedTab])
+  useEffect(() => {
+    const unsub = window.api.pipeline.onStatus(() => {
+      if (expandedTabRef.current === 'debug' && activePipelineRef.current) {
+        window.api.pipeline.getDebugLog(activePipelineRef.current).then(setDebugEntries)
+      }
+    })
+    return unsub
+  }, [])
 
   // Fetch success rates + recent run strip (always, not just in health view)
   useEffect(() => {
@@ -1365,6 +1382,12 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     setHistoryEntries([])
     const history = await window.api.pipeline.getHistory(p.name)
     setHistoryEntries(history.slice().reverse()) // most recent first
+
+    // Load debug log from persisted file
+    setDebugEntries([])
+    setDebugSearch('')
+    setExpandedDebugRows(new Set())
+    window.api.pipeline.getDebugLog(p.name).then(setDebugEntries)
   }
 
   const handleSaveMemory = async () => {
@@ -3111,13 +3134,57 @@ ${modelLine}  prompt: |
                   </div>
                 ) : expandedTab === 'debug' ? (
                   <div className="pipeline-debug-tab">
-                    {p.debugLog?.length ? (
-                      <pre className="pipeline-debug-log-content">
-                        {p.debugLog.slice().reverse().map(l => l === '---' ? '────────────────────────' : l).join('\n')}
-                      </pre>
-                    ) : (
-                      <p className="pipeline-memory-hint">No logs yet. Click "Poll Now" to generate the first entries.</p>
-                    )}
+                    {(() => {
+                      const allEntries = debugEntries.length > 0 ? debugEntries : (p.debugLog || [])
+                      const filtered = debugSearch.trim()
+                        ? allEntries.filter(e => e.toLowerCase().includes(debugSearch.toLowerCase()))
+                        : allEntries
+                      const reversed = filtered.slice().reverse()
+                      const getColor = (entry: string) => {
+                        if (/FIRED|→ action/i.test(entry)) return 'green'
+                        if (/SKIP|dedup|condition not met/i.test(entry)) return 'amber'
+                        if (/ERROR|FAIL/i.test(entry)) return 'red'
+                        return 'neutral'
+                      }
+                      return <>
+                        <div className="pipeline-debug-search-row">
+                          <input
+                            className="pipeline-debug-search"
+                            placeholder="Search logs…"
+                            value={debugSearch}
+                            onChange={e => setDebugSearch(e.target.value)}
+                          />
+                          {debugSearch && (
+                            <button className="pipeline-debug-clear" onClick={() => setDebugSearch('')}>✕</button>
+                          )}
+                          <span className="pipeline-debug-count">{reversed.filter(e => e !== '---').length} entries</span>
+                        </div>
+                        {reversed.length === 0 ? (
+                          <p className="pipeline-memory-hint">No logs yet. Click "Poll Now" to generate the first entries.</p>
+                        ) : (
+                          <div className="pipeline-debug-entries">
+                            {reversed.map((entry, i) => {
+                              if (entry === '---') return <div key={i} className="pipeline-debug-sep" />
+                              const color = getColor(entry)
+                              const isExpanded = expandedDebugRows.has(i)
+                              const ts = entry.match(/^\[([^\]]+)\]/)?.[1] ?? ''
+                              const body = ts ? entry.slice(ts.length + 2).trim() : entry
+                              const summary = body.slice(0, 100) + (body.length > 100 ? '…' : '')
+                              return (
+                                <div
+                                  key={i}
+                                  className={`pipeline-debug-entry pipeline-debug-${color}`}
+                                  onClick={() => setExpandedDebugRows(s => { const n = new Set(s); n.has(i) ? n.delete(i) : n.add(i); return n })}
+                                >
+                                  {ts && <span className="pipeline-debug-ts">{ts}</span>}
+                                  <span className="pipeline-debug-body">{isExpanded ? body : summary}</span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </>
+                    })()}
                   </div>
                 ) : expandedTab === 'artifacts' ? (
                   <div className="pipeline-outputs">

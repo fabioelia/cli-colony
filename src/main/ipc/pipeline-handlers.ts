@@ -10,7 +10,7 @@ import {
   getPipelineList, togglePipeline, triggerPollNow, getPipelinesDir,
   getPipelineContent, savePipelineContent, loadPipelines, setPipelineCron,
   previewPipeline, listApprovals, approveAction, dismissAction, getHistory, searchAllHistory,
-  pausePipeline, resumePipeline,
+  pausePipeline, resumePipeline, getDebugLog,
 } from '../pipeline-engine'
 import { getPipelineNotes, addPipelineNote, deletePipelineNote, updatePipelineNote } from '../pipeline-notes'
 import { loadReviewRules } from '../pipeline-stages'
@@ -159,6 +159,7 @@ export function registerPipelineHandlers(): void {
   ipcMain.handle('pipeline:dismiss', (_e, id: string) => dismissAction(id))
   ipcMain.handle('pipeline:getHistory', (_e, name: string) => getHistory(name))
   ipcMain.handle('pipeline:searchHistory', (_e, query: string) => searchAllHistory(query))
+  ipcMain.handle('pipeline:getDebugLog', (_e, name: string) => getDebugLog(name))
 
   ipcMain.handle('pipeline:export', async (_e, fileNames: string[]) => {
     const result = await dialog.showSaveDialog({

@@ -746,9 +746,19 @@ export async function searchAllHistory(query: string): Promise<HistorySearchResu
 
 // ---- State Persistence ----
 
-function debugLogPath(name: string): string {
+export function debugLogPath(name: string): string {
   const safe = name.replace(/[^a-zA-Z0-9._-]/g, '-')
   return join(PIPELINES_DIR, `${safe}.debug.json`)
+}
+
+export async function getDebugLog(name: string): Promise<string[]> {
+  try {
+    const raw = await fsp.readFile(debugLogPath(name), 'utf-8')
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed.entries) ? parsed.entries : []
+  } catch {
+    return []
+  }
 }
 
 async function loadState(): Promise<Record<string, PipelineState>> {
