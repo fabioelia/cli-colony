@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, GitBranch, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock, RotateCcw, DollarSign, ArrowUpDown, ArrowLeft, Tag, Cpu, AlertCircle, Folder } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, GitBranch, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock, RotateCcw, DollarSign, ArrowUpDown, ArrowLeft, Tag, Cpu, AlertCircle, Folder, FileText } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate, ErrorSummary } from '../../../shared/types'
@@ -100,6 +100,7 @@ interface InstanceItemProps {
   diffInsertions?: number
   diffDeletions?: number
   alertCount?: number
+  proofPath?: string
 }
 
 function dirName(path: string) {
@@ -181,7 +182,7 @@ function buildTriggerChain(inst: ClaudeInstance, allInstances: ClaudeInstance[])
   return result
 }
 
-const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcutIndex, isUnread, ctxLevel, splitBadge, focusedPane, isRenaming, renameValue, renameRef, isEditingNote, noteValue, noteRef, onCommitNote, onCancelNote, onNoteChange, callbacks, selectMode, isSelected, onToggleSelect, conflictFiles, errorMessage, idleMs, exitSummary, exitDuration, dirtyFileCount, dirtyFileGrowing, diffInsertions, diffDeletions, alertCount }: InstanceItemProps) {
+const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcutIndex, isUnread, ctxLevel, splitBadge, focusedPane, isRenaming, renameValue, renameRef, isEditingNote, noteValue, noteRef, onCommitNote, onCancelNote, onNoteChange, callbacks, selectMode, isSelected, onToggleSelect, conflictFiles, errorMessage, idleMs, exitSummary, exitDuration, dirtyFileCount, dirtyFileGrowing, diffInsertions, diffDeletions, alertCount, proofPath }: InstanceItemProps) {
   return (
     <div
       className={`instance-item ${isActive ? 'active' : ''} ${isSelected ? 'selected' : ''}`}
@@ -395,6 +396,11 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
           </>
         )}
         <div className="instance-item-actions">
+          {proofPath && inst.status !== 'running' && (
+            <Tooltip text="View Proof of Work" detail="Open the auto-generated session summary (branch, commits, files changed, last output)">
+              <button aria-label="View Proof of Work" onClick={(e) => { e.stopPropagation(); window.api.shell.openPath(proofPath) }}><FileText size={13} /></button>
+            </Tooltip>
+          )}
           <Tooltip text="Export Handoff Doc" detail="Generate a markdown snapshot to paste into a new session and restore context">
             <button aria-label="Export Handoff Doc" onClick={(e) => { e.stopPropagation(); callbacks.onHandoff(inst) }}><FileDown size={13} /></button>
           </Tooltip>
@@ -671,6 +677,13 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   }, [])
 
   // Artifact summaries/durations — loaded for exited sessions, updated when new exits occur
+  const [proofPaths, setProofPaths] = useState<Map<string, string>>(new Map())
+  useEffect(() => {
+    return window.api.instance.onProof(({ id, path }) => {
+      setProofPaths(prev => new Map(prev).set(id, path))
+    })
+  }, [])
+
   const [artifactSummaries, setArtifactSummaries] = useState<Map<string, string>>(new Map())
   const [artifactDurations, setArtifactDurations] = useState<Map<string, number>>(new Map())
   const prevExitedIds = useRef<Set<string>>(new Set())
@@ -1555,6 +1568,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
         diffInsertions={dirtyFileCounts.get(inst.id)?.insertions}
         diffDeletions={dirtyFileCounts.get(inst.id)?.deletions}
         alertCount={activeAlerts.get(inst.id)?.length}
+        proofPath={proofPaths.get(inst.id)}
       />
     )
     if (!isDraggable) return item

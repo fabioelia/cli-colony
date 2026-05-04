@@ -9,6 +9,7 @@ import { app, BrowserWindow, shell } from 'electron'
 import { exec, execFile } from 'child_process'
 import { join, basename } from 'path'
 import { existsSync, statSync } from 'fs'
+import { promises as fsp } from 'fs'
 import { getDaemonRouter } from './daemon-router'
 import type { UpgradeState } from './daemon-router'
 import { getDefaultArgs, getSetting, getSettingSync, getDefaultCliBackend } from './settings'
@@ -26,6 +27,8 @@ import { getProjectBriefPath } from './project-brief'
 import { parseErrorSummary } from './error-parser'
 import { transitionTicket, addComment } from './jira'
 import { getPlaybookMemory, appendPlaybookMemory } from './playbook-manager'
+import { colonyPaths } from '../shared/colony-paths'
+import { slugify, stripAnsi } from '../shared/utils'
 
 export type { ClaudeInstance } from '../daemon/protocol'
 import type { ClaudeInstance } from '../daemon/protocol'
@@ -374,6 +377,9 @@ export function wireDaemonEvents(): void {
         broadcast('instance:autoTags', { id: instanceId, tags: autoTags })
       }
 
+      // Write proof-of-work bundle (fire-and-forget — never block exit flow)
+      writeProofBundle(instanceId, exitCode, new Date(inst.createdAt).getTime()).catch(() => {})
+
       appendActivity({
         source: 'session',
         name: inst.name,
@@ -512,6 +518,89 @@ export function wireDaemonEvents(): void {
   })
 
   setInterval(checkStaleNotifications, 60_000)
+
+  // Write a proof-of-work bundle markdown file for a completed session
+  async function writeProofBundle(instanceId: string, exitCode: number, startedAt: number): Promise<void> {
+    const durationMs = Date.now() - startedAt
+    if (durationMs < 5_000) return // skip very short sessions
+    const inst = await router.getInstance(instanceId).catch(() => null)
+    if (!inst) return
+    const buffer = await router.getInstanceBuffer(instanceId).catch(() => '')
+    const lastLines = buffer
+      ? stripAnsi(buffer).split('\n').filter(Boolean).slice(-30).join('\n')
+      : ''
+    const ts = Date.now()
+    const date = new Date(ts).toISOString().slice(0, 10)
+    const slug = slugify(inst.name) || 'session'
+    const proofPath = colonyPaths.proofFile(date, slug, ts)
+    await fsp.mkdir(colonyPaths.proofs + '/' + date, { recursive: true })
+
+    let commits = ''
+    let diffStats = ''
+    if (inst.workingDirectory) {
+      try {
+        const since = new Date(startedAt).toISOString()
+        commits = await new Promise<string>((resolve, reject) =>
+          execFile('git', ['log', `--since=${since}`, '--pretty=format:%h %s', '--no-merges', '--max-count=20'],
+            { cwd: inst.workingDirectory }, (err, out) => err ? reject(err) : resolve(out.trim())))
+        diffStats = await new Promise<string>((resolve, reject) =>
+          execFile('git', ['diff', '--stat', `HEAD@{1}`, 'HEAD'],
+            { cwd: inst.workingDirectory }, (err, out) => err ? reject(err) : resolve(out.trim())))
+      } catch { /* no git or no commits — skip */ }
+    }
+
+    const durationSecs = Math.round(durationMs / 1000)
+    const cost = inst.tokenUsage?.cost ?? 0
+    const branch = inst.gitBranch ?? ''
+    const commitCount = commits ? commits.split('\n').filter(Boolean).length : 0
+
+    const lines: string[] = [
+      `---`,
+      `session: "${inst.name}"`,
+      `date: "${date}"`,
+      `exitCode: ${exitCode}`,
+      `cost: ${cost.toFixed(4)}`,
+      `duration: ${durationSecs}s`,
+      `commits: ${commitCount}`,
+      `---`,
+      '',
+      `# Session: ${inst.name}`,
+      `- **Exit code:** ${exitCode}`,
+      `- **Duration:** ${durationSecs}s`,
+      `- **Cost:** $${cost.toFixed(4)}`,
+      ...(branch ? [`- **Branch:** ${branch}`] : []),
+      ...(commitCount > 0 ? [`- **Commits:** ${commitCount}`] : []),
+      ...(inst.workingDirectory ? [`- **Directory:** ${inst.workingDirectory}`] : []),
+      '',
+      `## Last 30 lines of output`,
+      '```',
+      lastLines,
+      '```',
+      ...(commits ? ['', `## Commits`, '```', commits, '```'] : []),
+      ...(diffStats ? ['', `## Files changed`, '```', diffStats, '```'] : []),
+      ...(exitCode !== 0 ? ['', `## Error`, `Session exited with code ${exitCode}.`] : []),
+    ]
+    await fsp.writeFile(proofPath, lines.join('\n'), 'utf8')
+    broadcast('instance:proof', { id: instanceId, path: proofPath })
+  }
+
+  // Prune proof bundles older than 14 days
+  async function pruneOldProofs(): Promise<void> {
+    const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000
+    try {
+      const days = await fsp.readdir(colonyPaths.proofs).catch(() => [] as string[])
+      for (const day of days) {
+        const dayDir = colonyPaths.proofs + '/' + day
+        const mtime = await fsp.stat(dayDir).then(s => s.mtimeMs).catch(() => 0)
+        if (mtime < cutoff) {
+          const files = await fsp.readdir(dayDir).catch(() => [] as string[])
+          for (const f of files) await fsp.unlink(dayDir + '/' + f).catch(() => {})
+          await fsp.rmdir(dayDir).catch(() => {})
+        }
+      }
+    } catch { /* ignore */ }
+  }
+  setTimeout(pruneOldProofs, 60_000)
 
   // Age-based retention: remove old stopped sessions on startup and every 6h
   async function runRetentionCheck(): Promise<void> {

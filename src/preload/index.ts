@@ -94,6 +94,7 @@ export interface ClaudeManagerAPI {
     onErrorSummary: (callback: (data: { id: string; errorSummary: ErrorSummary }) => void) => () => void
     onBudgetExceeded: (callback: (data: { id: string; cost: number; cap: number }) => void) => () => void
     onAutoTags: (callback: (data: { id: string; tags: string[] }) => void) => () => void
+    onProof: (callback: (data: { id: string; path: string }) => void) => () => void
     clearToolDeferred: (id: string) => Promise<boolean>
     fileOverlaps: () => Promise<Record<string, { file: string; otherSessions: { id: string; name: string }[] }[]>>
     stopChildren: (parentId: string) => Promise<number>
@@ -159,6 +160,7 @@ export interface ClaudeManagerAPI {
   }
   shell: {
     openExternal: (url: string) => Promise<void>
+    openPath: (filePath: string) => Promise<string>
   }
   shortcuts: {
     onNewInstance: (cb: () => void) => () => void
@@ -811,6 +813,11 @@ const api: ClaudeManagerAPI = {
       ipcRenderer.on('instance:autoTags', listener)
       return () => ipcRenderer.removeListener('instance:autoTags', listener)
     },
+    onProof: (callback) => {
+      const listener = (_e: any, data: { id: string; path: string }) => callback(data)
+      ipcRenderer.on('instance:proof', listener)
+      return () => ipcRenderer.removeListener('instance:proof', listener)
+    },
     clearToolDeferred: (id) => ipcRenderer.invoke('instance:clearToolDeferred', id),
     fileOverlaps: () => ipcRenderer.invoke('instances:fileOverlaps'),
     stopChildren: (parentId) => ipcRenderer.invoke('instance:stopChildren', parentId),
@@ -903,6 +910,7 @@ const api: ClaudeManagerAPI = {
   },
   shell: {
     openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
+    openPath: (filePath) => ipcRenderer.invoke('shell:openPath', filePath),
   },
   shortcuts: {
     onNewInstance: (cb) => { const l = () => cb(); ipcRenderer.on('shortcut:new-instance', l); return () => ipcRenderer.removeListener('shortcut:new-instance', l) },

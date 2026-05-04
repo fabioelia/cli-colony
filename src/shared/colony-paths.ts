@@ -80,9 +80,14 @@ export const colonyPaths = {
   reviewRules: path.join(ROOT, 'review-rules.json'),
   ghSkillIgnored: path.join(ROOT, 'gh-skill-ignored.json'),
   playbooks: path.join(ROOT, 'playbooks'),
+  proofs: path.join(ROOT, 'proofs'),
 
   /** Build a daily activity log path for a given date (YYYY-MM-DD) */
   activityDailyLog: (date: string) => path.join(ROOT, `activity-${date}.json`),
+
+  /** Build a proof-of-work file path: proofs/<YYYY-MM-DD>/<slug>-<ts>.md */
+  proofFile: (date: string, slug: string, ts: number) =>
+    path.join(ROOT, 'proofs', date, `${slug}-${ts}.md`),
 
   /** Build a per-project brief path for a given slug (basename of working directory) */
   projectBrief: (slug: string) => path.join(ROOT, 'project-briefs', `${slug}.md`),

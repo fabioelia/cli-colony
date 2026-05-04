@@ -221,6 +221,7 @@ export function registerIpcHandlers(): void {
 
   // ---- Shell / Dialog ----
   ipcMain.handle('shell:openExternal', (_e, url: string) => shell.openExternal(url))
+  ipcMain.handle('shell:openPath', (_e, filePath: string) => shell.openPath(filePath))
   ipcMain.handle('dialog:openDirectory', async () => {
     const result = await dialog.showOpenDialog({ properties: ['openDirectory'] })
     return result.canceled ? null : result.filePaths[0]
