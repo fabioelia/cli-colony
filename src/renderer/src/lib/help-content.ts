@@ -1250,6 +1250,16 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Condition Tester',
+        position: 'Pipeline card action buttons',
+        items: [
+          { label: 'Test Conditions', detail: 'Click the flask icon on any pipeline card to open the Condition Tester. Fill in a mock context (PR fields, issue fields, or a webhook payload) and click "Test Conditions" to see which conditions would pass or fail — without waiting for a real trigger event.', icon: 'FlaskConical' },
+          { label: 'Mock Context form', detail: 'The form adapts to the pipeline\'s trigger type. Git-poll pipelines show PR fields (branch, title, author, labels, draft, reviewers). Webhook pipelines show a JSON payload textarea. Issue-assigned pipelines show issue fields. Cron pipelines need no context.' },
+          { label: 'Result tree', detail: 'The right panel shows a tree of every condition node with a green check (passes) or red X (fails), plus a human-readable explanation for each leaf condition. Nested all-of/any-of nodes expand/collapse on click.' },
+          { label: 'Would fire / Would NOT fire', detail: 'A large verdict banner shows the overall result — green "Would fire" or red "Would NOT fire" — so you know immediately whether the mock context would trigger this pipeline.' },
+        ],
+      },
+      {
         name: 'Recipe Library',
         position: 'Recipe Library tab',
         items: [

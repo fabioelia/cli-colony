@@ -21,7 +21,7 @@ import { findBestRoute } from './session-router'
 import { getAllRepoConfigs } from './repo-config-loader'
 import { cronMatches } from '../shared/cron'
 import { resolveMustacheTemplate, slugify, stripAnsi } from '../shared/utils'
-import type { GitHubRepo, GitHubPR, GitHubIssue, PRChecks, ApprovalRequest } from '../shared/types'
+import type { GitHubRepo, GitHubPR, GitHubIssue, PRChecks, ApprovalRequest, ConditionTestResult } from '../shared/types'
 import { appendActivity } from './activity-manager'
 import { notify } from './notifications'
 import { matchRules, estimateActionCost } from './approval-rules'
@@ -1496,6 +1496,140 @@ export async function evaluateCondition(condition: ConditionDef, ctx: TriggerCon
 /** Evaluate a condition and report which sub-condition (if any) fired. */
 export async function evaluateConditionWithPath(condition: ConditionDef, ctx: TriggerContext): Promise<ConditionMatch> {
   return evaluateConditionInternal(condition, ctx)
+}
+
+function describeLeafConditionResult(condition: ConditionDef, ctx: TriggerContext, passed: boolean): string {
+  switch (condition.type) {
+    case 'review-requested':
+      if (!ctx.pr) return 'No PR context — add pr.branch to test'
+      if (!ctx.githubUser) return `Reviewers: [${ctx.pr.reviewers?.join(', ') || 'none'}] — no githubUser set`
+      return `Reviewers: [${ctx.pr.reviewers?.join(', ') || 'none'}], githubUser: ${ctx.githubUser} → ${passed ? 'match' : 'no match'}`
+    case 'authored-by':
+      if (!ctx.pr) return 'No PR context'
+      return `PR author: "${ctx.pr.author}", githubUser: "${ctx.githubUser ?? ''}" → ${passed ? 'match' : 'no match'}`
+    case 'not-draft':
+      if (!ctx.pr) return 'No PR context'
+      return `Draft: ${ctx.pr.draft} → ${passed ? 'not draft (fires)' : 'is draft (skipped)'}`
+    case 'issue-assigned': {
+      if (!ctx.issue) return 'No issue context'
+      const labelInfo = condition.label ? `, label filter: "${condition.label}"` : ''
+      return `Assignees: [${ctx.issue.assignees?.join(', ') || 'none'}], githubUser: "${ctx.githubUser ?? ''}"${labelInfo} → ${passed ? 'assigned' : 'not assigned'}`
+    }
+    case 'branch-file-exists':
+      return ctx.pr ? `Branch: "${ctx.pr.branch}", path: "${condition.path ?? ''}"` : 'No PR context (needs git-poll trigger)'
+    case 'pr-checks-failed':
+      return ctx.checks ? `${Object.keys(ctx.checks).length} check(s) in context` : 'No checks context (needs git-poll trigger)'
+    case 'files-changed':
+      return ctx.repoPath ? `Repo: ${ctx.repoPath}, patterns: [${(condition.patterns ?? []).join(', ')}]` : 'No repo context (needs git-poll trigger)'
+    case 'always':
+      return 'Always fires — no condition to evaluate'
+    default:
+      return passed ? 'Passed' : 'Did not pass'
+  }
+}
+
+async function evaluateConditionWithTrace(condition: ConditionDef, ctx: TriggerContext): Promise<ConditionTestResult> {
+  if (isCompositeCondition(condition)) {
+    const subs = condition.conditions
+    if (!Array.isArray(subs) || subs.length === 0) {
+      return { type: condition.type, passed: false, detail: 'No sub-conditions defined', children: [] }
+    }
+    const children: ConditionTestResult[] = []
+    for (const sub of subs) {
+      children.push(await evaluateConditionWithTrace(sub, ctx))
+    }
+    const passed = condition.type === 'all-of'
+      ? children.every(c => c.passed)
+      : children.some(c => c.passed)
+    return { type: condition.type, passed, children }
+  }
+  const passed = await evaluateLeafCondition(condition, ctx)
+  return { type: condition.type, passed, detail: describeLeafConditionResult(condition, ctx, passed) }
+}
+
+export interface MockConditionContext {
+  triggerType: string
+  prTitle?: string
+  prBranch?: string
+  prAuthor?: string
+  prLabels?: string
+  prDraft?: boolean
+  prReviewers?: string
+  issueNumber?: number
+  issueTitle?: string
+  issueLabels?: string
+  issueAssignee?: string
+  webhookPayload?: string
+  githubUser?: string
+}
+
+export async function testConditions(
+  fileName: string,
+  mock: MockConditionContext
+): Promise<ConditionTestResult | null> {
+  const filePath = join(PIPELINES_DIR, fileName)
+  const content = await (await import('fs')).promises.readFile(filePath, 'utf-8').catch(() => null)
+  if (!content) return null
+  const def = parsePipelineYaml(content)
+  if (!def) return null
+  if (!def.condition) {
+    return { type: 'none', passed: true, detail: 'No conditions — action fires on every trigger event' }
+  }
+
+  const ctx: TriggerContext = {
+    timestamp: new Date().toISOString(),
+    githubUser: mock.githubUser ?? undefined,
+  }
+
+  if (mock.prBranch !== undefined || mock.prTitle !== undefined || mock.prAuthor !== undefined) {
+    const reviewers = mock.prReviewers ? mock.prReviewers.split(',').map(s => s.trim()).filter(Boolean) : []
+    const labels = mock.prLabels ? mock.prLabels.split(',').map(s => s.trim()).filter(Boolean) : []
+    ctx.pr = {
+      number: 0,
+      title: mock.prTitle ?? '',
+      body: '',
+      author: mock.prAuthor ?? '',
+      assignees: [],
+      reviewers,
+      branch: mock.prBranch ?? '',
+      baseBranch: 'main',
+      state: 'open',
+      draft: mock.prDraft ?? false,
+      url: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      additions: 0,
+      deletions: 0,
+      reviewDecision: '',
+      labels,
+      comments: [],
+      headSha: '',
+    }
+  }
+
+  if (mock.issueAssignee !== undefined || mock.issueTitle !== undefined) {
+    const labels = mock.issueLabels ? mock.issueLabels.split(',').map(s => s.trim()).filter(Boolean) : []
+    ctx.issue = {
+      number: mock.issueNumber ?? 0,
+      title: mock.issueTitle ?? '',
+      body: '',
+      author: '',
+      assignees: mock.issueAssignee ? [mock.issueAssignee] : [],
+      labels,
+      state: 'open',
+      url: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      comments: 0,
+      milestone: null,
+    }
+  }
+
+  if (mock.webhookPayload) {
+    try { ctx.webhookPayload = JSON.parse(mock.webhookPayload) } catch { ctx.webhookPayload = mock.webhookPayload }
+  }
+
+  return evaluateConditionWithTrace(def.condition, ctx)
 }
 
 // ---- Action Execution (stage runners imported from ./pipeline-stages) ----

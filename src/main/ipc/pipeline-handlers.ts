@@ -10,7 +10,7 @@ import {
   getPipelineList, togglePipeline, triggerPollNow, getPipelinesDir,
   getPipelineContent, savePipelineContent, loadPipelines, setPipelineCron,
   previewPipeline, listApprovals, approveAction, dismissAction, getHistory, searchAllHistory,
-  pausePipeline, resumePipeline, getDebugLog,
+  pausePipeline, resumePipeline, getDebugLog, testConditions,
 } from '../pipeline-engine'
 import { getPipelineNotes, addPipelineNote, deletePipelineNote, updatePipelineNote } from '../pipeline-notes'
 import { loadReviewRules } from '../pipeline-stages'
@@ -340,6 +340,10 @@ export function registerPipelineHandlers(): void {
     await fsp.writeFile(join(pipelinesDir, candidate), yaml, 'utf-8')
     await loadPipelines()
     return true
+  })
+
+  ipcMain.handle('pipeline:testConditions', async (_e, fileName: string, mockContext: Record<string, unknown>) => {
+    return testConditions(fileName, mockContext as any)
   })
 
   // Generate pipeline YAML from a natural language description using claude-haiku

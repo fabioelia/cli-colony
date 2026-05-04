@@ -8,12 +8,13 @@ import {
   ShieldCheck, List, Globe, Wand2, ArrowRight, ArrowLeft, Hourglass, ArrowUpDown,
   GitPullRequest, GitMerge, GitBranch, Sparkles, RotateCw, Copy, ClipboardPaste, Timer, Activity,
   Download, Upload, PauseCircle, PlayCircle, Check, StickyNote, Network, Archive, CalendarDays,
-  History, CheckSquare, Trash2, Bell, BellMinus, BellOff, MoreHorizontal,
+  History, CheckSquare, Trash2, Bell, BellMinus, BellOff, MoreHorizontal, FlaskConical,
 } from 'lucide-react'
 import type { AuditResult, GitHubRepo, SessionArtifact, RecipeEntry } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
 import EmptyStateHook from './EmptyStateHook'
 import CronEditor from './CronEditor'
+import ConditionTester from './ConditionTester'
 import PipelineFlowDiagram from './PipelineFlowDiagram'
 import PipelineTriggerMap from './PipelineTriggerMap'
 import PipelineScheduleHeatmap from './PipelineScheduleHeatmap'
@@ -507,6 +508,8 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [yamlWarning, setYamlWarning] = useState<string | null>(null)
   const [runArtifacts, setRunArtifacts] = useState<Record<string, SessionArtifact[]>>({})
   const [previewSessionId, setPreviewSessionId] = useState<string | null>(null)
+
+  const [conditionTesterPipeline, setConditionTesterPipeline] = useState<PipelineInfo | null>(null)
 
   const [triggeringPipelines, setTriggeringPipelines] = useState<Set<string>>(new Set())
   const [retryingFromHistory, setRetryingFromHistory] = useState(false)
@@ -2215,6 +2218,13 @@ ${modelLine}  prompt: |
                   </button>
                   <button
                     className="pipeline-action-btn"
+                    onClick={() => setConditionTesterPipeline(p)}
+                    title="Test conditions with mock data"
+                  >
+                    <FlaskConical size={11} />
+                  </button>
+                  <button
+                    className="pipeline-action-btn"
                     onClick={() => handleDuplicate(p)}
                     title="Duplicate this pipeline"
                   >
@@ -3721,6 +3731,12 @@ ${modelLine}  prompt: |
             </div>
           </div>
         </div>
+      )}
+      {conditionTesterPipeline && (
+        <ConditionTester
+          pipeline={conditionTesterPipeline}
+          onClose={() => setConditionTesterPipeline(null)}
+        />
       )}
     </div>
   )

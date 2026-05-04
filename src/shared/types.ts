@@ -62,6 +62,13 @@ export interface ClaudeInstance {
   hasNotes?: boolean
 }
 
+export interface ConditionTestResult {
+  type: string
+  passed: boolean
+  detail?: string
+  children?: ConditionTestResult[]
+}
+
 export interface AgentDef {
   id: string
   name: string
