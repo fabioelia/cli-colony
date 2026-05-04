@@ -716,7 +716,8 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [expandedTab, setExpandedTab] = useState<'yaml' | 'flow' | 'docs' | 'memory' | 'outputs' | 'history' | 'debug' | 'artifacts'>('yaml')
   type StageTrace = { index: number; actionType: string; sessionName?: string; sessionId?: string; model?: string; autoResolved?: boolean; durationMs: number; startedAt?: number; completedAt?: number; success: boolean; error?: string; responseSnippet?: string; subStages?: StageTrace[]; cost?: number }
   type TriggerContext = { cronExpr?: string; scheduledAt?: string; matchedPRs?: number[]; newCommits?: string[]; matchedFiles?: string[] }
-  const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; sessionIds?: string[]; stages?: StageTrace[]; dedupAttempt?: number; dedupMaxRetries?: number; triggerContext?: TriggerContext }>>([])
+  type DiffStats = { filesChanged: number; insertions: number; deletions: number }
+  const [historyEntries, setHistoryEntries] = useState<Array<{ ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number; sessionIds?: string[]; stages?: StageTrace[]; dedupAttempt?: number; dedupMaxRetries?: number; triggerContext?: TriggerContext; diffStats?: DiffStats }>>([])
   const [expandedHistoryRows, setExpandedHistoryRows] = useState<Set<number>>(new Set())
   const [expandedTriggerRows, setExpandedTriggerRows] = useState<Set<number>>(new Set())
   const [comparedRuns, setComparedRuns] = useState<Set<number>>(new Set())
@@ -2706,6 +2707,13 @@ ${modelLine}  prompt: |
                                   {entry.totalCost != null && (
                                     <span className={`pipeline-history-cost${entry.totalCost > 1 ? ' high' : entry.totalCost < 0.10 ? ' low' : ''}`}>
                                       ${entry.totalCost.toFixed(2)}
+                                    </span>
+                                  )}
+                                  {entry.diffStats && entry.diffStats.filesChanged > 0 && (
+                                    <span className="pipeline-history-diff-stats" title={`${entry.diffStats.filesChanged} file${entry.diffStats.filesChanged !== 1 ? 's' : ''} changed`}>
+                                      {entry.diffStats.filesChanged} file{entry.diffStats.filesChanged !== 1 ? 's' : ''}
+                                      {entry.diffStats.insertions > 0 && <span className="diff-ins"> +{entry.diffStats.insertions}</span>}
+                                      {entry.diffStats.deletions > 0 && <span className="diff-del"> −{entry.diffStats.deletions}</span>}
                                     </span>
                                   )}
                                   {entry.sessionIds && entry.sessionIds.length > 0 && (

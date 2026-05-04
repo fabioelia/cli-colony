@@ -12,7 +12,7 @@ import { createHash } from 'crypto'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { app } from 'electron'
-import { createInstance, getAllInstances, killInstance, setApprovalCountGetter, updateDockBadge } from './instance-manager'
+import { createInstance, getAllInstances, getIdleInfo, killInstance, setApprovalCountGetter, updateDockBadge } from './instance-manager'
 import { markChecklistItem } from './onboarding-state'
 import { getDaemonRouter } from './daemon-router'
 import { sendPromptWhenReady } from './send-prompt-when-ready'
@@ -157,6 +157,12 @@ export interface ActionDef {
   timeout_minutes?: number   // max wait time in minutes (default: 30)
   stable_waiting_seconds?: number // continuous 'waiting' window before auto-close fires (default: 20)
   artifact_output?: string   // artifact name to write exit reason to
+  // idle nudge — auto-whisper when session produces no PTY output for N minutes
+  idle_nudge?: {
+    after_minutes: number
+    message: string
+    max_nudges?: number
+  }
   // playbook — when set, load named playbook and merge its defaults under explicit action fields
   playbook?: string
   // retry
@@ -518,6 +524,11 @@ export function validatePipelineYaml(content: string): { valid: boolean; errors:
   if (result.action?.type === 'route-to-session') {
     warnings.push('Deprecated action type: route-to-session — use launch-session with reuse: true')
   }
+  if (result.action?.idle_nudge) {
+    const nudge = result.action.idle_nudge
+    if (!nudge.after_minutes || nudge.after_minutes <= 0) errors.push('idle_nudge.after_minutes must be > 0')
+    if (!nudge.message?.trim()) errors.push('idle_nudge.message must not be empty')
+  }
   if (result.action?.on_failure?.run) {
     const target = findNamedAction(result.action, result.action.on_failure.run)
     if (!target) {
@@ -606,9 +617,45 @@ export interface PipelineRunEntry {
   }
   webhookFired?: boolean
   webhookDeliveries?: WebhookDeliveryResult[]
+  diffStats?: {
+    filesChanged: number
+    insertions: number
+    deletions: number
+  }
 }
 
 const MAX_HISTORY_ENTRIES = 20
+
+async function computeDiffStats(
+  sessionIds: string[],
+  headCommit?: string,
+): Promise<PipelineRunEntry['diffStats'] | undefined> {
+  if (!headCommit || sessionIds.length === 0) return undefined
+  const instances = await getAllInstances()
+  let filesChanged = 0, insertions = 0, deletions = 0
+  const visitedCwds = new Set<string>()
+  for (const id of sessionIds) {
+    const inst = instances.find(i => i.id === id)
+    const cwd = inst?.workingDirectory
+    if (!cwd || visitedCwds.has(cwd)) continue
+    visitedCwds.add(cwd)
+    try {
+      const { stdout } = await execFileAsync('git', ['diff', '--numstat', `${headCommit}..HEAD`], { cwd })
+      for (const line of stdout.split('\n')) {
+        const parts = line.split('\t')
+        if (parts.length < 2) continue
+        const ins = parseInt(parts[0], 10)
+        const del = parseInt(parts[1], 10)
+        if (isNaN(ins) || isNaN(del)) continue // skip binary files (show '-')
+        insertions += ins
+        deletions += del
+        filesChanged++
+      }
+    } catch { /* not a git repo or no commits — skip */ }
+  }
+  if (filesChanged === 0 && insertions === 0 && deletions === 0) return undefined
+  return { filesChanged, insertions, deletions }
+}
 
 function historyPath(name: string): string {
   const safe = name.replace(/[^a-zA-Z0-9._-]/g, '-')
@@ -1327,6 +1374,60 @@ function findNamedAction(root: ActionDef, name: string): ActionDef | undefined {
   return undefined
 }
 
+// Active idle-nudge intervals: instanceId → intervalId (for cleanup)
+const _idleNudgeIntervals = new Map<string, ReturnType<typeof setInterval>>()
+
+function setupIdleNudge(
+  instanceId: string,
+  nudgeConfig: NonNullable<ActionDef['idle_nudge']>,
+  pipelineName: string,
+): void {
+  const maxNudges = nudgeConfig.max_nudges ?? 2
+  const thresholdMs = nudgeConfig.after_minutes * 60_000
+  let nudgeCount = 0
+  const router = getDaemonRouter()
+
+  const interval = setInterval(async () => {
+    if (nudgeCount >= maxNudges) {
+      clearInterval(interval)
+      _idleNudgeIntervals.delete(instanceId)
+      return
+    }
+    const idleList = getIdleInfo()
+    const entry = idleList.find(e => e.id === instanceId)
+    if (!entry || entry.idleMs < thresholdMs) return
+
+    nudgeCount++
+    plog(pipelineName, `Nudging session ${instanceId} after ${Math.round(entry.idleMs / 60000)}m idle (${nudgeCount}/${maxNudges})`)
+    try {
+      await router.steerInstance(instanceId, nudgeConfig.message + '\n')
+    } catch { /* session already gone */ }
+
+    appendActivity({
+      source: 'pipeline',
+      name: pipelineName,
+      summary: `Nudged session after ${nudgeConfig.after_minutes}m idle (${nudgeCount}/${maxNudges})`,
+      level: 'info',
+    })
+
+    const p = [...pipelines.values()].find(pp => pp.def.name === pipelineName)
+    if (p?.def.notifications && p.def.notifications !== 'none') {
+      notify(`Colony: nudged session — idle ${nudgeConfig.after_minutes}m`, pipelineName, 'pipelines').catch(() => {})
+    }
+  }, 30_000) // check every 30s
+
+  _idleNudgeIntervals.set(instanceId, interval)
+
+  // Clean up when session exits
+  const exitHandler = (exitedId: string) => {
+    if (exitedId !== instanceId) return
+    router.removeListener('exited', exitHandler)
+    clearInterval(interval)
+    _idleNudgeIntervals.delete(instanceId)
+  }
+  router.on('exited', exitHandler)
+}
+
 function setupOnFailureExitListener(
   instanceId: string,
   action: ActionDef,
@@ -1688,6 +1789,11 @@ async function fireAction(action: ActionDef, ctx: TriggerContext, pipelineName: 
 
   // Full prompt is in the system prompt file — just send a trigger
   await sendPromptWhenReady(inst.id, { prompt: 'Execute the instructions in your system prompt. Begin now.' })
+
+  // Idle nudge — poke the session if it stalls
+  if (action.idle_nudge?.after_minutes && action.idle_nudge.message) {
+    setupIdleNudge(inst.id, action.idle_nudge, pipelineName)
+  }
 
   // Auto-close: kill session if still running after timeout (default 10 min).
   // Use stable-idle detection to avoid false-positives from the daemon's
@@ -2421,6 +2527,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
     }
 
     // Record run history
+    const diffStats = await computeDiffStats(allSessionIds, headCommitForHistory)
     await appendHistory(pipelineName, {
       ts: new Date().toISOString(),
       trigger: p.def.trigger.type,
@@ -2437,6 +2544,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
       triggerContext,
       webhookFired: webhookFired || undefined,
       webhookDeliveries: webhookDeliveries.length > 0 ? webhookDeliveries : undefined,
+      diffStats,
     })
 
     // Trim debug log to the last N iterations
@@ -2690,6 +2798,8 @@ export function stopPipelines(): void {
     clearInterval(approvalSweepTimer)
     approvalSweepTimer = null
   }
+  for (const interval of _idleNudgeIntervals.values()) clearInterval(interval)
+  _idleNudgeIntervals.clear()
   started = false
   log('All pipelines stopped')
 }

@@ -214,24 +214,256 @@ function sendJson(res: ServerResponse, status: number, body: Record<string, unkn
   res.end(payload)
 }
 
-/** Check API auth — required only when `apiToken` setting is configured. */
+/** Check API auth — required only when `apiToken` setting is configured.
+ *  Also accepts ?token= query param for GET requests (needed for EventSource). */
 async function checkApiAuth(req: IncomingMessage): Promise<boolean> {
   const token = await getSetting('apiToken')
   if (!token) return true
-  return verifyGenericToken(token, req)
+  if (verifyGenericToken(token, req)) return true
+  // EventSource can't send headers — accept token via query param for GET requests only
+  if (req.method === 'GET' && req.url) {
+    try {
+      const params = new URL(req.url, 'http://localhost').searchParams
+      const qToken = params.get('token')
+      if (qToken && safeEqual(qToken, token)) return true
+    } catch { /* invalid URL */ }
+  }
+  return false
+}
+
+function buildDashboardHtml(): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Colony Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d0d1a;color:#e0e0e0;font:13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:0}
+a{color:#3b82f6;text-decoration:none}
+#header{background:#111128;border-bottom:1px solid #222244;padding:12px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+#header h1{font-size:16px;font-weight:600;color:#e0e0e0;flex:1}
+#uptime{font-size:11px;color:#888;margin-left:auto}
+#health-dot{width:10px;height:10px;border-radius:50%;background:#22c55e;flex-shrink:0}
+#health-dot.warn{background:#f59e0b}
+#health-dot.err{background:#ef4444}
+#auth-bar{background:#0d0d1a;border-bottom:1px solid #1a1a3a;padding:8px 20px;display:flex;align-items:center;gap:8px}
+#auth-bar label{font-size:11px;color:#888}
+#token-input{padding:4px 8px;border:1px solid #333;border-radius:4px;background:#111128;color:#e0e0e0;font:12px monospace;width:260px}
+#apply-btn{padding:4px 12px;background:#3b82f6;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px}
+#apply-btn:hover{background:#2563eb}
+main{padding:20px;display:grid;gap:20px;max-width:1200px;margin:0 auto}
+@media(min-width:800px){main{grid-template-columns:1fr 1fr}}
+section{background:#111128;border:1px solid #1a1a3a;border-radius:8px;padding:16px}
+section h2{font-size:13px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:500}
+.badge.green{background:rgba(34,197,94,.15);color:#22c55e}
+.badge.red{background:rgba(239,68,68,.15);color:#ef4444}
+.badge.blue{background:rgba(59,130,246,.15);color:#3b82f6}
+.badge.amber{background:rgba(245,158,11,.15);color:#f59e0b}
+.stat-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.stat{background:#0d0d1a;border:1px solid #1a1a3a;border-radius:6px;padding:8px 14px;text-align:center}
+.stat-val{font-size:20px;font-weight:700;color:#e0e0e0}
+.stat-lbl{font-size:10px;color:#666;margin-top:2px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{color:#666;font-weight:500;text-align:left;padding:4px 8px;border-bottom:1px solid #1a1a3a}
+td{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.04);vertical-align:top}
+tr:last-child td{border-bottom:none}
+.name{color:#e0e0e0;font-weight:500}
+.muted{color:#666}
+.cost{font-variant-numeric:tabular-nums}
+#sessions-stat,#pipelines-stat,#personas-stat{font-size:11px;color:#666;margin-bottom:8px}
+#last-updated{font-size:10px;color:#444;text-align:right;margin-top:4px}
+</style>
+</head>
+<body>
+<div id="header">
+  <div id="health-dot"></div>
+  <h1>Colony Dashboard</h1>
+  <span id="uptime" class="muted">—</span>
+</div>
+<div id="auth-bar">
+  <label for="token-input">API Token:</label>
+  <input id="token-input" type="password" placeholder="Leave empty if no auth configured" />
+  <button id="apply-btn">Connect</button>
+</div>
+<main>
+  <section>
+    <h2>Sessions <span id="sessions-stat"></span></h2>
+    <div class="stat-row">
+      <div class="stat"><div class="stat-val" id="s-running">—</div><div class="stat-lbl">Running</div></div>
+      <div class="stat"><div class="stat-val" id="s-waiting">—</div><div class="stat-lbl">Waiting</div></div>
+      <div class="stat"><div class="stat-val" id="s-stopped">—</div><div class="stat-lbl">Stopped</div></div>
+    </div>
+    <table id="sessions-table"><thead><tr><th>Name</th><th>Status</th><th>Cost</th><th>Idle</th></tr></thead><tbody></tbody></table>
+  </section>
+  <section>
+    <h2>Pipelines <span id="pipelines-stat"></span></h2>
+    <table id="pipelines-table"><thead><tr><th>Name</th><th>Next Fire</th><th>Last Run</th></tr></thead><tbody></tbody></table>
+  </section>
+  <section>
+    <h2>Personas <span id="personas-stat"></span></h2>
+    <table id="personas-table"><thead><tr><th>Name</th><th>Runs</th><th>Last Run</th></tr></thead><tbody></tbody></table>
+  </section>
+  <section>
+    <h2>Health</h2>
+    <table id="health-table"><thead><tr><th>Check</th><th>Status</th></tr></thead><tbody></tbody></table>
+    <div id="last-updated"></div>
+  </section>
+</main>
+<script>
+(function() {
+  var token = sessionStorage.getItem('colony-dash-token') || '';
+  if (token) document.getElementById('token-input').value = token;
+
+  function headers() {
+    return token ? { 'Authorization': 'Bearer ' + token } : {};
+  }
+
+  function fmt(ms) {
+    if (ms < 60000) return Math.round(ms/1000) + 's';
+    if (ms < 3600000) return Math.round(ms/60000) + 'm';
+    return (ms/3600000).toFixed(1) + 'h';
+  }
+  function fmtDate(ts) {
+    if (!ts) return '—';
+    var d = new Date(ts), now = Date.now(), diff = now - d.getTime();
+    if (diff < 60000) return 'just now';
+    if (diff < 3600000) return Math.round(diff/60000) + 'm ago';
+    if (diff < 86400000) return Math.round(diff/3600000) + 'h ago';
+    return d.toLocaleDateString();
+  }
+
+  function setTbody(id, rows) {
+    document.querySelector('#' + id + ' tbody').innerHTML = rows.join('');
+  }
+
+  async function load() {
+    try {
+      var [status, sessions, pipelines, personas, health] = await Promise.all([
+        fetch('/api/status', {headers: headers()}).then(r => r.ok ? r.json() : null),
+        fetch('/api/sessions', {headers: headers()}).then(r => r.ok ? r.json() : null),
+        fetch('/api/pipelines', {headers: headers()}).then(r => r.ok ? r.json() : null),
+        fetch('/api/personas', {headers: headers()}).then(r => r.ok ? r.json() : null),
+        fetch('/api/health', {headers: headers()}).then(r => r.ok ? r.json() : null),
+      ]);
+
+      if (status) {
+        document.getElementById('uptime').textContent = 'v' + status.version + ' · up ' + fmt(status.uptime * 1000);
+      }
+
+      if (sessions) {
+        var list = sessions.sessions || [];
+        var running = list.filter(function(s){return s.status==='running';}).length;
+        var waiting = list.filter(function(s){return s.status==='waiting';}).length;
+        var stopped = list.filter(function(s){return s.status==='stopped';}).length;
+        document.getElementById('s-running').textContent = running;
+        document.getElementById('s-waiting').textContent = waiting;
+        document.getElementById('s-stopped').textContent = stopped;
+        document.getElementById('sessions-stat').innerHTML = '<span class="badge blue">' + list.length + ' total</span>';
+        var active = list.filter(function(s){return s.status!=='stopped';}).slice(0,20);
+        setTbody('sessions-table', active.map(function(s) {
+          var badge = s.status === 'running' ? 'green' : s.status === 'waiting' ? 'blue' : 'amber';
+          var cost = s.cost != null ? '$' + s.cost.toFixed(3) : '—';
+          var idle = s.idleSince ? fmt(Date.now() - new Date(s.idleSince).getTime()) : '—';
+          return '<tr><td class="name">' + escHtml(s.name) + '</td><td><span class="badge ' + badge + '">' + s.status + '</span></td><td class="cost muted">' + cost + '</td><td class="muted">' + idle + '</td></tr>';
+        }));
+      }
+
+      if (pipelines) {
+        var plist = pipelines.pipelines || [];
+        var enabled = plist.filter(function(p){return p.enabled;}).length;
+        document.getElementById('pipelines-stat').innerHTML = '<span class="badge blue">' + enabled + ' enabled</span>';
+        setTbody('pipelines-table', plist.slice(0,20).map(function(p) {
+          var next = p.nextFireAt ? fmtDate(p.nextFireAt) : '—';
+          var last = p.lastRunAt ? ('<span class="badge ' + (p.lastRunSuccess ? 'green' : 'red') + '">' + fmtDate(p.lastRunAt) + '</span>') : '<span class="muted">never</span>';
+          return '<tr><td class="name">' + escHtml(p.name) + '</td><td class="muted">' + next + '</td><td>' + last + '</td></tr>';
+        }));
+      }
+
+      if (personas) {
+        var perlist = personas.personas || [];
+        var active2 = perlist.filter(function(p){return p.enabled;}).length;
+        document.getElementById('personas-stat').innerHTML = '<span class="badge blue">' + active2 + ' active</span>';
+        setTbody('personas-table', perlist.slice(0,20).map(function(p) {
+          return '<tr><td class="name">' + escHtml(p.id) + '</td><td class="muted">' + (p.runCount||0) + '</td><td class="muted">' + fmtDate(p.lastRunAt) + '</td></tr>';
+        }));
+      }
+
+      if (health) {
+        var dot = document.getElementById('health-dot');
+        dot.className = health.healthy ? '' : 'err';
+        var checks = health.checks || [];
+        setTbody('health-table', checks.map(function(c) {
+          var badge = c.ok ? 'green' : 'red';
+          return '<tr><td class="name">' + escHtml(c.name) + '</td><td><span class="badge ' + badge + '">' + (c.ok ? 'ok' : 'fail') + '</span></td></tr>';
+        }));
+      }
+
+      document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    } catch(e) { /* network error */ }
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  document.getElementById('apply-btn').onclick = function() {
+    token = document.getElementById('token-input').value.trim();
+    sessionStorage.setItem('colony-dash-token', token);
+    connectSSE();
+    load();
+  };
+
+  var evtSrc = null;
+  function connectSSE() {
+    if (evtSrc) evtSrc.close();
+    var sseUrl = '/api/events' + (token ? '?token=' + encodeURIComponent(token) : '');
+    evtSrc = new EventSource(sseUrl);
+    evtSrc.onmessage = function(e) {
+      try {
+        var evt = JSON.parse(e.data);
+        var ch = evt.channel || '';
+        if (ch === 'instance:exited' || ch === 'instance:started' || ch === 'pipeline:status' || ch.startsWith('persona:')) {
+          load();
+        }
+      } catch(ex) {}
+    };
+    evtSrc.onerror = function() { /* will retry automatically */ };
+  }
+
+  // Initial load
+  load();
+  connectSSE();
+  // Fallback polling every 30s in case SSE misses events
+  setInterval(load, 30000);
+})();
+</script>
+</body>
+</html>`
 }
 
 async function handleApiRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = req.url || '/'
   const method = req.method || 'GET'
+  const urlPath = url.split('?')[0]
+
+  // GET /api/dashboard — serve before auth check (page prompts for token itself)
+  if (method === 'GET' && urlPath === '/api/dashboard') {
+    const html = buildDashboardHtml()
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': Buffer.byteLength(html) })
+    res.end(html)
+    return
+  }
 
   if (!await checkApiAuth(req)) {
     sendJson(res, 401, { error: 'Unauthorized' })
     return
   }
 
-  // GET /api/events — SSE stream
-  if (method === 'GET' && url === '/api/events') {
+  // GET /api/events — SSE stream (also matches /api/events?token=xxx)
+  if (method === 'GET' && (url === '/api/events' || url.startsWith('/api/events?'))) {
     if (_sseClients.size >= MAX_SSE_CLIENTS) {
       sendJson(res, 503, { error: 'Too many SSE connections' })
       return
@@ -803,6 +1035,7 @@ async function handleApiRequest(req: IncomingMessage, res: ServerResponse): Prom
               webhookFired: { type: 'boolean' },
               webhookDeliveries: { type: 'array', items: { $ref: '#/components/schemas/WebhookDeliveryResult' }, nullable: true },
               triggerContext: { type: 'object', properties: { githubEvent: { type: 'string' }, githubAction: { type: 'string' } } },
+              diffStats: { type: 'object', nullable: true, description: 'Git diff stats across all sessions in this run', properties: { filesChanged: { type: 'number' }, insertions: { type: 'number' }, deletions: { type: 'number' } } },
             },
           },
           HealthReport: {
@@ -831,6 +1064,9 @@ async function handleApiRequest(req: IncomingMessage, res: ServerResponse): Prom
         },
         '/api/docs': {
           get: { summary: 'Interactive API docs (Swagger UI)', operationId: 'getDocs', tags: ['System'], responses: { '200': { description: 'HTML page' } } },
+        },
+        '/api/dashboard': {
+          get: { summary: 'Web status dashboard', operationId: 'getDashboard', tags: ['System'], description: 'Self-contained HTML dashboard. No auth required for the page — prompts for token inline. Auto-refreshes via SSE.', responses: { '200': { description: 'HTML dashboard page', content: { 'text/html': {} } } } },
         },
         '/api/events': {
           get: {

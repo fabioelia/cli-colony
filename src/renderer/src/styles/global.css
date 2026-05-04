@@ -16045,6 +16045,14 @@ button.session-trigger-chain-btn:hover {
   color: var(--text-muted);
 }
 
+.pipeline-history-diff-stats {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.pipeline-history-diff-stats .diff-ins { color: var(--success); }
+.pipeline-history-diff-stats .diff-del { color: var(--danger); }
+
 .pipeline-history-retry-badge {
   font-size: 10px;
   color: var(--warning);
