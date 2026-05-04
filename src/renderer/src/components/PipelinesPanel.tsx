@@ -2746,6 +2746,14 @@ ${modelLine}  prompt: |
                                   )}
                                   <button
                                     className="pipeline-history-replay-btn"
+                                    title="Re-run with overrides — customize prompt, model, and budget before firing"
+                                    onClick={(e) => { e.stopPropagation(); handleRunWithOptions(p.name) }}
+                                    disabled={triggeringPipelines.has(p.name)}
+                                  >
+                                    <Wand2 size={11} />
+                                  </button>
+                                  <button
+                                    className="pipeline-history-replay-btn"
                                     title={`Replay run from ${new Date(entry.ts).toLocaleString()}`}
                                     onClick={(e) => { e.stopPropagation(); handleReplay(p.name, entry.ts) }}
                                     disabled={triggeringPipelines.has(p.name)}
