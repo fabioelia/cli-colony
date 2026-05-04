@@ -44,7 +44,9 @@ export interface TriggerDef {
   type: 'git-poll' | 'file-poll' | 'cron' | 'webhook'
   interval?: number // seconds
   cron?: string // cron expression: "min hour dom month dow" (e.g. "0 9 * * 1-5")
-  repos?: 'auto' | GitHubRepo[]
+  /** Repos to poll. 'auto' (or omitted) uses the configured repo list.
+   *  An explicit array may be GitHubRepo objects (legacy) or "owner/repo" strings (preferred). */
+  repos?: 'auto' | GitHubRepo[] | string[]
   watch?: string[]
   // webhook-specific fields
   secret?: string
@@ -239,6 +241,14 @@ interface PipelineState {
   fireCount: number
   lastFiredAt: string | null
   lastError: string | null
+  /** Most recent pre_run hook error (e.g. refresh-prs failed). Cleared on next clean run. */
+  lastHookError?: string | null
+  /** Number of repos enumerated on the most recent poll. Used to flag stale repo lists. */
+  lastRepoCount?: number
+  /** Highest repo count ever seen — used as the "expected" baseline for staleness checks. */
+  expectedRepoCount?: number
+  /** True when the most recent poll's repo enumeration was shorter than expectedRepoCount. */
+  repoSlugsStale?: boolean
   consecutiveFailures: number
   debugLog: string[]
   lastRunStoppedBudget?: boolean
@@ -265,6 +275,12 @@ export interface PipelineInfo {
   lastMatchAt: string | null
   lastFiredAt: string | null
   lastError: string | null
+  /** Most recent pre_run hook or repo-fetch error. Distinct from lastError so the UI can banner it separately. */
+  lastHookError: string | null
+  /** Derived health: 'healthy' | 'degraded' (hook err / stale repos) | 'failing' (consecutive run failures). */
+  healthStatus: 'healthy' | 'degraded' | 'failing'
+  /** True when the most recent poll resolved fewer repos than the high-watermark baseline. */
+  repoSlugsStale: boolean
   fireCount: number
   consecutiveFailures: number
   debugLog: string[]
@@ -311,6 +327,9 @@ export interface TriggerContext {
   webhookPayload?: unknown
   /** All configured repos as "owner/name" slugs — available as {{repos}} */
   repoSlugs?: string[]
+  /** True when the resolved repo list is shorter than the expected baseline. Renders a sentinel
+   *  prefix in {{repos}} so prompt authors / actions can detect partial enumeration. */
+  repoSlugsStale?: boolean
   /** For files-changed condition: absolute path to the repo to diff */
   repoPath?: string
   /** For files-changed condition: HEAD commit from last successful run */
@@ -475,6 +494,24 @@ export function validatePipelineYaml(content: string): { valid: boolean; errors:
   if (typeof result.trigger?.watch === 'string') result.trigger.watch = [result.trigger.watch]
   const watchArr = parseYamlArray(content, 'watch')
   if (watchArr && result.trigger) result.trigger.watch = watchArr
+
+  // Ensure trigger.repos is 'auto' or an array of "owner/name" strings.
+  // Accept legacy GitHubRepo objects untouched.
+  if (result.trigger?.repos !== undefined && result.trigger.repos !== 'auto') {
+    if (typeof result.trigger.repos === 'string') {
+      result.trigger.repos = [result.trigger.repos]
+    }
+    const reposArr = parseYamlArray(content, 'repos')
+    if (reposArr) result.trigger.repos = reposArr
+    if (Array.isArray(result.trigger.repos)) {
+      const malformed = (result.trigger.repos as unknown[]).filter(
+        (r) => typeof r === 'string' && !r.includes('/'),
+      )
+      if (malformed.length > 0) {
+        warnings.push(`trigger.repos: ${malformed.length} entry/entries missing "owner/name" form — skipped`)
+      }
+    }
+  }
 
   // Re-parse dash lists for leaf conditions
   if (result.condition && !isCompositeCondition(result.condition)) {
@@ -778,6 +815,7 @@ async function loadState(): Promise<Record<string, PipelineState>> {
 async function saveState(): Promise<void> {
   const state: Record<string, any> = {}
   for (const [name, p] of pipelines) {
+    pruneFiredKeys(p)
     const { debugLog, ...rest } = p.state
     state[name] = rest
   }
@@ -785,6 +823,23 @@ async function saveState(): Promise<void> {
     await fsp.writeFile(STATE_PATH, JSON.stringify(state, null, 2), 'utf-8')
   } catch (err) {
     log(`Failed to save state: ${err}`)
+  }
+}
+
+/**
+ * Drop firedKeys / contentHashes entries older than 2× the pipeline's dedup TTL.
+ * Runs on every save to bound state growth (previously only ran on fire, which
+ * meant dormant pipelines accumulated keys forever).
+ */
+function pruneFiredKeys(p: { def: PipelineDef; state: PipelineState }): void {
+  const ttlSec = p.def.dedup?.ttl || 3600
+  const cutoff = Date.now() - ttlSec * 2 * 1000
+  for (const [k, entryVal] of Object.entries(p.state.firedKeys)) {
+    const e = normalizeFiredEntry(entryVal)
+    if (e && e.timestamp < cutoff) {
+      delete p.state.firedKeys[k]
+      if (p.state.contentHashes) delete p.state.contentHashes[k]
+    }
   }
 }
 
@@ -808,23 +863,48 @@ function freshState(): PipelineState {
 // ---- Pre-Run Hooks ----
 
 async function executePreRunHooks(hooks: Array<{ type: string }>, pipelineName: string): Promise<void> {
+  const p = pipelines.get(pipelineName)
   for (const hook of hooks) {
     const start = Date.now()
     try {
       if (hook.type === 'refresh-prs') {
         const repos = await getRepos()
         const prsByRepo: Record<string, GitHubPR[]> = {}
+        const failedRepos: Array<{ slug: string; err: string }> = []
+        // Per-repo isolation: one repo's failure must not poison the others.
         for (const repo of repos) {
-          prsByRepo[`${repo.owner}/${repo.name}`] = await fetchPRs(repo)
+          const slug = `${repo.owner}/${repo.name}`
+          try {
+            prsByRepo[slug] = await fetchPRs(repo)
+          } catch (err) {
+            failedRepos.push({ slug, err: (err as Error).message })
+          }
         }
         await writePrContext(prsByRepo)
         broadcast('pipeline:status', getPipelineList())
-        plog(pipelineName, `pre_run: refresh-prs completed in ${Date.now() - start}ms (${repos.length} repos)`)
+        const ok = Object.keys(prsByRepo).length
+        const dur = Date.now() - start
+        if (failedRepos.length === 0) {
+          plog(pipelineName, `pre_run: refresh-prs completed in ${dur}ms (${ok} repos)`)
+          if (p) p.state.lastHookError = null
+        } else if (failedRepos.length < repos.length) {
+          // Partial — record but do not hard-fail.
+          const failsList = failedRepos.map(f => `${f.slug} (${f.err})`).join('; ')
+          plog(pipelineName, `pre_run: ⚠ refresh-prs partial — ${ok}/${repos.length} repos OK in ${dur}ms; failed: ${failsList}`)
+          if (p) p.state.lastHookError = `refresh-prs partial: ${failedRepos.length}/${repos.length} repos failed (${failsList})`
+        } else {
+          // All repos failed.
+          const failsList = failedRepos.map(f => `${f.slug} (${f.err})`).join('; ')
+          plog(pipelineName, `pre_run: ✗ ERROR refresh-prs failed for all ${repos.length} repos in ${dur}ms; ${failsList}`)
+          if (p) p.state.lastHookError = `refresh-prs failed for all repos: ${failsList}`
+        }
       } else {
         plog(pipelineName, `pre_run: unknown hook type "${hook.type}" — skipping`)
       }
     } catch (err) {
-      plog(pipelineName, `pre_run: hook "${hook.type}" failed (${Date.now() - start}ms): ${(err as Error).message}`)
+      const msg = (err as Error).message
+      plog(pipelineName, `pre_run: ✗ ERROR hook "${hook.type}" failed (${Date.now() - start}ms): ${msg}`)
+      if (p) p.state.lastHookError = `hook "${hook.type}" failed: ${msg}`
     }
   }
 }
@@ -843,10 +923,14 @@ export function resolveTemplate(template: string, ctx: TriggerContext, varOverri
     pr_number: String(prPayload['number'] || ghPayload['number'] || ''),
     sender: String(senderPayload['login'] || ''),
   }
+  const reposJoined = ctx.repoSlugs?.join(', ') || ''
+  const reposRendered = ctx.repoSlugsStale
+    ? (reposJoined ? `<repos-stale> ${reposJoined}` : '<repos-stale>')
+    : reposJoined
   const context: Record<string, unknown> = {
     ...ctx,
     github: { user: ctx.githubUser || '' },
-    repos: ctx.repoSlugs?.join(', ') || '',
+    repos: reposRendered,
     webhook_payload: JSON.stringify(ctx.webhookPayload || {}),
     ...ghVars,
   }
@@ -1002,8 +1086,40 @@ async function sendPromptToExistingSession(instanceId: string, prompt: string): 
 
 // ---- Trigger Execution ----
 
+/**
+ * Resolve a trigger.repos field into concrete GitHubRepo objects.
+ * Supports 'auto' (or undefined) → configured repo list,
+ * array of strings ("owner/name") → looked up against configured repos when possible
+ *   (so we get localPath), or built minimally when not configured,
+ * array of GitHubRepo objects → returned as-is.
+ */
+async function resolveTriggerRepos(trigger: TriggerDef): Promise<GitHubRepo[]> {
+  if (trigger.repos === 'auto' || !trigger.repos) return getRepos()
+  const arr = trigger.repos
+  if (!Array.isArray(arr) || arr.length === 0) return getRepos()
+
+  // String form: ["owner/name", ...]
+  if (typeof arr[0] === 'string') {
+    const configured = await getRepos()
+    const byKey = new Map<string, GitHubRepo>()
+    for (const r of configured) byKey.set(`${r.owner}/${r.name}`.toLowerCase(), r)
+    const result: GitHubRepo[] = []
+    for (const raw of arr as string[]) {
+      const slug = String(raw).trim()
+      if (!slug.includes('/')) continue
+      const [owner, name] = slug.split('/', 2)
+      const known = byKey.get(slug.toLowerCase())
+      result.push(known ?? ({ owner, name } as GitHubRepo))
+    }
+    return result
+  }
+
+  // Object form (legacy / programmatic)
+  return arr as GitHubRepo[]
+}
+
 async function executeGitPollTrigger(trigger: TriggerDef, condition?: ConditionDef): Promise<TriggerContext[]> {
-  const repos = trigger.repos === 'auto' || !trigger.repos ? await getRepos() : trigger.repos as GitHubRepo[]
+  const repos = await resolveTriggerRepos(trigger)
   const contexts: TriggerContext[] = []
   const errors: string[] = []
 
@@ -1018,9 +1134,13 @@ async function executeGitPollTrigger(trigger: TriggerDef, condition?: ConditionD
     }
   }
 
+  const perRepoCounts: Record<string, number> = {}
+  const failedRepos: string[] = []
   for (const repo of repos) {
+    const slug = `${repo.owner}/${repo.name}`
     try {
       const prs = await fetchPRs(repo, search)
+      perRepoCounts[slug] = prs.length
       for (const pr of prs) {
         contexts.push({
           repo,
@@ -1030,15 +1150,17 @@ async function executeGitPollTrigger(trigger: TriggerDef, condition?: ConditionD
         })
       }
     } catch (err) {
-      const msg = `Failed to fetch PRs for ${repo.owner}/${repo.name}: ${err}`
+      const msg = `Failed to fetch PRs for ${slug}: ${err}`
       log(msg)
       errors.push(msg)
+      failedRepos.push(slug)
     }
   }
 
-  if (errors.length > 0) {
-    (contexts as any)._fetchErrors = errors
-  }
+  if (errors.length > 0) (contexts as any)._fetchErrors = errors
+  ;(contexts as any)._perRepoCounts = perRepoCounts
+  ;(contexts as any)._failedRepos = failedRepos
+  ;(contexts as any)._configuredRepoCount = repos.length
 
   return contexts
 }
@@ -2040,23 +2162,70 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
     const repoSlugs = (await getRepos()).map(r => `${r.owner}/${r.name}`)
     let contexts: TriggerContext[] = []
 
+    // Track expected repo count baseline so we can flag stale enumeration.
+    const expected = Math.max(p.state.expectedRepoCount || 0, repoSlugs.length)
+    p.state.expectedRepoCount = expected
+    p.state.lastRepoCount = repoSlugs.length
+    p.state.repoSlugsStale = repoSlugs.length < expected
+
+    if (p.state.repoSlugsStale) {
+      plog(pipelineName, `⚠ repo enumeration partial: ${repoSlugs.length}/${expected} repos resolved`)
+    }
+
     if (p.def.trigger.type === 'git-poll') {
       plog(pipelineName, `polling (git-poll, ${p.def.trigger.repos === 'auto' ? 'auto repos' : 'custom repos'})`)
       contexts = await executeGitPollTrigger(p.def.trigger, p.def.condition)
       // Inject repoSlugs into git-poll contexts (they already have individual repo set)
-      for (const ctx of contexts) ctx.repoSlugs = repoSlugs
-      const fetchErrors = (contexts as any)._fetchErrors as string[] | undefined
-      if (fetchErrors) {
-        for (const e of fetchErrors) plog(pipelineName, e)
-        delete (contexts as any)._fetchErrors
+      for (const ctx of contexts) {
+        ctx.repoSlugs = repoSlugs
+        if (p.state.repoSlugsStale) ctx.repoSlugsStale = true
       }
-      plog(pipelineName, `found ${contexts.length} repo/PR contexts to evaluate`)
+
+      const fetchErrors = (contexts as any)._fetchErrors as string[] | undefined
+      const perRepoCounts = (contexts as any)._perRepoCounts as Record<string, number> | undefined
+      const failedRepos = (contexts as any)._failedRepos as string[] | undefined
+      const configuredRepoCount = (contexts as any)._configuredRepoCount as number | undefined
+      delete (contexts as any)._fetchErrors
+      delete (contexts as any)._perRepoCounts
+      delete (contexts as any)._failedRepos
+      delete (contexts as any)._configuredRepoCount
+
+      if (fetchErrors?.length) {
+        for (const e of fetchErrors) plog(pipelineName, `✗ ERROR ${e}`)
+      }
+
+      // Track repo-fetch failures as a hook-style error so the UI surfaces them.
+      if (failedRepos?.length && configuredRepoCount) {
+        const detail = `${failedRepos.length}/${configuredRepoCount} repo(s) failed: ${failedRepos.join(', ')}`
+        if (failedRepos.length === configuredRepoCount) {
+          p.state.lastHookError = `git-poll failed for all repos — ${detail}`
+        } else {
+          p.state.lastHookError = `git-poll partial — ${detail}`
+        }
+      } else if (configuredRepoCount && configuredRepoCount > 0) {
+        // Clean run — don't clobber a hook error set by pre_run; only clear if WE set it.
+        if (p.state.lastHookError && p.state.lastHookError.startsWith('git-poll')) {
+          p.state.lastHookError = null
+        }
+      }
+
+      // Per-repo contribution log
+      if (perRepoCounts) {
+        const summary = Object.entries(perRepoCounts)
+          .map(([slug, n]) => `${slug} (${n})`)
+          .concat((failedRepos || []).map(slug => `${slug} (✗)`))
+          .join(', ')
+        plog(pipelineName, `found ${contexts.length} repo/PR contexts across ${configuredRepoCount} repo(s): ${summary || '—'}`)
+      } else {
+        plog(pipelineName, `found ${contexts.length} repo/PR contexts to evaluate`)
+      }
     } else if (p.def.trigger.type === 'cron') {
       plog(pipelineName, `cron triggered`)
       contexts = [{
         githubUser: githubUser || undefined,
         timestamp: new Date().toISOString(),
         repoSlugs,
+        repoSlugsStale: p.state.repoSlugsStale || undefined,
       }]
     } else if (p.def.trigger.type === 'file-poll') {
       plog(pipelineName, `file change detected`)
@@ -2064,6 +2233,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
         githubUser: githubUser || undefined,
         timestamp: new Date().toISOString(),
         repoSlugs,
+        repoSlugsStale: p.state.repoSlugsStale || undefined,
       }]
     } else if (p.def.trigger.type === 'webhook') {
       plog(pipelineName, `webhook triggered`)
@@ -2074,6 +2244,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
         timestamp: new Date().toISOString(),
         webhookPayload: payload,
         repoSlugs,
+        repoSlugsStale: p.state.repoSlugsStale || undefined,
       }]
     }
 
@@ -2826,6 +2997,11 @@ function toActionShape(action: ActionDef): ActionShape {
 export function getPipelineList(): PipelineInfo[] {
   const result: PipelineInfo[] = []
   for (const [name, p] of pipelines) {
+    const consecutiveFailures = p.state.consecutiveFailures || 0
+    const healthStatus: 'healthy' | 'degraded' | 'failing' =
+      consecutiveFailures >= CONSECUTIVE_FAILURE_THRESHOLD ? 'failing' :
+      (p.state.lastHookError || p.state.repoSlugsStale) ? 'degraded' :
+      'healthy'
     result.push({
       name: p.def.name,
       description: p.def.description || '',
@@ -2840,8 +3016,11 @@ export function getPipelineList(): PipelineInfo[] {
       lastFiredAt: p.state.lastFiredAt,
       lastMatchAt: p.state.lastMatchAt,
       lastError: p.state.lastError,
+      lastHookError: p.state.lastHookError ?? null,
+      healthStatus,
+      repoSlugsStale: !!p.state.repoSlugsStale,
       fireCount: p.state.fireCount,
-      consecutiveFailures: p.state.consecutiveFailures || 0,
+      consecutiveFailures,
       debugLog: p.state.debugLog || [],
       budget: p.def.budget ? { maxCostUsd: p.def.budget.max_cost_usd, warnAt: p.def.budget.warn_at ?? p.def.budget.max_cost_usd * 0.75 } : null,
       lastRunStoppedBudget: p.state.lastRunStoppedBudget ?? false,

@@ -74,6 +74,12 @@ interface PipelineInfo {
   lastMatchAt: string | null
   lastFiredAt: string | null
   lastError: string | null
+  /** Most recent pre_run hook / repo-fetch error (separate from lastError). */
+  lastHookError?: string | null
+  /** Derived health: 'healthy' | 'degraded' | 'failing'. */
+  healthStatus?: 'healthy' | 'degraded' | 'failing'
+  /** True when most recent poll resolved fewer repos than the high-watermark. */
+  repoSlugsStale?: boolean
   fireCount: number
   debugLog: string[]
   budget?: { maxCostUsd: number; warnAt: number } | null
@@ -2121,6 +2127,18 @@ ${modelLine}  prompt: |
                     {({ 'maker-checker': 'Maker-Checker', 'diff_review': 'Diff Review', 'best-of-n': 'Best of N', 'parallel': 'Parallel', 'plan': 'Plan', 'wait_for_session': 'Wait', 'trigger_pipeline': 'Trigger Pipeline' } as Record<string, string>)[p.actionShape.type] || p.actionShape.type}
                   </span>
                 )}
+                {p.healthStatus && p.healthStatus !== 'healthy' && (
+                  <span
+                    className={`pipeline-health-badge pipeline-health-${p.healthStatus}`}
+                    title={
+                      p.healthStatus === 'failing'
+                        ? `Failing: ${p.consecutiveFailures ?? 0} consecutive run failures`
+                        : (p.lastHookError ? `Degraded: ${p.lastHookError}` : 'Degraded: partial repo enumeration on last poll')
+                    }
+                  >
+                    {p.healthStatus === 'failing' ? '✗ failing' : '⚠ degraded'}
+                  </span>
+                )}
                 {p.triggerType !== 'webhook' && <span className="pipeline-card-trigger">{p.triggerType}</span>}
                 {p.runCondition === 'has_changes' && (
                   <span className="pipeline-run-condition" title="Only fires when new commits exist since last run">if changes</span>
@@ -2340,6 +2358,12 @@ ${modelLine}  prompt: |
               <div className="pipeline-error-block">
                 <AlertTriangle size={10} />
                 <span className="pipeline-error-text">{p.lastError}</span>
+              </div>
+            )}
+            {p.lastHookError && (
+              <div className="pipeline-error-block warning" title={p.lastHookError}>
+                <AlertTriangle size={10} />
+                <span className="pipeline-error-text">Hook: {p.lastHookError.length > 120 ? p.lastHookError.slice(0, 120) + '…' : p.lastHookError}</span>
               </div>
             )}
             {(p.consecutiveFailures ?? 0) > 0 && (

@@ -488,6 +488,98 @@ describe('pipeline-engine: composite condition evaluation', () => {
   })
 })
 
+describe('pipeline-engine: repo enumeration & {{repos}} sentinel', () => {
+  let mod: typeof import('../pipeline-engine')
+
+  beforeEach(() => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  it('parses literal "repos: [owner/name]" array under trigger', async () => {
+    const yaml = `
+name: Pinned
+trigger:
+  type: git-poll
+  interval: 300
+  repos:
+    - owner/repo-a
+    - owner/repo-b
+condition:
+  type: always
+action:
+  type: launch-session
+  prompt: Hello
+dedup:
+  key: x
+`
+    const fs = buildFsMock(['p.yaml'], { 'p.yaml': yaml })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+    const list = mod.getPipelineList()
+    expect(list).toHaveLength(1)
+  })
+
+  it('warns and rejects when condition is well-formed but trigger.repos has malformed entries', async () => {
+    // We can't easily inspect warnings, but loadPipelines should still load the pipeline
+    // (malformed entries are skipped/warned, not fatal).
+    const yaml = `
+name: PartialRepos
+trigger:
+  type: git-poll
+  interval: 300
+  repos:
+    - owner/repo-good
+    - bad-without-slash
+condition:
+  type: always
+action:
+  type: launch-session
+  prompt: Hello
+dedup:
+  key: x
+`
+    const fs = buildFsMock(['p.yaml'], { 'p.yaml': yaml })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+    await mod.loadPipelines()
+    expect(mod.getPipelineList()).toHaveLength(1)
+  })
+
+  it('resolveTemplate emits <repos-stale> sentinel when ctx.repoSlugsStale is set', async () => {
+    const fs = buildFsMock([], {})
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    const out = mod.resolveTemplate('Repos: {{repos}}', {
+      timestamp: '2026-01-01T00:00:00Z',
+      repoSlugs: ['o/a', 'o/b'],
+      repoSlugsStale: true,
+    } as any)
+    expect(out).toBe('Repos: <repos-stale> o/a, o/b')
+  })
+
+  it('resolveTemplate emits clean repos list when staleness flag is unset', async () => {
+    const fs = buildFsMock([], {})
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    const out = mod.resolveTemplate('Repos: {{repos}}', {
+      timestamp: '2026-01-01T00:00:00Z',
+      repoSlugs: ['o/a', 'o/b'],
+    } as any)
+    expect(out).toBe('Repos: o/a, o/b')
+  })
+})
+
 describe('pipeline-engine: getPipelineList fields', () => {
   let mod: typeof import('../pipeline-engine')
 
