@@ -36,6 +36,8 @@ vi.mock('../instance-manager', () => ({
 vi.mock('../daemon-router', () => ({ getDaemonRouter: () => mockDaemonRouterObj }))
 const mockFireWebhookPipeline = vi.hoisted(() => vi.fn().mockReturnValue({ ok: true }))
 const mockGetWebhookTriggers = vi.hoisted(() => vi.fn().mockReturnValue([]))
+const mockPreviewPipeline = vi.hoisted(() => vi.fn().mockResolvedValue({ wouldFire: false, matches: [], conditionLog: [] }))
+const mockValidatePipelineYaml = vi.hoisted(() => vi.fn().mockReturnValue({ valid: true, errors: [], warnings: [], def: { name: 'My Pipe', trigger: { type: 'cron' }, action: { type: 'launch-session' } } }))
 
 vi.mock('../pipeline-engine', () => ({
   getPipelineList: mockGetPipelineList,
@@ -43,6 +45,8 @@ vi.mock('../pipeline-engine', () => ({
   fireWebhookPipeline: mockFireWebhookPipeline,
   getWebhookTriggers: mockGetWebhookTriggers,
   getHistory: mockGetHistory,
+  previewPipeline: mockPreviewPipeline,
+  validatePipelineYaml: mockValidatePipelineYaml,
 }))
 vi.mock('../persona-manager', () => ({
   getPersonaList: mockGetPersonaList,
@@ -1045,5 +1049,160 @@ describe('POST /webhook/:slug — extractGitHubVars enrichment', () => {
     await postWebhook('push', payload)
     const vars = mockFireWebhookPipeline.mock.calls[0][2]?.templateVarOverrides
     expect(vars?.github_commit_message?.length).toBe(200)
+  })
+})
+
+describe('POST /api/pipelines/validate (#597)', () => {
+  it('returns 200 valid=true for valid YAML', async () => {
+    mockValidatePipelineYaml.mockReturnValueOnce({
+      valid: true,
+      errors: [],
+      warnings: [],
+      def: { name: 'My Pipe', trigger: { type: 'cron' }, action: { type: 'launch-session' } },
+    })
+    const res = await apiRequest({
+      method: 'POST',
+      path: '/api/pipelines/validate',
+      body: JSON.stringify({ yaml: 'name: My Pipe\nenabled: true' }),
+    })
+    expect(res.status).toBe(200)
+    const body = res.body as Record<string, unknown>
+    expect(body.valid).toBe(true)
+    expect(body.pipeline).toMatchObject({ name: 'My Pipe', trigger: { type: 'cron' } })
+    expect(body.errors).toBeUndefined()
+    expect(Array.isArray(body.warnings)).toBe(true)
+  })
+
+  it('returns 200 valid=false with errors for invalid YAML', async () => {
+    mockValidatePipelineYaml.mockReturnValueOnce({
+      valid: false,
+      errors: ['Missing required field: name'],
+      warnings: [],
+      def: null,
+    })
+    const res = await apiRequest({
+      method: 'POST',
+      path: '/api/pipelines/validate',
+      body: JSON.stringify({ yaml: 'enabled: true' }),
+    })
+    expect(res.status).toBe(200)
+    const body = res.body as Record<string, unknown>
+    expect(body.valid).toBe(false)
+    expect(body.pipeline).toBeNull()
+    expect(Array.isArray(body.errors)).toBe(true)
+    expect((body.errors as string[])[0]).toContain('name')
+  })
+
+  it('returns 400 when body is not valid JSON', async () => {
+    const res = await apiRequest({
+      method: 'POST',
+      path: '/api/pipelines/validate',
+      body: 'not-json',
+    })
+    expect(res.status).toBe(400)
+    expect((res.body as Record<string, unknown>).error).toMatch(/JSON/)
+  })
+
+  it('returns 400 when yaml field is missing from body', async () => {
+    const res = await apiRequest({
+      method: 'POST',
+      path: '/api/pipelines/validate',
+      body: JSON.stringify({ content: 'oops' }),
+    })
+    expect(res.status).toBe(400)
+    expect((res.body as Record<string, unknown>).error).toMatch(/yaml.*string/i)
+  })
+
+  it('includes warnings when validatePipelineYaml emits them', async () => {
+    mockValidatePipelineYaml.mockReturnValueOnce({
+      valid: true,
+      errors: [],
+      warnings: ['trigger.repos auto may be slow'],
+      def: { name: 'Warn Pipe', trigger: { type: 'git-poll' }, action: { type: 'launch-session' } },
+    })
+    const res = await apiRequest({
+      method: 'POST',
+      path: '/api/pipelines/validate',
+      body: JSON.stringify({ yaml: 'name: Warn Pipe\nenabled: true' }),
+    })
+    const body = res.body as Record<string, unknown>
+    expect(body.valid).toBe(true)
+    expect((body.warnings as string[]).length).toBeGreaterThan(0)
+  })
+})
+
+describe('GET /api/pipelines/:name/preview (#596)', () => {
+  it('returns 404 when pipeline is not in list', async () => {
+    mockGetPipelineList.mockReturnValueOnce([])
+    const res = await apiRequest({ path: '/api/pipelines/Unknown%20Pipe/preview' })
+    expect(res.status).toBe(404)
+    expect((res.body as Record<string, unknown>).error).toMatch(/not found/i)
+  })
+
+  it('returns 200 with preview result for known pipeline', async () => {
+    mockGetPipelineList.mockReturnValue([{ name: 'My Pipe', enabled: true, schedule: null }])
+    mockPreviewPipeline.mockResolvedValueOnce({
+      wouldFire: true,
+      matches: [{ repo: 'acme/app', pr: 42 }],
+      conditionLog: ['[08:00:00] Would fire'],
+    })
+    const res = await apiRequest({ path: '/api/pipelines/My%20Pipe/preview' })
+    expect(res.status).toBe(200)
+    const body = res.body as Record<string, unknown>
+    expect(body.pipeline).toBe('My Pipe')
+    expect(body.wouldFire).toBe(true)
+    expect(Array.isArray(body.conditionLog)).toBe(true)
+  })
+
+  it('returns 500 when previewPipeline throws', async () => {
+    mockGetPipelineList.mockReturnValue([{ name: 'Boom Pipe', enabled: true, schedule: null }])
+    mockPreviewPipeline.mockRejectedValueOnce(new Error('gh auth failed'))
+    const res = await apiRequest({ path: '/api/pipelines/Boom%20Pipe/preview' })
+    expect(res.status).toBe(500)
+    expect((res.body as Record<string, unknown>).error).toMatch(/Preview failed/)
+  })
+
+  it('URL-decodes pipeline name', async () => {
+    mockGetPipelineList.mockReturnValue([{ name: 'My Pipe', enabled: true, schedule: null }])
+    mockPreviewPipeline.mockResolvedValueOnce({ wouldFire: false, matches: [], conditionLog: [] })
+    await apiRequest({ path: '/api/pipelines/My%20Pipe/preview' })
+    expect(mockPreviewPipeline).toHaveBeenCalledWith('My Pipe')
+  })
+})
+
+describe('PipelineRunEntry.webhookDeliveries in run history (#595)', () => {
+  it('run history passes through webhookDeliveries array', async () => {
+    const delivery = {
+      url: 'https://hooks.example.com/notify',
+      status: 200,
+      attempt: 1,
+      latencyMs: 42,
+      ok: true,
+    }
+    mockGetPipelineList.mockReturnValue([{ name: 'Hook Pipe', enabled: true, schedule: null }])
+    mockGetHistory.mockResolvedValueOnce([
+      {
+        startedAt: '2026-05-04T00:00:00Z',
+        success: true,
+        durationMs: 1000,
+        triggeredBy: 'cron',
+        webhookDeliveries: [delivery],
+      },
+    ])
+    const res = await apiRequest({ path: '/api/pipelines/Hook%20Pipe/runs' })
+    expect(res.status).toBe(200)
+    const body = res.body as { runs: Array<Record<string, unknown>> }
+    expect(body.runs[0].webhookDeliveries).toEqual([delivery])
+  })
+
+  it('run history omits webhookDeliveries when field absent', async () => {
+    mockGetPipelineList.mockReturnValue([{ name: 'Hook Pipe', enabled: true, schedule: null }])
+    mockGetHistory.mockResolvedValueOnce([
+      { startedAt: '2026-05-04T00:00:00Z', success: true, durationMs: 500, triggeredBy: 'cron' },
+    ])
+    const res = await apiRequest({ path: '/api/pipelines/Hook%20Pipe/runs' })
+    expect(res.status).toBe(200)
+    const body = res.body as { runs: Array<Record<string, unknown>> }
+    expect(body.runs[0].webhookDeliveries).toBeUndefined()
   })
 })
