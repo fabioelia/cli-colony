@@ -90,6 +90,15 @@ export interface OutboundWebhookConfig {
   body?: string   // Mustache template; vars: pipeline_name, action_name, status, duration_ms, cost, run_id
 }
 
+export interface WebhookDeliveryResult {
+  url: string
+  status: 'success' | 'error' | 'timeout'
+  httpStatus?: number
+  error?: string
+  attemptMs: number
+  attempt: number
+}
+
 export interface OnFailureConfig {
   notify?: boolean           // send desktop notification on failure
   retry?: { max: number }    // retry up to N times with previous output as context
@@ -358,13 +367,13 @@ import { parseYaml as parseYamlShared, parseYamlArray } from '../shared/yaml-par
 import { request as httpsRequest } from 'https'
 import { request as httpRequest } from 'http'
 
-function fireOutboundWebhook(
+async function fireOutboundWebhook(
   config: OutboundWebhookConfig,
   ctx: { pipeline_name: string; action_name: string; status: string; duration_ms: number; cost: number; run_id: string }
-): void {
+): Promise<WebhookDeliveryResult[]> {
   if (!config.url || (!config.url.startsWith('http://') && !config.url.startsWith('https://'))) {
     log(`outbound webhook: invalid URL (must start with http:// or https://) — skipped`)
-    return
+    return []
   }
   const defaultBody = JSON.stringify({
     pipeline_name: ctx.pipeline_name,
@@ -378,11 +387,11 @@ function fireOutboundWebhook(
     ? resolveMustacheTemplate(config.body, ctx as unknown as Record<string, string>)
     : defaultBody
   const bodyBuf = Buffer.from(bodyStr, 'utf8')
-  const url = new URL(config.url)
+  const parsedUrl = new URL(config.url)
   const options = {
-    hostname: url.hostname,
-    port: url.port || (url.protocol === 'https:' ? 443 : 80),
-    path: url.pathname + url.search,
+    hostname: parsedUrl.hostname,
+    port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
+    path: parsedUrl.pathname + parsedUrl.search,
     method: config.method || 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -390,124 +399,161 @@ function fireOutboundWebhook(
       ...(config.headers || {}),
     },
   }
-  const domain = url.hostname
-  const reqFn = url.protocol === 'https:' ? httpsRequest : httpRequest
-  const req = reqFn(options as unknown as Parameters<typeof httpsRequest>[0], (res) => {
-    log(`outbound webhook → ${domain}: HTTP ${res.statusCode}`)
-    res.resume()
-  })
-  req.setTimeout(10_000, () => {
-    log(`outbound webhook → ${domain}: timeout`)
-    req.destroy()
-  })
-  req.on('error', (err) => {
-    log(`outbound webhook → ${domain}: error: ${err.message}`)
-  })
-  req.write(bodyBuf)
-  req.end()
+  const domain = parsedUrl.hostname
+  const reqFn = parsedUrl.protocol === 'https:' ? httpsRequest : httpRequest
+  const MAX_ATTEMPTS = 3
+  const BACKOFF_MS = [2000, 4000, 8000]
+  const results: WebhookDeliveryResult[] = []
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const start = Date.now()
+    const result = await new Promise<WebhookDeliveryResult>((resolve) => {
+      const req = reqFn(options as unknown as Parameters<typeof httpsRequest>[0], (res) => {
+        const statusCode = res.statusCode ?? 0
+        log(`outbound webhook → ${domain}: HTTP ${statusCode} (attempt ${attempt})`)
+        res.resume()
+        resolve({
+          url: config.url,
+          status: statusCode >= 200 && statusCode < 400 ? 'success' : 'error',
+          httpStatus: statusCode,
+          attemptMs: Date.now() - start,
+          attempt,
+        })
+      })
+      req.setTimeout(10_000, () => {
+        log(`outbound webhook → ${domain}: timeout (attempt ${attempt})`)
+        req.destroy()
+        resolve({ url: config.url, status: 'timeout', attemptMs: Date.now() - start, attempt })
+      })
+      req.on('error', (err) => {
+        log(`outbound webhook → ${domain}: error: ${err.message} (attempt ${attempt})`)
+        resolve({ url: config.url, status: 'error', error: err.message, attemptMs: Date.now() - start, attempt })
+      })
+      req.write(bodyBuf)
+      req.end()
+    })
+    results.push(result)
+
+    // Success or 4xx (permanent client error) — stop
+    if (result.status === 'success' || (result.httpStatus !== undefined && result.httpStatus >= 400 && result.httpStatus < 500)) {
+      break
+    }
+    // Retry on 5xx, timeout, network error
+    if (attempt < MAX_ATTEMPTS) {
+      await new Promise(r => setTimeout(r, BACKOFF_MS[attempt - 1]))
+    } else {
+      console.warn(`[pipeline-engine] outbound webhook → ${domain}: FAILED after ${MAX_ATTEMPTS} attempts`)
+    }
+  }
+
+  return results
 }
 
 // ---- Pipeline YAML Parsing (uses shared parser + pipeline-specific post-processing) ----
 
-function parsePipelineYaml(content: string): PipelineDef | null {
+export function validatePipelineYaml(content: string): { valid: boolean; errors: string[]; warnings: string[]; def: PipelineDef | null } {
+  const errors: string[] = []
+  const warnings: string[] = []
+  let result: any
   try {
-    const result = parseYamlShared(content) as any
-    if (!result) return null
+    result = parseYamlShared(content) as any
+  } catch (err) {
+    return { valid: false, errors: [`YAML parse error: ${err}`], warnings, def: null }
+  }
+  if (!result) return { valid: false, errors: ['Empty or invalid YAML'], warnings, def: null }
 
-    // Normalize the condition tree (recursive — handles nested any-of/all-of)
-    if (result.condition) normalizeConditionTree(result.condition)
+  // Normalize condition tree
+  if (result.condition) normalizeConditionTree(result.condition)
 
-    // Ensure trigger.watch is an array
-    if (typeof result.trigger?.watch === 'string') {
-      result.trigger.watch = [result.trigger.watch]
-    }
-    const watchArr = parseYamlArray(content, 'watch')
-    if (watchArr && result.trigger) result.trigger.watch = watchArr
+  // Ensure trigger.watch is an array
+  if (typeof result.trigger?.watch === 'string') result.trigger.watch = [result.trigger.watch]
+  const watchArr = parseYamlArray(content, 'watch')
+  if (watchArr && result.trigger) result.trigger.watch = watchArr
 
-    // Legacy: re-parse top-level exclude/patterns dash lists from raw content.
-    // Only applied to leaf conditions — composites rely on the structured parser
-    // to populate per-sub-condition arrays.
-    if (result.condition && !isCompositeCondition(result.condition)) {
-      const excludeArr = parseYamlArray(content, 'exclude')
-      if (excludeArr) result.condition.exclude = excludeArr
-      const patternsArr = parseYamlArray(content, 'patterns')
-      if (patternsArr) result.condition.patterns = patternsArr
-    }
+  // Re-parse dash lists for leaf conditions
+  if (result.condition && !isCompositeCondition(result.condition)) {
+    const excludeArr = parseYamlArray(content, 'exclude')
+    if (excludeArr) result.condition.exclude = excludeArr
+    const patternsArr = parseYamlArray(content, 'patterns')
+    if (patternsArr) result.condition.patterns = patternsArr
+  }
 
-    // Validate composite shape
-    if (result.condition && !validateConditionTree(result.condition)) {
-      log(`YAML error: invalid condition tree — any-of/all-of must have non-empty conditions array`)
-      return null
-    }
+  // Validate condition tree shape
+  if (result.condition && !validateConditionTree(result.condition)) {
+    errors.push('Invalid condition tree — any-of/all-of must have non-empty conditions array')
+  }
 
-    if (!result.name || !result.trigger?.type) return null
-    if (result.action?.type === 'maker-checker') {
-      if (!result.action?.makerPrompt || !result.action?.checkerPrompt) return null
-    } else if (result.action?.type === 'wait_for_session') {
-      if (!result.action?.session_name) return null
-    } else if (result.action?.type === 'trigger_pipeline') {
-      if (!result.action?.target) return null
-    } else if (result.action?.type !== 'diff_review' && result.action?.type !== 'parallel' && !result.action?.prompt) {
-      return null
-    }
+  // Required fields
+  if (!result.name) errors.push('Missing required field: name')
+  if (!result.trigger?.type) errors.push('Missing required field: trigger.type')
 
-    // Parallel: validate stages array, normalize sub-stage types
-    if (result.action?.type === 'parallel') {
-      const rawStages = result.action.stages
-      if (!Array.isArray(rawStages) || rawStages.length === 0) return null
-      // Guard against nested parallel (not supported)
-      if (rawStages.some((s: any) => s?.type === 'parallel')) {
-        log(`Parallel stage: nested parallel not supported — skipping`)
-        return null
-      }
-      // Normalize 'session' -> 'launch-session' in sub-stages
+  // Action type validation
+  if (result.action?.type === 'maker-checker') {
+    if (!result.action?.makerPrompt) errors.push('Missing required field: action.makerPrompt (for maker-checker type)')
+    if (!result.action?.checkerPrompt) errors.push('Missing required field: action.checkerPrompt (for maker-checker type)')
+  } else if (result.action?.type === 'wait_for_session') {
+    if (!result.action?.session_name) errors.push('Missing required field: action.session_name (for wait_for_session type)')
+  } else if (result.action?.type === 'trigger_pipeline') {
+    if (!result.action?.target) errors.push('Missing required field: action.target (for trigger_pipeline type)')
+  } else if (result.action?.type !== 'diff_review' && result.action?.type !== 'parallel' && result.action?.type !== 'route-to-session' && !result.action?.prompt) {
+    errors.push('Missing required field: action.prompt')
+  }
+
+  // Parallel validation
+  if (result.action?.type === 'parallel') {
+    const rawStages = result.action.stages
+    if (!Array.isArray(rawStages) || rawStages.length === 0) {
+      errors.push('Parallel stage: stages must be a non-empty array')
+    } else if (rawStages.some((s: any) => s?.type === 'parallel')) {
+      errors.push('Parallel stage: nested parallel not supported')
+    } else {
       result.action.stages = rawStages.map((s: any) => ({
         ...s,
         type: s.type === 'session' ? 'launch-session' : (s.type || 'launch-session'),
       }))
     }
+  }
 
-    if (result.enabled === undefined) result.enabled = true
-
-    // Default dedup: use pipeline name + timestamp date as key, 1-hour TTL
-    if (!result.dedup) {
-      result.dedup = { key: '{{timestamp}}', ttl: 3600 }
+  // Warnings
+  if (result.action?.type === 'route-to-session') {
+    warnings.push('Deprecated action type: route-to-session — use launch-session with reuse: true')
+  }
+  if (result.action?.on_failure?.run) {
+    const target = findNamedAction(result.action, result.action.on_failure.run)
+    if (!target) {
+      warnings.push(`on_failure.run target '${result.action.on_failure.run}' not found in action tree`)
+    } else if (target?.on_failure?.run) {
+      warnings.push(`on_failure.run target '${result.action.on_failure.run}' also has on_failure.run — infinite chain risk`)
     }
+  }
+  if (result.action?.on_success?.run) {
+    const target = findNamedAction(result.action, result.action.on_success.run)
+    if (!target) warnings.push(`on_success.run target '${result.action.on_success.run}' not found in action tree`)
+  }
 
-    // Normalize: route-to-session -> launch-session + reuse:true
-    if (result.action?.type === 'route-to-session') {
-      result.action.type = 'launch-session'
-      result.action.reuse = true
-    }
+  if (errors.length > 0) return { valid: false, errors, warnings, def: null }
 
-    // Default busyStrategy to launch-new (was 'wait', which silently drops prompts)
-    if (result.action && !result.action.busyStrategy) {
-      result.action.busyStrategy = 'launch-new'
-    }
+  // Apply defaults
+  if (result.enabled === undefined) result.enabled = true
+  if (!result.dedup) result.dedup = { key: '{{timestamp}}', ttl: 3600 }
+  if (result.action?.type === 'route-to-session') {
+    result.action.type = 'launch-session'
+    result.action.reuse = true
+  }
+  if (result.action && !result.action.busyStrategy) result.action.busyStrategy = 'launch-new'
+  result.run_condition = result.run_condition || undefined
 
-    // Validate on_failure.run target to prevent infinite chains
-    if (result.action?.on_failure?.run) {
-      const target = findNamedAction(result.action, result.action.on_failure.run)
-      if (target?.on_failure?.run) {
-        log(`YAML warning: on_failure.run target "${result.action.on_failure.run}" also has on_failure.run — infinite chain risk. Target's on_failure.run will be ignored.`)
-      }
-    }
+  return { valid: true, errors: [], warnings, def: result as PipelineDef }
+}
 
-    // Validate on_success.run target
-    if (result.action?.on_success?.run) {
-      const target = findNamedAction(result.action, result.action.on_success.run)
-      if (!target) {
-        log(`YAML warning: on_success.run target "${result.action.on_success.run}" not found in action tree`)
-      }
-    }
-
-    result.run_condition = result.run_condition || undefined
-
-    return result as PipelineDef
-  } catch (err) {
-    log(`YAML parse error: ${err}`)
+function parsePipelineYaml(content: string): PipelineDef | null {
+  const result = validatePipelineYaml(content)
+  if (!result.valid) {
+    log(`YAML error: ${result.errors.join('; ')}`)
     return null
   }
+  for (const w of result.warnings) log(`YAML warning: ${w}`)
+  return result.def
 }
 
 // ---- Run History ----
@@ -559,6 +605,7 @@ export interface PipelineRunEntry {
     githubAction?: string
   }
   webhookFired?: boolean
+  webhookDeliveries?: WebhookDeliveryResult[]
 }
 
 const MAX_HISTORY_ENTRIES = 20
@@ -1863,6 +1910,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
   let totalCost = 0
   let stoppedBudget = false
   let webhookFired = false
+  let webhookDeliveries: WebhookDeliveryResult[] = []
   let budgetWarnSent = false
   let runDedupAttempt: number | undefined
   let runDedupMaxRetries: number | undefined
@@ -2192,7 +2240,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
         }
         if (resolvedAction.on_failure?.webhook) {
           plog(pipelineName, `→ firing on_failure.webhook`)
-          fireOutboundWebhook(resolvedAction.on_failure.webhook, {
+          const deliveries = await fireOutboundWebhook(resolvedAction.on_failure.webhook, {
             pipeline_name: pipelineName,
             action_name: resolvedAction.name || resolvedAction.type,
             status: 'failure',
@@ -2200,7 +2248,8 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
             cost: totalCost,
             run_id: '',
           })
-          webhookFired = true
+          webhookDeliveries.push(...deliveries)
+          if (deliveries.length > 0) webhookFired = true
         }
         throw stageErr
       } finally {
@@ -2289,7 +2338,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
         }
         if (onSuccess.webhook) {
           plog(pipelineName, `→ firing on_success.webhook`)
-          fireOutboundWebhook(onSuccess.webhook, {
+          const deliveries = await fireOutboundWebhook(onSuccess.webhook, {
             pipeline_name: pipelineName,
             action_name: resolvedAction.name || resolvedAction.type,
             status: 'success',
@@ -2297,7 +2346,8 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
             cost: totalCost,
             run_id: '',
           })
-          webhookFired = true
+          webhookDeliveries.push(...deliveries)
+          if (deliveries.length > 0) webhookFired = true
         }
       }
     }
@@ -2386,6 +2436,7 @@ async function runPoll(pipelineName: string, overrides?: RunOverrides): Promise<
       headCommit: headCommitForHistory,
       triggerContext,
       webhookFired: webhookFired || undefined,
+      webhookDeliveries: webhookDeliveries.length > 0 ? webhookDeliveries : undefined,
     })
 
     // Trim debug log to the last N iterations

@@ -12,7 +12,7 @@
 import { app } from 'electron'
 import { createServer, IncomingMessage, ServerResponse, Server } from 'http'
 import { createHmac, timingSafeEqual } from 'crypto'
-import { fireWebhookPipeline, getWebhookTriggers, getPipelineList, triggerPollNow, getHistory } from './pipeline-engine'
+import { fireWebhookPipeline, getWebhookTriggers, getPipelineList, triggerPollNow, getHistory, previewPipeline, validatePipelineYaml } from './pipeline-engine'
 import { getAllInstances, createInstance, killInstance } from './instance-manager'
 import { getDaemonRouter } from './daemon-router'
 import { getSetting } from './settings'
@@ -377,6 +377,48 @@ async function handleApiRequest(req: IncomingMessage, res: ServerResponse): Prom
     return
   }
 
+  // POST /api/pipelines/validate — exact match, must be before /:name/ routes
+  if (method === 'POST' && url === '/api/pipelines/validate') {
+    let body: Buffer
+    try { body = await readBody(req) } catch { sendJson(res, 400, { error: 'Failed to read body' }); return }
+    let yaml: string
+    try {
+      const parsed = JSON.parse(body.toString('utf8')) as Record<string, unknown>
+      if (typeof parsed.yaml !== 'string') { sendJson(res, 400, { error: 'Body must be { yaml: string }' }); return }
+      yaml = parsed.yaml
+    } catch { sendJson(res, 400, { error: 'Invalid JSON body' }); return }
+    const result = validatePipelineYaml(yaml)
+    if (result.valid) {
+      const def = result.def!
+      sendJson(res, 200, {
+        valid: true,
+        pipeline: { name: def.name, trigger: { type: def.trigger.type }, actionType: def.action?.type ?? 'launch-session' },
+        warnings: result.warnings,
+      })
+    } else {
+      sendJson(res, 200, { valid: false, errors: result.errors, warnings: result.warnings, pipeline: null })
+    }
+    return
+  }
+
+  // GET /api/pipelines/:name/preview — before /trigger to avoid regex shadowing
+  const previewMatch = url.match(/^\/api\/pipelines\/([^/?#]+)\/preview$/)
+  if (method === 'GET' && previewMatch) {
+    const name = decodeURIComponent(previewMatch[1])
+    const pipelines = getPipelineList()
+    if (!pipelines.find((p) => p.name === name)) {
+      sendJson(res, 404, { error: `Pipeline not found: ${name}` })
+      return
+    }
+    try {
+      const result = await previewPipeline(name)
+      sendJson(res, 200, { pipeline: name, ...result })
+    } catch (err) {
+      sendJson(res, 500, { error: `Preview failed: ${String(err)}` })
+    }
+    return
+  }
+
   // POST /api/pipelines/:name/trigger
   const pipelineMatch = url.match(/^\/api\/pipelines\/([^/?#]+)\/trigger$/)
   if (method === 'POST' && pipelineMatch) {
@@ -737,6 +779,17 @@ async function handleApiRequest(req: IncomingMessage, res: ServerResponse): Prom
             },
           },
           Error: { type: 'object', properties: { error: { type: 'string' } } },
+          WebhookDeliveryResult: {
+            type: 'object',
+            properties: {
+              url: { type: 'string' },
+              status: { type: 'string', enum: ['success', 'error', 'timeout'] },
+              httpStatus: { type: 'number', nullable: true },
+              error: { type: 'string', nullable: true },
+              attemptMs: { type: 'number' },
+              attempt: { type: 'number', description: '1-based attempt number' },
+            },
+          },
           PipelineRunEntry: {
             type: 'object',
             properties: {
@@ -748,6 +801,7 @@ async function handleApiRequest(req: IncomingMessage, res: ServerResponse): Prom
               totalCost: { type: 'number', nullable: true },
               sessionIds: { type: 'array', items: { type: 'string' } },
               webhookFired: { type: 'boolean' },
+              webhookDeliveries: { type: 'array', items: { $ref: '#/components/schemas/WebhookDeliveryResult' }, nullable: true },
               triggerContext: { type: 'object', properties: { githubEvent: { type: 'string' }, githubAction: { type: 'string' } } },
             },
           },
@@ -857,6 +911,40 @@ async function handleApiRequest(req: IncomingMessage, res: ServerResponse): Prom
           get: {
             summary: 'List pipelines', operationId: 'listPipelines', tags: ['Pipelines'],
             responses: { '200': { description: 'Pipeline list', content: { 'application/json': { schema: { type: 'object', properties: { pipelines: { type: 'array', items: { $ref: '#/components/schemas/Pipeline' } } } } } } } },
+          },
+        },
+        '/api/pipelines/validate': {
+          post: {
+            summary: 'Validate pipeline YAML', operationId: 'validatePipelineYaml', tags: ['Pipelines'],
+            description: 'Validate pipeline YAML structure. Returns structured errors and warnings without writing to disk.',
+            requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['yaml'], properties: { yaml: { type: 'string', description: 'Pipeline YAML content to validate' } } } } } },
+            responses: {
+              '200': {
+                description: 'Validation result (HTTP 200 for both valid and invalid YAML)',
+                content: { 'application/json': { schema: { type: 'object', properties: {
+                  valid: { type: 'boolean' },
+                  pipeline: { type: 'object', nullable: true, properties: { name: { type: 'string' }, trigger: { type: 'object' }, actionType: { type: 'string' } } },
+                  errors: { type: 'array', items: { type: 'string' } },
+                  warnings: { type: 'array', items: { type: 'string' } },
+                } } } },
+              },
+            },
+          },
+        },
+        '/api/pipelines/{name}/preview': {
+          get: {
+            summary: 'Preview pipeline (dry-run)', operationId: 'previewPipeline', tags: ['Pipelines'],
+            description: 'Evaluate a pipeline\'s trigger and conditions without firing. May make GitHub API calls for git-poll triggers.',
+            parameters: [{ name: 'name', in: 'path', required: true, schema: { type: 'string' } }],
+            responses: {
+              '200': { description: 'Preview result', content: { 'application/json': { schema: { type: 'object', properties: {
+                pipeline: { type: 'string' },
+                wouldFire: { type: 'boolean' },
+                matches: { type: 'array', items: { type: 'object', properties: { description: { type: 'string' }, resolvedVars: { type: 'object' }, wouldBeDeduped: { type: 'boolean' } } } },
+                conditionLog: { type: 'array', items: { type: 'string' } },
+              } } } } },
+              '404': { description: 'Pipeline not found' },
+            },
           },
         },
         '/api/pipelines/{name}/trigger': {
