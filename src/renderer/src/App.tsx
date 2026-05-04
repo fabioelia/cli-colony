@@ -31,6 +31,10 @@ import IssueBoardPanel from './components/IssueBoardPanel'
 import QuickPromptDialog from './components/QuickPromptDialog'
 import ForkModal from './components/ForkModal'
 import ArenaLaunchDialog from './components/ArenaLaunchDialog'
+import FanOutDialog from './components/FanOutDialog'
+import FanOutMonitor from './components/FanOutMonitor'
+import type { SubTask } from './components/FanOutDialog'
+import { sendPromptWhenReady } from './lib/send-prompt-when-ready'
 import ArenaJudgeDialog from './components/ArenaJudgeDialog'
 import ArenaLeaderboard from './components/ArenaLeaderboard'
 import ColonyOverviewPanel from './components/ColonyOverviewPanel'
@@ -152,6 +156,8 @@ export default function App() {
   const [forkModalInst, setForkModalInst] = useState<ClaudeInstance | null>(null)
   const [forkModalHint, setForkModalHint] = useState('')
   const [forkGroups, setForkGroups] = useState<ForkGroup[]>([])
+  const [fanOutOpen, setFanOutOpen] = useState(false)
+  const [fanOutParentId, setFanOutParentId] = useState<string | null>(null)
   const [errorSummaries, setErrorSummaries] = useState<Map<string, ErrorSummary>>(new Map())
   const [recapBanners, setRecapBanners] = useState<Record<string, { text: string; exitSummary?: string } | null>>({})
   const lastActiveTimestamps = useRef<Record<string, number>>({})
@@ -1174,6 +1180,31 @@ export default function App() {
     setArenaLaunchOpen(true)
   }, [])
 
+  const handleFanOutLaunch = useCallback(async (tasks: SubTask[], spaceName: string, model?: string) => {
+    const parentInst = regularInstancesRef.current.find(i => i.id === fanOutParentId)
+    const workDir = parentInst?.workingDirectory ?? ''
+    const { createSpace, assignToSpace } = await import('./lib/spaces')
+    const space = createSpace(spaceName)
+    if (fanOutParentId) assignToSpace(fanOutParentId, space.id)
+    let firstId: string | null = null
+    for (const task of tasks) {
+      try {
+        const inst = await window.api.instance.create({
+          name: task.title,
+          workingDirectory: workDir,
+          args: model ? ['--model', model] : undefined,
+          fanOutParentId: fanOutParentId ?? undefined,
+        })
+        assignToSpace(inst.id, space.id)
+        sendPromptWhenReady(inst.id, { prompt: task.prompt })
+        if (!firstId) firstId = inst.id
+      } catch (err) {
+        console.error('[fan-out] failed to create sub-session:', err)
+      }
+    }
+    if (firstId) setActiveId(firstId)
+  }, [fanOutParentId])
+
   const handleQuickCompare = useCallback(() => {
     setCmdPaletteOpen(false)
     // Infer repo/branch from the active session
@@ -1577,6 +1608,7 @@ export default function App() {
     onSpawnChild: () => void
     onFork: () => void
     onArenaWin: () => void
+    onFanOut: () => void
     onFocusLeft: () => void
     onFocusRight: () => void
   }>())
@@ -1638,6 +1670,7 @@ export default function App() {
           setForkModalInst(current)
         },
         onArenaWin: () => handleArenaWin(id),
+        onFanOut: () => { setFanOutParentId(id); setFanOutOpen(true) },
         onFocusLeft: () => setFocusedPane('left'),
         onFocusRight: () => setFocusedPane('right'),
       }
@@ -1833,6 +1866,7 @@ export default function App() {
                 onCloseSplit={showGrid ? () => handleCloseGridPane(gridIdx) : handleCloseSplitView}
                 onSpawnChild={instanceCallbacksRef.current.get(inst.id)!.onSpawnChild}
                 onFork={instanceCallbacksRef.current.get(inst.id)!.onFork}
+                onFanOut={instanceCallbacksRef.current.get(inst.id)!.onFanOut}
                 isSplit={isSplit || showGrid}
                 arenaMode={(isSplit || showGrid) && arenaMode}
                 arenaBlind={(isSplit || showGrid) && arenaMode && arenaBlind}
@@ -2662,6 +2696,17 @@ export default function App() {
           quickContext={arenaQuickContext}
         />
       )}
+      {fanOutOpen && fanOutParentId && (() => {
+        const parentInst = regularInstances.find(i => i.id === fanOutParentId)
+        return (
+          <FanOutDialog
+            sourceInstanceId={fanOutParentId}
+            workingDirectory={parentInst?.workingDirectory ?? ''}
+            onClose={() => { setFanOutOpen(false); setFanOutParentId(null) }}
+            onLaunch={handleFanOutLaunch}
+          />
+        )
+      })()}
       {arenaJudgeOpen && (
         <ArenaJudgeDialog
           onClose={() => { setArenaJudgeOpen(false); setArenaJudging(false) }}

@@ -92,4 +92,24 @@ export function registerAiHandlers(): void {
       return null
     }
   })
+
+  ipcMain.handle('ai:decomposeTasks', async (_e, task: string, count: number): Promise<Array<{ title: string; prompt: string }> | null> => {
+    if (!task?.trim() || count < 2 || count > 6) return null
+    const prompt = `Break this task into ${count} independent, non-overlapping sub-tasks. Return ONLY valid JSON: an array of ${count} objects with "title" (short, under 50 chars) and "prompt" (full task description for a coding agent) fields. No explanation.\n\nTask: ${task.trim()}`
+    try {
+      const { stdout } = await execFileAsync(
+        resolveCommand('claude'),
+        ['-p', prompt],
+        { timeout: 30000, encoding: 'utf-8', env: { ...process.env, CLAUDE_CODE_ENTRYPOINT: 'colony-fanout-decompose' } }
+      )
+      const raw = stdout.trim()
+      const jsonMatch = raw.match(/\[[\s\S]*\]/)
+      if (!jsonMatch) return null
+      const parsed = JSON.parse(jsonMatch[0]) as Array<{ title: string; prompt: string }>
+      if (!Array.isArray(parsed) || parsed.length === 0) return null
+      return parsed.slice(0, count)
+    } catch {
+      return null
+    }
+  })
 }

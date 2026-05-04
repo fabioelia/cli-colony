@@ -5,7 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronRight, X, RotateCcw, GitBranch, TerminalSquare, FolderTree, Columns2, LayoutGrid, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Trophy, GitCompare, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, FileDown, CheckCircle, Copy, Search, PanelRight, GitMerge, Square, Ticket, Pencil, FileCode, ArrowRight } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronRight, X, RotateCcw, GitBranch, TerminalSquare, FolderTree, Columns2, LayoutGrid, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Trophy, GitCompare, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, FileDown, CheckCircle, Copy, Search, PanelRight, GitMerge, Square, Ticket, Pencil, FileCode, ArrowRight, Network } from 'lucide-react'
 import { TeamMetricsPanel } from './TeamMetricsPanel'
 import ServicesTab from './ServicesTab'
 import FilesTab from './FilesTab'
@@ -24,6 +24,7 @@ import type { ClaudeInstance } from '../types'
 import Tooltip from './Tooltip'
 import HelpPopover from './HelpPopover'
 import RetryDialog from './RetryDialog'
+import FanOutMonitor from './FanOutMonitor'
 import { usePanelTabKeys } from '../hooks/usePanelTabKeys'
 
 function compareChildren(a: ClaudeInstance, b: ClaudeInstance): number {
@@ -73,6 +74,7 @@ interface Props {
   onCloseSplit?: () => void
   onSpawnChild?: () => void
   onFork?: () => void
+  onFanOut?: () => void
   isSplit?: boolean
   arenaMode?: boolean
   arenaBlind?: boolean
@@ -124,7 +126,7 @@ const fmtTokens = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}
 
 type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'changes' | 'artifacts' | 'team' | 'metrics' | 'browser' | 'jira'
 
-export default memo(function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, onSearchToggle, fontSize = 13, fontFamily = 'Menlo, Monaco, Consolas, "Courier New", monospace', cursorStyle = 'underline', cursorBlink = false, scrollback = 10000, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid, onNavigateToSession, errorSummary, childInstances = [], allInstances = [], recapBanner, onDismissRecap }: Props) {
+export default memo(function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, onFanOut, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, onSearchToggle, fontSize = 13, fontFamily = 'Menlo, Monaco, Consolas, "Courier New", monospace', cursorStyle = 'underline', cursorBlink = false, scrollback = 10000, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid, onNavigateToSession, errorSummary, childInstances = [], allInstances = [], recapBanner, onDismissRecap }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const initializedRef = useRef(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -1150,6 +1152,13 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
               </button>
             </Tooltip>
           )}
+          {onFanOut && (
+            <Tooltip text="Fan-Out" detail="Decompose this task into parallel sub-sessions, each handling a different part" position="bottom">
+              <button onClick={onFanOut} aria-label="Fan-out session">
+                <Network size={14} /> Fan-Out
+              </button>
+            </Tooltip>
+          )}
           {!isSplit && onSplit && (
             <Tooltip text="Split View" detail="Open a second session side-by-side" shortcut="Cmd+\">
               <button onClick={onSplit} aria-label="Split view">
@@ -1477,6 +1486,14 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
             </div>
           )}
         </div>
+      )}
+      {/* Fan-Out monitor — shows when this session is a fan-out parent */}
+      {viewTab === 'session' && (instance.fanOutChildIds?.length ?? 0) > 0 && (
+        <FanOutMonitor
+          parentInstance={instance}
+          childInstances={allInstances.filter(i => instance.fanOutChildIds!.includes(i.id))}
+          onNavigateToChild={id => onNavigateToSession?.(id)}
+        />
       )}
       {/* Tab content — browser is persistent; other non-terminal tabs use flex split */}
       {viewTab !== 'session' && viewTab !== 'shell' && viewTab !== 'browser' && splitTab && (

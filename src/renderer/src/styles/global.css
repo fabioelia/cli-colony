@@ -25572,3 +25572,56 @@ button.session-trigger-chain-btn:hover {
 .space-hub-activity-time { font-size: 9px; color: var(--text-muted); flex-shrink: 0; }
 .space-group-name-link { cursor: pointer; text-decoration: underline; text-underline-offset: 2px; text-decoration-color: transparent; }
 .space-group-name-link:hover { text-decoration-color: currentColor; }
+
+/* ───── Fan-Out Dialog ───── */
+.fanout-overlay { position: fixed; inset: 0; z-index: 1200; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.55); backdrop-filter: blur(4px); }
+.fanout-dialog { background: var(--bg-secondary); border: 1px solid var(--border-default); border-radius: 10px; width: 520px; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.4); overflow: hidden; }
+.fanout-header { display: flex; align-items: center; gap: 7px; padding: 12px 14px; border-bottom: 1px solid var(--border-default); font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.fanout-close { margin-left: 2px; background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px; border-radius: 4px; display: flex; align-items: center; }
+.fanout-close:hover { color: var(--text-primary); background: var(--bg-hover); }
+.fanout-body { padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+.fanout-label { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px; }
+.fanout-count-badge { background: var(--accent); color: #fff; border-radius: 8px; padding: 1px 6px; font-size: 10px; font-weight: 700; }
+.fanout-task-input { width: 100%; background: var(--bg-primary); border: 1px solid var(--border-default); border-radius: 6px; color: var(--text-primary); font-size: 12px; padding: 8px 10px; resize: vertical; font-family: inherit; box-sizing: border-box; }
+.fanout-task-input:focus { outline: none; border-color: var(--accent); }
+.fanout-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.fanout-field { display: flex; flex-direction: column; gap: 5px; }
+.fanout-range { width: 100%; accent-color: var(--accent); }
+.fanout-range-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); }
+.fanout-select { background: var(--bg-primary); border: 1px solid var(--border-default); border-radius: 6px; color: var(--text-primary); font-size: 12px; padding: 5px 8px; }
+.fanout-working-dir { display: flex; align-items: center; gap: 7px; }
+.fanout-dir-path { font-size: 11px; color: var(--text-muted); font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fanout-decompose-btn { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 8px 14px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.fanout-decompose-btn:hover:not(:disabled) { opacity: 0.9; }
+.fanout-decompose-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.fanout-error { font-size: 11px; color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); border-radius: 6px; padding: 7px 10px; }
+.fanout-subtasks-header { display: flex; align-items: center; justify-content: space-between; }
+.fanout-redo-btn { background: none; border: 1px solid var(--border-default); border-radius: 5px; color: var(--text-secondary); font-size: 11px; cursor: pointer; padding: 3px 8px; display: flex; align-items: center; gap: 4px; }
+.fanout-redo-btn:hover { color: var(--text-primary); border-color: var(--accent); }
+.fanout-subtasks { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; }
+.fanout-subtask { background: var(--bg-primary); border: 1px solid var(--border-default); border-radius: 7px; padding: 8px 10px; display: flex; flex-direction: column; gap: 5px; }
+.fanout-subtask-title { background: none; border: none; border-bottom: 1px solid var(--border-default); color: var(--text-primary); font-size: 12px; font-weight: 600; padding: 2px 0 5px; width: 100%; }
+.fanout-subtask-title:focus { outline: none; border-bottom-color: var(--accent); }
+.fanout-subtask-prompt { background: none; border: none; color: var(--text-secondary); font-size: 11px; padding: 2px 0; width: 100%; resize: none; font-family: inherit; line-height: 1.5; }
+.fanout-subtask-prompt:focus { outline: none; color: var(--text-primary); }
+.fanout-launch-btn { background: var(--success, #22c55e); color: #fff; border: none; border-radius: 6px; padding: 9px 14px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.fanout-launch-btn:hover:not(:disabled) { opacity: 0.9; }
+.fanout-launch-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ───── Fan-Out Monitor (in-terminal status panel) ───── */
+.fanout-monitor { border-top: 1px solid var(--border-default); background: var(--bg-primary); font-size: 11px; flex-shrink: 0; }
+.fanout-monitor-header { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-bottom: 1px solid var(--border-default); color: var(--text-secondary); font-weight: 600; font-size: 11px; }
+.fanout-monitor-status { display: flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 9px; font-size: 10px; font-weight: 600; }
+.fanout-monitor-status.done { background: color-mix(in srgb, var(--success, #22c55e) 15%, transparent); color: var(--success, #22c55e); }
+.fanout-monitor-status.failed { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger); }
+.fanout-monitor-cost { display: flex; align-items: center; gap: 2px; color: var(--text-muted); font-size: 10px; margin-left: auto; }
+.fanout-monitor-rows { display: flex; flex-direction: column; max-height: 140px; overflow-y: auto; }
+.fanout-monitor-row { display: flex; align-items: center; gap: 7px; padding: 5px 12px; cursor: pointer; transition: background 0.1s; border-bottom: 1px solid color-mix(in srgb, var(--border-default) 40%, transparent); }
+.fanout-monitor-row:last-child { border-bottom: none; }
+.fanout-monitor-row:hover { background: var(--bg-hover); }
+.fanout-monitor-row-icon { flex-shrink: 0; display: flex; align-items: center; }
+.fanout-monitor-row-name { flex: 1; font-size: 11px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fanout-monitor-row-dur { display: flex; align-items: center; gap: 3px; color: var(--text-muted); font-size: 10px; flex-shrink: 0; }
+.fanout-monitor-row-cost { color: var(--text-muted); font-size: 10px; flex-shrink: 0; }
+.fanout-monitor-row-link { color: var(--text-muted); flex-shrink: 0; opacity: 0; transition: opacity 0.1s; }
+.fanout-monitor-row:hover .fanout-monitor-row-link { opacity: 1; }

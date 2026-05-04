@@ -55,6 +55,9 @@ const _instanceTickets = new Map<string, { source: 'jira'; key: string; summary:
 // Track triggeredBy (persona name) for overlay onto ClaudeInstance — not stored in daemon
 const _instanceTriggeredBy = new Map<string, string>()
 
+// Track fan-out parent linkage: childId → parentId
+const _fanOutParent = new Map<string, string>()
+
 // Track last output timestamp per instance for idle detection
 const _lastOutputAt = new Map<string, number>()
 // Track last stale notification threshold per instance (ms) to avoid repeat fires
@@ -136,12 +139,22 @@ export function setOnSessionExit(cb: (instanceId: string) => void): void {
 
 /** Overlay ticket metadata and triggeredBy onto instances from the in-memory maps. */
 function applyTickets(instances: ClaudeInstance[]): ClaudeInstance[] {
+  // Build fan-out children map for this batch of instances
+  const fanOutChildren = new Map<string, string[]>()
+  for (const [childId, parentId] of _fanOutParent.entries()) {
+    if (!fanOutChildren.has(parentId)) fanOutChildren.set(parentId, [])
+    fanOutChildren.get(parentId)!.push(childId)
+  }
   return instances.map(inst => {
     const ticket = _instanceTickets.get(inst.id)
     const triggeredBy = _instanceTriggeredBy.get(inst.id)
+    const fanOutParentId = _fanOutParent.get(inst.id)
+    const fanOutChildIds = fanOutChildren.get(inst.id)
     const extra: Partial<ClaudeInstance> = {}
     if (ticket) extra.ticket = ticket
     if (triggeredBy) extra.triggeredBy = triggeredBy
+    if (fanOutParentId) extra.fanOutParentId = fanOutParentId
+    if (fanOutChildIds?.length) extra.fanOutChildIds = fanOutChildIds
     return Object.keys(extra).length > 0 ? { ...inst, ...extra } : inst
   })
 }
@@ -336,6 +349,7 @@ export function wireDaemonEvents(): void {
     _outputBuffers.delete(instanceId)
     _instanceTickets.delete(instanceId)
     _instanceTriggeredBy.delete(instanceId)
+    _fanOutParent.delete(instanceId)
     _instancePlaybooks.delete(instanceId)
     onSessionExitCallback?.(instanceId)
 
@@ -646,6 +660,7 @@ export async function createInstance(opts: {
   ticket?: { source: 'jira'; key: string; summary: string }
   triggeredBy?: string
   playbook?: string
+  fanOutParentId?: string
 }): Promise<ClaudeInstance> {
   const defaultArgs = await getDefaultArgs()
   const home = app.getPath('home')
@@ -686,6 +701,9 @@ export async function createInstance(opts: {
   }
   if (opts.triggeredBy) {
     _instanceTriggeredBy.set(inst.id, opts.triggeredBy)
+  }
+  if (opts.fanOutParentId) {
+    _fanOutParent.set(inst.id, opts.fanOutParentId)
   }
   if (opts.ticket) {
     _instanceTickets.set(inst.id, opts.ticket)

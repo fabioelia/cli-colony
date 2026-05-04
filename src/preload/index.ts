@@ -67,6 +67,7 @@ export interface ClaudeManagerAPI {
       env?: Record<string, string>
       ticket?: { source: 'jira'; key: string; summary: string; url?: string }
       playbook?: string
+      fanOutParentId?: string
     }) => Promise<ClaudeInstance>
     write: (id: string, data: string) => void
     resize: (id: string, cols: number, rows: number) => Promise<boolean>
@@ -594,6 +595,7 @@ export interface ClaudeManagerAPI {
   ai: {
     suggestPRDescription: (dir: string) => Promise<{ title: string; body: string } | null>
     suggestCommitMessage: (dir: string, files: string[]) => Promise<string | null>
+    decomposeTasks: (task: string, count: number) => Promise<Array<{ title: string; prompt: string }> | null>
   }
   review: {
     groupChanges: (files: string[], diffSummary: string) => Promise<Array<{ label: string; files: string[] }>>
@@ -1394,6 +1396,7 @@ const api: ClaudeManagerAPI = {
   ai: {
     suggestPRDescription: (dir) => ipcRenderer.invoke('ai:suggestPRDescription', dir) as Promise<{ title: string; body: string } | null>,
     suggestCommitMessage: (dir: string, files: string[]) => ipcRenderer.invoke('ai:suggestCommitMessage', dir, files) as Promise<string | null>,
+    decomposeTasks: (task: string, count: number) => ipcRenderer.invoke('ai:decomposeTasks', task, count) as Promise<Array<{ title: string; prompt: string }> | null>,
   },
   review: {
     groupChanges: (files: string[], diffSummary: string) => ipcRenderer.invoke('review:groupChanges', files, diffSummary) as Promise<Array<{ label: string; files: string[] }>>,
