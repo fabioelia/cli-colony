@@ -1,0 +1,17 @@
+name: Branch Protection
+description: Run linter and type-checker on new PRs
+category: testing
+tags: [pr, lint, typecheck, git-poll]
+author: colony-builtin
+---
+name: Branch Protection
+description: Run quality checks when a PR is opened
+enabled: false
+trigger:
+  type: git-poll
+  interval: 300
+condition:
+  type: review_requested
+actions:
+  - type: session
+    prompt: Run the linter and type-checker on the PR branch. Report any errors to ~/.claude-colony/outputs/branch-check.md

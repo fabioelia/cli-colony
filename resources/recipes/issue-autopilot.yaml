@@ -1,0 +1,25 @@
+name: Issue Autopilot
+description: Auto-start a session for each issue assigned to you
+category: automation
+tags: [github, issues, git-poll]
+author: colony-builtin
+---
+name: Issue Autopilot
+description: Create a session automatically when a GitHub Issue is assigned to you
+enabled: false
+trigger:
+  type: git-poll
+  interval: 300
+condition:
+  type: issue-assigned
+  label: ready
+actions:
+  - type: session
+    prompt: |
+      Work on issue #{{issue.number}}: {{issue.title}}
+
+      {{issue.body}}
+
+      Repo: {{repo.owner}}/{{repo.name}}
+      Issue URL: {{issue.url}}
+      Labels: {{issue.labels}}

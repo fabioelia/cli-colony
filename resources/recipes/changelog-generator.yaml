@@ -1,0 +1,17 @@
+name: Changelog Generator
+description: Auto-generate CHANGELOG entry on version tag
+category: automation
+tags: [changelog, git-poll, release]
+author: colony-builtin
+---
+name: Changelog Generator
+description: Automatically generate a CHANGELOG entry whenever a version tag is pushed
+enabled: false
+trigger:
+  type: git-poll
+  interval: 300
+condition:
+  type: new_commits
+actions:
+  - type: session
+    prompt: Check if a new version tag (e.g. v1.2.3) was just pushed. If so, generate a CHANGELOG.md entry summarizing the changes since the previous tag using git log. Group changes by feat/fix/ux/perf. Append the new entry at the top of CHANGELOG.md and commit it.

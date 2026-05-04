@@ -895,6 +895,15 @@ export interface ProofEntry {
   persona: string
 }
 
+export interface RecipeEntry {
+  name: string
+  description: string
+  category: string
+  tags: string[]
+  author: string
+  filePath: string
+}
+
 export interface PlaybookDef {
   name: string
   description?: string

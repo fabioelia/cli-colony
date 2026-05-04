@@ -1,0 +1,15 @@
+name: Cost Budget Monitor
+description: Alert when daily spend exceeds budget
+category: monitoring
+tags: [cost, budget, cron]
+author: colony-builtin
+---
+name: Cost Budget Monitor
+description: Check daily Colony spend every 4 hours and alert if over budget
+enabled: false
+trigger:
+  type: cron
+  cron: "0 */4 * * *"
+actions:
+  - type: session
+    prompt: Check today's total Colony API spend. If it exceeds $5, write an alert to ~/.claude-colony/outputs/budget-alert.md with the breakdown by persona.

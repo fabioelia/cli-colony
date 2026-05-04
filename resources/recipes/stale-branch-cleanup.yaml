@@ -1,0 +1,15 @@
+name: Stale Branch Cleanup
+description: Weekly report of branches idle for 30+ days
+category: automation
+tags: [git, branches, cleanup, weekly]
+author: colony-builtin
+---
+name: Stale Branch Cleanup
+description: Weekly scan for branches with no commits in 30+ days
+enabled: false
+trigger:
+  type: cron
+  cron: "0 10 * * 1"
+actions:
+  - type: session
+    prompt: List all git branches (local and remote) that have had no commits in the past 30 days. Exclude main, master, develop, and release branches. Write the list to ~/.claude-colony/outputs/stale-branches.md with the last commit date and author for each. Do not delete any branches — report only.

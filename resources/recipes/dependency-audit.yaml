@@ -1,0 +1,15 @@
+name: Dependency Audit
+description: Weekly dep audit, opens issue on findings
+category: security
+tags: [dependencies, audit, cron, weekly]
+author: colony-builtin
+---
+name: Dependency Audit
+description: Weekly audit of npm/pip dependencies for outdated packages and known vulnerabilities
+enabled: false
+trigger:
+  type: cron
+  cron: "0 9 * * 1"
+actions:
+  - type: session
+    prompt: Audit project dependencies for outdated packages and known vulnerabilities. Run npm audit or pip-audit as appropriate. Write a summary to ~/.claude-colony/outputs/dep-audit.md listing outdated packages, CVEs, and recommended upgrades. If any HIGH or CRITICAL vulnerabilities are found, create a GitHub issue.

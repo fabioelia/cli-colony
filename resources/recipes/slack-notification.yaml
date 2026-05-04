@@ -1,0 +1,24 @@
+name: Slack Notification
+description: POST pipeline outcome to a Slack webhook
+category: automation
+tags: [slack, webhook, notification]
+author: colony-builtin
+---
+name: Slack Notification
+description: Run a daily task and post the outcome to Slack
+enabled: false
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+actions:
+  - type: session
+    name: daily-task
+    prompt: Run the daily check and write a one-line summary.
+    on_success:
+      webhook:
+        url: https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+        body: '{"text": "success"}'
+    on_failure:
+      webhook:
+        url: https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+        body: '{"text": "failed"}'

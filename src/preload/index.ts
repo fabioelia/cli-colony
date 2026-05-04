@@ -18,6 +18,7 @@ import type {
   PersonaAttentionRequest,
   PlaybookDef,
   ProofEntry,
+  RecipeEntry,
 } from '../shared/types'
 import type { InstanceManifest } from '../daemon/env-protocol'
 
@@ -41,6 +42,7 @@ export type {
   PersonaAttentionRequest,
   PlaybookDef,
   ProofEntry,
+  RecipeEntry,
 }
 
 
@@ -745,6 +747,15 @@ export interface ClaudeManagerAPI {
     list: (dateFrom: string, dateTo: string) => Promise<ProofEntry[]>
     read: (path: string) => Promise<string>
     onNewProof: (cb: (entry: { id: string; path: string }) => void) => () => void
+  }
+  recipes: {
+    list: () => Promise<RecipeEntry[]>
+    get: (filePath: string) => Promise<string | null>
+    getTemplate: (filePath: string) => Promise<string | null>
+    save: (filePath: string, content: string) => Promise<void>
+    delete: (filePath: string) => Promise<void>
+    import: (yamlContent: string) => Promise<string>
+    export: (filePath: string) => Promise<string | null>
   }
 }
 
@@ -1560,6 +1571,15 @@ const api: ClaudeManagerAPI = {
       ipcRenderer.on('instance:proof', listener)
       return () => ipcRenderer.removeListener('instance:proof', listener)
     },
+  },
+  recipes: {
+    list: () => ipcRenderer.invoke('recipes:list') as Promise<RecipeEntry[]>,
+    get: (filePath) => ipcRenderer.invoke('recipes:get', filePath) as Promise<string | null>,
+    getTemplate: (filePath) => ipcRenderer.invoke('recipes:getTemplate', filePath) as Promise<string | null>,
+    save: (filePath, content) => ipcRenderer.invoke('recipes:save', filePath, content) as Promise<void>,
+    delete: (filePath) => ipcRenderer.invoke('recipes:delete', filePath) as Promise<void>,
+    import: (yamlContent) => ipcRenderer.invoke('recipes:import', yamlContent) as Promise<string>,
+    export: (filePath) => ipcRenderer.invoke('recipes:export', filePath) as Promise<string | null>,
   },
 }
 

@@ -1,0 +1,17 @@
+name: PR Review on Push
+description: Review new commits on every push
+category: code-review
+tags: [pr, review, git-poll]
+author: colony-builtin
+---
+name: PR Review on Push
+description: Review new commits whenever code is pushed
+enabled: false
+trigger:
+  type: git-poll
+  interval: 300
+condition:
+  type: new_commits
+actions:
+  - type: diff_review
+    description: Review the diff for issues and best practices

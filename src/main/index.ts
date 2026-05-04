@@ -23,6 +23,7 @@ if (process.env.COLONY_CDP_PORT) {
 
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerIpcHandlers } from './ipc-handlers'
+import { initRecipes } from './recipe-manager'
 import { initDaemon, disconnectDaemon, setOnInstanceListChanged, setOnSessionExit, getAllInstances } from './instance-manager'
 import { initEnvDaemon, refreshRepoConfigs, stopWatching as stopEnvWatching } from './env-manager'
 import { createTray, updateTrayMenu } from './tray'
@@ -585,6 +586,7 @@ app.whenReady().then(async () => {
   await getSettings()
 
   registerIpcHandlers()
+  initRecipes().catch(err => console.warn('[app] recipe seeding failed:', err))
   mergeGhSkills().catch(err => console.warn('[app] gh skill discovery failed:', err))
   buildAppMenu()
   createWindow()

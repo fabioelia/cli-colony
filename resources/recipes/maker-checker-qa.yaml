@@ -1,0 +1,19 @@
+name: Maker-Checker QA
+description: One agent builds, another reviews
+category: code-review
+tags: [maker-checker, qa, git-poll]
+author: colony-builtin
+---
+name: Maker-Checker QA
+description: Maker session produces output, checker session reviews it
+enabled: false
+trigger:
+  type: git-poll
+  interval: 300
+condition:
+  type: new_commits
+actions:
+  - type: maker_checker
+    maker_prompt: Implement the requested changes based on the latest commits
+    checker_prompt: Review the maker's output and confirm it meets quality standards. Reply APPROVED or list issues.
+    approve_keyword: APPROVED

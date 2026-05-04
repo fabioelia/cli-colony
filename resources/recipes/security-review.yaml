@@ -1,0 +1,15 @@
+name: Security Review
+description: Daily security scan on active branches
+category: security
+tags: [security, cron, daily]
+author: colony-builtin
+---
+name: Security Review
+description: Daily security scan — checks for hardcoded secrets, vulnerable deps, OWASP issues
+enabled: false
+trigger:
+  type: cron
+  cron: "0 8 * * 1-5"
+actions:
+  - type: session
+    prompt: Run a security scan on the current branch. Check for hardcoded secrets or credentials, outdated dependencies with known CVEs, and common OWASP issues. Write findings to ~/.claude-colony/outputs/security-review.md with severity ratings.

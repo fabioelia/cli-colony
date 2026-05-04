@@ -10,7 +10,7 @@ import {
   Download, Upload, PauseCircle, PlayCircle, Check, StickyNote, Network, Archive, CalendarDays,
   History, CheckSquare, Trash2, Bell, BellMinus, BellOff, MoreHorizontal,
 } from 'lucide-react'
-import type { AuditResult, GitHubRepo, SessionArtifact } from '../../../shared/types'
+import type { AuditResult, GitHubRepo, SessionArtifact, RecipeEntry } from '../../../shared/types'
 import HelpPopover from './HelpPopover'
 import EmptyStateHook from './EmptyStateHook'
 import CronEditor from './CronEditor'
@@ -104,259 +104,6 @@ interface Props {
   onFocusInstance: (id: string) => void
   instances: Array<{ id: string; name: string; status: string; pipelineName?: string }>
 }
-
-const PIPELINE_RECIPES = [
-  {
-    name: 'PR Review on Push',
-    description: 'Review new commits on every push',
-    triggerType: 'git-poll',
-    actionType: 'diff_review',
-    yaml: `name: PR Review on Push
-description: Review new commits whenever code is pushed
-enabled: false
-trigger:
-  type: git-poll
-  interval: 300
-condition:
-  type: new_commits
-actions:
-  - type: diff_review
-    description: Review the diff for issues and best practices
-`,
-  },
-  {
-    name: 'Daily Test Suite',
-    description: 'Run tests every weekday morning',
-    triggerType: 'cron',
-    actionType: 'session',
-    yaml: `name: Daily Test Suite
-description: Run automated tests every weekday at 9am
-enabled: false
-trigger:
-  type: cron
-  cron: "0 9 * * 1-5"
-actions:
-  - type: session
-    prompt: Run the test suite and write a summary of results to ~/.claude-colony/outputs/test-results.md
-`,
-  },
-  {
-    name: 'Scheduled Summary',
-    description: 'Write a daily progress summary at end of day',
-    triggerType: 'cron',
-    actionType: 'session',
-    yaml: `name: Scheduled Summary
-description: Write a daily summary of activity at 5pm on weekdays
-enabled: false
-trigger:
-  type: cron
-  cron: "0 17 * * 1-5"
-actions:
-  - type: session
-    prompt: Review today's git commits and activity log, then write a concise daily summary to ~/.claude-colony/outputs/daily-summary.md
-`,
-  },
-  {
-    name: 'Branch Protection',
-    description: 'Run linter and type-checker on new PRs',
-    triggerType: 'git-poll',
-    actionType: 'session',
-    yaml: `name: Branch Protection
-description: Run quality checks when a PR is opened
-enabled: false
-trigger:
-  type: git-poll
-  interval: 300
-condition:
-  type: review_requested
-actions:
-  - type: session
-    prompt: Run the linter and type-checker on the PR branch. Report any errors to ~/.claude-colony/outputs/branch-check.md
-`,
-  },
-  {
-    name: 'Maker-Checker QA',
-    description: 'One agent builds, another reviews',
-    triggerType: 'git-poll',
-    actionType: 'maker_checker',
-    yaml: `name: Maker-Checker QA
-description: Maker session produces output, checker session reviews it
-enabled: false
-trigger:
-  type: git-poll
-  interval: 300
-condition:
-  type: new_commits
-actions:
-  - type: maker_checker
-    maker_prompt: Implement the requested changes based on the latest commits
-    checker_prompt: Review the maker's output and confirm it meets quality standards. Reply APPROVED or list issues.
-    approve_keyword: APPROVED
-`,
-  },
-  {
-    name: 'Cost Budget Monitor',
-    description: 'Alert when daily spend exceeds budget',
-    triggerType: 'cron',
-    actionType: 'session',
-    yaml: `name: Cost Budget Monitor
-description: Check daily Colony spend every 4 hours and alert if over budget
-enabled: false
-trigger:
-  type: cron
-  cron: "0 */4 * * *"
-actions:
-  - type: session
-    prompt: Check today's total Colony API spend. If it exceeds $5, write an alert to ~/.claude-colony/outputs/budget-alert.md with the breakdown by persona.
-`,
-  },
-  {
-    name: 'Security Review',
-    description: 'Daily security scan on active branches',
-    triggerType: 'cron',
-    actionType: 'session',
-    yaml: `name: Security Review
-description: Daily security scan — checks for hardcoded secrets, vulnerable deps, OWASP issues
-enabled: false
-trigger:
-  type: cron
-  cron: "0 8 * * 1-5"
-actions:
-  - type: session
-    prompt: Run a security scan on the current branch. Check for hardcoded secrets or credentials, outdated dependencies with known CVEs, and common OWASP issues. Write findings to ~/.claude-colony/outputs/security-review.md with severity ratings.
-`,
-  },
-  {
-    name: 'Dependency Audit',
-    description: 'Weekly dep audit, opens issue on findings',
-    triggerType: 'cron',
-    actionType: 'session',
-    yaml: `name: Dependency Audit
-description: Weekly audit of npm/pip dependencies for outdated packages and known vulnerabilities
-enabled: false
-trigger:
-  type: cron
-  cron: "0 9 * * 1"
-actions:
-  - type: session
-    prompt: Audit project dependencies for outdated packages and known vulnerabilities. Run npm audit or pip-audit as appropriate. Write a summary to ~/.claude-colony/outputs/dep-audit.md listing outdated packages, CVEs, and recommended upgrades. If any HIGH or CRITICAL vulnerabilities are found, create a GitHub issue.
-`,
-  },
-  {
-    name: 'Changelog Generator',
-    description: 'Auto-generate CHANGELOG entry on version tag',
-    triggerType: 'git-poll',
-    actionType: 'session',
-    yaml: `name: Changelog Generator
-description: Automatically generate a CHANGELOG entry whenever a version tag is pushed
-enabled: false
-trigger:
-  type: git-poll
-  interval: 300
-condition:
-  type: new_commits
-actions:
-  - type: session
-    prompt: Check if a new version tag (e.g. v1.2.3) was just pushed. If so, generate a CHANGELOG.md entry summarizing the changes since the previous tag using git log. Group changes by feat/fix/ux/perf. Append the new entry at the top of CHANGELOG.md and commit it.
-`,
-  },
-  {
-    name: 'Stale Branch Cleanup',
-    description: 'Weekly report of branches idle for 30+ days',
-    triggerType: 'cron',
-    actionType: 'session',
-    yaml: `name: Stale Branch Cleanup
-description: Weekly scan for branches with no commits in 30+ days
-enabled: false
-trigger:
-  type: cron
-  cron: "0 10 * * 1"
-actions:
-  - type: session
-    prompt: List all git branches (local and remote) that have had no commits in the past 30 days. Exclude main, master, develop, and release branches. Write the list to ~/.claude-colony/outputs/stale-branches.md with the last commit date and author for each. Do not delete any branches — report only.
-`,
-  },
-  {
-    name: 'Slack Notification',
-    description: 'POST pipeline outcome to a Slack webhook',
-    triggerType: 'cron',
-    actionType: 'session',
-    yaml: `name: Slack Notification
-description: Run a daily task and post the outcome to Slack
-enabled: false
-trigger:
-  type: cron
-  cron: "0 9 * * 1-5"
-actions:
-  - type: session
-    name: daily-task
-    prompt: Run the daily check and write a one-line summary.
-    on_success:
-      webhook:
-        url: https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
-        body: '{"text": "✅ {{pipeline_name}} succeeded in {{duration_ms}}ms (cost: \${{cost}})"}'
-    on_failure:
-      webhook:
-        url: https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
-        body: '{"text": "❌ {{pipeline_name}} failed after {{duration_ms}}ms"}'
-`,
-  },
-  {
-    name: 'Status Page Update',
-    description: 'POST pipeline result to any HTTP endpoint',
-    triggerType: 'cron',
-    actionType: 'session',
-    yaml: `name: Status Page Update
-description: Run a health check and POST the result to a status API
-enabled: false
-trigger:
-  type: cron
-  cron: "0 */4 * * *"
-actions:
-  - type: session
-    name: health-check
-    prompt: Run a health check on the project and output OK or FAIL.
-    on_success:
-      webhook:
-        url: https://your-status-page.example.com/api/update
-        headers:
-          Authorization: Bearer YOUR_API_TOKEN
-        body: '{"component": "colony-pipeline", "status": "operational", "pipeline": "{{pipeline_name}}"}'
-    on_failure:
-      webhook:
-        url: https://your-status-page.example.com/api/update
-        headers:
-          Authorization: Bearer YOUR_API_TOKEN
-        body: '{"component": "colony-pipeline", "status": "degraded", "pipeline": "{{pipeline_name}}"}'
-`,
-  },
-  {
-    name: 'Issue Autopilot',
-    description: 'Auto-start a session for each issue assigned to you',
-    triggerType: 'git-poll',
-    actionType: 'session',
-    yaml: `name: Issue Autopilot
-description: Create a session automatically when a GitHub Issue is assigned to you
-enabled: false
-trigger:
-  type: git-poll
-  interval: 300
-condition:
-  type: issue-assigned
-  label: ready
-actions:
-  - type: session
-    prompt: |
-      Work on issue #{{issue.number}}: {{issue.title}}
-
-      {{issue.body}}
-
-      Repo: {{repo.owner}}/{{repo.name}}
-      Issue URL: {{issue.url}}
-      Labels: {{issue.labels}}
-`,
-  },
-]
 
 const PIPELINE_SYSTEM_PROMPT = `You are a Pipeline Assistant for Claude Colony. You help users create, edit, and manage pipeline YAML files.
 
@@ -769,7 +516,7 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [debugEntries, setDebugEntries] = useState<string[]>([])
   const [expandedDebugRows, setExpandedDebugRows] = useState<Set<number>>(new Set())
   const [runOverrideDialog, setRunOverrideDialog] = useState<{ name: string; firstActionPrompt: string; firstActionModel?: string; firstActionWorkingDirectory?: string; budgetMaxCostUsd?: number } | null>(null)
-  const [viewMode, setViewModeRaw] = useState<'cards' | 'list' | 'health' | 'topology' | 'schedule'>(() => {
+  const [viewMode, setViewModeRaw] = useState<'cards' | 'list' | 'health' | 'topology' | 'schedule' | 'gallery'>(() => {
     if (localStorage.getItem('pipelines-health-view') === '1') return 'health'
     if (localStorage.getItem('pipelines-topology-map') === '1') return 'topology'
     if (localStorage.getItem('pipelines-schedule-heatmap') === '1') return 'schedule'
@@ -779,8 +526,9 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const healthView = viewMode === 'health'
   const showTopologyMap = viewMode === 'topology'
   const showScheduleHeatmap = viewMode === 'schedule'
+  const showGallery = viewMode === 'gallery'
   const listMode = viewMode === 'list'
-  const changeViewMode = useCallback((mode: 'cards' | 'list' | 'health' | 'topology' | 'schedule') => {
+  const changeViewMode = useCallback((mode: 'cards' | 'list' | 'health' | 'topology' | 'schedule' | 'gallery') => {
     setViewModeRaw(mode)
     localStorage.setItem('pipelines-health-view', mode === 'health' ? '1' : '0')
     localStorage.setItem('pipelines-topology-map', mode === 'topology' ? '1' : '0')
@@ -801,6 +549,12 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [pasteModalOpen, setPasteModalOpen] = useState(false)
   const [pasteYaml, setPasteYaml] = useState('')
   const [pasteError, setPasteError] = useState('')
+  const [recipes, setRecipes] = useState<RecipeEntry[]>([])
+  const [recipeCategory, setRecipeCategory] = useState('all')
+  const [recipeSearch, setRecipeSearch] = useState('')
+  const [importRecipeOpen, setImportRecipeOpen] = useState(false)
+  const [importRecipeYaml, setImportRecipeYaml] = useState('')
+  const [importRecipeError, setImportRecipeError] = useState('')
 
   // Cross-pipeline history search
   type HistorySearchResult = { pipelineName: string; entry: { ts: string; trigger: string; actionExecuted: boolean; success: boolean; durationMs: number; totalCost?: number }; matchField: string }
@@ -985,6 +739,11 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
     setReviewRules(rules)
   }, [])
   useEffect(() => { fetchReviewRules() }, [])
+  useEffect(() => {
+    if ((showGallery || showAutomationWizard) && recipes.length === 0) {
+      window.api.recipes.list().then(setRecipes).catch(() => {})
+    }
+  }, [showGallery, showAutomationWizard])
 
   // Load pipelines dir + last audit run
   useEffect(() => {
@@ -1649,7 +1408,7 @@ ${modelLine}  prompt: |
       <div className="panel-header">
         <h2><Zap size={16} /> Pipelines</h2>
         <div className="panel-header-spacer" />
-        {!healthView && !showTopologyMap && !showScheduleHeatmap && (
+        {!healthView && !showTopologyMap && !showScheduleHeatmap && !showGallery && (
           <div className="persona-sort-dropdown">
             <ArrowUpDown size={11} />
             <select value={sortBy} onChange={(e) => { setSortBy(e.target.value as typeof sortBy); localStorage.setItem('pipelines-sort', e.target.value) }}>
@@ -1677,6 +1436,7 @@ ${modelLine}  prompt: |
             <button className={`pipelines-view-btn${viewMode === 'health' ? ' active' : ''}`} onClick={() => changeViewMode('health')} title="Health dashboard"><Activity size={12} /></button>
             <button className={`pipelines-view-btn${viewMode === 'topology' ? ' active' : ''}`} onClick={() => changeViewMode('topology')} title="Topology map"><Network size={12} /></button>
             <button className={`pipelines-view-btn${viewMode === 'schedule' ? ' active' : ''}`} onClick={() => changeViewMode('schedule')} title="Schedule heatmap"><CalendarDays size={12} /></button>
+            <button className={`pipelines-view-btn${viewMode === 'gallery' ? ' active' : ''}`} onClick={() => changeViewMode('gallery')} title="Recipe Library"><BookOpen size={12} /></button>
           </div>
           <button
             className={`panel-header-btn${cronsPaused ? ' active' : ''}`}
@@ -1703,7 +1463,7 @@ ${modelLine}  prompt: |
                   <Sparkles size={12} /> AI Generate
                 </button>
                 <div className="pipelines-more-divider" />
-                {!healthView && !showTopologyMap && !showScheduleHeatmap && pipelines.length > 0 && (
+                {!healthView && !showTopologyMap && !showScheduleHeatmap && !showGallery && pipelines.length > 0 && (
                   <button className={`pipelines-more-item${selectMode ? ' active' : ''}`} onClick={() => { const next = !selectMode; setSelectMode(next); if (!next) setSelectedPipelines(new Set()); setShowMoreMenu(false) }}>
                     <CheckSquare size={12} /> {selectMode ? 'Exit Select' : 'Select'}
                   </button>
@@ -1881,6 +1641,159 @@ ${modelLine}  prompt: |
         <PipelineScheduleHeatmap pipelines={pipelines} />
       )}
 
+      {showGallery && (
+        <div className="recipe-gallery">
+          <div className="recipe-gallery-toolbar">
+            <div className="recipe-search-wrap">
+              <Search size={12} />
+              <input
+                className="recipe-search-input"
+                placeholder="Search recipes…"
+                value={recipeSearch}
+                onChange={e => setRecipeSearch(e.target.value)}
+              />
+            </div>
+            <div className="recipe-category-tabs">
+              {['all', 'code-review', 'testing', 'security', 'automation', 'monitoring'].map(cat => (
+                <button
+                  key={cat}
+                  className={`recipe-cat-tab${recipeCategory === cat ? ' active' : ''}`}
+                  onClick={() => setRecipeCategory(cat)}
+                >
+                  {cat === 'all' ? 'All' : cat.split('-').map(w => w[0].toUpperCase() + w.slice(1)).join(' ')}
+                </button>
+              ))}
+            </div>
+            <div style={{ flex: 1 }} />
+            <button
+              className="panel-header-btn"
+              onClick={() => { setImportRecipeOpen(true); setImportRecipeYaml(''); setImportRecipeError('') }}
+              title="Import recipe from YAML"
+            >
+              <Upload size={11} /> Import
+            </button>
+            <button
+              className="panel-header-btn primary"
+              onClick={() => {
+                const template = `name: "My Recipe"\ndescription: "What this automation does"\ncategory: automation\ntags: []\nauthor: user\n---\nname: "My Pipeline"\ndescription: ""\nenabled: false\ntrigger:\n  type: cron\n  cron: "0 9 * * 1-5"\nactions:\n  - type: session\n    prompt: "Do the thing"\n`
+                setGenerateResult(template)
+                setGenerateError('')
+                changeViewMode('list')
+                setShowGenerateModal(true)
+              }}
+              title="Create a new recipe"
+            >
+              <Plus size={11} /> New Recipe
+            </button>
+          </div>
+          <div className="recipe-gallery-grid">
+            {recipes
+              .filter(r => {
+                if (recipeCategory !== 'all' && r.category !== recipeCategory) return false
+                if (recipeSearch) {
+                  const q = recipeSearch.toLowerCase()
+                  return r.name.toLowerCase().includes(q) || r.description.toLowerCase().includes(q) || r.tags.some(t => t.toLowerCase().includes(q))
+                }
+                return true
+              })
+              .map(recipe => (
+                <div key={recipe.filePath} className="recipe-card">
+                  <div className="recipe-card-header">
+                    <span className="recipe-card-name">{recipe.name}</span>
+                    <span className={`recipe-cat-badge recipe-cat-${recipe.category}`}>{recipe.category}</span>
+                  </div>
+                  <p className="recipe-card-desc">{recipe.description}</p>
+                  {recipe.tags.length > 0 && (
+                    <div className="recipe-card-tags">
+                      {recipe.tags.map(tag => <span key={tag} className="recipe-card-tag">{tag}</span>)}
+                    </div>
+                  )}
+                  <div className="recipe-card-footer">
+                    <span className="recipe-card-author">{recipe.author === 'colony-builtin' ? '⚙ Built-in' : `👤 ${recipe.author}`}</span>
+                    <div style={{ flex: 1 }} />
+                    <button
+                      className="recipe-card-action"
+                      title="Export — copy YAML to clipboard"
+                      onClick={async () => {
+                        const content = await window.api.recipes.export(recipe.filePath)
+                        if (content) {
+                          await navigator.clipboard.writeText(content)
+                        }
+                      }}
+                    >
+                      <Copy size={10} /> Export
+                    </button>
+                    <button
+                      className="recipe-card-action primary"
+                      title="Use this recipe — open YAML editor"
+                      onClick={async () => {
+                        const tmpl = await window.api.recipes.getTemplate(recipe.filePath)
+                        if (tmpl) {
+                          setGenerateResult(tmpl)
+                          setGenerateError('')
+                          changeViewMode('list')
+                          setShowGenerateModal(true)
+                        }
+                      }}
+                    >
+                      <ArrowRight size={10} /> Use
+                    </button>
+                  </div>
+                </div>
+              ))}
+            {recipes.filter(r => {
+              if (recipeCategory !== 'all' && r.category !== recipeCategory) return false
+              if (recipeSearch) {
+                const q = recipeSearch.toLowerCase()
+                return r.name.toLowerCase().includes(q) || r.description.toLowerCase().includes(q) || r.tags.some(t => t.toLowerCase().includes(q))
+              }
+              return true
+            }).length === 0 && (
+              <div className="recipe-gallery-empty">
+                {recipeSearch ? 'No recipes match your search.' : 'No recipes in this category.'}
+              </div>
+            )}
+          </div>
+          {importRecipeOpen && (
+            <div className="pipeline-preview-overlay" onMouseDown={e => { if (e.target === e.currentTarget) setImportRecipeOpen(false) }}>
+              <div className="pipeline-preview-modal" style={{ maxWidth: 520 }}>
+                <div className="pipeline-preview-header">
+                  <Upload size={14} /> Import Recipe
+                  <button className="pipeline-preview-close" onClick={() => setImportRecipeOpen(false)}><X size={14} /></button>
+                </div>
+                <div className="pipeline-preview-body" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>Paste a recipe YAML (with frontmatter) below. Include name:, description:, category:, and the pipeline template after ---.</p>
+                  <textarea
+                    style={{ width: '100%', height: 240, background: 'var(--bg-primary)', border: '1px solid var(--border-default)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 11, fontFamily: 'monospace', padding: 8, boxSizing: 'border-box', resize: 'vertical' }}
+                    placeholder="name: My Recipe&#10;description: What it does&#10;category: automation&#10;tags: []&#10;author: user&#10;---&#10;name: My Pipeline&#10;..."
+                    value={importRecipeYaml}
+                    onChange={e => setImportRecipeYaml(e.target.value)}
+                  />
+                  {importRecipeError && <p style={{ fontSize: 11, color: 'var(--danger)', margin: 0 }}>{importRecipeError}</p>}
+                  <button
+                    className="panel-header-btn primary"
+                    style={{ alignSelf: 'flex-end' }}
+                    disabled={!importRecipeYaml.trim()}
+                    onClick={async () => {
+                      try {
+                        await window.api.recipes.import(importRecipeYaml)
+                        const updated = await window.api.recipes.list()
+                        setRecipes(updated)
+                        setImportRecipeOpen(false)
+                      } catch (e) {
+                        setImportRecipeError(String(e))
+                      }
+                    }}
+                  >
+                    <Upload size={11} /> Import Recipe
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div ref={askBarRef} className={`panel-ask-bar${askBarDragging ? ' dragging' : ''}`}>
         <MessageSquare size={14} className="panel-ask-icon" />
         <input
@@ -2033,7 +1946,7 @@ ${modelLine}  prompt: |
         </div>
       )}
 
-      {!healthView && !showTopologyMap && !showScheduleHeatmap && <div className={`pipelines-list${listMode ? ' list-mode' : ''}`}>
+      {!healthView && !showTopologyMap && !showScheduleHeatmap && !showGallery && <div className={`pipelines-list${listMode ? ' list-mode' : ''}`}>
         {selectedPipelines.size > 0 && (
           <div className="pipeline-bulk-bar">
             <button className="pipeline-bulk-select-all" onClick={handlePipelineSelectAll}>
@@ -3430,31 +3343,35 @@ ${modelLine}  prompt: |
 
             <div className="automation-wizard-body">
               {/* Recipe starters */}
-              <div className="pipeline-recipe-section">
-                <p className="automation-wizard-section-label" style={{ marginBottom: 8 }}>Start from a recipe</p>
-                <div className="pipeline-recipe-grid">
-                  {PIPELINE_RECIPES.map((recipe) => (
-                    <button
-                      key={recipe.name}
-                      className="pipeline-recipe-card"
-                      onClick={() => {
-                        setGenerateResult(recipe.yaml)
-                        setGenerateError('')
-                        setShowAutomationWizard(false)
-                        setShowGenerateModal(true)
-                      }}
-                    >
-                      <span className="pipeline-recipe-name">{recipe.name}</span>
-                      <span className="pipeline-recipe-desc">{recipe.description}</span>
-                      <span className="pipeline-recipe-badges">
-                        <span className="pipeline-recipe-badge">{recipe.triggerType}</span>
-                        <span className="pipeline-recipe-badge">{recipe.actionType}</span>
-                      </span>
-                    </button>
-                  ))}
+              {recipes.length > 0 && (
+                <div className="pipeline-recipe-section">
+                  <p className="automation-wizard-section-label" style={{ marginBottom: 8 }}>Start from a recipe</p>
+                  <div className="pipeline-recipe-grid">
+                    {recipes.slice(0, 8).map((recipe) => (
+                      <button
+                        key={recipe.filePath}
+                        className="pipeline-recipe-card"
+                        onClick={async () => {
+                          const template = await window.api.recipes.getTemplate(recipe.filePath)
+                          if (template) {
+                            setGenerateResult(template)
+                            setGenerateError('')
+                            setShowAutomationWizard(false)
+                            setShowGenerateModal(true)
+                          }
+                        }}
+                      >
+                        <span className="pipeline-recipe-name">{recipe.name}</span>
+                        <span className="pipeline-recipe-desc">{recipe.description}</span>
+                        <span className="pipeline-recipe-badges">
+                          <span className="pipeline-recipe-badge">{recipe.category}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="pipeline-recipe-divider"><span>or build from scratch</span></div>
                 </div>
-                <div className="pipeline-recipe-divider"><span>or build from scratch</span></div>
-              </div>
+              )}
 
               {/* Step indicators */}
               <div className="automation-wizard-steps">

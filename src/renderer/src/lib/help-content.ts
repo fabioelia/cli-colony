@@ -692,7 +692,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'New Automation', detail: 'Open a 3-step wizard to create an automation without writing YAML. At the top of the wizard, recipe cards let you start from a pre-built template (PR Review, Daily Tests, Scheduled Summary, Branch Protection, Maker-Checker QA, Cost Monitor, Issue Autopilot, and more) — click any card to open the YAML editor pre-filled with that recipe. Or scroll past the recipes to build from scratch: pick a trigger (GitHub PR opened/merged, cron, or git push), configure an action (launch a session with a prompt), review the generated YAML, and confirm. The pipeline file is written to ~/.claude-colony/pipelines/ and picked up within 15s.', icon: 'Wand2' },
           { label: 'AI Generate', detail: 'Describe what you want the pipeline to do in plain English (e.g. "Run every night: check npm outdated and write a summary"). Claude Haiku generates a complete pipeline YAML with trigger, condition, and action stages pre-configured. Review and edit before saving.', icon: 'Sparkles' },
-          { label: 'View toggle', detail: 'Segmented control to switch between 5 views: Cards (grid layout), List (compact rows), Health (aggregate success dashboard), Topology (DAG of trigger chains), Schedule (24h heatmap). One active at a time. Cards/List show all pipeline cards; Health shows per-pipeline success rates and recent failures (click a row to jump to that pipeline); Topology shows trigger chains as a DAG (click a node to jump); Schedule shows cron fire times as dots with color-coded on-time/late/failed indicators.', icon: 'LayoutGrid' },
+          { label: 'View toggle', detail: 'Segmented control to switch between 6 views: Cards (grid layout), List (compact rows), Health (aggregate success dashboard), Topology (DAG of trigger chains), Schedule (24h heatmap), Gallery (recipe library). One active at a time.', icon: 'LayoutGrid' },
           { label: 'Search', detail: 'Filter pipelines by name. Applies to both list/card view and health table. Clear the field to show all.', icon: 'Search' },
           { label: 'Sort', detail: 'Reorder pipelines by name, last fired time, fire count, enabled status, or success rate (problem pipelines first). Hidden when health view is active. Your choice is saved.', icon: 'ArrowUpDown' },
           { label: 'Export', detail: 'Download all pipeline YAML files (and companion memory/readme files) as a zip archive.', icon: 'Download' },
@@ -1247,6 +1247,19 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Overlap bands', detail: 'Red-tinted vertical bands highlight minutes where 3+ personas fire simultaneously. Hover for count and time.' },
           { label: 'Run dots', detail: 'Green dots = actual runs that fired on time. Amber dots = runs that fired >2 minutes late vs the closest scheduled time.' },
           { label: 'Disabled personas', detail: 'Shown as dimmed rows so you can see the full schedule picture even when some personas are toggled off.' },
+        ],
+      },
+      {
+        name: 'Recipe Library',
+        position: 'Recipe Library tab',
+        items: [
+          { label: 'Browse recipes', detail: 'The Recipe Library shows all pipeline recipe templates stored in ~/.claude-colony/recipes/. Built-in recipes are seeded on first launch; you can add your own or import from YAML.', icon: 'BookOpen' },
+          { label: 'Category filter', detail: 'Filter by All, Code Review, Testing, Security, Automation, or Monitoring using the tab strip. Categories are stored in each recipe\'s frontmatter.' },
+          { label: 'Search', detail: 'The search box filters by recipe name, description, and tags simultaneously.' },
+          { label: 'Use recipe', detail: 'Click "Use" on any recipe card to open its pipeline YAML in the editor, pre-filled and ready to customize before saving.', icon: 'ArrowRight' },
+          { label: 'Export recipe', detail: 'Click "Export" to copy the full recipe YAML (frontmatter + template) to the clipboard so you can share or import it elsewhere.', icon: 'Copy' },
+          { label: 'Import recipe', detail: 'Click "Import" to paste a recipe YAML (with frontmatter) from the clipboard or another source. It is saved to ~/.claude-colony/recipes/ with a slug-based filename.', icon: 'Upload' },
+          { label: 'New recipe', detail: 'Click "New Recipe" to open the YAML editor with a blank recipe template (frontmatter + pipeline). Edit and save to add it to your library.', icon: 'Plus' },
         ],
       },
       {

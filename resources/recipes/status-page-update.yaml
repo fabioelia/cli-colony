@@ -1,0 +1,28 @@
+name: Status Page Update
+description: POST pipeline result to any HTTP endpoint
+category: automation
+tags: [webhook, http, status]
+author: colony-builtin
+---
+name: Status Page Update
+description: Run a health check and POST the result to a status API
+enabled: false
+trigger:
+  type: cron
+  cron: "0 */4 * * *"
+actions:
+  - type: session
+    name: health-check
+    prompt: Run a health check on the project and output OK or FAIL.
+    on_success:
+      webhook:
+        url: https://your-status-page.example.com/api/update
+        headers:
+          Authorization: Bearer YOUR_API_TOKEN
+        body: '{"component": "colony-pipeline", "status": "operational"}'
+    on_failure:
+      webhook:
+        url: https://your-status-page.example.com/api/update
+        headers:
+          Authorization: Bearer YOUR_API_TOKEN
+        body: '{"component": "colony-pipeline", "status": "degraded"}'

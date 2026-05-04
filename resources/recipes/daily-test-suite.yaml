@@ -1,0 +1,15 @@
+name: Daily Test Suite
+description: Run tests every weekday morning
+category: testing
+tags: [cron, tests, daily]
+author: colony-builtin
+---
+name: Daily Test Suite
+description: Run automated tests every weekday at 9am
+enabled: false
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+actions:
+  - type: session
+    prompt: Run the test suite and write a summary of results to ~/.claude-colony/outputs/test-results.md

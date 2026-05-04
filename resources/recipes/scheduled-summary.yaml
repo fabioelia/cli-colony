@@ -1,0 +1,15 @@
+name: Scheduled Summary
+description: Write a daily progress summary at end of day
+category: automation
+tags: [cron, summary, daily]
+author: colony-builtin
+---
+name: Scheduled Summary
+description: Write a daily summary of activity at 5pm on weekdays
+enabled: false
+trigger:
+  type: cron
+  cron: "0 17 * * 1-5"
+actions:
+  - type: session
+    prompt: Review today's git commits and activity log, then write a concise daily summary to ~/.claude-colony/outputs/daily-summary.md
