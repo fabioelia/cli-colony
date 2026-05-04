@@ -275,9 +275,31 @@ tr:last-child td{border-bottom:none}
 .cost{font-variant-numeric:tabular-nums}
 #sessions-stat,#pipelines-stat,#personas-stat{font-size:11px;color:#666;margin-bottom:8px}
 #last-updated{font-size:10px;color:#444;text-align:right;margin-top:4px}
+.act-btn{padding:2px 8px;border:none;border-radius:3px;cursor:pointer;font-size:11px;font-weight:500;color:#fff;margin-left:4px}
+.act-btn:disabled{opacity:.4;cursor:not-allowed}
+.act-btn.red{background:#ef4444}.act-btn.red:hover:not(:disabled){background:#dc2626}
+.act-btn.blue{background:#3b82f6}.act-btn.blue:hover:not(:disabled){background:#2563eb}
+.act-btn.gray{background:#4b5563}.act-btn.gray:hover:not(:disabled){background:#374151}
+.act-btn.green{background:#22c55e;color:#111}.act-btn.green:hover:not(:disabled){background:#16a34a}
+#new-session-form{display:none;background:#0d0d1a;border:1px solid #222244;border-radius:6px;padding:12px;margin-bottom:12px}
+#new-session-form h3{font-size:12px;color:#aaa;margin-bottom:8px}
+.form-row{display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+.form-row input,.form-row select{flex:1;min-width:120px;padding:4px 8px;background:#111128;border:1px solid #333;border-radius:4px;color:#e0e0e0;font-size:12px}
+.form-actions{display:flex;gap:6px;margin-top:8px}
+#new-session-btn{padding:4px 12px;background:#3b82f6;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;margin-bottom:8px}
+#new-session-btn:hover{background:#2563eb}
+.whisper-row{display:flex;gap:6px;padding:4px 0}
+.whisper-row input{flex:1;padding:3px 7px;background:#111128;border:1px solid #333;border-radius:4px;color:#e0e0e0;font-size:11px}
+.trigger-params{display:none;background:#111128;border:1px solid #1a1a3a;border-radius:4px;padding:8px;margin-top:6px}
+.trigger-params input,.trigger-params select{width:100%;margin-bottom:4px;padding:3px 7px;background:#0d0d1a;border:1px solid #333;border-radius:3px;color:#e0e0e0;font-size:11px}
+#toast-container{position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:6px;z-index:999;pointer-events:none}
+.toast{padding:8px 14px;border-radius:6px;font-size:12px;opacity:1;transition:opacity .3s}
+.toast.ok{background:#166534;color:#bbf7d0}
+.toast.err{background:#7f1d1d;color:#fecaca}
 </style>
 </head>
 <body>
+<div id="toast-container"></div>
 <div id="header">
   <div id="health-dot"></div>
   <h1>Colony Dashboard</h1>
@@ -296,15 +318,44 @@ tr:last-child td{border-bottom:none}
       <div class="stat"><div class="stat-val" id="s-waiting">—</div><div class="stat-lbl">Waiting</div></div>
       <div class="stat"><div class="stat-val" id="s-stopped">—</div><div class="stat-lbl">Stopped</div></div>
     </div>
-    <table id="sessions-table"><thead><tr><th>Name</th><th>Status</th><th>Cost</th><th>Idle</th></tr></thead><tbody></tbody></table>
+    <button id="new-session-btn" onclick="document.getElementById('new-session-form').style.display=document.getElementById('new-session-form').style.display==='none'?'block':'none'">+ New Session</button>
+    <div id="new-session-form">
+      <h3>New Session</h3>
+      <div class="form-row">
+        <input id="ns-name" placeholder="Name (required)" />
+        <input id="ns-dir" placeholder="Working directory (~/ default)" />
+      </div>
+      <div class="form-row">
+        <input id="ns-prompt" placeholder="Initial prompt (optional)" />
+        <select id="ns-model">
+          <option value="">Default model</option>
+          <option value="claude-opus-4-7">Opus 4.7</option>
+          <option value="claude-sonnet-4-6">Sonnet 4.6</option>
+          <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <select id="ns-perm">
+          <option value="">Default permission</option>
+          <option value="default">default</option>
+          <option value="acceptEdits">acceptEdits</option>
+          <option value="bypassPermissions">bypassPermissions</option>
+        </select>
+      </div>
+      <div class="form-actions">
+        <button class="act-btn green" onclick="createSession()">Create</button>
+        <button class="act-btn gray" onclick="document.getElementById('new-session-form').style.display='none'">Cancel</button>
+      </div>
+    </div>
+    <table id="sessions-table"><thead><tr><th>Name</th><th>Status</th><th>Cost</th><th>Idle</th><th></th></tr></thead><tbody></tbody></table>
   </section>
   <section>
     <h2>Pipelines <span id="pipelines-stat"></span></h2>
-    <table id="pipelines-table"><thead><tr><th>Name</th><th>Next Fire</th><th>Last Run</th></tr></thead><tbody></tbody></table>
+    <table id="pipelines-table"><thead><tr><th>Name</th><th>Next Fire</th><th>Last Run</th><th></th></tr></thead><tbody></tbody></table>
   </section>
   <section>
     <h2>Personas <span id="personas-stat"></span></h2>
-    <table id="personas-table"><thead><tr><th>Name</th><th>Runs</th><th>Last Run</th></tr></thead><tbody></tbody></table>
+    <table id="personas-table"><thead><tr><th>Name</th><th>Runs</th><th>Last Run</th><th></th></tr></thead><tbody></tbody></table>
   </section>
   <section>
     <h2>Health</h2>
@@ -363,11 +414,23 @@ tr:last-child td{border-bottom:none}
         document.getElementById('s-stopped').textContent = stopped;
         document.getElementById('sessions-stat').innerHTML = '<span class="badge blue">' + list.length + ' total</span>';
         var active = list.filter(function(s){return s.status!=='stopped';}).slice(0,20);
-        setTbody('sessions-table', active.map(function(s) {
+        var stopped = list.filter(function(s){return s.status==='stopped';}).slice(0,10);
+        var allShown = active.concat(stopped);
+        setTbody('sessions-table', allShown.map(function(s) {
           var badge = s.status === 'running' ? 'green' : s.status === 'waiting' ? 'blue' : 'amber';
           var cost = s.cost != null ? '$' + s.cost.toFixed(3) : '—';
           var idle = s.idleSince ? fmt(Date.now() - new Date(s.idleSince).getTime()) : '—';
-          return '<tr><td class="name">' + escHtml(s.name) + '</td><td><span class="badge ' + badge + '">' + s.status + '</span></td><td class="cost muted">' + cost + '</td><td class="muted">' + idle + '</td></tr>';
+          var sid = escHtml(s.id);
+          var sname = escHtml(s.name);
+          var actions = '';
+          if (s.status !== 'stopped') {
+            actions += '<button class="act-btn red" onclick="stopSession(\'' + sid + '\',this)">Stop</button>';
+            actions += '<button class="act-btn gray" onclick="whisperSession(\'' + sid + '\',this)">Whisper</button>';
+          } else {
+            actions += '<button class="act-btn red" onclick="removeSession(\'' + sid + '\',this)">Remove</button>';
+          }
+          var whisperRow = s.status !== 'stopped' ? '<tr id="wr-' + sid + '" style="display:none"><td colspan="5"><div class="whisper-row"><input id="wi-' + sid + '" placeholder="Message to send…" /><button class="act-btn blue" onclick="sendWhisper(\'' + sid + '\')">Send</button><button class="act-btn gray" onclick="cancelWhisper(\'' + sid + '\')">Cancel</button></div></td></tr>' : '';
+          return '<tr><td class="name">' + sname + '</td><td><span class="badge ' + badge + '">' + s.status + '</span></td><td class="cost muted">' + cost + '</td><td class="muted">' + idle + '</td><td>' + actions + '</td></tr>' + whisperRow;
         }));
       }
 
@@ -378,7 +441,17 @@ tr:last-child td{border-bottom:none}
         setTbody('pipelines-table', plist.slice(0,20).map(function(p) {
           var next = p.nextFireAt ? fmtDate(p.nextFireAt) : '—';
           var last = p.lastRunAt ? ('<span class="badge ' + (p.lastRunSuccess ? 'green' : 'red') + '">' + fmtDate(p.lastRunAt) + '</span>') : '<span class="muted">never</span>';
-          return '<tr><td class="name">' + escHtml(p.name) + '</td><td class="muted">' + next + '</td><td>' + last + '</td></tr>';
+          var pname = escHtml(p.name);
+          var penc = encodeURIComponent(p.name);
+          var actions = '<button class="act-btn blue" onclick="triggerPipeline(\'' + pname + '\',\'' + penc + '\',this)">Trigger</button>';
+          actions += '<button class="act-btn gray" onclick="toggleTriggerParams(\'' + penc + '\')">▾</button>';
+          var paramsDiv = '<tr id="pp-' + penc + '" style="display:none"><td colspan="4"><div class="trigger-params">'
+            + '<input id="pp-prompt-' + penc + '" placeholder="Prompt override (optional)" />'
+            + '<select id="pp-model-' + penc + '"><option value="">Default model</option><option>claude-opus-4-7</option><option>claude-sonnet-4-6</option><option>claude-haiku-4-5-20251001</option></select>'
+            + '<input id="pp-budget-' + penc + '" type="number" placeholder="Max budget USD" min="0.01" step="0.01" />'
+            + '<button class="act-btn blue" onclick="triggerPipelineWithParams(\'' + pname + '\',\'' + penc + '\',this)">Trigger with params</button>'
+            + '</div></td></tr>';
+          return '<tr><td class="name">' + pname + '</td><td class="muted">' + next + '</td><td>' + last + '</td><td>' + actions + '</td></tr>' + paramsDiv;
         }));
       }
 
@@ -387,7 +460,9 @@ tr:last-child td{border-bottom:none}
         var active2 = perlist.filter(function(p){return p.enabled;}).length;
         document.getElementById('personas-stat').innerHTML = '<span class="badge blue">' + active2 + ' active</span>';
         setTbody('personas-table', perlist.slice(0,20).map(function(p) {
-          return '<tr><td class="name">' + escHtml(p.id) + '</td><td class="muted">' + (p.runCount||0) + '</td><td class="muted">' + fmtDate(p.lastRunAt) + '</td></tr>';
+          var pid = escHtml(p.id);
+          var actions = '<button class="act-btn blue" onclick="runPersona(\'' + pid + '\',this)">Run Now</button>';
+          return '<tr><td class="name">' + pid + '</td><td class="muted">' + (p.runCount||0) + '</td><td class="muted">' + fmtDate(p.lastRunAt) + '</td><td>' + actions + '</td></tr>';
         }));
       }
 
@@ -407,6 +482,83 @@ tr:last-child td{border-bottom:none}
 
   function escHtml(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function toast(msg, ok) {
+    var t = document.createElement('div');
+    t.className = 'toast ' + (ok ? 'ok' : 'err');
+    t.textContent = msg;
+    document.getElementById('toast-container').appendChild(t);
+    setTimeout(function(){ t.style.opacity='0'; setTimeout(function(){ t.remove(); },300); }, 3000);
+  }
+
+  async function apiCall(method, path, body, btn) {
+    if (btn) btn.disabled = true;
+    try {
+      var opts = { method: method, headers: Object.assign({'Content-Type':'application/json'}, headers()) };
+      if (body) opts.body = JSON.stringify(body);
+      var r = await fetch(path, opts);
+      var ok = r.ok;
+      var text = await r.text().catch(function(){return '';});
+      var msg = ''; try { msg = JSON.parse(text).error || JSON.parse(text).message || ''; } catch(e) {}
+      toast(ok ? 'Done' : (msg || 'Error ' + r.status), ok);
+      if (ok) setTimeout(load, 800);
+    } catch(e) { toast('Network error', false); }
+    if (btn) btn.disabled = false;
+  }
+
+  function stopSession(id, btn) {
+    if (!confirm('Stop session?')) return;
+    apiCall('POST', '/api/sessions/' + id + '/stop', null, btn);
+  }
+  function removeSession(id, btn) {
+    if (!confirm('Remove session?')) return;
+    apiCall('DELETE', '/api/sessions/' + id, null, btn);
+  }
+  function whisperSession(id, btn) {
+    var row = document.getElementById('wr-' + id);
+    if (row) row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+  }
+  function sendWhisper(id) {
+    var inp = document.getElementById('wi-' + id);
+    var msg = inp ? inp.value.trim() : '';
+    if (!msg) return;
+    apiCall('POST', '/api/sessions/' + id + '/steer', { message: msg }, null);
+    var row = document.getElementById('wr-' + id);
+    if (row) row.style.display = 'none';
+  }
+  function cancelWhisper(id) {
+    var row = document.getElementById('wr-' + id);
+    if (row) row.style.display = 'none';
+  }
+  function triggerPipeline(name, enc, btn) {
+    apiCall('POST', '/api/pipelines/' + encodeURIComponent(name) + '/trigger', {}, btn);
+  }
+  function toggleTriggerParams(enc) {
+    var row = document.getElementById('pp-' + enc);
+    if (row) row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+  }
+  function triggerPipelineWithParams(name, enc, btn) {
+    var body = {};
+    var p = document.getElementById('pp-prompt-' + enc); if (p && p.value) body.prompt = p.value;
+    var m = document.getElementById('pp-model-' + enc); if (m && m.value) body.model = m.value;
+    var b = document.getElementById('pp-budget-' + enc); if (b && b.value) body.maxBudget = parseFloat(b.value);
+    apiCall('POST', '/api/pipelines/' + encodeURIComponent(name) + '/trigger', body, btn);
+  }
+  function runPersona(id, btn) {
+    apiCall('POST', '/api/personas/' + encodeURIComponent(id) + '/trigger', {}, btn);
+  }
+  async function createSession() {
+    var name = document.getElementById('ns-name').value.trim();
+    if (!name) { toast('Name is required', false); return; }
+    var body = { name: name };
+    var d = document.getElementById('ns-dir').value.trim(); if (d) body.workingDirectory = d;
+    var p = document.getElementById('ns-prompt').value.trim(); if (p) body.prompt = p;
+    var mo = document.getElementById('ns-model').value; if (mo) body.model = mo;
+    var pe = document.getElementById('ns-perm').value; if (pe) body.permissionMode = pe;
+    await apiCall('POST', '/api/sessions', body, null);
+    document.getElementById('new-session-form').style.display = 'none';
+    ['ns-name','ns-dir','ns-prompt'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; });
   }
 
   document.getElementById('apply-btn').onclick = function() {
