@@ -1301,6 +1301,7 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Services tab', detail: 'Appears when an environment is attached. Manage services.' },
           { label: 'Logs tab', detail: 'Appears when an environment is attached. Stream service logs.' },
           { label: 'Artifacts tab', detail: 'Auto-generated proof-of-work bundle: commits, changed files, duration, cost. Collected on session exit.' },
+          { label: 'Notes tab', detail: 'Attach markdown notes to any session — intent, follow-ups, lessons learned. Auto-saved on blur or 2s after typing. A StickyNote icon appears on the sidebar tile when a session has notes.', icon: 'StickyNote' },
           { label: 'Jira tab', detail: 'Auto-appears when a Jira ticket is attached (manually or auto-detected from branch name matching NP-XXXX pattern). Shows ticket key, status, summary, and full description. Click the key to open in browser. Configure pattern in Settings → Integrations.', icon: 'Ticket' },
           { label: 'Tab navigation', detail: 'Cmd+Shift+{ / Cmd+Shift+} cycles through the visible tabs (Session, Terminal, Files, Changes, Artifacts, plus Services/Logs when an environment is attached and Team/Metrics for Coordinator sessions). Works even when focus is inside a terminal or input — the Cmd+Shift combo never conflicts with typing `{`/`}`. Same shortcut works in Environments (Environments ↔ Templates).' },
         ],
@@ -1389,6 +1390,14 @@ export const helpContent: Record<string, HelpEntry> = {
           { label: 'Retry', detail: 'Opens a dialog pre-filled with the session name, working directory, and original prompt. Edit the prompt before launching — useful for tweaking a failed approach without retyping everything. Click Retry or press Cmd+Enter to launch. The exit code and duration are shown as read-only context. If you click Retry without editing, behavior is identical to an instant retry. Also available via right-click context menu in the sidebar.', icon: 'Play' },
           { label: 'Restart', detail: 'Re-launch the session with the same configuration. Same as the sidebar restart action.', icon: 'RotateCcw' },
           { label: 'Remove', detail: 'Remove the session from the sidebar entirely. Same as the sidebar remove action.', icon: 'X' },
+        ],
+      },
+      {
+        name: 'Notes Tab',
+        position: 'Notes tab content area',
+        items: [
+          { label: 'Notes editor', detail: 'Full-height textarea for markdown notes — why the session was launched, follow-ups, lessons learned, links. Auto-saved on blur or 2 seconds after typing. Empty content removes the file (no orphan files).', icon: 'StickyNote' },
+          { label: 'Sidebar indicator', detail: 'A StickyNote icon appears on the session tile in the sidebar whenever a session has non-empty notes. Click it to navigate to that session.', icon: 'StickyNote' },
         ],
       },
       {

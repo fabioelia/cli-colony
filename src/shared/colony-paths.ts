@@ -81,6 +81,7 @@ export const colonyPaths = {
   ghSkillIgnored: path.join(ROOT, 'gh-skill-ignored.json'),
   playbooks: path.join(ROOT, 'playbooks'),
   proofs: path.join(ROOT, 'proofs'),
+  notes: path.join(ROOT, 'notes'),
   recipes: path.join(ROOT, 'recipes'),
 
   /** Build a daily activity log path for a given date (YYYY-MM-DD) */

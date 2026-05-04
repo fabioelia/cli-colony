@@ -51,6 +51,7 @@ import { registerJiraHandlers } from './ipc/jira-handlers'
 import { registerAiHandlers } from './ipc/ai-handlers'
 import { registerPlaybookHandlers } from './ipc/playbook-handlers'
 import { registerProofHandlers } from './ipc/proof-handlers'
+import { registerNotesHandlers } from './ipc/notes-handlers'
 import { registerRecipeHandlers } from './ipc/recipe-handlers'
 
 export function registerIpcHandlers(): void {
@@ -90,6 +91,7 @@ export function registerIpcHandlers(): void {
   registerAiHandlers()
   registerPlaybookHandlers()
   registerProofHandlers()
+  registerNotesHandlers()
   registerRecipeHandlers()
 
   // ---- Temp files ----

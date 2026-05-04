@@ -5,7 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronRight, X, RotateCcw, GitBranch, TerminalSquare, FolderTree, Columns2, LayoutGrid, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Trophy, GitCompare, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, FileDown, CheckCircle, Copy, Search, PanelRight, GitMerge, Square, Ticket, Pencil, FileCode, ArrowRight, Network } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronRight, X, RotateCcw, GitBranch, TerminalSquare, FolderTree, Columns2, LayoutGrid, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Trophy, GitCompare, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, FileDown, CheckCircle, Copy, Search, PanelRight, GitMerge, Square, Ticket, Pencil, FileCode, ArrowRight, Network, StickyNote } from 'lucide-react'
 import { TeamMetricsPanel } from './TeamMetricsPanel'
 import ServicesTab from './ServicesTab'
 import FilesTab from './FilesTab'
@@ -124,7 +124,7 @@ function formatUptime(seconds: number): string {
 
 const fmtTokens = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`
 
-type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'changes' | 'artifacts' | 'team' | 'metrics' | 'browser' | 'jira'
+type ViewTab = 'session' | 'shell' | 'files' | 'services' | 'logs' | 'changes' | 'artifacts' | 'notes' | 'team' | 'metrics' | 'browser' | 'jira'
 
 export default memo(function TerminalView({ instance, onKill, onRestart, onRemove, onSplit, onCloseSplit, onSpawnChild, onFork, onFanOut, isSplit, arenaMode, arenaBlind, paneLabel, arenaVoted, arenaWinnerId, onArenaWin, terminalsRef, searchOpen, onSearchClose, onSearchToggle, fontSize = 13, fontFamily = 'Menlo, Monaco, Consolas, "Courier New", monospace', cursorStyle = 'underline', cursorBlink = false, scrollback = 10000, focused = true, onFocusPane, outputBytes = 0, layoutMode = 'single', onCycleLayout, onEnterGrid, onNavigateToSession, errorSummary, childInstances = [], allInstances = [], recapBanner, onDismissRecap }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -134,6 +134,9 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
   const [dragOver, setDragOver] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [viewTab, setViewTab] = useState<ViewTab>('session')
+  const [notesContent, setNotesContent] = useState<string | null>(null)
+  const [notesLoaded, setNotesLoaded] = useState(false)
+  const notesSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [fileQuickOpen, setFileQuickOpen] = useState(false)
   const [jumpFilePath, setJumpFilePath] = useState<string | null>(null)
   const [deferredDismissed, setDeferredDismissed] = useState(false)
@@ -219,6 +222,12 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
   // Browser — lazy mount, keep alive once opened to avoid webview reloads
   const [browserMounted, setBrowserMounted] = useState(false)
   if (!browserMounted && viewTab === 'browser') setBrowserMounted(true)
+
+  // Lazy-load notes content when tab is first opened
+  if (viewTab === 'notes' && !notesLoaded) {
+    setNotesLoaded(true)
+    window.api.notes.get(instance.id).then(content => setNotesContent(content))
+  }
 
   // Tab split view — any tab can have a secondary pane, persists across tab switches
   const [splitTab, setSplitTabRaw] = useState<ViewTab | null>(null)
@@ -798,6 +807,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
     ...(hasEnvUrls ? (['browser'] as ViewTab[]) : []),
     ...(instance.workingDirectory ? (['changes'] as ViewTab[]) : []),
     'artifacts',
+    'notes',
     ...(hasJiraTicket ? (['jira'] as ViewTab[]) : []),
     ...(instance.roleTag === 'Coordinator' ? (['team', 'metrics'] as ViewTab[]) : []),
   ], [effectiveEnvName, instance.workingDirectory, instance.roleTag, hasEnvUrls, hasJiraTicket])
@@ -830,6 +840,27 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
       case 'browser': return envStatus ? <BrowserTab envStatus={envStatus} instanceId={instance.id} /> : null
       case 'changes': return <ChangesTab instance={instance} onChangeCount={setChangeCount} />
       case 'artifacts': return <ArtifactsTab instanceId={instance.id} instanceStatus={instance.status} onArtifactCount={setArtifactCount} />
+      case 'notes': return (
+        <div className="notes-editor-container">
+          <textarea
+            className="notes-editor"
+            placeholder="Add notes about this session — intent, follow-ups, lessons learned..."
+            value={notesContent ?? ''}
+            onChange={(e) => {
+              const val = e.target.value
+              setNotesContent(val)
+              if (notesSaveTimerRef.current) clearTimeout(notesSaveTimerRef.current)
+              notesSaveTimerRef.current = setTimeout(() => {
+                window.api.notes.save(instance.id, val)
+              }, 2000)
+            }}
+            onBlur={() => {
+              if (notesSaveTimerRef.current) { clearTimeout(notesSaveTimerRef.current); notesSaveTimerRef.current = null }
+              if (notesContent !== null) window.api.notes.save(instance.id, notesContent)
+            }}
+          />
+        </div>
+      )
       case 'jira': return <JiraTab ticket={instance.ticket} gitBranch={instance.gitBranch} />
       case 'team': return instance.roleTag === 'Coordinator' ? <TeamTab instanceId={instance.id} onWorkerCountChange={setTeamWorkerCount} onNavigateToWorker={onNavigateToSession} /> : null
       case 'metrics': return instance.roleTag === 'Coordinator' ? <div className="changes-panel"><TeamMetricsPanel coordinatorSessionId={instance.id} /></div> : null
@@ -961,6 +992,14 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
               )}
               {tabHintMap['artifacts'] && <span className="shortcut-hint">{tabHintMap['artifacts']}</span>}
             </button>
+            <button
+              className={`terminal-tab ${viewTab === 'notes' ? 'active' : ''}`}
+              onClick={(e) => { e.stopPropagation(); setViewTab('notes') }}
+              title="Session notes"
+            >
+              <StickyNote size={12} /> Notes
+              {tabHintMap['notes'] && <span className="shortcut-hint">{tabHintMap['notes']}</span>}
+            </button>
             {hasJiraTicket && (
               <button
                 className={`terminal-tab ${viewTab === 'jira' ? 'active' : ''}`}
@@ -1002,6 +1041,7 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
           {viewTab === 'logs' && <HelpPopover topic="logsTab" />}
           {viewTab === 'changes' && <HelpPopover topic="changesTab" />}
           {viewTab === 'artifacts' && <HelpPopover topic="artifactsTab" />}
+          {viewTab === 'notes' && <HelpPopover topic="sessionTab" zone="Notes Tab" />}
           {viewTab === 'jira' && <HelpPopover topic="sessionTab" zone="Jira Tab" />}
           {viewTab === 'team' && <HelpPopover topic="teamTab" />}
           {viewTab === 'browser' && <HelpPopover topic="browserTab" />}

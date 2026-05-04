@@ -748,6 +748,10 @@ export interface ClaudeManagerAPI {
     read: (path: string) => Promise<string>
     onNewProof: (cb: (entry: { id: string; path: string }) => void) => () => void
   }
+  notes: {
+    get: (sessionId: string) => Promise<string>
+    save: (sessionId: string, content: string) => Promise<void>
+  }
   recipes: {
     list: () => Promise<RecipeEntry[]>
     get: (filePath: string) => Promise<string | null>
@@ -1571,6 +1575,10 @@ const api: ClaudeManagerAPI = {
       ipcRenderer.on('instance:proof', listener)
       return () => ipcRenderer.removeListener('instance:proof', listener)
     },
+  },
+  notes: {
+    get: (sessionId) => ipcRenderer.invoke('session:getNotes', sessionId) as Promise<string>,
+    save: (sessionId, content) => ipcRenderer.invoke('session:saveNotes', sessionId, content) as Promise<void>,
   },
   recipes: {
     list: () => ipcRenderer.invoke('recipes:list') as Promise<RecipeEntry[]>,

@@ -58,6 +58,14 @@ const _instanceTriggeredBy = new Map<string, string>()
 // Track fan-out parent linkage: childId → parentId
 const _fanOutParent = new Map<string, string>()
 
+// Track which session IDs have non-empty notes files
+const _noteIds = new Set<string>()
+
+export function setNoteFlag(sessionId: string, hasNotes: boolean): void {
+  if (hasNotes) _noteIds.add(sessionId)
+  else _noteIds.delete(sessionId)
+}
+
 // Track last output timestamp per instance for idle detection
 const _lastOutputAt = new Map<string, number>()
 // Track last stale notification threshold per instance (ms) to avoid repeat fires
@@ -155,6 +163,7 @@ function applyTickets(instances: ClaudeInstance[]): ClaudeInstance[] {
     if (triggeredBy) extra.triggeredBy = triggeredBy
     if (fanOutParentId) extra.fanOutParentId = fanOutParentId
     if (fanOutChildIds?.length) extra.fanOutChildIds = fanOutChildIds
+    if (_noteIds.has(inst.id)) extra.hasNotes = true
     return Object.keys(extra).length > 0 ? { ...inst, ...extra } : inst
   })
 }
@@ -615,6 +624,31 @@ export function wireDaemonEvents(): void {
     } catch { /* ignore */ }
   }
   setTimeout(pruneOldProofs, 60_000)
+
+  // Scan notes dir on startup to populate _noteIds
+  fsp.readdir(colonyPaths.notes).then(files => {
+    for (const f of files) {
+      if (f.endsWith('.md')) _noteIds.add(f.slice(0, -3))
+    }
+  }).catch(() => {})
+
+  // Prune note files older than 14 days
+  async function pruneOldNotes(): Promise<void> {
+    const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000
+    try {
+      const files = await fsp.readdir(colonyPaths.notes).catch(() => [] as string[])
+      for (const f of files) {
+        if (!f.endsWith('.md')) continue
+        const filePath = colonyPaths.notes + '/' + f
+        const mtime = await fsp.stat(filePath).then(s => s.mtimeMs).catch(() => 0)
+        if (mtime < cutoff) {
+          await fsp.unlink(filePath).catch(() => {})
+          _noteIds.delete(f.slice(0, -3))
+        }
+      }
+    } catch { /* ignore */ }
+  }
+  setTimeout(pruneOldNotes, 90_000)
 
   // Age-based retention: remove old stopped sessions on startup and every 6h
   async function runRetentionCheck(): Promise<void> {

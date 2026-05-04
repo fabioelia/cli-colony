@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, GitBranch, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock, RotateCcw, DollarSign, ArrowUpDown, ArrowLeft, Tag, Cpu, AlertCircle, Folder, FileText, CircleDot } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, GitBranch, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock, RotateCcw, DollarSign, ArrowUpDown, ArrowLeft, Tag, Cpu, AlertCircle, Folder, FileText, CircleDot, StickyNote } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate, ErrorSummary } from '../../../shared/types'
@@ -399,6 +399,11 @@ const InstanceItem = React.memo(function InstanceItem({ inst, isActive, shortcut
           </>
         )}
         <div className="instance-item-actions">
+          {inst.hasNotes && (
+            <Tooltip text="Has Notes" detail="This session has markdown notes attached. Open the Notes tab to view or edit.">
+              <button aria-label="Has Notes" onClick={(e) => { e.stopPropagation(); callbacks.onSelect(inst.id) }}><StickyNote size={13} /></button>
+            </Tooltip>
+          )}
           {proofPath && inst.status !== 'running' && (
             <Tooltip text="View Proof of Work" detail="Open the auto-generated session summary (branch, commits, files changed, last output)">
               <button aria-label="View Proof of Work" onClick={(e) => { e.stopPropagation(); window.api.shell.openPath(proofPath) }}><FileText size={13} /></button>

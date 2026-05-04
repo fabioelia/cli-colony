@@ -25827,3 +25827,9 @@ button.session-trigger-chain-btn:hover {
 .recipe-card-action.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .recipe-card-action.primary:hover { opacity: 0.9; }
 .recipe-gallery-empty { grid-column: 1/-1; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 12px; padding: 40px; }
+
+/* Session Notes tab */
+.notes-editor-container { display: flex; flex-direction: column; height: 100%; padding: 12px; box-sizing: border-box; }
+.notes-editor { flex: 1; width: 100%; resize: none; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-default); border-radius: 6px; padding: 12px; font-family: var(--font-mono); font-size: 12px; line-height: 1.6; white-space: pre-wrap; outline: none; box-sizing: border-box; }
+.notes-editor:focus { border-color: var(--accent); }
+.notes-editor::placeholder { color: var(--text-muted); }

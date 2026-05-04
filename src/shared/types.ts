@@ -59,6 +59,7 @@ export interface ClaudeInstance {
   triggeredBy?: string
   fanOutParentId?: string
   fanOutChildIds?: string[]
+  hasNotes?: boolean
 }
 
 export interface AgentDef {
