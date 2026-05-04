@@ -248,8 +248,8 @@ describe('writeProofBundle (via exited event handler)', () => {
     await _routerHandlers['exited']('inst-1', 0)
     await flushAsync()
 
-    const proofBroadcasts = mockBroadcast.mock.calls.filter(
-      (c: [string, unknown]) => c[0] === 'instance:proof'
+    const proofBroadcasts = (mockBroadcast.mock.calls as [string, unknown][]).filter(
+      (c) => c[0] === 'instance:proof'
     )
     expect(proofBroadcasts).toHaveLength(1)
     const payload = proofBroadcasts[0][1] as { id: string; path: string }

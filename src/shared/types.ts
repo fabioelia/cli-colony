@@ -881,6 +881,18 @@ export interface PlaybookInput {
   placeholder?: string
 }
 
+export interface ProofEntry {
+  path: string
+  name: string
+  date: string
+  exitCode: number
+  duration: string
+  cost: string
+  branch: string
+  commits: number
+  persona: string
+}
+
 export interface PlaybookDef {
   name: string
   description?: string

@@ -17,6 +17,7 @@ import type {
   PersonaHealthEntry,
   PersonaAttentionRequest,
   PlaybookDef,
+  ProofEntry,
 } from '../shared/types'
 import type { InstanceManifest } from '../daemon/env-protocol'
 
@@ -39,6 +40,7 @@ export type {
   PersonaHealthEntry,
   PersonaAttentionRequest,
   PlaybookDef,
+  ProofEntry,
 }
 
 
@@ -734,6 +736,11 @@ export interface ClaudeManagerAPI {
     getMemoryLineCount: (name: string) => Promise<number>
     appendMemory: (name: string, lines: string[]) => Promise<void>
     clearMemory: (name: string) => Promise<void>
+  }
+  proofs: {
+    list: (dateFrom: string, dateTo: string) => Promise<ProofEntry[]>
+    read: (path: string) => Promise<string>
+    onNewProof: (cb: (entry: { id: string; path: string }) => void) => () => void
   }
 }
 
@@ -1537,6 +1544,15 @@ const api: ClaudeManagerAPI = {
     getMemoryLineCount: (name) => ipcRenderer.invoke('playbooks:getMemoryLineCount', name),
     appendMemory: (name, lines) => ipcRenderer.invoke('playbooks:appendMemory', name, lines),
     clearMemory: (name) => ipcRenderer.invoke('playbooks:clearMemory', name),
+  },
+  proofs: {
+    list: (dateFrom, dateTo) => ipcRenderer.invoke('proofs:list', dateFrom, dateTo),
+    read: (path) => ipcRenderer.invoke('proofs:read', path),
+    onNewProof: (cb) => {
+      const listener = (_e: any, data: { id: string; path: string }) => cb(data)
+      ipcRenderer.on('instance:proof', listener)
+      return () => ipcRenderer.removeListener('instance:proof', listener)
+    },
   },
 }
 

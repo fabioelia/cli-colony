@@ -26,6 +26,7 @@ import OutputsPanel from './components/OutputsPanel'
 import ReviewPanel from './components/ReviewPanel'
 import ArtifactsPanel from './components/ArtifactsPanel'
 import ActivityPanel from './components/ActivityPanel'
+import ProofBrowserPanel from './components/ProofBrowserPanel'
 import QuickPromptDialog from './components/QuickPromptDialog'
 import ForkModal from './components/ForkModal'
 import ArenaLaunchDialog from './components/ArenaLaunchDialog'
@@ -2353,6 +2354,7 @@ export default function App() {
         )}
         {view === 'outputs' && <OutputsPanel />}
         {view === 'artifacts' && <ArtifactsPanel />}
+        {view === 'proofs' && <ProofBrowserPanel />}
         {view === 'activity' && (
           <ActivityPanel
             onFocusSession={(id) => {

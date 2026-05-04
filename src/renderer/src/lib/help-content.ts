@@ -2113,4 +2113,29 @@ export const helpContent: Record<string, HelpEntry> = {
       { keys: 'Click pane', action: 'Vote for winner (blind mode)' },
     ],
   },
+
+  proofs: {
+    title: 'Proofs',
+    description: 'Browse session proof-of-work bundles written on session exit. Each bundle captures the session summary, branch, commits, cost, and exit code.',
+    zones: [
+      {
+        name: 'Stats Bar',
+        position: 'Top of panel',
+        items: [
+          { label: 'Total Today', detail: 'Count of proof bundles generated today across all sessions' },
+          { label: 'Total Cost', detail: 'Aggregate cost across all sessions in the selected date range' },
+          { label: 'Success Rate', detail: 'Percentage of sessions that exited with code 0' },
+        ],
+      },
+      {
+        name: 'Proof List',
+        position: 'Main area',
+        items: [
+          { label: 'Proof Card', detail: 'Click to expand the full proof markdown — shows branch, commits, cost, and session output summary' },
+          { label: 'Exit Code', detail: 'Green = success (exit 0), Red = non-zero exit. Non-zero exits may indicate errors or interruptions' },
+          { label: 'Filters', detail: 'Filter by persona, success/failure, or search by session name' },
+        ],
+      },
+    ],
+  },
 }

@@ -20,7 +20,7 @@ import RetryDialog from './RetryDialog'
 import { COLORS, formatTime, cliBackendLabel, formatInstanceCmd } from '../lib/constants'
 import { getSpaces, createSpace, assignToSpace, getAssignments, autoAssignPipelineSession, archiveSpace, type Space } from '../lib/spaces'
 
-export type SidebarView = 'overview' | 'instances' | 'agents' | 'github' | 'settings' | 'tasks' | 'pipelines' | 'environments' | 'personas' | 'outputs' | 'review' | 'artifacts' | 'activity'
+export type SidebarView = 'overview' | 'instances' | 'agents' | 'github' | 'settings' | 'tasks' | 'pipelines' | 'environments' | 'personas' | 'outputs' | 'review' | 'artifacts' | 'activity' | 'proofs'
 
 const ALERT_PRESETS = [
   { label: 'Build Success', regex: '(build|compile)\\s+(succeeded|passed|complete)' },
@@ -42,6 +42,7 @@ const NAV_ITEMS: Record<SidebarView, { label: string; shortLabel: string; Icon: 
   environments: { label: 'Environments', shortLabel: 'Envs',     Icon: Server,         group: 'automation', tooltip: 'Environments', detail: 'Dev environment management' },
   outputs:      { label: 'Outputs',      shortLabel: 'Outputs',  Icon: FolderOpen,     group: 'data',      tooltip: 'Outputs',       detail: 'Browse artifacts, briefs, and pipeline outputs' },
   artifacts:    { label: 'History',      shortLabel: 'History',  Icon: Archive,        group: 'data',      tooltip: 'History',       detail: 'Past session artifacts — commits, changes, and costs' },
+  proofs:       { label: 'Proofs',       shortLabel: 'Proofs',   Icon: Archive,        group: 'data',      tooltip: 'Proofs',        detail: 'Browse session proof-of-work bundles' },
   settings:     { label: 'Settings',     shortLabel: 'Settings', Icon: Settings,       group: 'primary',   tooltip: 'Settings',      detail: '' },
 }
 const NON_NAV_VIEWS: SidebarView[] = ['settings']
