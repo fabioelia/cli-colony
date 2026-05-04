@@ -1190,6 +1190,65 @@ body:has(.daemon-update-banner) .app-update-banner {
   color: var(--text-primary);
 }
 
+.sidebar-tag-filter-bar {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 4px;
+  padding: 2px 8px 6px;
+  align-items: center;
+  scrollbar-width: none;
+}
+.sidebar-tag-filter-bar::-webkit-scrollbar { display: none; }
+
+.sidebar-tag-chip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.1s, background 0.1s, color 0.1s;
+}
+.sidebar-tag-chip:hover {
+  border-color: var(--text-muted);
+  color: var(--text-secondary);
+}
+.sidebar-tag-chip.active {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.sidebar-tag-chip-count {
+  opacity: 0.65;
+  font-size: 9px;
+}
+.sidebar-tag-chip-clear {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-left: 2px;
+}
+.sidebar-tag-chip-clear:hover {
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+}
+
 .sidebar-sessions-list {
   flex: 1;
   overflow-y: auto;

@@ -1036,8 +1036,12 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const [sessionTags, setSessionTags] = useState<Record<string, string[]>>(() => {
     try { return JSON.parse(localStorage.getItem('colony:sessionTags') || '{}') } catch { return {} }
   })
-  const [sessionTagFilter, setSessionTagFilter] = useState<string | null>(() =>
-    localStorage.getItem('colony:sessionTagFilter') || null)
+  const [activeTagFilters, setActiveTagFilters] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('colony:sidebarTagFilters')
+      return saved ? new Set(JSON.parse(saved) as string[]) : new Set()
+    } catch { return new Set() }
+  })
   const [editingTagsId, setEditingTagsId] = useState<string | null>(null)
   const [editingTagsInput, setEditingTagsInput] = useState('')
   const [editingTagsPos, setEditingTagsPos] = useState<{ x: number; y: number } | null>(null)
@@ -1102,9 +1106,8 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   }, [sessionProjectFilter])
 
   useEffect(() => {
-    if (sessionTagFilter) localStorage.setItem('colony:sessionTagFilter', sessionTagFilter)
-    else localStorage.removeItem('colony:sessionTagFilter')
-  }, [sessionTagFilter])
+    localStorage.setItem('colony:sidebarTagFilters', JSON.stringify([...activeTagFilters]))
+  }, [activeTagFilters])
 
   useEffect(() => {
     const unsubAlertsChanged = window.api.session.onAlertsChanged((data) => {
@@ -1396,6 +1399,22 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     [sessionTags]
   )
 
+  const tagCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const tags of Object.values(sessionTags)) {
+      for (const tag of tags) {
+        counts.set(tag, (counts.get(tag) || 0) + 1)
+      }
+    }
+    return counts
+  }, [sessionTags])
+
+  const topTags = useMemo(() => {
+    const all = [...tagCounts.entries()].sort((a, b) => b[1] - a[1])
+    const filtered = all.length < 4 ? all : all.filter(([, count]) => count > 1)
+    return filtered.slice(0, 8)
+  }, [tagCounts])
+
   const filteredSessions = useMemo(() => {
     let result = sessions
     if (sessionSearch) {
@@ -1409,8 +1428,11 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     if (sessionProjectFilter) {
       result = result.filter(s => s.projectName === sessionProjectFilter)
     }
-    if (sessionTagFilter) {
-      result = result.filter(s => (sessionTags[s.sessionId] || []).includes(sessionTagFilter))
+    if (activeTagFilters.size > 0) {
+      result = result.filter(s => {
+        const tags = sessionTags[s.sessionId] || []
+        return [...activeTagFilters].some(f => tags.includes(f))
+      })
     }
     if (sessionSort === 'messages') {
       result = [...result].sort((a, b) => b.messageCount - a.messageCount)
@@ -1419,7 +1441,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
     }
     // 'recent' is the default order from the API — no re-sort needed
     return result
-  }, [sessions, sessionSearch, sessionProjectFilter, sessionSort, sessionTagFilter, sessionTags])
+  }, [sessions, sessionSearch, sessionProjectFilter, sessionSort, activeTagFilters, sessionTags])
 
   const sessionGroupedSections = useMemo(() => {
     if (sessionGroupBy === 'none') return null
@@ -2460,17 +2482,6 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
             <option value="">All Projects</option>
             {uniqueProjects.map(p => <option key={p} value={p}>{p.split('/').pop()}</option>)}
           </select>
-          {allKnownTags.length > 0 && (
-            <select
-              className="sidebar-sessions-filter-select"
-              value={sessionTagFilter ?? ''}
-              onChange={(e) => setSessionTagFilter(e.target.value || null)}
-              title="Filter by tag"
-            >
-              <option value="">All Tags</option>
-              {allKnownTags.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          )}
           <select
             className="sidebar-sessions-filter-select"
             value={sessionGroupBy}
@@ -2494,10 +2505,41 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
               <X size={11} />
             </button>
           )}
-          {sessionTagFilter && (
-            <button className="sidebar-sessions-filter-clear" onClick={() => setSessionTagFilter(null)} title="Clear tag filter"><X size={11} /></button>
-          )}
         </div>
+        {topTags.length > 0 && (
+          <div className="sidebar-tag-filter-bar">
+            {topTags.map(([tag, count]) => {
+              const isActive = activeTagFilters.has(tag)
+              const display = tag.startsWith('persona:') ? tag.slice(8)
+                : tag.startsWith('pipeline:') ? tag.slice(9)
+                : tag
+              return (
+                <button
+                  key={tag}
+                  className={`sidebar-tag-chip${isActive ? ' active' : ''}`}
+                  onClick={() => setActiveTagFilters(prev => {
+                    const next = new Set(prev)
+                    if (next.has(tag)) next.delete(tag); else next.add(tag)
+                    return next
+                  })}
+                  title={tag}
+                >
+                  {display}
+                  <span className="sidebar-tag-chip-count">{count}</span>
+                </button>
+              )
+            })}
+            {activeTagFilters.size > 0 && (
+              <button
+                className="sidebar-tag-chip-clear"
+                onClick={() => setActiveTagFilters(new Set())}
+                title="Clear tag filters"
+              >
+                <X size={10} />
+              </button>
+            )}
+          </div>
+        )}
         <div className="sidebar-sessions-list">
           {sessionGroupedSections ? (
             sessionGroupedSections.map(({ label, items, count }) => (
