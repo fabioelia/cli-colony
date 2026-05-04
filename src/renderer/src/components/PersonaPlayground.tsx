@@ -13,19 +13,19 @@ interface Props {
   onClose: () => void
 }
 
-function extractRoleSection(content: string): string {
+export function extractRoleSection(content: string): string {
   const match = content.match(/^## Role\n([\s\S]*?)(?=\n## |\n---\n|$)/m)
   return match ? match[1].trim() : ''
 }
 
-function replaceRoleSection(fullContent: string, newRole: string): string {
+export function replaceRoleSection(fullContent: string, newRole: string): string {
   const before = fullContent.match(/^([\s\S]*?^## Role\n)/m)
   const after = fullContent.match(/\n## (?!Role)[\s\S]*$/)
   if (!before) return fullContent
   return before[1] + newRole + '\n' + (after ? after[0].trimStart() : '')
 }
 
-function diffLines(original: string, modified: string): Array<{ type: 'same' | 'add' | 'remove'; text: string }> {
+export function diffLines(original: string, modified: string): Array<{ type: 'same' | 'add' | 'remove'; text: string }> {
   const oLines = original.split('\n')
   const mLines = modified.split('\n')
   const result: Array<{ type: 'same' | 'add' | 'remove'; text: string }> = []
