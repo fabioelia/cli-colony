@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, GitBranch, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock, RotateCcw, DollarSign, ArrowUpDown, ArrowLeft, Tag, Cpu, AlertCircle, Folder, FileText } from 'lucide-react'
+import { Info, Pencil, Pin, PinOff, Square, Play, Trash2, RefreshCw, Settings, Plus, GitPullRequest, GitBranch, Columns2, ListChecks, TerminalSquare, Bot, Zap, Server, User, Bell, BellRing, FileDown, GitFork, ChevronDown, ChevronRight, ChevronsUp, ChevronsDown, Trophy, BookTemplate, FolderOpen, Crown, GitCompare, Layers, CheckSquare, X, Shield, Copy, AlertTriangle, Archive, Home, Send, MoreHorizontal, MessageSquare, Clock, RotateCcw, DollarSign, ArrowUpDown, ArrowLeft, Tag, Cpu, AlertCircle, Folder, FileText, CircleDot } from 'lucide-react'
 import type { ClaudeInstance, CliSession, RecentSession } from '../types'
 import { SESSION_ROLES } from '../../../shared/types'
 import type { ActivityEvent, ApprovalRequest, ForkGroup, SessionTemplate, ErrorSummary } from '../../../shared/types'
@@ -20,7 +20,7 @@ import RetryDialog from './RetryDialog'
 import { COLORS, formatTime, cliBackendLabel, formatInstanceCmd } from '../lib/constants'
 import { getSpaces, createSpace, assignToSpace, getAssignments, autoAssignPipelineSession, archiveSpace, type Space } from '../lib/spaces'
 
-export type SidebarView = 'overview' | 'instances' | 'agents' | 'github' | 'settings' | 'tasks' | 'pipelines' | 'environments' | 'personas' | 'outputs' | 'review' | 'artifacts' | 'activity' | 'proofs'
+export type SidebarView = 'overview' | 'instances' | 'agents' | 'github' | 'settings' | 'tasks' | 'pipelines' | 'environments' | 'personas' | 'outputs' | 'review' | 'artifacts' | 'activity' | 'proofs' | 'issues'
 
 const ALERT_PRESETS = [
   { label: 'Build Success', regex: '(build|compile)\\s+(succeeded|passed|complete)' },
@@ -43,6 +43,7 @@ const NAV_ITEMS: Record<SidebarView, { label: string; shortLabel: string; Icon: 
   outputs:      { label: 'Outputs',      shortLabel: 'Outputs',  Icon: FolderOpen,     group: 'data',      tooltip: 'Outputs',       detail: 'Browse artifacts, briefs, and pipeline outputs' },
   artifacts:    { label: 'History',      shortLabel: 'History',  Icon: Archive,        group: 'data',      tooltip: 'History',       detail: 'Past session artifacts — commits, changes, and costs' },
   proofs:       { label: 'Proofs',       shortLabel: 'Proofs',   Icon: Archive,        group: 'data',      tooltip: 'Proofs',        detail: 'Browse session proof-of-work bundles' },
+  issues:       { label: 'Issues',       shortLabel: 'Issues',   Icon: CircleDot,      group: 'code',      tooltip: 'Issues',        detail: 'GitHub issues across all configured repos — one-click to start a session' },
   settings:     { label: 'Settings',     shortLabel: 'Settings', Icon: Settings,       group: 'primary',   tooltip: 'Settings',      detail: '' },
 }
 const NON_NAV_VIEWS: SidebarView[] = ['settings']

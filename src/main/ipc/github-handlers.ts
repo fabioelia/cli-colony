@@ -49,6 +49,17 @@ export function registerGitHubHandlers(): void {
   ipcMain.handle('github:mergePR', (_e, repo: GitHubRepo, prNumber: number, method: 'merge' | 'squash' | 'rebase') => mergePR(repo, prNumber, method))
   ipcMain.handle('github:fetchIssues', (_e, repo: GitHubRepo) => fetchIssues(repo))
   ipcMain.handle('github:createIssue', (_e, repo: GitHubRepo, title: string, body: string, labels: string[]) => createIssue(repo, title, body, labels))
+  ipcMain.handle('github:listIssues', async () => {
+    const repos = await getRepos()
+    const results: Array<import('../../shared/types').GitHubIssue & { repoSlug: string }> = []
+    await Promise.allSettled(repos.map(async (repo) => {
+      try {
+        const issues = await fetchIssues(repo)
+        for (const issue of issues) results.push({ ...issue, repoSlug: `${repo.owner}/${repo.name}` })
+      } catch { /* silently skip repos that fail */ }
+    }))
+    return results
+  })
   ipcMain.handle('github:createReviewComment', (_e, repo: GitHubRepo, prNumber: number, body: string, commitId: string, path: string, line: number, side: 'LEFT' | 'RIGHT') =>
     createPRReviewComment(repo, prNumber, body, commitId, path, line, side))
   ipcMain.handle('github:replyToComment', (_e, repo: GitHubRepo, prNumber: number, commentId: number, body: string) =>

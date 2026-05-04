@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-type SidebarView = 'overview' | 'instances' | 'agents' | 'github' | 'settings' | 'tasks' | 'pipelines' | 'environments' | 'personas' | 'outputs' | 'review' | 'artifacts' | 'activity' | 'proofs'
+type SidebarView = 'overview' | 'instances' | 'agents' | 'github' | 'settings' | 'tasks' | 'pipelines' | 'environments' | 'personas' | 'outputs' | 'review' | 'artifacts' | 'activity' | 'proofs' | 'issues'
 
 interface ShortcutHandlers {
   onNewSession: () => void

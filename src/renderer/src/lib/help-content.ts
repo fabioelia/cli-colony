@@ -2116,6 +2116,47 @@ export const helpContent: Record<string, HelpEntry> = {
     ],
   },
 
+  issues: {
+    title: 'Issues',
+    description: 'Browse GitHub Issues across all configured repos. Filter by label or assignment, expand for full body, and launch a session pre-filled with the issue context in one click.',
+    zones: [
+      {
+        name: 'Header',
+        position: 'Top bar',
+        items: [
+          { label: 'Mine / All toggle', detail: 'Toggle between "Mine" (issues assigned to your GitHub user) and "All" (every open issue across configured repos). Defaults to Mine.', },
+          { label: 'Group toggle', detail: 'Switch between grouped-by-repo view (default) and a flat list. Icon changes between grid and list icons.', icon: 'LayoutGrid' },
+          { label: 'Refresh', detail: 'Re-fetch issues from GitHub. Auto-refreshes every 60 seconds while the panel is visible.', icon: 'RefreshCw' },
+        ],
+      },
+      {
+        name: 'Filter Bar',
+        position: 'Below header',
+        items: [
+          { label: 'Search', detail: 'Filter issues by title or issue number. Case-insensitive. Clears with ×.', icon: 'Search' },
+          { label: 'Label filter', detail: 'Dropdown of all labels found across issues in the current list. Select a label to filter to matching issues only.' },
+        ],
+      },
+      {
+        name: 'Issue Cards',
+        position: 'Main area',
+        items: [
+          { label: 'Issue card', detail: 'Shows issue number, title, label chips, relative age (e.g. "3h ago"), and a Start button. Click anywhere on the card header to expand the full body and assignees.' },
+          { label: 'Labels', detail: 'Each label on the issue is shown as a chip on the card header. Same chip style as PR labels.' },
+          { label: 'Expand / Collapse', detail: 'Click the card header (or the chevron) to expand the issue and see its full description (truncated at 200 chars), assignees, comment count, and a link to open it on GitHub.' },
+          { label: 'Start button', detail: 'Opens the New Session dialog pre-filled with a prompt containing the issue number, title, full body, repo name, and issue URL. Edit the prompt before launching.', icon: 'Play' },
+          { label: 'Open on GitHub', detail: 'Opens the issue URL in the system browser. Available in the expanded body.', icon: 'ExternalLink' },
+        ],
+      },
+    ],
+    shortcuts: [],
+    emptyState: {
+      hook: 'No open issues found. Add GitHub repos in Settings to see your issues here.',
+      keyCap: '',
+      ctaLabel: '',
+    },
+  },
+
   proofs: {
     title: 'Proofs',
     description: 'Browse session proof-of-work bundles written on session exit. Each bundle captures the session summary, branch, commits, cost, and exit code.',
