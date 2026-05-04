@@ -19,6 +19,7 @@ import type { WorkspacePreset } from './WorkspacePresets'
 import RetryDialog from './RetryDialog'
 import { COLORS, formatTime, cliBackendLabel, formatInstanceCmd } from '../lib/constants'
 import { getSpaces, createSpace, assignToSpace, getAssignments, autoAssignPipelineSession, archiveSpace, type Space } from '../lib/spaces'
+import SpaceHub from './SpaceHub'
 
 export type SidebarView = 'overview' | 'instances' | 'agents' | 'github' | 'settings' | 'tasks' | 'pipelines' | 'environments' | 'personas' | 'outputs' | 'review' | 'artifacts' | 'activity' | 'proofs' | 'issues'
 
@@ -739,6 +740,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const handleGroupByChange = useCallback((val: GroupBy) => {
     setGroupBy(val)
     localStorage.setItem('sidebar-group-by', val)
+    if (val !== 'space') setSelectedSpace(null)
   }, [])
 
   const [spaces, setSpaces] = useState<Space[]>(() => getSpaces())
@@ -746,6 +748,7 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
   const [spaceSubmenuOpen, setSpaceSubmenuOpen] = useState(false)
   const [showCreateSpaceInput, setShowCreateSpaceInput] = useState(false)
   const [createSpaceName, setCreateSpaceName] = useState('')
+  const [selectedSpace, setSelectedSpace] = useState<Space | null>(null)
 
   const refreshSpaces = useCallback(() => {
     setSpaces(getSpaces())
@@ -1888,7 +1891,20 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
         )
       })()}
 
-      <div className="instance-list">
+      {selectedSpace && (() => {
+        const spaceInstances = instances.filter(i => spaceAssignments[i.id] === selectedSpace.id)
+        return (
+          <SpaceHub
+            space={selectedSpace}
+            instances={spaceInstances}
+            activityEvents={activityEvents}
+            onNavigateToInstance={id => { onSelect(id); setSelectedSpace(null) }}
+            onBack={() => setSelectedSpace(null)}
+            onSpaceUpdated={() => { refreshSpaces(); setSelectedSpace(getSpaces().find(s => s.id === selectedSpace.id) ?? null) }}
+          />
+        )
+      })()}
+      <div className="instance-list" style={selectedSpace ? { display: 'none' } : undefined}>
         {/* Fork Groups section — shown above regular session list */}
         {forkGroups.filter(g => g.status === 'active').length > 0 && (
           <>
@@ -1999,7 +2015,13 @@ function SidebarInner({ instances, activeId, view, onSelect, onNew, onKill, onRe
                 {groupBy === 'space' && spaceForGroup && (
                   <Folder size={10} style={{ color: spaceForGroup.color, flexShrink: 0 }} />
                 )}
-                {label}
+                {groupBy === 'space' && spaceForGroup ? (
+                  <span
+                    className="space-group-name-link"
+                    title="Open Space Hub"
+                    onClick={e => { e.stopPropagation(); setSelectedSpace(spaceForGroup) }}
+                  >{label}</span>
+                ) : label}
                 <span className="session-group-count">{items.length}</span>
                 {(() => {
                   const totalCost = items.reduce((sum, i) => sum + (i.tokenUsage?.cost || 0), 0)

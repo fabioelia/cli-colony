@@ -81,6 +81,15 @@ export function getAssignments(): Record<string, string> {
   return loadAssignments()
 }
 
+export function getSpacePipelines<T extends { name: string }>(spaceName: string, pipelines: T[]): T[] {
+  const name = spaceName.toLowerCase()
+  return pipelines.filter(p => p.name.toLowerCase() === name)
+}
+
+export function renameSpace(id: string, newName: string): void {
+  saveSpaces(loadSpaces().map(s => s.id === id ? { ...s, name: newName.trim() } : s))
+}
+
 export function autoAssignPipelineSession(instanceId: string, pipelineName: string | undefined): void {
   if (!pipelineName) return
   const spaces = loadSpaces().filter(s => !s.archived)
