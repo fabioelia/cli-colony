@@ -14837,6 +14837,26 @@ button.session-trigger-chain-btn:hover {
   font-size: 10px;
 }
 
+.pipeline-health-badge {
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.pipeline-health-degraded {
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  color: var(--warning);
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+}
+
+.pipeline-health-failing {
+  background: color-mix(in srgb, var(--error) 15%, transparent);
+  color: var(--error);
+  border: 1px solid color-mix(in srgb, var(--error) 35%, transparent);
+}
+
 .pipeline-card-interval {
   color: var(--text-muted);
 }
