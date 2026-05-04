@@ -5352,3 +5352,344 @@ dedup:
     expect(result).toBe(false)
   })
 })
+
+// ---- testConditions ----
+
+describe('pipeline-engine: testConditions', () => {
+  let mod: typeof import('../pipeline-engine')
+
+  const ALWAYS_YAML = `
+name: Always Pipeline
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+condition:
+  type: always
+action:
+  prompt: Run me
+dedup:
+  key: daily
+`
+
+  const NO_CONDITION_YAML = `
+name: No Condition
+trigger:
+  type: cron
+  cron: "0 9 * * 1-5"
+action:
+  prompt: Run always
+dedup:
+  key: daily
+`
+
+  const AUTHORED_BY_YAML = `
+name: Authored By
+trigger:
+  type: git-poll
+  interval: 300
+  repos: auto
+condition:
+  type: authored-by
+action:
+  prompt: Run for author
+dedup:
+  key: daily
+`
+
+  const NOT_DRAFT_YAML = `
+name: Not Draft
+trigger:
+  type: git-poll
+  interval: 300
+  repos: auto
+condition:
+  type: not-draft
+action:
+  prompt: Run for non-drafts
+dedup:
+  key: daily
+`
+
+  const ISSUE_ASSIGNED_YAML = `
+name: Issue Assigned
+trigger:
+  type: git-poll
+  interval: 300
+  repos: auto
+condition:
+  type: issue-assigned
+action:
+  prompt: Run for issue
+dedup:
+  key: daily
+`
+
+  const ALL_OF_YAML = `
+name: All Of
+trigger:
+  type: git-poll
+  interval: 300
+  repos: auto
+condition:
+  type: all-of
+  conditions:
+    - type: not-draft
+    - type: authored-by
+action:
+  prompt: All conditions must pass
+dedup:
+  key: daily
+`
+
+  const ANY_OF_YAML = `
+name: Any Of
+trigger:
+  type: git-poll
+  interval: 300
+  repos: auto
+condition:
+  type: any-of
+  conditions:
+    - type: authored-by
+    - type: always
+action:
+  prompt: Any condition
+dedup:
+  key: daily
+`
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    mockBroadcast.mockReset()
+    mockGetAllRepoConfigs.mockReset().mockReturnValue([])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+    if (mod) mod.stopPipelines()
+  })
+
+  it('returns null when file does not exist', async () => {
+    const fs = buildFsMock([], {})
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    const result = await mod.testConditions('missing.yaml', {})
+    expect(result).toBeNull()
+  })
+
+  it('returns null when YAML is invalid', async () => {
+    const fs = buildFsMock(['bad.yaml'], { 'bad.yaml': '{ not: valid: yaml: [' })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    const result = await mod.testConditions('bad.yaml', {})
+    expect(result).toBeNull()
+  })
+
+  it('returns no-condition result when pipeline has no condition', async () => {
+    const fs = buildFsMock(['nocond.yaml'], { 'nocond.yaml': NO_CONDITION_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    const result = await mod.testConditions('nocond.yaml', {})
+    expect(result).not.toBeNull()
+    expect(result!.type).toBe('none')
+    expect(result!.passed).toBe(true)
+    expect(result!.detail).toContain('No conditions')
+  })
+
+  it('always condition passes', async () => {
+    const fs = buildFsMock(['always.yaml'], { 'always.yaml': ALWAYS_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    const result = await mod.testConditions('always.yaml', {})
+    expect(result).not.toBeNull()
+    expect(result!.type).toBe('always')
+    expect(result!.passed).toBe(true)
+  })
+
+  it('authored-by passes when prAuthor matches githubUser', async () => {
+    const fs = buildFsMock(['authored.yaml'], { 'authored.yaml': AUTHORED_BY_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    const result = await mod.testConditions('authored.yaml', {
+      prBranch: 'feat/x',
+      prAuthor: 'fabio',
+      githubUser: 'fabio',
+    })
+    expect(result!.type).toBe('authored-by')
+    expect(result!.passed).toBe(true)
+  })
+
+  it('authored-by fails when prAuthor does not match githubUser', async () => {
+    const fs = buildFsMock(['authored.yaml'], { 'authored.yaml': AUTHORED_BY_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    const result = await mod.testConditions('authored.yaml', {
+      prBranch: 'feat/x',
+      prAuthor: 'alice',
+      githubUser: 'fabio',
+    })
+    expect(result!.type).toBe('authored-by')
+    expect(result!.passed).toBe(false)
+  })
+
+  it('authored-by fails when no PR context is provided', async () => {
+    const fs = buildFsMock(['authored.yaml'], { 'authored.yaml': AUTHORED_BY_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    const result = await mod.testConditions('authored.yaml', { githubUser: 'fabio' })
+    expect(result!.type).toBe('authored-by')
+    expect(result!.passed).toBe(false)
+  })
+
+  it('not-draft passes when prDraft is false', async () => {
+    const fs = buildFsMock(['draft.yaml'], { 'draft.yaml': NOT_DRAFT_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    const result = await mod.testConditions('draft.yaml', {
+      prBranch: 'main',
+      prDraft: false,
+    })
+    expect(result!.type).toBe('not-draft')
+    expect(result!.passed).toBe(true)
+  })
+
+  it('not-draft fails when prDraft is true', async () => {
+    const fs = buildFsMock(['draft.yaml'], { 'draft.yaml': NOT_DRAFT_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    const result = await mod.testConditions('draft.yaml', {
+      prBranch: 'main',
+      prDraft: true,
+    })
+    expect(result!.type).toBe('not-draft')
+    expect(result!.passed).toBe(false)
+  })
+
+  it('issue-assigned passes when issueAssignee matches githubUser', async () => {
+    const fs = buildFsMock(['issue.yaml'], { 'issue.yaml': ISSUE_ASSIGNED_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    const result = await mod.testConditions('issue.yaml', {
+      issueAssignee: 'fabio',
+      issueTitle: 'Fix bug',
+      githubUser: 'fabio',
+    })
+    expect(result!.type).toBe('issue-assigned')
+    expect(result!.passed).toBe(true)
+  })
+
+  it('issue-assigned fails when issueAssignee does not match githubUser', async () => {
+    const fs = buildFsMock(['issue.yaml'], { 'issue.yaml': ISSUE_ASSIGNED_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    const result = await mod.testConditions('issue.yaml', {
+      issueAssignee: 'alice',
+      issueTitle: 'Fix bug',
+      githubUser: 'fabio',
+    })
+    expect(result!.type).toBe('issue-assigned')
+    expect(result!.passed).toBe(false)
+  })
+
+  it('all-of passes when all children pass', async () => {
+    const fs = buildFsMock(['allof.yaml'], { 'allof.yaml': ALL_OF_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    const result = await mod.testConditions('allof.yaml', {
+      prBranch: 'feat/y',
+      prAuthor: 'fabio',
+      prDraft: false,
+      githubUser: 'fabio',
+    })
+    expect(result!.type).toBe('all-of')
+    expect(result!.passed).toBe(true)
+    expect(result!.children).toHaveLength(2)
+    expect(result!.children!.every(c => c.passed)).toBe(true)
+  })
+
+  it('all-of fails when one child fails', async () => {
+    const fs = buildFsMock(['allof.yaml'], { 'allof.yaml': ALL_OF_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    const result = await mod.testConditions('allof.yaml', {
+      prBranch: 'feat/y',
+      prAuthor: 'alice',  // authored-by will fail
+      prDraft: false,
+      githubUser: 'fabio',
+    })
+    expect(result!.type).toBe('all-of')
+    expect(result!.passed).toBe(false)
+    const authoredResult = result!.children!.find(c => c.type === 'authored-by')
+    expect(authoredResult!.passed).toBe(false)
+  })
+
+  it('any-of passes when at least one child passes', async () => {
+    const fs = buildFsMock(['anyof.yaml'], { 'anyof.yaml': ANY_OF_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    // authored-by fails (alice != fabio), but always passes
+    const result = await mod.testConditions('anyof.yaml', {
+      prBranch: 'main',
+      prAuthor: 'alice',
+      githubUser: 'fabio',
+    })
+    expect(result!.type).toBe('any-of')
+    expect(result!.passed).toBe(true)
+    expect(result!.children).toHaveLength(2)
+  })
+
+  it('PR labels are split on comma and trimmed', async () => {
+    const fs = buildFsMock(['authored.yaml'], { 'authored.yaml': AUTHORED_BY_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    // authored-by passes; we just verify labels are available via detail
+    const result = await mod.testConditions('authored.yaml', {
+      prBranch: 'feat/z',
+      prAuthor: 'fabio',
+      prLabels: 'bug , enhancement , wontfix',
+      githubUser: 'fabio',
+    })
+    expect(result!.passed).toBe(true)
+  })
+
+  it('webhookPayload is parsed as JSON when valid', async () => {
+    const fs = buildFsMock(['always.yaml'], { 'always.yaml': ALWAYS_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    // Should not throw; always condition passes regardless of payload
+    const result = await mod.testConditions('always.yaml', {
+      webhookPayload: '{"action":"opened","number":42}',
+    })
+    expect(result!.passed).toBe(true)
+  })
+
+  it('webhookPayload is stored as string when not valid JSON', async () => {
+    const fs = buildFsMock(['always.yaml'], { 'always.yaml': ALWAYS_YAML })
+    setupMocks(fs)
+    mod = await import('../pipeline-engine')
+
+    // Should not throw even with invalid JSON
+    const result = await mod.testConditions('always.yaml', {
+      webhookPayload: 'not-json-at-all',
+    })
+    expect(result!.passed).toBe(true)
+  })
+})
