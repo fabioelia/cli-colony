@@ -330,6 +330,32 @@ actions:
         body: '{"component": "colony-pipeline", "status": "degraded", "pipeline": "{{pipeline_name}}"}'
 `,
   },
+  {
+    name: 'Issue Autopilot',
+    description: 'Auto-start a session for each issue assigned to you',
+    triggerType: 'git-poll',
+    actionType: 'session',
+    yaml: `name: Issue Autopilot
+description: Create a session automatically when a GitHub Issue is assigned to you
+enabled: false
+trigger:
+  type: git-poll
+  interval: 300
+condition:
+  type: issue-assigned
+  label: ready
+actions:
+  - type: session
+    prompt: |
+      Work on issue #{{issue.number}}: {{issue.title}}
+
+      {{issue.body}}
+
+      Repo: {{repo.owner}}/{{repo.name}}
+      Issue URL: {{issue.url}}
+      Labels: {{issue.labels}}
+`,
+  },
 ]
 
 const PIPELINE_SYSTEM_PROMPT = `You are a Pipeline Assistant for Claude Colony. You help users create, edit, and manage pipeline YAML files.

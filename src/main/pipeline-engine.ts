@@ -16,12 +16,12 @@ import { createInstance, getAllInstances, getIdleInfo, killInstance, setApproval
 import { markChecklistItem } from './onboarding-state'
 import { getDaemonRouter } from './daemon-router'
 import { sendPromptWhenReady } from './send-prompt-when-ready'
-import { getRepos, fetchPRs, fetchChecks, fetchPRFiles, gh, writePrContext } from './github'
+import { getRepos, fetchPRs, fetchIssues, fetchChecks, fetchPRFiles, gh, writePrContext } from './github'
 import { findBestRoute } from './session-router'
 import { getAllRepoConfigs } from './repo-config-loader'
 import { cronMatches } from '../shared/cron'
 import { resolveMustacheTemplate, slugify, stripAnsi } from '../shared/utils'
-import type { GitHubRepo, GitHubPR, PRChecks, ApprovalRequest } from '../shared/types'
+import type { GitHubRepo, GitHubPR, GitHubIssue, PRChecks, ApprovalRequest } from '../shared/types'
 import { appendActivity } from './activity-manager'
 import { notify } from './notifications'
 import { matchRules, estimateActionCost } from './approval-rules'
@@ -63,6 +63,7 @@ export type LeafConditionType =
   | 'review-requested'
   | 'authored-by'
   | 'not-draft'
+  | 'issue-assigned'
 
 export type CompositeConditionType = 'any-of' | 'all-of'
 
@@ -75,6 +76,8 @@ export interface ConditionDef {
   exclude?: string[] // check names to ignore (substring match)
   /** Sub-conditions for composite types (any-of, all-of). Recursive — composites may nest. */
   conditions?: ConditionDef[]
+  /** For issue-assigned: only match issues that have this label (case-insensitive substring match). */
+  label?: string
 }
 
 export interface RunOverrides {
@@ -338,6 +341,8 @@ export interface TriggerContext {
   filesChangedMatches?: string[]
   /** Injected by on_failure handler — error message from the failed stage */
   error?: string
+  /** Populated when condition contains issue-assigned: the matched GitHub Issue. */
+  issue?: GitHubIssue
 }
 
 // Cron matching imported from src/shared/cron.ts
@@ -927,12 +932,21 @@ export function resolveTemplate(template: string, ctx: TriggerContext, varOverri
   const reposRendered = ctx.repoSlugsStale
     ? (reposJoined ? `<repos-stale> ${reposJoined}` : '<repos-stale>')
     : reposJoined
+  const issueVars = ctx.issue ? {
+    'issue.number': String(ctx.issue.number),
+    'issue.title': ctx.issue.title,
+    'issue.body': ctx.issue.body,
+    'issue.url': ctx.issue.url,
+    'issue.labels': ctx.issue.labels.join(', '),
+    'issue.author': ctx.issue.author,
+  } : {}
   const context: Record<string, unknown> = {
     ...ctx,
     github: { user: ctx.githubUser || '' },
     repos: reposRendered,
     webhook_payload: JSON.stringify(ctx.webhookPayload || {}),
     ...ghVars,
+    ...issueVars,
   }
   return resolveMustacheTemplate(template, { ...context, ...varOverrides })
 }
@@ -1157,6 +1171,29 @@ async function executeGitPollTrigger(trigger: TriggerDef, condition?: ConditionD
     }
   }
 
+  // Fetch issues for issue-assigned condition
+  if (condition && hasConditionOfType(condition, 'issue-assigned')) {
+    for (const repo of repos) {
+      const slug = `${repo.owner}/${repo.name}`
+      try {
+        const issues = await fetchIssues(repo)
+        for (const issue of issues) {
+          contexts.push({
+            repo,
+            issue,
+            githubUser: githubUser || undefined,
+            timestamp: new Date().toISOString(),
+            contentSha: `issue-${slug}#${issue.number}-${issue.updatedAt}`,
+          })
+        }
+      } catch (err) {
+        const msg = `Failed to fetch issues for ${slug}: ${err}`
+        log(msg)
+        errors.push(msg)
+      }
+    }
+  }
+
   if (errors.length > 0) (contexts as any)._fetchErrors = errors
   ;(contexts as any)._perRepoCounts = perRepoCounts
   ;(contexts as any)._failedRepos = failedRepos
@@ -1314,6 +1351,17 @@ function evaluateNotDraft(condition: ConditionDef, ctx: TriggerContext): boolean
   return !ctx.pr.draft
 }
 
+function evaluateIssueAssigned(condition: ConditionDef, ctx: TriggerContext): boolean {
+  if (!ctx.issue || !ctx.githubUser) return false
+  const assigned = ctx.issue.assignees.includes(ctx.githubUser)
+  if (!assigned) return false
+  if (condition.label) {
+    const labelFilter = condition.label.toLowerCase()
+    return ctx.issue.labels.some((l) => l.toLowerCase().includes(labelFilter))
+  }
+  return true
+}
+
 // ---- Composite Condition Helpers ----
 
 const COMPOSITE_CONDITION_TYPES = new Set<string>(['any-of', 'all-of'])
@@ -1384,6 +1432,7 @@ async function evaluateLeafCondition(condition: ConditionDef, ctx: TriggerContex
     case 'review-requested': return evaluateReviewRequested(condition, ctx)
     case 'authored-by': return evaluateAuthoredBy(condition, ctx)
     case 'not-draft': return evaluateNotDraft(condition, ctx)
+    case 'issue-assigned': return evaluateIssueAssigned(condition, ctx)
     case 'always': return true
     default: return false
   }
