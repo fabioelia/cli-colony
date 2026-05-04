@@ -1604,3 +1604,28 @@ export async function previewPersonaPrompt(fileName: string): Promise<string> {
   const whispers = parseWhispers(content)
   return buildPlanningPrompt(fm, state, filePath, whispers)
 }
+
+export async function testPersonaPrompt(
+  personaId: string,
+  prompt: string
+): Promise<{ output: string; exitCode: number }> {
+  const personas = getPersonaList()
+  const persona = personas.find(p => p.id === personaId)
+  const model = persona?.model ?? 'claude-sonnet-4-6'
+  const preamble = `You are being tested in a prompt playground. Respond briefly to verify your role understanding based on the role description below. Do NOT attempt to access files, run code, or take real actions.\n\n`
+  const fullPrompt = preamble + prompt
+
+  return new Promise((resolve) => {
+    const child = execFile(
+      resolveCommand('claude'),
+      ['-p', fullPrompt, '--model', model, '--permission-mode', 'bypassPermissions'],
+      { encoding: 'utf-8', timeout: 60_000 },
+      (err, stdout, stderr) => {
+        const exitCode = err ? ((err as NodeJS.ErrnoException & { code?: number }).code ?? 1) : 0
+        const output = (stdout || stderr || '').trim()
+        resolve({ output, exitCode: typeof exitCode === 'number' ? exitCode : 1 })
+      }
+    )
+    child.on('error', () => resolve({ output: 'Failed to launch claude CLI', exitCode: 1 }))
+  })
+}

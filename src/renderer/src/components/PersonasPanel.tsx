@@ -4,7 +4,7 @@ import {
   User, Plus, Play, Square, Trash2, Send, MessageSquare, FileText, X,
   ChevronDown, ChevronRight, Clock, Hash, Pencil, StickyNote, ArrowRightCircle, Save, Loader2,
   Hourglass, ArrowRight, FolderOpen, Search, Check, Bot, BarChart3, ArrowUpDown, DollarSign, TrendingUp, Copy,
-  CalendarClock, GitBranch, Brain, ShieldCheck, Bell, Timer, GitCompare, BookOpen,
+  CalendarClock, GitBranch, Brain, ShieldCheck, Bell, Timer, GitCompare, BookOpen, Terminal,
 } from 'lucide-react'
 import EmptyStateHook from './EmptyStateHook'
 import MarkdownViewer from './MarkdownViewer'
@@ -14,6 +14,7 @@ import Tooltip from './Tooltip'
 import CronEditor from './CronEditor'
 import PersonaScheduleHeatmap from './PersonaScheduleHeatmap'
 import PersonaTriggerMap from './PersonaTriggerMap'
+import PersonaPlayground from './PersonaPlayground'
 import { sendPromptWhenReady } from '../lib/send-prompt-when-ready'
 import { describeCron, nextRuns } from '../../../shared/cron'
 
@@ -1677,6 +1678,7 @@ function PersonaCard({
   const [editingNoteIndex, setEditingNoteIndex] = useState<number | null>(null)
   const [editNoteText, setEditNoteText] = useState('')
   const [activeTab, setActiveTab] = useState<'content' | 'outputs' | 'history' | 'analytics' | 'memory'>('content')
+  const [playgroundOpen, setPlaygroundOpen] = useState(false)
   const [artifacts, setArtifacts] = useState<PersonaArtifact[] | null>(null)
   const [viewingArtifact, setViewingArtifact] = useState<{ name: string; content: string } | null>(null)
   const [copiedArtifact, setCopiedArtifact] = useState(false)
@@ -1944,6 +1946,9 @@ function PersonaCard({
             )}
             <Tooltip text="Edit schedule, model, and settings">
               <button className="persona-action-btn" onClick={onEditMeta}><Pencil size={11} /></button>
+            </Tooltip>
+            <Tooltip text="Prompt Playground — test and edit the Role section">
+              <button className="persona-action-btn" onClick={() => setPlaygroundOpen(true)}><Terminal size={11} /></button>
             </Tooltip>
             <Tooltip text="Duplicate persona">
               <button className="persona-action-btn" onClick={onDuplicate}><Copy size={11} /></button>
@@ -2662,6 +2667,12 @@ function PersonaCard({
           <PersonaSection title="Objectives" content={sections['Objectives']} defaultOpen={false} />
           </>}
         </div>
+      )}
+      {playgroundOpen && (
+        <PersonaPlayground
+          persona={{ id: persona.id, name: persona.name, model: persona.model, filePath: persona.filePath }}
+          onClose={() => setPlaygroundOpen(false)}
+        />
       )}
     </div>
   )

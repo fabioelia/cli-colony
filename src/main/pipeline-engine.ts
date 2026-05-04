@@ -1548,7 +1548,7 @@ async function evaluateConditionWithTrace(condition: ConditionDef, ctx: TriggerC
 }
 
 export interface MockConditionContext {
-  triggerType: string
+  triggerType?: string
   prTitle?: string
   prBranch?: string
   prAuthor?: string

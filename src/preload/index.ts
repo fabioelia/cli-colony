@@ -367,6 +367,7 @@ export interface ClaudeManagerAPI {
     compareConfig: (idA: string, idB: string) => Promise<{ a: { name: string; content: string }; b: { name: string; content: string } } | null>
     searchLearnings: (query: string) => Promise<Array<{ personaId: string; personaName: string; type: string; text: string; matchIndex: number }>>
     previewPrompt: (fileName: string) => Promise<string>
+    testPrompt: (personaId: string, prompt: string) => Promise<{ output: string; exitCode: number }>
     onStatus: (cb: (personas: PersonaInfo[]) => void) => () => void
     onRun: (cb: (data: { persona: string; instanceId: string }) => void) => () => void
   }
@@ -1166,6 +1167,7 @@ const api: ClaudeManagerAPI = {
     compareConfig: (idA, idB) => ipcRenderer.invoke('persona:compareConfig', idA, idB),
     searchLearnings: (query) => ipcRenderer.invoke('persona:searchLearnings', query),
     previewPrompt: (fileName) => ipcRenderer.invoke('persona:previewPrompt', fileName),
+    testPrompt: (personaId, prompt) => ipcRenderer.invoke('persona:testPrompt', personaId, prompt),
     onStatus: (cb) => {
       const l = (_e: any, data: PersonaInfo[]) => cb(data)
       ipcRenderer.on('persona:status', l)

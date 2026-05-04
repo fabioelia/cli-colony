@@ -4,7 +4,7 @@ import {
   createPersona, deletePersona, duplicatePersona, runPersona, stopPersona,
   togglePersona, drainPersona, getPersonasDir, setPersonaSchedule, addWhisper, deleteNote, updateNote,
   updatePersonaMeta, getPersonaArtifacts, readPersonaArtifact, getPersonaBriefDiff, askPersonas,
-  getPersonaConfigPair, PersonaRunOverrides, previewPersonaPrompt,
+  getPersonaConfigPair, PersonaRunOverrides, previewPersonaPrompt, testPersonaPrompt,
   getPersonaBriefHistory, getPersonaBriefAt,
 } from '../persona-manager'
 import { getRunHistory, getPersonaAnalytics, getColonyCostTrend, getPersonaHealthSummary } from '../persona-run-history'
@@ -54,5 +54,8 @@ export function registerPersonaHandlers(): void {
   ipcMain.handle('persona:searchLearnings', (_e, query: string) => searchPersonaLearnings(query))
   ipcMain.handle('persona:previewPrompt', async (_e, fileName: string): Promise<string> => {
     return previewPersonaPrompt(fileName)
+  })
+  ipcMain.handle('persona:testPrompt', async (_e, personaId: string, prompt: string) => {
+    return testPersonaPrompt(personaId, prompt)
   })
 }
