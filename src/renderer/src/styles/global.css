@@ -2637,6 +2637,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
+  position: relative;
 }
 
 .instance-status {
@@ -2645,6 +2646,7 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-radius: 4px;
   font-weight: 500;
   flex-shrink: 0;
+  transition: opacity 0.15s;
 }
 
 .instance-status.running {
@@ -2688,18 +2690,26 @@ body:has(.daemon-update-banner) .app-update-banner {
   margin-top: 2px;
 }
 
-/* Show actions on hover, hide status */
+/* Show actions on hover, hide status — use opacity+absolute to avoid layout shift */
 .instance-item-actions {
-  display: none;
+  display: flex;
   gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  transition: opacity 0.15s;
 }
 
 .instance-item:hover .instance-item-actions {
-  display: flex;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .instance-item:hover .instance-status {
-  display: none;
+  opacity: 0;
 }
 
 .instance-item-actions button {
