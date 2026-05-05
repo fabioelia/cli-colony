@@ -3258,6 +3258,17 @@ export async function togglePipeline(name: string, enabled: boolean): Promise<bo
   return true
 }
 
+export async function resetPipelineHealth(name: string): Promise<boolean> {
+  const p = pipelines.get(name)
+  if (!p) return false
+  p.state.consecutiveFailures = 0
+  p.state.lastError = null
+  p.state.lastHookError = null
+  await saveState()
+  broadcast('pipeline:status', getPipelineList())
+  return true
+}
+
 async function savePauseState(name: string, pausedUntil: string | null | undefined): Promise<void> {
   const p = pipelines.get(name)
   if (!p) return

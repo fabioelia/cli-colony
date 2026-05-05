@@ -747,6 +747,11 @@ export default function PipelinesPanel({ onLaunchInstance, onFocusInstance, inst
   const [pipelinesDir, setPipelinesDir] = useState<string | null>(null)
   const sendingRef = useRef(false)
 
+  // Health recovery panel state
+  const [recoveryPipelineName, setRecoveryPipelineName] = useState<string | null>(null)
+  const [recoveryDebugLog, setRecoveryDebugLog] = useState<string[]>([])
+  const [recoveryLoading, setRecoveryLoading] = useState(false)
+
   // Audit state
   const [auditResults, setAuditResults] = useState<AuditResult[] | null>(null)
   const [auditRunning, setAuditRunning] = useState(false)
@@ -2162,16 +2167,31 @@ ${modelLine}  prompt: |
                   </span>
                 )}
                 {p.healthStatus && p.healthStatus !== 'healthy' && (
-                  <span
+                  <button
                     className={`pipeline-health-badge pipeline-health-${p.healthStatus}`}
+                    style={{ cursor: 'pointer', border: 'none', background: 'none', padding: 0 }}
                     title={
                       p.healthStatus === 'failing'
-                        ? `Failing: ${p.consecutiveFailures ?? 0} consecutive run failures`
-                        : (p.lastHookError ? `Degraded: ${p.lastHookError}` : 'Degraded: partial repo enumeration on last poll')
+                        ? `Failing: ${p.consecutiveFailures ?? 0} consecutive run failures — click to open recovery panel`
+                        : (p.lastHookError ? `Degraded: ${p.lastHookError} — click to open recovery panel` : 'Degraded: partial repo enumeration — click to open recovery panel')
                     }
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      if (recoveryPipelineName === p.name) {
+                        setRecoveryPipelineName(null)
+                        return
+                      }
+                      setRecoveryPipelineName(p.name)
+                      setRecoveryLoading(true)
+                      try {
+                        const log = await window.api.pipeline.getDebugLog(p.name)
+                        setRecoveryDebugLog(Array.isArray(log) ? log.slice(-3) : [])
+                      } catch { setRecoveryDebugLog([]) }
+                      setRecoveryLoading(false)
+                    }}
                   >
                     {p.healthStatus === 'failing' ? '✗ failing' : '⚠ degraded'}
-                  </span>
+                  </button>
                 )}
                 {p.triggerType !== 'webhook' && <span className="pipeline-card-trigger">{p.triggerType}</span>}
                 {p.runCondition === 'has_changes' && (
@@ -2482,6 +2502,74 @@ ${modelLine}  prompt: |
                     }} title="Remove this note"><X size={10} /></button>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {recoveryPipelineName === p.name && (
+              <div className="pipeline-recovery-panel" style={{ margin: '8px 0', padding: 10, background: 'var(--bg-secondary)', borderRadius: 6, border: '1px solid var(--border-color)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>Health Recovery</span>
+                  <button className="settings-logs-toggle" onClick={() => setRecoveryPipelineName(null)} title="Close"><X size={11} /></button>
+                </div>
+                {p.lastHookError && (
+                  <div style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 4, padding: '6px 8px', marginBottom: 8, fontSize: 11, color: 'var(--color-warn)' }}>
+                    <AlertTriangle size={10} style={{ display: 'inline', marginRight: 4 }} />
+                    {p.lastHookError}
+                  </div>
+                )}
+                {recoveryLoading ? (
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0' }}>Loading debug log…</p>
+                ) : recoveryDebugLog.length > 0 ? (
+                  <div style={{ marginBottom: 8 }}>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 4px 0' }}>Last 3 debug entries:</p>
+                    <pre style={{ fontSize: 10, background: 'var(--bg-primary)', padding: 6, borderRadius: 4, maxHeight: 120, overflowY: 'auto', margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                      {recoveryDebugLog.join('\n')}
+                    </pre>
+                  </div>
+                ) : null}
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <button
+                    className="panel-header-btn"
+                    style={{ fontSize: 11 }}
+                    title="Clear consecutive failure counter and reset to healthy"
+                    onClick={async () => {
+                      await window.api.pipeline.resetHealth(p.name)
+                      setRecoveryPipelineName(null)
+                      await loadPipelines()
+                    }}
+                  >
+                    <Check size={11} /> Reset Health
+                  </button>
+                  <button
+                    className="panel-header-btn"
+                    style={{ fontSize: 11 }}
+                    title="Trigger this pipeline immediately"
+                    onClick={async () => {
+                      if (triggeringPipelines.has(p.name)) return
+                      setTriggeringPipelines(prev => new Set([...prev, p.name]))
+                      try { await window.api.pipeline.triggerNow(p.name) } catch { /* ignore */ }
+                      setTimeout(() => setTriggeringPipelines(prev => { const n = new Set(prev); n.delete(p.name); return n }), 2000)
+                      setRecoveryPipelineName(null)
+                    }}
+                  >
+                    <Play size={11} /> Retry Now
+                  </button>
+                  <button
+                    className="panel-header-btn"
+                    style={{ fontSize: 11 }}
+                    title="Pause pipeline and open YAML editor"
+                    onClick={async () => {
+                      await window.api.pipeline.toggle(p.name, false)
+                      await loadPipelines()
+                      setExpandedPipeline(p.name)
+                      setEditingContent(await window.api.pipeline.getContent(p.fileName))
+                      setExpandedTab('yaml')
+                      setRecoveryPipelineName(null)
+                    }}
+                  >
+                    <PauseCircle size={11} /> Pause &amp; Edit
+                  </button>
+                </div>
               </div>
             )}
 
