@@ -217,3 +217,62 @@ describe('getTagRules', () => {
     expect(await mod.getTagRules()).toEqual([])
   })
 })
+
+describe('initTagRulesWatcher', () => {
+  it('calls watch() on the tag rules file path', async () => {
+    mod.initTagRulesWatcher()
+    expect(mockWatch).toHaveBeenCalledOnce()
+    expect(typeof mockWatch.mock.calls[0][0]).toBe('string')
+  })
+
+  it('populates getCachedRules() after async loadAndCache completes', async () => {
+    const stored = [{ name: 'tag-a', condition: { type: 'cost-gt' as const, value: '1' } }]
+    mockReadFile.mockResolvedValueOnce(JSON.stringify(stored))
+    mod.initTagRulesWatcher()
+    // Flush the fire-and-forget promise (readFile → parse → assign requires 3 microtask turns)
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(mod.getCachedRules()).toEqual(stored)
+  })
+
+  it('watch callback triggers cache reload', async () => {
+    const initial = [{ name: 'tag-a', condition: { type: 'cost-gt' as const, value: '1' } }]
+    const updated = [{ name: 'tag-b', condition: { type: 'cost-lt' as const, value: '0.5' } }]
+    mockReadFile.mockResolvedValueOnce(JSON.stringify(initial))
+    mod.initTagRulesWatcher()
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(mod.getCachedRules()).toEqual(initial)
+
+    // Simulate file change — callback is watch()'s second argument
+    const watchCallback = mockWatch.mock.calls[0][1] as () => void
+    mockReadFile.mockResolvedValueOnce(JSON.stringify(updated))
+    watchCallback()
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(mod.getCachedRules()).toEqual(updated)
+  })
+
+  it('registers an error handler on the watcher', async () => {
+    mod.initTagRulesWatcher()
+    const mockWatcherInstance = mockWatch.mock.results[0].value as { on: ReturnType<typeof vi.fn> }
+    expect(mockWatcherInstance.on).toHaveBeenCalledWith('error', expect.any(Function))
+  })
+
+  it('error handler does not throw', async () => {
+    mod.initTagRulesWatcher()
+    const mockWatcherInstance = mockWatch.mock.results[0].value as { on: ReturnType<typeof vi.fn> }
+    const errorHandler = mockWatcherInstance.on.mock.calls.find(
+      ([event]) => event === 'error'
+    )?.[1] as (err: Error) => void
+    expect(() => errorHandler(new Error('watch error'))).not.toThrow()
+  })
+
+  it('does not throw when watch() itself throws', async () => {
+    mockWatch.mockImplementationOnce(() => { throw new Error('ENOENT') })
+    expect(() => mod.initTagRulesWatcher()).not.toThrow()
+  })
+})

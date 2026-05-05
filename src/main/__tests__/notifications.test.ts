@@ -6,7 +6,7 @@
  * up fresh mocks each time.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // ─── Shared mock state ────────────────────────────────────────────────────────
 
@@ -170,5 +170,141 @@ describe('notifications module', () => {
     mockBroadcast.mockClear() // clear the notification:new broadcast from notify()
     clickHandler()
     expect(mockBroadcast).not.toHaveBeenCalledWith('app:navigate', expect.anything())
+  })
+})
+
+// ─── History CRUD ─────────────────────────────────────────────────────────────
+
+describe('notification history functions', () => {
+  let mod: typeof import('../notifications')
+
+  beforeEach(async () => {
+    vi.resetModules()
+    vi.useFakeTimers()
+
+    vi.doMock('electron', () => ({
+      BrowserWindow: { getAllWindows: vi.fn().mockReturnValue([]) },
+      Notification: Object.assign(
+        vi.fn().mockReturnValue({ on: vi.fn(), show: vi.fn() }),
+        { isSupported: vi.fn().mockReturnValue(false) }, // don't show OS notifications
+      ),
+    }))
+    vi.doMock('../settings', () => ({ getSetting: vi.fn().mockReturnValue('') }))
+    vi.doMock('../broadcast', () => ({ broadcast: vi.fn() }))
+    vi.doMock('../notification-channels', () => ({
+      fireWebhookChannels: vi.fn().mockResolvedValue(undefined),
+    }))
+    vi.doMock('fs', () => ({
+      promises: {
+        readFile: vi.fn().mockRejectedValue(new Error('ENOENT')),
+        writeFile: vi.fn().mockResolvedValue(undefined),
+      },
+    }))
+    vi.doMock('path', async () => {
+      const actual = await vi.importActual<typeof import('path')>('path')
+      return actual
+    })
+
+    mod = await import('../notifications')
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('getHistory returns empty array on fresh module', async () => {
+    const history = await mod.getHistory()
+    expect(history).toEqual([])
+  })
+
+  it('getHistory returns entries in newest-first order', async () => {
+    await mod.notify('First', 'Body 1')
+    await mod.notify('Second', 'Body 2')
+    const history = await mod.getHistory()
+    expect(history).toHaveLength(2)
+    expect(history[0].title).toBe('Second')
+    expect(history[1].title).toBe('First')
+  })
+
+  it('getHistory entries have expected shape', async () => {
+    await mod.notify('Pipeline done', 'All steps passed', 'pipelines')
+    const history = await mod.getHistory()
+    const entry = history[0]
+    expect(entry).toMatchObject({
+      title: 'Pipeline done',
+      body: 'All steps passed',
+      route: 'pipelines',
+      read: false,
+      source: 'pipeline',
+    })
+    expect(typeof entry.id).toBe('string')
+    expect(typeof entry.timestamp).toBe('number')
+  })
+
+  it('getUnreadCount returns 0 initially', async () => {
+    expect(await mod.getUnreadCount()).toBe(0)
+  })
+
+  it('getUnreadCount reflects entries added via notify()', async () => {
+    await mod.notify('A', 'B')
+    await mod.notify('C', 'D')
+    expect(await mod.getUnreadCount()).toBe(2)
+  })
+
+  it('markRead marks a single entry as read', async () => {
+    await mod.notify('Title', 'Body')
+    const history = await mod.getHistory()
+    const { id } = history[0]
+    await mod.markRead(id)
+    const updated = await mod.getHistory()
+    expect(updated[0].read).toBe(true)
+    expect(await mod.getUnreadCount()).toBe(0)
+  })
+
+  it('markRead ignores unknown id gracefully', async () => {
+    await mod.notify('T', 'B')
+    await expect(mod.markRead('unknown-id')).resolves.not.toThrow()
+    expect(await mod.getUnreadCount()).toBe(1)
+  })
+
+  it('markAllRead marks all entries as read', async () => {
+    await mod.notify('A', 'B')
+    await mod.notify('C', 'D')
+    await mod.markAllRead()
+    const history = await mod.getHistory()
+    expect(history.every(e => e.read)).toBe(true)
+    expect(await mod.getUnreadCount()).toBe(0)
+  })
+
+  it('clearHistory removes all entries', async () => {
+    await mod.notify('A', 'B')
+    await mod.notify('C', 'D')
+    await mod.clearHistory()
+    expect(await mod.getHistory()).toEqual([])
+    expect(await mod.getUnreadCount()).toBe(0)
+  })
+
+  it('inferSource maps pipeline title to pipeline source', async () => {
+    await mod.notify('Pipeline failed', 'An error occurred')
+    const [entry] = await mod.getHistory()
+    expect(entry.source).toBe('pipeline')
+  })
+
+  it('inferSource maps persona title to persona source', async () => {
+    await mod.notify('Persona finished', 'Done')
+    const [entry] = await mod.getHistory()
+    expect(entry.source).toBe('persona')
+  })
+
+  it('inferSource defaults to system for unknown titles', async () => {
+    await mod.notify('Something happened', 'Details')
+    const [entry] = await mod.getHistory()
+    expect(entry.source).toBe('system')
+  })
+
+  it('explicit source overrides inferred source', async () => {
+    await mod.notify('Something', 'Body', undefined, 'custom-source')
+    const [entry] = await mod.getHistory()
+    expect(entry.source).toBe('custom-source')
   })
 })
