@@ -961,3 +961,14 @@ export interface PlaybookDef {
   /** Typed input declarations — rendered as a form, values injected into {{var}} prompt */
   inputs?: PlaybookInput[]
 }
+
+
+export interface NotificationChannel {
+  id: string
+  name: string
+  url: string
+  type: 'slack' | 'discord' | 'generic'
+  enabled: boolean
+  /** Which event sources to forward: 'pipeline', 'persona', 'session', 'approval', 'error', 'all' */
+  filters: string[]
+}

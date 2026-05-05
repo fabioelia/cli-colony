@@ -4,7 +4,7 @@ import HelpPopover from './HelpPopover'
 import BatchExecutionSettings from './BatchExecutionSettings'
 import AppUpdateSettings from './AppUpdateSettings'
 import { parseShellArgs } from '../../../shared/utils'
-import type { McpAuditEntry, CommitAttribution, ApprovalRule, ApprovalRuleType, ApprovalRuleAction, OnboardingState } from '../../../preload'
+import type { McpAuditEntry, CommitAttribution, ApprovalRule, ApprovalRuleType, ApprovalRuleAction, OnboardingState, NotificationChannel } from '../../../preload'
 import type { SessionTemplate, AgentDef } from '../../../shared/types'
 
 interface Props {
@@ -26,6 +26,9 @@ export default function SettingsPanel({ onBack }: Props) {
   const [quietHoursEnabled, setQuietHoursEnabled] = useState(false)
   const [quietHoursStart, setQuietHoursStart] = useState('22:00')
   const [quietHoursEnd, setQuietHoursEnd] = useState('07:00')
+  const [channels, setChannels] = useState<NotificationChannel[]>([])
+  const [newChannel, setNewChannel] = useState<Partial<NotificationChannel> | null>(null)
+  const [channelTestState, setChannelTestState] = useState<Record<string, 'idle' | 'testing' | 'ok' | 'err'>>({})
   const [autoCleanupMinutes, setAutoCleanupMinutes] = useState('5')
   const [sessionRetentionDays, setSessionRetentionDays] = useState('7')
   const [dailyCostBudget, setDailyCostBudget] = useState('')
@@ -123,6 +126,7 @@ export default function SettingsPanel({ onBack }: Props) {
     arena: 'arena judge learning history reasons manual pick auto-judge',
     general: 'general tray keep running close quit',
     notifications: 'notifications sound desktop alert pipeline persona approval session budget environment system',
+    channels: 'notification channels webhook slack discord outbound forward url',
     sessions: 'sessions cleanup auto-cleanup idle cost daily budget hotkey global shortcut retention purge age stale trigger chain depth persona',
     tagrules: 'tag rules custom session tags auto-tag cost duration exit code directory name regex label',
     mcp: 'mcp server catalog stdio sse environment variables',
@@ -211,6 +215,7 @@ export default function SettingsPanel({ onBack }: Props) {
     window.api.approvalRules.list().then(setApprovalRules).catch(() => {})
     window.api.tagRules.list().then(setTagRules).catch(() => {})
     window.api.onboarding.getState().then(setOnboardingState).catch(() => {})
+    window.api.notifications.channels.list().then(setChannels).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -759,6 +764,108 @@ export default function SettingsPanel({ onBack }: Props) {
           </div>
         )}
         <p className="settings-help settings-help-bottom">Suppress desktop notifications during quiet hours. In-app history still records everything.</p>
+      </div>
+
+      {/* Notification Channels */}
+      <div className="settings-section" style={{ display: sectionVisible('channels') ? undefined : 'none' }}>
+        <div className="settings-section-title">
+          <Globe size={12} />
+          Webhook Channels
+        </div>
+        <p className="settings-help">Forward notifications to Slack, Discord, or any HTTP endpoint.</p>
+        {channels.map(ch => (
+          <div key={ch.id} className="settings-channel-row">
+            <span className={`settings-channel-type settings-channel-type-${ch.type}`}>{ch.type}</span>
+            <span className="settings-channel-name">{ch.name}</span>
+            <span className="settings-channel-url">{ch.url.slice(0, 40)}{ch.url.length > 40 ? '…' : ''}</span>
+            <button
+              className={`settings-toggle ${ch.enabled ? 'active' : ''}`}
+              onClick={() => {
+                const updated = channels.map(c => c.id === ch.id ? { ...c, enabled: !c.enabled } : c)
+                setChannels(updated)
+                window.api.notifications.channels.save(updated).catch(() => {})
+              }}
+              title={ch.enabled ? 'Disable' : 'Enable'}
+              role="switch"
+              aria-checked={ch.enabled}
+              style={{ flexShrink: 0 }}
+            >
+              <span className="settings-toggle-knob" />
+            </button>
+            <button
+              className="settings-icon-btn"
+              title={channelTestState[ch.id] === 'ok' ? 'Sent!' : channelTestState[ch.id] === 'err' ? 'Failed' : 'Test'}
+              disabled={channelTestState[ch.id] === 'testing'}
+              onClick={async () => {
+                setChannelTestState(s => ({ ...s, [ch.id]: 'testing' }))
+                const result = await window.api.notifications.channels.test(ch)
+                setChannelTestState(s => ({ ...s, [ch.id]: result.ok ? 'ok' : 'err' }))
+                setTimeout(() => setChannelTestState(s => ({ ...s, [ch.id]: 'idle' })), 3000)
+              }}
+            >
+              {channelTestState[ch.id] === 'ok' ? <Check size={12} /> : channelTestState[ch.id] === 'err' ? <X size={12} /> : <Play size={12} />}
+            </button>
+            <button
+              className="settings-icon-btn danger"
+              title="Remove"
+              onClick={() => {
+                const updated = channels.filter(c => c.id !== ch.id)
+                setChannels(updated)
+                window.api.notifications.channels.save(updated).catch(() => {})
+              }}
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
+        ))}
+        {newChannel ? (
+          <div className="settings-channel-form">
+            <input
+              className="settings-input"
+              placeholder="Name"
+              value={newChannel.name ?? ''}
+              onChange={e => setNewChannel(c => ({ ...c, name: e.target.value }))}
+            />
+            <input
+              className="settings-input"
+              placeholder="Webhook URL (https://...)"
+              value={newChannel.url ?? ''}
+              onChange={e => setNewChannel(c => ({ ...c, url: e.target.value }))}
+            />
+            <select
+              className="settings-select"
+              value={newChannel.type ?? 'generic'}
+              onChange={e => setNewChannel(c => ({ ...c, type: e.target.value as 'slack' | 'discord' | 'generic' }))}
+            >
+              <option value="slack">Slack</option>
+              <option value="discord">Discord</option>
+              <option value="generic">Generic</option>
+            </select>
+            <button
+              className="settings-btn primary"
+              disabled={!newChannel.url?.startsWith('https')}
+              onClick={() => {
+                const ch: NotificationChannel = {
+                  id: Date.now().toString(),
+                  name: newChannel.name || 'Unnamed',
+                  url: newChannel.url ?? '',
+                  type: (newChannel.type as 'slack' | 'discord' | 'generic') ?? 'generic',
+                  enabled: true,
+                  filters: ['all'],
+                }
+                const updated = [...channels, ch]
+                setChannels(updated)
+                window.api.notifications.channels.save(updated).catch(() => {})
+                setNewChannel(null)
+              }}
+            >Save</button>
+            <button className="settings-btn" onClick={() => setNewChannel(null)}>Cancel</button>
+          </div>
+        ) : (
+          <button className="settings-btn" style={{ marginTop: 8 }} onClick={() => setNewChannel({ type: 'generic', enabled: true })}>
+            <Plus size={12} /> Add Channel
+          </button>
+        )}
       </div>
 
       {/* Sessions */}

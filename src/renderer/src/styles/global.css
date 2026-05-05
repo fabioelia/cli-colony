@@ -5108,6 +5108,42 @@ body:has(.daemon-update-banner) .app-update-banner {
   font-size: 11px;
 }
 
+/* ---- Notification Channels ---- */
+.settings-channel-row {
+  display: flex; align-items: center; gap: 8px; padding: 4px 0;
+  font-size: 11px; border-bottom: 1px solid var(--border);
+}
+.settings-channel-row:last-of-type { border-bottom: none; }
+.settings-channel-type {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  padding: 1px 5px; border-radius: 3px; white-space: nowrap;
+  background: var(--bg-tertiary); color: var(--text-secondary);
+}
+.settings-channel-type-slack { background: rgba(74,21,75,0.15); color: #b065b8; }
+.settings-channel-type-discord { background: rgba(88,101,242,0.15); color: #8891f5; }
+.settings-channel-name { font-weight: 500; color: var(--text-primary); min-width: 80px; }
+.settings-channel-url { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.settings-icon-btn {
+  background: none; border: none; padding: 3px; cursor: pointer;
+  color: var(--text-secondary); display: flex; align-items: center; border-radius: 3px;
+}
+.settings-icon-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.settings-icon-btn.danger:hover { background: rgba(239,68,68,0.12); color: #ef4444; }
+.settings-icon-btn:disabled { opacity: 0.4; cursor: default; }
+.settings-channel-form {
+  display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; align-items: center;
+}
+.settings-channel-form .settings-input { flex: 1; min-width: 140px; }
+.settings-btn {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px;
+  font-size: 11px; background: var(--bg-secondary); color: var(--text-secondary);
+  border: 1px solid var(--border); border-radius: 4px; cursor: pointer;
+}
+.settings-btn:hover { border-color: var(--border-active); color: var(--text-primary); }
+.settings-btn.primary { background: var(--accent); color: white; border-color: var(--accent); }
+.settings-btn.primary:hover { opacity: 0.9; }
+.settings-btn:disabled { opacity: 0.5; cursor: default; }
+
 .settings-restart-note {
   display: inline-block;
   margin-left: 6px;

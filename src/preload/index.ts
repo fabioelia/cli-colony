@@ -22,6 +22,7 @@ import type {
   PipelineVarPreset,
   SessionPreset,
   TagRule,
+  NotificationChannel,
 } from '../shared/types'
 import type { InstanceManifest } from '../daemon/env-protocol'
 
@@ -49,6 +50,7 @@ export type {
   PipelineVarPreset,
   SessionPreset,
   TagRule,
+  NotificationChannel,
 }
 
 
@@ -755,6 +757,11 @@ export interface ClaudeManagerAPI {
     clearAll: () => Promise<void>
     unreadCount: () => Promise<number>
     onNew: (cb: (entry: NotificationEntry) => void) => () => void
+    channels: {
+      list: () => Promise<NotificationChannel[]>
+      save: (channels: NotificationChannel[]) => Promise<void>
+      test: (channel: NotificationChannel) => Promise<{ ok: boolean; error?: string }>
+    }
   }
   playbooks: {
     list: () => Promise<PlaybookDef[]>
@@ -1594,6 +1601,11 @@ const api: ClaudeManagerAPI = {
       const listener = (_e: any, entry: NotificationEntry) => cb(entry)
       ipcRenderer.on('notification:new', listener)
       return () => ipcRenderer.removeListener('notification:new', listener)
+    },
+    channels: {
+      list: () => ipcRenderer.invoke('notifications:getChannels') as Promise<NotificationChannel[]>,
+      save: (channels: NotificationChannel[]) => ipcRenderer.invoke('notifications:saveChannels', channels) as Promise<void>,
+      test: (channel: NotificationChannel) => ipcRenderer.invoke('notifications:testChannel', channel) as Promise<{ ok: boolean; error?: string }>,
     },
   },
   playbooks: {

@@ -14,6 +14,7 @@ import { getSetting } from './settings'
 import { broadcast } from './broadcast'
 import { colonyPaths } from '../shared/colony-paths'
 import type { NotificationEntry } from '../shared/types'
+import { fireWebhookChannels } from './notification-channels'
 
 const MAX_HISTORY = 200
 const DEBOUNCE_MS = 2000
@@ -122,6 +123,9 @@ export async function notify(
     _history = _history.slice(-MAX_HISTORY)
   }
   scheduleSave()
+
+  // Fire webhooks — fire-and-forget, never block notify()
+  fireWebhookChannels(title, body, entry.source ?? 'system').catch(() => undefined)
 
   // Broadcast to renderer for live updates
   broadcast('notification:new', entry)
