@@ -5,7 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { TerminalProxy } from '../lib/terminal-proxy'
-import { ChevronUp, ChevronDown, ChevronRight, X, RotateCcw, GitBranch, TerminalSquare, FolderTree, Columns2, LayoutGrid, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Trophy, GitCompare, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, FileDown, CheckCircle, Copy, Search, PanelRight, GitMerge, Square, Ticket, Pencil, FileCode, ArrowRight, Network, StickyNote } from 'lucide-react'
+import { ChevronUp, ChevronDown, ChevronRight, X, RotateCcw, GitBranch, TerminalSquare, FolderTree, Columns2, LayoutGrid, GitFork, Server, Play, ScrollText, MessageSquare, AlertTriangle, Trophy, GitCompare, Navigation, ThumbsUp, Bot, BarChart3, Package, Globe, FileDown, CheckCircle, Copy, Search, PanelRight, GitMerge, Square, Ticket, Pencil, FileCode, ArrowRight, Network, StickyNote, Sparkles, RefreshCw, Loader2 } from 'lucide-react'
 import { TeamMetricsPanel } from './TeamMetricsPanel'
 import ServicesTab from './ServicesTab'
 import FilesTab from './FilesTab'
@@ -263,6 +263,9 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
   })
   const [changedFilesDiff, setChangedFilesDiff] = useState<string | null>(null)
   const [changedFilesDiffFile, setChangedFilesDiffFile] = useState<string | null>(null)
+  const [aiRecap, setAiRecap] = useState<{ recap: string; generatedAt: string } | null>(null)
+  const [aiRecapLoading, setAiRecapLoading] = useState(false)
+  const [aiRecapOpen, setAiRecapOpen] = useState(false)
 
   useEffect(() => {
     localStorage.setItem(quickCmdsKey, JSON.stringify(quickCmds))
@@ -1110,6 +1113,27 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
               </button>
             </Tooltip>
           )}
+          {viewTab === 'session' && (
+            <Tooltip text="AI Recap" detail="Generate an AI summary of what this session accomplished" position="bottom">
+              <button
+                className={aiRecapOpen ? 'active' : ''}
+                disabled={aiRecapLoading}
+                onClick={async () => {
+                  if (aiRecapOpen && aiRecap) { setAiRecapOpen(false); return }
+                  setAiRecapOpen(true)
+                  if (!aiRecap) {
+                    setAiRecapLoading(true)
+                    const result = await window.api.ai.sessionRecap(instance.id)
+                    setAiRecapLoading(false)
+                    setAiRecap(result)
+                  }
+                }}
+                aria-label="AI Recap"
+              >
+                {aiRecapLoading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />}
+              </button>
+            </Tooltip>
+          )}
           {viewTab === 'session' && instance.status === 'running' && (
             <Tooltip text="Steer Session" detail="Send a mid-run redirect message — delivered immediately if waiting, or queued for next idle" position="bottom">
               <button
@@ -1404,6 +1428,42 @@ export default memo(function TerminalView({ instance, onKill, onRestart, onRemov
           {recapBanner.exitSummary && (
             <span className="session-recap-exit">{recapBanner.exitSummary}</span>
           )}
+        </div>
+      )}
+      {viewTab === 'session' && aiRecapOpen && (
+        <div className="session-ai-recap">
+          <div className="session-ai-recap-header">
+            <Sparkles size={11} />
+            <span>AI Recap</span>
+            {aiRecap && (
+              <span className="session-ai-recap-time">{new Date(aiRecap.generatedAt).toLocaleTimeString()}</span>
+            )}
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+              {aiRecap && (
+                <button
+                  className="session-ai-recap-btn"
+                  title="Regenerate recap"
+                  onClick={async () => {
+                    setAiRecapLoading(true)
+                    const result = await window.api.ai.sessionRecap(instance.id, true)
+                    setAiRecapLoading(false)
+                    setAiRecap(result)
+                  }}
+                  disabled={aiRecapLoading}
+                >
+                  {aiRecapLoading ? <Loader2 size={11} className="spin" /> : <RefreshCw size={11} />}
+                </button>
+              )}
+              <button className="session-ai-recap-btn" title="Close recap" onClick={() => setAiRecapOpen(false)}>
+                <X size={11} />
+              </button>
+            </div>
+          </div>
+          <div className="session-ai-recap-body">
+            {aiRecapLoading && !aiRecap && <span className="session-ai-recap-loading">Generating recap…</span>}
+            {!aiRecapLoading && !aiRecap && <span className="session-ai-recap-loading">Could not generate recap. Try again.</span>}
+            {aiRecap && <pre className="session-ai-recap-text">{aiRecap.recap}</pre>}
+          </div>
         </div>
       )}
       {viewTab === 'session' && changedFiles.length > 0 && (

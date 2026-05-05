@@ -1346,6 +1346,7 @@ export const helpContent: Record<string, HelpEntry> = {
         items: [
           { label: 'Git branch badge', detail: 'Shows the current git branch and repo name.', icon: 'GitBranch' },
           { label: 'Info button', detail: 'Opens a popover with launch command, PID, working directory, MCP servers, token usage, and child processes.', icon: 'Info' },
+          { label: 'AI Recap', detail: 'Generate an AI summary of what this session accomplished — what was done, files changed, commits made, errors encountered, cost, and key decisions. Works for both running and completed sessions. Results are cached; click Refresh to regenerate. Uses sonnet for cost efficiency.', icon: 'Sparkles' },
           { label: 'Export Session', detail: 'Save the session output as a markdown file. Includes terminal content, metadata, and git state.', icon: 'FileDown' },
           { label: 'Copy Output', detail: 'Copy the session output as markdown to the clipboard for pasting into docs, issues, or chat.', icon: 'Copy' },
           { label: 'Steer session', detail: 'Send a mid-run redirect message without stopping the session. If idle, the message is delivered immediately. If busy, it is queued and delivered the moment the session next becomes idle. Prefixed with [Operator steering]: so the agent recognises it as a course correction.', icon: 'Navigation' },

@@ -7285,6 +7285,48 @@ button.session-trigger-chain-btn:hover {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* ---- Session AI Recap Panel ---- */
+.session-ai-recap {
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+.session-ai-recap-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: default;
+}
+.session-ai-recap-time { opacity: 0.5; font-size: 10px; }
+.session-ai-recap-btn {
+  background: none;
+  border: none;
+  padding: 2px 3px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  border-radius: 3px;
+}
+.session-ai-recap-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.session-ai-recap-btn:disabled { opacity: 0.4; cursor: default; }
+.session-ai-recap-body {
+  padding: 0 10px 8px;
+}
+.session-ai-recap-text {
+  margin: 0;
+  font-family: inherit;
+  font-size: 12px;
+  white-space: pre-wrap;
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+.session-ai-recap-loading { font-size: 12px; opacity: 0.5; font-style: italic; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.spin { animation: spin 1s linear infinite; }
+
 /* ---- Session Changed Files Panel ---- */
 .session-changed-files {
   border-top: 1px solid var(--border);

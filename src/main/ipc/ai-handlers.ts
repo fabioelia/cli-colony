@@ -2,6 +2,9 @@ import { ipcMain } from 'electron'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { resolveCommand } from '../resolve-command'
+import { getDaemonRouter } from '../daemon-router'
+import { stripAnsi } from '../../shared/utils'
+import { getCachedRecap, setCachedRecap } from '../session-recaps'
 
 const execFileAsync = promisify(execFile)
 
@@ -88,6 +91,64 @@ export function registerAiHandlers(): void {
         { timeout: 30000, encoding: 'utf-8', env: { ...process.env, CLAUDE_CODE_ENTRYPOINT: 'colony-commit-suggest' } }
       )
       return stdout.trim() || null
+    } catch {
+      return null
+    }
+  })
+
+  ipcMain.handle('ai:sessionRecap', async (_e, instanceId: string, force = false): Promise<{ recap: string; generatedAt: string } | null> => {
+    if (!instanceId) return null
+    if (!force) {
+      const cached = getCachedRecap(instanceId)
+      if (cached) return cached
+    }
+    const router = getDaemonRouter()
+    let inst = await router.getInstance(instanceId).catch(() => null)
+    if (!inst) return null
+    let buffer = ''
+    try { buffer = await router.getInstanceBuffer(instanceId) } catch { /* buffer unavailable */ }
+    const lines = stripAnsi(buffer).split('\n').filter(l => l.trim()).slice(-200).join('\n')
+    if (!lines) return null
+    const dir = inst.workingDirectory
+    let gitLog = ''
+    let gitStat = ''
+    try {
+      const since = inst.createdAt
+      const [logOut, statOut] = await Promise.all([
+        execFileAsync(resolveCommand('git'), ['log', `--since=${since}`, '--pretty=format:%h %s'], { cwd: dir, timeout: 5000, encoding: 'utf-8' }).catch(() => ({ stdout: '' })),
+        execFileAsync(resolveCommand('git'), ['diff', '--stat', 'HEAD~1', 'HEAD'], { cwd: dir, timeout: 5000, encoding: 'utf-8' }).catch(() => ({ stdout: '' })),
+      ])
+      gitLog = logOut.stdout.trim()
+      gitStat = statOut.stdout.trim()
+    } catch { /* git context optional */ }
+    const isRunning = inst.status === 'running'
+    const cost = inst.tokenUsage.cost != null ? `$${inst.tokenUsage.cost.toFixed(4)}` : 'unknown'
+    const duration = Math.floor((Date.now() - new Date(inst.createdAt).getTime()) / 1000)
+    const durStr = duration < 60 ? `${duration}s` : `${Math.floor(duration / 60)}m${duration % 60}s`
+    const prompt = [
+      `Summarize this coding session${isRunning ? ' (session still running)' : ''}. Return 3-5 bullet points covering:`,
+      `1. What was accomplished`,
+      `2. Files/commits made`,
+      `3. Errors encountered (if any)`,
+      `4. Key decisions`,
+      `Be concise. Use markdown bullet points.`,
+      ``,
+      `Session: ${inst.name} | Model: ${inst.args?.find((_a, i, arr) => arr[i - 1] === '--model') ?? 'claude'} | Duration: ${durStr} | Cost: ${cost}${inst.exitCode != null ? ` | Exit: ${inst.exitCode}` : ''}`,
+      gitLog ? `\nCommits:\n${gitLog}` : '',
+      gitStat ? `\nDiff stat:\n${gitStat}` : '',
+      `\nOutput (last 200 lines):\n${lines.slice(0, 8000)}`,
+    ].filter(Boolean).join('\n')
+    try {
+      const { stdout } = await execFileAsync(
+        resolveCommand('claude'),
+        ['-p', prompt, '--model', 'claude-sonnet-4-5'],
+        { timeout: 60000, encoding: 'utf-8', env: { ...process.env, CLAUDE_CODE_ENTRYPOINT: 'colony-session-recap' } }
+      )
+      const recap = stdout.trim()
+      if (!recap) return null
+      const entry = { recap, generatedAt: new Date().toISOString() }
+      setCachedRecap(instanceId, entry)
+      return entry
     } catch {
       return null
     }

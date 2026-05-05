@@ -7,6 +7,7 @@ import { createHash } from 'crypto'
 import { DEFAULT_SCORING_PROMPT } from '../scoring-config'
 import type { ScoreCard } from '../../shared/types'
 import { getScoreCard, saveScoreCard, clearScoreCard } from '../scorecard-store'
+import { clearRecap } from '../session-recaps'
 
 const execFileAsync = promisify(execFile)
 import { createShell, writeShell, resizeShell, killShell } from '../shell-pty'
@@ -52,6 +53,7 @@ export function registerInstanceHandlers(): void {
     try { return await killInstance(id) } catch { return false }
   })
   ipcMain.handle('instance:remove', async (_e, id: string) => {
+    clearRecap(id)
     try { return await router.removeInstance(id) } catch { return false }
   })
   ipcMain.handle('instance:rename', async (_e, id: string, name: string) => {

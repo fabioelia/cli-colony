@@ -619,6 +619,7 @@ export interface ClaudeManagerAPI {
     suggestPRDescription: (dir: string) => Promise<{ title: string; body: string } | null>
     suggestCommitMessage: (dir: string, files: string[]) => Promise<string | null>
     decomposeTasks: (task: string, count: number) => Promise<Array<{ title: string; prompt: string }> | null>
+    sessionRecap: (instanceId: string, force?: boolean) => Promise<{ recap: string; generatedAt: string } | null>
   }
   review: {
     groupChanges: (files: string[], diffSummary: string) => Promise<Array<{ label: string; files: string[] }>>
@@ -1448,6 +1449,7 @@ const api: ClaudeManagerAPI = {
     suggestPRDescription: (dir) => ipcRenderer.invoke('ai:suggestPRDescription', dir) as Promise<{ title: string; body: string } | null>,
     suggestCommitMessage: (dir: string, files: string[]) => ipcRenderer.invoke('ai:suggestCommitMessage', dir, files) as Promise<string | null>,
     decomposeTasks: (task: string, count: number) => ipcRenderer.invoke('ai:decomposeTasks', task, count) as Promise<Array<{ title: string; prompt: string }> | null>,
+    sessionRecap: (instanceId: string, force?: boolean) => ipcRenderer.invoke('ai:sessionRecap', instanceId, force) as Promise<{ recap: string; generatedAt: string } | null>,
   },
   review: {
     groupChanges: (files: string[], diffSummary: string) => ipcRenderer.invoke('review:groupChanges', files, diffSummary) as Promise<Array<{ label: string; files: string[] }>>,
