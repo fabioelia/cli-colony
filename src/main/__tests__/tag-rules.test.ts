@@ -24,7 +24,7 @@ function makeInstance(overrides: Partial<ClaudeInstance> = {}): ClaudeInstance {
     name: 'test-session',
     workingDirectory: '/home/user/projects/alpha',
     createdAt: new Date(Date.now() - 60_000).toISOString(),
-    tokenUsage: { cost: 1.5, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+    tokenUsage: { cost: 1.5, input: 0, output: 0 },
     status: 'waiting',
     pid: 0,
     ...overrides,
@@ -48,19 +48,19 @@ describe('evaluateCustomTags', () => {
   })
 
   it('cost-gt matches when cost exceeds threshold', () => {
-    const inst = makeInstance({ tokenUsage: { cost: 3.0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 } })
+    const inst = makeInstance({ tokenUsage: { cost: 3.0, input: 0, output: 0 } })
     const rules: TagRule[] = [{ name: 'expensive', condition: { type: 'cost-gt', value: '2.00' } }]
     expect(mod.evaluateCustomTags(inst, 0, rules)).toEqual(['expensive'])
   })
 
   it('cost-gt does not match when cost is below threshold', () => {
-    const inst = makeInstance({ tokenUsage: { cost: 0.5, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 } })
+    const inst = makeInstance({ tokenUsage: { cost: 0.5, input: 0, output: 0 } })
     const rules: TagRule[] = [{ name: 'expensive', condition: { type: 'cost-gt', value: '2.00' } }]
     expect(mod.evaluateCustomTags(inst, 0, rules)).toEqual([])
   })
 
   it('cost-lt matches when cost is below threshold', () => {
-    const inst = makeInstance({ tokenUsage: { cost: 0.1, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 } })
+    const inst = makeInstance({ tokenUsage: { cost: 0.1, input: 0, output: 0 } })
     const rules: TagRule[] = [{ name: 'cheap', condition: { type: 'cost-lt', value: '0.50' } }]
     expect(mod.evaluateCustomTags(inst, 0, rules)).toEqual(['cheap'])
   })
@@ -121,7 +121,7 @@ describe('evaluateCustomTags', () => {
     const inst = makeInstance({
       name: 'PR #42',
       workingDirectory: '/newton',
-      tokenUsage: { cost: 5.0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+      tokenUsage: { cost: 5.0, input: 0, output: 0 },
     })
     const rules: TagRule[] = [
       { name: 'expensive', condition: { type: 'cost-gt', value: '2.00' } },
@@ -132,7 +132,7 @@ describe('evaluateCustomTags', () => {
   })
 
   it('skips rules beyond MAX_RULES (20)', () => {
-    const inst = makeInstance({ tokenUsage: { cost: 100, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 } })
+    const inst = makeInstance({ tokenUsage: { cost: 100, input: 0, output: 0 } })
     const rules: TagRule[] = Array.from({ length: 25 }, (_, i) => ({
       name: `tag-${i}`,
       condition: { type: 'cost-gt' as const, value: '0' },
