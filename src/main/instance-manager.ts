@@ -29,6 +29,7 @@ import { transitionTicket, addComment } from './jira'
 import { getPlaybookMemory, appendPlaybookMemory } from './playbook-manager'
 import { colonyPaths } from '../shared/colony-paths'
 import { slugify, stripAnsi } from '../shared/utils'
+import { getCachedRules, evaluateCustomTags } from './tag-rules'
 
 export type { ClaudeInstance } from '../daemon/protocol'
 import type { ClaudeInstance } from '../daemon/protocol'
@@ -76,6 +77,10 @@ export function computeSessionTags(inst: ClaudeInstance, exitCode: number): stri
       // repo gone or git unavailable — skip
     }
   }
+
+  // Custom tag rules
+  const customTags = evaluateCustomTags(inst, exitCode, getCachedRules())
+  tags.push(...customTags)
 
   return tags
 }

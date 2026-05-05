@@ -87,6 +87,21 @@ export interface SessionPreset {
   prompt?: string
 }
 
+export type TagConditionType =
+  | 'cost-gt'
+  | 'cost-lt'
+  | 'duration-gt'
+  | 'duration-lt'
+  | 'exit-code'
+  | 'dir-contains'
+  | 'name-contains'
+  | 'name-regex'
+
+export interface TagRule {
+  name: string
+  condition: { type: TagConditionType; value: string | number }
+}
+
 export interface AgentDef {
   id: string
   name: string

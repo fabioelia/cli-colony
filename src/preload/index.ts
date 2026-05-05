@@ -21,6 +21,7 @@ import type {
   RecipeEntry,
   PipelineVarPreset,
   SessionPreset,
+  TagRule,
 } from '../shared/types'
 import type { InstanceManifest } from '../daemon/env-protocol'
 
@@ -47,6 +48,7 @@ export type {
   RecipeEntry,
   PipelineVarPreset,
   SessionPreset,
+  TagRule,
 }
 
 
@@ -524,6 +526,10 @@ export interface ClaudeManagerAPI {
     list: () => Promise<SessionPreset[]>
     save: (preset: SessionPreset) => Promise<boolean>
     delete: (name: string) => Promise<boolean>
+  }
+  tagRules: {
+    list: () => Promise<TagRule[]>
+    save: (rules: TagRule[]) => Promise<boolean>
   }
   git: {
     stage: (cwd: string, files: string[]) => Promise<void>
@@ -1344,6 +1350,10 @@ const api: ClaudeManagerAPI = {
     list: () => ipcRenderer.invoke('session:getPresets'),
     save: (preset) => ipcRenderer.invoke('session:savePreset', preset),
     delete: (name) => ipcRenderer.invoke('session:deletePreset', name),
+  },
+  tagRules: {
+    list: () => ipcRenderer.invoke('tags:getRules'),
+    save: (rules) => ipcRenderer.invoke('tags:saveRules', rules),
   },
   audit: {
     runPanel: (panel, context) => ipcRenderer.invoke('audit:runPanel', panel, context),

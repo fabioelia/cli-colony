@@ -86,6 +86,15 @@ export default function SettingsPanel({ onBack }: Props) {
   const [showApprovalRulesSection, setShowApprovalRulesSection] = useState(false)
   const [approvalRuleForm, setApprovalRuleForm] = useState<Partial<ApprovalRule> | null>(null)
 
+  const [tagRules, setTagRules] = useState<import('../../../preload').TagRule[]>([])
+  const [showTagRulesSection, setShowTagRulesSection] = useState(false)
+  const [tagRuleFormActive, setTagRuleFormActive] = useState(false)
+  const [tagRuleFormEditIdx, setTagRuleFormEditIdx] = useState<number | null>(null)
+  const [tagRuleFormName, setTagRuleFormName] = useState('')
+  const [tagRuleFormType, setTagRuleFormType] = useState<import('../../../preload').TagRule['condition']['type']>('cost-gt')
+  const [tagRuleFormValue, setTagRuleFormValue] = useState('')
+  const [tagRuleFormError, setTagRuleFormError] = useState<string | null>(null)
+
   const [arenaJudgeUseHistory, setArenaJudgeUseHistory] = useState(true)
 
   const [showBatchSection, setShowBatchSection] = useState(false)
@@ -115,6 +124,7 @@ export default function SettingsPanel({ onBack }: Props) {
     general: 'general tray keep running close quit',
     notifications: 'notifications sound desktop alert pipeline persona approval session budget environment system',
     sessions: 'sessions cleanup auto-cleanup idle cost daily budget hotkey global shortcut retention purge age stale trigger chain depth persona',
+    tagrules: 'tag rules custom session tags auto-tag cost duration exit code directory name regex label',
     mcp: 'mcp server catalog stdio sse environment variables',
     audit: 'mcp audit tool call approval log',
     commit: 'commit attribution git',
@@ -199,6 +209,7 @@ export default function SettingsPanel({ onBack }: Props) {
     window.api.sessionTemplates.list().then(setSessionTemplates).catch(() => {})
     window.api.agents.list().then(setAvailableAgents).catch(() => {})
     window.api.approvalRules.list().then(setApprovalRules).catch(() => {})
+    window.api.tagRules.list().then(setTagRules).catch(() => {})
     window.api.onboarding.getState().then(setOnboardingState).catch(() => {})
   }, [])
 
@@ -859,6 +870,148 @@ export default function SettingsPanel({ onBack }: Props) {
           </div>
         </div>
         <p className="settings-help settings-help-bottom">Maximum depth for persona on_complete_run trigger chains. Prevents infinite loops from circular triggers. Default: 10.</p>
+      </div>
+
+      {/* Custom Tag Rules */}
+      <div style={{ display: sectionVisible('tagrules') ? undefined : 'none' }}>
+      {(() => {
+        const TAG_CONDITION_OPTIONS: { value: import('../../../preload').TagRule['condition']['type']; label: string; placeholder: string }[] = [
+          { value: 'cost-gt', label: 'Cost >', placeholder: 'e.g. 2.00' },
+          { value: 'cost-lt', label: 'Cost <', placeholder: 'e.g. 0.50' },
+          { value: 'duration-gt', label: 'Duration > (sec)', placeholder: 'e.g. 1800' },
+          { value: 'duration-lt', label: 'Duration < (sec)', placeholder: 'e.g. 120' },
+          { value: 'exit-code', label: 'Exit code =', placeholder: 'e.g. 1' },
+          { value: 'dir-contains', label: 'Dir contains', placeholder: 'e.g. /project-a' },
+          { value: 'name-contains', label: 'Name contains', placeholder: 'e.g. persona' },
+          { value: 'name-regex', label: 'Name regex', placeholder: 'e.g. PR #\\d+' },
+        ]
+
+        const openAddForm = () => {
+          setTagRuleFormEditIdx(null)
+          setTagRuleFormName('')
+          setTagRuleFormType('cost-gt')
+          setTagRuleFormValue('')
+          setTagRuleFormError(null)
+          setTagRuleFormActive(true)
+        }
+
+        const openEditForm = (idx: number) => {
+          const rule = tagRules[idx]
+          setTagRuleFormEditIdx(idx)
+          setTagRuleFormName(rule.name)
+          setTagRuleFormType(rule.condition.type)
+          setTagRuleFormValue(String(rule.condition.value))
+          setTagRuleFormError(null)
+          setTagRuleFormActive(true)
+        }
+
+        const handleSaveRule = async () => {
+          if (!tagRuleFormName.trim()) { setTagRuleFormError('Tag name required'); return }
+          if (!tagRuleFormValue.trim()) { setTagRuleFormError('Value required'); return }
+          const newRule: import('../../../preload').TagRule = {
+            name: tagRuleFormName.trim(),
+            condition: { type: tagRuleFormType, value: tagRuleFormValue.trim() },
+          }
+          const updated = tagRuleFormEditIdx !== null
+            ? tagRules.map((r, i) => i === tagRuleFormEditIdx ? newRule : r)
+            : [...tagRules, newRule]
+          if (updated.length > 20) { setTagRuleFormError('Maximum 20 rules allowed'); return }
+          try {
+            await window.api.tagRules.save(updated)
+            setTagRules(updated)
+            setTagRuleFormActive(false)
+            setTagRuleFormError(null)
+          } catch (e) {
+            setTagRuleFormError(String(e))
+          }
+        }
+
+        const handleDeleteRule = async (idx: number) => {
+          const updated = tagRules.filter((_, i) => i !== idx)
+          await window.api.tagRules.save(updated)
+          setTagRules(updated)
+          if (tagRuleFormEditIdx === idx) { setTagRuleFormActive(false); setTagRuleFormEditIdx(null) }
+        }
+
+        const placeholder = TAG_CONDITION_OPTIONS.find(o => o.value === tagRuleFormType)?.placeholder ?? ''
+
+        return (
+          <div className={`settings-section settings-logs-section ${showTagRulesSection ? '' : 'collapsed'}`}>
+            <div className="settings-section-title">
+              <Plus size={12} />
+              Custom Tag Rules
+              <div className="settings-logs-actions">
+                <button className="settings-logs-toggle" onClick={() => setShowTagRulesSection(!showTagRulesSection)} title={showTagRulesSection ? 'Hide' : 'Show'}>
+                  {showTagRulesSection ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                </button>
+              </div>
+            </div>
+            {showTagRulesSection && (
+              <div style={{ padding: '8px 0' }}>
+                <p className="settings-help" style={{ marginBottom: 8 }}>
+                  Define rules to auto-tag sessions on exit. Tags appear in the sidebar tag filter. Max 20 rules.
+                </p>
+                {tagRules.map((rule, idx) => (
+                  <div key={idx} className="settings-row" style={{ alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <code style={{ fontSize: 11, background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 4, flex: '0 0 auto' }}>{rule.name}</code>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', flex: 1 }}>
+                      {TAG_CONDITION_OPTIONS.find(o => o.value === rule.condition.type)?.label ?? rule.condition.type} {rule.condition.value}
+                    </span>
+                    <button className="settings-logs-toggle" onClick={() => openEditForm(idx)} title="Edit"><Pencil size={11} /></button>
+                    <button className="settings-logs-toggle" onClick={() => handleDeleteRule(idx)} title="Delete"><Trash2 size={11} /></button>
+                  </div>
+                ))}
+                {tagRules.length === 0 && !tagRuleFormActive && (
+                  <p className="settings-help" style={{ marginBottom: 8 }}>No custom rules yet.</p>
+                )}
+                {tagRuleFormActive ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8, padding: '8px', background: 'var(--bg-secondary)', borderRadius: 6 }}>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input
+                        className="settings-compact-input"
+                        placeholder="tag-name (slug)"
+                        value={tagRuleFormName}
+                        onChange={e => setTagRuleFormName(e.target.value)}
+                        style={{ flex: 1 }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <select
+                        className="settings-compact-input"
+                        value={tagRuleFormType}
+                        onChange={e => setTagRuleFormType(e.target.value as import('../../../preload').TagRule['condition']['type'])}
+                        style={{ flex: 1 }}
+                      >
+                        {TAG_CONDITION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                      <input
+                        className="settings-compact-input"
+                        placeholder={placeholder}
+                        value={tagRuleFormValue}
+                        onChange={e => setTagRuleFormValue(e.target.value)}
+                        style={{ flex: 1 }}
+                      />
+                    </div>
+                    {tagRuleFormError && <p style={{ color: 'var(--color-error)', fontSize: 11, margin: 0 }}>{tagRuleFormError}</p>}
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="panel-header-btn primary" onClick={handleSaveRule} style={{ fontSize: 11 }}>
+                        {tagRuleFormEditIdx !== null ? 'Update' : 'Add Rule'}
+                      </button>
+                      <button className="panel-header-btn" onClick={() => { setTagRuleFormActive(false); setTagRuleFormError(null) }} style={{ fontSize: 11 }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button className="panel-header-btn" onClick={openAddForm} style={{ marginTop: 4, fontSize: 11 }}>
+                    <Plus size={11} /> Add Rule
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })()}
       </div>
 
       {/* MCP Server Catalog */}

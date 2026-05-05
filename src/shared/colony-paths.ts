@@ -84,6 +84,7 @@ export const colonyPaths = {
   notes: path.join(ROOT, 'notes'),
   recipes: path.join(ROOT, 'recipes'),
   sessionPresetsJson: path.join(ROOT, 'session-presets.json'),
+  tagRulesJson: path.join(ROOT, 'tag-rules.json'),
 
   /** Build a daily activity log path for a given date (YYYY-MM-DD) */
   activityDailyLog: (date: string) => path.join(ROOT, `activity-${date}.json`),

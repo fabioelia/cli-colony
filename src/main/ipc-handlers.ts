@@ -54,6 +54,7 @@ import { registerProofHandlers } from './ipc/proof-handlers'
 import { registerNotesHandlers } from './ipc/notes-handlers'
 import { registerRecipeHandlers } from './ipc/recipe-handlers'
 import { registerSessionPresetHandlers } from './ipc/session-preset-handlers'
+import { registerTagRuleHandlers } from './ipc/tag-rule-handlers'
 
 export function registerIpcHandlers(): void {
   // Delegated handler modules
@@ -95,6 +96,7 @@ export function registerIpcHandlers(): void {
   registerNotesHandlers()
   registerRecipeHandlers()
   registerSessionPresetHandlers()
+  registerTagRuleHandlers()
 
   // ---- Temp files ----
   ipcMain.handle('fs:writeTempFile', async (_e, prefix: string, content: string) => {
