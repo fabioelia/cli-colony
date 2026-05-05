@@ -74,6 +74,19 @@ export interface PipelineVarPreset {
   vars: Record<string, string>
 }
 
+export interface SessionPreset {
+  name: string
+  workingDirectory: string
+  model: string
+  extraArgs: string
+  agent: string
+  permissionMode: string
+  effort: string
+  maxBudget?: number
+  color?: string
+  prompt?: string
+}
+
 export interface AgentDef {
   id: string
   name: string

@@ -51,6 +51,7 @@ interface Props {
   onPinSession?: (id: string) => void
   onRenameSession?: (id: string) => void
   onRevealDir?: (dir: string) => void
+  onLaunchPreset?: (preset: { workingDirectory?: string; model?: string; agent?: string; permissionMode?: string; effort?: string; extraArgs?: string; color?: string; prompt?: string }) => void
 }
 
 export default function CommandPalette({
@@ -58,7 +59,7 @@ export default function CommandPalette({
   onKill, onRestart, onViewChange, onToggleSplit, onResumeSession, sessions,
   onRunPersona, onLaunchAgent, onOpenQuickPrompt, onQuickCompare,
   onExportSession, onExportSessionToFile, onCloneSession, onForkSession,
-  onPinSession, onRenameSession, onRevealDir,
+  onPinSession, onRenameSession, onRevealDir, onLaunchPreset,
 }: Props) {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -68,6 +69,9 @@ export default function CommandPalette({
   const [personas, setPersonas] = useState<PersonaInfo[]>([])
   const [agents, setAgents] = useState<AgentDef[]>([])
   const [templates, setTemplates] = useState<SessionTemplate[]>([])
+  const [launchPresets, setLaunchPresets] = useState<Array<{ name: string; workingDirectory?: string; model?: string; agent?: string; permissionMode?: string; effort?: string; extraArgs?: string; color?: string; prompt?: string }>>([])
+
+
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -421,6 +425,21 @@ export default function CommandPalette({
       })
     }
 
+    // Session presets quick-launch
+    if (onLaunchPreset) {
+      for (const p of launchPresets) {
+        items.push({
+          id: `launch-preset-${p.name}`,
+          label: `Launch: ${p.name}`,
+          detail: [p.model, p.workingDirectory?.split('/').pop(), p.agent?.split('/').pop()?.replace('.md', '')].filter(Boolean).join(' · '),
+          icon: <Play size={14} />,
+          section: 'Presets',
+          keywords: `preset launch ${p.workingDirectory || ''} ${p.model || ''}`,
+          onExecute: () => { onLaunchPreset(p); onClose() },
+        })
+      }
+    }
+
     // Session templates
     for (const t of templates) {
       items.push({
@@ -476,7 +495,7 @@ export default function CommandPalette({
     }
 
     return items
-  }, [instances, activeId, sessions, personas, agents, templates, onSelect, onNew, onKill, onRestart, onViewChange, onToggleSplit, onResumeSession, onRunPersona, onLaunchAgent, onOpenQuickPrompt, onQuickCompare, onExportSession, onExportSessionToFile, onCloneSession, onForkSession, onPinSession, onRenameSession, onRevealDir])
+  }, [instances, activeId, sessions, personas, agents, templates, launchPresets, onSelect, onNew, onKill, onRestart, onViewChange, onToggleSplit, onResumeSession, onRunPersona, onLaunchAgent, onOpenQuickPrompt, onQuickCompare, onExportSession, onExportSessionToFile, onCloneSession, onForkSession, onPinSession, onRenameSession, onRevealDir, onLaunchPreset, onClose])
 
   // Search terminal output buffers when query is 3+ chars
   useEffect(() => {
@@ -615,6 +634,7 @@ export default function CommandPalette({
     window.api.persona.list().then(setPersonas).catch(() => {})
     window.api.agents.list().then(setAgents).catch(() => {})
     window.api.sessionTemplates.list().then(setTemplates).catch(() => {})
+    window.api.sessionPresets?.list?.().then(setLaunchPresets).catch(() => {})
   }, [open])
 
   // Focus input when opened

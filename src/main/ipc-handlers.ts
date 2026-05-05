@@ -53,6 +53,7 @@ import { registerPlaybookHandlers } from './ipc/playbook-handlers'
 import { registerProofHandlers } from './ipc/proof-handlers'
 import { registerNotesHandlers } from './ipc/notes-handlers'
 import { registerRecipeHandlers } from './ipc/recipe-handlers'
+import { registerSessionPresetHandlers } from './ipc/session-preset-handlers'
 
 export function registerIpcHandlers(): void {
   // Delegated handler modules
@@ -93,6 +94,7 @@ export function registerIpcHandlers(): void {
   registerProofHandlers()
   registerNotesHandlers()
   registerRecipeHandlers()
+  registerSessionPresetHandlers()
 
   // ---- Temp files ----
   ipcMain.handle('fs:writeTempFile', async (_e, prefix: string, content: string) => {

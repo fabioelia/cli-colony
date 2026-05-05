@@ -805,6 +805,21 @@ export default function App() {
 
   const handleNewSession = useCallback(() => { agentToLaunchRef.current = null; setShowNewDialog(true) }, [])
 
+  const handleLaunchPreset = useCallback(async (preset: { workingDirectory?: string; model?: string; agent?: string; permissionMode?: string; effort?: string; extraArgs?: string; color?: string; prompt?: string }) => {
+    const extraParts = preset.extraArgs?.trim() ? preset.extraArgs.trim().split(/\s+/) : []
+    const modelParts = preset.model ? ['--model', preset.model] : []
+    const agentParts = preset.agent ? ['--agent', preset.agent] : []
+    const effortParts = preset.effort ? ['--effort', preset.effort] : []
+    const args = [...modelParts, ...agentParts, ...effortParts, ...extraParts]
+    await handleCreate({
+      workingDirectory: preset.workingDirectory || undefined,
+      color: preset.color || undefined,
+      args: args.length ? args : undefined,
+      permissionMode: (preset.permissionMode as 'autonomous' | 'supervised' | 'auto') || 'autonomous',
+      initialPrompt: preset.prompt || undefined,
+    })
+  }, [handleCreate])
+
   const handleNewWithHandoff = useCallback((handoffContent: string, workingDirectory: string, sourceInst?: ClaudeInstance) => {
     const modelIdx = sourceInst?.args.indexOf('--model') ?? -1
     const agentIdx = sourceInst?.args.indexOf('--agent') ?? -1
@@ -2592,6 +2607,7 @@ export default function App() {
         onPinSession={handlePaletteTogglePin}
         onRenameSession={handlePaletteRenameSession}
         onRevealDir={handlePaletteRevealDir}
+        onLaunchPreset={handleLaunchPreset}
       />
 
       {showShortcuts && <ShortcutOverlay onClose={() => setShowShortcuts(false)} />}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { ChevronDown, ChevronRight, CheckCircle, XCircle, ListTodo, Loader } from 'lucide-react'
 import type { AgentDef, CliBackend } from '../types'
-import type { JiraTicket, JiraTicketSummary, PlaybookDef, PlaybookInput } from '../../../shared/types'
+import type { JiraTicket, JiraTicketSummary, PlaybookDef, PlaybookInput, SessionPreset } from '../../../shared/types'
 import { resolveMustacheTemplate } from '../../../shared/utils'
 import { COLORS, COLOR_MAP } from '../lib/constants'
 import { getHistory, addToHistory } from '../lib/prompt-history'
@@ -163,6 +163,8 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
   const [memoryModalOpen, setMemoryModalOpen] = useState(false)
   const [memoryContent, setMemoryContent] = useState('')
   const [memoryEditing, setMemoryEditing] = useState(false)
+  const [presets, setPresets] = useState<SessionPreset[]>([])
+  const [presetSaving, setPresetSaving] = useState(false)
 
   // When the starter-card / clone path opens the dialog, focus the prompt
   // textarea and place the cursor at the end so the user can just press Enter.
@@ -221,6 +223,10 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
     // Load playbooks
     window.api.playbooks?.list?.().then((pbs: PlaybookDef[]) => {
       if (pbs?.length) setPlaybooks(pbs)
+    }).catch(() => {})
+    // Load session presets
+    window.api.sessionPresets?.list?.().then((ps: SessionPreset[]) => {
+      if (ps?.length) setPresets(ps)
     }).catch(() => {})
   }, [])
 
@@ -282,6 +288,49 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
     window.api.playbooks?.getMemoryLineCount?.(playbookName)
       .then(count => setPlaybookMemoryCount(count))
       .catch(() => setPlaybookMemoryCount(0))
+  }
+
+  const handlePresetSelect = (presetName: string) => {
+    const preset = presets.find(p => p.name === presetName)
+    if (!preset) return
+    if (preset.workingDirectory) setWorkingDirectory(preset.workingDirectory)
+    if (preset.model) setModel(preset.model)
+    if (preset.extraArgs) setExtraArgs(preset.extraArgs)
+    if (preset.agent && agents.some(a => a.filePath === preset.agent)) setSelectedAgent(preset.agent)
+    if (preset.permissionMode) setPermissionMode(preset.permissionMode as 'autonomous' | 'supervised' | 'auto')
+    if (preset.effort) setEffort(preset.effort)
+    if (preset.color) setColor(preset.color)
+    if (preset.prompt) { setFirstPrompt(preset.prompt); setPromptExpanded(true) }
+  }
+
+  const handleSavePreset = async () => {
+    const rawName = window.prompt('Preset name:', name.trim() || 'My Preset')
+    if (!rawName?.trim()) return
+    const presetName = rawName.trim()
+    const existing = presets.find(p => p.name === presetName)
+    if (existing && !window.confirm(`Overwrite preset "${presetName}"?`)) return
+    setPresetSaving(true)
+    const preset: SessionPreset = {
+      name: presetName,
+      workingDirectory,
+      model,
+      extraArgs,
+      agent: selectedAgent,
+      permissionMode,
+      effort,
+      color,
+      prompt: firstPrompt || undefined,
+    }
+    await window.api.sessionPresets?.save?.(preset)
+    const updated = await window.api.sessionPresets?.list?.()
+    if (updated) setPresets(updated)
+    setPresetSaving(false)
+  }
+
+  const handleDeletePreset = async (presetName: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    await window.api.sessionPresets?.delete?.(presetName)
+    setPresets(prev => prev.filter(p => p.name !== presetName))
   }
 
   const handleJiraFetch = async (key: string) => {
@@ -473,6 +522,38 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {presets.length > 0 && !cloneSource && (
+          <div className="dialog-field">
+            <label>Preset <span style={{ opacity: 0.5, fontWeight: 'normal' }}>(optional)</span></label>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <select
+                className="settings-select"
+                style={{ flex: 1 }}
+                defaultValue=""
+                onChange={e => { if (e.target.value) handlePresetSelect(e.target.value) }}
+              >
+                <option value="">— select to fill fields —</option>
+                {presets.map(p => (
+                  <option key={p.name} value={p.name}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+              {presets.map(p => (
+                <span key={p.name} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, background: 'var(--bg-hover)', borderRadius: 4, padding: '2px 6px' }}>
+                  {p.name}
+                  <button
+                    type="button"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, lineHeight: 1, fontSize: 13 }}
+                    onClick={e => handleDeletePreset(p.name, e)}
+                    title={`Delete preset "${p.name}"`}
+                  >×</button>
+                </span>
+              ))}
+            </div>
           </div>
         )}
 
@@ -940,6 +1021,9 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
 
         <div className="dialog-actions">
           <button type="button" className="cancel" onClick={handleClose} disabled={creating} title="Cancel">Cancel</button>
+          <button type="button" className="panel-header-btn" onClick={handleSavePreset} disabled={creating || presetSaving} title="Save current fields as a reusable preset" style={{ marginRight: 'auto' }}>
+            {presetSaving ? 'Saving…' : 'Save as Preset'}
+          </button>
           <button type="submit" className="confirm" disabled={creating || (() => {
             const pb = playbooks.find(p => p.name === selectedPlaybook)
             return (pb?.inputs ?? []).some(inp => inp.required && !playbookInputValues[inp.name])

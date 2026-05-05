@@ -20,6 +20,7 @@ import type {
   ProofEntry,
   RecipeEntry,
   PipelineVarPreset,
+  SessionPreset,
 } from '../shared/types'
 import type { InstanceManifest } from '../daemon/env-protocol'
 
@@ -45,6 +46,7 @@ export type {
   ProofEntry,
   RecipeEntry,
   PipelineVarPreset,
+  SessionPreset,
 }
 
 
@@ -517,6 +519,11 @@ export interface ClaudeManagerAPI {
     getOutputAlerts: (instanceId: string) => Promise<Array<{ id: string; pattern: string; isRegex: boolean; oneShot: boolean }>>
     onAlertsChanged: (callback: (data: { instanceId: string; alerts: Array<{ id: string; pattern: string; isRegex: boolean; oneShot: boolean }> }) => void) => () => void
     onAlertMatched: (callback: (data: { instanceId: string; alertId: string }) => void) => () => void
+  }
+  sessionPresets: {
+    list: () => Promise<SessionPreset[]>
+    save: (preset: SessionPreset) => Promise<boolean>
+    delete: (name: string) => Promise<boolean>
   }
   git: {
     stage: (cwd: string, files: string[]) => Promise<void>
@@ -1332,6 +1339,11 @@ const api: ClaudeManagerAPI = {
       ipcRenderer.on('session:alertMatched', listener)
       return () => ipcRenderer.removeListener('session:alertMatched', listener)
     },
+  },
+  sessionPresets: {
+    list: () => ipcRenderer.invoke('session:getPresets'),
+    save: (preset) => ipcRenderer.invoke('session:savePreset', preset),
+    delete: (name) => ipcRenderer.invoke('session:deletePreset', name),
   },
   audit: {
     runPanel: (panel, context) => ipcRenderer.invoke('audit:runPanel', panel, context),
