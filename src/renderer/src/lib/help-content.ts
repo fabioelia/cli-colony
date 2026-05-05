@@ -242,6 +242,13 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Digest Tab',
+        position: 'Tab inside Overview panel',
+        items: [
+          { label: 'Colony Digest', detail: 'Time-windowed summary of all session and pipeline activity. Choose "Last 8h", "Last 24h", "Since 5pm yesterday", or a custom hour window. Shows total sessions (with fail count), total cost, pipelines fired, and active personas. Error highlights surface any failed sessions or pipeline errors. Per-persona breakdown shows event count, error count, and most recent outcome.', icon: 'BarChart3' },
+        ],
+      },
+      {
         name: 'Knowledge',
         position: 'Below Recent Activity',
         items: [

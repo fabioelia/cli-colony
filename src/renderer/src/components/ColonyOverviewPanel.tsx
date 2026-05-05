@@ -10,6 +10,7 @@ import SessionTimeline from './SessionTimeline'
 import OverviewChangesTab from './OverviewChangesTab'
 import ChangelogTab from './ChangelogTab'
 import ActivityPanel from './ActivityPanel'
+import ColonyDigestPanel from './ColonyDigestPanel'
 import { nextRuns } from '../../../shared/cron'
 import type { ClaudeInstance, ActivityEvent, PersonaInfo, ApprovalRequest, TaskBoardItem, PersonaHealthEntry, EnvStatus, ContextUsage, SessionArtifact } from '../../../preload'
 
@@ -69,7 +70,7 @@ function getModelLabel(args: string[]): string | null {
   return raw.length > 8 ? raw.slice(0, 8) : raw
 }
 
-type OverviewTab = 'dashboard' | 'board' | 'timeline' | 'changes' | 'changelog' | 'activity'
+type OverviewTab = 'dashboard' | 'board' | 'timeline' | 'changes' | 'changelog' | 'activity' | 'digest'
 
 interface SessionBoardViewProps {
   instances: ClaudeInstance[]
@@ -178,7 +179,7 @@ function SessionBoardView({ instances, personas, staleSessions, setCtxMenu, onFo
 
 function getInitialOverviewTab(): OverviewTab {
   const saved = localStorage.getItem('colony-overview-tab')
-  if (saved === 'board' || saved === 'dashboard' || saved === 'timeline' || saved === 'changes' || saved === 'changelog' || saved === 'activity') return saved
+  if (saved === 'board' || saved === 'dashboard' || saved === 'timeline' || saved === 'changes' || saved === 'changelog' || saved === 'activity' || saved === 'digest') return saved
   return 'dashboard'
 }
 
@@ -617,12 +618,15 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
           <button className={`panel-header-tab${tab === 'changes' ? ' active' : ''}`} onClick={() => { setTab('changes'); localStorage.setItem('colony-overview-tab', 'changes') }}><GitCompareArrows size={11} /> Changes</button>
           <button className={`panel-header-tab${tab === 'changelog' ? ' active' : ''}`} onClick={() => { setTab('changelog'); localStorage.setItem('colony-overview-tab', 'changelog') }}><GitCommit size={11} /> Changelog</button>
           <button className={`panel-header-tab${tab === 'activity' ? ' active' : ''}`} onClick={() => { setTab('activity'); localStorage.setItem('colony-overview-tab', 'activity') }}><Bell size={11} /> Activity</button>
+          <button className={`panel-header-tab${tab === 'digest' ? ' active' : ''}`} onClick={() => { setTab('digest'); localStorage.setItem('colony-overview-tab', 'digest') }}><BarChart3 size={11} /> Digest</button>
         </div>
         <div className="panel-header-spacer" />
         <HelpPopover topic="overview" align="right" />
       </div>
 
-      {tab === 'activity' ? (
+      {tab === 'digest' ? (
+        <ColonyDigestPanel activityEvents={activity} instances={instances} />
+      ) : tab === 'activity' ? (
         <ActivityPanel onFocusSession={onFocusInstance} onNavigate={onNavigate} />
       ) : tab === 'timeline' ? (
         <SessionTimeline instances={instances} onFocusInstance={onFocusInstance} />
