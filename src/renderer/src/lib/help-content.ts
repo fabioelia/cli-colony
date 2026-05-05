@@ -235,6 +235,13 @@ export const helpContent: Record<string, HelpEntry> = {
         ],
       },
       {
+        name: 'Activity Tab',
+        position: 'Tab inside Overview panel',
+        items: [
+          { label: 'Activity tab', detail: 'Full activity feed embedded inside the Overview panel — automation events from personas, pipelines, and environments. Includes source/level filters, text search, project filter, and live updates. Equivalent to the standalone Activity view accessible via the overflow menu or footer bell icon.', icon: 'Bell' },
+        ],
+      },
+      {
         name: 'Knowledge',
         position: 'Below Recent Activity',
         items: [

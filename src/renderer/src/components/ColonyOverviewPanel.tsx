@@ -2,13 +2,14 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
   Home, Play, Plus, Zap, Clock, AlertCircle, Layers,
   CheckCircle2, XCircle, Circle, Users, FolderOpen, Activity, GanttChart, BarChart3, X, Eye, Square, Pin, PinOff,
-  ChevronLeft, ChevronRight, Calendar, RotateCcw, Search, MessageSquare, Trash2, Server, Download, Gauge, Terminal, GitCommit, ClipboardCopy, FileText, ChevronDown, ChevronsUpDown, GitCompareArrows, BookOpen, Send
+  ChevronLeft, ChevronRight, Calendar, RotateCcw, Search, MessageSquare, Trash2, Server, Download, Gauge, Terminal, GitCommit, ClipboardCopy, FileText, ChevronDown, ChevronsUpDown, GitCompareArrows, BookOpen, Send, Bell
 } from 'lucide-react'
 import HelpPopover from './HelpPopover'
 import MarkdownViewer from './MarkdownViewer'
 import SessionTimeline from './SessionTimeline'
 import OverviewChangesTab from './OverviewChangesTab'
 import ChangelogTab from './ChangelogTab'
+import ActivityPanel from './ActivityPanel'
 import { nextRuns } from '../../../shared/cron'
 import type { ClaudeInstance, ActivityEvent, PersonaInfo, ApprovalRequest, TaskBoardItem, PersonaHealthEntry, EnvStatus, ContextUsage, SessionArtifact } from '../../../preload'
 
@@ -68,7 +69,7 @@ function getModelLabel(args: string[]): string | null {
   return raw.length > 8 ? raw.slice(0, 8) : raw
 }
 
-type OverviewTab = 'dashboard' | 'board' | 'timeline' | 'changes' | 'changelog'
+type OverviewTab = 'dashboard' | 'board' | 'timeline' | 'changes' | 'changelog' | 'activity'
 
 interface SessionBoardViewProps {
   instances: ClaudeInstance[]
@@ -177,7 +178,7 @@ function SessionBoardView({ instances, personas, staleSessions, setCtxMenu, onFo
 
 function getInitialOverviewTab(): OverviewTab {
   const saved = localStorage.getItem('colony-overview-tab')
-  if (saved === 'board' || saved === 'dashboard' || saved === 'timeline' || saved === 'changes' || saved === 'changelog') return saved
+  if (saved === 'board' || saved === 'dashboard' || saved === 'timeline' || saved === 'changes' || saved === 'changelog' || saved === 'activity') return saved
   return 'dashboard'
 }
 
@@ -615,12 +616,15 @@ export default function ColonyOverviewPanel({ instances, onFocusInstance, onNewS
           <button className={`panel-header-tab${tab === 'timeline' ? ' active' : ''}`} onClick={() => { setTab('timeline'); localStorage.setItem('colony-overview-tab', 'timeline') }}><GanttChart size={11} /> Timeline</button>
           <button className={`panel-header-tab${tab === 'changes' ? ' active' : ''}`} onClick={() => { setTab('changes'); localStorage.setItem('colony-overview-tab', 'changes') }}><GitCompareArrows size={11} /> Changes</button>
           <button className={`panel-header-tab${tab === 'changelog' ? ' active' : ''}`} onClick={() => { setTab('changelog'); localStorage.setItem('colony-overview-tab', 'changelog') }}><GitCommit size={11} /> Changelog</button>
+          <button className={`panel-header-tab${tab === 'activity' ? ' active' : ''}`} onClick={() => { setTab('activity'); localStorage.setItem('colony-overview-tab', 'activity') }}><Bell size={11} /> Activity</button>
         </div>
         <div className="panel-header-spacer" />
         <HelpPopover topic="overview" align="right" />
       </div>
 
-      {tab === 'timeline' ? (
+      {tab === 'activity' ? (
+        <ActivityPanel onFocusSession={onFocusInstance} onNavigate={onNavigate} />
+      ) : tab === 'timeline' ? (
         <SessionTimeline instances={instances} onFocusInstance={onFocusInstance} />
       ) : tab === 'changelog' ? (
         <ChangelogTab workingDirectory={instances[0]?.workingDirectory} />

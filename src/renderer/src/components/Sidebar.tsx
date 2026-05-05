@@ -33,7 +33,7 @@ const ALERT_PRESETS = [
 const NAV_ITEMS: Record<SidebarView, { label: string; shortLabel: string; Icon: typeof Home; group: string; tooltip: string; detail: string }> = {
   overview:     { label: 'Home',         shortLabel: 'Home',     Icon: Home,          group: 'primary',    tooltip: 'Overview',      detail: 'Colony command center — sessions, pipelines, personas, cost' },
   instances:    { label: 'Sessions',     shortLabel: 'Sessions', Icon: TerminalSquare, group: 'primary',   tooltip: 'Sessions',      detail: '' },
-  activity:     { label: 'Activity',     shortLabel: 'Activity', Icon: Bell,           group: 'primary',   tooltip: 'Activity',      detail: 'Automation events from personas, pipelines, and environments' },
+  activity:     { label: 'Activity',     shortLabel: 'Activity', Icon: Bell,           group: 'data',      tooltip: 'Activity',      detail: 'Automation events from personas, pipelines, and environments' },
   personas:     { label: 'Personas',     shortLabel: 'Personas', Icon: User,           group: 'primary',   tooltip: 'Personas',      detail: 'Autonomous AI agents with identity, goals, and memory' },
   github:       { label: 'PRs',          shortLabel: 'PRs',      Icon: GitPullRequest, group: 'code',      tooltip: 'PRs',           detail: 'GitHub pull requests, reviews, and comments' },
   review:       { label: 'Review',       shortLabel: 'Review',   Icon: GitCompare,     group: 'code',      tooltip: 'Review',        detail: 'Cross-session diff review dashboard' },
@@ -48,7 +48,7 @@ const NAV_ITEMS: Record<SidebarView, { label: string; shortLabel: string; Icon: 
   settings:     { label: 'Settings',     shortLabel: 'Settings', Icon: Settings,       group: 'primary',   tooltip: 'Settings',      detail: '' },
 }
 const NON_NAV_VIEWS: SidebarView[] = ['settings']
-const DEFAULT_PRIMARY_SLOTS: SidebarView[] = ['overview', 'personas', 'pipelines', 'github']
+const DEFAULT_PRIMARY_SLOTS: SidebarView[] = ['overview', 'instances', 'personas', 'pipelines']
 
 // ---- Memoized per-instance row ----
 
