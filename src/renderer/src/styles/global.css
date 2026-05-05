@@ -3846,6 +3846,47 @@ body:has(.daemon-update-banner) .app-update-banner {
   border-width: 1px;
 }
 
+.dialog-add-dir-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.dialog-add-dir-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 12px;
+  max-width: 200px;
+}
+
+.dialog-add-dir-chip-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.dialog-add-dir-chip button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.dialog-add-dir-chip button:hover {
+  color: var(--text-primary);
+}
+
 .dialog-mcp-servers {
   display: flex;
   flex-direction: column;

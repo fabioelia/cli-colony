@@ -85,6 +85,7 @@ export interface SessionPreset {
   maxBudget?: number
   color?: string
   prompt?: string
+  additionalDirs?: string[]
 }
 
 export type TagConditionType =

@@ -114,9 +114,18 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
       if (cloneSource.args[i] === '--model') { i++; continue } // skip --model (now in dropdown)
       if (cloneSource.args[i] === '--agent') { i++; continue } // skip --agent (now in dropdown)
       if (cloneSource.args[i] === '--effort') { i++; continue } // skip --effort (now in dropdown)
+      if (cloneSource.args[i] === '--add-dir') { i++; continue } // skip --add-dir (now in UI)
       filtered.push(cloneSource.args[i])
     }
     return filtered.join(' ')
+  })
+  const [additionalDirs, setAdditionalDirs] = useState<string[]>(() => {
+    const src = cloneSource?.args || []
+    const dirs: string[] = []
+    for (let i = 0; i < src.length; i++) {
+      if (src[i] === '--add-dir' && src[i + 1]) { dirs.push(src[i + 1]); i++ }
+    }
+    return dirs
   })
   const [effort, setEffort] = useState<string>(() => {
     if (cloneSource) {
@@ -301,6 +310,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
     if (preset.effort) setEffort(preset.effort)
     if (preset.color) setColor(preset.color)
     if (preset.prompt) { setFirstPrompt(preset.prompt); setPromptExpanded(true) }
+    if (preset.additionalDirs?.length) setAdditionalDirs(preset.additionalDirs)
   }
 
   const handleSavePreset = async () => {
@@ -320,6 +330,7 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
       effort,
       color,
       prompt: firstPrompt || undefined,
+      additionalDirs: additionalDirs.length > 0 ? additionalDirs : undefined,
     }
     await window.api.sessionPresets?.save?.(preset)
     const updated = await window.api.sessionPresets?.list?.()
@@ -354,7 +365,8 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
     const modelParts = model ? ['--model', model] : []
     const agentParts = selectedAgent ? ['--agent', selectedAgent] : []
     const effortParts = effort ? ['--effort', effort] : []
-    const args = modelParts.length || agentParts.length || effortParts.length || extraParts.length ? [...modelParts, ...agentParts, ...effortParts, ...extraParts] : undefined
+    const addDirParts = additionalDirs.flatMap(d => ['--add-dir', d])
+    const args = modelParts.length || agentParts.length || effortParts.length || extraParts.length || addDirParts.length ? [...modelParts, ...agentParts, ...effortParts, ...extraParts, ...addDirParts] : undefined
     const mcpServers = selectedMcpServers.size > 0 ? Array.from(selectedMcpServers) : undefined
 
     // Resolve playbook template if inputs are present
@@ -932,6 +944,41 @@ export default function NewInstanceDialog({ onCreate, onClose, prefill, initialP
             value={extraArgs}
             onChange={(e) => setExtraArgs(e.target.value)}
           />
+        </div>
+
+        <div className="dialog-field">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: additionalDirs.length > 0 ? 6 : 0 }}>
+            <label style={{ marginBottom: 0 }}>Additional Directories (optional)</label>
+            <button
+              type="button"
+              className="panel-header-btn"
+              title="Add directory"
+              disabled={additionalDirs.length >= 5}
+              onClick={async () => {
+                const dir = await window.api.dialog.openDirectory()
+                if (dir && !additionalDirs.includes(dir)) {
+                  setAdditionalDirs(prev => [...prev, dir])
+                }
+              }}
+            >+ Add</button>
+          </div>
+          {additionalDirs.length > 0 && (
+            <div className="dialog-add-dir-chips">
+              {additionalDirs.map(dir => (
+                <span key={dir} className="dialog-add-dir-chip" title={dir}>
+                  <span className="dialog-add-dir-chip-path">{dir.split('/').pop() || dir}</span>
+                  <button
+                    type="button"
+                    onClick={() => setAdditionalDirs(prev => prev.filter(d => d !== dir))}
+                    aria-label={`Remove ${dir}`}
+                  >×</button>
+                </span>
+              ))}
+            </div>
+          )}
+          {additionalDirs.length >= 5 && (
+            <div className="dialog-field-hint" style={{ color: 'var(--text-muted)' }}>Maximum 5 additional directories.</div>
+          )}
         </div>
 
         <div className="dialog-field">
